@@ -26,7 +26,7 @@ demonstration purpose, we will replace the variational method with Exact Diagona
 \hat{H} = J \sum_{j=1}^{N}\sigma^z_j \sigma^z_{j+1} + h \sum_{j=1}^{N} \sigma^x_j
 ```
 
-````@example certify_ground_state_property
+```julia
 using Yao
 using LinearAlgebra
 
@@ -45,11 +45,11 @@ for h in 0.1:0.2:2.0
     push!(ground_state_energy_upper_bounds, minimum(real(evals)) / N)
     push!(s1s2values, real(eigves[:, argmin(real(evals))]' * s1s2 * eigves[:, argmin(real(evals))]))
 end
-````
+```
 
 Next, we can obtain ground state energy lower bounds obtained from `NCTSSoS.jl`.
 
-````@example certify_ground_state_property
+```julia
 using NCTSSoS, NCTSSoS.FastPolynomials
 using MosekTools
 using JuMP
@@ -79,11 +79,11 @@ for (i, h) in enumerate(0.1:0.2:2.0)
 
 	 push!(ground_state_energy_lower_bounds, res.objective / N)
 end
-````
+```
 
 Finally, we can also bound other ground state properties, such as the expectation value of $S^z_{i}S^z_{i+1}$.
 
-````@example certify_ground_state_property
+```julia
 function cs_nctssos_with_entry(pop::OP, solver_config::SolverConfig, entry_constraints::Vector{Polynomial{T}}; dualize::Bool=true) where {T,P<:Polynomial{T},OP<:NCTSSoS.OptimizationProblem{P}}
 
    sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_projective=pop.is_projective, is_unipotent=pop.is_unipotent)
@@ -114,12 +114,12 @@ function cs_nctssos_with_entry(pop::OP, solver_config::SolverConfig, entry_const
    optimize!(problem_to_solve.model)
    return NCTSSoS.PolyOptResult(objective_value(problem_to_solve.model), corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
 end
-````
+```
 
 this is supposed to be upper bounds because it's from DMRG
 remove these inputs
 
-````@example certify_ground_state_property
+```julia
 energy_lower_bounds = [
      -0.11892547876100075,
      -0.1999999999999994,
@@ -244,7 +244,7 @@ scatterlines!(xs, lower_bounds, color = :green)
 scatterlines!(xs, s1s2vals, color = :blue)
 
 f
-````
+```
 
 ![Tight Bound of $S^z_1 S_z^2$](../../assets/bounding_operators.svg)"}
 

@@ -20,6 +20,12 @@ for file in readdir(EXAMPLES_DIR)
         input = joinpath(EXAMPLES_DIR, file)
         output = joinpath(GENERATED_DIR, name * ".md")
 
+        # Skip if output file already exists
+        if isfile(output)
+            println("Skipping: $file (already exists)")
+            continue
+        end
+
         println("Processing: $file")
 
         # Configure to generate regular Julia code blocks instead of @example blocks

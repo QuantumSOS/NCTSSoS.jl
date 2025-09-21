@@ -12,19 +12,17 @@ We use [`NCTSSoS.FastPolynomials.tr`](@ref) to declare a part of a term in
 tracial polynomial.
 
 ```julia
-
-````@example trace_poly
 using NCTSSoS, MosekTools
 using NCTSSoS.FastPolynomials:tr, Monomial
 @ncpolyvar x[1:3]
 
 p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * one(Monomial)
-````
+```
 
 Polynomial Optimization declaration and solving interface is the same as regular
 polynomial optimization.
 
-````@example trace_poly
+```julia
 spop = polyopt(p; is_projective=true, comm_gps=[x])
 
 solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=2)
@@ -38,8 +36,6 @@ solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=3)
 result = cs_nctssos(spop, solver_config)
 
 @assert isapprox(result.objective, -0.03124998978001017, atol = 1e-6)
-````
-
 ```
 
 The results matches within $10^{-6}$ absolute tolerance comparing to answer in
@@ -59,8 +55,6 @@ compute the maximum violation of specific Bell inequalities, revealing the
 extent to which quantum mechanics transcends classical limitations.
 
 ```julia
-
-````@example trace_poly
 using NCTSSoS, MosekTools
 using NCTSSoS.FastPolynomials:tr, Monomial
 
@@ -75,8 +69,6 @@ solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=1, ts_algo=Maxim
 result = cs_nctssos(tpop, solver_config)
 
 @assert isapprox(result.objective, -2.8284271157283083, atol = 1e-5)
-````
-
 ```
 
 Our computation matches with the theoretical prediction for maximally entangled
@@ -89,8 +81,6 @@ also compute the covariance of quantum correlations while limiting the state to
 maximally entangled bipartite state.
 
 ```julia
-
-````@example trace_poly
 using NCTSSoS, MosekTools
 using NCTSSoS.FastPolynomials:tr, Monomial
 
@@ -105,8 +95,6 @@ solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=2)
 result = cs_nctssos(tpop, solver_config)
 
 @assert isapprox(result.objective,-5.0, atol = 1e-5)
-````
-
 ```
 
 Again, the result matches the theoretical prediction for maximally entangled

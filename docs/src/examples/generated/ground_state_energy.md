@@ -22,8 +22,6 @@ Firstly, let's consider the simplest case of 1D Heisenberg chain with nearest
 neighbor interaction and periodic boundary condition.
 
 ```julia
-
-````@example ground_state_energy
 using NCTSSoS, MosekTools
 N = 6
 @ncpolyvar x[1:N] y[1:N] z[1:N]
@@ -53,8 +51,6 @@ res = cs_nctssos_higher(
             solver_config                               # Solver Configuration
         )
 res.objective / N
-````
-
 ```
 
 The returned result matches the actual ground state energy $-0.467129$ to $6$
@@ -67,8 +63,6 @@ required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
 frustration induced by next nearest neighbor interaction can be solved as:
 
 ```julia
-
-````@example ground_state_energy
 using NCTSSoS, MosekTools
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
@@ -87,8 +81,6 @@ res = cs_nctssos(pop, solver_config)
 
 res = cs_nctssos_higher(pop,res,solver_config)
 res.objective/N
-````
-
 ```
 
 We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
@@ -98,9 +90,7 @@ to $6$ digits!
 
 Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
-```julia
-
-````@example ground_state_energy
+```
 using NCTSSoS, MosekTools
 Nx = 3
 Ny = 3
@@ -124,8 +114,6 @@ res = cs_nctssos(pop, solver_config)
 res = cs_nctssos_higher(pop,res,solver_config)
 
 res.objective / N
-````
-
 ```
 
 ## Next step

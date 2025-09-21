@@ -29,8 +29,6 @@ The CHSH inequality is particularly important because it is the simplest non-tri
 The upper bound of the CHSH inequality can be computed using the following code:
 
 ```julia
-
-````@example bell
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:2]  # x = (A_1, A_2)
@@ -49,8 +47,6 @@ solver_config = SolverConfig(;
 )
 result = cs_nctssos(pop, solver_config)
 result.objective  # the upper bound of the CHSH inequality
-````
-
 ```
 
 The resulting upper bound is very close to the theoretical exact value $2\sqrt{2} \approx 2.8284271247461903$ (accurate up to 7 decimals!!).
@@ -78,8 +74,6 @@ In classical mechanics, the inequality $f(A_1, A_2, A_3, B_1, B_2, B_3) \leq 0$ 
 The upper bound of the $I_{3322}$ inequality can be computed using the following code:
 
 ```julia
-
-````@example bell
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:3]
@@ -93,8 +87,6 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer; order=2)
 
 result = cs_nctssos(pop, solver_config)
 result.objective
-````
-
 ```
 
 Here, the `is_projective` argument specifies that the variables are projective, which means they square to themselves (e.g. $|0\rangle\langle 0|$ and $|1\rangle\langle 1|$).
@@ -105,7 +97,7 @@ The resulting upper bound is close to the theoretical exact value $0.25$. By inc
 
 To reach the theoretical exact value of $0.25$, we can increase the order of the moment matrix [magronSparsePolynomialOptimization2023](@cite).
 
-````@example bell
+```julia
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:3]
@@ -119,7 +111,7 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer; order=3)
 
 @time result = cs_nctssos(pop, solver_config)
 @show result.objective
-````
+```
 
 Indeed, by increasing the order of the moment matrix to 3, have improved the $7$-th digit of the upper bound!
 
@@ -132,8 +124,6 @@ However, keep increase the order can lead to a large semidefinite programming (S
 To take advantage of these sparsity patterns:
 
 ```julia
-
-````@example bell
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:3]
@@ -147,8 +137,6 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer; order=6, cs_algo=MF())
 
 @time result = cs_nctssos(pop, solver_config)
 @show result.objective
-````
-
 ```
 
 Using almost half of the time, we are able to improve the $7$-th digit of the upper bound!
@@ -179,23 +167,21 @@ it was shown that $f(A_1,A_2,A_3,B_1,B_2,B_3) \leq \frac{9}{2}$ in classical mod
 An *open question* was whether a higher bound can be attained in a spatial quantum model of qudits, i.e., systems with more than two levels. Using State Polynomial Optimization [klep2024State](@cite) , we can certify the upper bound of this inequality:
 
 ```julia
-
-````@example bell
 using NCTSSoS, MosekTools, NCTSSoS.FastPolynomials
 
 @ncpolyvar x[1:3] y[1:3]  # x = (A_1, A_2, A_3), y = (B_1, B_2, B_3)
-````
+```
 
 covariance function
 
-````@example bell
+```julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
             1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
-````
+```
 
 objective function
 
-````@example bell
+```julia
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
 
@@ -212,8 +198,6 @@ solver_config = SolverConfig(
 
 result = cs_nctssos(spop, solver_config)
 result
-````
-
 ```
 
 !!! note "Typing Unicodes"
@@ -224,23 +208,21 @@ The resulting upper bound is very close to the previously known best value of $5
 We can use sparsity to improve the performance of the algorithm.
 
 ```julia
-
-````@example bell
 using NCTSSoS, MosekTools, NCTSSoS.FastPolynomials
 
 @ncpolyvar x[1:3] y[1:3]  # x = (A_1, A_2, A_3), y = (B_1, B_2, B_3)
-````
+```
 
 covariance function
 
-````@example bell
+```julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
             1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
-````
+```
 
 objective function
 
-````@example bell
+```julia
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
 
@@ -260,8 +242,6 @@ result = cs_nctssos(spop, solver_config)
 
 result_higher = cs_nctssos_higher(spop, result,solver_config)
 result_higher
-````
-
 ```
 
 This is accurate up to $10$ decimals.

@@ -1,6 +1,8 @@
-# [Certifying Ground State Properties](@id certify-property)
+```@meta
+EditURL = "../literate/certify_ground_state_property.jl"
+```
 
-Use AI to format and explain the code, add sections. 
+# [Certifying Ground State Properties](@id certify-property)
 
 Understanding the ground-state properties of quantum many-body systems is a
 **ubiquitous and central problem in quantum physics**
@@ -20,9 +22,11 @@ upper bounds on the ground-state energy, while relaxations, particularly those
 based on semidefinite programming (SDP), can offer lower bounds. For
 demonstration purpose, we will replace the variational method with Exact Diagonalization on a quantum Heisenberg model
 
-$$\hat{H} = J \sum_{j=1}^{N}\sigma^z_j \sigma^z_{j+1} + h \sum_{j=1}^{N} \sigma^x_j$$
+```math
+\hat{H} = J \sum_{j=1}^{N}\sigma^z_j \sigma^z_{j+1} + h \sum_{j=1}^{N} \sigma^x_j
+```
 
-```julia
+````@example certify_ground_state_property
 using Yao
 using LinearAlgebra
 
@@ -41,11 +45,11 @@ for h in 0.1:0.2:2.0
     push!(ground_state_energy_upper_bounds, minimum(real(evals)) / N)
     push!(s1s2values, real(eigves[:, argmin(real(evals))]' * s1s2 * eigves[:, argmin(real(evals))]))
 end
-```
+````
 
 Next, we can obtain ground state energy lower bounds obtained from `NCTSSoS.jl`.
 
-```julia
+````@example certify_ground_state_property
 using NCTSSoS, NCTSSoS.FastPolynomials
 using MosekTools
 using JuMP
@@ -75,11 +79,11 @@ for (i, h) in enumerate(0.1:0.2:2.0)
 
 	 push!(ground_state_energy_lower_bounds, res.objective / N)
 end
-```
+````
 
 Finally, we can also bound other ground state properties, such as the expectation value of $S^z_{i}S^z_{i+1}$.
 
-```julia
+````@example certify_ground_state_property
 function cs_nctssos_with_entry(pop::OP, solver_config::SolverConfig, entry_constraints::Vector{Polynomial{T}}; dualize::Bool=true) where {T,P<:Polynomial{T},OP<:NCTSSoS.OptimizationProblem{P}}
 
    sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_projective=pop.is_projective, is_unipotent=pop.is_unipotent)
@@ -110,11 +114,12 @@ function cs_nctssos_with_entry(pop::OP, solver_config::SolverConfig, entry_const
    optimize!(problem_to_solve.model)
    return NCTSSoS.PolyOptResult(objective_value(problem_to_solve.model), corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
 end
-```
+````
 
-```julia
-# this is supposed to be upper bounds because it's from DMRG
-# remove these inputs
+this is supposed to be upper bounds because it's from DMRG
+remove these inputs
+
+````@example certify_ground_state_property
 energy_lower_bounds = [
      -0.11892547876100075,
      -0.1999999999999994,
@@ -183,45 +188,11 @@ for (i, h) in enumerate(0.1:0.2:2.0)
      push!(lower_bounds, res_l.objective / 4)
      push!(upper_bounds, -res_u.objective / 4)
 end
-```
 
-```julia
 lower_bounds
-```
 
-```julia
-10-element Vector{Float64}:
- -0.081326521802045
- -0.07144494615022218
- -0.061031951331368385
- -0.05237691094290013
- -0.045556960025467906
- -0.040107511949211805
- -0.035801407640543494
- -0.03228955861752344
- -0.029320907361403938
- -0.026874062060473675
-```
-
-```julia
 upper_bounds
-```
 
-```julia
-10-element Vector{Float64}:
- -0.08129752400936514
- -0.07141219980127045
- -0.06097644357642557
- -0.05232899660339053
- -0.04551280266513945
- -0.04009470216851507
- -0.035718972816220225
- -0.032220913943863456
- -0.029289163094941454
- -0.02684018654212973
-```
-
-```julia
 using CairoMakie
 
 s1s2vals = [
@@ -266,15 +237,18 @@ upper_bounds = [
 f = Figure()
 Axis(f[1, 1],xlabel="h",ylabel=L"\langle s^z_1 s^z_2 \rangle")
 
-xs = collect(0.1:0.2:2.0) 
+xs = collect(0.1:0.2:2.0)
 
 scatterlines!(xs, upper_bounds, color = :red)
 scatterlines!(xs, lower_bounds, color = :green)
 scatterlines!(xs, s1s2vals, color = :blue)
 
 f
-```
+````
 
-![Tight Bound of $S^z_1 S_z_2$](../assets/bounding_operators.svg)
+![Tight Bound of $S^z_1 S_z^2$](../../assets/bounding_operators.svg)"}
 
+---
+
+*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
 

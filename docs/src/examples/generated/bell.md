@@ -1,10 +1,16 @@
+```@meta
+EditURL = "../literate/bell.jl"
+```
+
 # [Bell inequalities](@id bell-inequalities)
 
 Bell inequalities are mathematical expressions that test whether the predictions of quantum mechanics can be explained by local hidden variable theories. They were first introduced by John Stewart Bell in 1964 and have since become fundamental tools in quantum information theory and quantum foundations.
 A Bell inequality is typically expressed as a linear combination of expectation values of observables, with bounds that differ between classical and quantum theories. In the classical case, these inequalities must be satisfied if the system can be described by local hidden variables. However, quantum mechanics can violate these inequalities, demonstrating the non-local nature of quantum correlations.
 The general form of a Bell inequality can be written as:
 
-$$\sum_{i,j} c_{ij} \langle A_i B_j \rangle \leq C$$
+```math
+\sum_{i,j} c_{ij} \langle A_i B_j \rangle \leq C
+```
 
 where $A_i$ and $B_j$ are observables measured by two parties (traditionally called Alice and Bob), $c_{ij}$ are real coefficients, and $C$ is the classical bound. Quantum mechanics can violate this inequality, with the maximum violation known as the quantum bound.
 
@@ -13,14 +19,18 @@ where $A_i$ and $B_j$ are observables measured by two parties (traditionally cal
 ### CHSH inequality
 The most famous Bell inequality is the CHSH (Clauser-Horne-Shimony-Holt) inequality, which involves two parties, each measuring two observables. For unipotent (square to 1) observables $A_1, A_2$ measured by Alice and $B_1, B_2$ measured by Bob. We define the objective function as:
 
-$$f(A_1, A_2, B_1, B_2) = \langle A_1B_1 \rangle + \langle A_1B_2 \rangle + \langle A_2B_1 \rangle - \langle A_2B_2 \rangle$$
+```math
+f(A_1, A_2, B_1, B_2) = \langle A_1B_1 \rangle + \langle A_1B_2 \rangle + \langle A_2B_1 \rangle - \langle A_2B_2 \rangle
+```
 
-The CHSH inequality is then given by $$f(A_1, A_2, B_1, B_2) \leq 2$$, which must be satisfied by any local hidden variable theory. However, quantum mechanics can violate this inequality up to the value $2\sqrt{2}$, known as the Tsirelson bound. This violation demonstrates that quantum mechanics cannot be described by any local hidden variable theory.
+The CHSH inequality is then given by $f(A_1, A_2, B_1, B_2) \leq 2$, which must be satisfied by any local hidden variable theory. However, quantum mechanics can violate this inequality up to the value $2\sqrt{2}$, known as the Tsirelson bound. This violation demonstrates that quantum mechanics cannot be described by any local hidden variable theory.
 The CHSH inequality is particularly important because it is the simplest non-trivial Bell inequality and has been experimentally verified numerous times, providing strong evidence for the non-local nature of quantum mechanics.
 
 The upper bound of the CHSH inequality can be computed using the following code:
 
-```julia chsh
+```julia
+
+````@example bell
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:2]  # x = (A_1, A_2)
@@ -39,11 +49,11 @@ solver_config = SolverConfig(;
 )
 result = cs_nctssos(pop, solver_config)
 result.objective  # the upper bound of the CHSH inequality
+````
+
 ```
 
-```julia
--2.8284271321623202
-```
+The resulting upper bound is very close to the theoretical exact value $2\sqrt{2} \approx 2.8284271247461903$ (accurate up to 7 decimals!!).
 
 Here, we first declare some operators as non-commutative variables, and then construct the optimization problem. In `PolyOpt` constructor,
 - `comm_gps` argument specifies the commutative group of the variables, which means variables in different commutative groups commute with each other.
@@ -52,8 +62,6 @@ Here, we first declare some operators as non-commutative variables, and then con
 Here, since the variables on different qubits commute with each other, we can group them into different commutative groups.
 
 In the solver configuration, we use [Clarabel](https://github.com/oxfordcontrol/Clarabel.jl) as the semidefinite programming solver backend. It is an open-source solver for conic programs with quadratic objectives, and it uses the interior point method to solve the problem [Clarabel_2024](@cite).
-
-The resulting upper bound is very close to the theoretical exact value $2\sqrt{2} \approx 2.8284271247461903$ (accurate up to 7 decimals!!).
 
 ### $I_{3322}$ inequality
 
@@ -69,7 +77,9 @@ In classical mechanics, the inequality $f(A_1, A_2, A_3, B_1, B_2, B_3) \leq 0$ 
 
 The upper bound of the $I_{3322}$ inequality can be computed using the following code:
 
-```julia i3322
+```julia
+
+````@example bell
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:3]
@@ -83,10 +93,8 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer; order=2)
 
 result = cs_nctssos(pop, solver_config)
 result.objective
-```
+````
 
-```julia
--0.25093972222278366
 ```
 
 Here, the `is_projective` argument specifies that the variables are projective, which means they square to themselves (e.g. $|0\rangle\langle 0|$ and $|1\rangle\langle 1|$).
@@ -97,7 +105,7 @@ The resulting upper bound is close to the theoretical exact value $0.25$. By inc
 
 To reach the theoretical exact value of $0.25$, we can increase the order of the moment matrix [magronSparsePolynomialOptimization2023](@cite).
 
-```julia
+````@example bell
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:3]
@@ -111,14 +119,9 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer; order=3)
 
 @time result = cs_nctssos(pop, solver_config)
 @show result.objective
-```
+````
 
-```julia
-1.923037 seconds (43.04 M allocations: 2.210 GiB, 20.41% gc time)
-Objective: -0.2508755502587585
-```
-
-Indeed, by increasing the order of the moment matrix to 3, have improved the lower bound from $-0.25093972222278366$ to $-0.2508755502587585$.
+Indeed, by increasing the order of the moment matrix to 3, have improved the $7$-th digit of the upper bound!
 
 However, keep increase the order can lead to a large semidefinite programming (SDP) problem size, which can be computationally expensive. To reduce the problem size, we may exploit the sparsity of the problem [magronSparsePolynomialOptimization2023](@cite). There are two sparsity patterns that can be used to reduce the problem size:
 
@@ -126,9 +129,11 @@ However, keep increase the order can lead to a large semidefinite programming (S
 
 2. **Term Sparsity**: exploits the fact that not all monomials in the moment matrix are needed to represent the objective function. By identifying and removing unnecessary monomials, we can further reduce the size of the moment matrix and the SDP problem.
 
-To take advantage of these sparsity patterns,
+To take advantage of these sparsity patterns:
 
-```julia i3322_sparsity
+```julia
+
+````@example bell
 using NCTSSoS, MosekTools
 
 @ncpolyvar x[1:3]
@@ -142,11 +147,8 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer; order=6, cs_algo=MF())
 
 @time result = cs_nctssos(pop, solver_config)
 @show result.objective
-```
+````
 
-```julia
-46.996790 seconds (14.14 M allocations: 1.579 GiB, 0.90% gc time, 0.16% compilation time)
--0.2508753195677618
 ```
 
 Using almost half of the time, we are able to improve the $7$-th digit of the upper bound!
@@ -161,7 +163,9 @@ The significance of non-linear Bell inequalities in quantum information lies in 
 
 The covariance Bell inequality is a non-linear Bell inequality that involves the covariance of measurements. It can be expressed as:
 
-$$\text{Cov}(A, B) = \langle A B \rangle - \langle A \rangle \langle B \rangle$$
+```math
+\text{Cov}(A, B) = \langle A B \rangle - \langle A \rangle \langle B \rangle
+```
 
 where $A$ and $B$ are observables measured by two parties. Comparing with the linear Bell inequality, the covariance Bell inequality is non-linear because it involves the product of two observables.
 
@@ -174,16 +178,24 @@ it was shown that $f(A_1,A_2,A_3,B_1,B_2,B_3) \leq \frac{9}{2}$ in classical mod
 
 An *open question* was whether a higher bound can be attained in a spatial quantum model of qudits, i.e., systems with more than two levels. Using State Polynomial Optimization [klep2024State](@cite) , we can certify the upper bound of this inequality:
 
-```julia covariance
+```julia
+
+````@example bell
 using NCTSSoS, MosekTools, NCTSSoS.FastPolynomials
 
 @ncpolyvar x[1:3] y[1:3]  # x = (A_1, A_2, A_3), y = (B_1, B_2, B_3)
+````
 
-# covariance function
+covariance function
+
+````@example bell
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
             1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
+````
 
-# objective function
+objective function
+
+````@example bell
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
 
@@ -200,10 +212,8 @@ solver_config = SolverConfig(
 
 result = cs_nctssos(spop, solver_config)
 result
-```
+````
 
-```julia
-Objective: -5.000271541108556
 ```
 
 !!! note "Typing Unicodes"
@@ -214,15 +224,23 @@ The resulting upper bound is very close to the previously known best value of $5
 We can use sparsity to improve the performance of the algorithm.
 
 ```julia
+
+````@example bell
 using NCTSSoS, MosekTools, NCTSSoS.FastPolynomials
 
 @ncpolyvar x[1:3] y[1:3]  # x = (A_1, A_2, A_3), y = (B_1, B_2, B_3)
+````
 
-# covariance function
+covariance function
+
+````@example bell
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
             1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
+````
 
-# objective function
+objective function
+
+````@example bell
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
 
@@ -242,10 +260,13 @@ result = cs_nctssos(spop, solver_config)
 
 result_higher = cs_nctssos_higher(spop, result,solver_config)
 result_higher
-```
+````
 
-```julia
-Objective: -4.999999981821947
 ```
 
 This is accurate up to $10$ decimals.
+
+---
+
+*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

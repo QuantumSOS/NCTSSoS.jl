@@ -1,3 +1,7 @@
+```@meta
+EditURL = "../literate/ground_state_energy.jl"
+```
+
 # Obtaining Ground State Energy Lower Bound
 
 Finding the ground state of a quantum system is a fundamental problem in quantum
@@ -5,11 +9,11 @@ mechanics [wang2024Certifying](@cite). Variational methods are commonly used to
 approximate the ground state. Due to the variational nature of these methods,
 only an upper bound can be obtained [kull2024Lower](@cite). Polynomial
 optimization techniques provides a way to find the lower bound of the ground
-state energy. 
+state energy.
 
 In general, we consider the following Hamiltonian:
 ```math
-H = \frac{1}{4} \sum_{i < j} J_{ij} \sum_{ a \in \{x,y,z\}} \sigma_i^a \sigma_j^a
+H = \frac{1}{4} \sum_{i \u003c j} J_{ij} \sum_{ a \in \{x,y,z\}} \sigma_i^a \sigma_j^a
 ```
 
 ## 1D Heisenberg Model with Nearest Neighbor Interaction
@@ -17,7 +21,9 @@ H = \frac{1}{4} \sum_{i < j} J_{ij} \sum_{ a \in \{x,y,z\}} \sigma_i^a \sigma_j^
 Firstly, let's consider the simplest case of 1D Heisenberg chain with nearest
 neighbor interaction and periodic boundary condition.
 
-```julia 1D-Heisenberg
+```julia
+
+````@example ground_state_energy
 using NCTSSoS, MosekTools
 N = 6
 @ncpolyvar x[1:N] y[1:N] z[1:N]
@@ -47,15 +53,12 @@ res = cs_nctssos_higher(
             solver_config                               # Solver Configuration
         )
 res.objective / N
-```
+````
 
-```julia
--0.46712927166638424
 ```
 
 The returned result matches the actual ground state energy $-0.467129$ to $6$
 digits. [wang2024Certifying](@cite)
-
 
 ## 1D Heisenberg Model with next nearest neighbor interaction
 
@@ -63,7 +66,9 @@ Polynomial Optimization framework is quite general. Almost no modification is
 required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
 frustration induced by next nearest neighbor interaction can be solved as:
 
-```julia geom-frustration
+```julia
+
+````@example ground_state_energy
 using NCTSSoS, MosekTools
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
@@ -82,9 +87,8 @@ res = cs_nctssos(pop, solver_config)
 
 res = cs_nctssos_higher(pop,res,solver_config)
 res.objective/N
-```
-```julia
--0.4270083225159293
+````
+
 ```
 
 We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
@@ -95,6 +99,8 @@ to $6$ digits!
 Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
 ```julia
+
+````@example ground_state_energy
 using NCTSSoS, MosekTools
 Nx = 3
 Ny = 3
@@ -118,6 +124,8 @@ res = cs_nctssos(pop, solver_config)
 res = cs_nctssos_higher(pop,res,solver_config)
 
 res.objective / N
+````
+
 ```
 
 ## Next step
@@ -125,3 +133,8 @@ res.objective / N
 With such lower bounds, estimates of properties of the ground
 state, correlations functions, structure factors and order parameters, can also
 be obtained. We provide examples in another [section](@ref certify-property).
+
+---
+
+*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

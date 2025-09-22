@@ -100,11 +100,6 @@ pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i i
 
 solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
 
-res = cs_nctssos(pop, solver_config)
-
-res = cs_nctssos_higher(pop,res,solver_config)
-
-res.objective / N
 
 # ## Next step
 #

@@ -29,7 +29,7 @@ for file in readdir(EXAMPLES_DIR)
         println("Processing: $file")
 
         # Configure to generate regular Julia code blocks instead of @example blocks
-        config = Dict("````julia" => "````", "execute" => true)
+        config = Dict("```julia" => "```", "execute" => true)
 
         # Convert Literate.jl script to markdown
         Literate.markdown(input, GENERATED_DIR; config=config, name=name)

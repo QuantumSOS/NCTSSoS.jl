@@ -8,6 +8,7 @@ JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
 NCTSSoS = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
+Yao = "5872b779-8223-5990-8dd0-5abbb0748c8c"
 
 [compat]
 Documenter = "1.13.0"

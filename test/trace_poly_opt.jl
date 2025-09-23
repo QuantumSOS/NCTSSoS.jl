@@ -1,7 +1,7 @@
 using Test, NCTSSoS
 using NCTSSoS.FastPolynomials:tr, Monomial
 
-if Sys.isapple()
+if haskey(ENV, "LOCAL_TESTING") 
 	using MosekTools
 	const SOLVER = Mosek.Optimizer
 else
@@ -22,7 +22,7 @@ end
 
     @test result.objective ≈ -0.046717378455438933 atol = 1e-6
 
-    if Sys.isapple()
+    if haskey(ENV, "LOCAL_TESTING")
         solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 
         result = cs_nctssos(spop, solver_config)
@@ -60,18 +60,18 @@ end
 end
 
 
-if Sys.isapple()
-@testset "Example 6.2.2" begin
-    @ncpolyvar x[1:3] y[1:3]
+if haskey(ENV, "LOCAL_TESTING")
+    @testset "Example 6.2.2" begin
+        @ncpolyvar x[1:3] y[1:3]
 
-    cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
-    p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
-    tpop = polyopt(p * one(Monomial); is_unipotent=true)
+        cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
+        p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
+        tpop = polyopt(p * one(Monomial); is_unipotent=true)
 
-	solver_config = SolverConfig(; optimizer=SOLVER, order=2)
+        solver_config = SolverConfig(; optimizer=SOLVER, order=2)
 
-	result = cs_nctssos(tpop, solver_config)
+        result = cs_nctssos(tpop, solver_config)
 
-	@test result.objective ≈ -5.0 atol = 1e-5
-end
+        @test result.objective ≈ -5.0 atol = 1e-5
+    end
 end

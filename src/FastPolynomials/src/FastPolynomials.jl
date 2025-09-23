@@ -1,6 +1,7 @@
 module FastPolynomials
 
 using MLStyle: @match
+import JuMP: simplify
 
 export variables, ς, tr
 

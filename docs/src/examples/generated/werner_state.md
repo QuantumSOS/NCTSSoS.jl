@@ -1,3 +1,7 @@
+```@meta
+EditURL = "../literate/werner_state.jl"
+```
+
 # Werner State
 
 Werner states [huber2022dimension](@cite) are a fundamental class of mixed
@@ -16,3 +20,13 @@ made Werner states a cornerstone for understanding the subtle distinctions
 between different forms of quantum correlations and has led to numerous
 applications in quantum cryptography, quantum communication protocols, and
 fundamental tests of quantum mechanics.
+
+!!! note "Example Coming Soon"
+    This example is currently under development. Please check back later for
+    the complete implementation showing how to analyze Werner states using
+    NCTSSoS.jl."}
+
+---
+
+*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

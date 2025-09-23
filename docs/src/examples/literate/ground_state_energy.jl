@@ -1,25 +1,22 @@
-# Certifying Ground State
+# # Obtaining Ground State Energy Lower Bound
 
-Finding the ground state of a quantum system is a fundamental problem in quantum
-mechanics [wang2024Certifying](@cite). Variational methods are commonly used to
-approximate the ground state. Due to the variational nature of these methods,
-only an upper bound can be obtained [kull2024Lower](@cite). Polynomial
-optimization techniques provides a way to find the lower bound of the ground
-state energy. With such lower bound, estimates of properties of the ground
-state, correlations functions, structure factors and order parameters, can also
-be obtained. We provide examples on 1D and 2D Heisenberg models.
+# Finding the ground state of a quantum system is a fundamental problem in quantum
+# mechanics [wang2024Certifying](@cite). Variational methods are commonly used to
+# approximate the ground state. Due to the variational nature of these methods,
+# only an upper bound can be obtained [kull2024Lower](@cite). Polynomial
+# optimization techniques provides a way to find the lower bound of the ground
+# state energy.
+#
+# In general, we consider the following Hamiltonian:
+# ```math
+# H = \frac{1}{4} \sum_{i \u003c j} J_{ij} \sum_{ a \in \{x,y,z\}} \sigma_i^a \sigma_j^a
+# ```
 
-In general, we consider the following Hamiltonian:
-```math
-H = \frac{1}{4} \sum_{i < j} J_{ij} \sum_{ a \in \{x,y,z\}} \sigma_i^a \sigma_j^a
-```
+# ## 1D Heisenberg Model with Nearest Neighbor Interaction
 
-## 1D Heisenberg Model with Nearest Neighbor Interaction
+# Firstly, let's consider the simplest case of 1D Heisenberg chain with nearest
+# neighbor interaction and periodic boundary condition.
 
-Firstly, let's consider the simplest case of 1D Heisenberg chain with nearest
-neighbor interaction and periodic boundary condition.
-
-```julia 1D-Heisenberg
 using NCTSSoS, MosekTools
 N = 6
 @ncpolyvar x[1:N] y[1:N] z[1:N]
@@ -49,23 +46,16 @@ res = cs_nctssos_higher(
             solver_config                               # Solver Configuration
         )
 res.objective / N
-```
 
-```julia
--0.46712927166638424
-```
+# The returned result matches the actual ground state energy $-0.467129$ to $6$
+# digits. [wang2024Certifying](@cite)
 
-The returned result matches the actual ground state energy $-0.467129$ to $6$
-digits. [wang2024Certifying](@cite)
+# ## 1D Heisenberg Model with next nearest neighbor interaction
 
+# Polynomial Optimization framework is quite general. Almost no modification is
+# required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
+# frustration induced by next nearest neighbor interaction can be solved as:
 
-## 1D Heisenberg Model with next nearest neighbor interaction
-
-Polynomial Optimization framework is quite general. Almost no modification is
-required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
-frustration induced by next nearest neighbor interaction can be solved as:
-
-```julia geom-frustration
 using NCTSSoS, MosekTools
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
@@ -84,19 +74,14 @@ res = cs_nctssos(pop, solver_config)
 
 res = cs_nctssos_higher(pop,res,solver_config)
 res.objective/N
-```
-```julia
--0.4270083225159293
-```
 
-We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
-to $6$ digits!
+# We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
+# to $6$ digits!
 
-## 2D Square Lattice
+# ## 2D Square Lattice
 
-Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
+# Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
-```julia
 using NCTSSoS, MosekTools
 Nx = 3
 Ny = 3
@@ -115,9 +100,9 @@ pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i i
 
 solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
 
-res = cs_nctssos(pop, solver_config)
 
-res = cs_nctssos_higher(pop,res,solver_config)
-
-res.objective / N
-```
+# ## Next step
+#
+# With such lower bounds, estimates of properties of the ground
+# state, correlations functions, structure factors and order parameters, can also
+# be obtained. We provide examples in another [section](@ref certify-property).

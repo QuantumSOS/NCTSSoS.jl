@@ -19,10 +19,15 @@ update-docs:
 	$(JL) -e 'using Pkg; Pkg.activate("docs"); Pkg.update(); Pkg.precompile()'
 
 test:
-	$(JL) -e 'using Pkg; Pkg.test()'
+	LOCAL_TESTING=true $(JL) -e 'using Pkg; Pkg.test()'
 
 servedocs:
 	$(JL) -e 'using Pkg; Pkg.activate("docs"); using LiveServer; servedocs(;skip_dirs = ["docs/src/assets", "docs/src/generated"])'
+
+# Generate markdown files from Literate.jl examples
+examples:
+	@echo "Generating markdown files from Literate.jl examples..."
+	$(JL) docs/generate_examples.jl
 
 clean:
 	rm -rf docs/build
@@ -44,4 +49,4 @@ benchtable:
 	--rev $(TARGET),dirty \
 	--ratio true
 
-.PHONY: init test
+.PHONY: init test examples clean

@@ -1,13 +1,15 @@
 using NCTSSoS, Test
 
+
 @testset "NCTSSoS.jl" begin
     include("fastpoly_test/runtests.jl")
     include("pop.jl")
     include("sparse.jl")
     include("solver_utils.jl")
-    if Sys.isapple()
+    if haskey(ENV,"LOCAL_TESTING")
         # Only test moment_problem locally due to time constraints
         include("moment_solver.jl")
+        include("heisenberg.jl")
     end
     include("sos_solver.jl")
     include("interface.jl")

@@ -1,6 +1,6 @@
 using Test, NCTSSoS, NCTSSoS.FastPolynomials
 
-if Sys.isapple()
+if haskey(ENV, "LOCAL_TESTING") 
     using MosekTools
     const SOLVER = Mosek.Optimizer
 else
@@ -30,7 +30,7 @@ using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStat
 
     solver_config = SolverConfig(; optimizer = SOLVER, order = d)
 
-    if Sys.isapple()
+    if haskey(ENV, "LOCAL_TESTING")
         result_mom = cs_nctssos(spop, solver_config; dualize=false)
         @test isapprox(result_mom.objective, -2.8284271321623202, atol=1e-5)
     end
@@ -60,7 +60,7 @@ end
 
     solver_config = SolverConfig(; optimizer = QUICK_SOLVER, order = d)
 
-    if Sys.isapple()
+    if haskey(ENV, "LOCAL_TESTING")
         result_mom =  cs_nctssos(spop, solver_config; dualize=false)
         @test isapprox(result_mom.objective, -4.0, atol = 1e-4)
     end
@@ -69,60 +69,60 @@ end
     @test isapprox(result_sos.objective, -4.0, atol = 1e-4)
 end
 
-if Sys.isapple()
-@testset "State Polynomial Opt 7.2.2" begin
-    @ncpolyvar x[1:3] y[1:3]
-    cov(a, b) = 1.0 * ς(x[a] * y[b]) - 1.0 * ς(x[a]) * ς(y[b])
-    sp =
-        cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) -
-        cov(3, 2)
+if haskey(ENV, "LOCAL_TESTING")
+    @testset "State Polynomial Opt 7.2.2" begin
+        @ncpolyvar x[1:3] y[1:3]
+        cov(a, b) = 1.0 * ς(x[a] * y[b]) - 1.0 * ς(x[a]) * ς(y[b])
+        sp =
+            cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) -
+            cov(3, 2)
 
-    spop = polyopt(sp*one(Monomial); is_unipotent = true, comm_gps = [x[1:3], y[1:3]])
+        spop = polyopt(sp * one(Monomial); is_unipotent=true, comm_gps=[x[1:3], y[1:3]])
 
-    using NCTSSoS.FastPolynomials: neat_dot
-    t1 = ς(x[1]*y[1])*one(Monomial)
-    neat_dot(t1,t1)
-    d = 2
-    solver_config = SolverConfig(; optimizer = SOLVER, order = d)
-
-    result = cs_nctssos(spop, solver_config)
-    @test result.objective ≈ -5.0 atol = 1e-2
-
-    @testset "Sparse" begin
-        d = 3
-        solver_config = SolverConfig(; optimizer = SOLVER, order = d, ts_algo=MMD())
-
-        result = cs_nctssos(spop, solver_config)
-        @test result.objective ≈ -5.0 atol = 1e-6
-    end
-
-    @ncpolyvar x[1:6]
-    sp =
-        -1.0 * ς(x[1] * x[4]) + 1 * ς(x[1]) * ς(x[4]) - 1 * ς(x[1] * x[5]) +
-        1 * ς(x[1]) * ς(x[5]) - 1 * ς(x[1] * x[6]) + 1 * ς(x[1]) * ς(x[6]) -
-        1 * ς(x[2] * x[4]) + 1 * ς(x[2]) * ς(x[4]) - 1 * ς(x[2] * x[5]) +
-        1 * ς(x[2]) * ς(x[5]) +
-        1 * ς(x[2] * x[6]) - 1 * ς(x[2]) * ς(x[6]) - 1 * ς(x[3] * x[4]) +
-        1 * ς(x[3]) * ς(x[4]) +
-        1 * ς(x[3] * x[5]) - 1 * ς(x[3]) * ς(x[5])
-
-
-    spop = polyopt(sp * one(Monomial); is_unipotent=true, comm_gps=[x[1:3], x[4:6]])
-
-    d = 2
-    solver_config = SolverConfig(; optimizer = SOLVER, order = d)
-
-    result = cs_nctssos(spop, solver_config)
-    @test result.objective ≈ -5.0 atol = 1e-2
-
-    @testset "Sparse" begin
+        using NCTSSoS.FastPolynomials: neat_dot
+        t1 = ς(x[1] * y[1]) * one(Monomial)
+        neat_dot(t1, t1)
         d = 2
-        solver_config = SolverConfig(; optimizer = SOLVER, order = d, ts_algo=MMD())
+        solver_config = SolverConfig(; optimizer=SOLVER, order=d)
 
         result = cs_nctssos(spop, solver_config)
-        @test result.objective ≈ -5.0 atol = 1e-6
+        @test result.objective ≈ -5.0 atol = 1e-2
+
+        @testset "Sparse" begin
+            d = 3
+            solver_config = SolverConfig(; optimizer=SOLVER, order=d, ts_algo=MMD())
+
+            result = cs_nctssos(spop, solver_config)
+            @test result.objective ≈ -5.0 atol = 1e-6
+        end
+
+        @ncpolyvar x[1:6]
+        sp =
+            -1.0 * ς(x[1] * x[4]) + 1 * ς(x[1]) * ς(x[4]) - 1 * ς(x[1] * x[5]) +
+            1 * ς(x[1]) * ς(x[5]) - 1 * ς(x[1] * x[6]) + 1 * ς(x[1]) * ς(x[6]) -
+            1 * ς(x[2] * x[4]) + 1 * ς(x[2]) * ς(x[4]) - 1 * ς(x[2] * x[5]) +
+            1 * ς(x[2]) * ς(x[5]) +
+            1 * ς(x[2] * x[6]) - 1 * ς(x[2]) * ς(x[6]) - 1 * ς(x[3] * x[4]) +
+            1 * ς(x[3]) * ς(x[4]) +
+            1 * ς(x[3] * x[5]) - 1 * ς(x[3]) * ς(x[5])
+
+
+        spop = polyopt(sp * one(Monomial); is_unipotent=true, comm_gps=[x[1:3], x[4:6]])
+
+        d = 2
+        solver_config = SolverConfig(; optimizer=SOLVER, order=d)
+
+        result = cs_nctssos(spop, solver_config)
+        @test result.objective ≈ -5.0 atol = 1e-2
+
+        @testset "Sparse" begin
+            d = 2
+            solver_config = SolverConfig(; optimizer=SOLVER, order=d, ts_algo=MMD())
+
+            result = cs_nctssos(spop, solver_config)
+            @test result.objective ≈ -5.0 atol = 1e-6
+        end
     end
-end
 end
 
 
@@ -148,7 +148,7 @@ end
     wordmap = Dict(zip(total_basis, y))
 
     ncterms = map(
-        a -> a[1] * NCStateWord(Arbitrary,monomial.(a[2]), a[3]),
+        a -> a[1] * NCStateWord(Arbitrary, monomial.(a[2]), a[3]),
         zip([1.0, 2.0, 3.0], [[x[1] * x[2]], [x[1]], [x[2]]], nc_words),
     )
 

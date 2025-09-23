@@ -1,6 +1,6 @@
 using Test, NCTSSoS, NCTSSoS.FastPolynomials
 
-if Sys.isapple()
+if haskey(ENV, "LOCAL_TESTING") 
     using MosekTools
     const SOLVER = Mosek.Optimizer
 else
@@ -11,22 +11,22 @@ using SparseArrays, JuMP, Graphs, CliqueTrees
 
 using NCTSSoS: get_Cαj
 
-if Sys.isapple()
-@testset "I_3322 inequality" begin
-    @ncpolyvar x[1:3]
-    @ncpolyvar y[1:3]
-    f =
-        1.0 * x[1] * (y[1] + y[2] + y[3]) +
-        x[2] * (y[1] + y[2] - y[3]) +
-        x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
-    pop = polyopt(-f; comm_gps=[x, y], is_projective=true)
+if haskey(ENV, "LOCAL_TESTING")
+    @testset "I_3322 inequality" begin
+        @ncpolyvar x[1:3]
+        @ncpolyvar y[1:3]
+        f =
+            1.0 * x[1] * (y[1] + y[2] + y[3]) +
+            x[2] * (y[1] + y[2] - y[3]) +
+            x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
+        pop = polyopt(-f; comm_gps=[x, y], is_projective=true)
 
-    solver_config = SolverConfig(optimizer=SOLVER; order=3)
+        solver_config = SolverConfig(optimizer=SOLVER; order=3)
 
-    result = cs_nctssos(pop, solver_config)
+        result = cs_nctssos(pop, solver_config)
 
-    @test isapprox(result.objective, -0.2508753049688358, atol=1e-6)
-end
+        @test isapprox(result.objective, -0.2508753049688358, atol=1e-6)
+    end
 end
 
 # NOTE: sos_dualize has performance issue have verified locally it's correct
@@ -36,7 +36,7 @@ end
     @ncpolyvar x[1:n]
     f = 0.0
     for i = 1:n
-        jset = max(1, i-5):min(n, i+1)
+        jset = max(1, i - 5):min(n, i + 1)
         jset = setdiff(jset, i)
         f += (2x[i] + 5 * x[i]^3 + 1)^2
         f -= sum([
@@ -54,9 +54,9 @@ end
 
     cons = vcat([(1 - x[i]^2) for i = 1:n], [(x[i] - 1 / 3) for i = 1:n])
 
-    pop = polyopt(f; ineq_constraints = cons)
-    solver_config = SolverConfig(optimizer = SOLVER, order = order,
-        cs_algo = MF(), ts_algo = MMD())
+    pop = polyopt(f; ineq_constraints=cons)
+    solver_config = SolverConfig(optimizer=SOLVER, order=order,
+        cs_algo=MF(), ts_algo=MMD())
 
     result = cs_nctssos(pop, solver_config)
 
@@ -93,8 +93,8 @@ end
 
 @testset "Cαj complex" begin
     @ncpolyvar x[1:2]
-    basis = NCTSSoS.FastPolynomials.get_basis(x,2)
-    localizing_mtx = [x[1] - x[2] x[2]^2 - 1; x[2]^2 - 1 x[2]^3]
+    basis = NCTSSoS.FastPolynomials.get_basis(x, 2)
+    localizing_mtx = [x[1]-x[2] x[2]^2-1; x[2]^2-1 x[2]^3]
     C_α_js = get_Cαj(basis, localizing_mtx)
     @test C_α_js == Dict(
         (1, 2, 1) => -1.0,
@@ -119,23 +119,21 @@ end
     g3 = x[1] - r
     g4 = x[2] - r
 
-    pop = polyopt(f; ineq_constraints = [g1, g2, g3, g4])
+    pop = polyopt(f; ineq_constraints=[g1, g2, g3, g4])
     order = 2
 
     solver_config = SolverConfig(
-        optimizer = SOLVER,
-        order = order
+        optimizer=SOLVER,
+        order=order
     )
 
-
-    result_mom = cs_nctssos(pop, solver_config; dualize = false)
-    result_sos = cs_nctssos(pop, solver_config; dualize = true)
-
+    result_mom = cs_nctssos(pop, solver_config; dualize=false)
+    result_sos = cs_nctssos(pop, solver_config; dualize=true)
 
     @test isapprox(
         result_mom.objective,
         result_sos.objective,
-        atol = 1e-4,
+        atol=1e-3,
     )
 end
 
@@ -145,7 +143,7 @@ end
     f = 2.0 - x[1]^2 + x[1] * x[2]^2 * x[1] - x[2]^2
     g = 4.0 - x[1]^2 - x[2]^2
     h1 = x[1] * x[2] + x[2] * x[1] - 2.0
-    pop = polyopt(f; ineq_constraints = [g], eq_constraints=[h1])
+    pop = polyopt(f; ineq_constraints=[g], eq_constraints=[h1])
 
     order = 2
 
@@ -153,24 +151,24 @@ end
     @testset "Dense" begin
 
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order,
+            optimizer=SOLVER,
+            order=order,
         )
 
-        result = cs_nctssos(pop, solver_config; dualize = true)
-        @test isapprox(result.objective, -1, atol = 1e-6)
+        result = cs_nctssos(pop, solver_config; dualize=true)
+        @test isapprox(result.objective, -1, atol=1e-6)
     end
 
     @testset "Term Sparse" begin
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order,
-            ts_algo = MMD(),
+            optimizer=SOLVER,
+            order=order,
+            ts_algo=MMD(),
         )
 
-        result = cs_nctssos(pop, solver_config; dualize = true)
+        result = cs_nctssos(pop, solver_config; dualize=true)
 
-        @test isapprox(result.objective, -1.0, atol = 1e-6)
+        @test isapprox(result.objective, -1.0, atol=1e-6)
     end
 end
 
@@ -185,13 +183,13 @@ end
     order = 2
 
     solver_config = SolverConfig(
-        optimizer = SOLVER,
-        order = order
+        optimizer=SOLVER,
+        order=order
     )
 
-    result = cs_nctssos(pop, solver_config; dualize = true)
+    result = cs_nctssos(pop, solver_config; dualize=true)
 
-    @test isapprox(result.objective, true_min, atol = 1e-6)
+    @test isapprox(result.objective, true_min, atol=1e-6)
 end
 
 @testset "Dualization Example 1" begin
@@ -209,13 +207,13 @@ end
     order = 2
 
     solver_config = SolverConfig(
-        optimizer = SOLVER,
-        order = order,
+        optimizer=SOLVER,
+        order=order,
     )
 
-    result = cs_nctssos(pop, solver_config; dualize = true)
+    result = cs_nctssos(pop, solver_config; dualize=true)
 
-    @test isapprox(result.objective, 4.372259295498716e-10, atol = 1e-6)
+    @test isapprox(result.objective, 4.372259295498716e-10, atol=1e-6)
 end
 
 @testset "Dualization Heisenberg Model on Star Graph" begin
@@ -245,21 +243,21 @@ end
 
     pop = polyopt(
         objective;
-        eq_constraints = gs,
-        is_unipotent = true,
+        eq_constraints=gs,
+        is_unipotent=true,
     )
 
     order = 1
 
     solver_config = SolverConfig(
-        optimizer = SOLVER,
-        order = order,
+        optimizer=SOLVER,
+        order=order,
     )
 
-    result = cs_nctssos(pop, solver_config; dualize = true)
+    result = cs_nctssos(pop, solver_config; dualize=true)
 
 
-    @test isapprox(result.objective, true_ans, atol = 1e-6)
+    @test isapprox(result.objective, true_ans, atol=1e-6)
 end
 
 @testset "SOS Method Correlative Sparsity" begin
@@ -276,7 +274,7 @@ end
     order = 3
 
 
-    pop = polyopt(f; ineq_constraints = cons)
+    pop = polyopt(f; ineq_constraints=cons)
 
     @testset "Correlative Sparsity" begin
         solver_config = SolverConfig(

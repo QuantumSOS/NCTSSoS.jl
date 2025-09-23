@@ -2,7 +2,7 @@ using Test, NCTSSoS
 using NCTSSoS.FastPolynomials
 using JuMP
 
-if Sys.isapple()
+if haskey(ENV, "LOCAL_TESTING") 
     using MosekTools
     const SOLVER = Mosek.Optimizer
 else

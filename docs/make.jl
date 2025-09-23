@@ -22,4 +22,4 @@ makedocs(;
     format=Documenter.HTML(; prettyurls=get(ENV, "CI", nothing) == "true", assets=String["assets/citations.css"], size_threshold=10^6),
 )
 
-deploydocs(; repo="github.com/wangjie212/NCTSSoS.git", devbranch="main")
+deploydocs(; repo="github.com/QuantumSOS/NCTSSoS.git", devbranch="main")

@@ -16,6 +16,7 @@ export polyopt, cpolyopt
 export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher
+export reconstruct
 
 include("pop.jl")
 
@@ -30,6 +31,8 @@ include("moment_solver.jl")
 include("complex_moment_solver.jl")
 
 include("sos_solver.jl")
+
+include("gns.jl")
 
 include("interface.jl")
 end

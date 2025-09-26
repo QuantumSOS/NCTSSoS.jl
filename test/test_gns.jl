@@ -60,26 +60,38 @@ using NCTSSoS: get_basis
     @testset "Localizing Matrix Construction" begin
         @ncpolyvar x y
 
-		x*y < x^2
-
         # Test the localizing matrix construction directly
-        basis = get_basis([x, y], 2)  # [1, x, y, xy,x^2,yx,y^2] 
+		basis = get_basis([x, y], 2)  # [1, x, y, xy, x^2, yx, y^2]
+
+		# We want to reorder to: [1, x, y, x^2, xy, yx, y^2]
+		# Original indices:      1   2   3   4    5    6    7
+		# Target indices:        1   2   3   5    4    6    7
+		perm = [1, 2, 3, 5, 4, 6, 7]
+
+		n = length(basis)
+		swap_matrix = zeros(Float64, n, n)
+		for i in 1:n
+			swap_matrix[i, perm[i]] = 1.0
+		end
+		# Example usage: coeffs_in_new_order = swap_matrix * coeffs_in_original_order
+
+		swap_matrix
         
         # Simple identity-like Hankel matrix
-        H = [1.0000 0.5000 0.5001 1.0483 −0.5483 −0.5483 1.0484; 
+        H = swap_matrix*[1.0000 0.5000 0.5001 1.0483 −0.5483 −0.5483 1.0484; 
 			0.5000 1.0483 −0.5483 1.0627 −0.0144 −0.6090 0.0606;
 			0.5001 −0.5483 1.0484 −0.0144 −0.5340 0.0606 0.9878;
 			1.0483 1.0627 −0.0144 1.4622 −0.3995 −0.8006 0.7863;
 			−0.5483 −0.0144 −0.5340 −0.3995 0.3852 0.1917 −0.7256; 
 			−0.5483 −0.6090 0.0606 −0.8006 0.1917 0.4411 −0.3804;
-			1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682]
+			1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682] *swap_matrix
         
         # Test localizing matrix for x
         K_x = NCTSSoS.construct_localizing_matrix(H, x, basis, 2)
         
         @test K_x == [0.5000 1.0483 −0.5483; 
 					  1.0483 1.0627 −0.0144; 
-					  −0.5483 −0.0144 0.5340] 
+					  −0.5483 −0.0144 -0.5340] 
         
         # Test localizing matrix for y  
         K_y = NCTSSoS.construct_localizing_matrix(H, y, basis, 2)
@@ -104,19 +116,27 @@ using NCTSSoS: get_basis
 	@testset "Example 2.7" begin
 		@ncpolyvar x y 
 
-		K = [1.0000 0.5000 0.5001 1.0483 −0.5483 −0.5483 1.0484; 
+		perm = [1, 2, 3, 5, 4, 6, 7]
+
+		n = length(basis)
+		swap_matrix = zeros(Float64, n, n)
+		for i in 1:n
+			swap_matrix[i, perm[i]] = 1.0
+		end
+
+		K = swap_matrix* [1.0000 0.5000 0.5001 1.0483 −0.5483 −0.5483 1.0484; 
 			0.5000 1.0483 −0.5483 1.0627 −0.0144 −0.6090 0.0606;
 			0.5001 −0.5483 1.0484 −0.0144 −0.5340 0.0606 0.9878;
 			1.0483 1.0627 −0.0144 1.4622 −0.3995 −0.8006 0.7863;
 			−0.5483 −0.0144 −0.5340 −0.3995 0.3852 0.1917 −0.7256; 
 			−0.5483 −0.6090 0.0606 −0.8006 0.1917 0.4411 −0.3804;
-			1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682 ]
+			1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682 ] * swap_matrix
 
 		# K = [1.0000 0.5000 0.5001 ;
 		# 	0.5000 1.0483 −0.5483 ;
 		# 	0.5001 −0.5483 1.0484 ]
 
-		X_mat, Y_mat = reconstruct(K,[x,y],1;rtol=1e-4)
+		X_mat, Y_mat = reconstruct(K,[x,y],2;rtol=1e-4)
 
 		X_mat
 		Y_mat

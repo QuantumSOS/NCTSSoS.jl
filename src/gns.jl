@@ -50,6 +50,8 @@ function reconstruct(H::Matrix, vars::Vector{Variable}, deg::Int; rtol=1e-12)
     S_trunc = S[1:rank_H]
     sqrt_S = sqrt.(S_trunc)
     sqrt_S_inv = 1 ./ sqrt_S
+
+    @show U_trunc
     
     println("GNS reconstruction: Hankel matrix rank = $rank_H, reconstructed matrices will be $(rank_H)×$(rank_H)")
     

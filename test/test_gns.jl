@@ -116,7 +116,16 @@ using NCTSSoS: get_basis
 	@testset "Example 2.7" begin
 		@ncpolyvar x y 
 
-		perm = [1, 2, 3, 5, 4, 6, 7]
+        basis = get_basis([x,y],1)
+
+        # sort(map(b -> x * b, basis_order1))
+        # sort(map(b -> y * b, basis_order1))
+
+        H = [1.0000 0.5000 0.5001 
+             0.5000 1.0483 −0.5483 
+             0.5001 −0.5483 1.0484]
+
+		perm = [1, 3, 2]
 
 		n = length(basis)
 		swap_matrix = zeros(Float64, n, n)
@@ -124,19 +133,22 @@ using NCTSSoS: get_basis
 			swap_matrix[i, perm[i]] = 1.0
 		end
 
-		K = swap_matrix* [1.0000 0.5000 0.5001 1.0483 −0.5483 −0.5483 1.0484; 
-			0.5000 1.0483 −0.5483 1.0627 −0.0144 −0.6090 0.0606;
-			0.5001 −0.5483 1.0484 −0.0144 −0.5340 0.0606 0.9878;
-			1.0483 1.0627 −0.0144 1.4622 −0.3995 −0.8006 0.7863;
-			−0.5483 −0.0144 −0.5340 −0.3995 0.3852 0.1917 −0.7256; 
-			−0.5483 −0.6090 0.0606 −0.8006 0.1917 0.4411 −0.3804;
-			1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682 ] * swap_matrix
+        K1 = swap_matrix * [ 0.5000 1.0483 −0.5483;
+            1.0483 1.0627 −0.0144;
+            −0.5483 −0.0144 −0.5340] * swap_matrix
 
-		# K = [1.0000 0.5000 0.5001 ;
-		# 	0.5000 1.0483 −0.5483 ;
-		# 	0.5001 −0.5483 1.0484 ]
+        K2 = [
+            0.5001 −0.5483 1.0484;
+            −0.5483 −0.6090 0.0606; 
+            1.0484 0.0606 0.9878
+        ]
 
-		X_mat, Y_mat = reconstruct(K,[x,y],2;rtol=1e-4)
+
+		X_mat, Y_mat = reconstruct(H,[x,y],1;rtol=1e-4)
+		X_mat, Y_mat = reconstruct(K1,[x,y],1;rtol=1e-4)
+		X_mat, Y_mat = reconstruct(K2,[x,y],1;rtol=1e-4)
+
+        X_mat
 
 		X_mat
 		Y_mat

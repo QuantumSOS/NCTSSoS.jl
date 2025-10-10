@@ -119,11 +119,12 @@ using NCTSSoS: get_basis
         basis = get_basis([x,y],1)
 
         # sort(map(b -> x * b, basis_order1))
+
         # sort(map(b -> y * b, basis_order1))
 
-        H = [1.0000 0.5000 0.5001 
-             0.5000 1.0483 −0.5483 
-             0.5001 −0.5483 1.0484]
+        H = [ 1.00001    0.499907   0.500102;
+              0.499907   1.0483    -0.548283;
+              0.500102  -0.548283   1.04827]
 
 		perm = [1, 3, 2]
 
@@ -145,13 +146,7 @@ using NCTSSoS: get_basis
 
 
 		X_mat, Y_mat = reconstruct(H,[x,y],1;rtol=1e-4)
-		X_mat, Y_mat = reconstruct(K1,[x,y],1;rtol=1e-4)
-		X_mat, Y_mat = reconstruct(K2,[x,y],1;rtol=1e-4)
 
-        X_mat
-
-		X_mat
-		Y_mat
 		@test X_mat = [0.5019 −0.8931; −0.8931 0.1727]
 		@test Y_mat = [0.4981 0.8939; 0.8939 0.0825]
 	end

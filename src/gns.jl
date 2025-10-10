@@ -2,157 +2,138 @@ using LinearAlgebra
 using ..FastPolynomials: Variable, Monomial, get_basis, monomials, monomial, neat_dot, degree
 
 """
-    reconstruct(H::Matrix, vars::Vector{Variable}, deg::Int; rtol=1e-12) -> Vector{Matrix}
+    reconstruct(
+        H::Matrix,
+        vars::Vector{Variable},
+        total_deg::Int,
+        hankel_deg::Int,
+        localizing_deg::Int;
+        rtol::Real = 1e-12,
+    ) -> Vector{Matrix}
 
-Perform GNS (Gelfand-Naimark-Segal) construction to reconstruct matrix representations 
-of non-commuting variables from a Hankel matrix.
+Perform GNS (Gelfand-Naimark-Segal) reconstruction using a moment matrix `H` and
+its principal sub-block indexed by monomials up to `hankel_deg`.
 
 # Arguments
-- `H::Matrix`: The Hankel matrix indexed by monomials up to degree `deg`
-- `vars::Vector{Variable}`: Vector of non-commuting variables to reconstruct
-- `deg::Int`: Maximum degree of monomial basis used to index the Hankel matrix
+- `H::Matrix`: Full Hankel matrix indexed by monomials up to degree `total_deg`.
+- `vars::Vector{Variable}`: Non-commuting variables to reconstruct.
+- `total_deg::Int`: Maximum degree of monomials used to index `H`.
+- `hankel_deg::Int`: Degree of the principal Hankel block used for reconstruction.
+- `localizing_deg::Int`: Degree of the monomial basis used for localizing matrices.
 
-# Keyword Arguments  
-- `rtol::Real=1e-12`: Relative tolerance for determining the rank of the Hankel matrix
+# Keyword Arguments
+- `rtol::Real = 1e-12`: Relative tolerance that determines the numerical rank.
 
 # Returns
-- `Vector{Matrix}`: Vector of matrix representations, one for each variable in `vars`
-
-# Description
-The GNS construction algorithm reconstructs finite-dimensional matrix representations
-of non-commuting variables from moment data encoded in a Hankel matrix. The algorithm:
-
-1. Performs SVD decomposition of the Hankel matrix H = U S U^T
-2. Determines the rank and constructs the GNS basis from U * sqrt(S)
-3. Constructs localizing matrices for each variable using the Hankel matrix entries
-4. Computes matrix representations as X_i = sqrt(S)^(-1) * U^T * K_i * U * sqrt(S)^(-1)
-
-# Example
-```julia
-@ncpolyvar x y
-H = [1.0 0.5 0.5; 0.5 0.25 0.25; 0.5 0.25 0.25]  # Example Hankel matrix
-matrices = reconstruct(H, [x, y], 1)
-```
+- `Vector{Matrix}`: One reconstructed matrix representation per variable in `vars`.
 """
-function reconstruct(H::Matrix, vars::Vector{Variable}, deg::Int; rtol=1e-12)
-    # Step 1: SVD decomposition of the Hankel matrix
-    U, S, Vt = svd(H)
-    
-    # Determine the rank based on singular values above tolerance
+function reconstruct(
+    H::Matrix,
+    vars::Vector{Variable},
+    total_deg::Int,
+    hankel_deg::Int,
+    localizing_deg::Int;
+    rtol::Real = 1e-12,
+)
+    total_deg < 0 && throw(ArgumentError("total_deg must be non-negative"))
+    hankel_deg < 0 && throw(ArgumentError("hankel_deg must be non-negative"))
+    localizing_deg < 0 && throw(ArgumentError("localizing_deg must be non-negative"))
+    hankel_deg > total_deg &&
+        throw(ArgumentError("hankel_deg cannot exceed total_deg"))
+    localizing_deg > hankel_deg &&
+        throw(ArgumentError("localizing_deg cannot exceed hankel_deg"))
+
+    total_basis = get_basis(vars, total_deg)
+    hankel_basis = get_basis(vars, hankel_deg)
+    local_basis = get_basis(vars, localizing_deg)
+
+    len_total = length(total_basis)
+    len_hankel = length(hankel_basis)
+    len_local = length(local_basis)
+
+    size(H, 1) != len_total &&
+        throw(ArgumentError("Hankel matrix row size $(size(H, 1)) does not match basis length $len_total"))
+    size(H, 2) != len_total &&
+        throw(ArgumentError("Hankel matrix column size $(size(H, 2)) does not match basis length $len_total"))
+
+    hankel_block = @view H[1:len_hankel, 1:len_hankel]
+    U, S, _ = svd(Matrix(hankel_block))
+
     rank_H = count(s -> s > rtol * S[1], S)
-    
-    if rank_H == 0
-        throw(ArgumentError("Hankel matrix has numerical rank 0"))
-    end
-    
-    # Truncate to the numerical rank
+    rank_H == 0 && throw(ArgumentError("Hankel matrix has numerical rank 0"))
+
     U_trunc = U[:, 1:rank_H]
     S_trunc = S[1:rank_H]
     sqrt_S = sqrt.(S_trunc)
     sqrt_S_inv = 1 ./ sqrt_S
 
-    @show U_trunc
-    
     println("GNS reconstruction: Hankel matrix rank = $rank_H, reconstructed matrices will be $(rank_H)×$(rank_H)")
-    
-    # Step 2: Generate the full monomial basis used to index the Hankel matrix
-    full_basis = get_basis(vars, deg)
-    
-    if length(full_basis) != size(H, 1)
-        throw(ArgumentError("Hankel matrix size $(size(H)) does not match basis size $(length(full_basis))"))
-    end
-    
-    # Step 3: Generate the reduced basis (degree ≤ deg-1) for the localizing matrices
-    reduced_basis = filter(mono -> degree(mono) <= deg-1, full_basis)
-    n_reduced = length(reduced_basis)
-    
-    # Create mapping from reduced basis indices to full basis indices
-    reduced_to_full = Dict(i => findfirst(==(mono), full_basis) for (i, mono) in enumerate(reduced_basis))
-    
-    # Extract the relevant part of U corresponding to the reduced basis
-    U_reduced = U_trunc[[reduced_to_full[i] for i in 1:n_reduced], :]
-    
-    println("Using reduced basis of size $n_reduced (degree ≤ $(deg-1)) for localizing matrices")
-    
-    # Step 4: Construct matrix representations for each variable
+
+    hankel_dict = hankel_entries_dict(Matrix(hankel_block), hankel_basis)
+
     matrices = Matrix{Float64}[]
-    
-    for (var_idx, var) in enumerate(vars)
-        # Construct the localizing matrix K_i for variable var
-        K_i = construct_localizing_matrix(H, var, full_basis, deg)
-        
-        # Step 5: Compute the matrix representation 
-        # X_i = sqrt(S)^(-1) * U_reduced^T * K_i * U_reduced * sqrt(S)^(-1)
-        X_i = Diagonal(sqrt_S_inv) * (transpose(U_reduced) * K_i * U_reduced) * Diagonal(sqrt_S_inv)
-        
-        push!(matrices, X_i)
-        
-        println("Variable $(var.name): constructed $(size(X_i)) matrix representation")
+    diag_inv = Diagonal(sqrt_S_inv)
+    for var in vars
+        K = construct_localizing_matrix(hankel_dict, var, local_basis)
+        display(K)
+        X = diag_inv * (transpose(U_trunc) * K * U_trunc) * diag_inv
+        push!(matrices, X)
+        println("Variable $(var.name): constructed $(size(X)) matrix representation")
+        display(X)
     end
-    
+
     return matrices
 end
 
 """
-    construct_localizing_matrix(hankel::Matrix, var::Variable, basis::Vector{Monomial}, deg::Int) -> Matrix
+    hankel_entries_dict(hankel::Matrix{T}, basis::Vector{Monomial}) where {T <: Number}
+        -> Dict{Monomial, T}
 
-Construct the localizing matrix K_i for a given variable from the Hankel matrix.
-
-# Arguments
-- `hankel::Matrix`: The Hankel matrix indexed by the full basis up to degree `deg`
-- `var::Variable`: The variable to construct the localizing matrix for  
-- `basis::Vector{Monomial}`: The full monomial basis used to index the Hankel matrix (up to degree `deg`)
-- `deg::Int`: Maximum degree constraint
-
-# Returns
-- `Matrix`: The localizing matrix K_i where K_i[x,y] = ⟨x, a*y⟩
-  The matrix has size (n_reduced × n_reduced) where n_reduced is the number of monomials of degree ≤ deg-1
-
-# Description
-The localizing matrix encodes the action of right multiplication by variable `var`.
-Each entry K_i[x,y] represents ⟨x, a*y⟩ where x and y are from the reduced basis
-(degree ≤ deg-1), and a is the variable.
-
-We extract this from the Hankel matrix H where H[u,v] = ⟨u,v⟩. So K[x,y] = H[x, a*y]
-if the monomial a*y exists in the full basis, otherwise K[x,y] = 0.
+Create a dictionary that maps monomials `neat_dot(u, v)` to the corresponding
+entries of the Hankel matrix `hankel[i, j]`, where `basis[i] = u` and `basis[j] = v`.
 """
-function construct_localizing_matrix(hankel::Matrix, var::Variable, basis::Vector{Monomial}, deg::Int)
-    # Create reduced basis containing only monomials of degree ≤ deg-1
-    basis_reduced = filter(mono -> degree(mono) <= deg-1, basis)
-    n_reduced = length(basis_reduced)
-    
-    K = zeros(Float64, n_reduced, n_reduced)
-    
-    # Create a mapping from monomials to their indices in the full basis
-    basis_index = Dict(mono => idx for (idx, mono) in enumerate(basis))
-    
-    # Create a mapping from inner products neat_dot(u,v) to Hankel matrix positions
-    # This represents the structure H[i,j] = ⟨basis[i], basis[j]⟩
-    hankel_index = Dict()
-    for (i, u) in enumerate(basis)
-        for (j, v) in enumerate(basis)
-            inner_product = neat_dot(u, v)
-            hankel_index[inner_product] = (i, j)
-        end
-    end
-    
-    for x in 1:n_reduced
-        for y in 1:n_reduced
-            # Compute a*y (var * basis_reduced[y])
-            a_times_y = neat_dot(monomial(var), basis_reduced[y])
-            
-            # Compute the inner product ⟨x, a*y⟩ = neat_dot(basis_reduced[x], a_times_y)
-            inner_prod = neat_dot(basis_reduced[x], a_times_y)
-            
-            # Check if this inner product corresponds to some H[u_idx, v_idx]
-            if haskey(hankel_index, inner_prod)
-                u_idx, v_idx = hankel_index[inner_prod]
-                # K[x,y] = ⟨x, a*y⟩ = H[u_idx, v_idx]
-                K[x, y] = hankel[u_idx, v_idx]
+function hankel_entries_dict(
+    hankel::Matrix{T},
+    basis::Vector{Monomial}
+) where {T<:Number}
+    size(hankel, 1) == size(hankel, 2) ||
+        throw(ArgumentError("Hankel matrix must be square, got size $(size(hankel))"))
+    length(basis) == size(hankel, 1) ||
+        throw(ArgumentError("Basis length $(length(basis)) must match Hankel size $(size(hankel, 1))"))
+
+    dict = Dict{Monomial, T}()
+    for (i, row_mono) in enumerate(basis)
+        for (j, col_mono) in enumerate(basis)
+            key = neat_dot(row_mono, col_mono)
+            if !haskey(dict, key)
+                dict[key] = hankel[i,j] 
             end
-            # If the inner product is not representable in the Hankel matrix, K[x,y] remains 0
         end
     end
-    
+
+    return dict
+end
+
+"""
+    construct_localizing_matrix(hankel_dict, var::Variable, basis::Vector{Monomial}) -> Matrix
+
+Construct the localizing matrix associated with `var` using Hankel data stored in
+`hankel_dict`.
+"""
+function construct_localizing_matrix(
+    hankel_dict::Dict{Monomial, T},
+    var::Variable,
+    basis::Vector{Monomial},
+) where {T<:Number}
+    n = length(basis)
+    K = zeros(T, n, n)
+
+    for (i, row_mono) in enumerate(basis)
+        for (j, col_mono) in enumerate(basis)
+            key = neat_dot(row_mono, var * col_mono)
+            K[i, j] = get(hankel_dict, key, zero(T))
+        end
+    end
+
     return K
 end

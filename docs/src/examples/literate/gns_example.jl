@@ -29,8 +29,42 @@ cons = all_constraints(model, include_variable_in_set_constraints=true)
 
 value.(cons[1])
 
-hankel = Matrix(dual(cons[1]))
+primal_var = Matrix(dual(cons[1]))
 
+"""
+    convert_X_to_H(X)
+
+Convert a Hermitian matrix X in the block form [[X₁, X₃†], [X₃, X₂]] 
+to H = H_R + im * H_I.
+
+The conversion follows:
+- H_R = X₁ + X₂
+- H_I = (X₃ - X₃†) / (1im)
+- H = H_R + im * H_I
+
+Returns the complex Hermitian matrix H.
+"""
+function convert_X_to_H(X)
+    n = size(X, 1)
+    @assert iseven(n) "Matrix size must be even"
+    
+    # Split X into blocks
+    half = n ÷ 2
+    X₁ = X[1:half, 1:half]
+    X₂ = X[half+1:end, half+1:end]
+    X₃ = X[half+1:end, 1:half]
+    X₃_dagger = X[1:half, half+1:end]
+    
+    # Compute H_R and H_I
+    H_R = X₁ + X₂
+    H_I = (X₃ - X₃_dagger) 
+    
+    # Return H = H_R + im * H_I
+    return H_R + im * H_I
+end
+
+# Convert primal_var from X form to H
+H = convert_X_to_H(primal_var)
 
 using NCTSSoS.FastPolynomials: get_basis, neat_dot
 

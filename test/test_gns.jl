@@ -4,60 +4,7 @@ using NCTSSoS.FastPolynomials: neat_dot
 using LinearAlgebra
 using NCTSSoS: get_basis, neat_dot
 
-@testset "GNS Reconstruction Tests" begin
-    
-    @testset "Simple 2x2 Case" begin
-        @ncpolyvar x y
-        
-        # Create a simple Hankel matrix for basis [1, x, y] (degree 1)
-        # This represents a 2x2 matrix representation where x and y commute
-        H = [1.0  0.0  0.0;   # <1,1>  <1,x>  <1,y>
-             0.0  1.0  0.0;   # <x,1>  <x,x>  <x,y>  
-             0.0  0.0  1.0]   # <y,1>  <y,x>  <y,y>
-        
-        matrices = reconstruct(H, [x, y], 1, 1, 0)
-        
-        @test length(matrices) == 2
-        @test size(matrices[1]) == (3, 3)  # rank should be 3
-        @test size(matrices[2]) == (3, 3)
-        
-        # Test that matrices are real
-        @test all(isreal.(matrices[1]))
-        @test all(isreal.(matrices[2]))
-    end
-    
-    @testset "Rank Deficient Case" begin
-        @ncpolyvar x
-        
-        # Create a rank-1 Hankel matrix for basis [1, x] (degree 1)  
-        H = [1.0  0.5;   # Rank-1 case where second variable is 0.5 * first
-             0.5  0.25]
-        
-        matrices = reconstruct(H, [x], 1, 1, 0)
-        
-        @test length(matrices) == 1
-        @test size(matrices[1]) == (1, 1)  # rank should be 1
-    end
-    
-    @testset "Zero Hankel Matrix" begin
-        @ncpolyvar x
-        
-        # Zero Hankel matrix should throw an error
-        H = [0.0 0.0; 0.0 0.0]
-        
-    @test_throws ArgumentError reconstruct(H, [x], 1, 1, 0)
-    end
-    
-    @testset "Dimension Mismatch" begin
-        @ncpolyvar x y
-        
-        # Hankel matrix size doesn't match basis size
-        H = [1.0 0.0; 0.0 1.0]  # 2x2 matrix
-        # But basis for degree 1 with [x,y] has 3 elements: [1, x, y]
-        
-        @test_throws ArgumentError reconstruct(H, [x, y], 1, 1, 0)
-    end
-
+@testset "GNS Construction" begin
     @testset "Hankel dictionary utilities" begin
         @ncpolyvar x
 
@@ -78,10 +25,9 @@ using NCTSSoS: get_basis, neat_dot
         @test dict[key_x2_first] == H[1, 3]
         @test dict[key_x2_second] == H[1, 3]
 
-        local_basis = basis[1:2]
-        K = NCTSSoS.construct_localizing_matrix(dict, x, local_basis)
+        K = NCTSSoS.construct_localizing_matrix(dict, x, basis)
 
-        @test size(K) == (2, 2)
+        @test size(K) == (3, 3)
         @test K[1, 1] == H[1, 2]
         @test K[1, 2] == H[1, 3]
         @test K[2, 1] == H[1, 3]
@@ -134,6 +80,61 @@ using NCTSSoS: get_basis, neat_dot
             1.0484 0.0606 0.9878
         ] atol = 1e-4
     end
+
+@testset "GNS Reconstruction Tests" begin
+    
+    @testset "Simple 2x2 Case" begin
+        @ncpolyvar x y
+        
+        # Create a simple Hankel matrix for basis [1, x, y] (degree 1)
+        # This represents a 2x2 matrix representation where x and y commute
+        H = [1.0  0.0  0.0;   # <1,1>  <1,x>  <1,y>
+             0.0  1.0  0.0;   # <x,1>  <x,x>  <x,y>  
+             0.0  0.0  1.0]   # <y,1>  <y,x>  <y,y>
+        
+        matrices = reconstruct(H, [x, y], 1, 1)
+        
+        @test length(matrices) == 2
+        @test size(matrices[1]) == (3, 3)  # rank should be 3
+        @test size(matrices[2]) == (3, 3)
+        
+        # Test that matrices are real
+        @test all(isreal.(matrices[1]))
+        @test all(isreal.(matrices[2]))
+    end
+    
+    @testset "Rank Deficient Case" begin
+        @ncpolyvar x
+        
+        # Create a rank-1 Hankel matrix for basis [1, x] (degree 1)  
+        H = [1.0  0.5;   # Rank-1 case where second variable is 0.5 * first
+             0.5  0.25]
+        
+        matrices = reconstruct(H, [x], 1, 1)
+        
+        @test length(matrices) == 1
+        @test size(matrices[1]) == (1, 1)  # rank should be 1
+    end
+    
+    @testset "Zero Hankel Matrix" begin
+        @ncpolyvar x
+        
+        # Zero Hankel matrix should throw an error
+        H = [0.0 0.0; 0.0 0.0]
+        
+        @test_throws ArgumentError reconstruct(H, [x], 1, 1)
+    end
+    
+    @testset "Dimension Mismatch" begin
+        @ncpolyvar x y
+        
+        # Hankel matrix size doesn't match basis size
+        H = [1.0 0.0; 0.0 1.0]  # 2x2 matrix
+        # But basis for degree 1 with [x,y] has 3 elements: [1, x, y]
+        
+        @test_throws ArgumentError reconstruct(H, [x, y], 1, 1)
+    end
+
     
     @testset "Higher Degree Case" begin
         @ncpolyvar x
@@ -143,7 +144,7 @@ using NCTSSoS: get_basis, neat_dot
              0.0  1.0  0.0;   # <x,1>   <x,x>   <x,x²>
              0.0  0.0  1.0]   # <x²,1>  <x²,x>  <x²,x²>
         
-        matrices = reconstruct(H, [x], 2, 2, 1)
+        matrices = reconstruct(H, [x], 2, 2)
         
         @test length(matrices) == 1
         @test size(matrices[1]) == (3, 3)  # rank should be 3
@@ -172,16 +173,19 @@ using NCTSSoS: get_basis, neat_dot
             1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682
         ] * swap_matrix
 
-        # does the sign in first column of U matter?
-        X_mat, Y_mat = reconstruct(H, [x, y], 2, 1, 1; rtol = 1e-4)
+        X_mat, Y_mat = reconstruct(H, [x, y], 2, 1; rtol = 1e-4)
+
+        display(X_mat)
 
         @test X_mat ≈ [
-            0.5019 −0.8931;
-            −0.8931 0.1727
-        ] atol = 5e-3
+            0.1727 −0.8931;
+            −0.8931 0.5019
+        ] atol = 1e-3
+
         @test Y_mat ≈ [
-            0.4981 0.8939;
-            0.8939 0.0825
-        ] atol = 5e-3
+            0.0825 0.8939;
+            0.8939 0.4981
+        ] atol = 1e-3
     end
-end
+end  # GNS Reconstruction Tests
+end  # GNS Construction

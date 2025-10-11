@@ -1,5 +1,5 @@
 using NCTSSoS
-using COSMO
+using MosekTools
 using JuMP
 
 N = 6
@@ -17,7 +17,7 @@ pop = cpolyopt(
             )
 
 solver_config = SolverConfig(
-                    optimizer=COSMO.Optimizer,          # the solver backend
+                    optimizer=Mosek.Optimizer,          # the solver backend
                     order=2,                        # moment matrix order
                     )
 
@@ -71,6 +71,11 @@ using NCTSSoS.FastPolynomials: get_basis, neat_dot
 get_basis([x; y; z], 2)
 
 # size mismatch because the original problem is complex valued and realification comes with a factor of 2 
-reconstruct(hankel, [x; y; z], 2, 2)
+paulis = reconstruct(H, [x; y; z], 2, 2)
+
+# how do I limit re-constructed paulis to proper size?
+2^6
+
+paulis[1]
 
 res.objective / N

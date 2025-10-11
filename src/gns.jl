@@ -50,12 +50,12 @@ X_mat, Y_mat = reconstruct(H, [x, y], 1, 1)
 ```
 """
 function reconstruct(
-    H::Matrix,
+    H::Matrix{T},
     vars::Vector{Variable},
     H_deg::Int,
     hankel_deg::Int;
     rtol::Real = 1e-12,
-)
+) where {T <: Number}
     H_deg < 0 && throw(ArgumentError("total_deg must be non-negative"))
     hankel_deg < 0 && throw(ArgumentError("hankel_deg must be non-negative"))
     hankel_deg > H_deg && throw(ArgumentError("hankel_deg cannot exceed total_deg"))
@@ -94,7 +94,7 @@ function reconstruct(
 
     hankel_dict = hankel_entries_dict(H, H_basis)
 
-    matrices = Matrix{Float64}[]
+    matrices = Matrix{T}[]
     diag_inv = Diagonal(sqrt_S_inv)
     for var in vars
         K = construct_localizing_matrix(hankel_dict, var, hankel_basis)

@@ -3,12 +3,12 @@ using ..FastPolynomials:
     Variable, Monomial, get_basis, monomials, monomial, neat_dot, degree
 
 """
-    reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int, hankel_deg::Int; rtol::Real = 1e-12)
+    reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int, hankel_deg::Int, output_dim::Int)
 
-Perform GNS (Gelfand-Naimark-Segal) reconstruction to extract finite-dimensional 
+Perform GNS (Gelfand-Naimark-Segal) reconstruction to extract finite-dimensional
 matrix representations of non-commuting variables from moment data encoded in a Hankel matrix.
 
-The GNS construction recovers matrix representations X₁, X₂, ..., Xₙ for variables 
+The GNS construction recovers matrix representations X₁, X₂, ..., Xₙ for variables
 x₁, x₂, ..., xₙ from the moment matrix (Hankel matrix) of a linear functional.
 
 # Arguments
@@ -16,21 +16,19 @@ x₁, x₂, ..., xₙ from the moment matrix (Hankel matrix) of a linear functio
   indexed by the full monomial basis up to degree `H_deg`
 - `vars::Vector{Variable}`: Vector of non-commuting variables to reconstruct matrix representations for
 - `H_deg::Int`: Maximum degree of monomials used to index the full Hankel matrix `H`
-- `hankel_deg::Int`: Degree of the principal Hankel block to use for SVD decomposition and 
+- `hankel_deg::Int`: Degree of the principal Hankel block to use for SVD decomposition and
   localizing matrix construction (typically smaller than `H_deg` to ensure localizing matrices fit)
-
-# Keyword Arguments
-- `rtol::Real = 1e-12`: Relative tolerance for determining numerical rank via SVD singular values
+- `output_dim::Int`: Number of leading singular values to keep after SVD decomposition.
+  This determines the size of the reconstructed matrices (output_dim × output_dim).
 
 # Returns
-- `Vector{Matrix}`: Vector of matrix representations, one for each variable in `vars`. 
-  Each matrix has size rank(H) × rank(H) where rank is determined by the numerical rank 
-  of the `hankel_deg`-degree principal block.
+- `Vector{Matrix}`: Vector of matrix representations, one for each variable in `vars`.
+  Each matrix has size output_dim × output_dim.
 
 # Algorithm
 The reconstruction follows these steps:
 1. Extract the principal `hankel_deg` × `hankel_deg` block from `H`
-2. Perform SVD: H_block = U S Uᵀ and determine numerical rank
+2. Perform SVD: H_block = U S Uᵀ and keep the top `output_dim` singular values
 3. For each variable xᵢ, construct localizing matrix Kᵢ where Kᵢ[j,k] = ⟨basis[j], xᵢ·basis[k]⟩
 4. Compute matrix representation: Xᵢ = S^(-1/2) Uᵀ Kᵢ U S^(-1/2)
 
@@ -44,18 +42,18 @@ The reconstruction follows these steps:
 H = [1.0  0.5  0.5;
      0.5  1.0  0.0;
      0.5  0.0  1.0]
-     
-# Reconstruct 2×2 matrix representations
-X_mat, Y_mat = reconstruct(H, [x, y], 1, 1)
+
+# Reconstruct 2×2 matrix representations keeping top 2 singular values
+X_mat, Y_mat = reconstruct(H, [x, y], 1, 1, 2)
 ```
 """
 function reconstruct(
     H::Matrix{T},
     vars::Vector{Variable},
     H_deg::Int,
-    hankel_deg::Int;
-    rtol::Real = 1e-12,
-) where {T <: Number}
+    hankel_deg::Int,
+    output_dim::Int,
+) where {T<:Number}
     H_deg < 0 && throw(ArgumentError("total_deg must be non-negative"))
     hankel_deg < 0 && throw(ArgumentError("hankel_deg must be non-negative"))
     hankel_deg > H_deg && throw(ArgumentError("hankel_deg cannot exceed total_deg"))
@@ -79,17 +77,22 @@ function reconstruct(
 
     hankel_block = @view H[1:len_hankel, 1:len_hankel]
     U, S, _ = svd(Matrix(hankel_block))
+    display(S)
 
-    rank_H = count(s -> s > rtol * S[1], S)
-    rank_H == 0 && throw(ArgumentError("Hankel matrix has numerical rank 0"))
+    output_dim > length(S) && throw(
+        ArgumentError(
+            "output_dim ($output_dim) cannot exceed number of singular values ($(length(S)))",
+        ),
+    )
+    output_dim <= 0 && throw(ArgumentError("output_dim must be positive"))
 
-    U_trunc = U[:, 1:rank_H]
-    S_trunc = S[1:rank_H]
+    U_trunc = U[:, 1:output_dim]
+    S_trunc = S[1:output_dim]
     sqrt_S = sqrt.(S_trunc)
     sqrt_S_inv = 1 ./ sqrt_S
 
     println(
-        "GNS reconstruction: Hankel matrix rank = $rank_H, reconstructed matrices will be $(rank_H)×$(rank_H)",
+        "GNS reconstruction: keeping top $output_dim singular values, reconstructed matrices will be $(output_dim)×$(output_dim)",
     )
 
     hankel_dict = hankel_entries_dict(H, H_basis)

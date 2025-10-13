@@ -77,7 +77,6 @@ function reconstruct(
 
     hankel_block = @view H[1:len_hankel, 1:len_hankel]
     U, S, _ = svd(Matrix(hankel_block))
-    display(S)
 
     output_dim > length(S) && throw(
         ArgumentError(
@@ -85,6 +84,24 @@ function reconstruct(
         ),
     )
     output_dim <= 0 && throw(ArgumentError("output_dim must be positive"))
+
+    # Check for flatness: rank(H) should equal rank(hankel_block)
+    # This is the flat extension property
+    rank_tol = 1e-8
+    rank_H = count(s -> s > rank_tol, svd(H).S)
+    rank_hankel = count(s -> s > rank_tol, S)
+
+    println("Rank of full Hankel matrix H: $rank_H")
+    println("Rank of hankel_block (degree $hankel_deg): $rank_hankel")
+
+    if rank_H != rank_hankel
+        @warn """Flatness condition violated: rank(H) = $rank_H ≠ rank(hankel_block) = $rank_hankel
+        The moment matrix is not a flat extension.
+        This may lead to incorrect or rank-deficient matrix representations.
+        Consider using hankel_deg = H_deg to ensure flatness."""
+    else
+        println("✓ Flatness condition satisfied: rank(H) = rank(hankel_block) = $rank_H")
+    end
 
     U_trunc = U[:, 1:output_dim]
     S_trunc = S[1:output_dim]

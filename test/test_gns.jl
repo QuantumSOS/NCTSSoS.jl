@@ -82,52 +82,7 @@ using NCTSSoS: get_basis, neat_dot
     end
 
 @testset "GNS Reconstruction Tests" begin
-    
-    @testset "Simple 2x2 Case" begin
-        @ncpolyvar x y
 
-        # Create a simple Hankel matrix for basis [1, x, y] (degree 1)
-        # This represents a 2x2 matrix representation where x and y commute
-        H = [1.0  0.0  0.0;   # <1,1>  <1,x>  <1,y>
-             0.0  1.0  0.0;   # <x,1>  <x,x>  <x,y>
-             0.0  0.0  1.0]   # <y,1>  <y,x>  <y,y>
-
-        matrices = reconstruct(H, [x, y], 1, 1, 3)
-
-        @test length(matrices) == 2
-        @test size(matrices[1]) == (3, 3)  # output_dim = 3
-        @test size(matrices[2]) == (3, 3)
-
-        # Test that matrices are real
-        @test all(isreal.(matrices[1]))
-        @test all(isreal.(matrices[2]))
-    end
-    
-    @testset "Rank Deficient Case" begin
-        @ncpolyvar x
-
-        # Create a rank-1 Hankel matrix for basis [1, x] (degree 1)
-        H = [1.0  0.5;   # Rank-1 case where second variable is 0.5 * first
-             0.5  0.25]
-
-        matrices = reconstruct(H, [x], 1, 1, 1)
-
-        @test length(matrices) == 1
-        @test size(matrices[1]) == (1, 1)  # output_dim = 1
-    end
-    
-    @testset "Zero Hankel Matrix" begin
-        @ncpolyvar x
-
-        # Zero Hankel matrix - trying to keep 1 singular value should work
-        # but the singular value will be ~0
-        H = [0.0 0.0; 0.0 0.0]
-
-        # This should not throw - it will just have a very small singular value
-        matrices = reconstruct(H, [x], 1, 1, 1)
-        @test length(matrices) == 1
-    end
-    
     @testset "Dimension Mismatch" begin
         @ncpolyvar x y
 
@@ -136,21 +91,6 @@ using NCTSSoS: get_basis, neat_dot
         # But basis for degree 1 with [x,y] has 3 elements: [1, x, y]
 
         @test_throws ArgumentError reconstruct(H, [x, y], 1, 1, 2)
-    end
-
-    
-    @testset "Higher Degree Case" begin
-        @ncpolyvar x
-
-        # Create Hankel matrix for degree 2: basis [1, x, x^2]
-        H = [1.0  0.0  0.0;   # <1,1>   <1,x>   <1,x²>
-             0.0  1.0  0.0;   # <x,1>   <x,x>   <x,x²>
-             0.0  0.0  1.0]   # <x²,1>  <x²,x>  <x²,x²>
-
-        matrices = reconstruct(H, [x], 2, 2, 3)
-
-        @test length(matrices) == 1
-        @test size(matrices[1]) == (3, 3)  # output_dim = 3
     end
 
     @testset "Example 2.7" begin

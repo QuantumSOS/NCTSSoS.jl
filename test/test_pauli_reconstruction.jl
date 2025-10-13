@@ -44,7 +44,9 @@ end
         d = 3
         basis = get_basis(vars_site1, d)
 
-        ρ = zero_state * zero_state' * 0.5 + one_state * one_state' * 0.5
+        zero_state = ComplexF64[1; 0]    # |0⟩
+        # ρ = zero_state * zero_state' * 0.5 + one_state * one_state' * 0.5
+        ρ = zero_state * zero_state'
 
         n = length(basis)
         H = zeros(ComplexF64, n, n)
@@ -73,11 +75,6 @@ end
         # hankel_deg=1: use degree-1 block [1, x, y, z] for rank determination
 
         X_recon, Y_recon, Z_recon = reconstruct(H, vars_site1, d, 1, 4)
-
-        X = ComplexF64[0 1; 1 0]  # Pauli X
-        Y = ComplexF64[0 -im; im 0]  # Pauli Y
-        Z = ComplexF64[1 0; 0 -1]  #
-
 
         display(round.(X_recon))
         X_recon^2

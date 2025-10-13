@@ -147,7 +147,7 @@ println("Moment matrix H is Hermitian: ", H ≈ H')
 # - degree: maximum degree in basis
 # - hankel_deg: degree for rank determination
 # - output_dim: desired dimension of reconstructed operators
-hankel_deg = 1  # how can we determine this automatically?
+hankel_deg = 2  # how can we determine this automatically?
 output_dim = 4  # We expect 2×2 matrices for a single qubit, but only 4x4 example gives non-trivial results
 
 X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, hankel_deg, output_dim)

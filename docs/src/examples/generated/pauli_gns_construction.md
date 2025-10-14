@@ -136,7 +136,7 @@ The moment matrix encodes all expectation values of products of our basis operat
 Choose the degree of our polynomial basis
 
 ````julia
-degree = 3;
+degree = 2;
 ````
 
 Generate the basis of monomials up to the specified degree
@@ -165,33 +165,6 @@ Basis operators (monomials):
 11: z¹x¹
 12: z¹y¹
 13: z²
-14: x¹y¹x¹
-15: x¹y¹z¹
-16: x¹y²
-17: x¹z¹x¹
-18: x¹z¹y¹
-19: x¹z²
-20: x²y¹
-21: x²z¹
-22: x³
-23: y¹x¹y¹
-24: y¹x¹z¹
-25: y¹x²
-26: y¹z¹x¹
-27: y¹z¹y¹
-28: y¹z²
-29: y²x¹
-30: y²z¹
-31: y³
-32: z¹x¹y¹
-33: z¹x¹z¹
-34: z¹x²
-35: z¹y¹x¹
-36: z¹y¹z¹
-37: z¹y²
-38: z²x¹
-39: z²y¹
-40: z³
 
 ````
 
@@ -237,39 +210,60 @@ Parameters:
 - H: the moment matrix
 - vars: list of variables to reconstruct
 - degree: maximum degree in basis
-- hankel_deg: degree for rank determination
 - output_dim: desired dimension of reconstructed operators
+Note: hankel_deg is automatically set to degree - 1
 
 ````julia
-hankel_deg = 1  # how can we determine this automatically?
 output_dim = 4  # We expect 2×2 matrices for a single qubit, but only 4x4 example gives non-trivial results
 
-X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, hankel_deg, output_dim)
+X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, output_dim)
+````
 
+````
+3-element Vector{Matrix{ComplexF64}}:
+ [0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 - 1.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 1.0im 0.0 + 0.0im]
+ [0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 1.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 - 1.0im 0.0 + 0.0im 0.0 + 0.0im]
+ [0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 - 1.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 1.0im 0.0 + 0.0im 0.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im]
+````
+
+````julia
 println("Reconstructed Pauli operators:")
 println("σₓ (reconstructed):")
-display(round.(X_recon, digits=6))
+round.(X_recon, digits=6)
+````
 
+````
+4×4 Matrix{ComplexF64}:
+ 0.0+0.0im  1.0+0.0im  0.0+0.0im  0.0+0.0im
+ 1.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+0.0im
+ 0.0+0.0im  0.0+0.0im  0.0+0.0im  0.0-1.0im
+ 0.0+0.0im  0.0+0.0im  0.0+1.0im  0.0+0.0im
+````
+
+````julia
 println("σᵧ (reconstructed):")
-display(round.(Y_recon, digits=6))
+round.(Y_recon, digits=6)
+````
 
+````
+4×4 Matrix{ComplexF64}:
+ 0.0+0.0im  0.0+0.0im  1.0+0.0im  0.0+0.0im
+ 0.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+1.0im
+ 1.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+0.0im
+ 0.0+0.0im  0.0-1.0im  0.0+0.0im  0.0+0.0im
+````
+
+````julia
 println("σ_z (reconstructed):")
-display(round.(Z_recon, digits=6))
+round.(Z_recon, digits=6)
 ````
 
 ````
-Rank of full Hankel matrix H: 4
-Rank of hankel_block (degree 1): 4
-✓ Flatness condition satisfied: rank(H) = rank(hankel_block) = 4
-GNS reconstruction: keeping top 4 singular values, reconstructed matrices will be 4×4
-Variable x: constructed (4, 4) matrix representation
-Variable y: constructed (4, 4) matrix representation
-Variable z: constructed (4, 4) matrix representation
-Reconstructed Pauli operators:
-σₓ (reconstructed):
-σᵧ (reconstructed):
-σ_z (reconstructed):
-
+4×4 Matrix{ComplexF64}:
+ 0.0+0.0im  0.0+0.0im  0.0+0.0im  1.0+0.0im
+ 0.0+0.0im  0.0+0.0im  0.0-1.0im  0.0+0.0im
+ 0.0+0.0im  0.0+1.0im  0.0+0.0im  0.0+0.0im
+ 1.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+0.0im
 ````
 
 ## Step 6: Verify Pauli Algebra

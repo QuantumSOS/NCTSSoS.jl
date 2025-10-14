@@ -3,7 +3,7 @@ using ..FastPolynomials:
     Variable, Monomial, get_basis, monomials, monomial, neat_dot, degree
 
 """
-    reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int, hankel_deg::Int, output_dim::Int)
+    reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int, output_dim::Int)
 
 Perform GNS (Gelfand-Naimark-Segal) reconstruction to extract finite-dimensional
 matrix representations of non-commuting variables from moment data encoded in a Hankel matrix.
@@ -16,8 +16,6 @@ x₁, x₂, ..., xₙ from the moment matrix (Hankel matrix) of a linear functio
   indexed by the full monomial basis up to degree `H_deg`
 - `vars::Vector{Variable}`: Vector of non-commuting variables to reconstruct matrix representations for
 - `H_deg::Int`: Maximum degree of monomials used to index the full Hankel matrix `H`
-- `hankel_deg::Int`: Degree of the principal Hankel block to use for SVD decomposition and
-  localizing matrix construction (typically smaller than `H_deg` to ensure localizing matrices fit)
 - `output_dim::Int`: Number of leading singular values to keep after SVD decomposition.
   This determines the size of the reconstructed matrices (output_dim × output_dim).
 
@@ -27,7 +25,7 @@ x₁, x₂, ..., xₙ from the moment matrix (Hankel matrix) of a linear functio
 
 # Algorithm
 The reconstruction follows these steps:
-1. Extract the principal `hankel_deg` × `hankel_deg` block from `H`
+1. Extract the principal `(H_deg-1)` × `(H_deg-1)` block from `H`
 2. Perform SVD: H_block = U S Uᵀ and keep the top `output_dim` singular values
 3. For each variable xᵢ, construct localizing matrix Kᵢ where Kᵢ[j,k] = ⟨basis[j], xᵢ·basis[k]⟩
 4. Compute matrix representation: Xᵢ = S^(-1/2) Uᵀ Kᵢ U S^(-1/2)
@@ -44,19 +42,20 @@ H = [1.0  0.5  0.5;
      0.5  0.0  1.0]
 
 # Reconstruct 2×2 matrix representations keeping top 2 singular values
-X_mat, Y_mat = reconstruct(H, [x, y], 1, 1, 2)
+X_mat, Y_mat = reconstruct(H, [x, y], 1, 2)
 ```
 """
 function reconstruct(
     H::Matrix{T},
     vars::Vector{Variable},
     H_deg::Int,
-    hankel_deg::Int,
     output_dim::Int,
 ) where {T<:Number}
-    H_deg < 0 && throw(ArgumentError("total_deg must be non-negative"))
-    hankel_deg < 0 && throw(ArgumentError("hankel_deg must be non-negative"))
-    hankel_deg > H_deg && throw(ArgumentError("hankel_deg cannot exceed total_deg"))
+    H_deg < 0 && throw(ArgumentError("H_deg must be non-negative"))
+    H_deg == 0 && throw(ArgumentError("H_deg must be positive for reconstruction"))
+
+    # Set hankel_deg to H_deg - 1 as required
+    hankel_deg = H_deg - 1
 
     H_basis = get_basis(vars, H_deg)
     hankel_basis = get_basis(vars, hankel_deg)

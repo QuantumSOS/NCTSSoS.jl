@@ -90,7 +90,7 @@ using NCTSSoS: get_basis, neat_dot
         H = [1.0 0.0; 0.0 1.0]  # 2x2 matrix
         # But basis for degree 1 with [x,y] has 3 elements: [1, x, y]
 
-        @test_throws ArgumentError reconstruct(H, [x, y], 1, 1, 2)
+        @test_throws ArgumentError reconstruct(H, [x, y], 1, 2)
     end
 
     @testset "Example 2.7" begin
@@ -116,9 +116,7 @@ using NCTSSoS: get_basis, neat_dot
             1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682
         ] * swap_matrix
 
-        X_mat, Y_mat = reconstruct(H, [x, y], 2, 1, 2)
-
-        display(X_mat)
+        X_mat, Y_mat = reconstruct(H, [x, y], 2, 2)
 
         @test X_mat ≈ [
             0.1727 −0.8931;

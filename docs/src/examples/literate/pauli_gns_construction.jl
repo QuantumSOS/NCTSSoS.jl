@@ -104,7 +104,7 @@ end
 # The moment matrix encodes all expectation values of products of our basis operators:
 
 # Choose the degree of our polynomial basis
-degree = 3;
+degree = 2;
 
 # Generate the basis of monomials up to the specified degree
 basis = NCTSSoS.get_basis(vars, degree)
@@ -145,22 +145,24 @@ println("Moment matrix H is Hermitian: ", H ≈ H')
 # - H: the moment matrix
 # - vars: list of variables to reconstruct
 # - degree: maximum degree in basis
-# - hankel_deg: degree for rank determination
 # - output_dim: desired dimension of reconstructed operators
-hankel_deg = 2  # how can we determine this automatically?
+# Note: hankel_deg is automatically set to degree - 1
 output_dim = 4  # We expect 2×2 matrices for a single qubit, but only 4x4 example gives non-trivial results
 
-X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, hankel_deg, output_dim)
+X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, output_dim)
 
+#
 println("Reconstructed Pauli operators:")
 println("σₓ (reconstructed):")
-display(round.(X_recon, digits=6))
+round.(X_recon, digits=6)
 
+#
 println("σᵧ (reconstructed):")
-display(round.(Y_recon, digits=6))
+round.(Y_recon, digits=6)
 
+#
 println("σ_z (reconstructed):")
-display(round.(Z_recon, digits=6))
+round.(Z_recon, digits=6)
 
 # ## Step 6: Verify Pauli Algebra
 

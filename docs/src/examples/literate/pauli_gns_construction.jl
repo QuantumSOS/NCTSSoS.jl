@@ -145,11 +145,11 @@ println("Moment matrix H is Hermitian: ", H ≈ H')
 # - H: the moment matrix
 # - vars: list of variables to reconstruct
 # - degree: maximum degree in basis
-# - output_dim: desired dimension of reconstructed operators
+# - atol: tolerance for determining which singular values are non-zero (default: 1e-3)
 # Note: hankel_deg is automatically set to degree - 1
-output_dim = 4  # We expect 2×2 matrices for a single qubit, but only 4x4 example gives non-trivial results
+# The output dimension is automatically determined based on singular values > atol
 
-X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, output_dim)
+X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree; atol=0.001)
 
 #
 println("Reconstructed Pauli operators:")

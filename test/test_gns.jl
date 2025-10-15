@@ -90,7 +90,24 @@ using NCTSSoS: get_basis, neat_dot
         H = [1.0 0.0; 0.0 1.0]  # 2x2 matrix
         # But basis for degree 1 with [x,y] has 3 elements: [1, x, y]
 
-        @test_throws ArgumentError reconstruct(H, [x, y], 1, 2)
+        @test_throws ArgumentError reconstruct(H, [x, y], 1)
+    end
+    
+    @testset "Invalid atol" begin
+        @ncpolyvar x
+        H = [1.0 0.5; 0.5 1.0]
+        
+        # Negative atol should throw error
+        @test_throws ArgumentError reconstruct(H, [x], 1; atol=-1.0)
+    end
+    
+    @testset "No singular values exceed tolerance" begin
+        @ncpolyvar x
+        # Create a matrix with very small singular values
+        H = 1e-10 * [1.0 0.5; 0.5 1.0]
+        
+        # With default atol=1e-3, no singular values should exceed tolerance
+        @test_throws ArgumentError reconstruct(H, [x], 1)
     end
 
     @testset "Example 2.7" begin
@@ -116,7 +133,8 @@ using NCTSSoS: get_basis, neat_dot
             1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682
         ] * swap_matrix
 
-        X_mat, Y_mat = reconstruct(H, [x, y], 2, 2)
+        # Use default atol or specify one that gives 2x2 matrices
+        X_mat, Y_mat = reconstruct(H, [x, y], 2; atol=0.1)
 
         @test X_mat ≈ [
             0.1727 −0.8931;

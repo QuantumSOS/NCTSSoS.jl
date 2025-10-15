@@ -3,7 +3,7 @@ using ..FastPolynomials:
     Variable, Monomial, get_basis, monomials, monomial, neat_dot, degree
 
 """
-    reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int, output_dim::Int)
+    reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int; atol::Float64=1e-3)
 
 Perform GNS (Gelfand-Naimark-Segal) reconstruction to extract finite-dimensional
 matrix representations of non-commuting variables from moment data encoded in a Hankel matrix.
@@ -16,17 +16,17 @@ x₁, x₂, ..., xₙ from the moment matrix (Hankel matrix) of a linear functio
   indexed by the full monomial basis up to degree `H_deg`
 - `vars::Vector{Variable}`: Vector of non-commuting variables to reconstruct matrix representations for
 - `H_deg::Int`: Maximum degree of monomials used to index the full Hankel matrix `H`
-- `output_dim::Int`: Number of leading singular values to keep after SVD decomposition.
-  This determines the size of the reconstructed matrices (output_dim × output_dim).
+- `atol::Float64=1e-3`: Absolute tolerance for determining which singular values are considered non-zero.
+  Singular values greater than `atol` are retained in the reconstruction.
 
 # Returns
 - `Vector{Matrix}`: Vector of matrix representations, one for each variable in `vars`.
-  Each matrix has size output_dim × output_dim.
+  The size of each matrix is determined by the number of singular values exceeding `atol`.
 
 # Algorithm
 The reconstruction follows these steps:
 1. Extract the principal `(H_deg-1)` × `(H_deg-1)` block from `H`
-2. Perform SVD: H_block = U S Uᵀ and keep the top `output_dim` singular values
+2. Perform SVD: H_block = U S Uᵀ and keep singular values > `atol`
 3. For each variable xᵢ, construct localizing matrix Kᵢ where Kᵢ[j,k] = ⟨basis[j], xᵢ·basis[k]⟩
 4. Compute matrix representation: Xᵢ = S^(-1/2) Uᵀ Kᵢ U S^(-1/2)
 
@@ -41,18 +41,22 @@ H = [1.0  0.5  0.5;
      0.5  1.0  0.0;
      0.5  0.0  1.0]
 
-# Reconstruct 2×2 matrix representations keeping top 2 singular values
-X_mat, Y_mat = reconstruct(H, [x, y], 1, 2)
+# Reconstruct matrix representations, keeping singular values > 1e-3
+X_mat, Y_mat = reconstruct(H, [x, y], 1)
+
+# Use custom tolerance
+X_mat, Y_mat = reconstruct(H, [x, y], 1; atol=1e-6)
 ```
 """
 function reconstruct(
     H::Matrix{T},
     vars::Vector{Variable},
-    H_deg::Int,
-    output_dim::Int,
+    H_deg::Int;
+    atol::Float64=1e-3,
 ) where {T<:Number}
     H_deg < 0 && throw(ArgumentError("H_deg must be non-negative"))
     H_deg == 0 && throw(ArgumentError("H_deg must be positive for reconstruction"))
+    atol < 0 && throw(ArgumentError("atol must be non-negative"))
 
     # Set hankel_deg to H_deg - 1 as required
     hankel_deg = H_deg - 1
@@ -77,21 +81,24 @@ function reconstruct(
     hankel_block = @view H[1:len_hankel, 1:len_hankel]
     U, S, _ = svd(Matrix(hankel_block))
 
-    output_dim > length(S) && throw(
-        ArgumentError(
-            "output_dim ($output_dim) cannot exceed number of singular values ($(length(S)))",
-        ),
-    )
-    output_dim <= 0 && throw(ArgumentError("output_dim must be positive"))
+    # Determine output dimension based on singular values exceeding atol
+    output_dim = count(s -> s > atol, S)
+    
+    if output_dim == 0
+        throw(ArgumentError(
+            "No singular values exceed tolerance $atol. " *
+            "Maximum singular value is $(maximum(S)). " *
+            "Consider decreasing atol."
+        ))
+    end
 
     # Check for flatness: rank(H) should equal rank(hankel_block)
     # This is the flat extension property
-    rank_tol = 1e-8
-    rank_H = count(s -> s > rank_tol, svd(H).S)
-    rank_hankel = count(s -> s > rank_tol, S)
+    rank_H = count(s -> s > atol, svd(H).S)
+    rank_hankel = output_dim
 
-    println("Rank of full Hankel matrix H: $rank_H")
-    println("Rank of hankel_block (degree $hankel_deg): $rank_hankel")
+    println("Rank of full Hankel matrix H: $rank_H (using atol=$atol)")
+    println("Rank of hankel_block (degree $hankel_deg): $rank_hankel (using atol=$atol)")
 
     if rank_H != rank_hankel
         @warn """Flatness condition violated: rank(H) = $rank_H ≠ rank(hankel_block) = $rank_hankel
@@ -108,7 +115,7 @@ function reconstruct(
     sqrt_S_inv = 1 ./ sqrt_S
 
     println(
-        "GNS reconstruction: keeping top $output_dim singular values, reconstructed matrices will be $(output_dim)×$(output_dim)",
+        "GNS reconstruction: keeping $output_dim singular values > $atol, reconstructed matrices will be $(output_dim)×$(output_dim)",
     )
 
     hankel_dict = hankel_entries_dict(H, H_basis)

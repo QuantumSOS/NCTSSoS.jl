@@ -65,28 +65,22 @@ vars = [x, y, z];
 
 ## Step 2: Choose a Quantum State
 
-Let's work with a mixed state. A simple example is an equal mixture of |0⟩ and |1⟩:
-```math
-\rho = \frac{1}{2}|0\rangle\langle 0| + \frac{1}{2}|1\rangle\langle 1|
-```
-
-Define the computational basis states
+Define quantum states for testing
 
 ````julia
 zero_state = ComplexF64[1; 0];    # |0⟩
-one_state = ComplexF64[0; 1];     # |1⟩
 ````
 
-Create the mixed state density matrix
+For clear reconstruction, use a pure state
 
 ````julia
-ρ = zero_state * zero_state' * 0.5 + one_state * one_state' * 0.5
+ρ =  zero_state * zero_state'
 ````
 
 ````
 2×2 Matrix{ComplexF64}:
- 0.5+0.0im  0.0+0.0im
- 0.0+0.0im  0.5+0.0im
+ 1.0+0.0im  0.0+0.0im
+ 0.0+0.0im  0.0+0.0im
 ````
 
 ## Step 3: Compute Expectation Values
@@ -136,7 +130,7 @@ The moment matrix encodes all expectation values of products of our basis operat
 Choose the degree of our polynomial basis
 
 ````julia
-degree = 2;
+degree = 4;
 ````
 
 Generate the basis of monomials up to the specified degree
@@ -165,6 +159,114 @@ Basis operators (monomials):
 11: z¹x¹
 12: z¹y¹
 13: z²
+14: x¹y¹x¹
+15: x¹y¹z¹
+16: x¹y²
+17: x¹z¹x¹
+18: x¹z¹y¹
+19: x¹z²
+20: x²y¹
+21: x²z¹
+22: x³
+23: y¹x¹y¹
+24: y¹x¹z¹
+25: y¹x²
+26: y¹z¹x¹
+27: y¹z¹y¹
+28: y¹z²
+29: y²x¹
+30: y²z¹
+31: y³
+32: z¹x¹y¹
+33: z¹x¹z¹
+34: z¹x²
+35: z¹y¹x¹
+36: z¹y¹z¹
+37: z¹y²
+38: z²x¹
+39: z²y¹
+40: z³
+41: x¹y¹x¹y¹
+42: x¹y¹x¹z¹
+43: x¹y¹x²
+44: x¹y¹z¹x¹
+45: x¹y¹z¹y¹
+46: x¹y¹z²
+47: x¹y²x¹
+48: x¹y²z¹
+49: x¹y³
+50: x¹z¹x¹y¹
+51: x¹z¹x¹z¹
+52: x¹z¹x²
+53: x¹z¹y¹x¹
+54: x¹z¹y¹z¹
+55: x¹z¹y²
+56: x¹z²x¹
+57: x¹z²y¹
+58: x¹z³
+59: x²y¹x¹
+60: x²y¹z¹
+61: x²y²
+62: x²z¹x¹
+63: x²z¹y¹
+64: x²z²
+65: x³y¹
+66: x³z¹
+67: x⁴
+68: y¹x¹y¹x¹
+69: y¹x¹y¹z¹
+70: y¹x¹y²
+71: y¹x¹z¹x¹
+72: y¹x¹z¹y¹
+73: y¹x¹z²
+74: y¹x²y¹
+75: y¹x²z¹
+76: y¹x³
+77: y¹z¹x¹y¹
+78: y¹z¹x¹z¹
+79: y¹z¹x²
+80: y¹z¹y¹x¹
+81: y¹z¹y¹z¹
+82: y¹z¹y²
+83: y¹z²x¹
+84: y¹z²y¹
+85: y¹z³
+86: y²x¹y¹
+87: y²x¹z¹
+88: y²x²
+89: y²z¹x¹
+90: y²z¹y¹
+91: y²z²
+92: y³x¹
+93: y³z¹
+94: y⁴
+95: z¹x¹y¹x¹
+96: z¹x¹y¹z¹
+97: z¹x¹y²
+98: z¹x¹z¹x¹
+99: z¹x¹z¹y¹
+100: z¹x¹z²
+101: z¹x²y¹
+102: z¹x²z¹
+103: z¹x³
+104: z¹y¹x¹y¹
+105: z¹y¹x¹z¹
+106: z¹y¹x²
+107: z¹y¹z¹x¹
+108: z¹y¹z¹y¹
+109: z¹y¹z²
+110: z¹y²x¹
+111: z¹y²z¹
+112: z¹y³
+113: z²x¹y¹
+114: z²x¹z¹
+115: z²x²
+116: z²y¹x¹
+117: z²y¹z¹
+118: z²y²
+119: z³x¹
+120: z³y¹
+121: z⁴
 
 ````
 
@@ -205,25 +307,15 @@ Moment matrix H is Hermitian: true
 Now we use the `reconstruct` function to perform the GNS construction and obtain
 concrete matrix representations of our abstract operators:
 
-Perform GNS reconstruction
-Parameters:
-- H: the moment matrix
-- vars: list of variables to reconstruct
-- degree: maximum degree in basis
-- output_dim: desired dimension of reconstructed operators
-Note: hankel_deg is automatically set to degree - 1
-
 ````julia
-output_dim = 4  # We expect 2×2 matrices for a single qubit, but only 4x4 example gives non-trivial results
-
-X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, output_dim)
+X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree; atol=0.001)
 ````
 
 ````
 3-element Vector{Matrix{ComplexF64}}:
- [0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 - 1.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 1.0im 0.0 + 0.0im]
- [0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 1.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 - 1.0im 0.0 + 0.0im 0.0 + 0.0im]
- [0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 - 1.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 1.0im 0.0 + 0.0im 0.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im]
+ [0.0 + 0.0im 3.363354988591067e-48 + 1.0000000000000004im; -6.119919185539761e-49 - 1.0000000000000004im -8.310098917615953e-33 + 5.098721737023209e-51im]
+ [0.0 + 0.0im 1.0000000000000004 - 3.363354988591067e-48im; 1.0000000000000004 - 6.119919185539761e-49im -7.67288159674941e-50 - 6.1530573799022466e-33im]
+ [1.0000000000000002 + 0.0im -1.9243339383232715e-50 - 5.7353166945488984e-33im; -5.289187967971371e-50 + 4.651031097596431e-33im -1.0000000000000009 + 2.4324615273979e-48im]
 ````
 
 ````julia
@@ -233,11 +325,9 @@ round.(X_recon, digits=6)
 ````
 
 ````
-4×4 Matrix{ComplexF64}:
- 0.0+0.0im  1.0+0.0im  0.0+0.0im  0.0+0.0im
- 1.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+0.0im
- 0.0+0.0im  0.0+0.0im  0.0+0.0im  0.0-1.0im
- 0.0+0.0im  0.0+0.0im  0.0+1.0im  0.0+0.0im
+2×2 Matrix{ComplexF64}:
+  0.0+0.0im   0.0+1.0im
+ -0.0-1.0im  -0.0+0.0im
 ````
 
 ````julia
@@ -246,11 +336,9 @@ round.(Y_recon, digits=6)
 ````
 
 ````
-4×4 Matrix{ComplexF64}:
- 0.0+0.0im  0.0+0.0im  1.0+0.0im  0.0+0.0im
- 0.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+1.0im
- 1.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+0.0im
- 0.0+0.0im  0.0-1.0im  0.0+0.0im  0.0+0.0im
+2×2 Matrix{ComplexF64}:
+ 0.0+0.0im   1.0-0.0im
+ 1.0-0.0im  -0.0-0.0im
 ````
 
 ````julia
@@ -259,11 +347,9 @@ round.(Z_recon, digits=6)
 ````
 
 ````
-4×4 Matrix{ComplexF64}:
- 0.0+0.0im  0.0+0.0im  0.0+0.0im  1.0+0.0im
- 0.0+0.0im  0.0+0.0im  0.0-1.0im  0.0+0.0im
- 0.0+0.0im  0.0+1.0im  0.0+0.0im  0.0+0.0im
- 1.0+0.0im  0.0+0.0im  0.0+0.0im  0.0+0.0im
+2×2 Matrix{ComplexF64}:
+  1.0+0.0im  -0.0-0.0im
+ -0.0+0.0im  -1.0+0.0im
 ````
 
 ## Step 6: Verify Pauli Algebra
@@ -288,16 +374,16 @@ X2 = X_recon * X_recon
 Y2 = Y_recon * Y_recon
 Z2 = Z_recon * Z_recon
 
-println("   ||X² - I|| = $(norm(X2 - I(4)))")
-println("   ||Y² - I|| = $(norm(Y2 - I(4)))")
-println("   ||Z² - I|| = $(norm(Z2 - I(4)))")
+println("   ||X² - I|| = $(norm(X2 - I(2)))")
+println("   ||Y² - I|| = $(norm(Y2 - I(2)))")
+println("   ||Z² - I|| = $(norm(Z2 - I(2)))")
 ````
 
 ````
 1. Testing X² = Y² = Z² = I:
-   ||X² - I|| = 0.0
-   ||Y² - I|| = 0.0
-   ||Z² - I|| = 0.0
+   ||X² - I|| = 1.2560739669470201e-15
+   ||Y² - I|| = 1.2560739669470201e-15
+   ||Z² - I|| = 1.831026719408895e-15
 
 ````
 
@@ -316,9 +402,9 @@ println("   ||{Z,X}|| = $(norm(anticomm_ZX))")
 
 ````
 2. Testing anti-commutation {σ_i, σ_j} = 0 for i ≠ j:
-   ||{X,Y}|| = 0.0
-   ||{Y,Z}|| = 0.0
-   ||{Z,X}|| = 0.0
+   ||{X,Y}|| = 1.4623122726759252e-32
+   ||{Y,Z}|| = 9.42055475210265e-16
+   ||{Z,X}|| = 9.42055475210265e-16
 
 ````
 
@@ -337,9 +423,9 @@ println("   ||[Z,X] - 2iY|| = $(norm(comm_ZX - 2im * Y_recon))")
 
 ````
 3. Testing commutation [σ_i, σ_j] = 2iε_ijkσ_k:
-   ||[X,Y] - 2iZ|| = 0.0
-   ||[Y,Z] - 2iX|| = 0.0
-   ||[Z,X] - 2iY|| = 0.0
+   ||[X,Y] - 2iZ|| = 1.3322676295501878e-15
+   ||[Y,Z] - 2iX|| = 1.2560739669470201e-15
+   ||[Z,X] - 2iY|| = 1.2560739669470201e-15
 
 ````
 
@@ -361,30 +447,6 @@ println("(This check is performed automatically in the reconstruct function)")
 (This check is performed automatically in the reconstruct function)
 
 ````
-
-## Physical Interpretation
-
-What we've accomplished is remarkable:
-
-1. **From expectation values to operators**: Starting only with expectation values
-   ⟨A⟩ for various operators A, we reconstructed the actual matrix representations
-   of the Pauli operators.
-
-2. **Basis independence**: The reconstructed operators might be in a different basis
-   than the standard computational basis, but they satisfy all the same algebraic
-   relations (commutation, anti-commutation, etc.).
-
-## Applications
-
-?
-
-## Extensions
-
-The same framework can be extended to:
-- Multi-qubit systems (more variables, larger moment matrices)
-
-This example demonstrates how abstract algebraic structures in quantum mechanics can be
-made concrete through the powerful mathematical framework of GNS construction.
 
 ---
 

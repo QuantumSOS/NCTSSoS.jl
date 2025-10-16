@@ -1,6 +1,6 @@
 using LinearAlgebra
 using ..FastPolynomials:
-    Variable, Monomial, get_basis, monomials, monomial, neat_dot, degree
+    Variable, Monomial, get_basis, monomials, monomial, neat_dot
 
 """
     reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int; atol::Float64=1e-3)
@@ -124,7 +124,7 @@ function reconstruct(
     diag_inv = Diagonal(sqrt_S_inv)
     for var in vars
         K = construct_localizing_matrix(hankel_dict, var, hankel_basis)
-        X = diag_inv * (transpose(U_trunc) * K * U_trunc) * diag_inv
+        X = diag_inv * (U_trunc' * K * U_trunc) * diag_inv
         push!(matrices, X)
         println("Variable $(var.name): constructed $(size(X)) matrix representation")
     end

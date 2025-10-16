@@ -53,17 +53,11 @@ vars = [x, y, z];
 
 # ## Step 2: Choose a Quantum State
 
-# Let's work with a mixed state. A simple example is an equal mixture of |0⟩ and |1⟩:
-# ```math
-# \rho = \frac{1}{2}|0\rangle\langle 0| + \frac{1}{2}|1\rangle\langle 1|
-# ```
-
-# Define the computational basis states
+# Define quantum states for testing
 zero_state = ComplexF64[1; 0];    # |0⟩
-one_state = ComplexF64[0; 1];     # |1⟩
 
-# Create the mixed state density matrix
-ρ = zero_state * zero_state' * 0.5 + one_state * one_state' * 0.5
+# For clear reconstruction, use a pure state
+ρ =  zero_state * zero_state'
 
 # ## Step 3: Compute Expectation Values
 
@@ -104,7 +98,7 @@ end
 # The moment matrix encodes all expectation values of products of our basis operators:
 
 # Choose the degree of our polynomial basis
-degree = 2;
+degree = 4;
 
 # Generate the basis of monomials up to the specified degree
 basis = NCTSSoS.get_basis(vars, degree)
@@ -140,15 +134,6 @@ println("Moment matrix H is Hermitian: ", H ≈ H')
 # Now we use the `reconstruct` function to perform the GNS construction and obtain
 # concrete matrix representations of our abstract operators:
 
-# Perform GNS reconstruction
-# Parameters:
-# - H: the moment matrix
-# - vars: list of variables to reconstruct
-# - degree: maximum degree in basis
-# - atol: tolerance for determining which singular values are non-zero (default: 1e-3)
-# Note: hankel_deg is automatically set to degree - 1
-# The output dimension is automatically determined based on singular values > atol
-
 X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree; atol=0.001)
 
 #
@@ -177,9 +162,9 @@ X2 = X_recon * X_recon
 Y2 = Y_recon * Y_recon
 Z2 = Z_recon * Z_recon
 
-println("   ||X² - I|| = $(norm(X2 - I(4)))")
-println("   ||Y² - I|| = $(norm(Y2 - I(4)))")
-println("   ||Z² - I|| = $(norm(Z2 - I(4)))")
+println("   ||X² - I|| = $(norm(X2 - I(2)))")
+println("   ||Y² - I|| = $(norm(Y2 - I(2)))")
+println("   ||Z² - I|| = $(norm(Z2 - I(2)))")
 
 # Test 2: Anti-commutators should be zero
 println("2. Testing anti-commutation {σ_i, σ_j} = 0 for i ≠ j:")
@@ -210,27 +195,3 @@ println("   ||[Z,X] - 2iY|| = $(norm(comm_ZX - 2im * Y_recon))")
 # The `reconstruct` function automatically checks this condition:
 println("=== FLAT EXTENSION CHECK ===")
 println("(This check is performed automatically in the reconstruct function)")
-
-# ## Physical Interpretation
-
-# What we've accomplished is remarkable:
-
-# 1. **From expectation values to operators**: Starting only with expectation values
-#    ⟨A⟩ for various operators A, we reconstructed the actual matrix representations
-#    of the Pauli operators.
-
-# 2. **Basis independence**: The reconstructed operators might be in a different basis
-#    than the standard computational basis, but they satisfy all the same algebraic
-#    relations (commutation, anti-commutation, etc.).
-
-# ## Applications
-
-# ?
-
-# ## Extensions
-
-# The same framework can be extended to:
-# - Multi-qubit systems (more variables, larger moment matrices)
-
-# This example demonstrates how abstract algebraic structures in quantum mechanics can be
-# made concrete through the powerful mathematical framework of GNS construction.

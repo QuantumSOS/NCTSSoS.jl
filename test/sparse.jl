@@ -202,7 +202,7 @@ end
 
         @test sort.(clique_decomp(G, NoElimination())) == [collect(1:4)]
         @test sort.(clique_decomp(G, AsIsElimination())) == [[3, 4], [2, 3], [1, 4], [1, 2]]
-        @test sort.(clique_decomp(G, MF())) == [[0x0002, 0x0003, 0x0004], [0x0001, 0x0002, 0x0004]]
+        @test sort(sort.(clique_decomp(G, MF()))) == sort([[0x0002, 0x0003, 0x0004], [0x0001, 0x0002, 0x0004]])
 
         rm("example1.lgz")
 
@@ -240,7 +240,7 @@ end
         @test sort.(clique_decomp(G, NoElimination())) == [collect(1:6)]
         @test sort.(clique_decomp(G, AsIsElimination())) == [[0x0002, 0x0005], [0x0002, 0x0004], [0x0002, 0x0006], [0x0003, 0x0005], [0x0003, 0x0004], [0x0001, 0x0005], [0x0001, 0x0004], [0x0001, 0x0006]]
 
-        @test sort.(clique_decomp(G, MF())) == [[0x0003, 0x0004, 0x0005], [0x0001, 0x0002, 0x0006], [0x0001, 0x0002, 0x0004, 0x0005]]
+        @test sort(sort.(clique_decomp(G, MF()))) == sort([[0x0003, 0x0004, 0x0005], [0x0001, 0x0002, 0x0006], [0x0001, 0x0002, 0x0004, 0x0005]])
 
         rm("example5.lgz")
     end

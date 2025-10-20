@@ -49,7 +49,7 @@
 using NCTSSoS
 using NCTSSoS.FastPolynomials
 using JuMP
-using SCS
+using COSMO 
 
 # ## Helper Function for Entry Constraints
 #
@@ -127,7 +127,7 @@ entry_cons = vec([A[i, j] * B[i, j] - one(T1) for i in 1:3, j in 1:3])
 #
 # We use the SCS solver to compute the moment relaxation of order 2.
 
-SOLVER = optimizer_with_attributes(SCS.Optimizer)
+SOLVER = optimizer_with_attributes(COSMO.Optimizer)
 solver_config = SolverConfig(optimizer=SOLVER, order=2)
 
 result = cs_nctssos_with_entry(pop, solver_config, entry_cons; dualize=true)
@@ -162,8 +162,13 @@ vars = vec(A[1:n, 1:n])
 # The degree for the Hankel matrix
 H_deg = 2
 
-# Perform GNS reconstruction with appropriate tolerance
-A_recon_vec = reconstruct(H, vars, H_deg; atol=1e-6)
+# Create the same simplification algorithm used in the optimization
+sa = SimplifyAlgorithm(comm_gps=[vars], is_unipotent=true, is_projective=false)
+
+# Perform GNS reconstruction with appropriate tolerance and simplification
+# The simplification algorithm ensures basis vectors are simplified according to
+# the unipotency constraint (all operators square to identity)
+A_recon_vec = reconstruct(H, vars, H_deg, sa; atol=1e-6)
 
 # Reshape back into a 3×3 array of matrices
 A_recon = reshape(A_recon_vec, (n, n))

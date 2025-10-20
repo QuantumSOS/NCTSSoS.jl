@@ -49,6 +49,13 @@ using LinearAlgebra
 using LinearAlgebra: tr
 ````
 
+````
+Precompiling packages...
+   3693.8 ms  ✓ NCTSSoS
+  1 dependency successfully precompiled in 4 seconds. 71 already precompiled.
+
+````
+
 In `NCTSSoS.jl`, we represent Pauli operators as non-commuting polynomial variables:
 Declare non-commuting variables for Pauli operators
 
@@ -303,18 +310,26 @@ Moment matrix H is Hermitian: true
 ## Step 5: GNS Reconstruction
 
 Now we use the `reconstruct` function to perform the GNS construction and obtain
-concrete matrix representations of our abstract operators:
+concrete matrix representations of our abstract operators.
+
+Since Pauli operators satisfy σ² = I (unipotent property), we can use a
+simplification algorithm to enforce this during reconstruction:
 
 ````julia
-X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree; atol=0.001)
+sa = SimplifyAlgorithm(comm_gps=[vars], is_unipotent=true, is_projective=false)
+X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, sa; atol=0.001)
 ````
 
 ````
 3-element Vector{Matrix{ComplexF64}}:
- [0.0 + 0.0im 3.574334513209998e-48 + 1.0000000000000004im; 2.753963633492892e-48 - 1.0000000000000004im -8.310098917615953e-33 + 6.366149832128084e-51im]
- [0.0 + 0.0im 1.0000000000000004 - 3.574334513209998e-48im; 1.0000000000000004 + 2.753963633492892e-48im -2.347184397671815e-50 - 6.1530573799022466e-33im]
- [1.0000000000000002 + 0.0im -2.353834293849223e-50 - 5.7353166945488984e-33im; -2.51012310344404e-50 + 4.651031097596431e-33im -1.0000000000000009 + 2.3381282238640562e-48im]
+ [0.0 + 0.0im 3.363354988591067e-48 + 1.0000000000000004im; -6.119919185539761e-49 - 1.0000000000000004im -8.310098917615953e-33 + 5.098721737023209e-51im]
+ [0.0 + 0.0im 1.0000000000000004 - 3.363354988591067e-48im; 1.0000000000000004 - 6.119919185539761e-49im -7.67288159674941e-50 - 6.1530573799022466e-33im]
+ [1.0000000000000002 + 0.0im -1.9243339383232715e-50 - 5.7353166945488984e-33im; -5.289187967971371e-50 + 4.651031097596431e-33im -1.0000000000000009 + 2.4324615273979e-48im]
 ````
+
+Note: You can also call `reconstruct(H, vars, degree; atol=0.001)` without
+the simplification algorithm, which uses a default no-op simplification
+(all variables in one commutative group, no special rules).
 
 ````julia
 println("Reconstructed Pauli operators:")
@@ -324,8 +339,8 @@ round.(X_recon, digits=6)
 
 ````
 2×2 Matrix{ComplexF64}:
- 0.0+0.0im   0.0+1.0im
- 0.0-1.0im  -0.0+0.0im
+  0.0+0.0im   0.0+1.0im
+ -0.0-1.0im  -0.0+0.0im
 ````
 
 ````julia
@@ -336,7 +351,7 @@ round.(Y_recon, digits=6)
 ````
 2×2 Matrix{ComplexF64}:
  0.0+0.0im   1.0-0.0im
- 1.0+0.0im  -0.0-0.0im
+ 1.0-0.0im  -0.0-0.0im
 ````
 
 ````julia
@@ -458,8 +473,12 @@ for i in 1:n, j in 1:n
     product = NCTSSoS.neat_dot(basis[i], basis[j])
     H_random[i, j] = expval_pauli(product, ρ_random)
 end
+````
 
-X_rand, Y_rand, Z_rand = reconstruct(H_random, vars, degree; atol=0.001)
+Use the same simplification algorithm for consistency
+
+````julia
+X_rand, Y_rand, Z_rand = reconstruct(H_random, vars, degree, sa; atol=0.001)
 
 @show rank(H_random, atol=1e-6);
 @show size(X_rand);
@@ -487,7 +506,7 @@ X_rand
 ````
 2×2 Matrix{ComplexF64}:
  -0.0324079+1.23262e-19im   0.994615-0.0984462im
-   0.994615+0.0984462im    0.0324079-3.68775e-18im
+   0.994615+0.0984462im    0.0324079-5.35394e-18im
 ````
 
 ````julia
@@ -497,7 +516,7 @@ Y_rand
 ````
 2×2 Matrix{ComplexF64}:
   -0.998861-1.45507e-19im  -0.0356829-0.0316907im
- -0.0356829+0.0316907im      0.998861+1.01064e-17im
+ -0.0356829+0.0316907im      0.998861+1.44252e-17im
 ````
 
 ````julia
@@ -507,7 +526,7 @@ Z_rand
 ````
 2×2 Matrix{ComplexF64}:
  0.0350329-3.53414e-18im   -0.097307-0.994638im
- -0.097307+0.994638im     -0.0350329-8.01641e-18im
+ -0.097307+0.994638im     -0.0350329-1.11903e-17im
 ````
 
 The reconstructed operators are not in the familar form but still satisfy the Pauli algebra:
@@ -519,9 +538,9 @@ The reconstructed operators are not in the familar form but still satisfy the Pa
 ````
 
 ````
-norm(X_rand * X_rand - I) = 4.9544522472129334e-17
-norm(X_rand * Y_rand + Y_rand * X_rand) = 9.504511772915181e-16
-norm((X_rand * Y_rand - Y_rand * X_rand) - (2im) * Z_rand) = 5.162078360867593e-16
+norm(X_rand * X_rand - I) = 6.276219383966882e-17
+norm(X_rand * Y_rand + Y_rand * X_rand) = 9.487779803550428e-16
+norm((X_rand * Y_rand - Y_rand * X_rand) - (2im) * Z_rand) = 5.275507300148801e-16
 
 ````
 
@@ -539,7 +558,7 @@ F_rand = eigen(Z_rand)  # Diagonalize Z, not Y!
 ````
 
 ````
-F_rand.values = ComplexF64[-1.0 - 1.672081166228218e-17im, 1.0 + 6.247779567868549e-18im]
+F_rand.values = ComplexF64[-1.0 - 2.3622496767212695e-17im, 1.0 + 1.3149464672799063e-17im]
 
 ````
 
@@ -590,7 +609,7 @@ round.(X_transformed, digits=4)
 ````
 2×2 Matrix{ComplexF64}:
     0.0+0.0im     0.9916-0.1296im
- 0.9916+0.1296im     0.0-0.0im
+ 0.9916+0.1296im    -0.0-0.0im
 ````
 
 ````julia
@@ -706,26 +725,26 @@ This should make X_transformed[1,2] real and positive: 0.9999999999999997 + 2.77
 === After Systematic Phase Correction ===
 
 Z (should remain unchanged since U₂ is diagonal):
-ComplexF64[1.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im -1.0 - 0.0im]
-Verification: ||Z_corrected - Z_transformed|| = 2.4360324397437158e-17
+ComplexF64[1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im -1.0 - 0.0im]
+Verification: ||Z_corrected - Z_transformed|| = 2.2497171867995565e-17
 
 X (should now match σ_x):
-ComplexF64[0.0 + 0.0im 1.0 + 0.0im; 1.0 - 0.0im 0.0 - 0.0im]
+ComplexF64[0.0 + 0.0im 1.0 + 0.0im; 1.0 - 0.0im -0.0 - 0.0im]
 
 Y (should now match σ_y):
 ComplexF64[0.0 + 0.0im 0.0 - 1.0im; 0.0 + 1.0im 0.0 + 0.0im]
 
 === Final Verification ===
 Distance from standard Pauli matrices:
-||Z_corrected - σ_z|| = 2.8052198857519395e-16
-||X_corrected - σ_x|| = 4.922826142722048e-16
-||Y_corrected - σ_y|| = 6.521822047694349e-16
+||Z_corrected - σ_z|| = 2.807236233125779e-16
+||X_corrected - σ_x|| = 4.967613221525676e-16
+||Y_corrected - σ_y|| = 6.52228344622252e-16
 
 === Verify Pauli Algebra Still Holds ===
-||X² - I|| = 9.499064443774055e-16
-||Y² - I|| = 1.2948801525946436e-15
-||Z² - I|| = 4.478422697720281e-16
-||[X,Y] - 2iZ|| = 1.1309194191732256e-15
+||X² - I|| = 9.486891678186592e-16
+||Y² - I|| = 1.2949638128929592e-15
+||Z² - I|| = 4.485621005337434e-16
+||[X,Y] - 2iZ|| = 1.1383860262628796e-15
 
 ````
 
@@ -753,8 +772,12 @@ for i in 1:n, j in 1:n
     product = NCTSSoS.neat_dot(basis[i], basis[j])
     H_mixed[i, j] = expval_pauli(product, ρ_mixed)
 end
+````
 
-X_mixed, Y_mixed, Z_mixed = reconstruct(H_mixed, vars, degree; atol=0.001)
+Use the same simplification algorithm for consistency
+
+````julia
+X_mixed, Y_mixed, Z_mixed = reconstruct(H_mixed, vars, degree, sa; atol=0.001)
 
 @show rank(H_mixed, atol=1e-6);
 @show size(X_mixed);
@@ -796,9 +819,9 @@ println("||Z² - I|| = $(norm(Z_mixed * Z_mixed - I(dim_mixed)))")
 ````
 
 ````
-||X² - I|| = 2.4124410454036057e-15
-||Y² - I|| = 2.7614386208727306e-15
-||Z² - I|| = 2.6211266463523374e-15
+||X² - I|| = 2.4505281757027287e-15
+||Y² - I|| = 2.4612987337666142e-15
+||Z² - I|| = 1.7938740201152882e-15
 
 ````
 
@@ -815,9 +838,9 @@ println("||{Z,X}|| = $(norm(anticomm_ZX_mixed))")
 ````
 
 ````
-||{X,Y}|| = 1.81421523891841e-15
-||{Y,Z}|| = 2.6164352461025136e-15
-||{Z,X}|| = 2.5553316515572013e-15
+||{X,Y}|| = 2.7828049490253928e-15
+||{Y,Z}|| = 2.5383277349739143e-15
+||{Z,X}|| = 1.959275959226995e-15
 
 ````
 
@@ -834,9 +857,9 @@ println("||[Z,X] - 2iY|| = $(norm(comm_ZX_mixed - 2im * Y_mixed))")
 ````
 
 ````
-||[X,Y] - 2iZ|| = 3.560277133665956e-15
-||[Y,Z] - 2iX|| = 3.5287866252028285e-15
-||[Z,X] - 2iY|| = 2.4546810564734144e-15
+||[X,Y] - 2iZ|| = 2.065659788397314e-15
+||[Y,Z] - 2iX|| = 2.4634586801181637e-15
+||[Z,X] - 2iY|| = 4.228230940676574e-15
 
 ````
 

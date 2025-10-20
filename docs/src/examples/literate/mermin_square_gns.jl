@@ -143,10 +143,43 @@ cons = all_constraints(model, include_variable_in_set_constraints=true)
 
 # The moment matrix is the value of the first constraint
 
-H = value.(cons[1])
+X = value.(dual(cons[1]))
 
-println("Hankel matrix size: ", size(H))
-println("Hankel matrix rank (approx): ", sum(eigvals(Hermitian(H)) .> 1e-6))
+println("X matrix size: ", size(X))
+
+# ## Converting from X form to Y (complex Hermitian) form
+#
+# The moment matrix X is currently in the form:
+# X = [X₁   X₃']
+#     [X₃   X₂ ]
+#
+# We need to convert it to Y form:
+# Y = [H_R   -H_I]  which represents the complex Hermitian matrix H = H_R + im*H_I
+#     [H_I    H_R]
+#
+# The relationship is:
+# X₁ + X₂ = 2*H_R  →  H_R = (X₁ + X₂)/2
+# X₃ - X₃' = 2*H_I  →  H_I = (X₃ - X₃')/2
+
+# Extract the dimensions
+n_total = size(X, 1)
+n_half = div(n_total, 2)
+
+# Extract the blocks from X
+X1 = X[1:n_half, 1:n_half]
+X3 = X[(n_half+1):end, 1:n_half]
+X2 = X[(n_half+1):end, (n_half+1):end]
+
+# Compute H_R and H_I
+H_R = (X1 + X2) / 2
+H_I = (X3 - X[1:n_half, (n_half+1):end]') / 2
+
+H = H_R + im * H_I
+
+# Also construct the complex Hermitian form for reference
+H_complex = H_R + im * H_I
+println("\nComplex Hermitian matrix size: ", size(H_complex))
+println("Hermiticity check: ||H_complex - H_complex'|| = ", norm(H_complex - H_complex'))
 
 # ## GNS Reconstruction
 #
@@ -157,7 +190,7 @@ println("Hankel matrix rank (approx): ", sum(eigvals(Hermitian(H)) .> 1e-6))
 # Since we used order 2, the basis consists of monomials up to degree 2.
 
 # Get all variables (we'll use A since A[i,j] = B[i,j])
-vars = vec(A[1:n, 1:n])
+vars = [vec(A[1:n, 1:n]); vec(B[1:n, 1:n])]
 
 # The degree for the Hankel matrix
 H_deg = 2
@@ -168,8 +201,9 @@ sa = SimplifyAlgorithm(comm_gps=[vars], is_unipotent=true, is_projective=false)
 # Perform GNS reconstruction with appropriate tolerance and simplification
 # The simplification algorithm ensures basis vectors are simplified according to
 # the unipotency constraint (all operators square to identity)
-A_recon_vec = reconstruct(H, vars, H_deg, sa; atol=1e-6)
+A_recon_vec = reconstruct(H, vars, H_deg, sa; atol=1e-3)
 
+round.(A_recon_vec[1], digits=6)
 # Reshape back into a 3×3 array of matrices
 A_recon = reshape(A_recon_vec, (n, n))
 

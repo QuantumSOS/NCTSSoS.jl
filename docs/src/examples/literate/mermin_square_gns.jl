@@ -49,7 +49,8 @@
 using NCTSSoS
 using NCTSSoS.FastPolynomials
 using JuMP
-using COSMO 
+using COSMO
+using LinearAlgebra 
 
 # ## Helper Function for Entry Constraints
 #
@@ -201,16 +202,21 @@ sa = SimplifyAlgorithm(comm_gps=[vars], is_unipotent=true, is_projective=false)
 # Perform GNS reconstruction with appropriate tolerance and simplification
 # The simplification algorithm ensures basis vectors are simplified according to
 # the unipotency constraint (all operators square to identity)
-A_recon_vec = reconstruct(H, vars, H_deg, sa; atol=1e-3)
+all_recon = reconstruct(H, vars, H_deg, sa; atol=1e-3)
 
-round.(A_recon_vec[1], digits=6)
-# Reshape back into a 3×3 array of matrices
+# The reconstruction returns all 18 matrices (9 A's + 9 B's)
+# Split them into A and B operators
+n_vars = n * n  # 9 operators each
+A_recon_vec = all_recon[1:n_vars]
+B_recon_vec = all_recon[(n_vars+1):end]
+
+# Reshape back into 3×3 arrays of matrices
 A_recon = reshape(A_recon_vec, (n, n))
+B_recon = reshape(B_recon_vec, (n, n))
 
 println("\nReconstructed operator dimension: ", size(A_recon[1, 1]))
-
-# Since A[i,j] = B[i,j], we can use the same reconstructed matrices for B
-B_recon = A_recon
+println("Number of A operators: ", length(A_recon_vec))
+println("Number of B operators: ", length(B_recon_vec))
 
 # ## Verification
 #

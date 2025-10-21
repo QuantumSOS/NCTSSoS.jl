@@ -135,6 +135,8 @@ result = cs_nctssos_with_entry(pop, solver_config, entry_cons; dualize=true)
 
 model = result.model
 
+solve_time(model)
+
 # ## Extracting the Hankel Matrix
 #
 # The moment matrix (Hankel matrix) is embedded in the constraints of the dual problem.

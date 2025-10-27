@@ -135,6 +135,9 @@ result = cs_nctssos_with_entry(pop, solver_config, entry_cons; dualize=true)
 
 model = result.model
 
+using JuMP
+JuMP.num_constraints(model, count_variable_in_set_constraints=true)
+
 solve_time(model)
 
 # ## Extracting the Hankel Matrix

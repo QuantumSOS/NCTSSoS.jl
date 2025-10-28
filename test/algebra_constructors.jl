@@ -180,3 +180,92 @@ end
         @test_throws AssertionError bosonic_algebra(-1)
     end
 end
+
+
+@testset "cpolyopt with Algebra Interface" begin
+    @testset "Pauli Algebra Interface" begin
+        sys = pauli_algebra(2)
+        x, y, z = sys.variables
+        
+        ham = ComplexF64(0.5) * (x[1] * x[2] + y[1] * y[2])
+        pop = cpolyopt(ham, sys)
+        
+        @test pop.objective == ham
+        @test pop.is_unipotent == true
+        @test pop.is_projective == false
+        @test length(pop.eq_constraints) == 12
+        @test isempty(pop.ineq_constraints)
+        @test pop.comm_gps == sys.comm_gps
+    end
+    
+    @testset "Pauli Algebra with Additional Constraints" begin
+        sys = pauli_algebra(2)
+        x, y, z = sys.variables
+        ham = ComplexF64(0.5) * (x[1] * x[2])
+        
+        custom_eq = [x[1] + y[1]]
+        pop = cpolyopt(ham, sys; eq_constraints=custom_eq)
+        
+        @test length(pop.eq_constraints) == 13
+        @test ComplexF64(1.0) * (x[1] + y[1]) in pop.eq_constraints
+    end
+    
+    @testset "Pauli Algebra with Inequality Constraints" begin
+        sys = pauli_algebra(1)
+        x, y, z = sys.variables
+        ham = ComplexF64(1.0) * x[1]
+        
+        ineq = [ComplexF64(1.0) + z[1]]
+        pop = cpolyopt(ham, sys; ineq_constraints=ineq)
+        
+        @test length(pop.eq_constraints) == 6
+        @test length(pop.ineq_constraints) == 1
+        @test ComplexF64(1.0) + z[1] in pop.ineq_constraints
+    end
+    
+    @testset "Bosonic Algebra Interface" begin
+        sys = bosonic_algebra(2)
+        q, p = sys.variables
+        ham = ComplexF64(0.5) * sum(p[i]^2 + q[i]^2 for i in 1:2)
+        pop = cpolyopt(ham, sys)
+        
+        @test pop.objective == ham
+        @test pop.is_unipotent == false
+        @test pop.is_projective == false
+        @test length(pop.eq_constraints) == 2
+        @test isempty(pop.ineq_constraints)
+        @test pop.comm_gps == sys.comm_gps
+    end
+    
+    @testset "Bosonic Algebra with Additional Constraints" begin
+        sys = bosonic_algebra(2)
+        q, p = sys.variables
+        ham = ComplexF64(0.5) * (q[1]^2 + q[2]^2)
+        
+        custom_eq = [q[1] - q[2]]
+        custom_ineq = [ComplexF64(1.0) + q[1] + q[2]]
+        pop = cpolyopt(ham, sys; eq_constraints=custom_eq, ineq_constraints=custom_ineq)
+        
+        @test length(pop.eq_constraints) == 3
+        @test length(pop.ineq_constraints) == 1
+        @test ComplexF64(1.0) * (q[1] - q[2]) in pop.eq_constraints
+        @test ComplexF64(1.0) + q[1] + q[2] in pop.ineq_constraints
+    end
+    
+    @testset "Interface Equivalence Test" begin
+        sys = pauli_algebra(2)
+        x, y, z = sys.variables
+        ham = ComplexF64(0.5) * (x[1] * y[2])
+        
+        pop1 = cpolyopt(ham, sys)
+        pop2 = cpolyopt(ham; eq_constraints=sys.equality_constraints, 
+                        comm_gps=sys.comm_gps, is_unipotent=true, is_projective=false)
+        
+        @test pop1.objective == pop2.objective
+        @test Set(pop1.eq_constraints) == Set(pop2.eq_constraints)
+        @test pop1.ineq_constraints == pop2.ineq_constraints
+        @test pop1.comm_gps == pop2.comm_gps
+        @test pop1.is_unipotent == pop2.is_unipotent
+        @test pop1.is_projective == pop2.is_projective
+    end
+end

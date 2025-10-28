@@ -17,6 +17,7 @@ export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher
 export reconstruct
+export pauli_algebra, bosonic_algebra
 
 include("pop.jl")
 
@@ -35,4 +36,6 @@ include("sos_solver.jl")
 include("gns.jl")
 
 include("interface.jl")
+
+include("algebra_constructors.jl")
 end

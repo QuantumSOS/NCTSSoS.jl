@@ -1,4 +1,4 @@
-# # Obtaining Ground State Energy Lower Bound
+# # [Obtaining Ground State Energy Lower Bound](@id ground-state-energy)
 
 # Finding the ground state of a quantum system is a fundamental problem in quantum
 # mechanics [wang2024Certifying](@cite). Variational methods are commonly used to

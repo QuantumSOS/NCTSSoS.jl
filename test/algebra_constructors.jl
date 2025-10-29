@@ -1,5 +1,14 @@
 using Test, NCTSSoS, NCTSSoS.FastPolynomials
 
+# Import solver based on environment
+if haskey(ENV, "LOCAL_TESTING")
+    using MosekTools
+    const SOLVER = Mosek.Optimizer
+else
+    using Clarabel
+    const SOLVER = Clarabel.Optimizer
+end
+
 @testset "Pauli Algebra Constructor" begin
     @testset "Basic Structure N=1" begin
         sys = pauli_algebra(1)
@@ -151,5 +160,114 @@ end
         @test pop1.comm_gps == pop2.comm_gps
         @test pop1.is_unipotent == pop2.is_unipotent
         @test pop1.is_projective == pop2.is_projective
+    end
+end
+
+
+if haskey(ENV, "LOCAL_TESTING")
+    @testset "Integration: XXX Model with Pauli Algebra" begin
+
+        # Test that the new pauli_algebra interface produces the same
+        # numerical results as the manual setup for the XXX Heisenberg Model
+        T = ComplexF64
+        N = 6
+        J1 = 1.0
+
+        # Create algebra system using new interface
+        sys = pauli_algebra(N)
+        x, y, z = sys.variables
+
+        # Construct XXX Heisenberg Hamiltonian
+        ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [x, y, z] for i in 1:N)
+
+        # Create optimization problem using new algebra interface
+        pop = cpolyopt(ham, sys)
+
+        # Verify problem structure
+        @test pop.objective == ham
+        @test pop.is_unipotent == true
+        @test pop.is_projective == false
+        @test length(pop.eq_constraints) == 6 * N  # 6 constraints per site
+
+        # Solve the optimization problem
+        solver_config = SolverConfig(optimizer=SOLVER, order=2)
+        res = cs_nctssos(pop, solver_config)
+
+        # Verify against known result from heisenberg.jl test
+        @test res.objective / N ≈ -0.467129 atol = 1e-6
+    end
+
+    @testset "Integration: J1-J2 Model with Pauli Algebra" begin
+        # Test the new pauli_algebra interface with J1-J2 Heisenberg Model
+        # This requires higher order relaxation (cs_nctssos_higher)
+        T = ComplexF64
+        N = 6
+        J1 = 1.0
+        J2 = 0.2
+
+        # Create algebra system using new interface
+        sys = pauli_algebra(N)
+        x, y, z = sys.variables
+
+        # Construct J1-J2 Heisenberg Hamiltonian
+        # J1: nearest-neighbor interactions, J2: next-nearest-neighbor
+        ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] +
+                  T(J2 / 4) * op[i] * op[mod1(i + 2, N)]
+                  for op in [x, y, z] for i in 1:N)
+
+        # Create optimization problem using new algebra interface
+        pop = cpolyopt(ham, sys)
+
+        # Verify problem structure
+        @test pop.objective == ham
+        @test pop.is_unipotent == true
+        @test pop.is_projective == false
+        @test length(pop.eq_constraints) == 6 * N
+
+        # Solve with MMD term sparsity algorithm
+        solver_config = SolverConfig(optimizer=SOLVER, order=2, ts_algo=MMD())
+
+        res = cs_nctssos(pop, solver_config)
+        res = cs_nctssos_higher(pop, res, solver_config)
+
+        # Verify against known result from heisenberg.jl test
+        @test res.objective / N ≈ -0.4270083225302217 atol = 1e-6
+    end
+
+    @testset "Integration: 1D Transverse Field Ising Model" begin
+        # Test the new pauli_algebra interface with Transverse Field Ising Model
+        # This model combines ZZ interactions with transverse field X
+        N = 3
+        J = 1.0
+        h = 2.0
+
+        # Create algebra system using new interface
+        sys = pauli_algebra(N)
+        x, y, z = sys.variables
+
+        # Test both periodic and open boundary conditions
+        for (periodic, true_ans) in zip((true, false), (-1.0175918, -1.0104160))
+            # Construct Transverse Field Ising Hamiltonian
+            # -J/4 * sum(Z_i * Z_{i+1}) - h/2 * sum(X_i)
+            ham = sum(-complex(J / 4) * z[i] * z[mod1(i + 1, N)]
+                      for i in 1:(periodic ? N : N - 1)) +
+                  sum(-h / 2 * x[i] for i in 1:N)
+
+            # Create optimization problem using new algebra interface
+            pop = cpolyopt(ham, sys)
+
+            # Verify problem structure
+            @test pop.objective == ham
+            @test pop.is_unipotent == true
+            @test pop.is_projective == false
+            @test length(pop.eq_constraints) == 6 * N
+
+            # Solve the optimization problem
+            solver_config = SolverConfig(optimizer=SOLVER, order=2)
+            res = cs_nctssos(pop, solver_config)
+
+            # Verify against known result from interface.jl test
+            @test res.objective / N ≈ true_ans atol = 1e-6
+        end
     end
 end

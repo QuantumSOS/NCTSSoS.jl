@@ -9,7 +9,7 @@ function pauli_algebra(N::Int)
     # Declare non-commuting variables for Pauli operators
     @ncpolyvar x[1:N] y[1:N] z[1:N]
 
-    # Create commutation groups (operators at same site commute with each other)
+    # Create commutation groups: operators at different sites commute, while operators at the same site form a commutation group for tracking purposes (Pauli operators at the same site anti-commute).
     comm_gps = [[x[i], y[i], z[i]] for i in 1:N]
 
     # Build equality constraints encoding Pauli commutation relations

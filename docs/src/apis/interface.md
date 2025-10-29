@@ -12,7 +12,6 @@ NCTSSoS.cpolyopt
 
 ```@docs
 NCTSSoS.pauli_algebra
-NCTSSoS.bosonic_algebra
 ```
 
 ## Solver Interface

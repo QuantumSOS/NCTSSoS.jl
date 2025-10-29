@@ -5,6 +5,13 @@
 ```@docs
 NCTSSoS.PolyOpt
 NCTSSoS.polyopt
+NCTSSoS.cpolyopt
+```
+
+## Algebra Constructors
+
+```@docs
+NCTSSoS.pauli_algebra
 ```
 
 ## Solver Interface

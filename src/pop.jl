@@ -124,3 +124,49 @@ function cpolyopt(objective::P; eq_constraints=Any[], ineq_constraints=Any[], co
 
     return ComplexPolyOpt{P}(objective, eq_cons, ineq_cons, vars, comm_gps, is_unipotent, is_projective)
 end
+
+
+"""
+    cpolyopt(objective::P, algebra; eq_constraints=Any[], ineq_constraints=Any[])
+
+Create a complex polynomial optimization problem using a predefined algebra system.
+
+Convenience method that automatically extracts commutation groups, simplification
+properties, and algebraic constraints from an algebra created by `pauli_algebra(N)` or
+`bosonic_algebra(N)`, merging them with user-provided constraints.
+
+# Arguments
+- `objective::P`: The polynomial objective function to optimize
+- `algebra`: A NamedTuple returned by `pauli_algebra(N)` or `bosonic_algebra(N)`
+
+# Keyword Arguments
+- `eq_constraints=Any[]`: Additional equality constraints (merged with algebra constraints)
+- `ineq_constraints=Any[]`: Inequality constraints (p ≥ 0)
+
+# Example
+```julia
+sys = pauli_algebra(2)
+x, y, z = sys.variables
+ham = ComplexF64(0.5) * (x[1] * x[2])
+pop = cpolyopt(ham, sys)
+```
+"""
+function cpolyopt(objective::P, algebra::NamedTuple; eq_constraints=Any[], ineq_constraints=Any[]) where {T,P<:AbstractPolynomial{T}}
+    # Extract properties from algebra
+    comm_gps = algebra.comm_gps
+    is_unipotent = algebra.simplify_algo.is_unipotent
+    is_projective = algebra.simplify_algo.is_projective
+    
+    # Merge algebra constraints with user-provided constraints
+    # Convert user constraints by multiplying with T(1) to match coefficient type
+    converted_user_eq = isempty(eq_constraints) ? typeof(algebra.equality_constraints)[] : [T(1) * poly for poly in eq_constraints]
+    merged_eq_constraints = vcat(algebra.equality_constraints, converted_user_eq) 
+    
+    # Call the original cpolyopt with merged constraints
+    return cpolyopt(objective;
+        eq_constraints=merged_eq_constraints,
+        ineq_constraints=ineq_constraints,
+        comm_gps=comm_gps,
+        is_unipotent=is_unipotent,
+        is_projective=is_projective)
+end

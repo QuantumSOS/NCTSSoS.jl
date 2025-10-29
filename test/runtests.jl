@@ -4,9 +4,10 @@ using NCTSSoS, Test
 @testset "NCTSSoS.jl" begin
     include("fastpoly_test/runtests.jl")
     include("pop.jl")
+    include("algebra_constructors.jl")
     include("sparse.jl")
     include("solver_utils.jl")
-    if haskey(ENV,"LOCAL_TESTING")
+    if haskey(ENV, "LOCAL_TESTING")
         # Only test moment_problem locally due to time constraints
         include("moment_solver.jl")
         include("heisenberg.jl")

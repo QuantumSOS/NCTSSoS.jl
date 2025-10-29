@@ -1,0 +1,73 @@
+feat: add algebra-based cpolyopt interface
+
+Add a new convenience method for `cpolyopt` that accepts an algebra system
+as a parameter, automatically extracting and merging algebraic constraints,
+commutation groups, and simplification properties.
+
+## New Interface
+
+```julia
+cpolyopt(objective::P, algebra::NamedTuple; eq_constraints=Any[], ineq_constraints=Any[])
+```
+
+This method accepts an algebra created by `pauli_algebra(N)` or `bosonic_algebra(N)`
+and automatically:
+- Extracts commutation groups from the algebra
+- Extracts simplification properties (is_unipotent, is_projective)
+- Merges algebra's equality constraints with user-provided constraints
+- Handles type conversion for mixed Float64/ComplexF64 constraints
+
+## Benefits
+
+1. **Simplified workflow**: No need to manually specify `comm_gps`, `is_unipotent`, or `is_projective`
+2. **Automatic constraint merging**: Algebra constraints are automatically included
+3. **Type safety**: Properly converts user constraints to match objective type
+4. **Cleaner code**: Reduces boilerplate in user code
+
+## Implementation Details
+
+The new method delegates to the existing `cpolyopt` implementation after:
+- Converting user constraints via `T(1) * poly` to match objective coefficient type
+- Merging algebra constraints with user constraints into a single `Any[]` array
+- Extracting properties from the algebra's `SimplifyAlgorithm`
+
+## Testing
+
+- 27 new tests added for the algebra interface
+- Tests cover basic usage, additional constraints, type conversion, and equivalence
+- All 91 total tests pass (35 Pauli + 29 Bosonic + 27 Interface)
+
+## Usage Examples
+
+### Before (manual specification):
+```julia
+sys = pauli_algebra(3)
+x, y, z = sys.variables
+ham = sum(ComplexF64(0.25) * op[i] * op[mod1(i+1,3)] for op in [x,y,z] for i in 1:3)
+
+pop = cpolyopt(ham;
+    eq_constraints=sys.equality_constraints,
+    comm_gps=sys.comm_gps,
+    is_unipotent=true,
+    is_projective=false)
+```
+
+### After (with new interface):
+```julia
+sys = pauli_algebra(3)
+x, y, z = sys.variables
+ham = sum(ComplexF64(0.25) * op[i] * op[mod1(i+1,3)] for op in [x,y,z] for i in 1:3)
+
+pop = cpolyopt(ham, sys)
+```
+
+## Files Modified
+
+- src/pop.jl: Added new `cpolyopt` method (18 lines)
+- test/algebra_constructors.jl: Added 27 tests for new interface (91 lines)
+
+## Related
+
+This enhancement complements the `pauli_algebra` and `bosonic_algebra` constructors
+added in the previous commit, completing the high-level interface for quantum
+optimization problems.

@@ -159,8 +159,8 @@ function cpolyopt(objective::P, algebra::NamedTuple; eq_constraints=Any[], ineq_
     
     # Merge algebra constraints with user-provided constraints
     # Convert user constraints by multiplying with T(1) to match coefficient type
-    converted_user_eq = [T(1) * poly for poly in eq_constraints]
-    merged_eq_constraints = Any[algebra.equality_constraints..., converted_user_eq...]
+    converted_user_eq = isempty(eq_constraints) ? typeof(algebra.equality_constraints)() : [T(1) * poly for poly in eq_constraints]
+    merged_eq_constraints = typeof(algebra.equality_constraints)(algebra.equality_constraints..., converted_user_eq...)
     
     # Call the original cpolyopt with merged constraints
     return cpolyopt(objective;

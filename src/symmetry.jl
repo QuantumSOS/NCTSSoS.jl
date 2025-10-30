@@ -209,14 +209,42 @@ function compute_symmetry_adapted_bases(
     sa::SimplifyAlgorithm;
     semisimple::Bool=false
 )
-    # TODO: Implementation in next step
-    # This requires:
-    # 1. Generate monomial bases for degree d and 2d
-    # 2. Convert FastPolynomials to DynamicPolynomials (for SymbolicWedderburn)
-    # 3. Call WedderburnDecomposition
-    # 4. Extract adapted bases from decomposition
-    # 5. Convert back to FastPolynomials
-    error("compute_symmetry_adapted_bases not yet implemented")
+    # Generate monomial bases for degree order and 2*order
+    # These correspond to the "half basis" and "full basis" in TSSOS
+    basis_half = get_basis(vars, order)
+    basis_full = get_basis(vars, 2 * order)
+
+    # Apply simplification algorithm to ensure canonical forms
+    basis_half = unique!(sort!([simplify(m, sa) for m in basis_half]))
+    basis_full = unique!(sort!([simplify(m, sa) for m in basis_full]))
+
+    # Compute Wedderburn decomposition
+    # This decomposes the group algebra into irreducible representations
+    wd = SymbolicWedderburn.WedderburnDecomposition(
+        Float64,
+        group,
+        action,
+        basis_full,
+        basis_half;
+        semisimple=semisimple
+    )
+
+    # Extract symmetry-adapted bases from decomposition
+    # These are organized by irreducible representations
+    adapted_bases = Vector{Vector{Vector{Monomial}}}()
+
+    # For each irreducible representation in the decomposition
+    for (i, rep) in enumerate(SymbolicWedderburn.irreps(wd))
+        # Get the basis for this representation
+        rep_basis = SymbolicWedderburn.basis(wd, i)
+
+        # Store the basis vectors (as monomials)
+        # Each basis vector is a linear combination, but we'll store the support
+        push!(adapted_bases, [rep_basis])
+    end
+
+    # Create and return SymmetryData container
+    return SymmetryData(group, action, wd, adapted_bases)
 end
 
 """

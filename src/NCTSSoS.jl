@@ -26,7 +26,7 @@ export reconstruct
 
 # Symmetry exports
 export NCVariablePermutation, SymmetryData
-export normalform, compute_symmetry_adapted_bases
+export normalform, compute_symmetry_adapted_bases, get_basis
 
 include("pop.jl")
 

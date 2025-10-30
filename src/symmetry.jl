@@ -96,8 +96,8 @@ function SymbolicWedderburn.action(
             # Variable not in our list, keep it unchanged
             return var
         end
-        # Apply permutation: g(idx) gives the new index
-        new_idx = g(idx)
+        # Apply permutation: idx^g gives the new index
+        new_idx = idx^g
         return a.variables[new_idx]
     end
 

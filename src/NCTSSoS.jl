@@ -5,6 +5,11 @@ using CliqueTrees, ChordalGraph, Graphs
 using CliqueTrees: EliminationAlgorithm, SupernodeType
 import CliqueTrees.cliquetree
 
+# Symmetry support dependencies
+using SymbolicWedderburn, PermutationGroups, GroupsCore
+import SymbolicWedderburn: action
+import Base: minimum
+
 include("FastPolynomials/src/FastPolynomials.jl")
 using .FastPolynomials
 using .FastPolynomials: AbstractPolynomial, Variable, Monomial
@@ -17,6 +22,10 @@ export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher
 export reconstruct
+
+# Symmetry exports
+export NCVariablePermutation, SymmetryData
+export normalform, compute_symmetry_adapted_bases
 
 include("pop.jl")
 
@@ -33,6 +42,8 @@ include("complex_moment_solver.jl")
 include("sos_solver.jl")
 
 include("gns.jl")
+
+include("symmetry.jl")
 
 include("interface.jl")
 end

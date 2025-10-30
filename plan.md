@@ -287,40 +287,44 @@ GroupsCore = "d5909c97-4eac-4ecc-a3dc-fdd0858a4120"
 ## Implementation Status
 
 ### Completed ✓
-1. **Project Structure Setup**
-   - Added symmetry dependencies to Project.toml
-   - Created src/symmetry.jl with core structures
-   - Updated main module to include symmetry support
 
-2. **Core Data Structures**
-   - `NCVariablePermutation`: Action type for non-commutative variable permutations
-   - `SymmetryData`: Container for symmetry-related data (group, action, Wedderburn decomposition, adapted bases)
+**Progress: 50% (Steps 1-4 of 8 complete)**
 
-3. **Group Action Implementation**
-   - `SymbolicWedderburn.action()`: Applies permutations to non-commutative monomials
-   - `normalform()`: Computes canonical form of monomials under group action
-   - `supp_multi()`: Helper for computing support under symmetry
+#### Step 1: Project Structure Setup ✓
+- Added symmetry dependencies to Project.toml (SymbolicWedderburn, PermutationGroups, GroupsCore, AbstractPermutations)
+- Created src/symmetry.jl with core structures
+- Updated main module to include symmetry support
+- Fixed include order (symmetry.jl before pop.jl)
 
-4. **Test Infrastructure**
-   - Created test/symmetry_test.jl with basic test cases
-   - Tests for group actions, normal forms, and symmetry properties
+#### Step 2: Core Data Structures & Group Actions ✓
+- **NCVariablePermutation**: Action type implementing SymbolicWedderburn.ByPermutations
+- **SymmetryData**: Container storing group, action, and Wedderburn decomposition
+- **action()**: Applies permutations to non-commutative monomials (fixed to use `idx^g` syntax)
+- **normalform()**: Computes canonical form of monomials under group action
+- **supp_multi()**: Helper for computing support under symmetry
 
-5. **Wedderburn Decomposition Integration** ✓
-   - `compute_symmetry_adapted_bases()`: Fully implemented
-   - Generates monomial bases for degrees d and 2d
-   - Applies simplification algorithm for canonical forms
-   - Calls SymbolicWedderburn.WedderburnDecomposition
-   - Extracts symmetry-adapted bases by irreducible representation
-   - Works directly with FastPolynomials Monomial type
+#### Step 3: Wedderburn Decomposition Integration ✓
+- **compute_symmetry_adapted_bases()**: Fully implemented
+  - Generates monomial bases for degrees d and 2d
+  - Applies simplification algorithm for canonical forms
+  - Calls SymbolicWedderburn.WedderburnDecomposition
+  - Works directly with FastPolynomials Monomial type
+  - Returns SymmetryData with group, action, and Wedderburn decomposition
 
-6. **Exports and Public API**
-   - Exported `get_basis`, `SimplifyAlgorithm` for user access
-   - All symmetry functions properly exported
+#### Step 4: PolyOpt Structure Modification ✓
+- Added optional `symmetry::Union{Nothing, SymmetryData}` field to both PolyOpt and ComplexPolyOpt
+- Updated `polyopt()` and `cpolyopt()` constructors to accept:
+  - `group=nothing`: Optional permutation group for symmetry
+  - `order::Int=0`: Relaxation order (required when group provided)
+  - `semisimple::Bool=false`: Use semisimple representation
+- Symmetry data automatically computed when group is provided
+- **Backward compatibility maintained**: All existing code works unchanged
+- **Tests passed**: All 4 backward compatibility tests successful
 
-7. **Documentation**
-   - Comprehensive plan in plan.md
-   - Detailed docstrings for all functions and structures
-   - Clear examples and usage patterns
+#### Additional Completions ✓
+- **Exports and Public API**: Exported NCVariablePermutation, SymmetryData, normalform, compute_symmetry_adapted_bases, get_basis, SimplifyAlgorithm
+- **Documentation**: Comprehensive docstrings for all functions and structures
+- **Testing**: Manual tests confirm group actions, normal forms, and PolyOpt integration work correctly
 
 ### Compatibility Issue Resolution ✓
 
@@ -348,29 +352,33 @@ The packages work correctly at runtime - the issue is only cosmetic (precompilat
 
 ### Remaining Work
 
-1. **Wedderburn Decomposition Integration** (Step 3)
-   - Implement `compute_symmetry_adapted_bases()`
-   - Convert between FastPolynomials and DynamicPolynomials
-   - Handle basis extraction from decomposition
+**Steps 5-8 remain to complete symmetry-adapted solver integration**
 
-2. **PolyOpt Structure Modification** (Step 4)
-   - Add optional `symmetry` field
-   - Update constructors
-   - Ensure backward compatibility
+#### Step 5: Update Sparsity Algorithms (TODO)
+- Modify `correlative_sparsity` in src/sparse.jl to use symmetry-adapted bases
+- Update `term_sparsities` to apply normalform when checking monomial membership
+- Ensure sparsity graphs respect symmetry equivalence classes
+- **Complexity**: Medium - requires understanding correlative sparsity structure
 
-3. **Sparsity Algorithm Updates** (Step 5-6)
-   - Modify `correlative_sparsity` to use symmetry-adapted bases
-   - Update `term_sparsities` with normalform
-   - Modify `moment_relax` for symmetry
+#### Step 6: Update Moment Relaxation (TODO)
+- Modify `moment_relax` in src/moment_solver.jl to use symmetry-adapted bases
+- Apply normalform to monomials when building moment matrices
+- Update constraint assembly to respect symmetry
+- **Complexity**: Medium-High - core solver modification
 
-4. **Main Interface Functions** (Step 7)
-   - Implement `cs_nctssos_symmetry`
-   - Implement `cs_nctssos_symmetry_higher`
+#### Step 7: Main Interface Functions (TODO)
+- Implement `cs_nctssos_symmetry` - first relaxation with symmetry
+- Implement `cs_nctssos_symmetry_higher` - higher-order relaxations with symmetry
+- Similar to `cs_nctssos` but uses symmetry-adapted flow
+- **Complexity**: High - requires integration of Steps 5-6
 
-5. **Testing & Examples** (Step 8)
-   - Write comprehensive test suite
-   - Create examples similar to TSSOS's symmetry examples
-   - Benchmark performance improvements
+#### Step 8: Testing & Documentation (TODO)
+- Write comprehensive test suite with symmetric polynomial examples
+- Create examples/symmetry.jl similar to TSSOS's examples
+- Test symmetric polynomial on S₃, cyclic symmetry, dihedral groups
+- Benchmark performance improvements (SDP size reduction)
+- Document API usage and expected speedups
+- **Complexity**: Medium - verification and documentation
 
 ## Notes
 

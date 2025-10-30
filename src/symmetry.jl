@@ -34,20 +34,18 @@ Container for symmetry-related data in polynomial optimization.
 - `group::G`: Permutation group acting on variables
 - `action::A`: Action of the group on variables
 - `wedderburn::W`: Wedderburn decomposition result
-- `adapted_bases::Vector{Vector{Vector{P}}}`: Symmetry-adapted polynomial bases for each irreducible representation
 
 # Description
 Stores all symmetry information needed to exploit group actions in
-polynomial optimization. The adapted bases are organized by:
-- First level: Irreducible representations
-- Second level: Constraints (objective, inequalities, equalities)
-- Third level: Individual basis polynomials
+polynomial optimization. The Wedderburn decomposition contains the
+symmetry-adapted bases which can be accessed via:
+- `SymbolicWedderburn.direct_summands(wedderburn)`: Get irreducible representations
+- Each summand has a `.basis` field with change-of-basis matrix
 """
-struct SymmetryData{G,A,W,P}
+struct SymmetryData{G,A,W}
     group::G
     action::A
     wedderburn::W
-    adapted_bases::Vector{Vector{Vector{P}}}
 end
 
 """
@@ -229,22 +227,9 @@ function compute_symmetry_adapted_bases(
         semisimple=semisimple
     )
 
-    # Extract symmetry-adapted bases from decomposition
-    # These are organized by irreducible representations
-    adapted_bases = Vector{Vector{Vector{Monomial}}}()
-
-    # For each irreducible representation in the decomposition
-    for (i, rep) in enumerate(SymbolicWedderburn.irreps(wd))
-        # Get the basis for this representation
-        rep_basis = SymbolicWedderburn.basis(wd, i)
-
-        # Store the basis vectors (as monomials)
-        # Each basis vector is a linear combination, but we'll store the support
-        push!(adapted_bases, [rep_basis])
-    end
-
     # Create and return SymmetryData container
-    return SymmetryData(group, action, wd, adapted_bases)
+    # The Wedderburn decomposition contains all the symmetry-adapted basis information
+    return SymmetryData(group, action, wd)
 end
 
 """

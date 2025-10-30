@@ -28,6 +28,8 @@ export reconstruct
 export NCVariablePermutation, SymmetryData
 export normalform, compute_symmetry_adapted_bases, get_basis
 
+include("symmetry.jl")
+
 include("pop.jl")
 
 include("elimination.jl")
@@ -43,8 +45,6 @@ include("complex_moment_solver.jl")
 include("sos_solver.jl")
 
 include("gns.jl")
-
-include("symmetry.jl")
 
 include("interface.jl")
 end

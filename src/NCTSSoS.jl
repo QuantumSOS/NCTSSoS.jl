@@ -7,6 +7,7 @@ import CliqueTrees.cliquetree
 
 # Symmetry support dependencies
 using SymbolicWedderburn, PermutationGroups, GroupsCore
+using AbstractPermutations: AbstractPermutation
 import SymbolicWedderburn: action
 import Base: minimum
 

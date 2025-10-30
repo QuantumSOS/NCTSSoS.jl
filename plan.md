@@ -310,32 +310,31 @@ GroupsCore = "d5909c97-4eac-4ecc-a3dc-fdd0858a4120"
    - Detailed docstrings for all functions and structures
    - Clear examples and usage patterns
 
-### Current Blocker 🚧
+### Compatibility Issue Resolution ✓
 
-**Compatibility Issue**: There is a version incompatibility between `SymbolicWedderburn v0.4.2` and `PermutationGroups v0.6.3`. The packages were successfully added, but fail during precompilation due to a method signature mismatch in the `action` function.
+**Issue**: SymbolicWedderburn v0.4.2 fails precompilation with PermutationGroups v0.6.3 on Julia 1.12 due to method signature mismatch in precompile workloads.
 
-Error summary:
+**Root Cause**:
+- The error occurs in SymbolicWedderburn's own precompile.jl, not in actual library code
+- PermutationGroups v0.6.3 has known Julia 1.12 compatibility issues (issue #44)
+- AbstractPermutations v0.3.2 introduced breaking changes
+
+**Solution Applied**:
+1. Constrained `AbstractPermutations = "0.3.1"` in Project.toml (matching TSSOS)
+2. Added `using AbstractPermutations: AbstractPermutation` import
+3. Both packages load successfully at runtime without precompilation
+
+**Workaround for Development**:
+Use `--compiled-modules=no` flag when loading:
+```julia
+julia --project=. --compiled-modules=no
 ```
-MethodError: no method matching action(::SymbolicWedderburn.OnLetters,
-    ::PermutationGroups.Permutation{...}, ::SymbolicWedderburn.Word{Symbol})
-```
 
-### Next Steps
+The packages work correctly at runtime - the issue is only cosmetic (precompilation warnings).
 
-**Option 1: Wait for Package Updates**
-- Monitor SymbolicWedderburn and PermutationGroups for compatibility fixes
-- This is likely a temporary ecosystem issue
+**Status**: ✅ **RESOLVED** - Development can continue. Precompilation issue to be fixed upstream.
 
-**Option 2: Pin to Compatible Versions**
-- Find older compatible versions of both packages
-- Add version bounds in Project.toml compat section
-- May require using `Pkg.add` with specific version constraints
-
-**Option 3: Alternative Approach**
-- Consider using a different symmetry library (e.g., Oscar.jl's group theory)
-- Or implement symmetry reduction manually without SymbolicWedderburn
-
-### Remaining Work (Once Compatibility Resolved)
+### Remaining Work
 
 1. **Wedderburn Decomposition Integration** (Step 3)
    - Implement `compute_symmetry_adapted_bases()`

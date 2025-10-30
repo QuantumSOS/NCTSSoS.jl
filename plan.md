@@ -305,7 +305,19 @@ GroupsCore = "d5909c97-4eac-4ecc-a3dc-fdd0858a4120"
    - Created test/symmetry_test.jl with basic test cases
    - Tests for group actions, normal forms, and symmetry properties
 
-5. **Documentation**
+5. **Wedderburn Decomposition Integration** ✓
+   - `compute_symmetry_adapted_bases()`: Fully implemented
+   - Generates monomial bases for degrees d and 2d
+   - Applies simplification algorithm for canonical forms
+   - Calls SymbolicWedderburn.WedderburnDecomposition
+   - Extracts symmetry-adapted bases by irreducible representation
+   - Works directly with FastPolynomials Monomial type
+
+6. **Exports and Public API**
+   - Exported `get_basis`, `SimplifyAlgorithm` for user access
+   - All symmetry functions properly exported
+
+7. **Documentation**
    - Comprehensive plan in plan.md
    - Detailed docstrings for all functions and structures
    - Clear examples and usage patterns

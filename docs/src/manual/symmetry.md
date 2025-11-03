@@ -4,6 +4,8 @@ As problem size grows, the PSD matrix whose each entry is a variable grows. It w
 
 Based on this idea, we use sparsity in the problem to disregard some entries in the larger PSD matrix so that we only treat smaller blocks as variables. This is a kind of relaxation as some smaller blocks.
 
+However, sparsity is a relaxation because although it is possible to always complete a large PSD matrix with knowledge about its smaller blocks, there is no guarantee that you could do this on a moment matrix, due to the Hankel structure it has.
+
 On the other hand, the idea of solving smaller blocks as solution for larger PSD matrix can be made exact. Just as a basis transformation could make the pdf matrix block diagonal, apply a linear map on variables so that the resultant objective and constraints are the same, it may be possible to make the psd matrix contain explicit zero terms. This way, we could safely reduce the size of the psd matrix size.
 
 ## [Understanding Symmetry in Polynomial Optimization](@id understanding-symmetry)

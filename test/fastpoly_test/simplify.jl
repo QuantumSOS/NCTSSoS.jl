@@ -62,7 +62,7 @@ using NCTSSoS.FastPolynomials:  symmetric_canonicalize, Arbitrary, is_symmetric
             comm_gps=[[a], [b]], is_unipotent=false, is_projective=false
         )
 
-        @testset get_basis(Polynomial{ComplexF64}, [a, b], 2, sa3) == [
+        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa3) == [
             one(Monomial),
             a,
             b,

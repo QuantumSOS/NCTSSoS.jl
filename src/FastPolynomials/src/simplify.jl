@@ -277,9 +277,9 @@ function canonicalize(ncsp::NCStatePolynomial, sa::SimplifyAlgorithm)
 end
 
 function get_basis(
-    ::Type{Polynomial{T}}, variables::Vector{Variable}, d::Int, ::SimplifyAlgorithm
+    ::Type{Polynomial{T}}, variables::Vector{Variable}, d::Int, sa::SimplifyAlgorithm
 ) where {T}
-    return get_basis(variables, d)
+    return sorted_unique(simplify.(get_basis(variables, d), Ref(sa)))
 end
 
 function is_symmetric(p::Polynomial, sa::SimplifyAlgorithm)

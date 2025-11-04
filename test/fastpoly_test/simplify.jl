@@ -1,5 +1,5 @@
 using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: simplify, get_state_basis, NCStateWord
+using NCTSSoS.FastPolynomials: simplify, get_state_basis, NCStateWord, get_basis
 using NCTSSoS.FastPolynomials:  symmetric_canonicalize, Arbitrary, is_symmetric
 
 @testset "Simplification Interface" begin

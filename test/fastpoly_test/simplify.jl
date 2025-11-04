@@ -30,6 +30,62 @@ using NCTSSoS.FastPolynomials:  symmetric_canonicalize, Arbitrary, is_symmetric
             ς(x[1]) * ς(y[1] * y[2]) * ς(x[1] * y[1]) * (x[1] * x[2] * y[1])
 	end
 
+    @testset "Get Basis" begin
+		@ncpolyvar a b
+
+        sa1 = SimplifyAlgorithm(;
+            comm_gps=[[a, b]], is_unipotent=true, is_projective=false
+        )
+
+        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa1) == [
+            one(Monomial),
+            a,
+            b,
+            a * b,
+            b * a,
+        ]
+
+		sa2 = SimplifyAlgorithm(;
+			comm_gps=[[a, b]], is_unipotent=false, is_projective=true
+		)
+
+        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa2) == [
+            one(Monomial),
+            a,
+            b,
+            a * b, 
+            b * a
+        ]
+
+
+        sa3 = SimplifyAlgorithm(;
+            comm_gps=[[a], [b]], is_unipotent=false, is_projective=false
+        )
+
+        @testset get_basis(Polynomial{ComplexF64}, [a, b], 2, sa3) == [
+            one(Monomial),
+            a,
+            b,
+            a*b,
+            a^2,
+            b^2
+        ]
+
+        sa4 = SimplifyAlgorithm(;
+            comm_gps=[[a, b]], is_unipotent=false, is_projective=false
+        )
+
+        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa4) == [
+            one(Monomial),
+            a,
+            b,
+            a * b, 
+            a^2,
+            b * a,
+            b^2
+        ]
+    end
+
 	@testset "Get State Basis" begin
 		@ncpolyvar x y
         sa1 = SimplifyAlgorithm(;

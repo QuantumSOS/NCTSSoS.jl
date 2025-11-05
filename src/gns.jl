@@ -130,8 +130,9 @@ function reconstruct(
     # Set hankel_deg to H_deg - 1 as required
     hankel_deg = H_deg - 1
 
-    H_basis = get_basis(vars, H_deg)
-    hankel_basis = get_basis(vars, hankel_deg)
+    # TODO: need to make this more general
+    H_basis = get_basis(Polynomial{ComplexF64}, vars, H_deg, sa)
+    hankel_basis = get_basis(Polynomial{ComplexF64}, vars, hankel_deg, sa)
 
     len_H = length(H_basis)
     len_hankel = length(hankel_basis)

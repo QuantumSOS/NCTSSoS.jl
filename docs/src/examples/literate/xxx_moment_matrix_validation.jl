@@ -79,12 +79,6 @@ basis_unsorted = get_basis(Polynomial{ComplexF64}, vars, 2, sa)
 basis = sort(basis_unsorted)
 n_basis = length(basis)
 
-println("\nBasis size: ", n_basis)
-println("First 20 basis elements:")
-for i in 1:min(20, n_basis)
-    println("  $i: ", basis[i])
-end
-
 # Step 2b: Create mapping from NCTSSoS monomials to Yao operators
 
 # Helper function to convert Unicode subscripts to integers

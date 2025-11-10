@@ -1,8 +1,13 @@
-struct PolyOptResult{T,P,M}
+@enum ProblemType MomentPrimal SOSDual
+
+struct PolyOptResult{T,P,M,JS}
     objective::T # support for high precision solution
     corr_sparsity::CorrelativeSparsity{P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
+    problem_type::ProblemType
+    monomap::Union{Nothing, Dict{M,JS}}  # Monomial to JuMP variable mapping (from MomentProblem)
+    sa::Union{Nothing, SimplifyAlgorithm}  # Simplification algorithm
 end
 
 function Base.show(io::IO, result::PolyOptResult)
@@ -93,7 +98,17 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
 
     set_optimizer(problem_to_solve.model, solver_config.optimizer)
     optimize!(problem_to_solve.model)
-    return PolyOptResult(objective_value(problem_to_solve.model), corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
+
+    # Store monomap and sa for moment matrix extraction
+    return PolyOptResult(
+        objective_value(problem_to_solve.model),
+        corr_sparsity,
+        cliques_term_sparsities,
+        problem_to_solve.model,
+        dualize ? SOSDual : MomentPrimal,
+        moment_problem.monomap,
+        moment_problem.sa
+    )
 end
 
 """
@@ -140,5 +155,15 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
 
     set_optimizer(problem_to_solve.model, solver_config.optimizer)
     optimize!(problem_to_solve.model)
-    return PolyOptResult(objective_value(problem_to_solve.model), prev_res.corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
+
+    # Store monomap and sa for moment matrix extraction
+    return PolyOptResult(
+        objective_value(problem_to_solve.model),
+        prev_res.corr_sparsity,
+        cliques_term_sparsities,
+        problem_to_solve.model,
+        dualize ? SOSDual : MomentPrimal,
+        moment_problem.monomap,
+        moment_problem.sa
+    )
 end

@@ -16,6 +16,7 @@ using NCTSSoS, Test
     include("interface.jl")
     include("state_poly_opt.jl")
     include("trace_poly_opt.jl")
+    include("moment_matrix_test.jl")
     include("Aqua.jl")
     include("Doctest.jl")
     include("ExplicitImports.jl")

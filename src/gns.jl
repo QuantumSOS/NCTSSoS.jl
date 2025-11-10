@@ -3,6 +3,31 @@ using ..FastPolynomials:
     Variable, Monomial, get_basis, monomials, monomial, neat_dot
 
 """
+    MomentMatrix{T,M}
+
+Structure containing a moment matrix and its associated basis information.
+
+# Fields
+- `matrix::Matrix{T}`: The moment matrix values, where entry (i,j) = ⟨basis[i] * basis[j]⟩
+- `basis::Vector{M}`: Monomial basis indexing rows and columns of the matrix
+- `clique_vars::Vector{Variable}`: Variables appearing in this clique
+- `clique_index::Int`: Index of the clique in the original problem
+"""
+struct MomentMatrix{T,M}
+    matrix::Matrix{T}
+    basis::Vector{M}
+    clique_vars::Vector{Variable}
+    clique_index::Int
+end
+
+function Base.show(io::IO, mm::MomentMatrix)
+    println(io, "MomentMatrix for clique $(mm.clique_index)")
+    println(io, "  Variables: $(mm.clique_vars)")
+    println(io, "  Basis size: $(length(mm.basis))")
+    println(io, "  Matrix size: $(size(mm.matrix))")
+end
+
+"""
     reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int; atol::Float64=1e-3)
 
 Perform GNS (Gelfand-Naimark-Segal) reconstruction to extract finite-dimensional
@@ -240,4 +265,185 @@ function construct_localizing_matrix(
     end
 
     return K
+end
+
+"""
+    moment_matrix(result::PolyOptResult{T,P,M}; clique::Int=1) where {T,P,M}
+
+Extract the moment matrix from a polynomial optimization result for a specific clique.
+
+The moment matrix is a Hankel matrix indexed by a monomial basis, where entry (i,j)
+corresponds to the moment ⟨basis[i] * basis[j]⟩. This matrix is used as input to
+GNS reconstruction for extracting matrix representations of variables.
+
+# Arguments
+- `result::PolyOptResult`: Result from `cs_nctssos` containing the solved model
+- `clique::Int=1`: Index of the clique (default: 1 for single-clique problems)
+
+# Returns
+- `MomentMatrix{T,M}`: Structure containing:
+  - `matrix::Matrix{T}`: The moment matrix values
+  - `basis::Vector{M}`: Monomial basis indexing the matrix
+  - `clique_vars::Vector{Variable}`: Variables in this clique
+
+# Example
+```julia
+@ncpolyvar x[1:2]
+f = x[1]^2 + x[2]^2 - 1
+pop = polyopt(f)
+result = cs_nctssos(pop, SolverConfig(optimizer=Clarabel.Optimizer))
+
+# Extract moment matrix
+mm = moment_matrix(result)
+
+# Use with GNS reconstruction
+X_mats = reconstruct(mm.matrix, mm.clique_vars, 2)
+```
+
+# Notes
+- For problems with term sparsity, the moment matrix may be block-structured
+- The basis is derived from `result.cliques_term_sparsities[clique][1]`
+- Extraction method depends on whether the problem was dualized (stored in `result.problem_type`)
+"""
+function moment_matrix(result, clique::Int=1)
+    # Validate inputs
+    num_cliques = length(result.corr_sparsity.cliques)
+    if clique < 1 || clique > num_cliques
+        throw(ArgumentError("Invalid clique index $clique. Problem has $num_cliques cliques."))
+    end
+
+    # Check that we have the necessary metadata
+    if isnothing(result.monomap) || isnothing(result.sa)
+        error("Cannot extract moment matrix: PolyOptResult is missing monomap or SimplifyAlgorithm metadata. " *
+              "This may be from an older version of NCTSSoS.jl.")
+    end
+
+    # Get the term sparsity for this clique
+    # First element is the moment matrix, rest are localizing matrices
+    mom_term_sparsity = result.cliques_term_sparsities[clique][1]
+
+    # Get the basis from block_bases
+    full_basis = construct_full_basis(mom_term_sparsity.block_bases)
+
+    # Extract matrix values based on problem type
+    if result.problem_type == MomentPrimal
+        matrix = extract_moment_matrix_primal(result.model, full_basis, result.monomap, result.sa)
+    else  # SOSDual
+        matrix = extract_moment_matrix_dual(result.model, full_basis, result.monomap, result.sa)
+    end
+
+    # Get clique variables
+    clique_vars = [Variable(Symbol("x$i")) for i in result.corr_sparsity.cliques[clique]]
+
+    return MomentMatrix(Matrix(matrix), full_basis, clique_vars, clique)
+end
+
+"""
+    moment_matrices(result::PolyOptResult{T,P,M}) where {T,P,M}
+
+Extract moment matrices for all cliques in the optimization result.
+
+# Returns
+- `Vector{MomentMatrix{T,M}}`: One moment matrix per clique
+
+# Example
+```julia
+# For a problem with multiple cliques
+mms = moment_matrices(result)
+for (i, mm) in enumerate(mms)
+    println("Clique \$i: variables ", mm.clique_vars)
+end
+```
+"""
+function moment_matrices(result)
+    return [moment_matrix(result; clique=i) for i in 1:length(result.corr_sparsity.cliques)]
+end
+
+"""
+    construct_full_basis(block_bases::Vector{Vector{M}}) where {M}
+
+Construct full basis from block-diagonal structure.
+
+With term sparsity, the moment matrix is block-diagonal where each block
+has its own basis. This function creates the full basis that indexes the
+complete block-diagonal matrix.
+"""
+function construct_full_basis(block_bases::Vector{Vector{M}}) where {M}
+    # If no term sparsity (single block), return it directly
+    length(block_bases) == 1 && return block_bases[1]
+
+    # Otherwise, concatenate all block bases and sort uniquely
+    all_basis = reduce(vcat, block_bases)
+    sort!(all_basis)
+    unique!(all_basis)
+    return all_basis
+end
+
+"""
+Extract moment matrix values from a Moment (primal) problem model.
+
+For Moment problems, we use the monomap to reconstruct which JuMP variables
+correspond to which moment matrix entries, then use their values.
+"""
+function extract_moment_matrix_primal(model, full_basis, monomap, sa)
+    T = value_type(typeof(model))
+    n = length(full_basis)
+    matrix = zeros(T, n, n)
+
+    # For each entry (i,j) in the moment matrix
+    for i = 1:n, j = i:n
+        # Compute the monomial: basis[i]† * basis[j]
+        # This is expval(basis[i] * basis[j]) after simplification
+        mono = simplify(expval(_neat_dot3(full_basis[i], one(first(full_basis)), full_basis[j])), sa)
+
+        # Look up the corresponding JuMP variable and get its value
+        if haskey(monomap, mono)
+            matrix[i, j] = JuMP.value(monomap[mono])
+            matrix[j, i] = matrix[i, j]  # Symmetric
+        end
+    end
+
+    return Symmetric(matrix)
+end
+
+"""
+Extract moment matrix values from an SOS (dual) problem model.
+
+For SOS problems, the equality constraints encode the polynomial equality.
+The dual values of these constraints correspond to moment values for each monomial.
+Following the NCTSSOS reference, we use the monomap keys as the total support.
+"""
+function extract_moment_matrix_dual(model, full_basis, monomap, sa)
+    T = value_type(typeof(model))
+    n = length(full_basis)
+    matrix = zeros(T, n, n)
+
+    # Get all equality constraints
+    eq_cons = JuMP.all_constraints(model, JuMP.GenericAffExpr{T,JuMP.VariableRef}, MOI.EqualTo{T})
+
+    if isempty(eq_cons)
+        error("No equality constraints found in the model. Cannot extract moment matrix from SOS dual problem.")
+    end
+
+    # Get dual values - these correspond to moment values for each monomial
+    # The dual vector is negated as in the NCTSSOS reference
+    moment_values = -JuMP.dual.(eq_cons)
+
+    # The total support is the keys of monomap (all monomials in the problem)
+    tsupp = sort(collect(keys(monomap)))
+
+    # For each entry (i,j) in the moment matrix
+    for i = 1:n, j = i:n
+        # Compute the monomial: basis[i]† * basis[j]
+        mono = simplify(expval(_neat_dot3(full_basis[i], one(first(full_basis)), full_basis[j])), sa)
+
+        # Find its index in the total support
+        idx = searchsortedfirst(tsupp, mono)
+        if idx <= length(tsupp) && tsupp[idx] == mono
+            matrix[i, j] = moment_values[idx]
+            matrix[j, i] = matrix[i, j]  # Symmetric
+        end
+    end
+
+    return Symmetric(matrix)
 end

@@ -153,19 +153,20 @@ X = value.(dual(cons[1]))
 
 println("X matrix size: ", size(X))
 
-# ## Converting from X form to Y (complex Hermitian) form
+# ## Extracting the Complex Hermitian Moment Matrix
 #
-# The moment matrix X is currently in the form:
+# The dual solution X is a 2n×2n real symmetric PSD matrix in the form:
 # X = [X₁   X₃']
 #     [X₃   X₂ ]
 #
-# We need to convert it to Y form:
-# Y = [H_R   -H_I]  which represents the complex Hermitian matrix H = H_R + im*H_I
-#     [H_I    H_R]
+# From the efficient dual formulation (PSDP-R') in arxiv:2307.11599,
+# the complex Hermitian moment matrix H = H_R + im*H_I is directly given by:
 #
-# The relationship is:
-# X₁ + X₂ = 2*H_R  →  H_R = (X₁ + X₂)/2
-# X₃ - X₃' = 2*H_I  →  H_I = (X₃ - X₃')/2
+# H_R = X₁ + X₂
+# H_I = X₃ - X₃'
+#
+# Note: The relationship X = Y/2 from Theorem 2.2 in the paper is about
+# equivalence between formulations, not about extracting H from X!
 
 # Extract the dimensions
 n_total = size(X, 1)
@@ -176,9 +177,9 @@ X1 = X[1:n_half, 1:n_half]
 X3 = X[(n_half+1):end, 1:n_half]
 X2 = X[(n_half+1):end, (n_half+1):end]
 
-# Compute H_R and H_I
-H_R = (X1 + X2) / 2
-H_I = (X3 - X[1:n_half, (n_half+1):end]') / 2
+# Compute H_R and H_I using the direct formulas
+H_R = X1 + X2
+H_I = X3 - X[1:n_half, (n_half+1):end]'
 
 H = H_R + im * H_I
 

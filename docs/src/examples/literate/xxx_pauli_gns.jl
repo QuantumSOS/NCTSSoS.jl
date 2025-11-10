@@ -110,13 +110,16 @@ X_matrix = value.(dual(cons[1]))
 
 println("\nMoment matrix X size: ", size(X_matrix))
 
-# ## Converting from X to Complex Hermitian Form
+# ## Extracting the Complex Hermitian Moment Matrix
 #
-# The moment matrix X is in real form:
+# The dual solution X is a 2n×2n real symmetric PSD matrix in the form:
 # X = [X₁   X₃']
 #     [X₃   X₂ ]
 #
-# We convert it to complex Hermitian form H = H_R + im*H_I:
+# From the efficient dual formulation (PSDP-R'), the complex Hermitian
+# moment matrix H = H_R + im*H_I is directly given by:
+# H_R = X₁ + X₂
+# H_I = X₃ - X₃'
 
 n_total = size(X_matrix, 1)
 n_half = div(n_total, 2)
@@ -126,9 +129,9 @@ X1 = X_matrix[1:n_half, 1:n_half]
 X3 = X_matrix[(n_half+1):end, 1:n_half]
 X2 = X_matrix[(n_half+1):end, (n_half+1):end]
 
-# Compute Hermitian components
-H_R = (X1 + X2) / 2
-H_I = (X3 - X_matrix[1:n_half, (n_half+1):end]') / 2
+# Compute Hermitian components using the direct formulas
+H_R = X1 + X2
+H_I = X3 - X_matrix[1:n_half, (n_half+1):end]'
 
 # Construct complex Hermitian matrix
 H = H_R + im * H_I

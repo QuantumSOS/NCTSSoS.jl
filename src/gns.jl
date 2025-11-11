@@ -1,6 +1,8 @@
 using LinearAlgebra
+import JuMP
+import JuMP.MOI
 using ..FastPolynomials:
-    Variable, Monomial, get_basis, monomials, monomial, neat_dot
+    Variable, Monomial, get_basis, monomials, monomial, neat_dot, canonicalize
 
 """
     MomentMatrix{T,M}
@@ -410,8 +412,11 @@ end
 Extract moment matrix values from an SOS (dual) problem model.
 
 For SOS problems, the equality constraints encode the polynomial equality.
-The dual values of these constraints correspond to moment values for each monomial.
-Following the NCTSSOS reference, we use the monomap keys as the total support.
+The dual values of these constraints correspond to moment values for each monomial
+in the symmetric basis (canonicalized and unique monomials).
+
+Following the SOS dualization procedure, we must use the symmetric basis
+(canonicalized unique monomials) rather than the full unsymmetrized monomap keys.
 """
 function extract_moment_matrix_dual(model, full_basis, monomap, sa)
     T = value_type(typeof(model))
@@ -429,17 +434,25 @@ function extract_moment_matrix_dual(model, full_basis, monomap, sa)
     # The dual vector is negated as in the NCTSSOS reference
     moment_values = -JuMP.dual.(eq_cons)
 
-    # The total support is the keys of monomap (all monomials in the problem)
-    tsupp = sort(collect(keys(monomap)))
+    # Reconstruct the symmetric basis exactly as done in sos_dualize
+    # This is the canonicalized unique version of monomap keys
+    unsymmetrized_basis = sort(collect(keys(monomap)))
+    symmetric_basis = sort(unique(canonicalize.(unsymmetrized_basis, Ref(sa))))
+
+    # Verify sizes match
+    if length(symmetric_basis) != length(moment_values)
+        error("Mismatch between symmetric basis size $(length(symmetric_basis)) and dual values $(length(moment_values))")
+    end
 
     # For each entry (i,j) in the moment matrix
     for i = 1:n, j = i:n
-        # Compute the monomial: basis[i]† * basis[j]
+        # Compute the monomial: basis[i]† * basis[j] and canonicalize it
         mono = simplify(expval(_neat_dot3(full_basis[i], one(first(full_basis)), full_basis[j])), sa)
+        mono_canonical = canonicalize(mono, sa)
 
-        # Find its index in the total support
-        idx = searchsortedfirst(tsupp, mono)
-        if idx <= length(tsupp) && tsupp[idx] == mono
+        # Find its index in the symmetric basis
+        idx = searchsortedfirst(symmetric_basis, mono_canonical)
+        if idx <= length(symmetric_basis) && symmetric_basis[idx] == mono_canonical
             matrix[i, j] = moment_values[idx]
             matrix[j, i] = matrix[i, j]  # Symmetric
         end

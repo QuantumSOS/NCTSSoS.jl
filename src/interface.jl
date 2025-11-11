@@ -1,12 +1,12 @@
 @enum ProblemType MomentPrimal SOSDual
 
-struct PolyOptResult{T,P,M,JS}
+struct PolyOptResult{T,P,M}
     objective::T # support for high precision solution
     corr_sparsity::CorrelativeSparsity{P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
     problem_type::ProblemType
-    monomap::Union{Nothing, Dict{M,JS}}  # Monomial to JuMP variable mapping (from MomentProblem)
+    monomap::Union{Nothing, Dict{<:Any,<:Any}}  # Monomial to JuMP variable mapping (from MomentProblem) - flexible types for state polynomials
     sa::Union{Nothing, SimplifyAlgorithm}  # Simplification algorithm
 end
 
@@ -100,14 +100,18 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     optimize!(problem_to_solve.model)
 
     # Store monomap and sa for moment matrix extraction
+    # Note: ComplexMomentProblem doesn't have monomap field
+    monomap_value = hasproperty(moment_problem, :monomap) ? moment_problem.monomap : nothing
+    sa_value = hasproperty(moment_problem, :sa) ? moment_problem.sa : nothing
+
     return PolyOptResult(
         objective_value(problem_to_solve.model),
         corr_sparsity,
         cliques_term_sparsities,
         problem_to_solve.model,
         dualize ? SOSDual : MomentPrimal,
-        moment_problem.monomap,
-        moment_problem.sa
+        monomap_value,
+        sa_value
     )
 end
 

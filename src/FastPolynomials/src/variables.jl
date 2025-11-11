@@ -180,57 +180,43 @@ Generates a sorted basis of all monomials up to a given degree.
 - `Vector{Monomial}`: Sorted basis containing all monomials of degrees `0` through `d`
 """
 function get_basis(vars::Vector{Variable}, d::Int)
+    vars = sort(vars)
+    d == 0 && return [Monomial(Variable[], Int[])]
+
     num_vars = length(vars)
     basis_length = sum(num_vars^i for i in 0:d)
-    basis = Vector{Monomial}(undef, basis_length)
-    basis[1] = Monomial(Variable[], Int[])
+    vars_vec = [Variable[]]
+    sizehint!(vars_vec, basis_length)
+    expos_vec = [Int[]]
+    sizehint!(expos_vec, basis_length)
 
-    d == 0 && return basis
-
-    vars_vec = map(v -> [v], vars)
-    expos_vec = map(_ -> [1], 1:num_vars)
-
-    @inbounds for i in 1:num_vars
-        basis[i + 1] = Monomial(vars_vec[i], expos_vec[i])
+    for v in vars 
+        push!(vars_vec, [v])
+        push!(expos_vec, [1])
     end
 
-    d == 1 && return basis
+    d == 1 && return Monomial.(vars_vec, expos_vec) 
 
     last_end_idx = 1
 
     @inbounds for i in 2:d
         # index of last monomial
         last_end_idx += num_vars^(i - 1)
-        for j in 2:num_vars
+        for j in 1:num_vars
             for k in 1:(num_vars^(i - 1))
-                if vars_vec[k][end] == vars[j]
-                    push!(vars_vec, copy(vars_vec[k]))
-                    push!(expos_vec, copy(expos_vec[k]))
+                if vars_vec[last_end_idx - k + 1][end] == vars[j]
+                    push!(vars_vec, copy(vars_vec[last_end_idx - k + 1]))
+                    push!(expos_vec, copy(expos_vec[last_end_idx - k + 1]))
                     expos_vec[end][end] += 1
                 else
-                    push!(vars_vec, [vars_vec[k]; vars[j]])
-                    push!(expos_vec, [expos_vec[k]; 1])
+                    push!(vars_vec, [vars_vec[last_end_idx - k + 1]; vars[j]])
+                    push!(expos_vec, [expos_vec[last_end_idx - k + 1]; 1])
                 end
             end
         end
-
-        for k in 1:(num_vars^(i - 1))
-            if vars_vec[k][end] == vars[1]
-                expos_vec[k][end] += 1
-            else
-                push!(vars_vec[k], vars[1])
-                push!(expos_vec[k], 1)
-            end
-        end
-
-
-        for j in 1:(num_vars^i)
-                basis[last_end_idx + j] = Monomial(vars_vec[j], expos_vec[j])
-        end
     end
     # technically speaking, if I constructed it correctly, it should already be sorted, could be related to order of vars
-    # return sort!(basis)
-    return basis
+    return Monomial.(vars_vec, expos_vec)
 end
 
 function Base.:(^)(a::Variable, expo::Int)

@@ -85,6 +85,8 @@ using NCTSSoS.FastPolynomials:
             monomial([y, x], [1, 1]),
         ])
 
+        nc_basis_deg2 = get_basis([x, y, z], 2)
+
         @test sort(nc_basis_deg2) == sort([
             one(x),
             monomial([x], [1]),

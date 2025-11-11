@@ -279,7 +279,7 @@ end
 function get_basis(
     ::Type{Polynomial{T}}, variables::Vector{Variable}, d::Int, sa::SimplifyAlgorithm
 ) where {T}
-    return sorted_unique(simplify.(get_basis(variables, d), Ref(sa)))
+    return unique!(simplify.(get_basis(variables, d), Ref(sa)))
 end
 
 function is_symmetric(p::Polynomial, sa::SimplifyAlgorithm)

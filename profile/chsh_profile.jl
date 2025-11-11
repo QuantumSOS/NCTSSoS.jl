@@ -28,5 +28,5 @@ println("\nStarting profiling...")
 Profile.clear()
 @profile chsh_problem(12)
 
-Profile.print( mincount=10000)
+Profile.print( mincount=1000)
 

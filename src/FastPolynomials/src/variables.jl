@@ -104,9 +104,17 @@ Builds a polynomial variable declaration from a symbol or expression.
 """
 function buildpolyvar(var, iscomplex)
     @match var begin
-        ::Symbol => (var, :($(esc(var)) = $Variable($(QuoteNode(var)); iscomplex=$iscomplex)))
+        ::Symbol =>
+            (var, :($(esc(var)) = $Variable($(QuoteNode(var)); iscomplex=$iscomplex)))
         :($varname[$(indices...)]) => begin
-            (varname, :($(esc(varname)) = $polyarrayvar($(QuoteNode(varname)), $(esc.(indices)...); iscomplex=$iscomplex)))
+            (
+                varname,
+                :(
+                    $(esc(varname)) = $polyarrayvar(
+                        $(QuoteNode(varname)), $(esc.(indices)...); iscomplex=$iscomplex
+                    )
+                ),
+            )
         end
         _ => error("Expected $var to be a variable name")
     end
@@ -172,13 +180,58 @@ Generates a sorted basis of all monomials up to a given degree.
 - `Vector{Monomial}`: Sorted basis containing all monomials of degrees `0` through `d`
 """
 function get_basis(vars::Vector{Variable}, d::Int)
-    vec_of_monos = Vector{Vector{Monomial}}(undef, d + 1)
-    for i in 0:d
-        vec_of_monos[i + 1] = monomials(vars, Val(i))
-    end
-    return sort!(reduce(vcat, vec_of_monos))
-end
+    num_vars = length(vars)
+    basis_length = sum(num_vars^i for i in 0:d)
+    basis = Vector{Monomial}(undef, basis_length)
+    basis[1] = Monomial(Variable[], Int[])
 
+    d == 0 && return basis
+
+    vars_vec = map(v -> [v], vars)
+    expos_vec = map(_ -> [1], 1:num_vars)
+
+    @inbounds for i in 1:num_vars
+        basis[i + 1] = Monomial(vars_vec[i], expos_vec[i])
+    end
+
+    d == 1 && return basis
+
+    last_end_idx = 1
+
+    @inbounds for i in 2:d
+        # index of last monomial
+        last_end_idx += num_vars^(i - 1)
+        for j in 2:num_vars
+            for k in 1:(num_vars^(i - 1))
+                if vars_vec[k][end] == vars[j]
+                    push!(vars_vec, copy(vars_vec[k]))
+                    push!(expos_vec, copy(expos_vec[k]))
+                    expos_vec[end][end] += 1
+                else
+                    push!(vars_vec, [vars_vec[k]; vars[j]])
+                    push!(expos_vec, [expos_vec[k]; 1])
+                end
+            end
+        end
+
+        for k in 1:(num_vars^(i - 1))
+            if vars_vec[k][end] == vars[1]
+                expos_vec[k][end] += 1
+            else
+                push!(vars_vec[k], vars[1])
+                push!(expos_vec[k], 1)
+            end
+        end
+
+
+        for j in 1:(num_vars^i)
+                basis[last_end_idx + j] = Monomial(vars_vec[j], expos_vec[j])
+        end
+    end
+    # technically speaking, if I constructed it correctly, it should already be sorted, could be related to order of vars
+    # return sort!(basis)
+    return basis
+end
 
 function Base.:(^)(a::Variable, expo::Int)
     @assert expo >= 0 "Exponent must be non-negative."

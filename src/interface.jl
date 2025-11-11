@@ -100,8 +100,18 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     optimize!(problem_to_solve.model)
 
     # Store monomap and sa for moment matrix extraction
-    # Note: ComplexMomentProblem doesn't have monomap field
-    monomap_value = hasproperty(moment_problem, :monomap) ? moment_problem.monomap : nothing
+    # Note: ComplexMomentProblem has total_basis instead of monomap
+    if hasproperty(moment_problem, :monomap)
+        # Regular MomentProblem - has monomap
+        monomap_value = moment_problem.monomap
+    elseif hasproperty(moment_problem, :total_basis)
+        # ComplexMomentProblem - create monomap from total_basis
+        # For complex problems, we need to map monomials to indices for moment matrix extraction
+        monomap_value = Dict(mono => i for (i, mono) in enumerate(moment_problem.total_basis))
+    else
+        monomap_value = nothing
+    end
+
     sa_value = hasproperty(moment_problem, :sa) ? moment_problem.sa : nothing
 
     return PolyOptResult(
@@ -161,13 +171,24 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
     optimize!(problem_to_solve.model)
 
     # Store monomap and sa for moment matrix extraction
+    # Handle both MomentProblem and ComplexMomentProblem
+    if hasproperty(moment_problem, :monomap)
+        monomap_value = moment_problem.monomap
+    elseif hasproperty(moment_problem, :total_basis)
+        monomap_value = Dict(mono => i for (i, mono) in enumerate(moment_problem.total_basis))
+    else
+        monomap_value = nothing
+    end
+
+    sa_value = hasproperty(moment_problem, :sa) ? moment_problem.sa : nothing
+
     return PolyOptResult(
         objective_value(problem_to_solve.model),
         prev_res.corr_sparsity,
         cliques_term_sparsities,
         problem_to_solve.model,
         dualize ? SOSDual : MomentPrimal,
-        moment_problem.monomap,
-        moment_problem.sa
+        monomap_value,
+        sa_value
     )
 end

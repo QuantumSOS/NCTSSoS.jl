@@ -4,115 +4,118 @@
 Implement fermionic algebra for the NCTSSoS.jl package, following the pattern established by the Pauli algebra implementation.
 
 ## Current Status
-- **Phase**: Planning complete - Awaiting user approval to proceed with implementation
+- **Phase**: Phase 0 Complete - Type hierarchy implemented and tested
 - **Date Created**: 2025-11-05
-- **Last Updated**: 2025-11-05
+- **Last Updated**: 2025-11-12
 
 ## Completed Actions
 1. ✅ Created GitHub issue #179 for FastPolynomials zero monomial support
 2. ✅ Comprehensive analysis of Pauli algebra implementation (see `pauli_analysis.md`)
-3. ✅ Complete implementation plan created (see `plan.md`)
+3. ✅ Initial implementation plan created (see `plan.md` - archived in git history)
+4. ✅ Plan revision completed (2025-11-12) - Constraint-based approach
+5. ✅ **Phase 0 Complete (2025-11-12)**: AbstractAlgebra type hierarchy implemented
+   - Defined `AbstractAlgebra` abstract type
+   - Created `PauliAlgebra` and `FermionicAlgebra` structs
+   - Updated `pauli_algebra()` to return `PauliAlgebra` instance
+   - Added comprehensive tests (18 new tests, all 477 tests passing)
+   - Fixed module include order for proper type availability
+
+## User-Requested Simplifications (2025-11-12)
+
+**Key Changes**:
+1. **Remove zero monomial/nilpotency support**: Do NOT modify FastPolynomials, PolyOpt, or ComplexPolyOpt
+2. **Direct polynomial constraint approach**: Implement c² = 0 and c†² = 0 as polynomial constraints (not via simplification)
+3. **Create algebra struct**: Define a struct for fermionic algebra (similar to Pauli algebra if it has one)
+4. **Follow pauli_algebra pattern**: Directly implement fermionic_algebra interface like pauli_algebra
 
 ## Key Requirements
 
-### 1. FastPolynomials Zero Monomial Support Issue
-**Priority**: CRITICAL - Must be resolved before fermionic algebra implementation
-
-**Problem**:
-Current implementation of `FastPolynomials` doesn't support zero monomials. This is needed because fermionic algebra has the property that `c^2 = 0` (creation/annihilation operators square to zero).
-
-**Actions Needed**:
-- Create GitHub issue documenting this limitation
-- Research how to extend FastPolynomials to support zero monomials
-- Implement solution (or work around if necessary)
-
-### 2. Fermionic Algebra Implementation
-**Pattern to Follow**: Imitate the Pauli algebra implementation structure
+### Fermionic Algebra Implementation
+**Pattern to Follow**: Imitate the Pauli algebra implementation structure exactly
 
 **Fermionic Algebra Properties**:
 - Creation operators: c†
 - Annihilation operators: c
 - Anti-commutation relations: {c_i, c_j} = 0, {c†_i, c†_j} = 0, {c_i, c†_j} = δ_ij
-- Key property: c^2 = 0, (c†)^2 = 0
+- Nilpotent property (as constraints): c² = 0, (c†)² = 0
+
+**Implementation Approach**:
+- Create a struct for fermionic algebra
+- Generate polynomial constraints for all anti-commutation relations
+- Add polynomial constraints for c² = 0 and c†² = 0
+- No modifications to FastPolynomials or optimization types needed
 
 ## Dependencies
 1. Understanding of Pauli algebra implementation structure
-2. Resolution of FastPolynomials zero monomial issue
-3. Understanding of fermionic operator algebra mathematics
+2. Understanding of fermionic operator algebra mathematics
 
 ## Files to Explore
-- Pauli algebra implementation files
-- FastPolynomials implementation
+- Pauli algebra implementation files (for struct and interface pattern)
+- Existing algebra constructors
 - Test structure for algebra implementations
 
-## Implementation Plan Summary
+## Revision Instructions for Sub-Agent
 
-**Detailed plan location**: `.claude/tasks/fermionic-algebra/plan.md`
+**Task**: Revise plan.md with simplified approach
 
-### Architecture Decisions
+**Starting Point**: Create a struct for fermionic algebra first
 
-1. **Nilpotent Extension**: Add `is_nilpotent::Bool` to SimplifyAlgorithm, PolyOpt, ComplexPolyOpt
-2. **Zero Monomial Workaround**: Use empty vars/z vectors to represent zero (temporary solution for issue #179)
-3. **Variable Naming**: `c[i]` (annihilation), `c_dag[i]` (creation)
-4. **Commutation Structure**: Single group containing all operators (all anti-commute)
-5. **Constraint Count**: 2N² + N equality constraints for N modes
+**Requirements**:
+1. Analyze Pauli algebra struct (if exists) and interface
+2. Design fermionic algebra struct
+3. Implement fermionic_algebra(N) constructor function
+4. Generate constraints for:
+   - Anti-commutation relations: {c_i, c_j} = 0, {c†_i, c†_j} = 0, {c_i, c†_j} = δ_ij
+   - Nilpotent relations: c_i² = 0, (c†_i)² = 0
+5. Return appropriate type compatible with cpolyopt
+6. Write tests following existing patterns
+7. Write documentation following pauli_algebra style
 
-### Implementation Phases
+**What NOT to do**:
+- Do NOT modify FastPolynomials
+- Do NOT modify PolyOpt or ComplexPolyOpt
+- Do NOT add nilpotent/zero monomial support to existing types
 
-**Phase 1**: Core Simplification Logic (FastPolynomials)
-- Add `is_nilpotent` field to SimplifyAlgorithm
-- Implement `_simplify_nilpotent!` function (detects X² and returns zero)
-- Update simplify! dispatch to handle nilpotent case
+**Next Steps**:
+1. Sub-agent revises plan.md
+2. User reviews and approves revised plan
+3. Parent agent implements via TDD
 
-**Phase 2**: Optimization Problem Types
-- Extend PolyOpt and ComplexPolyOpt with `is_nilpotent` field
-- Update constructors and algebra interface
-- Enforce mutual exclusivity (only one of {unipotent, projective, nilpotent})
+## Plan Revision Summary (2025-11-12)
 
-**Phase 3**: Fermionic Algebra Constructor
-- Implement `fermionic_algebra(N)` following Pauli pattern
-- Generate all anti-commutation relation constraints
-- Return NamedTuple compatible with cpolyopt(obj, algebra)
+### Architectural Decision: Constraint-Based Approach
 
-**Phase 4**: Comprehensive Testing
-- Unit tests: structure, constraints, nilpotent simplification
-- Integration tests: with cpolyopt and cs_nctssos
-- Numerical tests: free fermions, Fermi-Hubbard model (LOCAL_TESTING only)
+The revised plan adopts a **pure constraint-based approach** that eliminates all core type modifications:
 
-**Phase 5**: Documentation
-- Tutorial following Pauli algebra interface pattern
-- API documentation with examples
-- Cross-references and physical motivation
+**Key Changes from Original Plan**:
+1. **No SimplifyAlgorithm modifications**: No `is_nilpotent` flag, no `_simplify_nilpotent!` function
+2. **No PolyOpt modifications**: No new fields in PolyOpt or ComplexPolyOpt
+3. **Nilpotency as constraints**: c_i² = 0 and (c†_i)² = 0 added as polynomial equality constraints
+4. **Follows pauli_algebra pattern exactly**: Returns NamedTuple with standard fields
+5. **Dramatically simpler**: ~40 lines of new code vs ~500 lines of modifications
 
-### Files to Modify/Create
+**How It Works**:
+- All fermionic algebra properties encoded as polynomial equality constraints
+- Anti-commutation relations: {c_i, c_j} = 0, {c†_i, c†_j} = 0, {c_i, c†_j} = δ_ij
+- Nilpotent constraints: c_i² = 0, (c†_i)² = 0 (redundant but explicit)
+- SDP solver enforces all constraints during optimization
+- No need for zero monomial support or workarounds
 
-**Modify**:
-- `src/FastPolynomials/src/simplify.jl` (~50 lines changed + 20 new)
-- `src/pop.jl` (~30 lines changed)
-- `src/NCTSSoS.jl` (1 line: export)
-- `src/interface.jl` (verify SimplifyAlgorithm construction)
+**Constraint Count**: 2N² + 3N for N modes
+- N=1: 5 constraints
+- N=2: 14 constraints
+- N=3: 27 constraints
+- Recommended N ≤ 10 for practical performance
 
-**Create**:
-- `src/algebra_constructors.jl` (append ~80 lines for fermionic_algebra)
-- `test/algebra_constructors.jl` (append ~300 lines)
-- `docs/src/examples/literate/fermionic_algebra_interface.jl` (new file ~200 lines)
-
-**Total Impact**: ~500 lines new code, ~80 lines modifications
-
-### Critical Implementation Notes
-
-1. **TDD Required**: Write failing test first, implement minimum code, explain, refactor
-2. **Zero Monomial Handling**: Empty monomial after nilpotent simplification represents zero (workaround)
-3. **Constraint Scaling**: O(N²) constraints - document performance limitations for large N
-4. **Mutual Exclusivity**: Enforce that only one of {is_unipotent, is_projective, is_nilpotent} is true
-5. **Single Commutation Group**: All fermionic operators in one group (no reordering by simplifier)
-
-### Next Steps
-1. User reviews and approves plan.md
-2. Parent agent implements via TDD following plan.md phases
-3. Each step: write test → implement → explain → verify → next step
+**Benefits**:
+- ✅ Much simpler implementation
+- ✅ No core type modifications
+- ✅ No workarounds needed
+- ✅ Easier to maintain and extend
+- ✅ Self-documenting (all algebra properties visible as constraints)
 
 ## Notes
-- This implementation should maintain consistency with existing algebra implementations
-- Documentation should follow the same pattern as Pauli algebra
-- Tests should cover all fermionic algebra properties
+- This implementation maintains complete consistency with pauli_algebra
+- Documentation will follow the same pattern as Pauli algebra
+- Tests cover all fermionic algebra properties
+- Constraint-based approach: No core type modifications required

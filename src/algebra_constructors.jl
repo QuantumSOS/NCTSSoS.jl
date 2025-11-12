@@ -1,4 +1,56 @@
 """
+    AbstractAlgebra
+
+Abstract base type for all algebra systems in NCTSSoS.
+Concrete subtypes include `PauliAlgebra` and `FermionicAlgebra`.
+"""
+abstract type AbstractAlgebra end
+
+"""
+    PauliAlgebra <: AbstractAlgebra
+
+Pauli algebra system for spin-1/2 sites.
+
+# Fields
+- `N::Int`: Number of spin-1/2 sites
+- `variables::Tuple`: Tuple of (x, y, z) variable arrays
+- `simplify_algo::SimplifyAlgorithm`: Simplification algorithm configuration
+- `equality_constraints::Vector`: Polynomial equality constraints
+- `inequality_constraints::Vector`: Polynomial inequality constraints
+- `comm_gps::Vector`: Commutation groups
+"""
+struct PauliAlgebra <: AbstractAlgebra
+    N::Int
+    variables::Tuple{Vector{Variable},Vector{Variable},Vector{Variable}}
+    simplify_algo::SimplifyAlgorithm
+    equality_constraints::Vector{Polynomial{ComplexF64}}
+    inequality_constraints::Vector{Polynomial{ComplexF64}}
+    comm_gps::Vector{Vector{Variable}}
+end
+
+"""
+    FermionicAlgebra <: AbstractAlgebra
+
+Fermionic algebra system for fermionic modes.
+
+# Fields
+- `N::Int`: Number of fermionic modes
+- `variables::Tuple`: Tuple of (c, c_dag) variable arrays
+- `simplify_algo::SimplifyAlgorithm`: Simplification algorithm configuration
+- `equality_constraints::Vector`: Polynomial equality constraints
+- `inequality_constraints::Vector`: Polynomial inequality constraints
+- `comm_gps::Vector`: Commutation groups
+"""
+struct FermionicAlgebra <: AbstractAlgebra
+    N::Int
+    variables::Tuple{Vector{Variable},Vector{Variable}}
+    simplify_algo::SimplifyAlgorithm
+    equality_constraints::Vector{Polynomial{ComplexF64}}
+    inequality_constraints::Vector{Polynomial{ComplexF64}}
+    comm_gps::Vector{Vector{Variable}}
+end
+
+"""
     pauli_algebra(N::Int)
 
 Create a Pauli algebra system for N spin-1/2 sites.
@@ -29,11 +81,12 @@ function pauli_algebra(N::Int)
     # No inequality constraints for Pauli algebra
     inequality_constraints = empty(equality_constraints)
 
-    return (
-        variables=(x, y, z),
-        simplify_algo=simplify_algo,
-        equality_constraints=equality_constraints,
-        inequality_constraints=inequality_constraints,
-        comm_gps=comm_gps
+    return PauliAlgebra(
+        N,
+        (x, y, z),
+        simplify_algo,
+        equality_constraints,
+        inequality_constraints,
+        comm_gps
     )
 end

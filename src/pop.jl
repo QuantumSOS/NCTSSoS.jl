@@ -151,17 +151,17 @@ ham = ComplexF64(0.5) * (x[1] * x[2])
 pop = cpolyopt(ham, sys)
 ```
 """
-function cpolyopt(objective::P, algebra::NamedTuple; eq_constraints=Any[], ineq_constraints=Any[]) where {T,P<:AbstractPolynomial{T}}
+function cpolyopt(objective::P, algebra::AbstractAlgebra; eq_constraints=Any[], ineq_constraints=Any[]) where {T,P<:AbstractPolynomial{T}}
     # Extract properties from algebra
     comm_gps = algebra.comm_gps
     is_unipotent = algebra.simplify_algo.is_unipotent
     is_projective = algebra.simplify_algo.is_projective
-    
+
     # Merge algebra constraints with user-provided constraints
     # Convert user constraints by multiplying with T(1) to match coefficient type
     converted_user_eq = isempty(eq_constraints) ? typeof(algebra.equality_constraints)[] : [T(1) * poly for poly in eq_constraints]
-    merged_eq_constraints = vcat(algebra.equality_constraints, converted_user_eq) 
-    
+    merged_eq_constraints = vcat(algebra.equality_constraints, converted_user_eq)
+
     # Call the original cpolyopt with merged constraints
     return cpolyopt(objective;
         eq_constraints=merged_eq_constraints,

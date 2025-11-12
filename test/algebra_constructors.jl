@@ -9,11 +9,45 @@ else
     const SOLVER = Clarabel.Optimizer
 end
 
+@testset "AbstractAlgebra Type Hierarchy" begin
+    # Test abstract type exists
+    @test AbstractAlgebra isa Type
+    @test isabstracttype(AbstractAlgebra)
+
+    # Test concrete types exist
+    @test PauliAlgebra <: AbstractAlgebra
+    @test FermionicAlgebra <: AbstractAlgebra
+    @test isconcretetype(PauliAlgebra)
+    @test isconcretetype(FermionicAlgebra)
+
+    # Test that struct fields are correct for PauliAlgebra
+    @test hasfield(PauliAlgebra, :N)
+    @test hasfield(PauliAlgebra, :variables)
+    @test hasfield(PauliAlgebra, :simplify_algo)
+    @test hasfield(PauliAlgebra, :equality_constraints)
+    @test hasfield(PauliAlgebra, :inequality_constraints)
+    @test hasfield(PauliAlgebra, :comm_gps)
+
+    # Test that struct fields are correct for FermionicAlgebra
+    @test hasfield(FermionicAlgebra, :N)
+    @test hasfield(FermionicAlgebra, :variables)
+    @test hasfield(FermionicAlgebra, :simplify_algo)
+    @test hasfield(FermionicAlgebra, :equality_constraints)
+    @test hasfield(FermionicAlgebra, :inequality_constraints)
+    @test hasfield(FermionicAlgebra, :comm_gps)
+end
+
 @testset "Pauli Algebra Constructor" begin
     @testset "Basic Structure N=1" begin
         sys = pauli_algebra(1)
 
+        # Check return type is PauliAlgebra
+        @test sys isa PauliAlgebra
+        @test sys isa AbstractAlgebra
+        @test sys.N == 1
+
         # Check return type structure
+        @test hasfield(typeof(sys), :N)
         @test hasfield(typeof(sys), :variables)
         @test hasfield(typeof(sys), :simplify_algo)
         @test hasfield(typeof(sys), :equality_constraints)

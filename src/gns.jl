@@ -421,7 +421,6 @@ Following the SOS dualization procedure, we must use the symmetric basis
 function extract_moment_matrix_dual(model, full_basis, monomap, sa)
     T = value_type(typeof(model))
     n = length(full_basis)
-    matrix = zeros(T, n, n)
 
     # Get all equality constraints
     eq_cons = JuMP.all_constraints(model, JuMP.GenericAffExpr{T,JuMP.VariableRef}, MOI.EqualTo{T})
@@ -431,32 +430,70 @@ function extract_moment_matrix_dual(model, full_basis, monomap, sa)
     end
 
     # Get dual values - these correspond to moment values for each monomial
-    # The dual vector is negated as in the NCTSSOS reference
-    moment_values = -JuMP.dual.(eq_cons)
+    # For real problems: negated as in the NCTSSOS reference
+    # For complex problems: check if negation is needed by looking at problem size first
+    raw_dual_values = JuMP.dual.(eq_cons)
 
-    # Reconstruct the symmetric basis exactly as done in sos_dualize
-    # This is the canonicalized unique version of monomap keys
+    # Reconstruct the basis exactly as done in sos_dualize
+    # For REAL problems: canonicalized unique version of monomap keys
+    # For COMPLEX problems: just sorted monomap keys (NOT canonicalized)
     unsymmetrized_basis = sort(collect(keys(monomap)))
-    symmetric_basis = sort(unique(canonicalize.(unsymmetrized_basis, Ref(sa))))
 
-    # Verify sizes match
-    if length(symmetric_basis) != length(moment_values)
-        error("Mismatch between symmetric basis size $(length(symmetric_basis)) and dual values $(length(moment_values))")
+    # Check if this is likely a complex problem by comparing sizes
+    # Complex problems have 2x constraints (real + imag parts)
+    is_complex_problem = length(raw_dual_values) == 2 * length(unsymmetrized_basis)
+
+    if is_complex_problem
+        # For complex problems, the basis is NOT canonicalized in sos_dualize
+        # It's just the sorted total_basis
+        symmetric_basis = unsymmetrized_basis
+
+        # For complex problems, do NOT negate (different convention)
+        dual_values = raw_dual_values
+
+        # Split dual values into real and imaginary parts
+        n_basis = length(symmetric_basis)
+        moment_values_real = dual_values[1:n_basis]
+        moment_values_imag = dual_values[n_basis+1:end]
+        moment_values = moment_values_real .+ im .* moment_values_imag
+        # Matrix type needs to be complex
+        matrix = zeros(ComplexF64, n, n)
+    else
+        # Real problem - negate dual values as in NCTSSOS reference
+        dual_values = -raw_dual_values
+
+        # Real problem - canonicalize and deduplicate
+        symmetric_basis = sort(unique(canonicalize.(unsymmetrized_basis, Ref(sa))))
+        moment_values = dual_values
+        if length(symmetric_basis) != length(moment_values)
+            error("Mismatch between symmetric basis size $(length(symmetric_basis)) and dual values $(length(moment_values))")
+        end
+        matrix = zeros(T, n, n)
     end
 
     # For each entry (i,j) in the moment matrix
     for i = 1:n, j = i:n
-        # Compute the monomial: basis[i]† * basis[j] and canonicalize it
+        # Compute the monomial: basis[i]† * basis[j]
         mono = simplify(expval(_neat_dot3(full_basis[i], one(first(full_basis)), full_basis[j])), sa)
-        mono_canonical = canonicalize(mono, sa)
+
+        # For complex problems, do NOT canonicalize (symmetric_basis is not canonicalized)
+        # For real problems, canonicalize to match the symmetric basis
+        mono_to_find = is_complex_problem ? mono : canonicalize(mono, sa)
 
         # Find its index in the symmetric basis
-        idx = searchsortedfirst(symmetric_basis, mono_canonical)
-        if idx <= length(symmetric_basis) && symmetric_basis[idx] == mono_canonical
+        idx = searchsortedfirst(symmetric_basis, mono_to_find)
+        if idx <= length(symmetric_basis) && symmetric_basis[idx] == mono_to_find
             matrix[i, j] = moment_values[idx]
-            matrix[j, i] = matrix[i, j]  # Symmetric
+            if is_complex_problem
+                # For complex matrices, take conjugate for lower triangle (Hermitian)
+                matrix[j, i] = conj(matrix[i, j])
+            else
+                # For real matrices, symmetric
+                matrix[j, i] = matrix[i, j]
+            end
         end
     end
 
-    return Symmetric(matrix)
+    # Return appropriate matrix type based on whether it's complex
+    return is_complex_problem ? Hermitian(matrix) : Symmetric(matrix)
 end

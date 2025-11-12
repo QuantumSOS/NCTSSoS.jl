@@ -73,11 +73,11 @@ function Base.show(io::IO, mime::MIME"text/plain", obj::Polynomial)
     return print_object(io, obj; multiline=multiline)
 end
 
-function print_object(io::IO, obj::Polynomial; multiline::Bool)
+function print_object(io::IO, obj::Polynomial{T}; multiline::Bool) where {T}
     if multiline
         return print(io, join(
             map(zip(obj.coeffs, obj.monos)) do (coef, mono)
-                "$(coef) * $(string(mono))"
+                T <: Real ? ("$(coef) * $(string(mono))") : ("($(coef)) * $(string(mono))")
             end,
             " + ",
         ))

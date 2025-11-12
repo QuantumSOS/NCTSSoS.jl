@@ -90,7 +90,9 @@ function sos_dualize(moment_problem::MomentProblem{T,M}) where {T,M}
 end
 
 function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
-    dual_model = GenericModel{real(T)}()
+    # Use real type for expressions to match the model type
+    RT = real(T)
+    dual_model = GenericModel{RT}()
 
     dual_variables = map(cmp.constraints) do (type,cons)
         G_dim = size(cons,1)
@@ -122,7 +124,7 @@ function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
 
 
     # real and imag parts of fα constraints
-    fα_constraints = [[zero(GenericAffExpr{T,VariableRef}) for _ in 1:length(symmetric_basis)],[zero(GenericAffExpr{T,VariableRef}) for _ in 1:length(symmetric_basis)]]
+    fα_constraints = [[zero(GenericAffExpr{RT,VariableRef}) for _ in 1:length(symmetric_basis)],[zero(GenericAffExpr{RT,VariableRef}) for _ in 1:length(symmetric_basis)]]
 
     for (coef,mono) in terms(cmp.objective)
         for (fα_constraints_part, part_func) in zip(fα_constraints, [real, imag])
@@ -130,7 +132,7 @@ function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
         end
     end
 
-    add_to_expression!(fα_constraints[1][1], -one(T), b)
+    add_to_expression!(fα_constraints[1][1], -one(RT), b)
 
     for (i, (_,sdp_constraint)) in enumerate(cmp.constraints)
         Cαjs = get_Cαj(cmp.total_basis, sdp_constraint)

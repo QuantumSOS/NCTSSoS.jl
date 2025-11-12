@@ -161,6 +161,10 @@ end
         x1_idx = findfirst(==(x1_str), basis_strs)
         x2_idx = findfirst(==(x2_str), basis_strs)
 
+        # Verify that both basis elements exist
+        @test !isnothing(x1_idx)
+        @test !isnothing(x2_idx)
+
         if !isnothing(x1_idx) && !isnothing(x2_idx)
             # Direct computation: ⟨ψ|X₁X₂|ψ⟩
             x1x2_op = put(N, 1=>X) * put(N, 2=>X)

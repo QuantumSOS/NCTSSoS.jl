@@ -13,11 +13,15 @@ function Base.cmp(a::Monomial, b::Monomial)
         iszero(a.z[a_idx]) && (a_idx += 1; continue)
         iszero(b.z[b_idx]) && (b_idx += 1; continue)
         a.vars[a_idx] != b.vars[b_idx] && return cmp(a.vars[a_idx], b.vars[b_idx])
-        a.z[a_idx] != b.z[b_idx] && return cmp(a.z[a_idx], b.z[b_idx])
+        # since degree(a) == degree(b) there must be something after a_idx
+        a.z[a_idx] < b.z[b_idx] && return cmp(a.vars[a_idx + 1], b.vars[b_idx])
+        # similarily here
+        a.z[a_idx] > b.z[b_idx] && return cmp(a.vars[a_idx], b.vars[b_idx + 1])
         a_idx += 1
         b_idx += 1
     end
-    return 0
+    # if I reach here, should trigger a warning
+    return error("Comparison between monomials of equal degree, $a and $b failed")
 end
 
 function Base.in(a::Monomial, collection::Vector{Monomial})

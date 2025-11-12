@@ -87,20 +87,23 @@ using NCTSSoS.FastPolynomials:
 
         nc_basis_deg2 = get_basis([x, y, z], 2)
 
-        @test sort(nc_basis_deg2) == sort([
+        expected = [
             one(x),
             monomial([x], [1]),
             monomial([y], [1]),
             monomial([z], [1]),
             x^2,
-            y^2,
-            z^2,
             x * y,
             x * z,
+            y * x,
+            y^2,
             y * z,
             z * x,
             z * y,
-            y * x,
-        ])
+            z^2,
+        ]
+
+        @test nc_basis_deg2 == expected
+        @test issorted(nc_basis_deg2)
     end
 end

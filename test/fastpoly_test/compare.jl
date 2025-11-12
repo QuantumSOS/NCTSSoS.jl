@@ -29,6 +29,7 @@ using Test, NCTSSoS.FastPolynomials
         mono3 = Monomial([x, y], [1, 1])
         mono4 = Monomial([x, y], [1, 2])
         mono5 = Monomial([x, z, y], [1, 1, 1])
+        mono6 = Monomial([x], [2])
 
         # TODO: add more tests
 
@@ -36,6 +37,7 @@ using Test, NCTSSoS.FastPolynomials
         @test cmp(mono1, mono3) == 1
         @test cmp(mono1, mono4) == 0
         @test cmp(mono4, mono5) == -1
+        @test cmp(mono6, mono3) == -1
 
         @test isless(mono4, mono5)
 

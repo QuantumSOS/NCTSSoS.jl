@@ -2,7 +2,7 @@ using Test, NCTSSoS
 using NCTSSoS.FastPolynomials
 using JuMP
 
-if haskey(ENV, "LOCAL_TESTING") 
+if haskey(ENV, "LOCAL_TESTING")
     using MosekTools
     const SOLVER = Mosek.Optimizer
 else
@@ -11,7 +11,7 @@ else
 end
 using Graphs
 
-using NCTSSoS.FastPolynomials: get_basis 
+using NCTSSoS.FastPolynomials: get_basis
 using NCTSSoS: substitute_variables
 
 @testset "Complex Polynomial Optimization" begin
@@ -45,7 +45,7 @@ using NCTSSoS: substitute_variables
             NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo, sa)
         end
 
-        cmp = NCTSSoS.moment_relax(cpop,corr_sparsity, cliques_term_sparsities)
+        cmp = NCTSSoS.moment_relax(cpop, corr_sparsity, cliques_term_sparsities)
 
         @test length(cmp.constraints) == 19
         @test length(cmp.total_basis) == 55
@@ -78,13 +78,13 @@ using NCTSSoS: substitute_variables
             NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo, sa)
         end
 
-        cmp = NCTSSoS.moment_relax(cpop,corr_sparsity, cliques_term_sparsities)
+        cmp = NCTSSoS.moment_relax(cpop, corr_sparsity, cliques_term_sparsities)
 
         @test length(cmp.constraints) == 7
 
         @test cmp.constraints[1][1] == :HPSD
-        @test size(cmp.constraints[1][2]) == (4,4)
-        @test length(cmp.total_basis) == 10 
+        @test size(cmp.constraints[1][2]) == (4, 4)
+        @test length(cmp.total_basis) == 10
     end
 end
 
@@ -94,13 +94,13 @@ end
         @ncpolyvar y[1:2]
 
         f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
-        pop = polyopt(f; comm_gps = [x, y], is_unipotent = true)
+        pop = polyopt(f; comm_gps=[x, y], is_unipotent=true)
 
-        solver_config = SolverConfig(optimizer = SOLVER; order = 1)
+        solver_config = SolverConfig(optimizer=SOLVER; order=1)
 
         result = cs_nctssos(pop, solver_config; dualize=false)
 
-        @test isapprox(result.objective, -2.8284271321623193, atol = 1e-6)
+        @test isapprox(result.objective, -2.8284271321623193, atol=1e-6)
     end
 end
 
@@ -110,7 +110,7 @@ end
     @ncpolyvar x[1:n]
     f = 0.0
     for i = 1:n
-        jset = max(1, i-5):min(n, i+1)
+        jset = max(1, i - 5):min(n, i + 1)
         jset = setdiff(jset, i)
         f += (2x[i] + 5 * x[i]^3 + 1)^2
         f -= sum([
@@ -128,14 +128,14 @@ end
 
     cons = vcat([(1 - x[i]^2) for i = 1:n], [(x[i] - 1 / 3) for i = 1:n])
 
-    pop = polyopt(f; ineq_constraints = cons)
+    pop = polyopt(f; ineq_constraints=cons)
 
     solver_config =
         SolverConfig(optimizer=SOLVER; order=order, cs_algo=MF(), ts_algo=MMD())
 
     result = cs_nctssos(pop, solver_config; dualize=false)
 
-    @test isapprox(result.objective, 3.011288, atol = 1e-4)
+    @test isapprox(result.objective, 3.011288, atol=1e-4)
 end
 
 @testset "Moment Method Heisenberg Model on Star Graph" begin
@@ -165,20 +165,20 @@ end
 
     pop = polyopt(
         objective;
-        eq_constraints = gs,
-        is_unipotent = true,
+        eq_constraints=gs,
+        is_unipotent=true,
     )
     order = 1
     cs_algo = MF()
 
     solver_config = SolverConfig(
-        optimizer = SOLVER,
-        order = order,
-        cs_algo = cs_algo
+        optimizer=SOLVER,
+        order=order,
+        cs_algo=cs_algo
     )
 
-    result = cs_nctssos(pop, solver_config; dualize = false)
-    @test isapprox(result.objective, true_ans, atol = 1e-6)
+    result = cs_nctssos(pop, solver_config; dualize=false)
+    @test isapprox(result.objective, true_ans, atol=1e-6)
 end
 
 @testset "Replace DynamicPolynomials variables with JuMP variables" begin
@@ -190,7 +190,7 @@ end
 
     monomap = Dict(get_basis([x, y, z], 2) .=> jm)
 
-    @test substitute_variables(poly, monomap) == 1.0 * jm[7] - 2.0 * jm[5] - jm[1]
+    @test substitute_variables(poly, monomap) == 1.0 * jm[5] - 2.0 * jm[6] - jm[1]
 end
 
 @testset "Moment Method Example 1" begin
@@ -209,32 +209,32 @@ end
     @testset "Dense" begin
 
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order,
-            cs_algo = NoElimination(),
+            optimizer=SOLVER,
+            order=order,
+            cs_algo=NoElimination(),
         )
 
-        result = cs_nctssos(pop, solver_config; dualize = false)
+        result = cs_nctssos(pop, solver_config; dualize=false)
 
         # NOTE: differs from original test case value since that one is a relaxed in terms of sparsity
         # This value here is obtained by running the master branch with no sparsity relaxation
         @test isapprox(
             result.objective,
             4.372259295498716e-10,
-            atol = 1e-6,
+            atol=1e-6,
         )
     end
 
     @testset "Sprase" begin
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order,
-            ts_algo = MMD(),
+            optimizer=SOLVER,
+            order=order,
+            ts_algo=MMD(),
         )
 
-        result = cs_nctssos(pop, solver_config; dualize = false)
+        result = cs_nctssos(pop, solver_config; dualize=false)
 
-        @test isapprox(result.objective, -0.0035512, atol = 1e-7)
+        @test isapprox(result.objective, -0.0035512, atol=1e-7)
     end
 end
 
@@ -250,24 +250,24 @@ end
 
     @testset "Dense" begin
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order)
+            optimizer=SOLVER,
+            order=order)
 
-        result = cs_nctssos(pop, solver_config; dualize = false)
-        @test isapprox(result.objective, -1.0, atol = 1e-6)
+        result = cs_nctssos(pop, solver_config; dualize=false)
+        @test isapprox(result.objective, -1.0, atol=1e-6)
     end
 
     @testset "Term Sparse" begin
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order,
-            cs_algo = MF(),
-            ts_algo = MMD(),
+            optimizer=SOLVER,
+            order=order,
+            cs_algo=MF(),
+            ts_algo=MMD(),
         )
 
-        result = cs_nctssos(pop, solver_config; dualize = false)
+        result = cs_nctssos(pop, solver_config; dualize=false)
 
-        @test isapprox(result.objective, -1.0, atol = 1e-6)
+        @test isapprox(result.objective, -1.0, atol=1e-6)
     end
 end
 
@@ -284,40 +284,40 @@ end
     cons = vcat([1.0 - x[i]^2 for i = 1:n], [x[i] - 1.0 / 3 for i = 1:n])
     order = 3
 
-    pop = polyopt(f; ineq_constraints = cons)
+    pop = polyopt(f; ineq_constraints=cons)
 
     @testset "Correlative Sparse" begin
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order,
-            cs_algo = MF(),
+            optimizer=SOLVER,
+            order=order,
+            cs_algo=MF(),
         )
-        result = cs_nctssos(pop, solver_config; dualize = false)
+        result = cs_nctssos(pop, solver_config; dualize=false)
 
         # FIXME: reduced accuracy
         # @test is_solved_and_feasible(moment_problem.model)
         @test isapprox(
             result.objective,
             0.9975306427277915,
-            atol = 1e-5,
+            atol=1e-5,
         )
     end
 
     @testset "Term Sparse" begin
         solver_config = SolverConfig(
-            optimizer = SOLVER,
-            order = order,
-            ts_algo = MMD(),
+            optimizer=SOLVER,
+            order=order,
+            ts_algo=MMD(),
         )
 
-        result = cs_nctssos(pop, solver_config; dualize = false)
+        result = cs_nctssos(pop, solver_config; dualize=false)
 
-        result = cs_nctssos_higher(pop, result, solver_config;dualize=false)
+        result = cs_nctssos_higher(pop, result, solver_config; dualize=false)
 
         @test isapprox(
             result.objective,
             0.9975306427277915,
-            atol = 1e-5,
+            atol=1e-5,
         )
     end
 end

@@ -20,8 +20,7 @@ function Base.cmp(a::Monomial, b::Monomial)
         a_idx += 1
         b_idx += 1
     end
-    # if I reach here, should trigger a warning
-    return error("Comparison between monomials of equal degree, $a and $b failed")
+    return 0
 end
 
 function Base.in(a::Monomial, collection::Vector{Monomial})

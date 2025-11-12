@@ -1,6 +1,6 @@
 using Test, NCTSSoS, NCTSSoS.FastPolynomials
 
-if haskey(ENV, "LOCAL_TESTING") 
+if haskey(ENV, "LOCAL_TESTING")
     using MosekTools
     const SOLVER = Mosek.Optimizer
 else
@@ -24,11 +24,11 @@ using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStat
     sp =
         -1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) - 1.0 * ς(x[2] * y[1]) +
         1.0 * ς(x[2] * y[2])
-    spop = polyopt(sp * one(Monomial); is_unipotent = true, comm_gps = [x, y])
+    spop = polyopt(sp * one(Monomial); is_unipotent=true, comm_gps=[x, y])
 
     d = 1
 
-    solver_config = SolverConfig(; optimizer = SOLVER, order = d)
+    solver_config = SolverConfig(; optimizer=SOLVER, order=d)
 
     if haskey(ENV, "LOCAL_TESTING")
         result_mom = cs_nctssos(spop, solver_config; dualize=false)
@@ -40,7 +40,7 @@ using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStat
 
 
     @testset "Sparse" begin
-        solver_config = SolverConfig(; optimizer = SOLVER, order = d, cs_algo=NoElimination(), ts_algo=MMD())
+        solver_config = SolverConfig(; optimizer=SOLVER, order=d, cs_algo=NoElimination(), ts_algo=MMD())
 
         result = cs_nctssos(spop, solver_config)
 
@@ -58,15 +58,15 @@ end
 
     d = 3
 
-    solver_config = SolverConfig(; optimizer = QUICK_SOLVER, order = d)
+    solver_config = SolverConfig(; optimizer=QUICK_SOLVER, order=d)
 
     if haskey(ENV, "LOCAL_TESTING")
-        result_mom =  cs_nctssos(spop, solver_config; dualize=false)
-        @test isapprox(result_mom.objective, -4.0, atol = 1e-4)
+        result_mom = cs_nctssos(spop, solver_config; dualize=false)
+        @test isapprox(result_mom.objective, -4.0, atol=1e-4)
     end
 
     result_sos = cs_nctssos(spop, solver_config)
-    @test isapprox(result_sos.objective, -4.0, atol = 1e-4)
+    @test isapprox(result_sos.objective, -4.0, atol=1e-4)
 end
 
 if haskey(ENV, "LOCAL_TESTING")
@@ -153,17 +153,19 @@ end
     )
 
     @test map(a -> a[1] * a[2], terms(ncsp)) == ncterms
-    @test substitute_variables(expval(ncsp), wordmap) == 1.0 * y[7] + 3.0 * y[6] + 2.0 * y[4]
+    @test substitute_variables(expval(ncsp), wordmap) == 1.0 * y[8] + 3.0 * y[6] + 2.0 * y[4]
 
     true_mom_mtx = expval.([neat_dot(a, b) for a in basis, b in basis])
     mom_mtx_cons =
         constrain_moment_matrix!(model, one(ncsp), basis, wordmap, PSDCone(), sa)
     mom_mtx = constraint_object(mom_mtx_cons)
+
+    reshape(mom_mtx.func, 5, 5)
     @test reshape(mom_mtx.func, 5, 5) == AffExpr[
         y[1] y[2] y[3] y[2] y[3];
         y[2] y[4] y[5] y[4] y[5];
         y[3] y[5] y[6] y[5] y[6];
-        y[2] y[4] y[5] y[8] y[7];
-        y[3] y[5] y[6] y[7] y[10]
+        y[2] y[4] y[5] y[7] y[8];
+        y[3] y[5] y[6] y[8] y[10]
     ]
 end

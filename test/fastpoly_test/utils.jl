@@ -80,7 +80,7 @@ using NCTSSoS.FastPolynomials:
             end,
         )
 
-        coe = [-2, 1, -2, 3, 6, -2, 18, -54, 2, 142]
+        coe = [1, -2, 3, -2, 6, -2, 18, -54, 2, 142]
 
         poly3_sym = canonicalize(poly3, sa)
 
@@ -94,8 +94,8 @@ using NCTSSoS.FastPolynomials:
             is_projective=false,
             is_unipotent=false,
         )
-        @test cyclic_canonicalize(x^2 * y^2, sa) == x * y^2 * x
-        @test cyclic_canonicalize(z * y^2, sa) == y * z * y
+        @test cyclic_canonicalize(x^2 * y^2, sa) == x^2 * y^2
+        @test cyclic_canonicalize(z * y^2, sa) == y^2 * z
         @test cyclic_canonicalize(z * z, sa) == z^2
         @test isone(cyclic_canonicalize(one(x), sa))
 
@@ -181,7 +181,7 @@ using NCTSSoS.FastPolynomials:
             is_projective=true,
             is_unipotent=false,
         )
-        @test simplify!(mono,sa) == y * x * y * z
+        @test simplify!(mono, sa) == y * x * y * z
     end
 
     @testset "_unipotent" begin

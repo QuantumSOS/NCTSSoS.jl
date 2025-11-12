@@ -84,7 +84,7 @@ function sos_dualize(moment_problem::MomentProblem{T,M}) where {T,M}
             add_to_expression!(fα_constraints[symmetrized_α2cons_dict[unsymmetrized_basis[ky[1]]]], -coef, dual_variables[i][ky[2], ky[3]])
         end
     end
-    @constraint(dual_model, fα_constraints .== 0)
+    dual_model[:coef_cons] = @constraint(dual_model, fα_constraints .== 0)
 
     return SOSProblem(dual_model)
 end
@@ -142,8 +142,8 @@ function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
             end
         end
     end
-    @constraint(dual_model, fα_constraints[1] .== 0)
-    @constraint(dual_model, fα_constraints[2] .== 0)
+    dual_model[:coef_cons_real] = @constraint(dual_model, fα_constraints[1] .== 0)
+    dual_model[:coef_cons_imag] = @constraint(dual_model, fα_constraints[2] .== 0)
     return SOSProblem(dual_model)
 end
 

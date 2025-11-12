@@ -19,7 +19,7 @@ export cs_nctssos, cs_nctssos_higher
 export reconstruct
 export pauli_algebra
 export moment_matrix, moment_matrices, MomentMatrix
-export ProblemType, MomentPrimal, SOSDual
+export ProblemKind, Moment, SOS
 
 include("pop.jl")
 
@@ -35,9 +35,9 @@ include("complex_moment_solver.jl")
 
 include("sos_solver.jl")
 
-include("gns.jl")
-
 include("interface.jl")
+
+include("gns.jl")
 
 include("algebra_constructors.jl")
 end

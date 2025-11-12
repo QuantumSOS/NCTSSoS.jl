@@ -270,7 +270,7 @@ function construct_localizing_matrix(
 end
 
 """
-    moment_matrix(result::PolyOptResult{T,P,M}; clique::Int=1) where {T,P,M}
+    moment_matrix(result::PolyOptResult{T,P,M,PK}; clique::Int=1) where {T,P,M,PK<:ProblemKind}
 
 Extract the moment matrix from a polynomial optimization result for a specific clique.
 
@@ -305,9 +305,9 @@ X_mats = reconstruct(mm.matrix, mm.clique_vars, 2)
 # Notes
 - For problems with term sparsity, the moment matrix may be block-structured
 - The basis is derived from `result.cliques_term_sparsities[clique][1]`
-- Extraction method depends on whether the problem was dualized (stored in `result.problem_type`)
+- Extraction method depends on problem type (Moment vs SOS) encoded in type parameter
 """
-function moment_matrix(result, clique::Int=1)
+function moment_matrix(result::PolyOptResult{T,P,M,Moment}, clique::Int=1) where {T,P,M}
     # Validate inputs
     num_cliques = length(result.corr_sparsity.cliques)
     if clique < 1 || clique > num_cliques
@@ -327,12 +327,37 @@ function moment_matrix(result, clique::Int=1)
     # Get the basis from block_bases
     full_basis = construct_full_basis(mom_term_sparsity.block_bases)
 
-    # Extract matrix values based on problem type
-    if result.problem_type == MomentPrimal
-        matrix = extract_moment_matrix_primal(result.model, full_basis, result.monomap, result.sa)
-    else  # SOSDual
-        matrix = extract_moment_matrix_dual(result.model, full_basis, result.monomap, result.sa)
+    # Extract matrix values from primal problem
+    matrix = extract_moment_matrix_primal(result.model, full_basis, result.monomap, result.sa)
+
+    # Get clique variables
+    clique_vars = [Variable(Symbol("x$i")) for i in result.corr_sparsity.cliques[clique]]
+
+    return MomentMatrix(Matrix(matrix), full_basis, clique_vars, clique)
+end
+
+function moment_matrix(result::PolyOptResult{T,P,M,SOS}, clique::Int=1) where {T,P,M}
+    # Validate inputs
+    num_cliques = length(result.corr_sparsity.cliques)
+    if clique < 1 || clique > num_cliques
+        throw(ArgumentError("Invalid clique index $clique. Problem has $num_cliques cliques."))
     end
+
+    # Check that we have the necessary metadata
+    if isnothing(result.monomap) || isnothing(result.sa)
+        error("Cannot extract moment matrix: PolyOptResult is missing monomap or SimplifyAlgorithm metadata. " *
+              "This may be from an older version of NCTSSoS.jl.")
+    end
+
+    # Get the term sparsity for this clique
+    # First element is the moment matrix, rest are localizing matrices
+    mom_term_sparsity = result.cliques_term_sparsities[clique][1]
+
+    # Get the basis from block_bases
+    full_basis = construct_full_basis(mom_term_sparsity.block_bases)
+
+    # Extract matrix values from dual (SOS) problem
+    matrix = extract_moment_matrix_dual(result.model, full_basis, result.monomap, result.sa)
 
     # Get clique variables
     clique_vars = [Variable(Symbol("x$i")) for i in result.corr_sparsity.cliques[clique]]
@@ -396,7 +421,7 @@ function extract_moment_matrix_primal(model, full_basis, monomap, sa)
     for i = 1:n, j = i:n
         # Compute the monomial: basis[i]† * basis[j]
         # This is expval(basis[i] * basis[j]) after simplification
-        mono = simplify(expval(_neat_dot3(full_basis[i], one(first(full_basis)), full_basis[j])), sa)
+        mono = simplify(expval(neat_dot(full_basis[i], full_basis[j])), sa)
 
         # Look up the corresponding JuMP variable and get its value
         if haskey(monomap, mono)

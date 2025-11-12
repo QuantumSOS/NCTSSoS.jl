@@ -1,11 +1,16 @@
-@enum ProblemType MomentPrimal SOSDual
+"""
+Marker types for distinguishing between Moment and SOS problems in PolyOptResult.
+These lightweight types enable clean dispatch without carrying unnecessary type parameters.
+"""
+abstract type ProblemKind end
+struct Moment <: ProblemKind end
+struct SOS <: ProblemKind end
 
-struct PolyOptResult{T,P,M}
+struct PolyOptResult{T,P,M,PK<:ProblemKind}
     objective::T # support for high precision solution
     corr_sparsity::CorrelativeSparsity{P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
-    problem_type::ProblemType
     monomap::Union{Nothing, Dict{<:Any,<:Any}}  # Monomial to JuMP variable mapping (from MomentProblem) - flexible types for state polynomials
     sa::Union{Nothing, SimplifyAlgorithm}  # Simplification algorithm
 end
@@ -114,12 +119,15 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
 
     sa_value = hasproperty(moment_problem, :sa) ? moment_problem.sa : nothing
 
-    return PolyOptResult(
+    # Encode problem kind in type parameter for dispatch
+    ProbKind = dualize ? SOS : Moment
+    T = typeof(objective_value(problem_to_solve.model))
+
+    return PolyOptResult{T,P,eltype(corr_sparsity.cliques),ProbKind}(
         objective_value(problem_to_solve.model),
         corr_sparsity,
         cliques_term_sparsities,
         problem_to_solve.model,
-        dualize ? SOSDual : MomentPrimal,
         monomap_value,
         sa_value
     )
@@ -182,12 +190,17 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
 
     sa_value = hasproperty(moment_problem, :sa) ? moment_problem.sa : nothing
 
-    return PolyOptResult(
+    # Encode problem kind in type parameter for dispatch
+    ProbKind = dualize ? SOS : Moment
+    ResT = typeof(objective_value(problem_to_solve.model))
+    P = typeof(prev_res.corr_sparsity.cliques[1][1])
+    M = eltype(prev_res.cliques_term_sparsities[1][1].block_bases[1])
+
+    return PolyOptResult{ResT,P,M,ProbKind}(
         objective_value(problem_to_solve.model),
         prev_res.corr_sparsity,
         cliques_term_sparsities,
         problem_to_solve.model,
-        dualize ? SOSDual : MomentPrimal,
         monomap_value,
         sa_value
     )

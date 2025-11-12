@@ -180,7 +180,7 @@ Generates a sorted basis of all monomials up to a given degree.
 - `Vector{Monomial}`: Sorted basis containing all monomials of degrees `0` through `d`
 """
 function get_basis(vars::Vector{Variable}, d::Int)
-    vars = sort(vars)
+    @assert issorted(vars)
     d == 0 && return [Monomial(Variable[], Int[])]
 
     num_vars = length(vars)
@@ -190,20 +190,20 @@ function get_basis(vars::Vector{Variable}, d::Int)
     expos_vec = [Int[]]
     sizehint!(expos_vec, basis_length)
 
-    for v in vars 
+    for v in vars
         push!(vars_vec, [v])
         push!(expos_vec, [1])
     end
 
-    d == 1 && return Monomial.(vars_vec, expos_vec) 
+    d == 1 && return Monomial.(vars_vec, expos_vec)
 
     last_end_idx = 1
 
     @inbounds for i in 2:d
         # index of last monomial
         last_end_idx += num_vars^(i - 1)
-        for j in 1:num_vars
-            for k in 1:(num_vars^(i - 1))
+        for k in (num_vars^(i - 1)):-1:1
+            for j in 1:num_vars
                 if vars_vec[last_end_idx - k + 1][end] == vars[j]
                     push!(vars_vec, copy(vars_vec[last_end_idx - k + 1]))
                     push!(expos_vec, copy(expos_vec[last_end_idx - k + 1]))

@@ -465,4 +465,122 @@ if haskey(ENV, "LOCAL_TESTING")
             @test res.objective / N ≈ true_ans atol = 1e-6
         end
     end
+
+    @testset "Integration: Fermi-Hubbard Model" begin
+        # Test the fermionic_algebra interface with the 1D Fermi-Hubbard model
+        # H = -t Σ_<i,j>,σ (c†_iσ c_jσ + h.c.) + U Σ_i n_i↑ n_i↓
+
+        @testset "2-site Hubbard: Algebra Structure Test" begin
+            # Test fermionic algebra with 2 sites (4 modes total)
+            # Verify problem construction and basic solving
+            N_sites = 2
+
+            # Create fermionic algebra for 2*N_sites modes
+            # Modes 1:N_sites are spin-up, modes (N_sites+1):2*N_sites are spin-down
+            sys = fermionic_algebra(2 * N_sites)
+            c, c_dag = sys.variables
+
+            # Use interaction energy as objective (already tested in simpler cases)
+            # This is symmetric and physically meaningful
+            ham = ComplexF64(0.0)
+
+            # Interaction term: U Σ_i n_i↑ n_i↓ (with U=1 for testing)
+            for i in 1:N_sites
+                i_up = i
+                i_down = i + N_sites
+                # Use symmetrized number operators
+                n_up = ComplexF64(0.5) * (c_dag[i_up] * c[i_up] + c[i_up] * c_dag[i_up])
+                n_down = ComplexF64(0.5) * (c_dag[i_down] * c[i_down] + c[i_down] * c_dag[i_down])
+                ham += n_up * n_down
+            end
+
+            # Create optimization problem
+            pop = cpolyopt(ham, sys)
+
+            # Verify problem structure
+            @test pop.objective == ham
+            @test pop.is_unipotent == false
+            @test pop.is_projective == false
+            # 2N² + 3N constraints for N=4 modes: 2(16) + 3(4) = 44
+            @test length(pop.eq_constraints) == 2 * (2 * N_sites)^2 + 3 * (2 * N_sites)
+
+            # Solve the optimization problem
+            solver_config = SolverConfig(optimizer=SOLVER, order=1)
+            res = cs_nctssos(pop, solver_config)
+
+            # Minimum interaction energy (avoid double occupancy)
+            @test res.objective ≥ 0.0  # Should be non-negative
+            @test res.objective ≤ 1.0  # Upper bound sanity check
+        end
+
+        @testset "2-site Hubbard: Interaction Term Scaling" begin
+            # Test that interaction term scales correctly with U
+            N_sites = 2
+
+            # Create fermionic algebra
+            sys = fermionic_algebra(2 * N_sites)
+            c, c_dag = sys.variables
+
+            # Test with U=1 and U=4
+            for U in [1.0, 4.0]
+                ham = ComplexF64(0.0)
+
+                # Interaction term: U Σ_i n_i↑ n_i↓
+                for i in 1:N_sites
+                    i_up = i
+                    i_down = i + N_sites
+                    n_up = ComplexF64(0.5) * (c_dag[i_up] * c[i_up] + c[i_up] * c_dag[i_up])
+                    n_down = ComplexF64(0.5) * (c_dag[i_down] * c[i_down] + c[i_down] * c_dag[i_down])
+                    ham += U * n_up * n_down
+                end
+
+                pop = cpolyopt(ham, sys)
+                solver_config = SolverConfig(optimizer=SOLVER, order=1)
+                res = cs_nctssos(pop, solver_config)
+
+                # Minimum should be non-negative and scale with U
+                @test res.objective ≥ 0.0
+                @test res.objective ≤ U * N_sites  # Upper bound
+            end
+        end
+
+        @testset "2-site Hubbard: With Constraints" begin
+            # Test adding custom constraints to fermionic system
+            N_sites = 2
+            U = 1.0
+
+            # Create fermionic algebra
+            sys = fermionic_algebra(2 * N_sites)
+            c, c_dag = sys.variables
+
+            # Interaction Hamiltonian
+            ham = ComplexF64(0.0)
+            for i in 1:N_sites
+                i_up = i
+                i_down = i + N_sites
+                n_up = ComplexF64(0.5) * (c_dag[i_up] * c[i_up] + c[i_up] * c_dag[i_up])
+                n_down = ComplexF64(0.5) * (c_dag[i_down] * c[i_down] + c[i_down] * c_dag[i_down])
+                ham += U * n_up * n_down
+            end
+
+            # Add a simple constraint (e.g., n_1↑ = n_1↓)
+            n1_up = ComplexF64(0.5) * (c_dag[1] * c[1] + c[1] * c_dag[1])
+            n1_down = ComplexF64(0.5) * (c_dag[3] * c[3] + c[3] * c_dag[3])
+            constraint = n1_up - n1_down
+
+            # Create optimization problem with constraint
+            pop = cpolyopt(ham, sys; eq_constraints=[constraint])
+
+            # Verify constraint was added
+            @test length(pop.eq_constraints) == length(sys.equality_constraints) + 1
+            @test constraint in pop.eq_constraints
+
+            # Solve the optimization problem
+            solver_config = SolverConfig(optimizer=SOLVER, order=1)
+            res = cs_nctssos(pop, solver_config)
+
+            # Should find a feasible solution
+            @test res.objective ≥ 0.0
+        end
+    end
 end

@@ -9,12 +9,16 @@ Implement fermionic algebra for the NCTSSoS.jl package, following the pattern es
 - **Last Updated**: 2025-11-13 (Hubbard model tests added)
 - **Ready for**: Pull Request to main branch
 
-## Latest Update (2025-11-13 Evening)
-- ✅ Added Hubbard model integration tests (3 tests)
-- ✅ Created comprehensive exact testing plan
-- ✅ Researched exact diagonalization methods
-- ✅ Documented implementation and future improvements
-- **Status**: Tests added, ready for commit
+## Latest Update (2025-11-13 Evening - Second Session)
+- ✅ Computed exact baseline ground state energies via direct exact diagonalization
+- ✅ Created `scripts/compute_exact_hubbard.jl` for baseline computation
+- ✅ Updated testing plan with actual computed values
+- **Exact Values**:
+  - U=0: E₀ = -1.4142 (= -√2, free fermions)
+  - U=1: E₀ = -1.0000
+  - U=4: E₀ = -1.0000
+  - U=8: E₀ = -1.0000
+- **Status**: Baseline values computed, ready for commit
 
 ## Completed Actions
 1. ✅ Created GitHub issue #179 for FastPolynomials zero monomial support

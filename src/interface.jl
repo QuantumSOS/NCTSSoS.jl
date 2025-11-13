@@ -123,7 +123,10 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     ProbKind = dualize ? SOS : Moment
     T = typeof(objective_value(problem_to_solve.model))
 
-    return PolyOptResult{T,P,eltype(corr_sparsity.cliques),ProbKind}(
+    # Extract monomial type M from CorrelativeSparsity{P,M}
+    M = typeof(corr_sparsity).parameters[2]
+
+    return PolyOptResult{T,P,M,ProbKind}(
         objective_value(problem_to_solve.model),
         corr_sparsity,
         cliques_term_sparsities,
@@ -193,8 +196,10 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
     # Encode problem kind in type parameter for dispatch
     ProbKind = dualize ? SOS : Moment
     ResT = typeof(objective_value(problem_to_solve.model))
-    P = typeof(prev_res.corr_sparsity.cliques[1][1])
-    M = eltype(prev_res.cliques_term_sparsities[1][1].block_bases[1])
+
+    # Extract type parameters from previous result
+    P = typeof(prev_res.corr_sparsity).parameters[1]
+    M = typeof(prev_res.corr_sparsity).parameters[2]
 
     return PolyOptResult{ResT,P,M,ProbKind}(
         objective_value(problem_to_solve.model),

@@ -357,6 +357,7 @@ function moment_matrix(result::PolyOptResult{T,P,M,SOS}, clique::Int=1) where {T
     full_basis = construct_full_basis(mom_term_sparsity.block_bases)
 
     # Extract matrix values from dual (SOS) problem
+    @show "Fucker"
     matrix = extract_moment_matrix_dual(result.model, full_basis, result.monomap, result.sa)
 
     # Get clique variables
@@ -434,91 +435,178 @@ function extract_moment_matrix_primal(model, full_basis, monomap, sa)
 end
 
 """
+Trait types for distinguishing between real and complex SDP formulations.
+This enables clean multiple dispatch without runtime type checks.
+"""
+abstract type SDPFormulation end
+struct RealSDP <: SDPFormulation end
+struct ComplexSDP <: SDPFormulation end
+
+"""
+    sdp_formulation(model::GenericModel) -> SDPFormulation
+
+Determine the SDP formulation type (real or complex) by checking which
+named constraints exist in the model.
+"""
+function sdp_formulation(model::GenericModel)
+    if haskey(model, :coef_cons)
+        return RealSDP()
+    elseif haskey(model, :coef_cons_real) && haskey(model, :coef_cons_imag)
+        return ComplexSDP()
+    else
+        error("Model does not have expected constraint names (:coef_cons for real, or :coef_cons_real/:coef_cons_imag for complex)")
+    end
+end
+
+"""
+    get_dual_values_and_basis(model, monomap, sa, ::RealSDP)
+
+Extract dual values and construct symmetric basis for real SDP problems.
+Uses named constraint :coef_cons and applies sign convention (-dual).
+Canonicalizes the basis to match sos_dualize behavior.
+"""
+function get_dual_values_and_basis(model, monomap, sa, ::RealSDP)
+    # Get equality constraints by name
+    eq_cons = model[:coef_cons]
+
+    # Apply sign convention: shadow prices are negated for real problems
+    dual_values = -JuMP.dual.(eq_cons)
+
+    # Canonicalize and deduplicate basis (as done in sos_dualize)
+    unsymmetrized_basis = sort(collect(keys(monomap)))
+    symmetric_basis = sort(unique(canonicalize.(unsymmetrized_basis, Ref(sa))))
+
+    if length(symmetric_basis) != length(dual_values)
+        error("Mismatch: symmetric basis has $(length(symmetric_basis)) elements but got $(length(dual_values)) dual values")
+    end
+
+    return dual_values, symmetric_basis
+end
+
+"""
+    get_dual_values_and_basis(model, monomap, sa, ::ComplexSDP)
+
+Extract dual values and construct symmetric basis for complex SDP problems.
+Uses named constraints :coef_cons_real and :coef_cons_imag.
+No sign convention applied (already baked into constraint formulation).
+No canonicalization (complex conjugation breaks symmetry).
+"""
+function get_dual_values_and_basis(model, monomap, sa, ::ComplexSDP)
+    # Get equality constraints by name (real and imaginary parts)
+    eq_cons_real = model[:coef_cons_real]
+    eq_cons_imag = model[:coef_cons_imag]
+
+    # No sign convention for complex problems
+    dual_real = JuMP.dual.(eq_cons_real)
+    dual_imag = JuMP.dual.(eq_cons_imag)
+
+    # Combine into complex values
+    moment_values = dual_real .+ im .* dual_imag
+
+    # No canonicalization for complex (total_basis is used directly)
+    symmetric_basis = sort(collect(keys(monomap)))
+
+    return moment_values, symmetric_basis
+end
+
+"""
+    fill_moment_matrix!(matrix, full_basis, symmetric_basis, moment_values, sa, ::RealSDP)
+
+Fill moment matrix entries for real SDP problems.
+Canonicalizes monomials before lookup and enforces symmetry.
+"""
+function fill_moment_matrix!(matrix, full_basis, symmetric_basis, moment_values, sa, ::RealSDP)
+    n = length(full_basis)
+    for i = 1:n, j = i:n
+        # Compute the monomial: basis[i]† * basis[j]
+        mono = simplify(expval(neat_dot(full_basis[i], full_basis[j])), sa)
+
+        # Canonicalize to match symmetric basis
+        mono_key = canonicalize(mono, sa)
+
+        # Look up moment value
+        idx = searchsortedfirst(symmetric_basis, mono_key)
+        if idx <= length(symmetric_basis) && symmetric_basis[idx] == mono_key
+            matrix[i, j] = moment_values[idx]
+            matrix[j, i] = matrix[i, j]  # Symmetric
+        end
+    end
+end
+
+"""
+    fill_moment_matrix!(matrix, full_basis, symmetric_basis, moment_values, sa, ::ComplexSDP)
+
+Fill moment matrix entries for complex SDP problems.
+No canonicalization applied and enforces Hermitian structure.
+"""
+function fill_moment_matrix!(matrix, full_basis, symmetric_basis, moment_values, sa, ::ComplexSDP)
+    n = length(full_basis)
+    for i = 1:n, j = i:n
+        # Compute the monomial: basis[i]† * basis[j]
+        mono = simplify(expval(neat_dot(full_basis[i], full_basis[j])), sa)
+
+        # No canonicalization for complex
+
+        # Look up moment value
+        idx = searchsortedfirst(symmetric_basis, mono)
+        if idx <= length(symmetric_basis) && symmetric_basis[idx] == mono
+            matrix[i, j] = moment_values[idx]
+            matrix[j, i] = conj(matrix[i, j])  # Hermitian
+        end
+    end
+    @show "Fuck!!!"
+end
+
+"""
 Extract moment matrix values from an SOS (dual) problem model.
 
 For SOS problems, the equality constraints encode the polynomial equality.
-The dual values of these constraints correspond to moment values for each monomial
-in the symmetric basis (canonicalized and unique monomials).
+The dual values of these constraints correspond to moment values for each monomial.
 
-Following the SOS dualization procedure, we must use the symmetric basis
-(canonicalized unique monomials) rather than the full unsymmetrized monomap keys.
+This function uses multiple dispatch to handle real vs complex formulations:
+- Real: Uses :coef_cons, applies sign convention, canonicalizes basis
+- Complex: Uses :coef_cons_real/:coef_cons_imag, no sign/canonicalization
 """
 function extract_moment_matrix_dual(model, full_basis, monomap, sa)
+    # Determine formulation type and dispatch
+    formulation = sdp_formulation(model)
+    @show formulation
+    return extract_moment_matrix_dual(model, full_basis, monomap, sa, formulation)
+end
+
+"""
+    extract_moment_matrix_dual(model, full_basis, monomap, sa, ::RealSDP)
+
+Extract moment matrix for real SDP formulation.
+"""
+function extract_moment_matrix_dual(model, full_basis, monomap, sa, ::RealSDP)
     T = value_type(typeof(model))
     n = length(full_basis)
 
-    # Get all equality constraints
-    eq_cons = JuMP.all_constraints(model, JuMP.GenericAffExpr{T,JuMP.VariableRef}, MOI.EqualTo{T})
+    # Get dual values and symmetric basis
+    moment_values, symmetric_basis = get_dual_values_and_basis(model, monomap, sa, RealSDP())
 
-    if isempty(eq_cons)
-        error("No equality constraints found in the model. Cannot extract moment matrix from SOS dual problem.")
-    end
+    # Build matrix
+    matrix = zeros(T, n, n)
+    fill_moment_matrix!(matrix, full_basis, symmetric_basis, moment_values, sa, RealSDP())
 
-    # Get dual values - these correspond to moment values for each monomial
-    # For real problems: negated as in the NCTSSOS reference
-    # For complex problems: check if negation is needed by looking at problem size first
-    raw_dual_values = JuMP.dual.(eq_cons)
+    return Symmetric(matrix)
+end
 
-    # Reconstruct the basis exactly as done in sos_dualize
-    # For REAL problems: canonicalized unique version of monomap keys
-    # For COMPLEX problems: just sorted monomap keys (NOT canonicalized)
-    unsymmetrized_basis = sort(collect(keys(monomap)))
+"""
+    extract_moment_matrix_dual(model, full_basis, monomap, sa, ::ComplexSDP)
 
-    # Check if this is likely a complex problem by comparing sizes
-    # Complex problems have 2x constraints (real + imag parts)
-    is_complex_problem = length(raw_dual_values) == 2 * length(unsymmetrized_basis)
+Extract moment matrix for complex SDP formulation.
+"""
+function extract_moment_matrix_dual(model, full_basis, monomap, sa, ::ComplexSDP)
+    n = length(full_basis)
 
-    if is_complex_problem
-        # For complex problems, the basis is NOT canonicalized in sos_dualize
-        # It's just the sorted total_basis
-        symmetric_basis = unsymmetrized_basis
+    # Get dual values and symmetric basis
+    moment_values, symmetric_basis = get_dual_values_and_basis(model, monomap, sa, ComplexSDP())
 
-        # For complex problems, do NOT negate (different convention)
-        dual_values = raw_dual_values
+    # Build matrix (complex)
+    matrix = zeros(ComplexF64, n, n)
+    fill_moment_matrix!(matrix, full_basis, symmetric_basis, moment_values, sa, ComplexSDP())
 
-        # Split dual values into real and imaginary parts
-        n_basis = length(symmetric_basis)
-        moment_values_real = dual_values[1:n_basis]
-        moment_values_imag = dual_values[n_basis+1:end]
-        moment_values = moment_values_real .+ im .* moment_values_imag
-        # Matrix type needs to be complex
-        matrix = zeros(ComplexF64, n, n)
-    else
-        # Real problem - negate dual values as in NCTSSOS reference
-        dual_values = -raw_dual_values
-
-        # Real problem - canonicalize and deduplicate
-        symmetric_basis = sort(unique(canonicalize.(unsymmetrized_basis, Ref(sa))))
-        moment_values = dual_values
-        if length(symmetric_basis) != length(moment_values)
-            error("Mismatch between symmetric basis size $(length(symmetric_basis)) and dual values $(length(moment_values))")
-        end
-        matrix = zeros(T, n, n)
-    end
-
-    # For each entry (i,j) in the moment matrix
-    for i = 1:n, j = i:n
-        # Compute the monomial: basis[i]† * basis[j]
-        mono = simplify(expval(_neat_dot3(full_basis[i], one(first(full_basis)), full_basis[j])), sa)
-
-        # For complex problems, do NOT canonicalize (symmetric_basis is not canonicalized)
-        # For real problems, canonicalize to match the symmetric basis
-        mono_to_find = is_complex_problem ? mono : canonicalize(mono, sa)
-
-        # Find its index in the symmetric basis
-        idx = searchsortedfirst(symmetric_basis, mono_to_find)
-        if idx <= length(symmetric_basis) && symmetric_basis[idx] == mono_to_find
-            matrix[i, j] = moment_values[idx]
-            if is_complex_problem
-                # For complex matrices, take conjugate for lower triangle (Hermitian)
-                matrix[j, i] = conj(matrix[i, j])
-            else
-                # For real matrices, symmetric
-                matrix[j, i] = matrix[i, j]
-            end
-        end
-    end
-
-    # Return appropriate matrix type based on whether it's complex
-    return is_complex_problem ? Hermitian(matrix) : Symmetric(matrix)
+    return Hermitian(matrix)
 end

@@ -4,7 +4,7 @@
 Implement fermionic algebra for the NCTSSoS.jl package, following the pattern established by the Pauli algebra implementation.
 
 ## Current Status
-- **Phase**: Phase 0 Complete - Type hierarchy implemented and tested
+- **Phase**: Phase 4 Complete - Documentation tutorial created
 - **Date Created**: 2025-11-05
 - **Last Updated**: 2025-11-12
 
@@ -19,6 +19,18 @@ Implement fermionic algebra for the NCTSSoS.jl package, following the pattern es
    - Updated `pauli_algebra()` to return `PauliAlgebra` instance
    - Added comprehensive tests (18 new tests, all 477 tests passing)
    - Fixed module include order for proper type availability
+6. ✅ **Phase 1 Complete (2025-11-12)**: fermionic_algebra constructor implemented
+   - Implemented `fermionic_algebra(N)` function in `src/algebra_constructors.jl`
+   - All fermionic algebra properties encoded as polynomial equality constraints
+   - Exported `fermionic_algebra` from NCTSSoS.jl
+   - Added comprehensive test suite (47 fermionic algebra tests)
+   - All tests passing (basic structure, constraint verification, scaling, cpolyopt integration, custom constraints, error handling)
+7. ✅ **Phase 4 Complete (2025-11-12)**: Documentation tutorial created
+   - Created `docs/src/examples/literate/fermionic_algebra_interface.jl` tutorial
+   - Follows same pattern as `pauli_algebra_interface.jl`
+   - Covers: manual vs simplified approach, free fermion example, adding constraints, implementation notes
+   - Added to documentation index in `docs/make.jl`
+   - Generated markdown file at `docs/src/examples/generated/fermionic_algebra_interface.md`
 
 ## User-Requested Simplifications (2025-11-12)
 

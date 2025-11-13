@@ -1,7 +1,7 @@
 name = "NCTSSoS"
 uuid = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
-authors = ["jwang <wangjie212@amss.ac.cn>"]
 version = "0.1.0"
+authors = ["jwang <wangjie212@amss.ac.cn>"]
 
 [deps]
 ChordalGraph = "60fd0770-a5cf-11ea-07c5-d789f1eae5cb"

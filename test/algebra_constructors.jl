@@ -138,6 +138,167 @@ end
 end
 
 
+@testset "Fermionic Algebra Constructor" begin
+    @testset "Basic Structure N=1" begin
+        sys = fermionic_algebra(1)
+
+        # Check return type is FermionicAlgebra
+        @test sys isa FermionicAlgebra
+        @test sys isa AbstractAlgebra
+        @test sys.N == 1
+
+        # Verify structure
+        @test hasfield(typeof(sys), :N)
+        @test hasfield(typeof(sys), :variables)
+        @test hasfield(typeof(sys), :simplify_algo)
+        @test hasfield(typeof(sys), :equality_constraints)
+        @test hasfield(typeof(sys), :inequality_constraints)
+        @test hasfield(typeof(sys), :comm_gps)
+
+        # Verify variables
+        c, c_dag = sys.variables
+        @test length(c) == 1
+        @test length(c_dag) == 1
+
+        # Verify constraint count for N=1: 2(1)² + 3(1) = 5
+        @test length(sys.equality_constraints) == 5
+        @test isempty(sys.inequality_constraints)
+
+        # Verify commutation groups
+        @test length(sys.comm_gps) == 1
+        @test length(sys.comm_gps[1]) == 2  # c[1] and c_dag[1]
+    end
+
+    @testset "SimplifyAlgorithm Properties" begin
+        sys = fermionic_algebra(2)
+        sa = sys.simplify_algo
+
+        @test sa.is_unipotent == false
+        @test sa.is_projective == false
+        @test sa.n_gps == 1  # Single commutation group
+    end
+
+    @testset "Constraint Verification N=1" begin
+        sys = fermionic_algebra(1)
+        c, c_dag = sys.variables
+        constraints = sys.equality_constraints
+
+        # Should contain all 5 constraints:
+        # 1. {c, c} = 2c² = 0
+        @test ComplexF64(1.0) * (c[1] * c[1] + c[1] * c[1]) in constraints
+
+        # 2. {c†, c†} = 2(c†)² = 0
+        @test ComplexF64(1.0) * (c_dag[1] * c_dag[1] + c_dag[1] * c_dag[1]) in constraints
+
+        # 3. {c, c†} = 1
+        @test ComplexF64(1.0) * (c[1] * c_dag[1] + c_dag[1] * c[1]) - 1 in constraints
+
+        # 4. c² = 0 (nilpotent constraint)
+        @test ComplexF64(1.0) * c[1] * c[1] in constraints
+
+        # 5. (c†)² = 0 (nilpotent constraint)
+        @test ComplexF64(1.0) * c_dag[1] * c_dag[1] in constraints
+    end
+
+    @testset "Constraint Scaling" begin
+        # N=1: 2(1)² + 3(1) = 5
+        sys1 = fermionic_algebra(1)
+        @test length(sys1.equality_constraints) == 5
+
+        # N=2: 2(4) + 3(2) = 14
+        sys2 = fermionic_algebra(2)
+        @test length(sys2.equality_constraints) == 14
+
+        # N=3: 2(9) + 3(3) = 27
+        sys3 = fermionic_algebra(3)
+        @test length(sys3.equality_constraints) == 27
+
+        # General formula verification
+        for N in 1:5
+            sys = fermionic_algebra(N)
+            expected_count = 2 * N^2 + 3 * N
+            @test length(sys.equality_constraints) == expected_count
+        end
+    end
+
+    @testset "Constraint Verification N=2" begin
+        sys = fermionic_algebra(2)
+        c, c_dag = sys.variables
+        constraints = sys.equality_constraints
+
+        # Spot check key constraints
+
+        # Anti-commutation {c₁, c₂} = 0
+        @test ComplexF64(1.0) * (c[1] * c[2] + c[2] * c[1]) in constraints
+
+        # Anti-commutation {c₁†, c₂†} = 0
+        @test ComplexF64(1.0) * (c_dag[1] * c_dag[2] + c_dag[2] * c_dag[1]) in constraints
+
+        # Canonical {c₁, c₁†} = 1
+        @test ComplexF64(1.0) * (c[1] * c_dag[1] + c_dag[1] * c[1]) - 1 in constraints
+
+        # Canonical {c₁, c₂†} = 0
+        @test ComplexF64(1.0) * (c[1] * c_dag[2] + c_dag[2] * c[1]) in constraints
+
+        # Nilpotent c₁² = 0
+        @test ComplexF64(1.0) * c[1] * c[1] in constraints
+
+        # Nilpotent (c₂†)² = 0
+        @test ComplexF64(1.0) * c_dag[2] * c_dag[2] in constraints
+    end
+
+    @testset "Integration with cpolyopt" begin
+        sys = fermionic_algebra(2)
+        c, c_dag = sys.variables
+
+        # Use symmetric objective: symmetrized number operator
+        # n₁_symm = (c₁† c₁ + c₁ c₁†)/2
+        n1_symm = ComplexF64(0.5) * (c_dag[1] * c[1] + c[1] * c_dag[1])
+
+        # Create optimization problem using algebra interface
+        pop = cpolyopt(n1_symm, sys)
+
+        @test pop.objective == n1_symm
+        @test pop.is_unipotent == false
+        @test pop.is_projective == false
+
+        # Check that algebra constraints were included
+        @test length(pop.eq_constraints) == length(sys.equality_constraints)
+
+        # Verify fermionic constraints are present
+        @test ComplexF64(1.0) * c[1] * c[1] in pop.eq_constraints  # c₁² = 0
+    end
+
+    @testset "Custom Constraints" begin
+        sys = fermionic_algebra(2)
+        c, c_dag = sys.variables
+
+        # Symmetric total number operator: (n1 + n2) symmetrized
+        # n1_symm = (c†₁c₁ + c₁c†₁)/2, n2_symm = (c†₂c₂ + c₂c†₂)/2
+        n1_symm = ComplexF64(0.5) * (c_dag[1] * c[1] + c[1] * c_dag[1])
+        n2_symm = ComplexF64(0.5) * (c_dag[2] * c[2] + c[2] * c_dag[2])
+        N_total_symm = n1_symm + n2_symm
+
+        # Add custom constraint: total particle number = 1
+        constraint = N_total_symm - 1
+
+        pop = cpolyopt(N_total_symm, sys; eq_constraints=[constraint])
+
+        # Should have algebra constraints + custom constraint
+        @test length(pop.eq_constraints) == length(sys.equality_constraints) + 1
+        @test constraint in pop.eq_constraints
+
+        # Fermionic constraints still present
+        @test ComplexF64(1.0) * c[1] * c[1] in pop.eq_constraints
+    end
+
+    @testset "Error Handling" begin
+        @test_throws AssertionError fermionic_algebra(0)
+        @test_throws AssertionError fermionic_algebra(-1)
+    end
+end
+
+
 @testset "cpolyopt with Algebra Interface" begin
     @testset "Pauli Algebra Interface" begin
         sys = pauli_algebra(2)

@@ -13,6 +13,7 @@ makedocs(;
         "Examples"=>Any["Bell inequalities"=>"examples/generated/bell.md", "Trace Polynomial"=>"examples/generated/trace_poly.md",
         "Ground State Energy"=>"examples/generated/ground_state_energy.md",
         "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
+        "Fermionic Algebra Interface"=>"examples/generated/fermionic_algebra_interface.md",
         "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
         "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"
             ],

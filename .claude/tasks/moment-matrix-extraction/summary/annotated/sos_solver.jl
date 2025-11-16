@@ -1,3 +1,18 @@
+"""
+SUMMARY OF CHANGES - Dual SOS Formulation Integration
+
+This MODIFIED file integrates moment matrix extraction support into the dual SOS formulation.
+
+Major changes:
+1. sos_dualize() now builds and returns MomentSupport
+2. Uses symmetric_basis (already canonicalized) for support construction
+3. Returns tuple: (SOSProblem, MomentSupport)
+4. Supports both real and complex polynomial problems
+
+Context: Part of moment matrix extraction implementation (.claude/tasks/moment-matrix-extraction/)
+Plan reference: plan.md section 3.4 (File: src/sos_solver.jl)
+"""
+
 struct SOSProblem{T}
     model::GenericModel{T}
 end
@@ -5,6 +20,7 @@ end
 # Decompose the matrix into the form sum_j C_αj * g_j
 # j: index of the constraint
 # α: the monomial (JuMP variable)
+# UNCHANGED: Existing helper function
 function get_Cαj(basis_dict::Dict{GenericVariableRef{T},Int}, localizing_mtx::VectorConstraint{F,S,Shape}) where {T,F,S,Shape}
     dim = get_dim(localizing_mtx)
     cis = CartesianIndices((dim, dim))
@@ -52,9 +68,14 @@ The dualization process involves:
 The resulting dual problem maximizes `b` subject to the constraint that the sum of
 matrix variables weighted by coefficient matrices equals the objective polynomial.
 """
+# CHANGED: Now returns (SOSProblem, MomentSupport) tuple
+# WHY: Enable moment matrix extraction after solving
+# CRITICAL: This is the DEFAULT formulation (dualize=true in cs_nctssos)
+# INTEGRATION: Added support construction at end
 function sos_dualize(moment_problem::MomentProblem{T,M}, corr_sparsity::CorrelativeSparsity{P,M2}, cliques_term_sparsities::Vector{Vector{TermSparsity{M2}}}) where {T,M,P,M2}
     dual_model = GenericModel{T}()
 
+    # UNCHANGED: Existing dualization logic
     # Initialize Gj as variables
     dual_variables = map(constraint_object.(moment_problem.constraints)) do cons
         G_dim = get_dim(cons)
@@ -66,15 +87,22 @@ function sos_dualize(moment_problem::MomentProblem{T,M}, corr_sparsity::Correlat
 
     primal_objective_terms = objective_function(moment_problem.model).terms
 
+    # UNCHANGED: NOTE on symmetrization
     # NOTE: objective is Symmetric, hence when comparing polynomials, we need to canonicalize them first
     unsymmetrized_basis = sort(collect(keys(moment_problem.monomap)))
 
+    # CRITICAL: symmetric_basis is already canonicalized
+    # WHY: Needed for polynomial comparison in dual formulation
+    # BENEFIT: Can use directly for moment support construction
     symmetric_basis = sorted_unique(canonicalize.(unsymmetrized_basis, Ref(moment_problem.sa)))
 
     # JuMP variables corresponding to symmetric_basis
     symmetric_variables = getindex.(Ref(moment_problem.monomap), symmetric_basis)
 
 
+    # UNCHANGED: Existing constraint construction
+    # NOTE: These equality constraints will have dual variables
+    # CRITICAL: Dual variables of these constraints = moment values!
     fα_constraints = [GenericAffExpr{T,VariableRef}(get(primal_objective_terms, α, zero(T))) for α in symmetric_variables]
 
     symmetrized_α2cons_dict = Dict(zip(unsymmetrized_basis, map(x -> searchsortedfirst(symmetric_basis, canonicalize(x, moment_problem.sa)), unsymmetrized_basis)))
@@ -89,17 +117,30 @@ function sos_dualize(moment_problem::MomentProblem{T,M}, corr_sparsity::Correlat
             add_to_expression!(fα_constraints[symmetrized_α2cons_dict[unsymmetrized_basis[ky[1]]]], -coef, dual_variables[i][ky[2], ky[3]])
         end
     end
+    # CRITICAL: These equality constraints have dual variables
+    # EXTRACTION: extract_dual_variables() queries these constraints
     @constraint(dual_model, fα_constraints .== 0)
 
-    # Build moment support structure using the symmetric basis
+    # CHANGED: NEW - Build moment support structure using the symmetric basis
+    # WHY: Enable moment matrix extraction
+    # CRITICAL: Use symmetric_basis (already canonicalized) as global_support
+    # BENEFIT: No additional canonicalization needed
+    # TYPE FLEXIBILITY: M2 may differ from M (NCStateWord → StateWord)
     moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, symmetric_basis, moment_problem.sa)
 
+    # CHANGED: Return tuple instead of just SOSProblem
+    # IMPACT: Callers (cs_nctssos, cs_nctssos_higher) updated to handle tuple
+    # MATHEMATICAL NOTE: Moment values = dual variables of fα_constraints
     return (SOSProblem(dual_model), moment_support)
 end
 
+# CHANGED: Complex polynomial version also returns MomentSupport
+# WHY: Support moment extraction for complex problems
+# INTEGRATION: Same pattern as real case
 function sos_dualize(cmp::ComplexMomentProblem{T,M,P}, corr_sparsity::CorrelativeSparsity{P2,M2}, cliques_term_sparsities::Vector{Vector{TermSparsity{M2}}}) where {T,M,P,P2,M2}
     dual_model = GenericModel{real(T)}()
 
+    # UNCHANGED: Existing complex dualization logic
     dual_variables = map(cmp.constraints) do (type,cons)
         G_dim = size(cons,1)
         @variable(dual_model, [1:2*G_dim, 1:2*G_dim] in (type == :Zero ? SymmetricMatrixSpace() : PSDCone()))
@@ -126,6 +167,7 @@ function sos_dualize(cmp::ComplexMomentProblem{T,M,P}, corr_sparsity::Correlativ
     @variable(dual_model, b)
     @objective(dual_model, Max, b)
 
+    # NOTE: For complex case, symmetric_basis is cmp.total_basis (already sorted)
     symmetric_basis = sort(cmp.total_basis)
 
 
@@ -148,15 +190,20 @@ function sos_dualize(cmp::ComplexMomentProblem{T,M,P}, corr_sparsity::Correlativ
             end
         end
     end
+    # CRITICAL: Dual variables of these constraints = moment values
     @constraint(dual_model, fα_constraints[1] .== 0)
     @constraint(dual_model, fα_constraints[2] .== 0)
 
-    # Build moment support structure using the symmetric basis
+    # CHANGED: NEW - Build moment support structure for complex case
+    # WHY: Enable moment extraction for complex polynomial problems
+    # NOTE: Uses symmetric_basis = cmp.total_basis (already sorted, no canonicalization needed)
     moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, symmetric_basis, cmp.sa)
 
+    # CHANGED: Return tuple
     return (SOSProblem(dual_model), moment_support)
 end
 
+# UNCHANGED: Helper function for complex case
 function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {T,M,P<:AbstractPolynomial{T}}
     dim = size(localizing_mtx,1)
     cis = CartesianIndices((dim, dim))

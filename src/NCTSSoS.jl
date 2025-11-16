@@ -9,7 +9,7 @@ include("FastPolynomials/src/FastPolynomials.jl")
 using .FastPolynomials
 using .FastPolynomials: AbstractPolynomial, Variable, Monomial
 
-using .FastPolynomials: sorted_union, monomials, sorted_unique, maxdegree, get_basis, neat_dot, _neat_dot3, monomials, coefficients, terms, expval
+using .FastPolynomials: sorted_union, monomials, sorted_unique, maxdegree, get_basis, neat_dot, _neat_dot3, monomials, coefficients, terms, expval, canonicalize
 
 export @ncpolyvar, ς
 export polyopt, cpolyopt
@@ -18,6 +18,7 @@ export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher
 export reconstruct
 export pauli_algebra
+export get_moment_matrices, MomentSupport
 
 include("pop.jl")
 
@@ -35,7 +36,11 @@ include("sos_solver.jl")
 
 include("gns.jl")
 
+include("moment_extraction.jl")
+
 include("interface.jl")
+
+include("moment_extraction_api.jl")
 
 include("algebra_constructors.jl")
 end

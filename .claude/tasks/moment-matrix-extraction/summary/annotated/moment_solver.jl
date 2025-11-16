@@ -1,3 +1,17 @@
+"""
+SUMMARY OF CHANGES - Primal Moment Formulation Integration
+
+This MODIFIED file integrates moment matrix extraction support into the primal moment formulation.
+
+Major changes:
+1. moment_relax() now builds and returns MomentSupport
+2. Added global support construction via canonicalization
+3. Returns tuple: (MomentProblem, MomentSupport)
+
+Context: Part of moment matrix extraction implementation (.claude/tasks/moment-matrix-extraction/)
+Plan reference: plan.md section 3.3 (File: src/moment_solver.jl)
+"""
+
 # T: type of the coefficients
 # monomap: map from monomials in DynamicPolynomials to variables in JuMP
 struct MomentProblem{T,M,CR<:ConstraintRef,JS<:AbstractJuMPScalar}
@@ -14,6 +28,7 @@ end
 # cliques_cons: groups constraints according to cliques,
 # global_cons: constraints that are not in any single clique
 # cliques_term_sparsities: each clique, each obj/constraint, each ts_clique, each basis needed to index moment matrix
+
 """
     moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {T,P<:AbstractPolynomial{T},M}
 
@@ -39,6 +54,10 @@ This function creates a semidefinite programming relaxation of the input polynom
 
 The relaxation exploits correlative sparsity to reduce the size of the semidefinite program by partitioning constraints into cliques and handling global constraints separately.
 """
+# CHANGED: Now returns (MomentProblem, MomentSupport) tuple
+# WHY: Enable moment matrix extraction after solving
+# INTEGRATION: Added support construction at end, before return
+# PERFORMANCE: Reuses basis products computed during constraint building
 function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {T,P<:AbstractPolynomial{T},M}
     # NOTE: objective and constraints may have integer coefficients, but popular JuMP solvers does not support integer coefficients
     # left type here to support BigFloat model for higher precision
@@ -47,6 +66,8 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
 
     sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_unipotent=pop.is_unipotent, is_projective=pop.is_projective)
     # the union of clique_total_basis
+    # UNCHANGED: Existing total_basis computation
+    # NOTE: This computes basis products for ALL terms (objective + constraints)
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
             map(monomials(poly)) do m
@@ -58,10 +79,14 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
 
     # map the monomials to JuMP variables, the first variable must be 1
     # TODO: make set_string_name = false to further improve performance
+    # UNCHANGED: Existing variable creation
     @variable(model, y[1:length(total_basis)], set_string_name = false)
     @constraint(model, first(y) == 1)
     monomap = Dict(zip(total_basis, y))
 
+    # UNCHANGED: Existing constraint construction
+    # NOTE: This creates affine equality constraints that will have dual variables
+    # CRITICAL: Constraint order must match global_support order for extraction
     constraint_matrices =
         [mapreduce(vcat, zip(cliques_term_sparsities, corr_sparsity.clq_cons)) do (term_sparsities, cons_idx)
                 mapreduce(vcat, zip(term_sparsities, [one(pop.objective), corr_sparsity.cons[cons_idx]...])) do (term_sparsity, poly)
@@ -86,23 +111,34 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
                 )
             end]
 
+    # UNCHANGED: Existing objective construction
     @objective(model, Min, mapreduce(p -> p[1] * monomap[canonicalize(expval(p[2]), sa)], +, terms(pop.objective)))
 
-    # Build canonicalized global support for moment extraction
+    # CHANGED: NEW - Build canonicalized global support for moment extraction
+    # WHY: Need canonical form to match extraction lookup
+    # ALGORITHM:
+    #   1. Collect all monomials from monomap (unsymmetrized basis)
+    #   2. Canonicalize each monomial
+    #   3. Sort and unique to get global support
+    # CRITICAL: This ordering must match constraint ordering for dual variable extraction
+    # NOTE: For primal formulation, this matches total_basis order
     unsymmetrized_basis = collect(keys(monomap))
-    canonicalized_basis = canonicalize.(unsymmetrized_basis, Ref(sa))
-    global_support = sorted_unique(canonicalized_basis)
+    global_support = sorted_unique(canonicalize.(unsymmetrized_basis, Ref(sa)))
 
-    # Build mapping from global_support index to variable index (for primal extraction)
-    # For each monomial in global_support, find which variable index it corresponds to
-    primal_var_map = [findfirst(==(gs_mono), canonicalized_basis) for gs_mono in global_support]
+    # CHANGED: NEW - Build moment support structure
+    # WHY: Enable efficient moment matrix extraction
+    # ALGORITHM: Calls build_moment_support() from moment_extraction.jl
+    # PERFORMANCE: Reuses basis products (already computed for constraints)
+    # INTEGRATION: build_moment_support() matches constraint construction pattern
+    moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, global_support, sa)
 
-    # Build moment support structure with primal_var_map
-    moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, global_support, sa; primal_var_map=primal_var_map)
-
+    # CHANGED: Return tuple instead of just MomentProblem
+    # IMPACT: Callers (cs_nctssos, cs_nctssos_higher) updated to handle tuple
+    # BACKWARD COMPATIBILITY: Breaking change, but internal API only
     return (MomentProblem(model, constraint_matrices, monomap, sa), moment_support)
 end
 
+# UNCHANGED: Existing helper function
 function constrain_moment_matrix!(
     model::GenericModel{T1},
     poly::P,
@@ -112,6 +148,9 @@ function constrain_moment_matrix!(
     sa::SimplifyAlgorithm
 ) where {T,T1,P<:AbstractPolynomial{T},M1,M2,JS<:AbstractJuMPScalar}
     T_prom = promote_type(T, T1)
+    # NOTE: This is where constraints are created
+    # PATTERN: expval(_neat_dot3(row_idx, mono, col_idx))
+    # CRITICAL: build_moment_support() must match this pattern exactly
     moment_mtx = [
         sum([T_prom(coef) * monomap[simplify!(expval(_neat_dot3(row_idx, mono, col_idx)), sa)] for (coef, mono) in zip(coefficients(poly), monomials(poly))]) for
         row_idx in local_basis, col_idx in local_basis

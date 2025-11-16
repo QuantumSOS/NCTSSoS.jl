@@ -1,6 +1,6 @@
 using Test, NCTSSoS
 using NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: neat_dot
+using NCTSSoS.FastPolynomials: neat_dot, SimplifyAlgorithm, simplify
 using LinearAlgebra
 using NCTSSoS: get_basis, neat_dot
 
@@ -15,17 +15,19 @@ using NCTSSoS: get_basis, neat_dot
             0.7  0.3  0.6
         ]
 
-        dict = NCTSSoS.hankel_entries_dict(H, basis)
+        # Create no-simplification algorithm
+        sa = SimplifyAlgorithm(comm_gps=[[x]], is_unipotent=false, is_projective=false)
+        dict = NCTSSoS.hankel_entries_dict(H, basis, sa)
 
-        key_x = neat_dot(basis[1], basis[2])
-        key_x2_first = neat_dot(basis[1], basis[3])
-        key_x2_second = neat_dot(basis[2], basis[2])
+        key_x = simplify(neat_dot(basis[1], basis[2]), sa)
+        key_x2_first = simplify(neat_dot(basis[1], basis[3]), sa)
+        key_x2_second = simplify(neat_dot(basis[2], basis[2]), sa)
 
         @test dict[key_x] == H[1, 2]
         @test dict[key_x2_first] == H[1, 3]
         @test dict[key_x2_second] == H[1, 3]
 
-        K = NCTSSoS.construct_localizing_matrix(dict, x, basis)
+        K = NCTSSoS.construct_localizing_matrix(dict, x, basis, sa)
 
         @test size(K) == (3, 3)
         @test K[1, 1] == H[1, 2]
@@ -61,10 +63,12 @@ using NCTSSoS: get_basis, neat_dot
             1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682
         ] * swap_matrix
 
-        hankel_dict = NCTSSoS.hankel_entries_dict(H, basis)
+        # Create no-simplification algorithm
+        sa = SimplifyAlgorithm(comm_gps=[[x, y]], is_unipotent=false, is_projective=false)
+        hankel_dict = NCTSSoS.hankel_entries_dict(H, basis, sa)
         localizing_basis = filter(m -> degree(m) <= 1, basis)
 
-        K_x = NCTSSoS.construct_localizing_matrix(hankel_dict, x, localizing_basis)
+        K_x = NCTSSoS.construct_localizing_matrix(hankel_dict, x, localizing_basis, sa)
 
         @test K_x ≈ [
             0.5000 1.0483 −0.5483;
@@ -72,7 +76,7 @@ using NCTSSoS: get_basis, neat_dot
             −0.5483 −0.0144 -0.5340
         ] atol = 1e-4
 
-        K_y = NCTSSoS.construct_localizing_matrix(hankel_dict, y, localizing_basis)
+        K_y = NCTSSoS.construct_localizing_matrix(hankel_dict, y, localizing_basis, sa)
 
         @test K_y ≈ [
             0.5001 -0.5483 1.0484;

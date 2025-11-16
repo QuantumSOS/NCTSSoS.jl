@@ -11,6 +11,15 @@
 # ============================================================================
 
 """
+    AbstractMomentSupport{M}
+
+Abstract base type for moment support structures.
+
+Concrete subtypes: `MomentSupport{M}` (dual formulation), `PrimalMomentSupport{M}` (primal formulation).
+"""
+abstract type AbstractMomentSupport{M} end
+
+"""
     BlockSupport
 
 Support information for a single block within a clique.
@@ -60,7 +69,7 @@ end
 """
     MomentSupport{M}
 
-Complete hierarchical support structure for the optimization problem.
+Complete hierarchical support structure for dual formulation (SOS solver).
 
 This structure mirrors the problem's sparsity hierarchy:
 `cliques → blocks → (row, col) basis pairs`, and provides efficient mapping
@@ -69,13 +78,13 @@ from moment matrix positions to dual variable indices.
 # Fields
 - `cliques::Vector{CliqueSupport}`: One entry per clique in the problem.
 - `global_support::Vector{M}`: Flat, sorted, unique vector of all monomials
-  appearing in the problem. This is kept for reference and debugging.
+  appearing in the problem (canonicalized basis).
 
 # Type Parameters
 - `M`: Monomial type (e.g., `Monomial{Variable}`)
 
 # Usage
-The `MomentSupport` structure is built during problem construction and stored
+The `MomentSupport` structure is built during SOS dual problem construction and stored
 in `PolyOptResult`. It enables efficient moment matrix extraction via direct
 indexing into the dual variable vector.
 
@@ -86,10 +95,29 @@ dual_idx = moment_support.cliques[i].blocks[j].dual_indices[row, col]
 moment_value = dual_vars[dual_idx]
 ```
 """
-struct MomentSupport{M}
+struct MomentSupport{M} <: AbstractMomentSupport{M}
     cliques::Vector{CliqueSupport}
     global_support::Vector{M}
-    primal_var_map::Vector{Int}  # Maps global_support index -> variable index (for primal)
+end
+
+"""
+    PrimalMomentSupport{M}
+
+Hierarchical support structure for primal formulation (moment solver).
+
+For primal formulation, global_support equals total_basis (the JuMP variable indexing),
+so we can extract moment values directly without any reordering.
+
+# Fields
+- `cliques::Vector{CliqueSupport}`: One entry per clique in the problem.
+- `global_support::Vector{M}`: Same as total_basis from moment_relax.
+
+# Type Parameters
+- `M`: Monomial type (e.g., `Monomial{Variable}`)
+"""
+struct PrimalMomentSupport{M} <: AbstractMomentSupport{M}
+    cliques::Vector{CliqueSupport}
+    global_support::Vector{M}
 end
 
 # ============================================================================
@@ -110,53 +138,85 @@ end
         sa::SimplifyAlgorithm
     ) where {P,M}
 
-Build the hierarchical MomentSupport structure during constraint creation.
+Build the hierarchical MomentSupport structure for dual formulation (SOS solver).
 
-This function is called during problem construction (in `moment_relax()` or
-`sos_dualize()`) to create the mapping between moment matrix entries and
-dual variable indices.
+This function is called during SOS dual problem construction to create the mapping
+between moment matrix entries and dual variable indices.
 
 # Arguments
 - `corr_sparsity::CorrelativeSparsity{P,M}`: Correlative sparsity information.
 - `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity
   information for each clique and block.
-- `global_support::Vector{M}`: Pre-built global support vector matching the
-  constraint ordering. This must be the canonicalized basis used in constraint
-  construction.
+- `global_support::Vector{M}`: Pre-built canonicalized basis (symmetric_basis in SOS).
 - `sa::SimplifyAlgorithm`: Algorithm for simplifying monomials to canonical form.
 
 # Returns
-- `MomentSupport{M}`: Complete hierarchical structure with dual indices and
-  global support.
-
-# Algorithm
-1. **Create index mapping**: Build a dictionary mapping each monomial in the
-   global support to its index.
-2. **Build hierarchical structure**: For each clique's MOMENT MATRIX block
-   (the first TermSparsity in each clique), and for each basis pair `(i,j)`,
-   compute `neat_dot(basis[i], basis[j])`, canonicalize it, and look up its
-   index in the global support to populate the `dual_indices` matrix.
-
-# Notes
-- Only processes MOMENT MATRIX blocks (first TermSparsity), not localizing matrices.
-- The global_support parameter ensures exact alignment with constraint construction.
-
-# Performance
-This function is called once during problem construction. The computational cost
-is dominated by monomial simplification and canonicalization.
+- `MomentSupport{M}`: Complete hierarchical structure with dual indices.
 """
 function build_moment_support(
     corr_sparsity::CorrelativeSparsity{P,M},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
     global_support::Vector{M2},
-    sa::SimplifyAlgorithm;
-    primal_var_map::Vector{Int}=Int[]  # Optional: for primal formulation
+    sa::SimplifyAlgorithm
 ) where {P,M,M2}
 
-    # Step 1: Create lookup dict for monomial → index
+    cliques = _build_clique_supports(cliques_term_sparsities, global_support, sa)
+    return MomentSupport(cliques, global_support)
+end
+
+"""
+    build_primal_moment_support(
+        corr_sparsity::CorrelativeSparsity{P,M},
+        cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+        total_basis::Vector{M},
+        sa::SimplifyAlgorithm
+    ) where {P,M}
+
+Build the hierarchical PrimalMomentSupport structure for primal formulation (moment solver).
+
+For primal formulation, total_basis is already canonical and unique, so global_support = total_basis.
+
+# Arguments
+- `corr_sparsity::CorrelativeSparsity{P,M}`: Correlative sparsity information.
+- `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity information.
+- `total_basis::Vector{M}`: The canonical basis used for JuMP variables.
+- `sa::SimplifyAlgorithm`: Algorithm for simplifying monomials to canonical form.
+
+# Returns
+- `PrimalMomentSupport{M}`: Complete hierarchical structure with dual indices.
+"""
+function build_primal_moment_support(
+    corr_sparsity::CorrelativeSparsity{P,M},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+    total_basis::Vector{M2},
+    sa::SimplifyAlgorithm
+) where {P,M,M2}
+
+    cliques = _build_clique_supports(cliques_term_sparsities, total_basis, sa)
+    return PrimalMomentSupport(cliques, total_basis)
+end
+
+"""
+    _build_clique_supports(
+        cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+        global_support::Vector{M2},
+        sa::SimplifyAlgorithm
+    ) where {M,M2}
+
+Internal helper function to build clique support structures.
+
+Shared implementation for both primal and dual formulations.
+"""
+function _build_clique_supports(
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+    global_support::Vector{M2},
+    sa::SimplifyAlgorithm
+) where {M,M2}
+
+    # Create lookup dict for monomial → index
     support_map = Dict(mono => idx for (idx, mono) in enumerate(global_support))
 
-    # Step 2: Build hierarchical dual_indices structure
+    # Build hierarchical dual_indices structure
     cliques = Vector{CliqueSupport}(undef, length(cliques_term_sparsities))
 
     for (clq_idx, clique_ts_vec) in enumerate(cliques_term_sparsities)
@@ -171,9 +231,7 @@ function build_moment_support(
 
             # Fill dual_indices matrix
             for i in 1:n, j in 1:n
-                # Compute basis product matching moment_solver.jl:
-                # expval(_neat_dot3(row, monomial, col))
-                # For moment matrix (poly=1), this simplifies to expval(_neat_dot3(row, 1, col))
+                # Compute basis product: expval(neat_dot(basis[i], basis[j]))
                 mono = simplify(expval(neat_dot(block_basis[i], block_basis[j])), sa)
                 # Canonicalize to match global_support
                 mono = canonicalize(mono, sa)
@@ -187,5 +245,5 @@ function build_moment_support(
         cliques[clq_idx] = CliqueSupport(blocks)
     end
 
-    return MomentSupport(cliques, global_support, primal_var_map)
+    return cliques
 end

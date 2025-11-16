@@ -60,8 +60,8 @@ function get_moment_matrices(result::PolyOptResult{T,P,M,M2}) where {T,P,M,M2}
         # Dual SOS formulation: extract dual variables from equality constraints
         moment_values = extract_dual_variables(result.model)
     else
-        # Primal moment formulation: extract primal variable values and reorder
-        moment_values = extract_primal_variables(result.model, result.moment_support.primal_var_map)
+        # Primal moment formulation: extract primal variable values directly
+        moment_values = extract_primal_variables(result.model)
     end
 
     # 2. Reconstruct moment matrices using hierarchical structure
@@ -105,37 +105,32 @@ function extract_dual_variables(model::GenericModel{T}) where {T}
 end
 
 """
-    extract_primal_variables(model::GenericModel{T}, primal_var_map::Vector{Int}) where {T}
+    extract_primal_variables(model::GenericModel{T}) where {T}
 
-Extract primal variable values from the solved JuMP model and reorder them to match global_support.
+Extract primal variable values from the solved JuMP model.
 
 For the primal moment formulation, moment values are stored as primal variables
-in the JuMP model. Variables are created in total_basis order, but we need them
-in global_support order for extraction.
+in the JuMP model. Since global_support = total_basis (both are canonical and identical),
+we can extract values directly without reordering.
 
 # Arguments
 - `model::GenericModel{T}`: The solved JuMP model.
-- `primal_var_map::Vector{Int}`: Mapping from global_support index to variable index.
 
 # Returns
-- `Vector{T}`: Vector of primal variable values, ordered to match the global
-  support vector.
+- `Vector{T}`: Vector of primal variable values, ordered to match total_basis (= global_support).
 
 # Notes
 - Used for primal moment formulation.
-- The primal_var_map reorders values from total_basis order to global_support order.
+- No reordering needed since total_basis is already canonical.
 """
-function extract_primal_variables(model::GenericModel{T}, primal_var_map::Vector{Int}) where {T}
-    # Get all variables from the model (in total_basis order)
+function extract_primal_variables(model::GenericModel{T}) where {T}
+    # Get all variables from the model (in total_basis = global_support order)
     all_vars = all_variables(model)
 
-    # Extract primal values in total_basis order
-    primal_vals_total_basis_order = value.(all_vars)
+    # Extract primal values directly
+    primal_vals = value.(all_vars)
 
-    # Reorder to global_support order using the mapping
-    primal_vals_global_support_order = primal_vals_total_basis_order[primal_var_map]
-
-    return primal_vals_global_support_order
+    return primal_vals
 end
 
 """
@@ -170,6 +165,38 @@ direct array indexing, making it very efficient even for large problems.
 function reconstruct_moment_matrices(
     moment_values::Vector{T},
     moment_support::MomentSupport{M}
+) where {T,M}
+
+    moment_mats = Vector{Vector{Matrix{T}}}(undef, length(moment_support.cliques))
+
+    # For each clique
+    for (clq_idx, clique_support) in enumerate(moment_support.cliques)
+        clique_mats = Vector{Matrix{T}}(undef, length(clique_support.blocks))
+
+        # For each block in the clique
+        for (blk_idx, block_support) in enumerate(clique_support.blocks)
+            n = size(block_support.dual_indices, 1)
+            mat = zeros(T, n, n)
+
+            # Fill matrix using direct indexing (no recomputation!)
+            for i in 1:n, j in 1:n
+                val_idx = block_support.dual_indices[i, j]
+                mat[i, j] = moment_values[val_idx]
+            end
+
+            clique_mats[blk_idx] = mat
+        end
+
+        moment_mats[clq_idx] = clique_mats
+    end
+
+    return moment_mats
+end
+
+# Overload for PrimalMomentSupport - identical implementation
+function reconstruct_moment_matrices(
+    moment_values::Vector{T},
+    moment_support::PrimalMomentSupport{M}
 ) where {T,M}
 
     moment_mats = Vector{Vector{Matrix{T}}}(undef, length(moment_support.cliques))

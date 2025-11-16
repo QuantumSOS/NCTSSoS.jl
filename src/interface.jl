@@ -3,7 +3,7 @@ struct PolyOptResult{T,P,M,M2}
     corr_sparsity::CorrelativeSparsity{P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
-    moment_support::MomentSupport{M2}
+    moment_support::AbstractMomentSupport{M2}
     is_dual::Bool # true for SOS dual formulation, false for moment primal formulation
 end
 

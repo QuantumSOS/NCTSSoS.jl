@@ -88,17 +88,9 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
 
     @objective(model, Min, mapreduce(p -> p[1] * monomap[canonicalize(expval(p[2]), sa)], +, terms(pop.objective)))
 
-    # Build canonicalized global support for moment extraction
-    unsymmetrized_basis = collect(keys(monomap))
-    canonicalized_basis = canonicalize.(unsymmetrized_basis, Ref(sa))
-    global_support = sorted_unique(canonicalized_basis)
-
-    # Build mapping from global_support index to variable index (for primal extraction)
-    # For each monomial in global_support, find which variable index it corresponds to
-    primal_var_map = [findfirst(==(gs_mono), canonicalized_basis) for gs_mono in global_support]
-
-    # Build moment support structure with primal_var_map
-    moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, global_support, sa; primal_var_map=primal_var_map)
+    # Build primal moment support structure
+    # total_basis is already canonical and unique, so we use it directly
+    moment_support = build_primal_moment_support(corr_sparsity, cliques_term_sparsities, total_basis, sa)
 
     return (MomentProblem(model, constraint_matrices, monomap, sa), moment_support)
 end

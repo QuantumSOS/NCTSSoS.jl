@@ -1,7 +1,14 @@
 struct SOSProblem{T}
     model::GenericModel{T}
-    moment_matrices::Union{Nothing, Vector{Vector{Matrix{Int}}}}
+    moment_matrices::Vector{Vector{Matrix{Int}}}
 end
+
+struct ComplexSOSProblem{T}
+    model::GenericModel{T}
+    moment_matrices_real::Vector{Vector{Matrix{Int}}}
+    moment_matrices_imag::Vector{Vector{Matrix{Int}}}
+end
+
 
 # Decompose the matrix into the form sum_j C_αj * g_j
 # j: index of the constraint
@@ -104,8 +111,8 @@ end
 function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
     dual_model = GenericModel{real(T)}()
 
-    dual_variables = map(cmp.constraints) do (type,cons)
-        G_dim = size(cons,1)
+    dual_variables = map(cmp.constraints) do (type, cons)
+        G_dim = size(cons, 1)
         @variable(dual_model, [1:2*G_dim, 1:2*G_dim] in (type == :Zero ? SymmetricMatrixSpace() : PSDCone()))
     end
     dual_variable_dims = map(dual_variables) do dv
@@ -134,9 +141,9 @@ function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
 
 
     # real and imag parts of fα constraints
-    fα_constraints = [[zero(GenericAffExpr{T,VariableRef}) for _ in 1:length(symmetric_basis)],[zero(GenericAffExpr{T,VariableRef}) for _ in 1:length(symmetric_basis)]]
+    fα_constraints = [[zero(GenericAffExpr{T,VariableRef}) for _ in 1:length(symmetric_basis)], [zero(GenericAffExpr{T,VariableRef}) for _ in 1:length(symmetric_basis)]]
 
-    for (coef,mono) in terms(cmp.objective)
+    for (coef, mono) in terms(cmp.objective)
         for (fα_constraints_part, part_func) in zip(fα_constraints, [real, imag])
             fα_constraints_part[searchsortedfirst(symmetric_basis, mono)] += part_func(coef)
         end
@@ -144,29 +151,29 @@ function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
 
     add_to_expression!(fα_constraints[1][1], -one(T), b)
 
-    for (i, (_,sdp_constraint)) in enumerate(cmp.constraints)
+    for (i, (_, sdp_constraint)) in enumerate(cmp.constraints)
         Cαjs = get_Cαj(cmp.total_basis, sdp_constraint)
         for (ky, coef) in Cαjs
             for (X_part, coef_part, sign, part_func) in zip([1, 2, 2, 1], [1, 1, 2, 2], [-1, -1, -1, 1], [real, imag, real, imag])
-                add_to_expression!(fα_constraints[coef_part][ky[1]], sign*part_func(coef), Xs[X_part][i][ky[2], ky[3]])
+                add_to_expression!(fα_constraints[coef_part][ky[1]], sign * part_func(coef), Xs[X_part][i][ky[2], ky[3]])
             end
         end
     end
-    @constraint(dual_model, fα_constraints[1] .== 0)
-    @constraint(dual_model, fα_constraints[2] .== 0)
+    dual_model[:real_coefs] = @constraint(dual_model, fα_constraints[1] .== 0)
+    dual_model[:imag_coefs] = @constraint(dual_model, fα_constraints[2] .== 0)
     # TODO: Implement moment_matrices_indices for ComplexMomentProblem
     return SOSProblem(dual_model, nothing)
 end
 
 function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {T,M,P<:AbstractPolynomial{T}}
-    dim = size(localizing_mtx,1)
+    dim = size(localizing_mtx, 1)
     cis = CartesianIndices((dim, dim))
 
     # basis idx, row, col
     dictionary_of_keys = Dict{Tuple{Int,Int,Int},T}()
     for ci in cis
-        for (coeff,α) in terms(localizing_mtx[ci])
-            dictionary_of_keys[(searchsortedfirst(unsymmetrized_basis,α), ci.I[1], ci.I[2])] = coeff
+        for (coeff, α) in terms(localizing_mtx[ci])
+            dictionary_of_keys[(searchsortedfirst(unsymmetrized_basis, α), ci.I[1], ci.I[2])] = coeff
         end
     end
     return dictionary_of_keys
@@ -213,7 +220,7 @@ function build_moment_matrices_indices(
     model = moment_problem.model
 
     # Collect all moment matrix constraint names and parse their structure
-    moment_matrix_info = Dict{Tuple{Int,Int}, Symbol}()  # (clq_idx, blk_idx) => constraint_name
+    moment_matrix_info = Dict{Tuple{Int,Int},Symbol}()  # (clq_idx, blk_idx) => constraint_name
 
     for (name, obj) in model.obj_dict
         name_str = string(name)

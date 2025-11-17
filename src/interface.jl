@@ -1,8 +1,8 @@
-struct PolyOptResult{T,P,M}
-    objective::T # support for high precision solution
+struct PolyOptResult{RT,T,P,M}
+    objective::RT # support for high precision solution
     corr_sparsity::CorrelativeSparsity{P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
-    model::GenericModel{T}
+    model::GenericModel{RT}
     moment_matrices::Vector{Vector{Matrix{T}}}
 end
 

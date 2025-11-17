@@ -142,3 +142,64 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
     optimize!(problem_to_solve.model)
     return PolyOptResult(objective_value(problem_to_solve.model), prev_res.corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
 end
+
+"""
+    get_moment_matrices(result::PolyOptResult)
+
+Extract moment matrices from a solved polynomial optimization problem.
+
+For primal formulation, retrieves the moment matrices directly from the named
+PSD constraints in the JuMP model. Each moment matrix is stored with the name
+`mom_mtx_clique_i_block_j` where i is the clique index and j is the block index.
+
+# Arguments
+- `result::PolyOptResult`: The solved optimization result
+
+# Returns
+- `Vector{Vector{Matrix{T}}}`: Hierarchical structure of moment matrices:
+  - Outer vector: One entry per clique
+  - Inner vector: One entry per block within the clique
+  - Matrix: The moment matrix values
+
+# Example
+```julia
+result = cs_nctssos(pop, solver_config, dualize=false)
+moments = get_moment_matrices(result)
+M11 = moments[1][1]  # Moment matrix for clique 1, block 1
+```
+"""
+function get_moment_matrices(result::PolyOptResult)
+    model = result.model
+    num_cliques = length(result.cliques_term_sparsities)
+
+    moment_mats = Vector{Vector{Matrix}}(undef, num_cliques)
+
+    for clq_idx in 1:num_cliques
+        # Get number of blocks in first term sparsity (moment matrix blocks)
+        num_blocks = length(result.cliques_term_sparsities[clq_idx][1].block_bases)
+
+        clique_mats = Vector{Matrix}(undef, num_blocks)
+
+        for blk_idx in 1:num_blocks
+            constraint_name = Symbol("mom_mtx_clique_$(clq_idx)_block_$(blk_idx)")
+
+            # Retrieve the named constraint
+            con_ref = model[constraint_name]
+
+            # Get the constraint object
+            con_obj = constraint_object(con_ref)
+
+            # Extract the matrix of JuMP variables/expressions
+            # For PSD constraints, func contains the vectorized form
+            # We need to reshape it back to matrix form using the shape
+            mat_expr = JuMP.reshape_set(con_obj.func, con_obj.shape)
+
+            # Evaluate to get numerical values
+            clique_mats[blk_idx] = value.(mat_expr)
+        end
+
+        moment_mats[clq_idx] = clique_mats
+    end
+
+    return moment_mats
+end

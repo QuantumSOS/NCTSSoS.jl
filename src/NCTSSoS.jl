@@ -18,6 +18,7 @@ export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher
 export reconstruct
 export pauli_algebra
+export get_moment_matrices
 
 include("pop.jl")
 

@@ -59,27 +59,40 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
     @constraint(model, first(y) == 1)
     monomap = Dict(zip(total_basis, y))
 
+    # Create constraints with proper naming for later retrieval
     constraint_matrices =
-        [mapreduce(vcat, zip(cliques_term_sparsities, corr_sparsity.clq_cons)) do (term_sparsities, cons_idx)
-                mapreduce(vcat, zip(term_sparsities, [one(pop.objective), corr_sparsity.cons[cons_idx]...])) do (term_sparsity, poly)
-                    map(term_sparsity.block_bases) do ts_sub_basis
-                        constrain_moment_matrix!(
+        [mapreduce(vcat, zip(enumerate(cliques_term_sparsities), corr_sparsity.clq_cons)) do ((clq_idx, term_sparsities), cons_idx)
+                mapreduce(vcat, enumerate(zip(term_sparsities, [one(pop.objective), corr_sparsity.cons[cons_idx]...]))) do (poly_idx, (term_sparsity, poly))
+                    map(enumerate(term_sparsity.block_bases)) do (blk_idx, ts_sub_basis)
+                        # poly_idx == 1 means objective (moment matrix)
+                        # poly_idx > 1 means constraint poly_idx-1 (localizing matrix)
+                        constraint_name = if poly_idx == 1
+                            Symbol("mom_mtx_clique_$(clq_idx)_block_$(blk_idx)")
+                        else
+                            Symbol("loc_mtx_clique_$(clq_idx)_cons_$(poly_idx-1)_block_$(blk_idx)")
+                        end
+
+                        add_matrix_constraint!(
                             model,
                             poly,
                             ts_sub_basis,
                             monomap,
-                            poly in pop.eq_constraints ? Zeros() : PSDCone(), sa)
+                            poly in pop.eq_constraints ? Zeros() : PSDCone(),
+                            sa,
+                            constraint_name
+                        )
                     end
                 end
             end
-            map(corr_sparsity.global_cons) do global_con
-                constrain_moment_matrix!(
+            map(enumerate(corr_sparsity.global_cons)) do (g_idx, global_con)
+                add_matrix_constraint!(
                     model,
                     corr_sparsity.cons[global_con],
                     [one(pop.objective)],
                     monomap,
                     corr_sparsity.cons[global_con] in pop.eq_constraints ? Zeros() : PSDCone(),
-                    sa
+                    sa,
+                    Symbol("global_cons_$(g_idx)")
                 )
             end]
 
@@ -88,18 +101,57 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
     return MomentProblem(model, constraint_matrices, monomap, sa)
 end
 
-function constrain_moment_matrix!(
+"""
+    add_matrix_constraint!(
+        model::GenericModel{T1},
+        poly::P,
+        local_basis::Vector{M1},
+        monomap::Dict{M2,JS},
+        cone,
+        sa::SimplifyAlgorithm,
+        name::Symbol
+    )
+
+Add a named matrix constraint (moment matrix or localizing matrix) to the JuMP model.
+
+Creates a matrix where entry (i,j) corresponds to the moment ⟨bᵢ† poly bⱼ⟩, where
+bᵢ and bⱼ are basis elements. The matrix is constrained to be in the specified cone
+(either PSDCone for positive semidefinite constraints, or Zeros for equality constraints).
+
+The constraint is stored with the given name, allowing later retrieval via model[name].
+
+# Arguments
+- `model`: The JuMP model to add the constraint to
+- `poly`: The polynomial multiplier (1 for moment matrices, constraint polynomial for localizing matrices)
+- `local_basis`: The monomial basis for this block
+- `monomap`: Dictionary mapping monomials to JuMP variables
+- `cone`: The cone constraint (PSDCone() or Zeros())
+- `sa`: Simplification algorithm for reducing monomials
+- `name`: Name for the constraint (required, enables retrieval via model[name])
+
+# Returns
+The constraint reference
+
+# Example
+```julia
+add_matrix_constraint!(model, one(f), basis, monomap, PSDCone(), sa, :mom_mtx_clique_1_block_1)
+# Later retrieve: model[:mom_mtx_clique_1_block_1]
+```
+"""
+function add_matrix_constraint!(
     model::GenericModel{T1},
     poly::P,
     local_basis::Vector{M1}, # M2 should be expval(M1)
     monomap::Dict{M2,JS},
     cone, # FIXME: which type should I use?
-    sa::SimplifyAlgorithm
+    sa::SimplifyAlgorithm,
+    name::Symbol
 ) where {T,T1,P<:AbstractPolynomial{T},M1,M2,JS<:AbstractJuMPScalar}
     T_prom = promote_type(T, T1)
     moment_mtx = [
         sum([T_prom(coef) * monomap[simplify!(expval(_neat_dot3(row_idx, mono, col_idx)), sa)] for (coef, mono) in zip(coefficients(poly), monomials(poly))]) for
         row_idx in local_basis, col_idx in local_basis
     ]
-    return @constraint(model, moment_mtx in cone)
+
+    return model[name] = @constraint(model, moment_mtx in cone)
 end

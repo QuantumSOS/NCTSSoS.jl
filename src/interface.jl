@@ -3,6 +3,7 @@ struct PolyOptResult{T,P,M}
     corr_sparsity::CorrelativeSparsity{P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
+    moment_matrices::Vector{Vector{Matrix{T}}}
 end
 
 function Base.show(io::IO, result::PolyOptResult)
@@ -70,7 +71,7 @@ This function solves a polynomial optimization problem by:
 
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
-function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {P, OP<:OptimizationProblem{P}}
+function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {P,OP<:OptimizationProblem{P}}
     sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_projective=pop.is_projective, is_unipotent=pop.is_unipotent)
     order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
 
@@ -89,11 +90,17 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
 
     (pop isa ComplexPolyOpt{P} && !dualize) && error("Solving Moment Problem for Complex Poly Opt is not supported")
-    problem_to_solve = !dualize ? moment_problem : sos_dualize(moment_problem)
 
-    set_optimizer(problem_to_solve.model, solver_config.optimizer)
-    optimize!(problem_to_solve.model)
-    return PolyOptResult(objective_value(problem_to_solve.model), corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
+    if dualize
+        sos_problem = sos_dualize(moment_problem)
+        set_optimizer(sos_problem.model, solver_config.optimizer)
+        optimize!(sos_problem.model)
+        return PolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model, get_moment_matrices(sos_problem))
+    else
+        set_optimizer(moment_problem.model, solver_config.optimizer)
+        optimize!(moment_problem.model)
+        return PolyOptResult(objective_value(moment_problem.model), corr_sparsity, cliques_term_sparsities, moment_problem.model, get_moment_matrices(moment_problem.model, cliques_term_sparsities))
+    end
 end
 
 """
@@ -136,11 +143,16 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
 
     moment_problem = moment_relax(pop, prev_res.corr_sparsity, cliques_term_sparsities)
 
-    problem_to_solve = !dualize ? moment_problem : sos_dualize(moment_problem)
-
-    set_optimizer(problem_to_solve.model, solver_config.optimizer)
-    optimize!(problem_to_solve.model)
-    return PolyOptResult(objective_value(problem_to_solve.model), prev_res.corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
+    if dualize
+        sos_problem = sos_dualize(moment_problem)
+        set_optimizer(sos_problem.model, solver_config.optimizer)
+        optimize!(sos_problem.model)
+        return PolyOptResult(objective_value(sos_problem.model), prev_res.corr_sparsity, cliques_term_sparsities, sos_problem.model, get_moment_matrices(sos_problem))
+    else
+        set_optimizer(moment_problem.model, solver_config.optimizer)
+        optimize!(moment_problem.model)
+        return PolyOptResult(objective_value(moment_problem.model), prev_res.corr_sparsity, cliques_term_sparsities, moment_problem.model, get_moment_matrices(moment_problem.model, cliques_term_sparsities))
+    end
 end
 
 """
@@ -168,22 +180,19 @@ moments = get_moment_matrices(result)
 M11 = moments[1][1]  # Moment matrix for clique 1, block 1
 ```
 """
-function get_moment_matrices(result::PolyOptResult)
-    model = result.model
-    num_cliques = length(result.cliques_term_sparsities)
+function get_moment_matrices(model::GenericModel{T}, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {T,M}
+    num_cliques = length(cliques_term_sparsities)
 
-    moment_mats = Vector{Vector{Matrix}}(undef, num_cliques)
+    moment_mats = Vector{Vector{Matrix{T}}}(undef, num_cliques)
 
     for clq_idx in 1:num_cliques
         # Get number of blocks in first term sparsity (moment matrix blocks)
-        num_blocks = length(result.cliques_term_sparsities[clq_idx][1].block_bases)
+        num_blocks = length(cliques_term_sparsities[clq_idx][1].block_bases)
 
-        clique_mats = Vector{Matrix}(undef, num_blocks)
+        clique_mats = Vector{Matrix{T}}(undef, num_blocks)
 
         for blk_idx in 1:num_blocks
             constraint_name = Symbol("mom_mtx_clique_$(clq_idx)_block_$(blk_idx)")
-
-            @show model[constraint_name]
 
             clique_mats[blk_idx] = value(model[constraint_name])
         end

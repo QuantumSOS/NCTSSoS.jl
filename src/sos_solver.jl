@@ -1,5 +1,6 @@
 struct SOSProblem{T}
     model::GenericModel{T}
+    moment_matrices::Union{Nothing, Vector{Vector{Matrix{Int}}}}
 end
 
 # Decompose the matrix into the form sum_j C_αj * g_j
@@ -72,8 +73,10 @@ function sos_dualize(moment_problem::MomentProblem{T,M}) where {T,M}
 
     fα_constraints = [GenericAffExpr{T,VariableRef}(get(primal_objective_terms, α, zero(T))) for α in symmetric_variables]
 
+    # Monomial ->  index in symmetric_basis
     symmetrized_α2cons_dict = Dict(zip(unsymmetrized_basis, map(x -> searchsortedfirst(symmetric_basis, canonicalize(x, moment_problem.sa)), unsymmetrized_basis)))
 
+    # model's jump var -> index in unsymmetrized_basis
     unsymmetrized_basis_vals_dict = Dict(zip(getindex.(Ref(moment_problem.monomap), unsymmetrized_basis), 1:length(unsymmetrized_basis)))
 
     add_to_expression!(fα_constraints[1], -one(T), b)
@@ -84,9 +87,18 @@ function sos_dualize(moment_problem::MomentProblem{T,M}) where {T,M}
             add_to_expression!(fα_constraints[symmetrized_α2cons_dict[unsymmetrized_basis[ky[1]]]], -coef, dual_variables[i][ky[2], ky[3]])
         end
     end
-    @constraint(dual_model, fα_constraints .== 0)
 
-    return SOSProblem(dual_model)
+    dual_model[:coef_cons] = @constraint(dual_model, fα_constraints .== 0)
+
+    # Build moment matrix index structure
+    moment_matrices_indices = build_moment_matrices_indices(
+        moment_problem,
+        symmetrized_α2cons_dict,
+        unsymmetrized_basis_vals_dict,
+        unsymmetrized_basis
+    )
+
+    return SOSProblem(dual_model, moment_matrices_indices)
 end
 
 function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
@@ -142,7 +154,8 @@ function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
     end
     @constraint(dual_model, fα_constraints[1] .== 0)
     @constraint(dual_model, fα_constraints[2] .== 0)
-    return SOSProblem(dual_model)
+    # TODO: Implement moment_matrices_indices for ComplexMomentProblem
+    return SOSProblem(dual_model, nothing)
 end
 
 function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {T,M,P<:AbstractPolynomial{T}}
@@ -157,4 +170,199 @@ function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) whe
         end
     end
     return dictionary_of_keys
+end
+
+"""
+    build_moment_matrices_indices(
+        moment_problem::MomentProblem,
+        symmetrized_α2cons_dict::Dict,
+        unsymmetrized_basis_vals_dict::Dict,
+        unsymmetrized_basis::Vector
+    ) -> Vector{Vector{Matrix{Int}}}
+
+Build index matrices that map moment matrix positions to constraint indices in the dual problem.
+
+# Arguments
+- `moment_problem::MomentProblem`: The primal moment problem
+- `symmetrized_α2cons_dict`: Dictionary mapping monomials to constraint indices in symmetric_basis
+- `unsymmetrized_basis_vals_dict`: Dictionary mapping JuMP variables to indices in unsymmetrized_basis
+- `unsymmetrized_basis`: Vector of all monomials before symmetrization
+
+# Returns
+- `Vector{Vector{Matrix{Int}}}`: A nested structure where:
+  - First level: cliques
+  - Second level: blocks within each clique
+  - Third level: Matrix of constraint indices, where `result[clq][blk][i,j]` gives
+    the index in `dual_model[:coef_cons]` for the moment at position (i,j)
+
+# Description
+This function examines all moment matrix constraints in the primal problem and builds
+an index structure that allows efficient reconstruction of moment matrix values from
+dual constraint values after optimization.
+
+Only moment matrices (not localizing matrices) are included in the output structure.
+The naming pattern `mom_mtx_clique_\$(clq_idx)_block_\$(blk_idx)` is used to identify
+and organize moment matrices.
+"""
+function build_moment_matrices_indices(
+    moment_problem::MomentProblem,
+    symmetrized_α2cons_dict::Dict,
+    unsymmetrized_basis_vals_dict::Dict,
+    unsymmetrized_basis::Vector
+)
+    model = moment_problem.model
+
+    # Collect all moment matrix constraint names and parse their structure
+    moment_matrix_info = Dict{Tuple{Int,Int}, Symbol}()  # (clq_idx, blk_idx) => constraint_name
+
+    for (name, obj) in model.obj_dict
+        name_str = string(name)
+        # Match pattern: mom_mtx_clique_X_block_Y
+        if startswith(name_str, "mom_mtx_clique_")
+            m = match(r"mom_mtx_clique_(\d+)_block_(\d+)", name_str)
+            if m !== nothing
+                clq_idx = parse(Int, m.captures[1])
+                blk_idx = parse(Int, m.captures[2])
+                moment_matrix_info[(clq_idx, blk_idx)] = name
+            end
+        end
+    end
+
+    if isempty(moment_matrix_info)
+        return Vector{Vector{Matrix{Int}}}()  # No moment matrices found
+    end
+
+    # Determine structure: max clique index and blocks per clique
+    max_clq = maximum(k[1] for k in keys(moment_matrix_info))
+
+    # Initialize result structure
+    result = Vector{Vector{Matrix{Int}}}(undef, max_clq)
+    for i in 1:max_clq
+        result[i] = Matrix{Int}[]
+    end
+
+    # Process each moment matrix
+    for ((clq_idx, blk_idx), constraint_name) in sort(collect(moment_matrix_info))
+        constraint_ref = model[constraint_name]
+        constraint_obj = constraint_object(constraint_ref)
+        dim = get_dim(constraint_obj)
+
+        # Build index matrix for this moment matrix
+        index_matrix = zeros(Int, dim, dim)
+        cis = CartesianIndices((dim, dim))
+
+        for (ci, cur_expr) in zip(cis, constraint_obj.func)
+            i, j = ci.I[1], ci.I[2]
+
+            # Extract the JuMP variable(s) from the expression
+            # For moment matrices (poly_idx == 1), each entry should be a single variable
+            if length(cur_expr.terms) == 1
+                a = first(keys(cur_expr.terms))  # Get the JuMP variable
+
+                # Map variable -> monomial -> constraint index
+                unsym_idx = unsymmetrized_basis_vals_dict[a]
+                monomial = unsymmetrized_basis[unsym_idx]
+                constraint_idx = symmetrized_α2cons_dict[monomial]
+
+                index_matrix[i, j] = constraint_idx
+            elseif length(cur_expr.terms) == 0
+                # Empty expression (zero entry)
+                index_matrix[i, j] = 0
+            else
+                # Multiple terms - shouldn't happen for moment matrices
+                # Store -1 to indicate this case
+                index_matrix[i, j] = -1
+            end
+        end
+
+        # Ensure we have enough space in the clique's block vector
+        while length(result[clq_idx]) < blk_idx
+            push!(result[clq_idx], zeros(Int, 0, 0))
+        end
+
+        result[clq_idx][blk_idx] = index_matrix
+    end
+
+    return result
+end
+
+"""
+    get_moment_matrices(sos_problem::SOSProblem) -> Vector{Vector{Matrix{Float64}}}
+
+Reconstruct moment matrix values from a solved dual SOS problem.
+
+# Arguments
+- `sos_problem::SOSProblem`: A solved SOS problem (must have been optimized)
+
+# Returns
+- `Vector{Vector{Matrix{Float64}}}`: Moment matrix values with the same structure as
+  `moment_matrices_indices`, where `result[clq][blk][i,j]` contains the optimal
+  moment value for position (i,j)
+
+# Description
+After solving the dual SOS problem, this function extracts the moment values from the
+dual values of the polynomial equality constraints. The dual values of these constraints
+correspond to the optimal values of the primal moment variables.
+
+# Throws
+- Error if `sos_problem.moment_matrices` is `nothing`
+- Error if the model has not been optimized
+
+# Example
+```julia
+# Solve the dual problem
+sos_problem = sos_dualize(moment_problem)
+set_optimizer(sos_problem.model, Clarabel.Optimizer)
+optimize!(sos_problem.model)
+
+# Extract moment matrices
+moment_matrices = get_moment_matrices(sos_problem)
+
+# Access values
+value_at_pos = moment_matrices[clique_idx][block_idx][i, j]
+```
+"""
+function get_moment_matrices(sos_problem::SOSProblem{T}) where {T}
+    if sos_problem.moment_matrices === nothing
+        error("moment_matrices is nothing. Cannot reconstruct moment matrices.")
+    end
+
+    if termination_status(sos_problem.model) == MOI.OPTIMIZE_NOT_CALLED
+        error("Model has not been optimized. Call optimize!(sos_problem.model) first.")
+    end
+
+    moment_matrices_indices = sos_problem.moment_matrices
+    coef_cons = sos_problem.model[:coef_cons]
+
+    # Reconstruct values using dual values of constraints
+    result = Vector{Vector{Matrix{T}}}(undef, length(moment_matrices_indices))
+
+    for clq_idx in 1:length(moment_matrices_indices)
+        clique_matrices = Vector{Matrix{T}}(undef, length(moment_matrices_indices[clq_idx]))
+
+        for blk_idx in 1:length(moment_matrices_indices[clq_idx])
+            index_matrix = moment_matrices_indices[clq_idx][blk_idx]
+            dim = size(index_matrix, 1)
+
+            value_matrix = zeros(T, dim, dim)
+
+            for i in 1:dim
+                for j in 1:dim
+                    cons_idx = index_matrix[i, j]
+                    if cons_idx > 0
+                        # Extract dual value of the polynomial constraint
+                        # The dual of the constraint gives the primal variable value
+                        value_matrix[i, j] = dual(coef_cons[cons_idx])
+                    end
+                    # If cons_idx <= 0, leave as zero
+                end
+            end
+
+            clique_matrices[blk_idx] = value_matrix
+        end
+
+        result[clq_idx] = clique_matrices
+    end
+
+    return result
 end

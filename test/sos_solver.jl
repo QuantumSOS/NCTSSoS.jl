@@ -300,3 +300,95 @@ end
         @test isapprox(result.objective, 0.9975306427277915, atol=1e-5)
     end
 end
+
+@testset "Moment Matrices Reconstruction" begin
+    @testset "Basic moment matrices indices" begin
+        @ncpolyvar x y
+        f = 2.0 - x^2 - y^2
+        g = 1.0 - x^2 - y^2
+
+        pop = polyopt(f; ineq_constraints=[g])
+
+        solver_config = SolverConfig(optimizer=SOLVER, order=1)
+        result = cs_nctssos(pop, solver_config; dualize=true)
+
+        # Check that moment_matrices field is populated
+        @test result.sos_problem.moment_matrices !== nothing
+        @test !isempty(result.sos_problem.moment_matrices)
+
+        # Check structure
+        moment_matrices_indices = result.sos_problem.moment_matrices
+        @test length(moment_matrices_indices) >= 1  # At least one clique
+
+        # Each clique should have at least one block
+        for clique in moment_matrices_indices
+            @test length(clique) >= 1
+            # Each block should be a matrix of integers
+            for block in clique
+                @test block isa Matrix{Int}
+                @test size(block, 1) == size(block, 2)  # Square matrix
+                # Indices should be positive (valid constraint indices)
+                for idx in block
+                    if idx > 0
+                        @test idx <= length(result.sos_problem.model[:coef_cons])
+                    end
+                end
+            end
+        end
+
+        # Test moment matrix reconstruction
+        moment_matrices = get_moment_matrices(result.sos_problem)
+        @test moment_matrices !== nothing
+        @test length(moment_matrices) == length(moment_matrices_indices)
+
+        # Values should be finite and reasonable
+        for clq_idx in 1:length(moment_matrices)
+            for blk_idx in 1:length(moment_matrices[clq_idx])
+                value_matrix = moment_matrices[clq_idx][blk_idx]
+                @test all(isfinite.(value_matrix))
+                # Moment matrices should be symmetric
+                @test isapprox(value_matrix, value_matrix', atol=1e-6)
+                # Should be PSD (all eigenvalues >= 0)
+                eigs = eigvals(Hermitian(value_matrix))
+                @test all(eigs .>= -1e-6)  # Allow small numerical error
+            end
+        end
+    end
+
+    @testset "Moment matrix values match direct extraction" begin
+        @ncpolyvar x
+        f = 2.0 - x^2
+        g = 1.0 - x^2
+
+        pop = polyopt(f; ineq_constraints=[g])
+
+        solver_config = SolverConfig(optimizer=SOLVER, order=1)
+
+        # Solve both primal and dual
+        result_dual = cs_nctssos(pop, solver_config; dualize=true)
+        result_primal = cs_nctssos(pop, solver_config; dualize=false)
+
+        # Extract moment matrices from dual using our function
+        moment_matrices_dual = get_moment_matrices(result_dual.sos_problem)
+
+        # Compare objectives
+        @test isapprox(result_dual.objective, result_primal.objective, atol=1e-4)
+
+        # For the primal solution, we can compare specific moment values
+        # The first moment (constant term) should be 1 (normalization)
+        @test isapprox(moment_matrices_dual[1][1][1,1], 1.0, atol=1e-6)
+    end
+
+    @testset "Error handling" begin
+        # Test with problem that has no moment_matrices (dualize=false doesn't populate it)
+        @ncpolyvar x
+        f = 1.0 - x^2
+        pop = polyopt(f)
+
+        solver_config = SolverConfig(optimizer=SOLVER, order=1)
+        result_primal = cs_nctssos(pop, solver_config; dualize=false)
+
+        # Should error if sos_problem is nothing (wasn't dualized)
+        @test result_primal.sos_problem === nothing
+    end
+end

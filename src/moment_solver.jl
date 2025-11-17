@@ -25,9 +25,7 @@ Construct a moment relaxation of a polynomial optimization problem using correla
 - `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity information for each clique, containing block bases for moment matrix indexing
 
 # Returns
-- `Tuple{MomentProblem, MomentSupport{M}}`: A tuple containing:
-  - `MomentProblem`: The moment relaxation problem containing the JuMP model, constraint references, monomial mapping, and simplification algorithm
-  - `MomentSupport{M}`: Hierarchical structure mapping moment matrix entries to dual variable indices
+- `MomentProblem`: A moment relaxation problem containing the JuMP model, constraint references, monomial mapping, and simplification algorithm
 
 # Description
 This function creates a semidefinite programming relaxation of the input polynomial optimization problem by:
@@ -35,7 +33,6 @@ This function creates a semidefinite programming relaxation of the input polynom
 2. Creating JuMP variables for each monomial in the basis
 3. Constructing moment matrix constraints for each clique and global constraint
 4. Setting up the objective function using variable substitution
-5. Building the moment support structure for efficient moment matrix extraction
 
 The relaxation exploits correlative sparsity to reduce the size of the semidefinite program by partitioning constraints into cliques and handling global constraints separately.
 """
@@ -88,11 +85,7 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
 
     @objective(model, Min, mapreduce(p -> p[1] * monomap[canonicalize(expval(p[2]), sa)], +, terms(pop.objective)))
 
-    # Build primal moment support structure
-    # total_basis is already canonical and unique, so we use it directly
-    moment_support = build_primal_moment_support(corr_sparsity, cliques_term_sparsities, total_basis, sa)
-
-    return (MomentProblem(model, constraint_matrices, monomap, sa), moment_support)
+    return MomentProblem(model, constraint_matrices, monomap, sa)
 end
 
 function constrain_moment_matrix!(

@@ -22,7 +22,7 @@ function get_Cαj(basis_dict::Dict{GenericVariableRef{T},Int}, localizing_mtx::V
 end
 
 """
-    sos_dualize(moment_problem::MomentProblem{T,M}, corr_sparsity::CorrelativeSparsity{P,M}, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {T,M,P} -> Tuple{SOSProblem, MomentSupport{M}}
+    sos_dualize(moment_problem::MomentProblem{T,M}) where {T,M} -> SOSProblem
 
 Convert a moment problem into its dual SOS (Sum of Squares) problem formulation.
 
@@ -32,13 +32,9 @@ constraints that ensure polynomial equality.
 
 # Arguments
 - `moment_problem::MomentProblem{T,M}`: The primal moment problem to dualize
-- `corr_sparsity::CorrelativeSparsity{P,M}`: Correlative sparsity structure
-- `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity information for moment support construction
 
 # Returns
-- `Tuple{SOSProblem, MomentSupport{M}}`: A tuple containing:
-  - `SOSProblem`: The dual SOS problem with matrix variables and constraints
-  - `MomentSupport{M}`: Hierarchical structure mapping moment matrix entries to dual variable indices
+- `SOSProblem`: The dual SOS problem with matrix variables and constraints
 
 # Details
 The dualization process involves:
@@ -47,12 +43,11 @@ The dualization process involves:
 2. Introducing a scalar variable `b` to bound the minimum value of the primal problem
 3. Setting up polynomial equality constraints by matching coefficients of monomials
 4. Handling symmetrization of the monomial basis to ensure proper polynomial comparison
-5. Building the moment support structure for efficient moment matrix extraction
 
 The resulting dual problem maximizes `b` subject to the constraint that the sum of
 matrix variables weighted by coefficient matrices equals the objective polynomial.
 """
-function sos_dualize(moment_problem::MomentProblem{T,M}, corr_sparsity::CorrelativeSparsity{P,M2}, cliques_term_sparsities::Vector{Vector{TermSparsity{M2}}}) where {T,M,P,M2}
+function sos_dualize(moment_problem::MomentProblem{T,M}) where {T,M}
     dual_model = GenericModel{T}()
 
     # Initialize Gj as variables
@@ -91,13 +86,10 @@ function sos_dualize(moment_problem::MomentProblem{T,M}, corr_sparsity::Correlat
     end
     @constraint(dual_model, fα_constraints .== 0)
 
-    # Build moment support structure using the symmetric basis
-    moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, symmetric_basis, moment_problem.sa)
-
-    return (SOSProblem(dual_model), moment_support)
+    return SOSProblem(dual_model)
 end
 
-function sos_dualize(cmp::ComplexMomentProblem{T,M,P}, corr_sparsity::CorrelativeSparsity{P2,M2}, cliques_term_sparsities::Vector{Vector{TermSparsity{M2}}}) where {T,M,P,P2,M2}
+function sos_dualize(cmp::ComplexMomentProblem{T,P}) where {T,P}
     dual_model = GenericModel{real(T)}()
 
     dual_variables = map(cmp.constraints) do (type,cons)
@@ -150,11 +142,7 @@ function sos_dualize(cmp::ComplexMomentProblem{T,M,P}, corr_sparsity::Correlativ
     end
     @constraint(dual_model, fα_constraints[1] .== 0)
     @constraint(dual_model, fα_constraints[2] .== 0)
-
-    # Build moment support structure using the symmetric basis
-    moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, symmetric_basis, cmp.sa)
-
-    return (SOSProblem(dual_model), moment_support)
+    return SOSProblem(dual_model)
 end
 
 function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {T,M,P<:AbstractPolynomial{T}}

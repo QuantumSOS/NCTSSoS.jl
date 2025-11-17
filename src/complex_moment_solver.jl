@@ -39,15 +39,7 @@ function moment_relax(cpop::ComplexPolyOpt{P}, corr_sparsity::CorrelativeSparsit
             end]
 
     simplified_objective = sum(c * simplify(m, sa) for (c, m) in terms(cpop.objective))
-
-    # Build canonicalized global support for moment extraction
-    # For complex problems, total_basis elements are already simplified, just need to canonicalize and deduplicate
-    global_support = sorted_unique(canonicalize.(total_basis, Ref(sa)))
-
-    # Build moment support structure (will be used when dualized)
-    moment_support = build_moment_support(corr_sparsity, cliques_term_sparsities, global_support, sa)
-
-    return (ComplexMomentProblem(simplified_objective, constraints, total_basis, sa), moment_support)
+    return ComplexMomentProblem(simplified_objective, constraints, total_basis, sa)
 end
 
 function constrain_moment_matrix(

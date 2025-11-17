@@ -242,7 +242,7 @@ function iterate_term_sparse_supp(activated_supp::Vector{M}, poly::P, basis::Vec
     F = get_term_sparsity_graph(monomials(poly), activated_supp, basis, sa)
     blocks = clique_decomp(F, elim_algo)
     map(block -> add_clique!(F, block), blocks)
-    return TermSparsity(term_sparsity_graph_supp(F, basis, poly, sa), map(x -> basis[x], blocks))
+    return TermSparsity(term_sparsity_graph_supp(F, basis, poly, sa), map(x -> sort(basis[x]), blocks))
 end
 
 """

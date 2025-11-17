@@ -183,19 +183,9 @@ function get_moment_matrices(result::PolyOptResult)
         for blk_idx in 1:num_blocks
             constraint_name = Symbol("mom_mtx_clique_$(clq_idx)_block_$(blk_idx)")
 
-            # Retrieve the named constraint
-            con_ref = model[constraint_name]
+            @show model[constraint_name]
 
-            # Get the constraint object
-            con_obj = constraint_object(con_ref)
-
-            # Extract the matrix of JuMP variables/expressions
-            # For PSD constraints, func contains the vectorized form
-            # We need to reshape it back to matrix form using the shape
-            mat_expr = JuMP.reshape_set(con_obj.func, con_obj.shape)
-
-            # Evaluate to get numerical values
-            clique_mats[blk_idx] = value.(mat_expr)
+            clique_mats[blk_idx] = value(model[constraint_name])
         end
 
         moment_mats[clq_idx] = clique_mats

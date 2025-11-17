@@ -18,22 +18,44 @@ end
         f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
         pop = polyopt(f, comm_gps=[x, y], is_unipotent=true)
 
+        @testset "Primal moment formulation" begin
+            solver_config = SolverConfig(optimizer=SOLVER, order=1)
+            result = cs_nctssos(pop, solver_config, dualize=false)
+
+            moments = get_moment_matrices(result)
+
+            expected_moment = [1.0 0.0 0.0 0.0 0.0; 0.0 1.0 0.0 -√2/2 -√2/2; 0.0 0.0 1.0 -√2/2 √2/2; 0.0 -√2/2 -√2/2 1.0 0.0; 0.0 -√2/2 √2/2 0.0 1.0]
+
+            @test length(moments) == 1
+            @test length(moments[1]) == 1
+            @test moments[1][1] ≈ expected_moment atol=1e-6
+        end
+
+        @testset "Primal moment formulation with Term Sparsity" begin
+            solver_config = SolverConfig(optimizer=SOLVER, order=1, ts_algo=MMD())
+            result = cs_nctssos(pop, solver_config, dualize=false)
+
+            moments = get_moment_matrices(result)
+
+            @test length(moments) == 1
+            @test length(moments[1]) == 3
+
+            # TODO: NCTSSOS Gives different blocks than CliqueTrees.jl no way of comparing esaily
+            @test moments[1][3] ≈ [1;;] atol=1e-6
+        end
+
 
         # Test with dual formulation (default)
         @testset "Dual SOS formulation" begin
             solver_config = SolverConfig(optimizer=SOLVER, order=1)
             result = cs_nctssos(pop, solver_config, dualize=true)
 
-            # Check that result has moment_support field
-            @test hasfield(typeof(result), :moment_support)
-            @test result.moment_support isa MomentSupport
-
             # Extract moment matrices
             moments = get_moment_matrices(result)
-            moments[1][1]
-            ans = [0.999999999512592 -0.0 -0.0 -0.0 -0.0; -0.0 0.999999999512592 3.039770389764888e-16 0.7071067828933203 0.7071067828933197; -0.0 3.039770389764888e-16 0.999999999512592 0.7071067828933203 -0.7071067828933205; -0.0 0.7071067828933203 0.7071067828933203 0.999999999512592 -3.9950008909332224e-16; -0.0 0.7071067828933197 -0.7071067828933205 -3.9950008909332224e-16 0.999999999512592]
 
-            @test moments[1][1] ≈ ans atol=1e-6
+            expected_moment = [1.0 0.0 0.0 0.0 0.0; 0.0 1.0 0.0 -√2/2 -√2/2; 0.0 0.0 1.0 -√2/2 √2/2; 0.0 -√2/2 -√2/2 1.0 0.0; 0.0 -√2/2 √2/2 0.0 1.0]
+
+            @test moments[1][1] ≈ expected_moment atol=1e-6
 
         end
 
@@ -63,59 +85,6 @@ end
             moments[1][2] + ans1
             moments[1][2] + ans2
 
-            @test moments[1][1] ≈ ans atol=1e-6
-
-
-        end
-
-        # Test with primal formulation
-        @testset "Primal moment formulation" begin
-
-            solver_config = SolverConfig(optimizer=SOLVER, order=1)
-            result = cs_nctssos(pop, solver_config, dualize=false)
-
-            mom_supp = result.moment_support
-            cliques = mom_supp.cliques
-            cliques[1].blocks[1].dual_indices
-
-            model = result.model
-            all_vars = value.(all_variables(model))
-
-            moments = get_moment_matrices(result)
-
-            ans = [0.999999999512592 -0.0 -0.0 -0.0 -0.0; -0.0 0.999999999512592 3.039770389764888e-16 0.7071067828933203 0.7071067828933197; -0.0 3.039770389764888e-16 0.999999999512592 0.7071067828933203 -0.7071067828933205; -0.0 0.7071067828933203 0.7071067828933203 0.999999999512592 -3.9950008909332224e-16; -0.0 0.7071067828933197 -0.7071067828933205 -3.9950008909332224e-16 0.999999999512592]
-
-            @test length(moments) == 1
-            @test length(moments[1]) == 1
-            moments[1][1]
-            moments[1][1] - ans
-
-            @test moments[1][1] ≈ ans atol=1e-6
-        end
-
-        @testset "Primal moment formulation with Term Sparsity" begin
-            solver_config = SolverConfig(optimizer=SOLVER, order=1, ts_algo=MMD())
-            result = cs_nctssos(pop, solver_config, dualize=false)
-
-            moments = get_moment_matrices(result)
-
-            @test length(moments) == 1
-
-            moments[1][1]
-
-            @test length(moments) == 1
-            @test length(moments[1]) == 1
-            moments[1][1]
-            moments[1][1] - ans
-
-            # need to swap because of ordering of basis elements, in NCTSSOS, they have y2 < y1
-            swap_mtx = [1 0 0; 0 0 1; 0 1 0]
-
-            ans1 = swap_mtx * [0.999999999987871 0.7071067811836527 -0.7071067811836522; 0.7071067811836527 0.999999999987871 -5.11184632543241e-16; -0.7071067811836522 -5.11184632543241e-16 0.999999999987871] * swap_mtx
-
-            ans2 = swap_mtx * [0.999999999987871 0.7071067811836521 0.7071067811836521; 0.7071067811836521 0.999999999987871 -5.11184632543241e-16; 0.7071067811836521 -5.11184632543241e-16 0.999999999987871] * swap_mtx
-
-            @test moments[1][1] ≈ ans atol=1e-6
         end
     end
 

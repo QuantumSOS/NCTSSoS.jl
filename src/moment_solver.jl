@@ -58,6 +58,8 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
     @variable(model, y[1:length(total_basis)], set_string_name = false)
     @constraint(model, first(y) == 1)
     monomap = Dict(zip(total_basis, y))
+    @show total_basis
+    @show monomap
 
     # Create constraints with proper naming for later retrieval
     constraint_matrices =
@@ -66,11 +68,9 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
                     map(enumerate(term_sparsity.block_bases)) do (blk_idx, ts_sub_basis)
                         # poly_idx == 1 means objective (moment matrix)
                         # poly_idx > 1 means constraint poly_idx-1 (localizing matrix)
-                        constraint_name = if poly_idx == 1
-                            Symbol("mom_mtx_clique_$(clq_idx)_block_$(blk_idx)")
-                        else
-                            Symbol("loc_mtx_clique_$(clq_idx)_cons_$(poly_idx-1)_block_$(blk_idx)")
-                        end
+                        constraint_name = poly_idx == 1 ?
+                                          Symbol("mom_mtx_clique_$(clq_idx)_block_$(blk_idx)") :
+                                          Symbol("loc_mtx_clique_$(clq_idx)_cons_$(poly_idx-1)_block_$(blk_idx)")
 
                         add_matrix_constraint!(
                             model,
@@ -148,10 +148,12 @@ function add_matrix_constraint!(
     name::Symbol
 ) where {T,T1,P<:AbstractPolynomial{T},M1,M2,JS<:AbstractJuMPScalar}
     T_prom = promote_type(T, T1)
+    @show local_basis
     moment_mtx = [
         sum([T_prom(coef) * monomap[simplify!(expval(_neat_dot3(row_idx, mono, col_idx)), sa)] for (coef, mono) in zip(coefficients(poly), monomials(poly))]) for
         row_idx in local_basis, col_idx in local_basis
     ]
+    @show moment_mtx
 
     return model[name] = @constraint(model, moment_mtx in cone)
 end

@@ -1,0 +1,51 @@
+[2025-11-18T04:44:43Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:44:43Z] Removing old session: session-35888-1763437003
+[2025-11-18T04:44:43Z] Removing old session: session-35305-1763436900
+[2025-11-18T04:44:43Z] Removing old session: session-35426-1763436954
+[2025-11-18T04:44:43Z] Removing old session: session-35738-1763436989
+[2025-11-18T04:44:43Z] Removing old session: session-36041-1763437021
+[2025-11-18T04:44:43Z] Removing old session: session-32625-1763436746
+[2025-11-18T04:44:43Z] Removing old session: session-35609-1763436974
+[2025-11-18T04:44:43Z] Removing old session: session-32695-1763436747
+[2025-11-18T04:44:43Z] Removing old session: session-35512-1763436965
+[2025-11-18T04:44:43Z] Removing old session: session-36755-1763437167
+[2025-11-18T04:44:43Z] Cleanup complete. Removed 10 sessions.
+[2025-11-18T04:45:25Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:45:25Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:45:47Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:45:47Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:46:03Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:46:03Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:46:38Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:46:38Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:47:05Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:47:05Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:48:35Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:48:35Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:49:03Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:49:03Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:49:50Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:49:50Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:49:51Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:49:51Z] Cleanup complete. Removed 0 sessions.
+[2025-11-18T04:49:51Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:49:51Z] Removing 1 oldest sessions to maintain limit of 10
+[2025-11-18T04:49:51Z] Removing session to maintain limit: session-40776-1763441082
+[2025-11-18T04:49:59Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:49:59Z] Removing 1 oldest sessions to maintain limit of 10
+[2025-11-18T04:49:59Z] Removing session to maintain limit: session-41015-1763441125
+[2025-11-18T04:50:49Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T04:50:49Z] Removing 1 oldest sessions to maintain limit of 10
+[2025-11-18T04:50:49Z] Removing session to maintain limit: session-41187-1763441147
+[2025-11-18T05:08:46Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T05:08:46Z] Removing 1 oldest sessions to maintain limit of 10
+[2025-11-18T05:08:46Z] Removing session to maintain limit: session-41341-1763441163
+[2025-11-18T05:10:01Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T05:10:01Z] Removing 1 oldest sessions to maintain limit of 10
+[2025-11-18T05:10:01Z] Removing session to maintain limit: session-41530-1763441198
+[2025-11-18T05:11:06Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T05:11:06Z] Removing 1 oldest sessions to maintain limit of 10
+[2025-11-18T05:11:06Z] Removing session to maintain limit: session-41696-1763441225
+[2025-11-18T05:12:10Z] Starting cleanup of /var/folders/4h/hzfbp5js0f746d90j630vxkm0000gn/T//claude-zed-diffs
+[2025-11-18T05:12:10Z] Removing 1 oldest sessions to maintain limit of 10
+[2025-11-18T05:12:10Z] Removing session to maintain limit: session-41995-1763441315

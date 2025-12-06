@@ -207,24 +207,109 @@ Base.:(==)(a::Variable, b::Variable) = a.name == b.name
 Base.hash(v::Variable, h::UInt) = hash(v.name, h)
 Base.show(io::IO, v::Variable) = print(io, v.name)
 
-"""
-    variables(p::Polynomial) -> Vector{Variable}
+# Variable arithmetic - converts to Polynomial
+# This allows `x * y` syntax where x, y are Variables
 
-Extract the variables used in a polynomial as legacy Variable structs.
-This is for backward compatibility - new code should work with integer indices.
 """
-function variables(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    # Get unique variable indices from the polynomial
-    var_indices = Set{T}()
-    for t in p.terms
-        for idx in t.monomial.word
-            push!(var_indices, abs(idx))  # abs for fermionic/bosonic
-        end
+    to_monomial(v::Variable) -> Monomial
+
+Convert a Variable to a Monomial{NonCommutativeAlgebra, Int}.
+"""
+function to_monomial(v::Variable)
+    Monomial{NonCommutativeAlgebra}([v.index])
+end
+
+"""
+    to_polynomial(v::Variable, C::Type=ComplexF64) -> Polynomial
+
+Convert a Variable to a single-term Polynomial.
+"""
+function to_polynomial(v::Variable, ::Type{C}=ComplexF64) where C<:Number
+    m = to_monomial(v)
+    Polynomial([Term(one(C), m)])
+end
+
+# Variable * Variable -> Polynomial
+function Base.:*(a::Variable, b::Variable)
+    m_a = to_monomial(a)
+    m_b = to_monomial(b)
+    result = m_a * m_b  # Returns Term
+    Polynomial([result])
+end
+
+# Scalar * Variable -> Polynomial
+function Base.:*(c::Number, v::Variable)
+    m = to_monomial(v)
+    Polynomial([Term(c, m)])
+end
+Base.:*(v::Variable, c::Number) = c * v
+
+# Variable + Variable -> Polynomial
+function Base.:+(a::Variable, b::Variable)
+    C = ComplexF64
+    Polynomial([Term(one(C), to_monomial(a)), Term(one(C), to_monomial(b))])
+end
+
+# Variable - Variable -> Polynomial
+function Base.:-(a::Variable, b::Variable)
+    C = ComplexF64
+    Polynomial([Term(one(C), to_monomial(a)), Term(-one(C), to_monomial(b))])
+end
+
+# Unary minus
+function Base.:-(v::Variable)
+    C = ComplexF64
+    Polynomial([Term(-one(C), to_monomial(v))])
+end
+
+# Variable ^ n -> Polynomial
+function Base.:^(v::Variable, n::Integer)
+    n < 0 && throw(ArgumentError("Cannot raise Variable to negative power"))
+    if n == 0
+        return Polynomial([Term(ComplexF64(1.0), one(Monomial{NonCommutativeAlgebra,Int}))])
     end
+    m = to_monomial(v)
+    result_m = m
+    for _ in 2:n
+        temp = result_m * m  # Returns Term
+        result_m = temp.monomial
+    end
+    Polynomial([Term(ComplexF64(1.0), result_m)])
+end
 
-    # Convert to sorted Vector of Variables with synthetic names
-    sorted_indices = sort(collect(var_indices))
-    return [Variable(Symbol("x_", i), false, i) for i in sorted_indices]
+# Variable + Polynomial, Variable * Polynomial, etc.
+function Base.:+(v::Variable, p::Polynomial{A,T,C}) where {A,T,C}
+    to_polynomial(v, C) + p
+end
+Base.:+(p::Polynomial, v::Variable) = v + p
+
+function Base.:-(v::Variable, p::Polynomial{A,T,C}) where {A,T,C}
+    to_polynomial(v, C) - p
+end
+function Base.:-(p::Polynomial{A,T,C}, v::Variable) where {A,T,C}
+    p - to_polynomial(v, C)
+end
+
+function Base.:*(v::Variable, p::Polynomial{A,T,C}) where {A,T,C}
+    to_polynomial(v, C) * p
+end
+function Base.:*(p::Polynomial{A,T,C}, v::Variable) where {A,T,C}
+    p * to_polynomial(v, C)
+end
+
+# Note: The `variables(p::Polynomial)` function returns Set{T} of indices
+# (defined in polynomial.jl). For legacy NCTSSoS code that needs Variable[],
+# use `legacy_variables(p)` instead.
+
+# Variable to StateWord conversion
+"""
+    ς(v::Variable) -> StateWord{Arbitrary}
+
+Create a StateWord{Arbitrary} from a Variable.
+"""
+function ς(v::Variable)
+    m = to_monomial(v)
+    StateWord{Arbitrary}(m)
 end
 
 # =============================================================================
@@ -440,3 +525,15 @@ const AbstractPolynomial{T} = Union{
     StatePolynomial{T,<:StateType,<:AlgebraType,<:Integer},
     NCStatePolynomial{T,<:StateType,<:AlgebraType,<:Integer}
 }
+
+# =============================================================================
+# Legacy is_symmetric with SimplifyAlgorithm
+# =============================================================================
+
+"""
+    is_symmetric(p, sa::SimplifyAlgorithm) -> Bool
+
+Legacy wrapper for is_symmetric with SimplifyAlgorithm parameter.
+The new API ignores the SimplifyAlgorithm since symmetry is a property of the polynomial.
+"""
+is_symmetric(p, sa::SimplifyAlgorithm) = is_symmetric(p)

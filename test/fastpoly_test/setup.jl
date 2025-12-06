@@ -8,3 +8,7 @@ using Test
 const FASTPOLY_ROOT = joinpath(@__DIR__, "../../src/FastPolynomials/src")
 include(joinpath(FASTPOLY_ROOT, "FastPolynomials.jl"))
 using .FastPolynomials
+
+# Import @ncpolyvar explicitly to avoid ambiguity with NCTSSoS export
+# (needed because runtests.jl does `using NCTSSoS` before including these tests)
+import .FastPolynomials: @ncpolyvar

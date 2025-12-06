@@ -32,8 +32,12 @@ using .FastPolynomials: @ncpolyvar
 
 # Re-export key types and functions for downstream users
 export @ncpolyvar, ς
-export Monomial, Polynomial, Term, Variable
-export SimplifyAlgorithm
+
+# Note: Core types (Monomial, Polynomial, Term, Variable, SimplifyAlgorithm)
+# are NOT exported from NCTSSoS to avoid ambiguity when FastPolynomials
+# is also loaded. Access them via NCTSSoS.FastPolynomials.Monomial etc.
+# or using NCTSSoS.FastPolynomials: Monomial, Polynomial, ...
+
 export polyopt, cpolyopt
 export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination

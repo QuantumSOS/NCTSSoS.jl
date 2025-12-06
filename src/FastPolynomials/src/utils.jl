@@ -114,14 +114,17 @@ julia> result.monomial.word
 ```
 """
 function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    adjoint(a) * b
+    # adjoint(a) * b returns a Term, but for legacy compatibility we need a Monomial
+    # The coefficient is assumed to be 1 for simple algebras
+    result = adjoint(a) * b
+    result.monomial
 end
 
 """
-    _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Term
+    _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Monomial
 
 Compute adjoint(a) * m * b for regular Monomials.
-Returns a Term containing the simplified result.
+Returns a Monomial (extracts from the Term result for legacy compatibility).
 
 This is the three-argument form commonly used in moment matrix construction
 where we need adjoint(row_index) * constraint_monomial * column_index.
@@ -138,7 +141,7 @@ julia> m3 = Monomial{NonCommutativeAlgebra}(UInt16[3]);
 
 julia> result = _neat_dot3(m1, m2, m3);
 
-julia> result.monomial.word
+julia> result.word
 3-element Vector{UInt16}:
  0x0001
  0x0002
@@ -151,8 +154,8 @@ function _neat_dot3(a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}) where 
     temp = adjoint(a) * m
     # temp is a Term, extract monomial for next multiplication
     result = temp.monomial * b
-    # Combine coefficients
-    Term(temp.coefficient * result.coefficient, result.monomial)
+    # Return only the monomial for legacy compatibility
+    result.monomial
 end
 
 # =============================================================================

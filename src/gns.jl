@@ -1,6 +1,8 @@
 using LinearAlgebra
+# Legacy imports from FastPolynomials for GNS reconstruction
+# Uses Variable struct and get_basis with legacy API
 using ..FastPolynomials:
-    Variable, Monomial, get_basis, monomials, monomial, neat_dot
+    Variable, Monomial, get_basis, monomials, monomial, neat_dot, NonCommutativeAlgebra
 
 """
     reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int; atol::Float64=1e-3)
@@ -165,7 +167,7 @@ dict = hankel_entries_dict(H, basis)
 value = dict[neat_dot(x, x)]  # Returns H[2,2] = 1.0
 ```
 """
-function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{Monomial}) where {T<:Number}
+function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:Monomial}) where {T<:Number}
     size(hankel, 1) == size(hankel, 2) ||
         throw(ArgumentError("Hankel matrix must be square, got size $(size(hankel))"))
     length(basis) == size(hankel, 1) || throw(
@@ -174,7 +176,8 @@ function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{Monomial}) where {
         ),
     )
 
-    dict = Dict{Monomial,T}()
+    M = eltype(basis)
+    dict = Dict{M,T}()
     for (i, row_mono) in enumerate(basis)
         for (j, col_mono) in enumerate(basis)
             key = neat_dot(row_mono, col_mono)
@@ -225,10 +228,10 @@ K = construct_localizing_matrix(dict, x, basis)
 ```
 """
 function construct_localizing_matrix(
-    hankel_dict::Dict{Monomial,T},
+    hankel_dict::Dict{M,T},
     var::Variable,
-    basis::Vector{Monomial},
-) where {T<:Number}
+    basis::Vector{M},
+) where {M<:Monomial,T<:Number}
     n = length(basis)
     K = zeros(T, n, n)
 

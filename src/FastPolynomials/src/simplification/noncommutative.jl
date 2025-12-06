@@ -190,3 +190,50 @@ function Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutat
     result = Monomial{NonCommutativeAlgebra,T}(vcat(w1, w2), zero(UInt64))
     simplify!(result)
 end
+
+# =============================================================================
+# Signed Integer Support (Legacy Compatibility)
+# =============================================================================
+#
+# Legacy NCTSSoS code uses signed integers for variable indices.
+# These overloads provide simple concatenation without site-aware simplification.
+
+"""
+    simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
+
+Simple in-place simplification for non-commutative algebra with signed indices.
+For legacy compatibility - just returns the monomial unchanged (no simplification rules).
+"""
+function simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
+    # No simplification for legacy signed integer indices
+    Term(1.0, m)
+end
+
+"""
+    simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
+
+Simple simplification for non-commutative algebra with signed indices.
+For legacy compatibility - returns a term with coefficient 1.0 and the monomial unchanged.
+"""
+function simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
+    Term(1.0, m)
+end
+
+"""
+    Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
+
+Multiply two non-commutative monomials with signed indices.
+For legacy compatibility - simple word concatenation without site-aware simplification.
+"""
+function Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
+    w1, w2 = m1.word, m2.word
+
+    # Handle empty cases
+    isempty(w1) && return Term(1.0, m2)
+    isempty(w2) && return Term(1.0, m1)
+
+    # Simple concatenation for legacy compatibility
+    result_word = vcat(w1, w2)
+    result = Monomial{NonCommutativeAlgebra}(result_word)
+    Term(1.0, result)
+end

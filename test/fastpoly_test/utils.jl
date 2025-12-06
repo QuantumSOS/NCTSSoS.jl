@@ -1,197 +1,147 @@
-using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials:
-    star, symmetric_canonicalize, cyclic_canonicalize, _comm!, simplify!
+# Note: FastPolynomials is loaded by setup.jl
+using .FastPolynomials:
+    encode_index,
+    decode_operator_id,
+    decode_site,
+    get_ncbasis,
+    get_ncbasis_deg,
+    has_consecutive_repeats,
+    create_noncommutative_variables,
+    star
 
 @testset "Utilities" begin
-    @ncpolyvar x y z
+    @testset "Index Encoding/Decoding" begin
+        # Test UInt16 encoding (4-bit site, 12-bit operator)
+        idx = encode_index(UInt16, 3, 5)  # operator 3, site 5
+        @test decode_operator_id(idx) == 3
+        @test decode_site(idx) == 5
 
-    @testset "Symmetric Canonical Form" begin
-        sa = SimplifyAlgorithm(
-            comm_gps=[[x, y, z]],
-            is_projective=false,
-            is_unipotent=false,
-        )
-        mono1 = monomial([z, y, x], [1, 1, 2])
+        # Test UInt8 encoding (2-bit site, 6-bit operator)
+        # UInt8 max sites is 3 (2 bits), so use site 2
+        idx8 = encode_index(UInt8, 2, 2)  # operator 2, site 2
+        @test decode_operator_id(idx8) == 2
+        @test decode_site(idx8) == 2
 
-        mono1_sym = symmetric_canonicalize(mono1, sa)
-        @test mono1_sym.vars == [x, y, z]
-        @test mono1_sym.z == [2, 1, 1]
+        # Multiple encodings
+        idx1 = encode_index(UInt16, 1, 1)
+        idx2 = encode_index(UInt16, 1, 2)
+        idx3 = encode_index(UInt16, 2, 1)
 
-        mono2 = monomial([x, y, z], [2, 1, 1])
-        mono2_sym = symmetric_canonicalize(mono2, sa)
-        @test mono2_sym.vars == [x, y, z]
-        @test mono2_sym.z == [2, 1, 1]
-
-        poly1 = Polynomial(
-            [0.1, 0.2, 0.3],
-            [
-                monomial([x, y, z], [2, 1, 1]),
-                monomial([z, y, x], [1, 1, 2]),
-                monomial([], []),
-            ],
-        )
-        poly1_sym = canonicalize(poly1, sa)
-
-        @test poly1_sym.coeffs ≈ [0.3, 0.3]
-        @test poly1_sym.monos == [monomial([], []), monomial([x, y, z], [2, 1, 1])]
-
-        n = 3
-        @ncpolyvar a[1:n]
-
-        sa = SimplifyAlgorithm(
-            comm_gps=[a],
-            is_projective=false,
-            is_unipotent=false,
-        )
-
-        poly3 = Polynomial(
-            [1, -1, -1, 3, -2, 2, -1, -1, 6, 9, 9, -54, 142],
-            [
-                monomial([a[1]], [2]),
-                monomial([a[1], a[2]], [1, 1]),
-                monomial([a[2], a[1]], [1, 1]),
-                monomial([a[2]], [2]),
-                monomial([a[1], a[2], a[1]], [1, 1, 1]),
-                monomial([a[1], a[2], a[1]], [1, 2, 1]),
-                monomial([a[2], a[3]], [1, 1]),
-                monomial([a[3], a[2]], [1, 1]),
-                monomial([a[3]], [2]),
-                monomial([a[2], a[3]], [2, 1]),
-                monomial([a[3], a[2]], [1, 2]),
-                monomial([a[3], a[2], a[3]], [1, 1, 1]),
-                monomial([a[3], a[2], a[3]], [1, 2, 1]),
-            ],
-        )
-
-        supp = sort(
-            map([
-                [1, 2, 2, 1],
-                [3, 2, 2, 3],
-                [1, 2, 1],
-                [2, 2, 3],
-                [3, 2, 3],
-                [1, 1],
-                [1, 2],
-                [2, 2],
-                [2, 3],
-                [3, 3],
-            ]) do v
-                monomial(a[v], ones(length(v)))
-            end,
-        )
-
-        coe = [1, -2, 3, -2, 6, -2, 18, -54, 2, 142]
-
-        poly3_sym = canonicalize(poly3, sa)
-
-        @test poly3_sym.coeffs == coe
-        @test poly3_sym.monos == supp
+        @test idx1 != idx2  # Same operator, different site
+        @test idx1 != idx3  # Different operator, same site
     end
 
-    @testset "Cyclic Canonical Form" begin
-        sa = SimplifyAlgorithm(
-            comm_gps=[[x, y, z]],
-            is_projective=false,
-            is_unipotent=false,
-        )
-        @test cyclic_canonicalize(x^2 * y^2, sa) == x^2 * y^2
-        @test cyclic_canonicalize(z * y^2, sa) == y^2 * z
-        @test cyclic_canonicalize(z * z, sa) == z^2
-        @test isone(cyclic_canonicalize(one(x), sa))
+    @testset "Basis Generation" begin
+        # Test get_ncbasis for different algebra types
+        basis_nc = get_ncbasis(NonCommutativeAlgebra, 2, 2)
+        @test length(basis_nc) == 7  # 1 + 2 + 4
 
-        n = 3
-        @ncpolyvar a[1:n]
-        sa = SimplifyAlgorithm(
-            comm_gps=[a],
-            is_projective=false,
-            is_unipotent=false,
-        )
-        f = mapreduce(
-            +,
-            zip(
-                [1, -1, -1, 3, -2, 2, -1, -1, 6, 9, 9, -54, 142, 5, 5, 5],
-                [
-                    monomial([a[1]], [2]),
-                    monomial([a[1], a[2]], [1, 1]),
-                    monomial([a[2], a[1]], [1, 1]),
-                    monomial([a[2]], [2]),
-                    monomial([a[1], a[2], a[1]], [1, 1, 1]),
-                    monomial([a[1], a[2], a[1]], [1, 2, 1]),
-                    monomial([a[2], a[3]], [1, 1]),
-                    monomial([a[3], a[2]], [1, 1]),
-                    monomial([a[3]], [2]),
-                    monomial([a[2], a[3]], [2, 1]),
-                    monomial([a[3], a[2]], [1, 2]),
-                    monomial([a[3], a[2], a[3]], [1, 1, 1]),
-                    monomial([a[3], a[2], a[3]], [1, 2, 1]),
-                    monomial([a[1], a[2]], [2, 2]),
-                    monomial([a[1], a[2], a[3]], [1, 1, 1]),
-                    monomial([a[3], a[2], a[1]], [1, 1, 1]),
-                ],
-            ),
-        ) do (coef, mono)
-            coef * tr(mono)
+        basis_pauli = get_ncbasis(PauliAlgebra, 2, 2)
+        @test length(basis_pauli) == 7
+
+        # Test single degree
+        basis_deg1 = get_ncbasis_deg(NonCommutativeAlgebra, 3, 1)
+        @test length(basis_deg1) == 3  # n^d = 3^1 = 3
+
+        basis_deg2 = get_ncbasis_deg(NonCommutativeAlgebra, 3, 2)
+        @test length(basis_deg2) == 9  # n^d = 3^2 = 9
+    end
+
+    @testset "Filtered Basis" begin
+        # Unfiltered: all words including [1,1], [2,2]
+        basis_unfiltered = get_ncbasis(UnipotentAlgebra, 2, 2)
+        @test length(basis_unfiltered) == 7
+
+        # Filtered: removes consecutive repeats
+        basis_filtered = get_ncbasis(UnipotentAlgebra, 2, 2; filter_constraint=true)
+        @test length(basis_filtered) == 5  # 1 + 2 + 2 (no [1,1] or [2,2])
+
+        # Check that filtered basis has no consecutive repeats
+        for m in basis_filtered
+            @test !has_consecutive_repeats(m.word)
+        end
+    end
+
+    @testset "has_consecutive_repeats" begin
+        @test !has_consecutive_repeats([1, 2, 3])
+        @test has_consecutive_repeats([1, 1, 2])
+        @test has_consecutive_repeats([1, 2, 2])
+        @test has_consecutive_repeats([1, 1])
+        @test !has_consecutive_repeats([1])
+        @test !has_consecutive_repeats(Int[])
+    end
+
+    @testset "Basis Ordering" begin
+        basis = get_ncbasis(NonCommutativeAlgebra, 2, 3)
+
+        # Verify basis is sorted
+        @test issorted(basis)
+
+        # Verify first element is identity
+        @test isone(basis[1])
+
+        # Verify degree ordering: deg 0 < deg 1 < deg 2 < deg 3
+        degrees = [degree(m) for m in basis]
+        @test issorted(degrees)
+    end
+
+    @testset "Integer Type Parameter" begin
+        # Test with different integer types
+        basis_int = get_ncbasis(NonCommutativeAlgebra, 2, 2; T=Int64)
+        basis_int32 = get_ncbasis(NonCommutativeAlgebra, 2, 2; T=Int32)
+        basis_int16 = get_ncbasis(NonCommutativeAlgebra, 2, 2; T=Int16)
+
+        @test length(basis_int) == length(basis_int32) == length(basis_int16)
+
+        # Check element types
+        @test eltype(basis_int[1].word) == Int64
+        @test eltype(basis_int32[1].word) == Int32
+        @test eltype(basis_int16[1].word) == Int16
+    end
+
+    @testset "Empty Basis Edge Cases" begin
+        # Degree 0 returns only identity
+        basis_deg0 = get_ncbasis(NonCommutativeAlgebra, 3, 0)
+        @test length(basis_deg0) == 1
+        @test isone(basis_deg0[1])
+
+        # Zero variables, any degree
+        basis_0vars = get_ncbasis_deg(NonCommutativeAlgebra, 0, 2)
+        @test isempty(basis_0vars)
+    end
+
+    @testset "Large Basis Computation" begin
+        # Moderate size test to ensure performance is reasonable
+        basis_large = get_ncbasis(NonCommutativeAlgebra, 3, 3)
+        # 1 + 3 + 9 + 27 = 40
+        @test length(basis_large) == 40
+    end
+
+    @testset "Variable Registry Integration" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:5)])
+
+        # Variables created should have correct degrees
+        for i in 1:5
+            @test degree(x[i]) == 1
         end
 
-        f2 = mapreduce(+,
-            zip([7, 142, -2, 18, -54, 1, -2, 3, -2, 6, 10],
-                [
-                    monomial([a[1], a[2], a[1]], [1, 2, 1]),
-                    monomial([a[3], a[2], a[3]], [1, 2, 1]),
-                    monomial([a[1], a[2], a[1]], [1, 1, 1]),
-                    monomial([a[2], a[3]], [2, 1]),
-                    monomial([a[3], a[2], a[3]], [1, 1, 1]),
-                    monomial([a[1]], [2]),
-                    monomial([a[1], a[2]], [1, 1]),
-                    monomial([a[2]], [2]),
-                    monomial([a[2], a[3]], [1, 1]),
-                    monomial([a[3]], [2]),
-                    monomial([a[1], a[2], a[3]], [1, 1, 1]),
-                ])
-        ) do (coef, mono)
-            coef * tr(mono)
-        end
-        @test canonicalize(f, sa) == canonicalize(f2, sa)
+        # Monomials from registry should multiply correctly
+        m = x[1] * x[2]
+        @test m isa Term
+        @test degree(m.monomial) == 2
     end
 
-    @testset "_comm" begin
-        @ncpolyvar a[1:3]
-        @ncpolyvar b[1:3]
+    @testset "Star Operation" begin
+        # Star operation reverses word for unsigned types (self-adjoint)
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
+        m_star = star(m)
+        @test m_star.word == [3, 2, 1]
 
-        mono = a[1]^2 * b[2]^2 * a[2] * b[1]^3
-        comm_gp_dict = Dict(zip([a; b], [fill(1, 3); fill(2, 3)]))
-        _comm!(mono, comm_gp_dict)
-        @test mono == a[1]^2 * a[2] * b[2]^2 * b[1]^3
-        mono = a[1]^3 * a[3]
-        _comm!(mono, comm_gp_dict)
-        @test mono == a[1]^3 * a[3]
+        # Star is involution
+        @test star(star(m)) == m
 
-        @ncpolyvar x[1:2] y[1:2]
-        comm_gp_dict = Dict(zip([x; y], [fill(1, 2); fill(2, 2)]))
-        mono = y[1] * x[1] * y[2]^2 * x[2]
-        _comm!(mono, comm_gp_dict)
-        @test mono == x[1] * x[2] * y[1] * y[2]^2
-    end
-
-    @testset "_projective" begin
-        @ncpolyvar x y z
-        mono = y * x^3 * y * z^3
-        sa = SimplifyAlgorithm(
-            comm_gps=[[x, y, z]],
-            is_projective=true,
-            is_unipotent=false,
-        )
-        @test simplify!(mono, sa) == y * x * y * z
-    end
-
-    @testset "_unipotent" begin
-        @ncpolyvar x y z
-        mono = z * x * y * z^2 * y * x * z
-        sa = SimplifyAlgorithm(
-            comm_gps=[[x, y, z]],
-            is_projective=false,
-            is_unipotent=true,
-        )
-        @test simplify!(mono, sa) == one(mono)
+        # Empty monomial star
+        m_empty = Monomial{NonCommutativeAlgebra}(UInt8[])
+        @test isone(star(m_empty))
     end
 end

@@ -1,16 +1,17 @@
-using NCTSSoS.FastPolynomials
-using Test
+# FastPolynomials test suite
+# This loads FastPolynomials directly (NCTSSoS migration is Phase 3)
 
-@testset "FastPolynomials.jl" begin
-    include("arithmetic.jl")
-    include("compare.jl")
+include("setup.jl")
+
+@testset "FastPolynomials" begin
+    include("variables.jl")
     include("monomials.jl")
     include("polynomial.jl")
+    include("arithmetic.jl")
+    include("compare.jl")
+    include("simplify.jl")
     include("state_word.jl")
     include("statepolynomial.jl")
     include("utils.jl")
-    include("variables.jl")
-    include("simplify.jl")
-
     include("allocations.jl")
 end

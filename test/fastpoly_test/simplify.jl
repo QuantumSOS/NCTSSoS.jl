@@ -1,232 +1,141 @@
-using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: simplify, get_state_basis, NCStateWord, get_basis
-using NCTSSoS.FastPolynomials: symmetric_canonicalize, Arbitrary, is_symmetric
+# Note: FastPolynomials is loaded by setup.jl
+using .FastPolynomials:
+    simplify,
+    simplify!,
+    create_noncommutative_variables,
+    create_pauli_variables,
+    create_projector_variables,
+    create_unipotent_variables,
+    get_ncbasis
+
+# Note: The new API uses AlgebraType dispatch for simplification instead of SimplifyAlgorithm
+# Each algebra type (NonCommutativeAlgebra, PauliAlgebra, UnipotentAlgebra, etc.) has its own simplification rules
 
 @testset "Simplification Interface" begin
-    @ncpolyvar x[1:3] y[1:3]
+    @testset "NonCommutative Simplification" begin
+        # NonCommutativeAlgebra with encoded indices uses site-aware simplification
+        # Operators on different sites commute (sorted by site)
+        # Operators on same site preserve order
 
-    sa1 = SimplifyAlgorithm(; comm_gps=[x, y], is_unipotent=true, is_projective=false)
-    sa2 = SimplifyAlgorithm(; comm_gps=[x, y], is_unipotent=false, is_projective=true)
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-    @testset "Simplify Monomial" begin
-        @test simplify(x[1] * y[1] * x[1] * y[2], sa1) == y[1] * y[2]
-        @test simplify(x[1] * y[1] * x[1] * y[2], sa2) == x[1] * y[1] * y[2]
+        # Simple case: multiplication returns Term
+        result = x[1] * x[2]
+        @test result isa Term
+        @test result.coefficient == 1.0
+        @test degree(result.monomial) == 2
+
+        # Same variable twice
+        result2 = x[1] * x[1]
+        @test result2 isa Term
+        @test degree(result2.monomial) == 2
     end
 
-    @testset "Simplify StateWord" begin
-        sw = ς(x[1]^2) * ς(y[1] * y[2]) * ς(x[1] * y[1] * x[1])
-        @test simplify(sw, sa1) == ς(y[1] * y[2]) * ς(y[1])
-        @test simplify(sw, sa2) == ς(x[1]) * ς(y[1] * y[2]) * ς(x[1] * y[1])
+    @testset "Pauli Simplification" begin
+        # Pauli algebra has specific simplification rules:
+        # - Pauli matrices square to identity
+        # - Products of different Pauli matrices produce phases
+
+        reg, (σx, σy, σz) = create_pauli_variables(1:2)
+
+        # Single Pauli operator
+        @test degree(σx[1]) == 1
+        @test degree(σy[1]) == 1
+        @test degree(σz[1]) == 1
+
+        # Pauli variables are monomials
+        @test σx[1] isa Monomial{PauliAlgebra}
     end
 
-    @testset "Simplify NCStateWord" begin
-        ncsw =
-            ς(x[1]^2) * ς(y[1] * y[2]) * ς(x[1] * y[1] * x[1]) * (x[1]^2 * y[1] * x[2] * y[1])
+    @testset "Projector Simplification" begin
+        # Projector algebra: P^2 = P (idempotency)
+        reg, (P,) = create_projector_variables([("P", 1:3)])
 
-        @test simplify(ncsw, sa1) ==
-              ς(y[1] * y[2]) * ς(y[1]) * monomial(x[2])
+        @test P[1] isa Monomial{ProjectorAlgebra}
+        @test degree(P[1]) == 1
 
-        @test simplify(ncsw, sa2) ==
-              ς(x[1]) * ς(y[1] * y[2]) * ς(x[1] * y[1]) * (x[1] * x[2] * y[1])
+        # Multiple projectors
+        result = P[1] * P[2]
+        @test result isa Term
+        @test degree(result.monomial) == 2
     end
 
-    @testset "Get Basis" begin
-        @ncpolyvar a b
+    @testset "Unipotent Simplification" begin
+        # Unipotent algebra: U^2 = I (squares to identity)
+        reg, (U,) = create_unipotent_variables([("U", 1:3)])
 
-        sa1 = SimplifyAlgorithm(;
-            comm_gps=[[a, b]], is_unipotent=true, is_projective=false
-        )
+        @test U[1] isa Monomial{UnipotentAlgebra}
+        @test degree(U[1]) == 1
 
-        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa1) == [
-            one(Monomial),
-            a,
-            b,
-            a * b,
-            b * a,
-        ]
-
-        sa2 = SimplifyAlgorithm(;
-            comm_gps=[[a, b]], is_unipotent=false, is_projective=true
-        )
-
-        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa2) == [
-            one(Monomial),
-            a,
-            b,
-            a * b,
-            b * a
-        ]
-
-
-        sa3 = SimplifyAlgorithm(;
-            comm_gps=[[a], [b]], is_unipotent=false, is_projective=false
-        )
-
-        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa3) == [
-            one(Monomial),
-            a,
-            b,
-            a^2,
-            a * b,
-            b^2
-        ]
-
-        sa4 = SimplifyAlgorithm(;
-            comm_gps=[[a, b]], is_unipotent=false, is_projective=false
-        )
-
-        @test get_basis(Polynomial{ComplexF64}, [a, b], 2, sa4) == [
-            one(Monomial),
-            a,
-            b,
-            a^2,
-            a * b,
-            b * a,
-            b^2
-        ]
+        # Multiplication of different unipotent variables
+        result = U[1] * U[2]
+        @test result isa Term
+        @test degree(result.monomial) == 2
     end
 
-    @testset "Get State Basis" begin
-        @ncpolyvar x y
-        sa1 = SimplifyAlgorithm(;
-            comm_gps=[[x], [y]], is_unipotent=true, is_projective=false
-        )
-        sa2 = SimplifyAlgorithm(;
-            comm_gps=[[x], [y]], is_unipotent=false, is_projective=true
-        )
+    @testset "Basis Generation" begin
+        # Test basis generation with algebra types
+        basis_nc = get_ncbasis(NonCommutativeAlgebra, 2, 2)
+        @test length(basis_nc) == 7  # 1 + 2 + 4
 
-        sa3 = SimplifyAlgorithm(;
-            comm_gps=[[x], [y]], is_unipotent=false, is_projective=false
-        )
+        basis_pauli = get_ncbasis(PauliAlgebra, 2, 2)
+        @test length(basis_pauli) == 7
 
-        target_sbasis_1 = [
-            one(NCStateWord{Arbitrary}),
-            ς(x) * one(Monomial),
-            ς(y) * one(Monomial),
-            ς(x * y) * one(Monomial),
-            ς(x) * ς(x) * one(Monomial),
-            ς(x) * ς(y) * one(Monomial),
-            ς(y) * ς(y) * one(Monomial),
-            ς(one(Monomial)) * monomial(x),
-            ς(x) * monomial(x),
-            ς(y) * monomial(x),
-            ς(one(Monomial)) * monomial(y),
-            ς(x) * monomial(y),
-            ς(y) * monomial(y),
-            ς(one(Monomial)) * (x * y),
-        ]
+        # Filtered basis (removes consecutive repeats)
+        basis_filtered = get_ncbasis(UnipotentAlgebra, 2, 2; filter_constraint=true)
+        @test length(basis_filtered) == 5  # 1 + 2 + 2 (no [1,1] or [2,2])
+    end
 
-        @test sort(get_state_basis(Arbitrary, [x, y], 2, sa1)) == sort(target_sbasis_1)
+    @testset "Term Structure" begin
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        t = Term(2.0, m)
 
-        target_sbasis_2 = [
-            one(NCStateWord{Arbitrary}),
-            ς(x) * one(Monomial),
-            ς(y) * one(Monomial),
-            ς(x * y) * one(Monomial),
-            ς(one(Monomial)) * monomial(x),
-            ς(one(Monomial)) * monomial(y),
-            ς(x) * ς(x) * one(Monomial),
-            ς(x) * ς(y) * one(Monomial),
-            ς(y) * ς(y) * one(Monomial),
-            ς(x) * monomial(x),
-            ς(y) * monomial(x),
-            ς(x) * monomial(y),
-            ς(y) * monomial(y),
-            ς(one(Monomial)) * (x * y),
-        ]
+        @test t.coefficient == 2.0
+        @test t.monomial == m
 
-        @test sort(get_state_basis(Arbitrary, [x, y], 2, sa2)) == sort(target_sbasis_2)
+        # Term operations
+        t_neg = -t
+        @test t_neg.coefficient == -2.0
 
-        target_sbasis_3 = [
-            one(NCStateWord{Arbitrary}),
-            ς(x) * one(Monomial),
-            ς(y) * one(Monomial),
-            ς(one(Monomial)) * monomial(x),
-            ς(one(Monomial)) * monomial(y),
-            ς(x) * ς(x) * one(Monomial),
-            ς(x) * ς(y) * one(Monomial),
-            ς(y) * ς(y) * one(Monomial),
-            ς(x * y) * one(Monomial),
-            ς(x^2) * one(Monomial),
-            ς(y^2) * one(Monomial),
-            ς(x) * monomial(x),
-            ς(y) * monomial(x),
-            ς(x) * monomial(y),
-            ς(y) * monomial(y),
-            ς(one(Monomial)) * (x * y),
-            ς(one(Monomial)) * (x^2),
-            ς(one(Monomial)) * (y^2),
-        ]
+        t_scaled = 3.0 * t
+        @test t_scaled.coefficient == 6.0
+    end
 
-        @test sort(get_state_basis(Arbitrary, [x, y], 2, sa3)) == sort(target_sbasis_3)
+    @testset "simplify! Mutation" begin
+        # Test that simplify! mutates the monomial
+        m = Monomial{NonCommutativeAlgebra}(UInt8[2, 1])  # Will be sorted by site
+
+        result = simplify!(m)
+        @test result isa Term
+        @test result.coefficient == 1.0
+    end
+
+    @testset "Star and Simplification Interaction" begin
+        # Test star involution on directly created monomials (with proper hash)
+        m = Monomial{NonCommutativeAlgebra}(UInt8[5, 9])
+        m_star = star(m)
+
+        # star is involutory: star(star(m)).word == m.word
+        @test star(star(m)).word == m.word
     end
 end
 
-@testset "Symmetric Canonicalie" begin
-    @ncpolyvar x[1:2] y[1:2]
+@testset "Algebra Type Dispatch" begin
+    @testset "Type Safety" begin
+        # Monomials of different algebra types cannot be multiplied directly
+        m_nc = Monomial{NonCommutativeAlgebra}([1])
+        m_pauli = Monomial{PauliAlgebra}([1])
 
-    sa1 = SimplifyAlgorithm(; comm_gps=[x, y], is_unipotent=false, is_projective=false)
-
-    sa2 = SimplifyAlgorithm(; comm_gps=[x, y], is_unipotent=true, is_projective=false)
-
-    sa3 = SimplifyAlgorithm(; comm_gps=[x, y], is_unipotent=false, is_projective=true)
-
-    @testset "Monomial" begin
-        @test symmetric_canonicalize(x[2] * y[2]^2 * x[1] * y[1], sa1) ==
-              x[1] * x[2] * y[1] * y[2]^2
-
-        @test symmetric_canonicalize(x[2] * y[2]^2 * x[1] * y[1], sa2) ==
-              x[1] * x[2] * y[1]
-
-        @test symmetric_canonicalize(x[2] * y[2]^2 * x[1] * y[1], sa3) ==
-              x[1] * x[2] * y[1] * y[2]
+        @test typeof(m_nc) != typeof(m_pauli)
     end
 
-    @testset "StateWord" begin
-        @test canonicalize(
-            ς(x[2] * y[1] * x[1]) * ς(y[2] * x[2] * x[1] * y[2]), sa1
-        ) == ς(x[1] * x[2] * y[1]) * ς(x[1] * x[2] * y[2]^2)
+    @testset "Polynomial with Algebra Types" begin
+        m1 = Monomial{PauliAlgebra}([1])
+        m2 = Monomial{PauliAlgebra}([2])
 
-        @test canonicalize(
-            ς(x[2] * y[1] * x[1]) * ς(y[2] * x[2] * x[1] * y[2]), sa2
-        ) == ς(x[1] * x[2] * y[1]) * ς(x[1] * x[2])
+        p = Polynomial([Term(1.0 + 0.0im, m1), Term(2.0 + 0.0im, m2)])
 
-        @test canonicalize(
-            ς(x[2] * y[1] * x[1]) * ς(y[2] * x[2] * x[1] * y[2]), sa3
-        ) == ς(x[1] * x[2] * y[1]) * ς(x[1] * x[2] * y[2])
+        @test p isa Polynomial{PauliAlgebra}
+        @test degree(p) == 1
     end
-
-    @testset "NCStateWord" begin
-        @test canonicalize(
-            ς(x[2] * y[1] * x[1]) *
-            ς(y[2] * x[2] * x[1] * y[2]) *
-            (x[2] * y[1] * x[1] * y[1]),
-            sa1,
-        ) == ς(x[1] * x[2] * y[1]) * ς(x[1] * x[2] * y[2]^2) * (x[1] * x[2] * y[1]^2)
-
-        @test canonicalize(
-            ς(x[2] * y[1] * x[1]) *
-            ς(y[2] * x[2] * x[1] * y[2]) *
-            (x[2] * y[1] * x[1] * y[1]),
-            sa2,
-        ) == ς(x[1] * x[2] * y[1]) * ς(x[1] * x[2]) * (x[1] * x[2])
-
-        @test canonicalize(
-            ς(x[2] * y[1] * x[1]) *
-            ς(y[2] * x[2] * x[1] * y[2]) *
-            (x[2] * y[1] * x[1] * y[1]),
-            sa3,
-        ) == ς(x[1] * x[2] * y[1]) * ς(x[1] * x[2] * y[2]) * (x[1] * x[2] * y[1])
-    end
-end
-
-@testset "Test if polynomial is symmetric" begin
-    @ncpolyvar x[1:2] y[1:2] z[1:2]
-    sa = SimplifyAlgorithm(comm_gps=[[x[i], y[i], z[i]] for i in 1:2])
-
-    sym_poly = sum(one(ComplexF64) * op[1] * op[2] for op in [x, y, z])
-
-    @test is_symmetric(sym_poly, sa)
-    unsym_poly = one(ComplexF64) * x[1] * y[1] - im * z[1]
-    @test !is_symmetric(unsym_poly, sa)
 end

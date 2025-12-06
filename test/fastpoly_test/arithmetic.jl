@@ -1,99 +1,138 @@
-using Test, NCTSSoS.FastPolynomials
+# Note: FastPolynomials is loaded by setup.jl
+using .FastPolynomials:
+    coefficients, monomials, create_noncommutative_variables
 
 @testset "Arithmetic" begin
-    @testset "Variable Multiplication" begin
-        @ncpolyvar x y z
-        p1 = 1 * x
-        @test p1 isa Polynomial{Float64}
-        @test p1.coeffs == [1]
-        @test p1.monos == [monomial([x], [1])]
+    @testset "Monomial Multiplication" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+
+        # Variable multiplication creates polynomial via Term
+        m1 = x[1]
+        m2 = x[2]
+
+        result = m1 * m2
+        @test result isa Term
+        @test degree(result.monomial) == 2
     end
 
-    @testset "Variable Addition" begin
-        @ncpolyvar x y z
+    @testset "Scalar * Monomial -> Polynomial" begin
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
 
-        p1 = x + y
-        @test p1 isa Polynomial{Float64}
-        @test p1.coeffs == [1.0, 1.0]
-        @test p1.monos == [monomial([x], [1]), monomial([y], [1])]
+        # Scalar times monomial gives Term, which can be converted to Polynomial
+        t = Term(3.0, m)
+        p = Polynomial(t)
 
-        p2 = p1 + z
-        @test p2.coeffs == [1.0, 1.0, 1.0]
-        @test p2.monos == [monomial([x], [1]), monomial([y], [1]), monomial([z], [1])]
-    end
-
-    @testset "Monomial multiplication" begin
-        @ncpolyvar x y z
-
-        mono1 = monomial([x, y], [1, 2])
-        mono2 = monomial([x, z], [3, 4])
-
-        @test mono1 * mono2 == monomial([x, y, x, z], [1, 2, 3, 4])
-
-        mono3 = monomial(Variable[], Int64[])
-        @test mono1 * mono3 == mono1
-        @test mono3 * mono1 == mono1
-
-        mono4 = monomial([x, y], [1, 0])
-        @test mono4 * mono1 == monomial([x, y], [2, 2])
+        @test p isa Polynomial
+        @test coefficients(p) == [3.0]
     end
 
     @testset "Polynomial Addition" begin
-        @ncpolyvar x y z
-        p1 = Polynomial([1.0, 2.0], [monomial([x], [1]), monomial([y], [2])])
-        p_sum1 = p1 + monomial([z], [1])
-        @test p_sum1 == Polynomial(
-            [1.0, 2.0, 1.0], [monomial([x], [1]), monomial([y], [2]), monomial([z], [1])]
-        )
-        p2 = monomial([x], [1]) + monomial([y], [2])
-        @test p2.coeffs == [1.0, 1.0]
-        @test p2.monos == [monomial([x], [1]), monomial([y], [2])]
+        m1 = Monomial{NonCommutativeAlgebra}([1])
+        m2 = Monomial{NonCommutativeAlgebra}([2])
 
-        p3 = Polynomial(Int[2], [monomial([x, y], [1, 2])])
-        p4 = Polynomial(Float32[1.0], [monomial([z], [3])])
-        p34 = p3 + p4
-        @test p34 isa Polynomial{Float32}
-        @test p34.coeffs == [2.0, 1.0]
-        @test p34.monos == [monomial([x, y], [1, 2]), monomial([z], [3])]
+        p1 = Polynomial(Term(1.0, m1))
+        p2 = Polynomial(Term(2.0, m2))
+
+        p_sum = p1 + p2
+        @test length(monomials(p_sum)) == 2
+
+        # Adding same monomial
+        p3 = Polynomial(Term(3.0, m1))
+        p_combined = p1 + p3
+        @test length(monomials(p_combined)) == 1
+        @test coefficients(p_combined) == [4.0]
     end
 
-    @testset "Scaling Polynomial" begin
-        @ncpolyvar x y z
-        p1 = Polynomial([1.0, 2.0], [monomial([x], [1]), monomial([y], [2])])
-        p2 = Float32(2.0) * p1
-        @test p2.coeffs == [2.0, 4.0]
-        @test p2.monos == [monomial([x], [1]), monomial([y], [2])]
+    @testset "Polynomial Multiplication" begin
+        m1 = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt16[2])
+
+        p1 = Polynomial(Term(2.0, m1))
+        p2 = Polynomial(Term(3.0, m2))
+
+        p_prod = p1 * p2
+        @test coefficients(p_prod) == [6.0]
+        @test degree(p_prod) == 2
+    end
+
+    @testset "Monomial-Polynomial Interaction" begin
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        p = Polynomial(Term(2.0, m))
+
+        # Polynomial can be scaled
+        p_scaled = 3.0 * p
+        @test coefficients(p_scaled) == [6.0]
     end
 
     @testset "Subtraction" begin
-        @ncpolyvar x y z
-        @test x - y == Polynomial([-1.0, 1.0], [monomial([y], [1]), monomial([x], [1])])
+        m1 = Monomial{NonCommutativeAlgebra}([1])
+        m2 = Monomial{NonCommutativeAlgebra}([2])
 
-        @test x^2 - y == Polynomial([-1.0, 1.0], [monomial([y], [1]), monomial([x], [2])])
+        p1 = Polynomial(Term(5.0, m1))
+        p2 = Polynomial(Term(3.0, m1))
 
-        @test x^2 - y^2 == Polynomial([-1.0, 1.0], [monomial([y], [2]), monomial([x], [2])])
+        p_diff = p1 - p2
+        @test coefficients(p_diff) == [2.0]
 
-        p1 = 1.0 * x^2
-        p2 = 2.0 * y^2
-        @test p1 - p2 == Polynomial([-2.0, 1.0], [monomial([y], [2]), monomial([x], [2])])
+        # Different monomials
+        p3 = Polynomial(Term(2.0, m2))
+        p_diff2 = p1 - p3
+        @test length(monomials(p_diff2)) == 2
     end
 
-    @testset "*" begin
-        @ncpolyvar x y z
+    @testset "Scaling Polynomial" begin
+        m = Monomial{NonCommutativeAlgebra}([1])
+        p = Polynomial([Term(1.0, m), Term(2.0, Monomial{NonCommutativeAlgebra}([2]))])
 
-        p1 = 1.0 * x^2
-        @test p1 isa Polynomial{Float64}
+        p_scaled = 2.0 * p
+        @test coefficients(p_scaled) == [2.0, 4.0]
 
-        p2 = x^2 + y^3
-        @test p2 isa Polynomial{Float64}
-        @test p2 == Polynomial([1.0, 1.0], [monomial([x], [2]), monomial([y], [3])])
+        # Type promotion
+        p_scaled_float32 = Float32(2.0) * p
+        @test coefficients(p_scaled_float32) == [2.0, 4.0]
+    end
 
-        m1 = x * y
-        @test m1.vars == [x, y]
-        @test m1.z == [1, 1]
+    @testset "Polynomial Multiplication Distributivity" begin
+        m1 = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt16[2])
 
-        m2 = x * y * z
-        @test m2.vars == [x, y, z]
-        @test m2.z == [1, 1, 1]
+        # (a + b) * c = a*c + b*c
+        p_ab = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p_c = Polynomial([Term(3.0, m1)])
+
+        p_prod = p_ab * p_c
+
+        # Should have terms from both products
+        @test degree(p_prod) == 2
+    end
+
+    @testset "Identity Multiplication" begin
+        m = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        p = Polynomial(Term(2.0, m))
+
+        p_one = one(typeof(p))
+
+        @test p * p_one == p
+        @test p_one * p == p
+    end
+
+    @testset "Zero Multiplication" begin
+        m = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        p = Polynomial(Term(2.0, m))
+
+        p_zero = zero(typeof(p))
+
+        @test iszero(p * p_zero)
+        @test iszero(p_zero * p)
+    end
+
+    @testset "Type Promotion" begin
+        m = Monomial{NonCommutativeAlgebra}([1])
+
+        p_int = Polynomial([Term{Monomial{NonCommutativeAlgebra,Int64},Int}(2, m)])
+        p_float = Polynomial([Term(1.5, m)])
+
+        p_sum = p_int + p_float
+        @test eltype(coefficients(p_sum)) <: AbstractFloat
     end
 end

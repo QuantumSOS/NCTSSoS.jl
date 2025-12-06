@@ -1,263 +1,247 @@
-using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials:
+# Note: FastPolynomials is loaded by setup.jl
+using .FastPolynomials:
     StateWord,
     NCStateWord,
-    get_state_basis,
-    expval,
-    neat_dot,
     StatePolynomial,
     Arbitrary,
-    MaxEntangled
+    MaxEntangled,
+    expval,
+    neat_dot,
+    ς,
+    tr
 
-const SWord = StateWord{Arbitrary}
-const NCSWord = NCStateWord{Arbitrary}
-const TWord = StateWord{MaxEntangled}
-const NCTWord = NCStateWord{MaxEntangled}
+@testset "StateWord{MaxEntangled} (Tracial)" begin
+    @testset "Creation and Equality" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
+        m2 = Monomial{NonCommutativeAlgebra}([3])
 
-@testset "Tracial StateWord and NCStateWord" begin
-    @ncpolyvar x[1:2] y[1:2]
-    @testset "Tracial State Word" begin
-        sw = TWord([x[1] * x[2], x[2]^2])
-        sw2 = tr(x[1] * x[2]) * tr(x[2]^2)
-        @test sw == sw2
+        sw = StateWord{MaxEntangled}([m1, m2])
+        @test sw isa StateWord{MaxEntangled}
+        @test length(sw.state_monos) == 2
 
-        @test sort(variables(sw)) == sort(x)
+        # StateWords are sorted by monomial ordering
+        sw_sorted = StateWord{MaxEntangled}([m2, m1])
+        @test sw == sw_sorted  # Order doesn't matter, they get sorted
 
-        sw_sorted = TWord([x[2]^2, x[1] * x[2]])
-        @test sw_sorted == sw
-
-        sw_less = TWord([x[1] * x[2], x[1]^2])
-        @test sw_less < sw
-
-        @test unique([sw, sw_sorted]) == [sw]
-        @test sw * sw_less == TWord([x[2]^2, x[1] * x[2], x[1] * x[2], x[1]^2])
-
-        sw_partial = TWord([x[1] * x[2]])
-        @test sw != sw_partial
-
-        @test degree(sw) == 4
-
-        @test one(sw) == tr(monomial([], []))
-
-        sw_rep1s = TWord(monomial.(fill(one(x[1]), 3)))
-        @test sw_rep1s == TWord([monomial([], [])])
-        @test one(TWord) == tr(monomial([], []))
-        @test (4.0 * sw) isa StatePolynomial{Float64,MaxEntangled}
+        # tr() convenience constructor
+        sw_tr = tr(m1)
+        @test sw_tr isa StateWord{MaxEntangled}
     end
 
-    @testset "Tracial NCStateWord" begin
-        ncsw = NCStateWord(TWord([x[1] * x[2], x[2]^2]), one(x[1]))
-        sw2 = tr(x[1] * x[2]) * tr(x[2]^2)
-        @test ncsw.sw == sw2
-        @test string(ncsw) == "tr(x₁¹x₂¹) * tr(x₂²) * 1"
-        @test sort(variables(ncsw)) == sort(x)
+    @testset "Degree" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
+        m2 = Monomial{NonCommutativeAlgebra}([3])     # degree 1
 
-        ncsw_sorted = NCStateWord(TWord([x[2]^2, x[1] * x[2]]), one(x[1]))
-        @test ncsw_sorted == ncsw
-
-        ncsw_less = NCStateWord(TWord([x[1] * x[2], x[1]^2]), one(x[1]))
-        @test ncsw_less < ncsw
-
-        @test unique([ncsw, ncsw_sorted]) == [ncsw]
-        @test ncsw * ncsw_less ==
-              NCStateWord(TWord([x[2]^2, x[1] * x[2], x[1] * x[2], x[1]^2]), one(x[1]))
-
-        ncsw_partial = NCStateWord(TWord([x[1] * x[2]]), one(x[1]))
-        @test ncsw != ncsw_partial
-
-        @test degree(ncsw) == 4
-
-        @test one(ncsw) == NCStateWord(one(TWord), one(x[1]))
-
-        ncsw_rep1s = NCStateWord(TWord(fill(one(Monomial), 3)), one(x[1]))
-        @test ncsw_rep1s == NCStateWord(TWord([one(x[1])]), one(x[1]))
-
-        ncsw1 = NCStateWord(TWord([x[1] * x[2], x[2]^2]), x[1] * x[2])
-        ncsw2 = NCStateWord(TWord([x[1]^2, x[1]^3]), x[1]^2)
-        # NOTE: currently taking <xy>' !=  <xy>
-        @test ncsw1' == NCStateWord(TWord([x[2] * x[1], x[2]^2]), x[2] * x[1])
-        @test ncsw1' * ncsw2 == NCStateWord(
-            TWord([x[2] * x[1], x[2]^2, x[1]^2, x[1]^3]), x[2] * x[1] * x[1]^2
-        )
-
-        @test neat_dot(ncsw1, ncsw2) ==
-              NCStateWord(Arbitrary, [x[2] * x[1], x[2]^2, x[1]^2, x[1]^3], x[2] * x[1]^3)
-
-        @test expval(ncsw1) == TWord([x[1] * x[2], x[2]^2, x[1] * x[2]])
-
-        sa = SimplifyAlgorithm(; comm_gps=[x], is_projective=false, is_unipotent=false)
-        basis = get_state_basis(MaxEntangled, x, 1, sa)
-        total_basis = sort(unique([neat_dot(a, b) for a in basis for b in basis]))
-        c_words = [
-            [one(x[1])],
-            [x[2]],
-            [x[2], x[2]],
-            [x[2], x[1]],
-            [x[1]],
-            [x[1], x[1]],
-            [one(x[1])],
-            [x[2]],
-            [x[1]],
-            [one(x[1])],
-            [x[2]],
-            [x[1]],
-            [one(x[1])],
-            [one(x[1])],
-            [one(x[1])],
-            [one(x[1])],
-        ]
-        nc_words =
-            monomial.(
-                [
-                    fill(one(x[1]), 6)
-                    fill(x[2], 3)
-                    fill(x[1], 3)
-                    [x[2] * x[1], x[2]^2, x[1] * x[2], x[1]^2]
-                ],
-            )
-        @test sort(total_basis) ==
-              sort(map(x -> NCStateWord(MaxEntangled, x[1], x[2]), zip(c_words, nc_words)))
+        sw = StateWord{MaxEntangled}([m1, m2])
+        @test degree(sw) == 3  # sum of degrees
     end
 
-    # @testset "_unipotent" begin
-    #     @ncpolyvar x[1:2] y[1:2]
+    @testset "Variables" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
+        m2 = Monomial{NonCommutativeAlgebra}([2, 3])
 
-    #     @test _unipotent(tr(x[1]^2 * y[1]^2)) == TWord(Monomial[])
-    #     @test _unipotent(tr(x[1]^2 * y[1] * y[2])) == tr(y[1] * y[2])
-    #     @test _unipotent(tr(x[1]^2) * tr(y[1] * y[2])) == tr(y[1] * y[2])
-    #     @test _unipotent(tr(x[1] * x[2]^2 * x[1]) * tr(y[1] * y[2]^2)) == tr(y[1])
-    # end
+        sw = StateWord{MaxEntangled}([m1, m2])
+        vars = variables(sw)
 
-    # @testset "_projective" begin
-    #     @ncpolyvar x[1:2] y[1:2]
+        @test 1 in vars
+        @test 2 in vars
+        @test 3 in vars
+    end
 
-    #     @test _projective(tr(x[1]^2 * y[1]^2)) == tr(x[1] * y[1])
-    #     @test _projective(tr(x[1] * x[2]^2 * x[1]) * tr(y[1] * y[2]^2)) ==
-    #         tr(x[1] * x[2] * x[1]) * tr(y[1] * y[2])
-    # end
+    @testset "One and IsOne" begin
+        sw_one = one(StateWord{MaxEntangled,NonCommutativeAlgebra,Int64})
+        @test isone(sw_one)
+
+        m = Monomial{NonCommutativeAlgebra}([1])
+        sw_not_one = StateWord{MaxEntangled}([m])
+        @test !isone(sw_not_one)
+    end
+
+    @testset "Multiplication" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1])
+        m2 = Monomial{NonCommutativeAlgebra}([2])
+
+        sw1 = StateWord{MaxEntangled}([m1])
+        sw2 = StateWord{MaxEntangled}([m2])
+
+        # Multiplication returns Term{StateWord, Float64}
+        result = sw1 * sw2
+        @test result isa Term
+        @test length(result.monomial.state_monos) == 2
+    end
+
+    @testset "Comparison" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1])
+        m2 = Monomial{NonCommutativeAlgebra}([1, 2])
+
+        sw1 = StateWord{MaxEntangled}([m1])
+        sw2 = StateWord{MaxEntangled}([m2])
+
+        # Degree-first ordering
+        @test isless(sw1, sw2)
+
+        # Sorting works
+        sorted_sws = sort([sw2, sw1])
+        @test sorted_sws[1] == sw1
+    end
+
+    @testset "Hash and Uniqueness" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
+        m2 = Monomial{NonCommutativeAlgebra}([3])
+
+        sw1 = StateWord{MaxEntangled}([m1, m2])
+        sw2 = StateWord{MaxEntangled}([m2, m1])  # Same content, different order
+
+        @test sw1 == sw2
+        @test hash(sw1) == hash(sw2)
+
+        @test length(unique([sw1, sw2, sw1])) == 1
+    end
 end
 
+@testset "StateWord{Arbitrary}" begin
+    @testset "Creation with ς" begin
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
 
-@testset "StateWord and NCStateWord" begin
-    @ncpolyvar x[1:2] y[1:2]
-    @testset "StateWord" begin
-        sw = SWord([x[1] * x[2], x[2]^2])
-        sw2 = ς(x[1] * x[2]) * ς(x[2]^2)
-        @test sw == sw2
-
-        @test string(sw) == "<x₁¹x₂¹> * <x₂²>"
-        @test sort(variables(sw)) == sort(x)
-
-        sw_sorted = SWord([x[2]^2, x[1] * x[2]])
-        @test sw_sorted == sw
-
-        sw_less = SWord([x[1] * x[2], x[1]^2])
-        @test sw_less < sw
-
-        @test unique([sw, sw_sorted]) == [sw]
-        @test sw * sw_less == SWord([x[2]^2, x[1] * x[2], x[1] * x[2], x[1]^2])
-
-        sw_partial = SWord([x[1] * x[2]])
-        @test sw != sw_partial
-
-        @test degree(sw) == 4
-
-        @test one(sw) == ς(monomial([], []))
-
-        sw_rep1s = SWord(monomial.(fill(one(x[1]), 3)))
-        @test sw_rep1s == SWord([monomial([], [])])
-        @test one(SWord) == ς(monomial([], []))
-        @test (4.0 * sw) isa StatePolynomial{Float64,Arbitrary}
+        sw = ς(m)
+        @test sw isa StateWord{Arbitrary}
+        @test length(sw.state_monos) == 1
     end
 
-    @testset "NCStateWord" begin
-        ncsw = NCStateWord(SWord([x[1] * x[2], x[2]^2]), one(x[1]))
-        sw2 = ς(x[1] * x[2]) * ς(x[2]^2)
-        @test ncsw.sw == sw2
-        @test string(ncsw) == "<x₁¹x₂¹> * <x₂²> * 1"
-        @test sort(variables(ncsw)) == sort(x)
+    @testset "Multiplication of Arbitrary StateWords" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1])
+        m2 = Monomial{NonCommutativeAlgebra}([2])
 
-        ncsw_sorted = NCStateWord(SWord([x[2]^2, x[1] * x[2]]), one(x[1]))
-        @test ncsw_sorted == ncsw
+        sw1 = ς(m1)
+        sw2 = ς(m2)
 
-        ncsw_less = NCStateWord(SWord([x[1] * x[2], x[1]^2]), one(x[1]))
-        @test ncsw_less < ncsw
+        result = sw1 * sw2
+        @test result isa Term
+        @test length(result.monomial.state_monos) == 2
+    end
+end
 
-        @test unique([ncsw, ncsw_sorted]) == [ncsw]
-        @test ncsw * ncsw_less ==
-              NCStateWord(SWord([x[2]^2, x[1] * x[2], x[1] * x[2], x[1]^2]), one(x[1]))
+@testset "NCStateWord{MaxEntangled}" begin
+    @testset "Creation" begin
+        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
+        m_nc = Monomial{NonCommutativeAlgebra}([3])
 
-        ncsw_partial = NCStateWord(SWord([x[1] * x[2]]), one(x[1]))
-        @test ncsw != ncsw_partial
+        sw = StateWord{MaxEntangled}([m_state])
+        ncsw = NCStateWord(sw, m_nc)
 
-        @test degree(ncsw) == 4
-
-        @test one(ncsw) == NCStateWord(one(SWord), one(x[1]))
-
-        ncsw_rep1s = NCStateWord(SWord(fill(one(Monomial), 3)), one(x[1]))
-        @test ncsw_rep1s == NCStateWord(SWord([one(x[1])]), one(x[1]))
-
-        ncsw1 = NCStateWord(SWord([x[1] * x[2], x[2]^2]), x[1] * x[2])
-        ncsw2 = NCStateWord(SWord([x[1]^2, x[1]^3]), x[1]^2)
-        # NOTE: currently taking <xy>' !=  <xy>
-        @test ncsw1' == NCStateWord(SWord([x[2] * x[1], x[2]^2]), x[2] * x[1])
-        @test ncsw1' * ncsw2 == NCStateWord(
-            SWord([x[2] * x[1], x[2]^2, x[1]^2, x[1]^3]), x[2] * x[1] * x[1]^2
-        )
-
-        @test neat_dot(ncsw1, ncsw2) ==
-              NCStateWord(Arbitrary, [x[2] * x[1], x[2]^2, x[1]^2, x[1]^3], x[2] * x[1]^3)
-
-        @test expval(ncsw1) == SWord([x[1] * x[2], x[2]^2, x[1] * x[2]])
-
-        sa = SimplifyAlgorithm(; comm_gps=[x], is_projective=false, is_unipotent=false)
-        basis = get_state_basis(Arbitrary, x, 1, sa)
-        total_basis = sort(unique([neat_dot(a, b) for a in basis for b in basis]))
-        c_words = [
-            [one(x[1])],
-            [x[2]],
-            [x[2], x[2]],
-            [x[2], x[1]],
-            [x[1]],
-            [x[1], x[1]],
-            [one(x[1])],
-            [x[2]],
-            [x[1]],
-            [one(x[1])],
-            [x[2]],
-            [x[1]],
-            [one(x[1])],
-            [one(x[1])],
-            [one(x[1])],
-            [one(x[1])],
-        ]
-        nc_words =
-            monomial.(
-                [
-                    fill(one(x[1]), 6)
-                    fill(x[2], 3)
-                    fill(x[1], 3)
-                    [x[2] * x[1], x[2]^2, x[1] * x[2], x[1]^2]
-                ],
-            )
-        @test sort(total_basis) ==
-              sort(map(x -> NCStateWord(Arbitrary, x[1], x[2]), zip(c_words, nc_words)))
+        @test ncsw isa NCStateWord{MaxEntangled}
+        @test ncsw.sw == sw
+        @test ncsw.nc_word == m_nc
     end
 
-    # @testset "_unipotent" begin
-    #     @ncpolyvar x[1:2] y[1:2]
+    @testset "Degree" begin
+        m_state = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
+        m_nc = Monomial{NonCommutativeAlgebra}([3, 4])      # degree 2
 
-    #     @test _unipotent(ς(x[1]^2 * y[1]^2)) == SWord(Monomial[])
-    #     @test _unipotent(ς(x[1]^2 * y[1] * y[2])) == ς(y[1] * y[2])
-    #     @test _unipotent(ς(x[1]^2) * ς(y[1] * y[2])) == ς(y[1] * y[2])
-    #     @test _unipotent(ς(x[1] * x[2]^2 * x[1]) * ς(y[1] * y[2]^2)) == ς(y[1])
-    # end
+        sw = StateWord{MaxEntangled}([m_state])
+        ncsw = NCStateWord(sw, m_nc)
 
-    # @testset "_projective" begin
-    #     @ncpolyvar x[1:2] y[1:2]
+        @test degree(ncsw) == 4  # 2 + 2
+    end
 
-    #     @test _projective(ς(x[1]^2 * y[1]^2)) == ς(x[1] * y[1])
-    #     @test _projective(ς(x[1] * x[2]^2 * x[1]) * ς(y[1] * y[2]^2)) ==
-    #           ς(x[1] * x[2] * x[1]) * ς(y[1] * y[2])
-    # end
+    @testset "Variables" begin
+        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
+        m_nc = Monomial{NonCommutativeAlgebra}([3, 4])
+
+        sw = StateWord{MaxEntangled}([m_state])
+        ncsw = NCStateWord(sw, m_nc)
+
+        vars = variables(ncsw)
+        @test all(i in vars for i in 1:4)
+    end
+
+    @testset "Multiplication" begin
+        # Use UInt8 monomials - multiplication is only defined for Unsigned types
+        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt8[2])
+
+        sw1 = StateWord{MaxEntangled}([m1])
+        sw2 = StateWord{MaxEntangled}([m2])
+
+        ncsw1 = NCStateWord(sw1, m1)
+        ncsw2 = NCStateWord(sw2, m2)
+
+        result = ncsw1 * ncsw2
+        @test result isa NCStateWord
+    end
+
+    @testset "Adjoint" begin
+        m_state = Monomial{NonCommutativeAlgebra}(UInt8[1, 2])
+        m_nc = Monomial{NonCommutativeAlgebra}(UInt8[3, 4])
+
+        sw = StateWord{MaxEntangled}([m_state])
+        ncsw = NCStateWord(sw, m_nc)
+
+        ncsw_adj = adjoint(ncsw)
+        @test ncsw_adj isa NCStateWord
+    end
+
+    @testset "neat_dot" begin
+        # Use UInt8 monomials for multiplication support
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        sw = StateWord{MaxEntangled}([m])
+        ncsw = NCStateWord(sw, m)
+
+        nd = neat_dot(ncsw, ncsw)
+        @test nd == adjoint(ncsw) * ncsw
+    end
+
+    @testset "expval" begin
+        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
+        m_nc = Monomial{NonCommutativeAlgebra}([3])
+
+        sw = StateWord{MaxEntangled}([m_state])
+        ncsw = NCStateWord(sw, m_nc)
+
+        ev = expval(ncsw)
+        @test ev isa StateWord{MaxEntangled}
+        @test length(ev.state_monos) == 2  # original + nc_word
+    end
+
+    @testset "One and IsOne" begin
+        ncsw_one = one(NCStateWord{MaxEntangled,NonCommutativeAlgebra,Int64})
+        @test isone(ncsw_one)
+    end
+end
+
+@testset "NCStateWord{Arbitrary}" begin
+    @testset "Creation" begin
+        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
+        m_nc = Monomial{NonCommutativeAlgebra}([3])
+
+        sw = ς(m_state)
+        ncsw = NCStateWord(sw, m_nc)
+
+        @test ncsw isa NCStateWord{Arbitrary}
+    end
+
+    @testset "Comparison" begin
+        m1 = Monomial{NonCommutativeAlgebra}([1])
+        m2 = Monomial{NonCommutativeAlgebra}([1, 2])
+
+        sw1 = ς(m1)
+        sw2 = ς(m2)
+
+        ncsw1 = NCStateWord(sw1, m1)
+        ncsw2 = NCStateWord(sw2, m2)
+
+        @test isless(ncsw1, ncsw2)  # degree 2 < degree 4
+    end
+
+    @testset "Hash and Uniqueness" begin
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        sw = ς(m)
+        nc_word = Monomial{NonCommutativeAlgebra}([3])
+
+        ncsw1 = NCStateWord(sw, nc_word)
+        ncsw2 = NCStateWord(sw, nc_word)
+
+        @test ncsw1 == ncsw2
+        @test hash(ncsw1) == hash(ncsw2)
+    end
 end

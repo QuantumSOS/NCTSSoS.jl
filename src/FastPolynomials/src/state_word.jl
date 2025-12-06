@@ -98,6 +98,26 @@ function StateWord{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:
     StateWord{ST}([m])
 end
 
+"""
+    StateWord{ST,A,T}() where {ST,A,T}
+
+Construct the identity StateWord (representing the constant 1).
+Contains only the identity monomial.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> sw = StateWord{Arbitrary,PauliAlgebra,Int}();
+
+julia> isone(sw)
+true
+```
+"""
+function StateWord{ST,A,T}() where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    StateWord{ST}([one(Monomial{A,T})])
+end
+
 # =============================================================================
 # Identity and Zero
 # =============================================================================

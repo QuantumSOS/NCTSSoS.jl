@@ -465,9 +465,12 @@ julia> support(p)
 support(p::Polynomial) = monomials(p)
 
 """
-    variables(p::Polynomial) -> Set
+    variable_indices(p::Polynomial) -> Set
 
 Get the set of all variable indices used in the polynomial's monomials.
+Returns a Set of integer indices.
+
+For legacy NCTSSoS code that needs Vector{Variable}, use `variables(p)` instead.
 
 # Examples
 ```jldoctest
@@ -479,14 +482,14 @@ julia> m2 = Monomial{PauliAlgebra}([2, 3]);
 
 julia> p = Polynomial([Term(1.0+0im, m1), Term(1.0+0im, m2)]);
 
-julia> variables(p)
+julia> variable_indices(p)
 Set{Int64} with 3 elements:
   2
   3
   1
 ```
 """
-function variables(p::Polynomial{A,T,C}) where {A,T,C}
+function variable_indices(p::Polynomial{A,T,C}) where {A,T,C}
     result = Set{T}()
     for t in p.terms
         for idx in t.monomial.word

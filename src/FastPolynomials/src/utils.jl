@@ -167,6 +167,10 @@ end
 # This compatibility layer allows old code to work during migration.
 #
 
+# Global registry to store variable name mappings (index -> Symbol)
+# Must be defined before Variable struct since constructors use it
+const _VAR_INDEX_TO_NAME = Dict{Int, Symbol}()
+
 """
     Variable
 
@@ -193,10 +197,14 @@ struct Variable
     function Variable(name::Symbol; iscomplex::Bool=false)
         # Use a simple counter based on hash for consistent ordering
         idx = hash(name) % 10000
+        # Register the name for reverse lookup
+        _VAR_INDEX_TO_NAME[idx] = name
         new(name, iscomplex, idx)
     end
 
     function Variable(name::Symbol, iscomplex::Bool, index::Int)
+        # Register the name for reverse lookup
+        _VAR_INDEX_TO_NAME[index] = name
         new(name, iscomplex, index)
     end
 end
@@ -238,9 +246,11 @@ function Base.:*(a::Variable, b::Variable)
 end
 
 # Scalar * Variable -> Polynomial
+# Always promote coefficient to ComplexF64 to avoid type issues with im
 function Base.:*(c::Number, v::Variable)
     m = to_monomial(v)
-    Polynomial([Term(c, m)])
+    coef = ComplexF64(c)  # Promote to avoid Complex{Bool} etc
+    Polynomial([Term(coef, m)])
 end
 Base.:*(v::Variable, c::Number) = c * v
 
@@ -297,9 +307,104 @@ function Base.:*(p::Polynomial{A,T,C}, v::Variable) where {A,T,C}
     p * to_polynomial(v, C)
 end
 
-# Note: The `variables(p::Polynomial)` function returns Set{T} of indices
-# (defined in polynomial.jl). For legacy NCTSSoS code that needs Variable[],
-# use `legacy_variables(p)` instead.
+# =============================================================================
+# Legacy variables() function for NCTSSoS compatibility
+# =============================================================================
+#
+# The new API's `variables(p::Polynomial)` returns Set{T} of indices.
+# The old API's `variables(p)` returned Vector{Variable}.
+# For NCTSSoS code compatibility, we override the polynomial.jl version.
+
+# Note: _VAR_INDEX_TO_NAME is defined earlier with Variable struct
+
+"""
+    variables(p::Polynomial) -> Vector{Variable}
+
+Extract all unique variables from a polynomial, returning Variable structs.
+This shadows the polynomial.jl version to return Variable[] for legacy compatibility.
+"""
+function variables(p::Polynomial{A,T,C}) where {A,T,C}
+    result = Variable[]
+    seen = Set{T}()
+    for t in p.terms
+        for idx in t.monomial.word
+            abs_idx = abs(idx)
+            if abs_idx ∉ seen
+                push!(seen, abs_idx)
+                # Look up the original name if available
+                name = get(_VAR_INDEX_TO_NAME, Int(abs_idx), Symbol("x", abs_idx))
+                push!(result, Variable(name, false, Int(abs_idx)))
+            end
+        end
+    end
+    sort!(result)
+    return result
+end
+
+"""
+    variables(v::Variable) -> Vector{Variable}
+
+Return a single-element vector containing the variable.
+"""
+variables(v::Variable) = [v]
+
+"""
+    variables(sp::StatePolynomial{C,ST,A,T}) -> Vector{Variable}
+
+Extract all unique variables from a StatePolynomial, returning Variable structs.
+"""
+function variables(sp::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    result = Variable[]
+    seen = Set{Int}()
+    for sw in sp.state_words
+        for mono in sw.state_monos
+            for idx in mono.word
+                abs_idx = Int(abs(idx))
+                if abs_idx ∉ seen
+                    push!(seen, abs_idx)
+                    name = get(_VAR_INDEX_TO_NAME, abs_idx, Symbol("x", abs_idx))
+                    push!(result, Variable(name, false, abs_idx))
+                end
+            end
+        end
+    end
+    sort!(result)
+    return result
+end
+
+"""
+    variables(ncsp::NCStatePolynomial{C,ST,A,T}) -> Vector{Variable}
+
+Extract all unique variables from an NCStatePolynomial, returning Variable structs.
+"""
+function variables(ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    result = Variable[]
+    seen = Set{Int}()
+    for ncsw in ncsp.nc_state_words
+        # From the nc_word (non-commutative part)
+        for idx in ncsw.nc_word.word
+            abs_idx = Int(abs(idx))
+            if abs_idx ∉ seen
+                push!(seen, abs_idx)
+                name = get(_VAR_INDEX_TO_NAME, abs_idx, Symbol("x", abs_idx))
+                push!(result, Variable(name, false, abs_idx))
+            end
+        end
+        # From the sw (StateWord part)
+        for mono in ncsw.sw.state_monos
+            for idx in mono.word
+                abs_idx = Int(abs(idx))
+                if abs_idx ∉ seen
+                    push!(seen, abs_idx)
+                    name = get(_VAR_INDEX_TO_NAME, abs_idx, Symbol("x", abs_idx))
+                    push!(result, Variable(name, false, abs_idx))
+                end
+            end
+        end
+    end
+    sort!(result)
+    return result
+end
 
 # Variable to StateWord conversion
 """
@@ -310,6 +415,20 @@ Create a StateWord{Arbitrary} from a Variable.
 function ς(v::Variable)
     m = to_monomial(v)
     StateWord{Arbitrary}(m)
+end
+
+"""
+    ς(p::Polynomial{A,T,C}) -> StatePolynomial
+
+Create a StatePolynomial from a Polynomial.
+Converts each term's monomial to a StateWord{Arbitrary}.
+"""
+function ς(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    isempty(p.terms) && return StatePolynomial(C[], StateWord{Arbitrary,A,T}[])
+
+    state_words = [StateWord{Arbitrary}(t.monomial) for t in p.terms]
+    coeffs = C[t.coefficient for t in p.terms]
+    StatePolynomial(coeffs, state_words)
 end
 
 # =============================================================================
@@ -451,7 +570,7 @@ function canonicalize(sw::StateWord{ST,A,T}, sa::SimplifyAlgorithm) where {ST<:S
 end
 
 # =============================================================================
-# Legacy monomial(var) function
+# Legacy monomial functions
 # =============================================================================
 
 """
@@ -464,6 +583,66 @@ New code should use Monomial{AlgebraType}([index]) directly.
 """
 function monomial(v::Variable)
     Monomial{NonCommutativeAlgebra}([v.index])
+end
+
+"""
+    monomial(vars::Vector{Variable}, exponents::Vector{Int}) -> Monomial
+
+Legacy function to create a monomial from variables and exponents.
+Creates a word by repeating each variable index according to its exponent.
+
+# Example
+```julia
+@ncpolyvar x[1:2]
+m = monomial([x[1], x[2]], [2, 1])  # Creates x1*x1*x2
+```
+
+# Note
+New code should use Monomial{AlgebraType}([indices...]) directly.
+"""
+function monomial(vars::Vector{Variable}, exponents::Vector{Int})
+    @assert length(vars) == length(exponents) "vars and exponents must have same length"
+    word = Int[]
+    for (v, e) in zip(vars, exponents)
+        for _ in 1:e
+            push!(word, v.index)
+        end
+    end
+    Monomial{NonCommutativeAlgebra}(word)
+end
+
+"""
+    Base.one(::Type{Monomial}) -> Monomial{NonCommutativeAlgebra,Int}
+
+Create the identity monomial (empty word) for the generic Monomial type.
+This is needed for legacy NCTSSoS code that uses `one(Monomial)`.
+"""
+Base.one(::Type{Monomial}) = Monomial{NonCommutativeAlgebra}(Int[])
+
+# =============================================================================
+# Legacy Polynomial constructor (coeffs, monomials)
+# =============================================================================
+
+"""
+    Polynomial(coeffs::Vector, monos::Vector{Monomial{A,T}}) -> Polynomial{A,T,C}
+
+Legacy constructor to create a Polynomial from separate coefficient and monomial vectors.
+
+# Example
+```julia
+@ncpolyvar x[1:2]
+p = Polynomial([1.0, 2.0], [monomial(x[1]), monomial(x[2])])
+```
+
+# Note
+New code should use `Polynomial([Term(c, m), ...])` directly.
+"""
+function Polynomial(
+    coeffs::AbstractVector{C}, monos::Vector{Monomial{A,T}}
+) where {C<:Number,A<:AlgebraType,T<:Integer}
+    @assert length(coeffs) == length(monos) "coeffs and monomials must have same length"
+    terms = [Term(C(c), m) for (c, m) in zip(coeffs, monos)]
+    Polynomial(terms)
 end
 
 # =============================================================================

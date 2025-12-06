@@ -289,6 +289,24 @@ function Base.:-(v::Variable)
     Polynomial([Term(-one(C), to_monomial(v))])
 end
 
+# Variable - Number -> Polynomial
+function Base.:-(v::Variable, c::Number)
+    C = ComplexF64
+    id_mono = one(Monomial{NonCommutativeAlgebra,UInt})
+    Polynomial([Term(one(C), to_monomial(v)), Term(C(-c), id_mono)])
+end
+
+# one(Variable) - returns constant 1 polynomial
+"""
+    Base.one(::Variable) -> Polynomial
+
+Return the constant polynomial 1.
+"""
+function Base.one(::Variable)
+    C = ComplexF64
+    Polynomial([Term(one(C), one(Monomial{NonCommutativeAlgebra,UInt}))])
+end
+
 # Variable ^ n -> Polynomial
 function Base.:^(v::Variable, n::Integer)
     n < 0 && throw(ArgumentError("Cannot raise Variable to negative power"))
@@ -364,6 +382,26 @@ end
 Return a single-element vector containing the variable.
 """
 variables(v::Variable) = [v]
+
+"""
+    variables(m::Monomial{A,T}) -> Vector{Variable}
+
+Extract all unique variables from a monomial, returning Variable structs.
+"""
+function variables(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    result = Variable[]
+    seen = Set{Int}()
+    for idx in m.word
+        abs_idx = Int(abs(idx))
+        if abs_idx ∉ seen
+            push!(seen, abs_idx)
+            name = get(_VAR_INDEX_TO_NAME, abs_idx, Symbol("x", abs_idx))
+            push!(result, Variable(name, false, abs_idx))
+        end
+    end
+    sort!(result)
+    return result
+end
 
 """
     variables(sp::StatePolynomial{C,ST,A,T}) -> Vector{Variable}

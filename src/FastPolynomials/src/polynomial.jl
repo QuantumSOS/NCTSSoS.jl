@@ -784,6 +784,41 @@ function Base.:(/)(p::Polynomial{A,T,C}, c::Number) where {A<:AlgebraType,T<:Int
 end
 
 """
+    Base.:(+)(p::Polynomial, c::Number)
+
+Add a scalar to a polynomial (adds constant term).
+"""
+function Base.:(+)(p::Polynomial{A,T,C}, c::Number) where {A<:AlgebraType,T<:Integer,C<:Number}
+    NC = promote_type(typeof(c), C)
+    # Create constant term with identity monomial
+    const_term = Term(NC(c), one(Monomial{A,T}))
+    const_poly = Polynomial([const_term])
+    # Convert p to new coefficient type and add
+    p_converted = Polynomial([Term(NC(t.coefficient), t.monomial) for t in p.terms])
+    p_converted + const_poly
+end
+Base.:(+)(c::Number, p::Polynomial) = p + c
+
+"""
+    Base.:(-)(c::Number, p::Polynomial)
+
+Subtract a polynomial from a scalar.
+"""
+function Base.:(-)(c::Number, p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    NC = promote_type(typeof(c), C)
+    const_term = Term(NC(c), one(Monomial{A,T}))
+    const_poly = Polynomial([const_term])
+    const_poly + (-p)
+end
+
+"""
+    Base.:(-)(p::Polynomial, c::Number)
+
+Subtract a scalar from a polynomial.
+"""
+Base.:(-)(p::Polynomial, c::Number) = p + (-c)
+
+"""
     Base.:(^)(p::Polynomial, n::Int)
 
 Raise polynomial to integer power using binary exponentiation (power by squaring).

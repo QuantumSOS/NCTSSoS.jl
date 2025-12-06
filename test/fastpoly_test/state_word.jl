@@ -1,5 +1,5 @@
 # Note: FastPolynomials is loaded by setup.jl
-using .FastPolynomials:
+using NCTSSoS.FastPolynomials:
     StateWord,
     NCStateWord,
     StatePolynomial,

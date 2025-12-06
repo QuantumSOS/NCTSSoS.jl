@@ -1,5 +1,5 @@
 # Note: FastPolynomials is loaded by setup.jl
-using .FastPolynomials:
+using NCTSSoS.FastPolynomials:
     VariableRegistry,
     create_noncommutative_variables,
     create_pauli_variables,

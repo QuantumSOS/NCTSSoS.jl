@@ -193,3 +193,44 @@ Base.:*(t::Term, c::Number) = c * t
 Negation of a term.
 """
 Base.:-(t::Term{M,C}) where {M,C} = Term{M,C}(-t.coefficient, t.monomial)
+
+"""
+    Base.iterate(t::Term) -> Tuple
+    Base.iterate(t::Term, state) -> Tuple or nothing
+
+Enable tuple-like iteration over a Term, yielding (coefficient, monomial).
+This allows destructuring syntax like `(coef, mono) = term`.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> t = Term(2.5 + 0.0im, m);
+
+julia> coef, mono = t;
+
+julia> coef
+2.5 + 0.0im
+
+julia> mono.word
+2-element Vector{Int64}:
+ 1
+ 2
+```
+"""
+function Base.iterate(t::Term)
+    (t.coefficient, 1)
+end
+
+function Base.iterate(t::Term, state::Int)
+    if state == 1
+        (t.monomial, 2)
+    else
+        nothing
+    end
+end
+
+# Also define length for completeness
+Base.length(::Term) = 2

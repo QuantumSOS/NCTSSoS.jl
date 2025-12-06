@@ -403,34 +403,18 @@ function variables(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     return result
 end
 
-"""
-    variables(sp::StatePolynomial{C,ST,A,T}) -> Vector{Variable}
+# NOTE: We intentionally do NOT override variables() for StatePolynomial here.
+# StatePolynomial tests use integer indices directly, so they need the original
+# implementation from state_polynomial.jl which returns Set{T}.
 
-Extract all unique variables from a StatePolynomial, returning Variable structs.
-"""
-function variables(sp::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
-    result = Variable[]
-    seen = Set{Int}()
-    for sw in sp.state_words
-        for mono in sw.state_monos
-            for idx in mono.word
-                abs_idx = Int(abs(idx))
-                if abs_idx ∉ seen
-                    push!(seen, abs_idx)
-                    name = get(_VAR_INDEX_TO_NAME, abs_idx, Symbol("x", abs_idx))
-                    push!(result, Variable(name, false, abs_idx))
-                end
-            end
-        end
-    end
-    sort!(result)
-    return result
-end
+# However, NCStatePolynomial is used by NCTSSoS via polyopt() which expects
+# Vector{Variable} for compatibility with comm_gps. So we override it here.
 
 """
     variables(ncsp::NCStatePolynomial{C,ST,A,T}) -> Vector{Variable}
 
 Extract all unique variables from an NCStatePolynomial, returning Variable structs.
+This is needed for NCTSSoS polyopt() compatibility with comm_gps parameter.
 """
 function variables(ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
     result = Variable[]
@@ -598,6 +582,26 @@ Returns the monomial as-is (simplification is done during construction in new AP
 """
 function simplify!(m::Monomial{A,T}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer}
     m
+end
+
+"""
+    simplify(p::Polynomial, sa::SimplifyAlgorithm) -> Polynomial
+
+Legacy wrapper for polynomial simplification with SimplifyAlgorithm.
+Returns the polynomial as-is (simplification is done during construction in new API).
+"""
+function simplify(p::Polynomial{A,T,C}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer,C<:Number}
+    p  # Already simplified during construction
+end
+
+"""
+    simplify!(p::Polynomial, sa::SimplifyAlgorithm) -> Polynomial
+
+Legacy wrapper for in-place polynomial simplification with SimplifyAlgorithm.
+Returns the polynomial as-is (simplification is done during construction in new API).
+"""
+function simplify!(p::Polynomial{A,T,C}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer,C<:Number}
+    p
 end
 
 # StateWord simplification

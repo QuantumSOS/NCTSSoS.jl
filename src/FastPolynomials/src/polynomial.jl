@@ -759,6 +759,36 @@ Scalar multiplication (scalar on right).
 Base.:(*)(p::Polynomial, c::Number) = c * p
 
 """
+    Base.:(*)(c::Number, m::Monomial{A,T}) where {A,T}
+
+Scalar multiplication of a monomial. Returns a Polynomial with a single term.
+This is useful for constructing polynomials from scalar-monomial expressions.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> p = 3.0 * m;
+
+julia> coefficients(p)[1]
+3.0
+```
+"""
+function Base.:(*)(c::Number, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    iszero(c) && return Polynomial{A,T,typeof(c)}(Term{Monomial{A,T},typeof(c)}[])
+    Polynomial([Term(c, m)])
+end
+
+"""
+    Base.:(*)(m::Monomial, c::Number)
+
+Scalar multiplication of a monomial (monomial on left).
+"""
+Base.:(*)(m::Monomial, c::Number) = c * m
+
+"""
     Base.:(/)(p::Polynomial, c::Number)
 
 Divide polynomial by scalar.

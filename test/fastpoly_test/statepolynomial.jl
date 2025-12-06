@@ -1,5 +1,5 @@
 # Note: FastPolynomials is loaded by setup.jl
-using .FastPolynomials:
+using NCTSSoS.FastPolynomials:
     StateWord,
     NCStateWord,
     StatePolynomial,
@@ -320,6 +320,9 @@ end
         ncsp = NCStatePolynomial([1.0], [ncsw])
 
         vars = variables(ncsp)
-        @test all(i in vars for i in 1:4)
+        # NCStatePolynomial.variables() returns Vector{Variable} for NCTSSoS compatibility
+        # Check that we have 4 variables with indices 1-4
+        @test length(vars) == 4
+        @test all(v.index in 1:4 for v in vars)
     end
 end

@@ -1,5 +1,5 @@
 # Note: FastPolynomials is loaded by setup.jl
-using .FastPolynomials:
+using NCTSSoS.FastPolynomials:
     coefficients, monomials, terms, support, create_noncommutative_variables
 
 @testset "Polynomial" begin
@@ -107,10 +107,13 @@ using .FastPolynomials:
         p = Polynomial([Term(1.0, m1), Term(1.0, m2)])
 
         vars = variables(p)
-        @test 1 in vars
-        @test 2 in vars
-        @test 3 in vars
+        # variables() returns Vector{Variable} for NCTSSoS compatibility
+        # Check that we have 3 variables with indices 1, 2, 3
         @test length(vars) == 3
+        var_indices = Set(v.index for v in vars)
+        @test 1 in var_indices
+        @test 2 in var_indices
+        @test 3 in var_indices
     end
 
     @testset "Zero and One" begin

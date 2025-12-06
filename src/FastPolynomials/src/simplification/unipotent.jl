@@ -220,3 +220,94 @@ function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra
     result = Monomial{UnipotentAlgebra,T}(vcat(w1, w2), zero(UInt64))
     simplify!(result)
 end
+
+"""
+    Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
+
+Multiply two unipotent monomials with signed integer indices (legacy fallback).
+
+For signed integers, we cannot use site-based encoding, so we fall back to
+simple concatenation with consecutive duplicate removal (U²=I).
+
+This is provided for backward compatibility with NCTSSoS legacy code that
+uses `Int` indices instead of encoded unsigned indices.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m1 = Monomial{UnipotentAlgebra}(Int[1]);
+
+julia> m2 = Monomial{UnipotentAlgebra}(Int[2]);
+
+julia> t = m1 * m2;
+
+julia> t.coefficient
+1.0
+
+julia> t.monomial.word == Int[1, 2]
+true
+
+julia> t2 = m1 * m1;  # U² = I
+
+julia> isempty(t2.monomial.word)
+true
+```
+"""
+function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
+    w1, w2 = m1.word, m2.word
+
+    # Handle empty cases
+    isempty(w1) && return Term(1.0, m2)
+    isempty(w2) && return Term(1.0, m1)
+
+    # Simple concatenation with U²=I (consecutive duplicate removal)
+    result_word = T[]
+
+    # Process w1
+    for idx in w1
+        if !isempty(result_word) && result_word[end] == idx
+            pop!(result_word)  # U² = I
+        else
+            push!(result_word, idx)
+        end
+    end
+
+    # Process w2
+    for idx in w2
+        if !isempty(result_word) && result_word[end] == idx
+            pop!(result_word)  # U² = I
+        else
+            push!(result_word, idx)
+        end
+    end
+
+    result = Monomial{UnipotentAlgebra,T}(result_word, zero(UInt64))
+    return Term(1.0, result)
+end
+
+"""
+    Base.adjoint(m::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
+
+Compute the adjoint of a unipotent monomial with signed indices.
+
+Unipotent operators are self-adjoint (U = U†), so adjoint only reverses the word.
+This overrides the default signed behavior which would also negate indices.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{UnipotentAlgebra}(Int[1, 2, 3]);
+
+julia> adjoint(m).word
+3-element Vector{Int64}:
+ 3
+ 2
+ 1
+```
+"""
+function Base.adjoint(m::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
+    new_word = reverse(m.word)
+    Monomial{UnipotentAlgebra}(new_word)
+end

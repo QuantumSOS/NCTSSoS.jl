@@ -1,5 +1,5 @@
 # Note: FastPolynomials is loaded by setup.jl
-using .FastPolynomials:
+using NCTSSoS.FastPolynomials:
     coefficients, monomials, create_noncommutative_variables
 
 @testset "Arithmetic" begin

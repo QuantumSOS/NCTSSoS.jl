@@ -256,6 +256,21 @@ function Base.isless(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType
     return m1.word < m2.word
 end
 
+# Cross-type comparison: convert to common type for comparison
+# This is needed when comparing monomials from different sources (e.g., basis with Int vs user polynomial with UInt)
+function Base.isless(m1::Monomial{A,T1}, m2::Monomial{A,T2}) where {A<:AlgebraType,T1<:Integer,T2<:Integer}
+    T = promote_type(T1, T2)
+    # Compare by degree first (graded ordering)
+    length(m1.word) != length(m2.word) && return length(m1.word) < length(m2.word)
+    # Then lexicographic on word vectors (convert element by element)
+    for (i, j) in zip(m1.word, m2.word)
+        i_conv = T(abs(i))  # Use abs to handle signed/unsigned conversion
+        j_conv = T(abs(j))
+        i_conv != j_conv && return i_conv < j_conv
+    end
+    return false  # Equal monomials
+end
+
 # =============================================================================
 # Adjoint / Star Operations
 # =============================================================================

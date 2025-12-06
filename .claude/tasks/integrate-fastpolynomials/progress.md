@@ -107,3 +107,84 @@ Task initialized, ready for research phase
 **Commit:** `68638f2` - test(fastpoly): migrate all test files to new FastPolynomials API
 
 ---
+
+## Session: 2025-12-06 - Phase 3 Partial (Steps 14-17)
+
+**Agent:** polyglot-implementation-engineer
+**Feature:** Phase 3 - NCTSSoS Source Migration
+
+### Actions
+
+1. **Step 14: Update NCTSSoS.jl imports (DONE)**
+   - Added legacy compatibility layer in `src/FastPolynomials/src/utils.jl`
+   - Created SimplifyAlgorithm struct for backward compatibility
+   - Created Variable struct for old API compatibility
+   - Added @ncpolyvar macro for variable declaration
+   - Added sorted_union, sorted_unique utility functions
+   - Added _neat_dot3 for moment matrix construction
+   - Added monomial(var) function
+   - Added get_basis legacy wrapper
+   - Added is_symmetric legacy wrapper
+   - Updated NCTSSoS.jl imports to use both new and legacy APIs
+   - **Commit:** `refactor(core): add legacy compatibility layer for NCTSSoS integration`
+
+2. **Step 15: Update gns.jl (DONE)**
+   - Updated imports to use parameterized Monomial types
+   - Fixed hankel_entries_dict and construct_localizing_matrix signatures
+   - Added signed integer support for NonCommutativeAlgebra multiplication
+   - Fixed neat_dot and _neat_dot3 to return Monomial (not Term) for legacy compat
+   - **Commit:** `refactor(gns): update gns.jl for new FastPolynomials API`
+
+3. **Step 16: Update solver_utils.jl (DONE)**
+   - Checked file - doesn't use FastPolynomials, no changes needed
+
+4. **Step 17: Update remaining source files (PARTIAL)**
+   - Added Variable arithmetic operations (*, +, -, ^) producing Polynomial
+   - Added ς(Variable) for StateWord creation
+   - Fixed export ambiguity - removed Monomial/Polynomial/Term/Variable exports from NCTSSoS
+   - Fixed @ncpolyvar macro import in test setup
+   - **Commit:** `refactor(source): add Variable arithmetic and fix export ambiguities`
+
+### Test Results
+- 350 FastPolynomials tests: PASS
+- 15 NCTSSoS integration tests: PASS
+- 47 NCTSSoS tests: FAIL (remaining issues below)
+- 3 additional test failures (Aqua stale deps, DocTest, polynomial variables test)
+
+### Remaining Issues for Phase 4
+1. **Polynomial type parameter mismatch**
+   - Old API: `AbstractPolynomial{T}` (coefficient type only)
+   - New API: `Polynomial{A,T,C}` (algebra, index, coefficient types)
+   - polyopt/cpolyopt expect `AbstractPolynomial{T}` but receive `Polynomial{A,T,C}`
+
+2. **Coefficient type promotion**
+   - Variable arithmetic produces `Polynomial{..., ComplexF64}`
+   - Operations with `im` create `Complex{Bool}` coefficients
+   - Mixing these types causes constructor errors
+
+3. **Missing ς(Polynomial) implementation**
+   - ς is only defined for Variable, not Polynomial
+   - Some tests need ς(polynomial expression)
+
+4. **Aqua.jl stale dependencies warning**
+   - Test warning about stale dependencies
+
+### Outcome
+- Phase 3 Steps 14-16 complete
+- Phase 3 Step 17 partially complete
+- Legacy compatibility layer working for basic operations
+- Module loads, basic Variable arithmetic works
+- Need further type system work in Phase 4
+
+### Next Steps
+- Fix Polynomial type parameter handling in pop.jl/cpolyopt
+- Implement ς(Polynomial) for state polynomial creation
+- Fix coefficient type promotion in Variable arithmetic
+- Update remaining failing tests
+
+**Commits:**
+- `refactor(core): add legacy compatibility layer for NCTSSoS integration`
+- `refactor(gns): update gns.jl for new FastPolynomials API`
+- `refactor(source): add Variable arithmetic and fix export ambiguities`
+
+---

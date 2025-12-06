@@ -7,11 +7,33 @@ import CliqueTrees.cliquetree
 
 include("FastPolynomials/src/FastPolynomials.jl")
 using .FastPolynomials
-using .FastPolynomials: AbstractPolynomial, Variable, Monomial
 
-using .FastPolynomials: sorted_union, monomials, sorted_unique, maxdegree, get_basis, neat_dot, _neat_dot3, monomials, coefficients, terms, expval
+# Import types (new and legacy compatibility)
+using .FastPolynomials: Monomial, Polynomial, Term
+using .FastPolynomials: AlgebraType, NonCommutativeAlgebra, PauliAlgebra
+using .FastPolynomials: UnipotentAlgebra, ProjectorAlgebra, FermionicAlgebra, BosonicAlgebra
+using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomial
+using .FastPolynomials: Arbitrary, MaxEntangled
 
+# Import legacy compatibility types
+using .FastPolynomials: AbstractPolynomial, Variable, SimplifyAlgorithm
+
+# Import functions
+using .FastPolynomials: sorted_union, sorted_unique
+using .FastPolynomials: monomials, coefficients, terms, degree, maxdegree, variables
+using .FastPolynomials: get_basis, get_ncbasis, get_ncbasis_deg
+using .FastPolynomials: simplify, simplify!, canonicalize
+using .FastPolynomials: neat_dot, _neat_dot3, expval
+using .FastPolynomials: star, star!
+using .FastPolynomials: monomial
+
+# Export the macro (needs special handling)
+using .FastPolynomials: @ncpolyvar
+
+# Re-export key types and functions for downstream users
 export @ncpolyvar, ς
+export Monomial, Polynomial, Term, Variable
+export SimplifyAlgorithm
 export polyopt, cpolyopt
 export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination

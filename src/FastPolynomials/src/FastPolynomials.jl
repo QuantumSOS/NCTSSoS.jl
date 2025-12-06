@@ -31,6 +31,9 @@ include("state_types.jl")
 include("state_word.jl")
 include("state_polynomial.jl")
 
+# Utility functions (including legacy compatibility)
+include("utils.jl")
+
 # Exports
 export VariableRegistry
 export AbstractMonomial, Monomial, ComposedMonomial
@@ -66,5 +69,12 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 
 # Variable registry helpers
 export symbols, indices
+
+# Legacy compatibility exports (for NCTSSoS migration)
+export SimplifyAlgorithm, Variable, AbstractPolynomial
+export sorted_union, sorted_unique
+export get_basis, _neat_dot3
+export monomial
+export @ncpolyvar
 
 end

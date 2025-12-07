@@ -1,7 +1,9 @@
-# FastPolynomials test suite
-# This loads FastPolynomials directly (NCTSSoS migration is Phase 3)
+using Test
+# Use FastPolynomials from NCTSSoS (loaded by runtests.jl via `using NCTSSoS`)
+using NCTSSoS.FastPolynomials
 
-include("setup.jl")
+# Import @ncpolyvar explicitly to avoid ambiguity
+import NCTSSoS.FastPolynomials: @ncpolyvar
 
 @testset "FastPolynomials" begin
     include("variables.jl")
@@ -10,6 +12,7 @@ include("setup.jl")
     include("arithmetic.jl")
     include("compare.jl")
     include("simplify.jl")
+    include("basis.jl")
     include("state_word.jl")
     include("statepolynomial.jl")
     include("utils.jl")

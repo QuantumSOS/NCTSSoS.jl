@@ -6,6 +6,7 @@ using NCTSSoS.FastPolynomials
 import NCTSSoS.FastPolynomials: @ncpolyvar
 
 @testset "FastPolynomials" begin
+    include("algebra_types.jl")
     include("variables.jl")
     include("monomials.jl")
     include("term.jl")

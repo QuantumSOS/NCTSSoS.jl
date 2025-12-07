@@ -38,11 +38,11 @@ Rewrite `basis.jl` to use `VariableRegistry` for type consistency and correct va
 - Local tests: Confirmed a₁a₁† → degree-0 + degree-2 split
 
 ## NEXT ACTION
-**Implement Step 1: Add algebra type to VariableRegistry{A,T}**
+**Implement Step 2: Rewrite get_ncbasis with canonical-direct generation**
 
 ## Handoff Summary
-- **Completed**: Plan validated and revised (commit 60da30a)
+- **Completed**: Step 1 - VariableRegistry{A,T} (commits f8949af, a1c4acf)
 - **Key Finding**: Must generate canonical words DIRECTLY, not simplify non-canonical words
 - **Key Finding**: Degree-d basis must contain ONLY degree-d monomials (no mixing)
 - **Decision Made**: VariableRegistry gets algebra type parameter {A,T}
-- **Next Step**: Delegate Step 1 implementation to polyglot-implementation-engineer
+- **Next Step**: Implement Step 2 - rewrite basis.jl to use registry-aware API

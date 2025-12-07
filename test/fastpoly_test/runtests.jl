@@ -10,6 +10,7 @@ import NCTSSoS.FastPolynomials: @ncpolyvar
     include("variables.jl")
     include("monomials.jl")
     include("term.jl")
+    include("composed_monomial.jl")
     include("polynomial.jl")
     include("arithmetic.jl")
     include("compare.jl")

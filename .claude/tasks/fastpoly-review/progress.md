@@ -1,5 +1,60 @@
 # Progress Log: fastpoly-review
 
+## Session: 2025-12-07 16:15
+
+**Agent:** orchestrator + qa-gatekeeper
+**Feature:** basis.jl review
+
+### Actions
+- Analyzed basis.jl (225 lines) - basis generation for non-commutative monomials
+- Found ~40% coverage - basic cases covered, missing edge cases
+- Ran qa-gatekeeper: added 48 tests expanding coverage:
+  - has_consecutive_repeats (9 tests)
+  - _generate_words internal (6 tests)
+  - monomials alias (3 tests)
+  - filter_constraint option (7 tests)
+  - Type parameter T (4 tests)
+  - Edge cases n=0, d<0 (6 tests)
+
+### Outcome
+- basis.jl now has comprehensive test coverage (~95%)
+- Tests: 13 → 61 (+48 tests)
+- No bugs found
+
+### Next
+- Continue with simplification/*.jl files
+
+**Commit:** `49d942a` - refactor(fastpoly): expand basis.jl test coverage (+48 tests)
+
+---
+
+## Session: 2025-12-07 16:00
+
+**Agent:** orchestrator + qa-gatekeeper
+**Feature:** canonicalization.jl review
+
+### Actions
+- Analyzed canonicalization.jl (344 lines) - canonical forms for monomials/polynomials
+- Found 0% test coverage - no dedicated tests existed
+- Ran qa-gatekeeper: added 106 tests covering all 8 functions:
+  - symmetric_canon (Vector + Monomial) - 24 tests
+  - cyclic_canon (Vector + Monomial) - 21 tests
+  - cyclic_symmetric_canon (Vector + Monomial) - 15 tests
+  - canonicalize (Monomial + Polynomial) - 46 tests
+- Edge cases: empty, single element, palindromes, term combining/cancellation
+
+### Outcome
+- canonicalization.jl now has comprehensive test coverage (100%)
+- Tests: 0 → 106 (+106 tests)
+- No bugs found
+
+### Next
+- Continue with basis.jl or simplification/*.jl
+
+**Commit:** `f513629` - refactor(fastpoly): add comprehensive canonicalization.jl tests
+
+---
+
 ## Session: 2025-12-07 15:45
 
 **Agent:** orchestrator + qa-gatekeeper

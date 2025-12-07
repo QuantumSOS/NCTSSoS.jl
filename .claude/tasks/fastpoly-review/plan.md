@@ -13,8 +13,8 @@ Systematically review each FastPolynomials source file with its corresponding te
 | `term.jl` | `term.jl` | ✅ Done |
 | `polynomial.jl` | `polynomial.jl` | ✅ Done |
 | `composed_monomial.jl` | `composed_monomial.jl` | ✅ Done |
-| `canonicalization.jl` | (in simplify.jl?) | ⬜ Pending |
-| `basis.jl` | `basis.jl` | ⬜ Pending |
+| `canonicalization.jl` | `canonicalization.jl` | ✅ Done |
+| `basis.jl` | `basis.jl` | ✅ Done |
 | `simplification/pauli.jl` | `simplify.jl` | ⬜ Pending |
 | `simplification/fermionic.jl` | `simplify.jl` | ⬜ Pending |
 | `simplification/bosonic.jl` | `simplify.jl` | ⬜ Pending |

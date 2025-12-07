@@ -93,28 +93,30 @@ end
 - [x] `_generate_all_words(indices::Vector{T}, d::Int)` - all words of degree d
 - [x] Simplify each monomial and collect terms
 
-### Step 4: Remove old API 🔧 [IN PROGRESS - 60%]
+### Step 4: Remove old API ✓ DONE (fastpoly_test scope)
 - [x] Remove old get_ncbasis(::Type{A}, n, d) from basis.jl
 - [x] Remove old get_ncbasis_deg(::Type{A}, n, d) from basis.jl
 - [x] Remove _generate_words(n, d, T) helper
 - [x] Remove monomials alias
 - [x] Remove has_consecutive_repeats
 - [x] Remove filter_constraint parameter
-- [ ] Update utils.jl get_basis wrappers
-- [ ] Update dependent code (sparse.jl, gns.jl, etc.)
+- [ ] Update utils.jl get_basis wrappers (DEFERRED)
+- [ ] Update dependent code (sparse.jl, gns.jl, etc.) (DEFERRED)
 
-### Step 5: Update tests 🔧 [IN PROGRESS - 50%]
+### Step 5: Update tests ✓ DONE (fastpoly_test scope)
 - [x] Rewrite test/fastpoly_test/basis.jl to use registry API
-- [ ] Update test/fastpoly_test/utils.jl
-- [ ] Update test/fastpoly_test/simplify.jl
-- [ ] Update test/fastpoly_test/allocations.jl
-- [ ] Update other test files using old API
+- [x] Update test/fastpoly_test/utils.jl
+- [x] Update test/fastpoly_test/simplify.jl
+- [x] Update test/fastpoly_test/allocations.jl
+- [ ] Update other test files using old API (DEFERRED - test/sparse.jl etc.)
 
-### Step 6: Update dependent code
+### Step 6: Update dependent code (DEFERRED)
 - [ ] src/sparse.jl
 - [ ] src/gns.jl
 - [ ] test/sos_solver.jl, test/moment_solver.jl, etc.
 - [ ] docs/examples
+
+**Note:** Steps 4-6 deferred for external code per user request. FastPolynomials tests (1017) all passing.
 
 ## Testing Strategy
 - Unit tests for `_generate_all_words`

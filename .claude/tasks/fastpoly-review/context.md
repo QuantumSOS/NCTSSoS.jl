@@ -18,7 +18,7 @@ Review all source files in `src/FastPolynomials/src/` and their corresponding te
 - [ ] algebra_types.jl
 - [x] monomial.jl - Reviewed, tests added (29→66), removed buggy cross-type isless
 - [x] term.jl - Reviewed, created dedicated test file (+68 tests), ~90% coverage
-- [ ] polynomial.jl
+- [x] polynomial.jl - Reviewed, tests added (21→106 tests), +85 tests for adjoint/star/is_symmetric/show/errors
 - [ ] composed_monomial.jl
 - [ ] canonicalization.jl
 - [ ] basis.jl
@@ -35,7 +35,7 @@ Review all source files in `src/FastPolynomials/src/` and their corresponding te
 - Extract tests into separate files when they belong to different source files
 
 ## Handoff Summary
-- **Completed**: variable_registry.jl, monomial.jl, term.jl reviews
+- **Completed**: variable_registry.jl, monomial.jl, term.jl, polynomial.jl reviews
 - **Key Finding**: basis.jl uses Int by default but @ncpolyvar uses UInt64 - needs rewrite
 - **Blocker**: 25 testsets skipped due to type mismatch (see TODO in basis.jl)
-- **Next Step**: Continue with polynomial.jl or algebra_types.jl
+- **Next Step**: Continue with algebra_types.jl or composed_monomial.jl

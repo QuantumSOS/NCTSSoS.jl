@@ -63,7 +63,7 @@ struct Polynomial{A<:AlgebraType,T<:Integer,C<:Number}
         input_terms::Vector{Term{Monomial{A,T},C}}
     ) where {A<:AlgebraType,T<:Integer,C<:Number}
         processed = _process_terms(input_terms, C)
-        new{A,T,C}(processed)
+        return new{A,T,C}(processed)
     end
 end
 
@@ -140,7 +140,7 @@ julia> coefficients(p)
 function Polynomial(
     input_terms::Vector{Term{Monomial{A,T},C}}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
-    Polynomial{A,T,C}(input_terms)
+    return Polynomial{A,T,C}(input_terms)
 end
 
 """
@@ -166,7 +166,7 @@ function Polynomial(t::Term{Monomial{A,T},C}) where {A<:AlgebraType,T<:Integer,C
     if iszero(t.coefficient)
         return Polynomial{A,T,C}(Term{Monomial{A,T},C}[])
     end
-    Polynomial{A,T,C}([t])
+    return Polynomial{A,T,C}([t])
 end
 
 """
@@ -188,7 +188,7 @@ julia> coefficients(p)
 ```
 """
 function Polynomial(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    Polynomial(Term(1.0, m))
+    return Polynomial(Term(1.0, m))
 end
 
 """
@@ -214,7 +214,7 @@ function Polynomial{A,T,C}(c::Number) where {A<:AlgebraType,T<:Integer,C<:Number
     if iszero(c)
         return Polynomial{A,T,C}(Term{Monomial{A,T},C}[])
     end
-    Polynomial{A,T,C}([Term(C(c), Monomial{A}(T[]))])
+    return Polynomial{A,T,C}([Term(C(c), Monomial{A}(T[]))])
 end
 
 # =============================================================================
@@ -240,7 +240,7 @@ julia> length(terms(p))
 ```
 """
 function Base.zero(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    Polynomial{A,T,C}(Term{Monomial{A,T},C}[])
+    return Polynomial{A,T,C}(Term{Monomial{A,T},C}[])
 end
 
 """
@@ -249,7 +249,7 @@ end
 Create the zero polynomial for the same type as `p`.
 """
 function Base.zero(::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    zero(Polynomial{A,T,C})
+    return zero(Polynomial{A,T,C})
 end
 
 """
@@ -272,7 +272,7 @@ julia> coefficients(p)
 ```
 """
 function Base.one(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    Polynomial{A,T,C}([Term(one(C), Monomial{A}(T[]))])
+    return Polynomial{A,T,C}([Term(one(C), Monomial{A}(T[]))])
 end
 
 """
@@ -281,7 +281,7 @@ end
 Create the multiplicative identity polynomial for the same type as `p`.
 """
 function Base.one(::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    one(Polynomial{A,T,C})
+    return one(Polynomial{A,T,C})
 end
 
 """
@@ -293,7 +293,7 @@ function Base.copy(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Num
     # Create a new Polynomial with copied terms
     # Since terms are mutable, we need to create new Term objects
     copied_terms = [Term(t.coefficient, t.monomial) for t in p.terms]
-    Polynomial{A,T,C}(copied_terms)
+    return Polynomial{A,T,C}(copied_terms)
 end
 
 """
@@ -337,7 +337,7 @@ false
 """
 function Base.isone(p::Polynomial)
     length(p.terms) == 1 || return false
-    isone(p.terms[1])
+    return isone(p.terms[1])
 end
 
 # =============================================================================
@@ -433,7 +433,7 @@ julia> degree(p)
 """
 function degree(p::Polynomial)
     isempty(p.terms) && return -1  # Convention for zero polynomial
-    maximum(degree(t.monomial) for t in p.terms)
+    return maximum(degree(t.monomial) for t in p.terms)
 end
 
 """
@@ -496,7 +496,7 @@ function variable_indices(p::Polynomial{A,T,C}) where {A,T,C}
             push!(result, abs(idx))  # abs for fermionic/bosonic (negative = annihilation)
         end
     end
-    result
+    return result
 end
 
 # =============================================================================
@@ -554,7 +554,7 @@ Display a polynomial as a sum of terms.
 function Base.show(io::IO, p::Polynomial{A,T,C}) where {A,T,C}
     if isempty(p.terms)
         print(io, "0")
-        return
+        return nothing
     end
 
     first_term = true
@@ -603,7 +603,7 @@ function Base.:(+)(
     terms1 = [Term(C(t.coefficient), t.monomial) for t in p1.terms]
     terms2 = [Term(C(t.coefficient), t.monomial) for t in p2.terms]
 
-    Polynomial(vcat(terms1, terms2))
+    return Polynomial(vcat(terms1, terms2))
 end
 
 """
@@ -614,7 +614,7 @@ Subtract two polynomials.
 function Base.:(-)(
     p1::Polynomial{A,T,C1}, p2::Polynomial{A,T,C2}
 ) where {A<:AlgebraType,T<:Integer,C1<:Number,C2<:Number}
-    p1 + (-p2)
+    return p1 + (-p2)
 end
 
 """
@@ -639,7 +639,7 @@ julia> coefficients(p_neg)[1]
 function Base.:(-)(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
     negated_terms = [Term(-t.coefficient, t.monomial) for t in p.terms]
     # No need to re-process since just negating coefficients preserves invariants
-    Polynomial{A,T,C}(negated_terms)
+    return Polynomial{A,T,C}(negated_terms)
 end
 
 """
@@ -684,15 +684,15 @@ function Base.:(*)(
 
             # Monomial multiplication - may return Term or Vector{Term}
             simplified = t1.monomial * t2.monomial
-            _add_simplified_terms!(result_terms, coef, simplified, C)
+            _add_simplified_terms!(result_terms, coef, simplified)
         end
     end
 
-    Polynomial(result_terms)
+    return Polynomial(result_terms)
 end
 
 """
-    _add_simplified_terms!(result, coef, simplified, C)
+    _add_simplified_terms!(result, coef, simplified)
 
 Helper function to add simplified monomial multiplication results.
 Handles both single Term and Vector{Term} returns from monomial simplification.
@@ -701,19 +701,14 @@ function _add_simplified_terms!(
     result::Vector{Term{Monomial{A,T},C}},
     coef::C,
     simplified::Term{Monomial{A,T},SC},
-    ::Type{C},
 ) where {A,T,C,SC}
-    combined_coef = C(coef * simplified.coefficient)
-    if !iszero(combined_coef)
-        push!(result, Term(combined_coef, simplified.monomial))
-    end
+    return _add_simplified_terms!(result, coef, [simplified])
 end
 
 function _add_simplified_terms!(
     result::Vector{Term{Monomial{A,T},C}},
     coef::C,
     simplified::Vector{Term{Monomial{A,T},SC}},
-    ::Type{C},
 ) where {A,T,C,SC}
     for term in simplified
         combined_coef = C(coef * term.coefficient)
@@ -742,13 +737,15 @@ julia> coefficients(p2)[1]
 6.0 + 0.0im
 ```
 """
-function Base.:(*)(c::Number, p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+function Base.:(*)(
+    c::Number, p::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
     iszero(c) && return zero(Polynomial{A,T,promote_type(typeof(c), C)})
 
     NC = promote_type(typeof(c), C)
     scaled_terms = [Term(NC(c * t.coefficient), t.monomial) for t in p.terms]
     # Scaling preserves invariants (sorted, unique, non-zero if original was)
-    Polynomial{A,T,NC}(scaled_terms)
+    return Polynomial{A,T,NC}(scaled_terms)
 end
 
 """
@@ -778,7 +775,7 @@ julia> coefficients(p)[1]
 """
 function Base.:(*)(c::Number, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     iszero(c) && return Polynomial{A,T,typeof(c)}(Term{Monomial{A,T},typeof(c)}[])
-    Polynomial([Term(c, m)])
+    return Polynomial([Term(c, m)])
 end
 
 """
@@ -807,10 +804,12 @@ julia> coefficients(p2)[1]
 3.0 + 0.0im
 ```
 """
-function Base.:(/)(p::Polynomial{A,T,C}, c::Number) where {A<:AlgebraType,T<:Integer,C<:Number}
+function Base.:(/)(
+    p::Polynomial{A,T,C}, c::Number
+) where {A<:AlgebraType,T<:Integer,C<:Number}
     iszero(c) && throw(DivideError())
     inv_c = inv(c)
-    inv_c * p
+    return inv_c * p
 end
 
 """
@@ -818,14 +817,16 @@ end
 
 Add a scalar to a polynomial (adds constant term).
 """
-function Base.:(+)(p::Polynomial{A,T,C}, c::Number) where {A<:AlgebraType,T<:Integer,C<:Number}
+function Base.:(+)(
+    p::Polynomial{A,T,C}, c::Number
+) where {A<:AlgebraType,T<:Integer,C<:Number}
     NC = promote_type(typeof(c), C)
     # Create constant term with identity monomial
     const_term = Term(NC(c), one(Monomial{A,T}))
     const_poly = Polynomial([const_term])
     # Convert p to new coefficient type and add
     p_converted = Polynomial([Term(NC(t.coefficient), t.monomial) for t in p.terms])
-    p_converted + const_poly
+    return p_converted + const_poly
 end
 Base.:(+)(c::Number, p::Polynomial) = p + c
 
@@ -834,11 +835,13 @@ Base.:(+)(c::Number, p::Polynomial) = p + c
 
 Subtract a polynomial from a scalar.
 """
-function Base.:(-)(c::Number, p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+function Base.:(-)(
+    c::Number, p::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
     NC = promote_type(typeof(c), C)
     const_term = Term(NC(c), one(Monomial{A,T}))
     const_poly = Polynomial([const_term])
-    const_poly + (-p)
+    return const_poly + (-p)
 end
 
 """
@@ -874,7 +877,7 @@ true
 """
 function Base.:(^)(p::Polynomial{A,T,C}, n::Int) where {A<:AlgebraType,T<:Integer,C<:Number}
     n < 0 && throw(DomainError(n, "Polynomial exponent must be non-negative"))
-    Base.power_by_squaring(p, n)
+    return Base.power_by_squaring(p, n)
 end
 
 # =============================================================================
@@ -919,7 +922,7 @@ function Base.adjoint(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:
 
     # Adjoint of polynomial: adjoint each monomial, conjugate each coefficient
     new_terms = [Term(conj(t.coefficient), adjoint(t.monomial)) for t in p.terms]
-    Polynomial(new_terms)
+    return Polynomial(new_terms)
 end
 
 """

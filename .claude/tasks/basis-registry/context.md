@@ -38,12 +38,11 @@ Rewrite `basis.jl` to use `VariableRegistry` for type consistency and correct va
 - Local tests: Confirmed a₁a₁† → degree-0 + degree-2 split
 
 ## NEXT ACTION
-**CRITICAL**: Revise plan.md to use canonical-direct generation algorithm before implementation.
-See `/Users/yushengzhao/projects/NCTSSoS-main/.claude/tasks/basis-registry/validation.md` for detailed corrections.
+**Implement Step 1: Add algebra type to VariableRegistry{A,T}**
 
 ## Handoff Summary
-- **Completed**: Plan validation with lead-researcher
-- **Key Finding**: Original algorithm fundamentally flawed - must generate canonical words directly, not via simplification
-- **Decision Made**: VariableRegistry{A,T} approved; core algorithm needs complete redesign
-- **Blocker**: Cannot proceed with implementation until plan.md is corrected
-- **Next Step**: User must review validation.md and approve revised algorithm approach
+- **Completed**: Plan validated and revised (commit 60da30a)
+- **Key Finding**: Must generate canonical words DIRECTLY, not simplify non-canonical words
+- **Key Finding**: Degree-d basis must contain ONLY degree-d monomials (no mixing)
+- **Decision Made**: VariableRegistry gets algebra type parameter {A,T}
+- **Next Step**: Delegate Step 1 implementation to polyglot-implementation-engineer

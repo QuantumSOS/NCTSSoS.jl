@@ -83,30 +83,38 @@ end
 - [x] Update all `create_*_variables` functions
 - [x] Add `algebra_type()` and `index_type()` helpers
 
-### Step 2: Rewrite `get_ncbasis` and `get_ncbasis_deg`
-- [ ] Change signature to take `VariableRegistry{A,T}`
-- [ ] Return `Vector{Term{A,T}}` instead of `Vector{Monomial{A,T}}`
-- [ ] Use `indices(registry)` to get variable indices
-- [ ] Call `_generate_basis_deg(A, indices, d)`
+### Step 2: Rewrite `get_ncbasis` and `get_ncbasis_deg` ✓ DONE
+- [x] Change signature to take `VariableRegistry{A,T}`
+- [x] Return `Vector{Term}` with ComplexF64 coefficients
+- [x] Use `indices(registry)` to get variable indices
+- [x] Call simplify for each generated word
 
-### Step 3: Implement core basis generation
-- [ ] `_generate_all_words(indices::Vector{T}, d::Int)` - all words of degree d
-- [ ] `_generate_basis_deg(::Type{A}, indices, d)` - generate + simplify
+### Step 3: Implement core basis generation ✓ DONE
+- [x] `_generate_all_words(indices::Vector{T}, d::Int)` - all words of degree d
+- [x] Simplify each monomial and collect terms
 
-### Step 4: Remove old API
-- [ ] Remove `filter_constraint` parameter (automatic via simplify)
-- [ ] Remove `T` type parameter (inferred from registry)
-- [ ] Remove `n` parameter (from registry)
-- [ ] Update `monomials` alias
+### Step 4: Remove old API 🔧 [IN PROGRESS - 60%]
+- [x] Remove old get_ncbasis(::Type{A}, n, d) from basis.jl
+- [x] Remove old get_ncbasis_deg(::Type{A}, n, d) from basis.jl
+- [x] Remove _generate_words(n, d, T) helper
+- [x] Remove monomials alias
+- [x] Remove has_consecutive_repeats
+- [x] Remove filter_constraint parameter
+- [ ] Update utils.jl get_basis wrappers
+- [ ] Update dependent code (sparse.jl, gns.jl, etc.)
 
-### Step 5: Update tests
-- [ ] Rewrite tests to use registry-based API
-- [ ] Unskip the 25 testsets that were skipped due to type mismatch
-- [ ] Add tests verifying simplification relationships
+### Step 5: Update tests 🔧 [IN PROGRESS - 50%]
+- [x] Rewrite test/fastpoly_test/basis.jl to use registry API
+- [ ] Update test/fastpoly_test/utils.jl
+- [ ] Update test/fastpoly_test/simplify.jl
+- [ ] Update test/fastpoly_test/allocations.jl
+- [ ] Update other test files using old API
 
 ### Step 6: Update dependent code
-- [ ] Find all usages of old `get_ncbasis` API
-- [ ] Update to use registry-based API
+- [ ] src/sparse.jl
+- [ ] src/gns.jl
+- [ ] test/sos_solver.jl, test/moment_solver.jl, etc.
+- [ ] docs/examples
 
 ## Testing Strategy
 - Unit tests for `_generate_all_words`

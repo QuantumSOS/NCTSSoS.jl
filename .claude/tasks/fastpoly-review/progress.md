@@ -14,16 +14,18 @@
   - Simplification logic (42 tests) - Cartesian product, type promotion
   - Display Methods (11 tests)
   - Integration Tests (22 tests) - multi-algebra compositions
+- Removed dead code `_zero_monomial` (misleading name, unused)
+- Replaced with inline logic for identity monomial extraction
 
 ### Outcome
 - composed_monomial.jl now has comprehensive test coverage (100%)
-- Tests: 0 → 98 (+98 tests)
-- No bugs found
+- Tests: 0 → 94 (+94 tests)
+- Code cleanup: removed `_zero_monomial`, inlined identity monomial logic
 
 ### Next
 - Continue with canonicalization.jl or basis.jl
 
-**Commit:** `f5fdf4e` - refactor(fastpoly): add comprehensive composed_monomial.jl tests
+**Commit:** `f5fdf4e`, `faa997e` - refactor(fastpoly): add comprehensive composed_monomial.jl tests + cleanup
 
 ---
 

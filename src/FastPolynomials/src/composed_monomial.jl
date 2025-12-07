@@ -279,7 +279,9 @@ function _expand_simplified_components(simplified::Tuple)
 
     if isempty(result)
         # Return zero term with identity monomials
-        one_components = map(_identity_monomial, simplified)
+        one_components = map(
+            x -> x isa Vector ? one(x[1].monomial) : one(x.monomial), simplified
+        )
         return [Term(zero(CoefType), ComposedMonomial(one_components))]
     end
 
@@ -306,10 +308,6 @@ end
 function _to_term_vector(ts::Vector{<:Term})
     return [(t.coefficient, t.monomial) for t in ts]
 end
-
-# Get identity monomial from simplified result (handles both Term and Vector{Term})
-_identity_monomial(t::Term) = one(t.monomial)
-_identity_monomial(ts::Vector{<:Term}) = one(first(ts).monomial)
 
 # Recursive Cartesian product builder
 function _cartesian_product!(

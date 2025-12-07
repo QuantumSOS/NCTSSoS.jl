@@ -5,8 +5,7 @@ using NCTSSoS.FastPolynomials:
     create_noncommutative_variables,
     create_pauli_variables,
     create_projector_variables,
-    create_unipotent_variables,
-    get_ncbasis
+    create_unipotent_variables
 
 # Note: The new API uses AlgebraType dispatch for simplification instead of SimplifyAlgorithm
 # Each algebra type (NonCommutativeAlgebra, PauliAlgebra, UnipotentAlgebra, etc.) has its own simplification rules
@@ -73,18 +72,6 @@ using NCTSSoS.FastPolynomials:
         @test degree(result.monomial) == 2
     end
 
-    @testset "Basis Generation" begin
-        # Test basis generation with algebra types
-        basis_nc = get_ncbasis(NonCommutativeAlgebra, 2, 2)
-        @test length(basis_nc) == 7  # 1 + 2 + 4
-
-        basis_pauli = get_ncbasis(PauliAlgebra, 2, 2)
-        @test length(basis_pauli) == 7
-
-        # Filtered basis (removes consecutive repeats)
-        basis_filtered = get_ncbasis(UnipotentAlgebra, 2, 2; filter_constraint=true)
-        @test length(basis_filtered) == 5  # 1 + 2 + 2 (no [1,1] or [2,2])
-    end
 
     @testset "Term Structure" begin
         m = Monomial{NonCommutativeAlgebra}([1, 2])

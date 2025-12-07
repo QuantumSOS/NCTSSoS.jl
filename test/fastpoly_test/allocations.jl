@@ -4,7 +4,8 @@ using NCTSSoS.FastPolynomials:
     create_noncommutative_variables,
     get_ncbasis,
     coefficients,
-    monomials
+    monomials,
+    indices
 
 # Note: Allocation tests for the new API
 # The new implementation uses AlgebraType dispatch instead of SimplifyAlgorithm
@@ -106,9 +107,10 @@ end
 end
 
 @testset "Basis Generation Consistency" begin
-    # Test that repeated basis generation produces consistent results
-    basis1 = get_ncbasis(NonCommutativeAlgebra, 2, 2)
-    basis2 = get_ncbasis(NonCommutativeAlgebra, 2, 2)
+    # Test that repeated basis generation produces consistent results (registry-based API)
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    basis1 = get_ncbasis(reg, 2)
+    basis2 = get_ncbasis(reg, 2)
 
     @test length(basis1) == length(basis2)
     @test basis1 == basis2

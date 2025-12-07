@@ -9,8 +9,8 @@ Systematically review each FastPolynomials source file with its corresponding te
 |-------------|-----------|--------|
 | `variable_registry.jl` | `variables.jl` | ✅ Done |
 | `algebra_types.jl` | (no dedicated test) | ⬜ Pending |
-| `monomial.jl` | `monomials.jl` | ⬜ Pending |
-| `term.jl` | (in polynomial.jl?) | ⬜ Pending |
+| `monomial.jl` | `monomials.jl` | ✅ Done |
+| `term.jl` | `term.jl` | ✅ Done |
 | `polynomial.jl` | `polynomial.jl` | ⬜ Pending |
 | `composed_monomial.jl` | (no dedicated test) | ⬜ Pending |
 | `canonicalization.jl` | (in simplify.jl?) | ⬜ Pending |

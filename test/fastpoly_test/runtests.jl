@@ -8,6 +8,7 @@ import NCTSSoS.FastPolynomials: @ncpolyvar
 @testset "FastPolynomials" begin
     include("variables.jl")
     include("monomials.jl")
+    include("term.jl")
     include("polynomial.jl")
     include("arithmetic.jl")
     include("compare.jl")

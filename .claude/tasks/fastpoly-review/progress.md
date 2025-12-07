@@ -1,5 +1,40 @@
 # Progress Log: fastpoly-review
 
+## Session: 2025-12-07 14:15
+
+**Agent:** orchestrator + qa-gatekeeper
+**Feature:** term.jl review
+
+### Actions
+- Analyzed term.jl (237 lines) - defines `Term{M,C}` struct pairing coefficient with monomial
+- Term tests were scattered across simplify.jl, allocations.jl, polynomial.jl (indirect usage only)
+- Ran qa-gatekeeper: identified ~35-40% coverage with critical gaps
+- Created dedicated `test/fastpoly_test/term.jl` test file (+68 tests)
+- Added tests for 11 testsets:
+  - Construction (basic struct creation)
+  - isone (identity term detection)
+  - iszero (zero coefficient detection)
+  - Equality (cross-type, same-type comparisons)
+  - one(Type) and zero(Type) constructors
+  - Scalar Multiplication (with type promotion)
+  - Negation (double negation, zero negation)
+  - Display (show) - all 6 output branches
+  - Iteration Protocol (destructuring, collect, manual iteration)
+  - Mutability (coefficient modification)
+- Added term.jl to runtests.jl
+
+### Outcome
+- term.jl now has comprehensive test coverage (~90%)
+- All 13 functions in term.jl now have explicit tests
+- FastPolynomials test count: 441 → 509 (+68)
+
+### Next
+- Continue with polynomial.jl or algebra_types.jl
+
+**Commit:** `d26f281` - refactor(fastpoly): add comprehensive term.jl tests (+68 tests)
+
+---
+
 ## Session: 2025-12-07 13:50
 
 **Agent:** orchestrator + qa-gatekeeper

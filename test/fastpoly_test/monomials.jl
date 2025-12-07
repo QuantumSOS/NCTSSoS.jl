@@ -1,5 +1,5 @@
 # Note: FastPolynomials is loaded by setup.jl
-using NCTSSoS.FastPolynomials: star, star!, adjoint!, create_noncommutative_variables
+using Test, NCTSSoS.FastPolynomials
 
 @testset "Monomials" begin
     @testset "Creation" begin

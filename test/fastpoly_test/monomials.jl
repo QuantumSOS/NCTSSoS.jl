@@ -1,5 +1,5 @@
 # Note: FastPolynomials is loaded by setup.jl
-using NCTSSoS.FastPolynomials: star, create_noncommutative_variables
+using NCTSSoS.FastPolynomials: star, star!, adjoint!, create_noncommutative_variables
 
 @testset "Monomials" begin
     @testset "Creation" begin
@@ -134,5 +134,158 @@ using NCTSSoS.FastPolynomials: star, create_noncommutative_variables
         @test mono_pauli isa Monomial{PauliAlgebra}
         @test mono_fermi isa Monomial{FermionicAlgebra}
         @test mono_unipotent isa Monomial{UnipotentAlgebra}
+    end
+
+    @testset "adjoint! for Signed Types" begin
+        # Test signed type negation (critical for Fermionic/Bosonic algebras)
+        word_signed = Int32[1, -2, 3]
+        adjoint!(word_signed)
+        @test word_signed == Int32[-3, 2, -1]
+
+        # Test with all positive indices
+        word_pos = Int64[1, 2, 3]
+        adjoint!(word_pos)
+        @test word_pos == Int64[-3, -2, -1]
+
+        # Test with all negative indices
+        word_neg = Int32[-1, -2, -3]
+        adjoint!(word_neg)
+        @test word_neg == Int32[3, 2, 1]
+
+        # Test empty word
+        word_empty = Int32[]
+        adjoint!(word_empty)
+        @test word_empty == Int32[]
+
+        # Test single element
+        word_single = Int64[5]
+        adjoint!(word_single)
+        @test word_single == Int64[-5]
+
+        # Test unsigned types (should only reverse, not negate)
+        word_unsigned = UInt16[1, 2, 3]
+        adjoint!(word_unsigned)
+        @test word_unsigned == UInt16[3, 2, 1]
+    end
+
+    @testset "star! Direct Tests" begin
+        # Verify star! is correctly aliased to adjoint!
+        word_unsigned = UInt16[1, 2, 3]
+        star!(word_unsigned)
+        @test word_unsigned == UInt16[3, 2, 1]
+
+        # Test star! for signed types
+        word_signed = Int32[1, -2, 3]
+        star!(word_signed)
+        @test word_signed == Int32[-3, 2, -1]
+
+        # Verify star! and adjoint! produce identical results
+        word1 = Int64[1, 2, 3]
+        word2 = Int64[1, 2, 3]
+        adjoint!(word1)
+        star!(word2)
+        @test word1 == word2
+    end
+
+    @testset "Adjoint for Fermionic/Signed Types" begin
+        # Test FermionicAlgebra adjoint (reverses AND negates)
+        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2, 3])
+        m_adj = adjoint(m_ferm)
+        @test m_adj.word == Int32[-3, 2, -1]
+
+        # Verify involution property for signed types: adjoint(adjoint(m)) == m
+        m_ferm2 = Monomial{FermionicAlgebra}(Int32[1, -2, 3, -4])
+        @test adjoint(adjoint(m_ferm2)) == m_ferm2
+
+        # Empty fermionic monomial
+        m_empty = Monomial{FermionicAlgebra}(Int32[])
+        @test isone(adjoint(m_empty))
+
+        # Single element
+        m_single = Monomial{FermionicAlgebra}(Int32[5])
+        @test adjoint(m_single).word == Int32[-5]
+
+        # star() should also work for signed types
+        @test star(m_ferm) == m_adj
+    end
+
+    @testset "one(m::Monomial) Instance Method" begin
+        # Test instance method preserves algebra type
+        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 2, 3])
+        @test one(m_pauli) == Monomial{PauliAlgebra}(UInt16[])
+        @test typeof(one(m_pauli)) == Monomial{PauliAlgebra,UInt16}
+
+        # Test with FermionicAlgebra
+        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2])
+        @test one(m_ferm) == Monomial{FermionicAlgebra}(Int32[])
+        @test typeof(one(m_ferm)) == Monomial{FermionicAlgebra,Int32}
+
+        # Test that one(m) returns identity
+        @test isone(one(m_pauli))
+        @test isone(one(m_ferm))
+
+        # Verify one(type) and one(instance) return same result
+        @test one(Monomial{PauliAlgebra,UInt16}) == one(m_pauli)
+    end
+
+    @testset "Monomial Default Constructor" begin
+        # Test default constructor uses NonCommutativeAlgebra
+        m = Monomial([1, 2, 3])
+        @test m isa Monomial{NonCommutativeAlgebra}
+        @test m.word == [1, 2, 3]
+
+        # Test with different integer types
+        m_int32 = Monomial(Int32[1, 2])
+        @test m_int32 isa Monomial{NonCommutativeAlgebra,Int32}
+
+        m_uint16 = Monomial(UInt16[1, 2])
+        @test m_uint16 isa Monomial{NonCommutativeAlgebra,UInt16}
+
+        # Test zero filtering in default constructor
+        m_zeros = Monomial([1, 0, 2, 0])
+        @test m_zeros.word == [1, 2]
+
+        # Empty default constructor
+        m_empty = Monomial(Int[])
+        @test isone(m_empty)
+    end
+
+    @testset "Zero Filtering Edge Cases" begin
+        # Leading zeros
+        m1 = Monomial{NonCommutativeAlgebra}([0, 0, 1, 2])
+        @test m1.word == [1, 2]
+
+        # Trailing zeros
+        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 0, 0])
+        @test m2.word == [1, 2]
+
+        # All zeros -> identity
+        m3 = Monomial{NonCommutativeAlgebra}([0, 0, 0])
+        @test isone(m3)
+
+        # Mixed zeros throughout
+        m4 = Monomial{NonCommutativeAlgebra}([0, 1, 0, 2, 0, 3, 0])
+        @test m4.word == [1, 2, 3]
+
+        # Single zero
+        m5 = Monomial{NonCommutativeAlgebra}([0])
+        @test isone(m5)
+    end
+
+    @testset "Cross-Algebra Type Equality" begin
+        # Same word, different algebras should never be equal
+        word = [1, 2, 3]
+        m_pauli = Monomial{PauliAlgebra}(word)
+        m_unipotent = Monomial{UnipotentAlgebra}(word)
+        m_projector = Monomial{ProjectorAlgebra}(word)
+
+        @test m_pauli != m_unipotent
+        @test m_pauli != m_projector
+        @test m_unipotent != m_projector
+
+        # Different algebras with different integer types
+        m_fermi = Monomial{FermionicAlgebra}(Int32.(word))
+        @test m_pauli != m_fermi
+        @test m_unipotent != m_fermi
     end
 end

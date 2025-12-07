@@ -16,7 +16,7 @@ Review all source files in `src/FastPolynomials/src/` and their corresponding te
 ## Progress
 - [x] variable_registry.jl - Reviewed, tests added (61→114), removed `monomial_ring`
 - [ ] algebra_types.jl
-- [ ] monomial.jl
+- [x] monomial.jl - Reviewed, tests added (29→66), removed buggy cross-type isless
 - [ ] term.jl
 - [ ] polynomial.jl
 - [ ] composed_monomial.jl
@@ -35,6 +35,7 @@ Review all source files in `src/FastPolynomials/src/` and their corresponding te
 - Extract tests into separate files when they belong to different source files
 
 ## Handoff Summary
-- **Completed**: variable_registry.jl full review
-- **Commit**: `a027fba` - refactor(fastpoly): improve variable_registry tests and remove redundant API
-- **Next Step**: Start with monomial.jl
+- **Completed**: variable_registry.jl, monomial.jl reviews
+- **Key Finding**: basis.jl uses Int by default but @ncpolyvar uses UInt64 - needs rewrite
+- **Blocker**: 25 testsets skipped due to type mismatch (see TODO in basis.jl)
+- **Next Step**: Continue with term.jl or algebra_types.jl

@@ -10,6 +10,13 @@
 # - Algebra type A enables type-safe dispatch
 # - Integer type T is configurable (default: Int)
 # - Optional constraint filtering for algebras with simplification rules
+#
+# TODO: Rewrite basis generation to use VariableRegistry for type consistency.
+#       Currently defaults to T=Int, but @ncpolyvar uses UInt64 via VariableRegistry.
+#       This causes type mismatches when comparing/sorting monomials from different sources.
+#       The fix is to make basis functions registry-aware so they produce compatible types.
+#       Related: removed cross-type isless(::Monomial{A,T1}, ::Monomial{A,T2}) as it
+#       used abs() which incorrectly treated creation/annihilation operators as equal.
 
 """
     has_consecutive_repeats(word::Vector) -> Bool
@@ -31,10 +38,10 @@ true
 ```
 """
 function has_consecutive_repeats(word::Vector)
-    for i in 1:length(word)-1
-        word[i] == word[i+1] && return true
+    for i in 1:(length(word) - 1)
+        word[i] == word[i + 1] && return true
     end
-    false
+    return false
 end
 
 """
@@ -61,9 +68,10 @@ function _generate_words(n::Int, d::Int, ::Type{T}) where {T<:Integer}
             push!(result, vcat(T[i], suffix))
         end
     end
-    result
+    return result
 end
 
+# TODO: make this take variable registry this should fix the output vector type
 """
     get_ncbasis_deg(::Type{A}, n::Int, d::Int; T::Type{<:Integer}=Int,
                     filter_constraint::Bool=false) where A<:AlgebraType
@@ -107,9 +115,9 @@ julia> isone(basis[1])
 true
 ```
 """
-function get_ncbasis_deg(::Type{A}, n::Int, d::Int;
-    T::Type{<:Integer}=Int,
-    filter_constraint::Bool=false) where {A<:AlgebraType}
+function get_ncbasis_deg(
+    ::Type{A}, n::Int, d::Int; T::Type{<:Integer}=Int, filter_constraint::Bool=false
+) where {A<:AlgebraType}
     d == 0 && return [Monomial{A}(T[])]  # identity
     d < 0 && return Monomial{A,T}[]
 
@@ -123,7 +131,7 @@ function get_ncbasis_deg(::Type{A}, n::Int, d::Int;
 
     monos = [Monomial{A}(w) for w in words]
     sort!(monos)  # Uses isless for Monomial (degree-first, then lexicographic)
-    monos
+    return monos
 end
 
 """
@@ -171,14 +179,14 @@ julia> length(basis_filtered)  # 1 + 2 + 2 = 5 (removed [1,1] and [2,2])
 ```
 """
 # TODO: need to generate basis more efficiently, see `NCTSSOS`
-function get_ncbasis(::Type{A}, n::Int, d::Int;
-    T::Type{<:Integer}=Int,
-    filter_constraint::Bool=false) where {A<:AlgebraType}
+function get_ncbasis(
+    ::Type{A}, n::Int, d::Int; T::Type{<:Integer}=Int, filter_constraint::Bool=false
+) where {A<:AlgebraType}
     basis = Monomial{A,T}[]
     for deg in 0:d
         append!(basis, get_ncbasis_deg(A, n, deg; T=T, filter_constraint=filter_constraint))
     end
-    basis
+    return basis
 end
 
 """

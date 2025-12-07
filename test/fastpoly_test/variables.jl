@@ -10,26 +10,26 @@ using NCTSSoS.FastPolynomials:
 
     @testset "VariableRegistry Invariant Validation" begin
         # Should error: Different lengths
-        @test_throws ErrorException VariableRegistry{UInt8}(
+        @test_throws ErrorException VariableRegistry{NonCommutativeAlgebra, UInt8}(
             Dict{UInt8,Symbol}(0x01 => :x),
             Dict{Symbol,UInt8}(:x => 0x01, :y => 0x02)
         )
 
         # Should error: Mismatched indices
-        @test_throws ErrorException VariableRegistry{UInt8}(
+        @test_throws ErrorException VariableRegistry{NonCommutativeAlgebra, UInt8}(
             Dict{UInt8,Symbol}(0x01 => :x),
             Dict{Symbol,UInt8}(:x => 0x02)  # Wrong index
         )
 
         # Should succeed: Consistent registry
-        reg = VariableRegistry{UInt8}(
+        reg = VariableRegistry{NonCommutativeAlgebra, UInt8}(
             Dict{UInt8,Symbol}(0x01 => :x, 0x02 => :y),
             Dict{Symbol,UInt8}(:x => 0x01, :y => 0x02)
         )
         @test length(reg) == 2
 
         # Empty registry should be valid
-        empty_reg = VariableRegistry{UInt8}(
+        empty_reg = VariableRegistry{NonCommutativeAlgebra, UInt8}(
             Dict{UInt8,Symbol}(),
             Dict{Symbol,UInt8}()
         )
@@ -95,7 +95,7 @@ using NCTSSoS.FastPolynomials:
         @test contains(str15, "x₁₅")  # Last shown
 
         # Empty registry
-        empty_reg = VariableRegistry{UInt8}(Dict{UInt8,Symbol}(), Dict{Symbol,UInt8}())
+        empty_reg = VariableRegistry{NonCommutativeAlgebra, UInt8}(Dict{UInt8,Symbol}(), Dict{Symbol,UInt8}())
         str_empty = string(empty_reg)
         @test contains(str_empty, "0 variables")
     end

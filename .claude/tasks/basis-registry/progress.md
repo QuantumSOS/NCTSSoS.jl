@@ -1,5 +1,30 @@
 # Progress Log: basis-registry
 
+## Session: 2025-12-07 21:45
+
+**Agent:** orchestrator
+**Feature:** Registry-aware basis generation - test migration
+
+### Actions
+- Updated test/fastpoly_test/utils.jl to use registry-based API
+- Updated test/fastpoly_test/simplify.jl - removed redundant basis tests
+- Updated test/fastpoly_test/allocations.jl to use registry-based API
+- Removed tests for deleted functionality (has_consecutive_repeats, filter_constraint)
+
+### Outcome
+All 1017 FastPolynomials tests passing.
+Old API removed from basis.jl, fastpoly_test/ tests migrated.
+
+### Current State
+- Steps 1-3: COMPLETE (VariableRegistry{A,T}, registry-aware get_ncbasis)
+- Step 4 (Remove old API): COMPLETE for fastpoly_test/
+- Step 5 (Update tests): COMPLETE for fastpoly_test/
+- External tests (sparse.jl, etc.): NOT UPDATED (per user request)
+
+**Commit:** `319e10a` - refactor(fastpoly): migrate tests to registry-based basis API
+
+---
+
 ## Session: 2025-12-07 18:30 - Checkpoint
 
 **Agent:** orchestrator + polyglot-impl

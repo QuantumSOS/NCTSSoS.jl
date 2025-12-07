@@ -26,12 +26,12 @@ julia> :σx₁ in reg
 true
 ```
 """
-struct VariableRegistry{T<:Integer}
+struct VariableRegistry{A<:AlgebraType, T<:Integer}
     idx_to_variables::Dict{T, Symbol}
     variables_to_idx::Dict{Symbol,T}
 
     # Inner constructor to enforce invariants
-    function VariableRegistry{T}(idx_to_vars::Dict{T, Symbol}, vars_to_idx::Dict{Symbol,T}) where {T<:Integer}
+    function VariableRegistry{A, T}(idx_to_vars::Dict{T, Symbol}, vars_to_idx::Dict{Symbol,T}) where {A<:AlgebraType, T<:Integer}
         # Verify consistency
         length(idx_to_vars) == length(vars_to_idx) ||
             error("Inconsistent registry: different lengths")
@@ -41,9 +41,47 @@ struct VariableRegistry{T<:Integer}
                 error("Inconsistent registry: symbol $sym has wrong index")
         end
 
-        new{T}(idx_to_vars, vars_to_idx)
+        new{A, T}(idx_to_vars, vars_to_idx)
     end
 end
+
+# Backward-compatible constructor: VariableRegistry{T}(...) defaults to NonCommutativeAlgebra
+"""
+    VariableRegistry{T}(idx_to_vars, vars_to_idx) where {T<:Integer}
+
+Backward-compatible constructor that defaults algebra type to `NonCommutativeAlgebra`.
+
+For new code, prefer the explicit two-parameter form: `VariableRegistry{A, T}(...)`.
+"""
+function VariableRegistry{T}(idx_to_vars::Dict{T, Symbol}, vars_to_idx::Dict{Symbol,T}) where {T<:Integer}
+    VariableRegistry{NonCommutativeAlgebra, T}(idx_to_vars, vars_to_idx)
+end
+
+"""
+    algebra_type(::VariableRegistry{A,T}) where {A,T} -> Type{A}
+
+Return the algebra type parameter of the registry.
+
+# Examples
+```julia
+reg, _ = create_pauli_variables(1:2)
+algebra_type(reg)  # PauliAlgebra
+```
+"""
+algebra_type(::VariableRegistry{A,T}) where {A,T} = A
+
+"""
+    index_type(::VariableRegistry{A,T}) where {A,T} -> Type{T}
+
+Return the index type parameter of the registry.
+
+# Examples
+```julia
+reg, _ = create_pauli_variables(1:2)
+index_type(reg)  # UInt8
+```
+"""
+index_type(::VariableRegistry{A,T}) where {A,T} = T
 
 # Unicode subscript digits: ₀₁₂₃₄₅₆₇₈₉
 const SUBSCRIPT_DIGITS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
@@ -80,18 +118,18 @@ Return the number of variables in the registry.
 Base.length(reg::VariableRegistry) = length(reg.idx_to_variables)
 
 """
-    Base.getindex(reg::VariableRegistry{T}, idx::T) -> Symbol
+    Base.getindex(reg::VariableRegistry{A,T}, idx::T) -> Symbol
 
 Get the variable symbol at the given index.
 """
-Base.getindex(reg::VariableRegistry{T}, idx::T) where {T} = reg.idx_to_variables[idx]
+Base.getindex(reg::VariableRegistry{A,T}, idx::T) where {A,T} = reg.idx_to_variables[idx]
 
 """
-    Base.getindex(reg::VariableRegistry{T}, idx::Integer) -> Symbol
+    Base.getindex(reg::VariableRegistry{A,T}, idx::Integer) -> Symbol
 
 Get the variable symbol at the given index (converts to type T).
 """
-Base.getindex(reg::VariableRegistry{T}, idx::Integer) where {T} = reg.idx_to_variables[T(idx)]
+Base.getindex(reg::VariableRegistry{A,T}, idx::Integer) where {A,T} = reg.idx_to_variables[T(idx)]
 
 """
     Base.getindex(reg::VariableRegistry, sym::Symbol) -> Int
@@ -130,7 +168,7 @@ function symbols(reg::VariableRegistry)
 end
 
 """
-    indices(reg::VariableRegistry{T}) -> Vector{T}
+    indices(reg::VariableRegistry{A,T}) -> Vector{T}
 
 Return all indices in sorted order.
 
@@ -249,7 +287,7 @@ function create_pauli_variables(subscripts)
         variables_to_idx[sym] = T(idx)
     end
 
-    reg = VariableRegistry{T}(idx_to_vars, variables_to_idx)
+    reg = VariableRegistry{PauliAlgebra, T}(idx_to_vars, variables_to_idx)
 
     # Build monomial vectors grouped by Pauli type (x, y, z)
     σx = Vector{Monomial{PauliAlgebra, T}}(undef, n_sites)
@@ -352,7 +390,7 @@ function _create_physical_variables(::Type{A}, subscripts, prefix::String) where
         variables_to_idx[cre_sym] = T(-i)
     end
 
-    reg = VariableRegistry{T}(idx_to_vars, variables_to_idx)
+    reg = VariableRegistry{A, T}(idx_to_vars, variables_to_idx)
 
     # Build monomial vectors grouped by operator type (annihilation, creation)
     annihilation = Vector{Monomial{A, T}}(undef, n_modes)
@@ -621,7 +659,7 @@ function _create_noncommutative_variables(
     idx_to_vars = Dict(zip(all_indices, all_symbols))
     variables_to_idx = Dict(zip(all_symbols, all_indices))
 
-    reg = VariableRegistry{IndexT}(idx_to_vars, variables_to_idx)
+    reg = VariableRegistry{A, IndexT}(idx_to_vars, variables_to_idx)
 
     # Build grouped monomial vectors
     monomial_groups = Vector{Vector{Monomial{A, IndexT}}}()

@@ -37,12 +37,12 @@ Rewrite `basis.jl` to use `VariableRegistry` for type consistency and correct va
 - Wittek (2015): Ncpol2sdpa - direct canonical generation, not simplify-based
 - Local tests: Confirmed a₁a₁† → degree-0 + degree-2 split
 
-## NEXT ACTION
-**Optional**: Remove old API / Update dependent code
+## STATUS: COMPLETE ✅
 
 ## Handoff Summary
 - **Completed**: Step 1 - VariableRegistry{A,T} (commits f8949af, a1c4acf)
 - **Completed**: Steps 2-3 - Registry-aware get_ncbasis returning Vector{Term} (commit 8587502)
+- **Completed**: Step 5 - Tests for registry-based API (commit bb2bf62)
 - **Key Design**: generate all words → simplify each → return Vector{Term}
 - **Decision Made**: Keep old API for backward compatibility, new API uses registry
-- **Next Step**: Update dependent code to use new registry-based API
+- **Tests**: 1092 FastPolynomials tests passing

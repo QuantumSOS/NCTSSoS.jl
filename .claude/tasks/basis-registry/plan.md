@@ -19,73 +19,115 @@ get_ncbasis_deg(registry::VariableRegistry{A,T}, d::Int) -> Vector{Monomial{A,T}
 
 ### Internal Dispatch (algebra-specific)
 ```julia
-_generate_basis(::Type{PauliAlgebra}, indices::Vector{T}, d) where T
-_generate_basis(::Type{FermionicAlgebra}, indices::Vector{T}, d) where T
-_generate_basis(::Type{BosonicAlgebra}, indices::Vector{T}, d) where T
-_generate_basis(::Type{UnipotentAlgebra}, indices::Vector{T}, d) where T
-_generate_basis(::Type{ProjectorAlgebra}, indices::Vector{T}, d) where T
-_generate_basis(::Type{NonCommutativeAlgebra}, indices::Vector{T}, d) where T
+_generate_canonical_words_deg(::Type{PauliAlgebra}, indices::Vector{T}, d) where T
+_generate_canonical_words_deg(::Type{FermionicAlgebra}, indices::Vector{T}, d) where T
+_generate_canonical_words_deg(::Type{BosonicAlgebra}, indices::Vector{T}, d) where T
+_generate_canonical_words_deg(::Type{UnipotentAlgebra}, indices::Vector{T}, d) where T
+_generate_canonical_words_deg(::Type{ProjectorAlgebra}, indices::Vector{T}, d) where T
+_generate_canonical_words_deg(::Type{NonCommutativeAlgebra}, indices::Vector{T}, d) where T
 ```
 
-## Algebra-Specific Rules
+## Core Algorithm: Canonical-Direct Generation
 
-### Core Algorithm (ALL algebras)
+**CRITICAL**: Generate ONLY canonical-form words directly. Do NOT generate all words then simplify.
+
+### Why NOT "generate all → simplify → dedupe"?
+1. **Degree Mixing**: Simplification produces sums of different degrees (e.g., a₁a₁† → 1 - a₁†a₁)
+   - These belong in DIFFERENT basis blocks for SOS optimization
+   - Including degree-0 terms in degree-2 basis breaks moment matrix structure
+2. **Exponential Redundancy**: Most non-canonical words reduce to existing canonical forms
+3. **Linear Independence**: Including both non-canonical and canonical forms violates basis requirements
+
+### Correct Algorithm
 ```julia
-function _generate_basis(::Type{A}, indices, d)
-    all_words = generate_all_words(indices, d)
-    canonical_monomials = Set{Monomial}()
-    for word in all_words
-        terms = simplify(Monomial{A}(word))
-        for term in terms
-            push!(canonical_monomials, term.monomial)
-        end
-    end
-    return sort(collect(canonical_monomials))
+function _generate_basis_deg(::Type{A}, indices::Vector{T}, d::Int) where {A,T}
+    d == 0 && return [Monomial{A}(T[])]  # identity
+    d < 0 && return Monomial{A,T}[]
+
+    # Directly generate canonical words of degree d (algebra-specific)
+    canonical_words = _generate_canonical_words_deg(A, indices, d)
+    return sort!([Monomial{A}(w) for w in canonical_words])
 end
 ```
 
-Key insight: Generate ALL words, then simplify each to get canonical forms.
-Collect unique canonical monomials (deduplication via Set).
+## Algebra-Specific Canonical Generation
+
+### NonCommutativeAlgebra (simplest case)
+- **Canonical form**: All words (no simplification rules)
+- **Algorithm**: Generate all n^d words of degree d
+```julia
+function _generate_canonical_words_deg(::Type{NonCommutativeAlgebra}, indices::Vector{T}, d::Int) where T
+    # All words are canonical - no reduction
+    return _generate_all_words(indices, d)
+end
+```
 
 ### PauliAlgebra (UInt16, self-adjoint)
-- Indices: unsigned, represent σx, σy, σz at each site
-- Simplification: σᵢ² = I (reduces degree), cyclic products
-- Result: canonical monomials after Pauli simplification
+- **Canonical form**: No σᵢ² patterns (since σᵢ² = I reduces degree)
+- **Indices**: unsigned, represent σx, σy, σz at each site
+- **Algorithm**: Generate words avoiding consecutive identical indices
+```julia
+function _generate_canonical_words_deg(::Type{PauliAlgebra}, indices::Vector{T}, d::Int) where T
+    # Generate words without consecutive repeats (σᵢ² = I)
+    return _generate_no_consecutive_repeats(indices, d)
+end
+```
 
 ### UnipotentAlgebra (UInt16, self-adjoint)
-- Indices: unsigned with site encoding
-- Simplification: U² = I (reduces degree)
-- Result: canonical monomials without consecutive repeats
+- **Canonical form**: No consecutive repeats (U² = I)
+- **Algorithm**: Same as Pauli
+```julia
+function _generate_canonical_words_deg(::Type{UnipotentAlgebra}, indices::Vector{T}, d::Int) where T
+    return _generate_no_consecutive_repeats(indices, d)
+end
+```
 
 ### ProjectorAlgebra (UInt16, self-adjoint)
-- Indices: unsigned with site encoding
-- Simplification: P² = P (idempotent)
-- Result: canonical monomials without consecutive repeats
+- **Canonical form**: No consecutive repeats (P² = P reduces degree)
+- **Algorithm**: Same as Pauli/Unipotent
+```julia
+function _generate_canonical_words_deg(::Type{ProjectorAlgebra}, indices::Vector{T}, d::Int) where T
+    return _generate_no_consecutive_repeats(indices, d)
+end
+```
 
 ### FermionicAlgebra (Int32, signed)
-- Indices: +i = annihilation aᵢ, -i = creation aᵢ†
-- Registry already contains both signs
-- Simplification: anticommutation → normal order + lower degree terms
-- Pauli exclusion: aᵢaᵢ = 0, aᵢ†aᵢ† = 0
-- Result: collect all canonical monomials from simplification
+- **Canonical form**: Normal order (creators before annihilators, sorted by mode index)
+- **Indices**: +i = annihilation aᵢ, -i = creation aᵢ†
+- **Constraints**:
+  - No repeated indices (Pauli exclusion: aᵢaᵢ = 0, aᵢ†aᵢ† = 0)
+  - Creators (negative indices) come first, then annihilators (positive)
+  - Within each group, sorted by |index|
+```julia
+function _generate_canonical_words_deg(::Type{FermionicAlgebra}, indices::Vector{T}, d::Int) where T
+    # Extract modes (unsigned values)
+    modes = unique(abs.(indices))
+
+    # Generate all subsets of creators and annihilators totaling degree d
+    # Format: [−m₁, −m₂, ..., +n₁, +n₂, ...] where mᵢ < mⱼ and nᵢ < nⱼ
+    return _generate_fermionic_normal_order(modes, d)
+end
+```
 
 ### BosonicAlgebra (Int32, signed)
-- Indices: +i = annihilation bᵢ, -i = creation bᵢ†
-- Registry already contains both signs
-- Simplification: commutation → normal order + lower degree terms
-- No exclusion (can have repeated indices)
-- Result: collect all canonical monomials from simplification
-
-### NonCommutativeAlgebra (configurable)
-- Generic non-commutative variables
-- Simplification: none (identity)
-- Result: all words as-is
+- **Canonical form**: Normal order (creators before annihilators)
+- **Indices**: +i = annihilation bᵢ, -i = creation bᵢ†
+- **Constraints**:
+  - Repeated indices allowed (no Pauli exclusion for bosons)
+  - Creators (negative) come first, then annihilators (positive)
+```julia
+function _generate_canonical_words_deg(::Type{BosonicAlgebra}, indices::Vector{T}, d::Int) where T
+    modes = unique(abs.(indices))
+    # Generate multisets with repetition allowed
+    return _generate_bosonic_normal_order(modes, d)
+end
+```
 
 ## Implementation Steps
 
-### Step 1: Add algebra type to VariableRegistry
+### Step 1: Add algebra type to VariableRegistry ✓ (validated)
 - [ ] Change `VariableRegistry{T}` to `VariableRegistry{A,T}` where A is AlgebraType
-- [ ] Update all `create_*_variables` functions to use new signature:
+- [ ] Update all `create_*_variables` functions:
   - `create_pauli_variables` → returns `VariableRegistry{PauliAlgebra,T}`
   - `create_fermionic_variables` → returns `VariableRegistry{FermionicAlgebra,T}`
   - `create_bosonic_variables` → returns `VariableRegistry{BosonicAlgebra,T}`
@@ -93,61 +135,62 @@ Collect unique canonical monomials (deduplication via Set).
   - `create_unipotent_variables` → returns `VariableRegistry{UnipotentAlgebra,T}`
   - `create_noncommutative_variables` → returns `VariableRegistry{NonCommutativeAlgebra,T}`
 - [ ] Update internal helpers: `_create_physical_variables`, `_create_noncommutative_variables`
+- [ ] Add helper functions:
+  ```julia
+  algebra_type(::VariableRegistry{A,T}) where {A,T} = A
+  index_type(::VariableRegistry{A,T}) where {A,T} = T
+  ```
 
 ### Step 2: Rewrite `get_ncbasis` and `get_ncbasis_deg`
 - [ ] Change signature to take `VariableRegistry{A,T}`
 - [ ] Use `indices(registry)` to get all variable indices
 - [ ] Infer both A and T from registry type parameters
-- [ ] Call unified `_generate_basis_deg` with algebra dispatch
+- [ ] Call `_generate_basis_deg(A, indices, d)`
 
-### Step 3: Implement core basis generation
-- [ ] `_generate_all_words(indices::Vector{T}, d::Int)` - generate all words of degree d
-- [ ] `_generate_basis_deg(::Type{A}, indices, d)` - core algorithm:
-  ```julia
-  function _generate_basis_deg(::Type{A}, indices::Vector{T}, d::Int) where {A,T}
-      d == 0 && return [Monomial{A}(T[])]  # identity
-      d < 0 && return Monomial{A,T}[]
+### Step 3: Implement canonical word generators
+- [ ] `_generate_all_words(indices, d)` - for NonCommutativeAlgebra
+- [ ] `_generate_no_consecutive_repeats(indices, d)` - for Pauli/Unipotent/Projector
+- [ ] `_generate_fermionic_normal_order(modes, d)` - for FermionicAlgebra
+- [ ] `_generate_bosonic_normal_order(modes, d)` - for BosonicAlgebra
 
-      all_words = _generate_all_words(indices, d)
-      canonical_monomials = Set{Monomial{A,T}}()
-
-      for word in all_words
-          terms = simplify(Monomial{A}(word))
-          for term in terms
-              push!(canonical_monomials, term.monomial)
-          end
-      end
-
-      return sort!(collect(canonical_monomials))
-  end
-  ```
-
-### Step 4: Handle algebra-specific optimizations (optional)
-- [ ] For NonCommutativeAlgebra: skip simplify (identity operation)
-- [ ] For algebras with simple rules: consider direct generation if more efficient
-
-### Step 5: Remove old API
-- [ ] Remove `filter_constraint` parameter (automatic via simplify)
+### Step 4: Remove old API
+- [ ] Remove `filter_constraint` parameter (replaced by algebra dispatch)
 - [ ] Remove `T` type parameter (inferred from registry)
 - [ ] Remove `n` parameter (from registry)
-- [ ] Remove `monomials` alias (or update to use registry)
-- [ ] Remove `has_consecutive_repeats` if no longer needed
+- [ ] Remove or update `monomials` alias
+- [ ] Keep `has_consecutive_repeats` as internal utility
 
-### Step 6: Update tests
+### Step 5: Update tests
 - [ ] Rewrite tests to use registry-based API
 - [ ] Unskip the 25 testsets that were skipped due to type mismatch
-- [ ] Add tests for signed algebra basis generation
+- [ ] Add tests for fermionic/bosonic normal-order generation
+- [ ] Verify degree separation (degree-d basis contains ONLY degree-d monomials)
 
-### Step 7: Update dependent code
+### Step 6: Update dependent code
 - [ ] Find all usages of old `get_ncbasis` API
 - [ ] Update to use registry-based API
 
+## Resolved Questions
+1. ~~Should we generate ALL words then simplify, or generate canonical directly?~~
+   **Answer**: Generate canonical directly (validated by lead-researcher)
+
+2. ~~For FermionicAlgebra, should we include mixed-degree terms from simplification?~~
+   **Answer**: No. Degree-d basis contains ONLY degree-d canonical monomials.
+
+3. ~~Does adding algebra type to VariableRegistry break anything?~~
+   **Answer**: No. All construction goes through `create_*_variables` functions.
+
 ## Open Questions
 1. Should `has_consecutive_repeats` stay as a public utility?
-2. For FermionicAlgebra, should we generate ALL combinations then filter, or generate in normal order directly?
-3. How to handle registry with multiple variable types (e.g., mixed Pauli + Fermionic)?
+2. How to handle registry with multiple variable types (e.g., mixed Pauli + Fermionic)?
 
 ## Testing Strategy
-- Unit tests for each `_generate_basis` specialization
+- Unit tests for each `_generate_canonical_words_deg` specialization
 - Integration tests comparing with NCTSSOS `get_ncbasis` output
 - Verify type consistency with `@ncpolyvar` created variables
+- Verify degree purity (no mixed-degree bases)
+
+## References
+- Wang & Magron (2021): NCTSSOS.jl
+- Wittek (2015): Ncpol2sdpa - canonical word generation
+- Helton & McCullough (2004): Noncommutative SOS theory

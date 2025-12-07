@@ -13,20 +13,37 @@ Rewrite `basis.jl` to use `VariableRegistry` for type consistency and correct va
 
 ## Key Decisions
 1. **New API:** `get_ncbasis(registry::VariableRegistry{A,T}, d)` - registry-aware
-2. **VariableRegistry{A,T}:** Add algebra type A as type parameter (Option A chosen)
-3. **Core algorithm:** Generate ALL words → simplify each → collect unique canonical monomials
-4. **Fermionic/Bosonic:** Don't pre-filter to normal order; simplify captures all canonical forms
+2. **VariableRegistry{A,T}:** Add algebra type A as type parameter (Option A chosen) ✓ VALIDATED
+3. **Core algorithm:** ~~Generate ALL words → simplify each → collect unique canonical monomials~~ **REJECTED** ❌
+   - **NEW**: Generate ONLY canonical words directly (canonical-direct generation)
+4. **Fermionic/Bosonic:** ~~Don't pre-filter to normal order~~ **REJECTED** ❌
+   - **NEW**: Generate words directly in normal order; avoid non-canonical words entirely
 
-## NEXT ACTION (after context clear)
-**Use `lead-researcher` agent to validate this plan before implementation.**
+## Validation Results (2025-12-07)
+**Status**: Plan requires major revision before implementation
 
-Questions to validate:
-1. Is the core algorithm (generate all → simplify → dedupe) correct for NCTSSOS-style optimization?
-2. Are there edge cases in fermionic/bosonic simplification we're missing?
-3. Does adding algebra type to VariableRegistry have any downstream implications?
+**Findings**:
+1. ❌ **Core Algorithm INCORRECT**: Generate-all-then-simplify violates NCSOS canonical-only requirement
+   - Creates exponential redundancy
+   - Mixes degree levels (breaks moment matrix structure)
+   - Violates linear independence
+2. ❌ **Degree Mixing**: Simplification of a₁a₁† → 1 - a₁†a₁ produces degree-0 + degree-2 terms
+   - Both should NOT be included in degree-2 basis
+   - Only canonical degree-2 term (a₁†a₁) belongs in degree-2 basis
+3. ✓ **VariableRegistry{A,T}**: Validated as correct approach, no issues found
+
+**Key Sources**:
+- Wang & Magron (2021): NCTSSOS.jl theory - basis must be canonical-only
+- Wittek (2015): Ncpol2sdpa - direct canonical generation, not simplify-based
+- Local tests: Confirmed a₁a₁† → degree-0 + degree-2 split
+
+## NEXT ACTION
+**CRITICAL**: Revise plan.md to use canonical-direct generation algorithm before implementation.
+See `/Users/yushengzhao/projects/NCTSSoS-main/.claude/tasks/basis-registry/validation.md` for detailed corrections.
 
 ## Handoff Summary
-- **Completed**: Plan created and reviewed with user
-- **Key Finding**: Fermionic basis needs all words (not just normal-ordered) because non-normal words simplify to SUMS, not zero
-- **Decision Made**: VariableRegistry gets algebra type parameter {A,T}
-- **Next Step**: Validate plan with lead-researcher, then implement Step 1
+- **Completed**: Plan validation with lead-researcher
+- **Key Finding**: Original algorithm fundamentally flawed - must generate canonical words directly, not via simplification
+- **Decision Made**: VariableRegistry{A,T} approved; core algorithm needs complete redesign
+- **Blocker**: Cannot proceed with implementation until plan.md is corrected
+- **Next Step**: User must review validation.md and approve revised algorithm approach

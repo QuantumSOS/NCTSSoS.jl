@@ -1,5 +1,5 @@
 using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, has_consecutive_repeats, _generate_words
+using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, has_consecutive_repeats, _generate_words, _generate_all_words, index_type
 
 @testset "Basis Generation" begin
     @testset "get_ncbasis" begin
@@ -176,5 +176,172 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, has_consecutive_rep
         full_n0 = get_ncbasis(NonCommutativeAlgebra, 0, 2)
         @test length(full_n0) == 1  # only identity
         @test isone(full_n0[1])
+    end
+
+    # =========================================================================
+    # Registry-Based API Tests
+    # =========================================================================
+
+    @testset "_generate_all_words with arbitrary indices" begin
+        # Basic test with standard indices
+        words = _generate_all_words([1, 2], 2)
+        @test length(words) == 4
+        @test [1, 1] in words
+        @test [1, 2] in words
+        @test [2, 1] in words
+        @test [2, 2] in words
+
+        # Non-contiguous indices
+        words_nc = _generate_all_words([5, 10], 2)
+        @test length(words_nc) == 4
+        @test [5, 5] in words_nc
+        @test [5, 10] in words_nc
+        @test [10, 5] in words_nc
+        @test [10, 10] in words_nc
+
+        # Degree 0 returns empty word
+        words_d0 = _generate_all_words([1, 2, 3], 0)
+        @test length(words_d0) == 1
+        @test words_d0[1] == []
+
+        # Degree 1
+        words_d1 = _generate_all_words([3, 7, 11], 1)
+        @test length(words_d1) == 3
+        @test [3] in words_d1
+        @test [7] in words_d1
+        @test [11] in words_d1
+
+        # Empty indices
+        words_empty = _generate_all_words(Int[], 2)
+        @test length(words_empty) == 0
+
+        # Signed indices (for fermionic/bosonic)
+        words_signed = _generate_all_words([-1, 1], 2)
+        @test length(words_signed) == 4
+        @test [-1, -1] in words_signed
+        @test [-1, 1] in words_signed
+        @test [1, -1] in words_signed
+        @test [1, 1] in words_signed
+    end
+
+    @testset "Registry-based get_ncbasis_deg (NonCommutativeAlgebra)" begin
+        # Create registry
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+
+        # Degree 2: returns Vector{Term}
+        basis = get_ncbasis_deg(reg, 2)
+        @test basis isa Vector{<:Term}
+        @test length(basis) == 9  # 3^2 = 9
+
+        # All terms should have degree 2 monomials (NonCommutativeAlgebra doesn't simplify)
+        @test all(t -> degree(t.monomial) == 2, basis)
+
+        # Degree 0: identity term
+        basis_d0 = get_ncbasis_deg(reg, 0)
+        @test length(basis_d0) == 1
+        @test isone(basis_d0[1].monomial)
+
+        # Degree 1
+        basis_d1 = get_ncbasis_deg(reg, 1)
+        @test length(basis_d1) == 3
+        @test all(t -> degree(t.monomial) == 1, basis_d1)
+
+        # Negative degree
+        basis_neg = get_ncbasis_deg(reg, -1)
+        @test isempty(basis_neg)
+    end
+
+    @testset "Registry-based get_ncbasis (NonCommutativeAlgebra)" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+
+        # Up to degree 2: 1 + 2 + 4 = 7 terms
+        basis = get_ncbasis(reg, 2)
+        @test basis isa Vector{<:Term}
+        @test length(basis) == 7
+
+        # Contains identity
+        @test any(t -> isone(t.monomial), basis)
+
+        # Contains degree 1 and 2 terms
+        @test any(t -> degree(t.monomial) == 1, basis)
+        @test any(t -> degree(t.monomial) == 2, basis)
+    end
+
+    @testset "Registry-based get_ncbasis_deg (UnipotentAlgebra)" begin
+        # UnipotentAlgebra: U^2 = I (consecutive repeats simplify to identity)
+        reg, (U,) = create_unipotent_variables([("U", 1:2)])
+
+        # Degree 2: generates 4 words, but U_i * U_i simplifies
+        basis = get_ncbasis_deg(reg, 2)
+        @test basis isa Vector{<:Term}
+
+        # Should have some terms (exact count depends on simplification)
+        @test length(basis) >= 2  # At least [U1,U2] and [U2,U1]
+    end
+
+    @testset "Registry-based get_ncbasis with PauliAlgebra" begin
+        reg, (σx, σy, σz) = create_pauli_variables(1:2)
+
+        # Degree 1: 6 Pauli operators
+        basis_d1 = get_ncbasis_deg(reg, 1)
+        @test basis_d1 isa Vector{<:Term}
+        @test length(basis_d1) == 6
+
+        # All should be degree 1 after simplification
+        @test all(t -> degree(t.monomial) == 1, basis_d1)
+    end
+
+    @testset "Registry-based get_ncbasis with FermionicAlgebra" begin
+        reg, (a, a_dag) = create_fermionic_variables(1:2)
+
+        # Degree 1: 4 operators (a1, a1†, a2, a2†)
+        basis_d1 = get_ncbasis_deg(reg, 1)
+        @test basis_d1 isa Vector{<:Term}
+        @test length(basis_d1) == 4
+
+        # Degree 2: 16 words, but some simplify (e.g., a_i a_i = 0)
+        basis_d2 = get_ncbasis_deg(reg, 2)
+        @test basis_d2 isa Vector{<:Term}
+        # Fermionic simplification may produce mixed-degree terms
+    end
+
+    @testset "Registry-based API type consistency" begin
+        # The key benefit: registry indices match monomial indices
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+        basis = get_ncbasis_deg(reg, 1)
+
+        # Get indices from registry
+        reg_indices = indices(reg)
+
+        # All monomial words should use registry indices
+        for term in basis
+            if !isempty(term.monomial.word)
+                @test all(idx -> idx in reg_indices, term.monomial.word)
+            end
+        end
+
+        # Index type should match
+        T = index_type(reg)
+        for term in basis
+            if !isempty(term.monomial.word)
+                @test eltype(term.monomial.word) == T
+            end
+        end
+    end
+
+    @testset "Registry-based API with multi-prefix variables" begin
+        # Test with multiple prefix groups
+        reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 3:4)])
+
+        # Should have 4 total variables
+        @test length(reg) == 4
+
+        # Degree 1 basis should have 4 terms
+        basis_d1 = get_ncbasis_deg(reg, 1)
+        @test length(basis_d1) == 4
+
+        # Degree 2: 4^2 = 16 words (before simplification)
+        basis_d2 = get_ncbasis_deg(reg, 2)
+        @test basis_d2 isa Vector{<:Term}
     end
 end

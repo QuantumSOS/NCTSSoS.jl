@@ -338,29 +338,31 @@ true
 function get_ncbasis_deg(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
     idxs = indices(registry)
 
+    # Negative degree: return empty
+    d < 0 && return Term{Monomial{A,T}, ComplexF64}[]
+
     # Degree 0: return identity term
     if d == 0
         identity_mono = Monomial{A}(T[])
-        return [Term(one(Float64), identity_mono)]
+        return [Term(one(ComplexF64), identity_mono)]
     end
-
-    # Negative degree: return empty
-    d < 0 && return Term{Monomial{A,T}, Float64}[]
 
     # Generate all words of length d using registry indices
     all_words = _generate_all_words(idxs, d)
 
-    terms = Term{Monomial{A,T}, Float64}[]
+    # Use ComplexF64 as coefficient type to handle all algebras
+    # (PauliAlgebra returns ComplexF64, others return Float64 which promotes)
+    terms = Term{Monomial{A,T}, ComplexF64}[]
     for word in all_words
         mono = Monomial{A}(word)
         simplified = simplify(mono)
         # Handle both Term and Vector{Term} return types from simplify
-        # (Currently simplify returns Term, but this future-proofs for algebras
-        # where simplification may produce multiple terms)
         if simplified isa Vector
-            append!(terms, simplified)
+            for term in simplified
+                push!(terms, Term(ComplexF64(term.coefficient), term.monomial))
+            end
         else
-            push!(terms, simplified)
+            push!(terms, Term(ComplexF64(simplified.coefficient), simplified.monomial))
         end
     end
 
@@ -410,7 +412,7 @@ true
 ```
 """
 function get_ncbasis(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
-    terms = Term{Monomial{A,T}, Float64}[]
+    terms = Term{Monomial{A,T}, ComplexF64}[]
     for deg in 0:d
         append!(terms, get_ncbasis_deg(registry, deg))
     end

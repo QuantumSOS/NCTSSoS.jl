@@ -4,7 +4,7 @@ using NCTSSoS.FastPolynomials: encode_index
 
 # Import internal functions for testing
 import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_components,
-    _infer_coef_type, _to_term_vector, _zero_monomial
+    _infer_coef_type, _to_term_vector
 
 @testset "ComposedMonomial" begin
     @testset "Construction" begin
@@ -336,21 +336,6 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
         @test length(vec2) == 2
         @test vec2[1] == (1.0, m)
         @test vec2[2] == (3.0, m2)
-    end
-
-    @testset "_zero_monomial" begin
-        # From single Term
-        m = Monomial{PauliAlgebra}(UInt16[1, 2])
-        t = Term(1.0, m)
-        zero_m = _zero_monomial(t)
-        @test zero_m isa Monomial{PauliAlgebra, UInt16}
-        @test isempty(zero_m.word)
-
-        # From Vector{Term}
-        terms = [Term(1.0, m), Term(2.0, m)]
-        zero_m2 = _zero_monomial(terms)
-        @test zero_m2 isa Monomial{PauliAlgebra, UInt16}
-        @test isempty(zero_m2.word)
     end
 
     @testset "_infer_coef_type" begin

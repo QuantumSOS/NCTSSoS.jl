@@ -8,11 +8,11 @@ Systematically review each FastPolynomials source file with its corresponding te
 | Source File | Test File | Status |
 |-------------|-----------|--------|
 | `variable_registry.jl` | `variables.jl` | ✅ Done |
-| `algebra_types.jl` | (no dedicated test) | ⬜ Pending |
+| `algebra_types.jl` | `algebra_types.jl` | ✅ Done |
 | `monomial.jl` | `monomials.jl` | ✅ Done |
 | `term.jl` | `term.jl` | ✅ Done |
-| `polynomial.jl` | `polynomial.jl` | ⬜ Pending |
-| `composed_monomial.jl` | (no dedicated test) | ⬜ Pending |
+| `polynomial.jl` | `polynomial.jl` | ✅ Done |
+| `composed_monomial.jl` | `composed_monomial.jl` | ✅ Done |
 | `canonicalization.jl` | (in simplify.jl?) | ⬜ Pending |
 | `basis.jl` | `basis.jl` | ⬜ Pending |
 | `simplification/pauli.jl` | `simplify.jl` | ⬜ Pending |

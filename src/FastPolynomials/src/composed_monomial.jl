@@ -84,7 +84,7 @@ julia> length(cm)
 """
 function ComposedMonomial(components::Ts) where {Ts<:Tuple}
     h = _compute_composed_hash(components)
-    ComposedMonomial{Ts}(components, h)
+    return ComposedMonomial{Ts}(components, h)
 end
 
 """
@@ -98,7 +98,7 @@ function _compute_composed_hash(components::Tuple)
     for mono in components
         h = hash(mono.hash, h)
     end
-    h
+    return h
 end
 
 """
@@ -112,7 +112,7 @@ function Base.:(==)(cm1::ComposedMonomial{T1}, cm2::ComposedMonomial{T2}) where 
     # Fast path: hash mismatch
     cm1.hash == cm2.hash || return false
     # Slow path: component-wise comparison
-    cm1.components == cm2.components
+    return cm1.components == cm2.components
 end
 
 """
@@ -196,13 +196,7 @@ julia> degree(cm)
 5
 ```
 """
-function degree(cm::ComposedMonomial)
-    total = 0
-    for mono in cm.components
-        total += degree(mono)
-    end
-    total
-end
+degree(cm::ComposedMonomial) = mapreduce(degree, +, cm.components)
 
 """
     Base.isone(t::Term{ComposedMonomial{Ts},C}) where {Ts,C} -> Bool
@@ -214,7 +208,7 @@ function Base.isone(t::Term{ComposedMonomial{Ts},C}) where {Ts,C}
     for mono in t.monomial.components
         isempty(mono.word) || return false
     end
-    true
+    return true
 end
 
 """
@@ -264,7 +258,7 @@ function simplify(cm::ComposedMonomial)
     simplified_components = map(simplify, cm.components)
 
     # Expand all combinations (Cartesian product for multi-term results)
-    _expand_simplified_components(simplified_components)
+    return _expand_simplified_components(simplified_components)
 end
 
 # Helper to expand Cartesian product of simplified components
@@ -284,12 +278,12 @@ function _expand_simplified_components(simplified::Tuple)
     filter!(!iszero, result)
 
     if isempty(result)
-        # Return zero term
-        zero_components = map(m -> _zero_monomial(m), simplified)
-        return [Term(zero(CoefType), ComposedMonomial(zero_components))]
+        # Return zero term with identity monomials
+        one_components = map(_identity_monomial, simplified)
+        return [Term(zero(CoefType), ComposedMonomial(one_components))]
     end
 
-    result
+    return result
 end
 
 # Infer the coefficient type from component terms
@@ -300,27 +294,22 @@ function _infer_coef_type(component_terms::Tuple)
             T = promote_type(T, typeof(coef))
         end
     end
-    T
+    return T
 end
 
 # Convert a single Term to vector format
 function _to_term_vector(t::Term)
-    [(t.coefficient, t.monomial)]
+    return [(t.coefficient, t.monomial)]
 end
 
 # Convert Vector{Term} to vector format (already in right form)
 function _to_term_vector(ts::Vector{<:Term})
-    [(t.coefficient, t.monomial) for t in ts]
+    return [(t.coefficient, t.monomial) for t in ts]
 end
 
-# Get zero monomial matching the type of a term result
-function _zero_monomial(t::Term{Monomial{A,T},C}) where {A,T,C}
-    Monomial{A}(T[])
-end
-
-function _zero_monomial(ts::Vector{Term{Monomial{A,T},C}}) where {A,T,C}
-    Monomial{A}(T[])
-end
+# Get identity monomial from simplified result (handles both Term and Vector{Term})
+_identity_monomial(t::Term) = one(t.monomial)
+_identity_monomial(ts::Vector{<:Term}) = one(first(ts).monomial)
 
 # Recursive Cartesian product builder
 function _cartesian_product!(
@@ -328,13 +317,13 @@ function _cartesian_product!(
     component_terms::Tuple,
     idx::Int,
     current_monomials::Tuple,
-    current_coef::Number
+    current_coef::Number,
 )
     if idx > length(component_terms)
         # Base case: all components processed
         cm = ComposedMonomial(current_monomials)
         push!(result, Term(current_coef, cm))
-        return
+        return nothing
     end
 
     # Recursive case: iterate over all terms in current component
@@ -352,7 +341,7 @@ function Base.show(io::IO, cm::ComposedMonomial)
         i > 1 && print(io, ", ")
         print(io, mono.word)
     end
-    print(io, ")")
+    return print(io, ")")
 end
 
 # Show method for Term with ComposedMonomial

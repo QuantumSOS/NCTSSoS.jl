@@ -1,5 +1,70 @@
 # Progress Log: fastpoly-review
 
+## Session: 2025-12-07 15:45
+
+**Agent:** orchestrator + qa-gatekeeper
+**Feature:** composed_monomial.jl review
+
+### Actions
+- Analyzed composed_monomial.jl (370 lines) - product of monomials from different algebras
+- Found 0% test coverage - no tests existed
+- Ran qa-gatekeeper: added 98 tests covering all 19 functions:
+  - Construction & Hashing (11 tests)
+  - Comparison & Access (12 tests)
+  - Simplification logic (42 tests) - Cartesian product, type promotion
+  - Display Methods (11 tests)
+  - Integration Tests (22 tests) - multi-algebra compositions
+
+### Outcome
+- composed_monomial.jl now has comprehensive test coverage (100%)
+- Tests: 0 → 98 (+98 tests)
+- No bugs found
+
+### Next
+- Continue with canonicalization.jl or basis.jl
+
+**Commit:** `f5fdf4e` - refactor(fastpoly): add comprehensive composed_monomial.jl tests
+
+---
+
+## Session: 2025-12-07 15:30
+
+**Agent:** orchestrator + qa-gatekeeper
+**Feature:** algebra_types.jl review
+
+### Actions
+- Analyzed algebra_types.jl (288 lines) - algebra singleton types + index encoding
+- Found existing test file (algebra_constructors.jl) tests different API (pauli_algebra)
+- Ran qa-gatekeeper: identified 0% coverage for algebra_types.jl
+- Created dedicated test file with 229 tests:
+  - Singleton types (18 tests) - all 6 algebra types
+  - Show methods (6 tests) - string representation
+  - Index encoding basics (16 tests) - site_bits, max_sites, max_operators
+  - encode_index (15 tests) - UInt8/16/32/64
+  - Boundary testing (22 tests) - valid/invalid ranges
+  - Decoding functions (22 tests) - decode_site, decode_operator_id
+  - Round-trip tests (96 tests) - encode→decode lossless
+  - select_uint_type (20 tests) - type selection
+  - Edge cases (18 tests) - min/max values
+
+### Bug Found
+- Integer overflow in `encode_index()` for UInt64 large values
+- Location: algebra_types.jl:236
+- Cause: Int64 arithmetic before UInt64 conversion
+- Impact: UInt64 max operator limited to ~2^47 instead of 2^48
+
+### Outcome
+- algebra_types.jl now has comprehensive test coverage (~95%)
+- Tests: 0 → 229 (+229 tests)
+- All functions have explicit tests
+
+### Next
+- Continue with composed_monomial.jl
+
+**Commit:** `8abee46` - refactor(fastpoly): add comprehensive algebra_types.jl tests
+
+---
+
 ## Session: 2025-12-07 15:00
 
 **Agent:** orchestrator + qa-gatekeeper

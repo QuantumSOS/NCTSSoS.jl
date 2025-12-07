@@ -207,7 +207,8 @@ max_operators(UInt16)  # 4095
 max_operators(UInt32)  # 16777215
 ```
 """
-@inline max_operators(::Type{T}) where {T<:Unsigned} = (1 << (sizeof(T) * 8 - site_bits(T))) - 1
+@inline max_operators(::Type{T}) where {T<:Unsigned} =
+    (1 << (sizeof(T) * 8 - site_bits(T))) - 1
 
 """
     encode_index(::Type{T}, operator_id::Int, site::Int) where {T<:Unsigned} -> T
@@ -228,6 +229,7 @@ decode_operator_id(idx)            # 1
 ```
 """
 @inline function encode_index(::Type{T}, operator_id::Int, site::Int) where {T<:Unsigned}
+    # TODO: if this takes too long, we could remove it
     k = site_bits(T)
     ms = max_sites(T)
     mo = max_operators(T)
@@ -283,5 +285,5 @@ function select_uint_type(n_operators::Integer, n_sites::Integer)
             return T
         end
     end
-    error("Cannot fit $n_operators operators × $n_sites sites in any UInt type")
+    return error("Cannot fit $n_operators operators × $n_sites sites in any UInt type")
 end

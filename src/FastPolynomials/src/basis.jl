@@ -67,18 +67,20 @@ end
 """
     get_ncbasis_deg(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
 
-Generate all terms of exactly degree d using variables from the registry.
+Generate all simplified polynomials of exactly degree d using variables from the registry.
 
-Returns `Vector{Term}` to properly handle simplification results, since
-some algebras (like Pauli) may produce coefficients other than 1.0 during
-simplification.
+Returns `Vector{Polynomial}` where each element is the simplified form of one input monomial.
+This preserves the 1-to-1 mapping between input words and output polynomials:
+- NonCommutativeAlgebra: each polynomial is a single monomial (no simplification)
+- PauliAlgebra: each polynomial is a weighted monomial (coefficient from simplification)
+- FermionicAlgebra/BosonicAlgebra: each polynomial may have multiple terms
 
 # Arguments
 - `registry`: Variable registry containing the indices to use
 - `d`: Exact degree
 
 # Returns
-- `Vector{Term{Monomial{A,T}, ComplexF64}}`: All simplified terms of degree d
+- `Vector{Polynomial{A,T,ComplexF64}}`: Simplified polynomials, one per input word
 
 # Examples
 ```jldoctest
@@ -91,11 +93,11 @@ julia> basis = get_ncbasis_deg(reg, 2);
 julia> length(basis)  # 2^2 = 4 monomials
 4
 
-julia> all(t -> t isa Term, basis)
+julia> all(p -> p isa Polynomial, basis)
 true
 ```
 
-Degree 0 returns identity term:
+Degree 0 returns identity polynomial:
 ```jldoctest
 julia> using FastPolynomials
 
@@ -114,49 +116,50 @@ function get_ncbasis_deg(registry::VariableRegistry{A,T}, d::Int) where {A<:Alge
     idxs = indices(registry)
 
     # Negative degree: return empty
-    d < 0 && return Term{Monomial{A,T}, ComplexF64}[]
+    d < 0 && return Polynomial{A,T,ComplexF64}[]
 
-    # Degree 0: return identity term
+    # Degree 0: return identity polynomial
     if d == 0
         identity_mono = Monomial{A}(T[])
-        return [Term(one(ComplexF64), identity_mono)]
+        identity_term = Term(one(ComplexF64), identity_mono)
+        return [Polynomial([identity_term])]
     end
 
     # Generate all words of length d using registry indices
     all_words = _generate_all_words(idxs, d)
 
-    # Use ComplexF64 as coefficient type to handle all algebras
-    # (PauliAlgebra returns ComplexF64, others return Float64 which promotes)
-    terms = Term{Monomial{A,T}, ComplexF64}[]
+    # Each word becomes one polynomial (the simplified form of that monomial)
+    result = Polynomial{A,T,ComplexF64}[]
     for word in all_words
         mono = Monomial{A}(word)
         simplified = simplify(mono)
         # Handle both Term and Vector{Term} return types from simplify
         if simplified isa Vector
-            for term in simplified
-                push!(terms, Term(ComplexF64(term.coefficient), term.monomial))
-            end
+            # Convert to ComplexF64 coefficients
+            terms = [Term(ComplexF64(t.coefficient), t.monomial) for t in simplified]
+            push!(result, Polynomial(terms))
         else
-            push!(terms, Term(ComplexF64(simplified.coefficient), simplified.monomial))
+            term = Term(ComplexF64(simplified.coefficient), simplified.monomial)
+            push!(result, Polynomial([term]))
         end
     end
 
-    return terms
+    return result
 end
 
 """
     get_ncbasis(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
 
-Generate all terms up to and including degree d using variables from the registry.
+Generate all simplified polynomials up to and including degree d using variables from the registry.
 
-Returns `Vector{Term}` to properly handle simplification results.
+Returns `Vector{Polynomial}` where each element is the simplified form of one input monomial.
 
 # Arguments
 - `registry`: Variable registry containing the indices to use
 - `d`: Maximum degree (inclusive)
 
 # Returns
-- `Vector{Term{Monomial{A,T}, ComplexF64}}`: All simplified terms from degree 0 to d
+- `Vector{Polynomial{A,T,ComplexF64}}`: Simplified polynomials from degree 0 to d
 
 # Examples
 ```jldoctest
@@ -169,7 +172,7 @@ julia> basis = get_ncbasis(reg, 2);
 julia> length(basis)  # 1 + 2 + 4 = 7
 7
 
-julia> all(t -> t isa Term, basis)
+julia> all(p -> p isa Polynomial, basis)
 true
 ```
 
@@ -181,14 +184,14 @@ julia> reg, (U,) = create_unipotent_variables([("U", 1:2)]);
 
 julia> basis = get_ncbasis(reg, 2);
 
-julia> all(t -> t isa Term, basis)
+julia> all(p -> p isa Polynomial, basis)
 true
 ```
 """
 function get_ncbasis(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
-    terms = Term{Monomial{A,T}, ComplexF64}[]
+    result = Polynomial{A,T,ComplexF64}[]
     for deg in 0:d
-        append!(terms, get_ncbasis_deg(registry, deg))
+        append!(result, get_ncbasis_deg(registry, deg))
     end
-    return terms
+    return result
 end

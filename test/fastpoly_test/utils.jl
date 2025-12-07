@@ -10,7 +10,12 @@ using NCTSSoS.FastPolynomials:
     create_unipotent_variables,
     star,
     indices,
-    index_type
+    index_type,
+    degree,
+    Term,
+    Polynomial,
+    Monomial,
+    NonCommutativeAlgebra
 
 @testset "Utilities" begin
     @testset "Index Encoding/Decoding" begin
@@ -58,10 +63,10 @@ using NCTSSoS.FastPolynomials:
         basis = get_ncbasis(reg, 3)
 
         # Verify first element is identity (degree 0)
-        @test isone(basis[1].monomial)
+        @test isone(basis[1])
 
         # Verify degree ordering: deg 0 < deg 1 < deg 2 < deg 3
-        degrees = [degree(t.monomial) for t in basis]
+        degrees = [degree(p) for p in basis]
         @test issorted(degrees)
     end
 
@@ -70,7 +75,7 @@ using NCTSSoS.FastPolynomials:
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
         basis_deg0 = get_ncbasis(reg, 0)
         @test length(basis_deg0) == 1
-        @test isone(basis_deg0[1].monomial)
+        @test isone(basis_deg0[1])
     end
 
     @testset "Large Basis Computation" begin

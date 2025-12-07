@@ -56,23 +56,23 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
     @testset "get_ncbasis_deg (NonCommutativeAlgebra)" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Degree 2: returns Vector{Term}
+        # Degree 2: returns Vector{Polynomial}
         basis = get_ncbasis_deg(reg, 2)
-        @test basis isa Vector{<:Term}
+        @test basis isa Vector{<:Polynomial}
         @test length(basis) == 9  # 3^2 = 9
 
-        # All terms should have degree 2 monomials (NonCommutativeAlgebra doesn't simplify)
-        @test all(t -> degree(t.monomial) == 2, basis)
+        # All polynomials should have single degree-2 monomial (NonCommutativeAlgebra doesn't simplify)
+        @test all(p -> length(terms(p)) == 1 && degree(monomials(p)[1]) == 2, basis)
 
-        # Degree 0: identity term
+        # Degree 0: identity polynomial
         basis_d0 = get_ncbasis_deg(reg, 0)
         @test length(basis_d0) == 1
-        @test isone(basis_d0[1].monomial)
+        @test isone(basis_d0[1])
 
         # Degree 1
         basis_d1 = get_ncbasis_deg(reg, 1)
         @test length(basis_d1) == 3
-        @test all(t -> degree(t.monomial) == 1, basis_d1)
+        @test all(p -> length(terms(p)) == 1 && degree(monomials(p)[1]) == 1, basis_d1)
 
         # Negative degree
         basis_neg = get_ncbasis_deg(reg, -1)
@@ -84,11 +84,11 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 6 Pauli operators
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Term}
+        @test basis_d1 isa Vector{<:Polynomial}
         @test length(basis_d1) == 6
 
-        # All should be degree 1 after simplification
-        @test all(t -> degree(t.monomial) == 1, basis_d1)
+        # Each polynomial should be a single term with degree 1 monomial
+        @test all(p -> length(terms(p)) == 1 && degree(monomials(p)[1]) == 1, basis_d1)
     end
 
     @testset "get_ncbasis_deg (ProjectorAlgebra)" begin
@@ -96,7 +96,7 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 3 projectors
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Term}
+        @test basis_d1 isa Vector{<:Polynomial}
         @test length(basis_d1) == 3
     end
 
@@ -106,10 +106,10 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
 
         # Degree 2: generates 4 words, but U_i * U_i simplifies
         basis = get_ncbasis_deg(reg, 2)
-        @test basis isa Vector{<:Term}
+        @test basis isa Vector{<:Polynomial}
 
-        # Should have some terms (exact count depends on simplification)
-        @test length(basis) >= 2  # At least [U1,U2] and [U2,U1]
+        # Should have 4 polynomials (one per input word)
+        @test length(basis) == 4
     end
 
     @testset "get_ncbasis_deg (FermionicAlgebra)" begin
@@ -117,12 +117,13 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 4 operators (a1, a1†, a2, a2†)
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Term}
+        @test basis_d1 isa Vector{<:Polynomial}
         @test length(basis_d1) == 4
 
-        # Degree 2: 16 words, but some simplify (e.g., a_i a_i = 0)
+        # Degree 2: 16 words, some may produce multi-term polynomials
         basis_d2 = get_ncbasis_deg(reg, 2)
-        @test basis_d2 isa Vector{<:Term}
+        @test basis_d2 isa Vector{<:Polynomial}
+        @test length(basis_d2) == 16  # One polynomial per input word
     end
 
     @testset "get_ncbasis_deg (BosonicAlgebra)" begin
@@ -130,7 +131,7 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 4 operators
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Term}
+        @test basis_d1 isa Vector{<:Polynomial}
         @test length(basis_d1) == 4
     end
 
@@ -141,17 +142,17 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
     @testset "get_ncbasis (NonCommutativeAlgebra)" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])
 
-        # Up to degree 2: 1 + 2 + 4 = 7 terms
+        # Up to degree 2: 1 + 2 + 4 = 7 polynomials
         basis = get_ncbasis(reg, 2)
-        @test basis isa Vector{<:Term}
+        @test basis isa Vector{<:Polynomial}
         @test length(basis) == 7
 
-        # Contains identity
-        @test any(t -> isone(t.monomial), basis)
+        # Contains identity polynomial
+        @test any(isone, basis)
 
-        # Contains degree 1 and 2 terms
-        @test any(t -> degree(t.monomial) == 1, basis)
-        @test any(t -> degree(t.monomial) == 2, basis)
+        # Contains degree 1 and 2 polynomials
+        @test any(p -> degree(p) == 1, basis)
+        @test any(p -> degree(p) == 2, basis)
     end
 
     @testset "get_ncbasis (PauliAlgebra)" begin
@@ -159,10 +160,10 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
 
         # Up to degree 2
         basis = get_ncbasis(reg, 2)
-        @test basis isa Vector{<:Term}
+        @test basis isa Vector{<:Polynomial}
 
-        # Contains identity
-        @test any(t -> isone(t.monomial), basis)
+        # Contains identity polynomial
+        @test any(isone, basis)
     end
 
     @testset "get_ncbasis (with multi-prefix variables)" begin
@@ -172,13 +173,14 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
         # Should have 4 total variables
         @test length(reg) == 4
 
-        # Degree 1 basis should have 4 terms
+        # Degree 1 basis should have 4 polynomials
         basis_d1 = get_ncbasis_deg(reg, 1)
         @test length(basis_d1) == 4
 
-        # Degree 2: 4^2 = 16 words (before simplification)
+        # Degree 2: 4^2 = 16 polynomials (one per input word)
         basis_d2 = get_ncbasis_deg(reg, 2)
-        @test basis_d2 isa Vector{<:Term}
+        @test basis_d2 isa Vector{<:Polynomial}
+        @test length(basis_d2) == 16
     end
 
     # =========================================================================
@@ -194,17 +196,21 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
         reg_indices = indices(reg)
 
         # All monomial words should use registry indices
-        for term in basis
-            if !isempty(term.monomial.word)
-                @test all(idx -> idx in reg_indices, term.monomial.word)
+        for poly in basis
+            for mono in monomials(poly)
+                if !isempty(mono.word)
+                    @test all(idx -> idx in reg_indices, mono.word)
+                end
             end
         end
 
         # Index type should match
         T = index_type(reg)
-        for term in basis
-            if !isempty(term.monomial.word)
-                @test eltype(term.monomial.word) == T
+        for poly in basis
+            for mono in monomials(poly)
+                if !isempty(mono.word)
+                    @test eltype(mono.word) == T
+                end
             end
         end
     end

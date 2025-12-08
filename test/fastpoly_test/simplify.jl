@@ -18,16 +18,21 @@ using NCTSSoS.FastPolynomials:
 
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Simple case: multiplication returns Term
+        # Simple case: multiplication now returns Monomial (word concatenation)
         result = x[1] * x[2]
-        @test result isa Term
-        @test result.coefficient == 1.0
-        @test degree(result.monomial) == 2
+        @test result isa Monomial
+        @test degree(result) == 2
+
+        # After simplify!, we get a Term with coefficient
+        term = simplify!(result)
+        @test term isa Term
+        @test term.coefficient == 1.0
+        @test degree(term.monomial) == 2
 
         # Same variable twice
         result2 = x[1] * x[1]
-        @test result2 isa Term
-        @test degree(result2.monomial) == 2
+        @test result2 isa Monomial
+        @test degree(result2) == 2
     end
 
     @testset "Pauli Simplification" begin
@@ -53,10 +58,10 @@ using NCTSSoS.FastPolynomials:
         @test P[1] isa Monomial{ProjectorAlgebra}
         @test degree(P[1]) == 1
 
-        # Multiple projectors
+        # Multiple projectors - multiplication returns Monomial
         result = P[1] * P[2]
-        @test result isa Term
-        @test degree(result.monomial) == 2
+        @test result isa Monomial
+        @test degree(result) == 2
     end
 
     @testset "Unipotent Simplification" begin
@@ -66,10 +71,10 @@ using NCTSSoS.FastPolynomials:
         @test U[1] isa Monomial{UnipotentAlgebra}
         @test degree(U[1]) == 1
 
-        # Multiplication of different unipotent variables
+        # Multiplication of different unipotent variables - returns Monomial
         result = U[1] * U[2]
-        @test result isa Term
-        @test degree(result.monomial) == 2
+        @test result isa Monomial
+        @test degree(result) == 2
     end
 
 

@@ -182,9 +182,10 @@ end
 """
     Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
 
-Multiply two unipotent monomials with site-aware simplification.
+Multiply two unipotent monomials by concatenating their words.
 
-Site-encoded operators on different sites commute. U²=I applies within sites.
+Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
+if site-based ordering and U^2=I rules are needed.
 
 # Examples
 ```jldoctest
@@ -200,34 +201,23 @@ julia> m1 = Monomial{UnipotentAlgebra}([idx1_s1]);
 
 julia> m2 = Monomial{UnipotentAlgebra}([idx1_s2]);
 
-julia> t = m1 * m2;
+julia> m = m1 * m2;
 
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1, idx1_s2]
+julia> m.word == [idx1_s1, idx1_s2]
 true
 ```
 """
 function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Concatenate and simplify using site-aware simplify!
-    result = Monomial{UnipotentAlgebra,T}(vcat(w1, w2), zero(UInt64))
-    simplify!(result)
+    Monomial{UnipotentAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
 end
 
 """
     Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
 
-Multiply two unipotent monomials with signed integer indices (legacy fallback).
+Multiply two unipotent monomials with signed integer indices by concatenating their words.
 
-For signed integers, we cannot use site-based encoding, so we fall back to
-simple concatenation with consecutive duplicate removal (U²=I).
+Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
+if U^2=I rules are needed.
 
 This is provided for backward compatibility with NCTSSoS legacy code that
 uses `Int` indices instead of encoded unsigned indices.
@@ -240,50 +230,14 @@ julia> m1 = Monomial{UnipotentAlgebra}(Int[1]);
 
 julia> m2 = Monomial{UnipotentAlgebra}(Int[2]);
 
-julia> t = m1 * m2;
+julia> m = m1 * m2;
 
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == Int[1, 2]
-true
-
-julia> t2 = m1 * m1;  # U² = I
-
-julia> isempty(t2.monomial.word)
+julia> m.word == Int[1, 2]
 true
 ```
 """
 function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Simple concatenation with U²=I (consecutive duplicate removal)
-    result_word = T[]
-
-    # Process w1
-    for idx in w1
-        if !isempty(result_word) && result_word[end] == idx
-            pop!(result_word)  # U² = I
-        else
-            push!(result_word, idx)
-        end
-    end
-
-    # Process w2
-    for idx in w2
-        if !isempty(result_word) && result_word[end] == idx
-            pop!(result_word)  # U² = I
-        else
-            push!(result_word, idx)
-        end
-    end
-
-    result = Monomial{UnipotentAlgebra,T}(result_word, zero(UInt64))
-    return Term(1.0, result)
+    Monomial{UnipotentAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
 end
 
 """

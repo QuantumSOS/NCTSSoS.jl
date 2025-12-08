@@ -233,9 +233,10 @@ end
 """
     Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) where T
 
-Multiply two Pauli algebra monomials and auto-simplify.
+Multiply two Pauli algebra monomials by concatenating their words.
 
-Returns a Term with the simplified result and accumulated phase.
+Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
+if Pauli algebra rules (site ordering, cyclic products, idempotency) are needed.
 
 # Examples
 ```jldoctest
@@ -243,30 +244,14 @@ julia> m1 = Monomial{PauliAlgebra}([1]);  # σx₁
 
 julia> m2 = Monomial{PauliAlgebra}([2]);  # σy₁
 
-julia> t = m1 * m2;  # σx₁ σy₁ = iσz₁
+julia> m = m1 * m2;
 
-julia> t.coefficient
-0.0 + 1.0im
-
-julia> t.monomial.word
-1-element Vector{Int64}:
- 3
+julia> m.word
+2-element Vector{Int64}:
+ 1
+ 2
 ```
 """
 function Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) where {T}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    if isempty(w1)
-        return simplify(m2)
-    end
-    if isempty(w2)
-        return simplify(m1)
-    end
-
-    # Concatenate and simplify
-    result = vcat(w1, w2)
-    m_result = Monomial{PauliAlgebra}(result)
-    # TODO: I would like to perform simplifcation during multiplication process itself. need to check with QMBCertify
-    simplify!(m_result)
+    Monomial{PauliAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
 end

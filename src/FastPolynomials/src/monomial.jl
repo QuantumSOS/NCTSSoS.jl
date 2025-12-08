@@ -108,6 +108,12 @@ function Base.:(==)(m1::Monomial{A1,T1}, m2::Monomial{A2,T2}) where {A1,A2,T1,T2
     # Different algebra types are never equal
     A1 !== A2 && return false
 
+    # If either hash is zero (uninitialized), compare words directly
+    # This handles monomials created via multiplication before simplification
+    if m1.hash == 0 || m2.hash == 0
+        return m1.word == m2.word
+    end
+
     # Fast path: compare hashes first (O(1))
     m1.hash == m2.hash || return false
 
@@ -118,9 +124,14 @@ end
 """
     Base.hash(m::Monomial, h::UInt) -> UInt
 
-Hash function for Monomial. Uses the precomputed hash value.
+Hash function for Monomial. Uses the precomputed hash value if available,
+otherwise computes from the word.
 """
-Base.hash(m::Monomial, h::UInt) = hash(m.hash, h)
+function Base.hash(m::Monomial, h::UInt)
+    # If hash is zero (uninitialized), compute from word
+    word_hash = m.hash == 0 ? hash(m.word) : m.hash
+    hash(word_hash, h)
+end
 
 """
     degree(m::Monomial) -> Int

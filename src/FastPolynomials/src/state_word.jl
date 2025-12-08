@@ -511,11 +511,11 @@ end
 Multiply two NCStateWords: multiply sw parts (commutative) and nc_word parts (non-commutative).
 """
 function Base.:(*)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # nc_word multiplication uses monomial multiplication (returns Term)
+    # nc_word multiplication returns Monomial (word concatenation only)
     nc_prod = a.nc_word * b.nc_word
-    # StateWord multiplication now returns Term, extract the monomial
+    # StateWord multiplication returns Term, extract the monomial
     sw_prod = a.sw * b.sw
-    NCStateWord(sw_prod.monomial, nc_prod.monomial)
+    NCStateWord(sw_prod.monomial, nc_prod)
 end
 
 # =============================================================================

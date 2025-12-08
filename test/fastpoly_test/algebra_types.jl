@@ -178,10 +178,8 @@ end
         idx = FastPolynomials.encode_index(UInt64, 10000, 5000)
         @test idx == 0x0000000027101388  # (10000 << 16) | 5000
 
-        # NOTE: Maximum value test causes integer overflow in source code
-        # The shift operation (operator_id << k) uses Int64 arithmetic which overflows
-        # Skip this edge case test - see KNOWN ISSUE below
-        # idx = FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
+        idx = FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
+        @test idx == 0xFFFFFFFFFFFFFFFF
     end
 end
 
@@ -231,7 +229,7 @@ end
     @testset "UInt64 boundaries" begin
         # Valid: site 1 to 65535, operator_id 1 to 281474976710655
         @test_nowarn FastPolynomials.encode_index(UInt64, 1, 1)
-        # NOTE: Skipping max value test due to integer overflow bug in source code
+        @test_nowarn FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
 
         # Invalid: site out of range
         @test_throws AssertionError FastPolynomials.encode_index(UInt64, 1, 0)
@@ -239,7 +237,7 @@ end
 
         # Invalid: operator_id out of range
         @test_throws AssertionError FastPolynomials.encode_index(UInt64, 0, 1)
-        # NOTE: Skipping max+1 test due to integer overflow bug in source code
+        @test_throws AssertionError FastPolynomials.encode_index(UInt64, 281474976710656, 1)
     end
 end
 
@@ -281,9 +279,8 @@ end
         idx = FastPolynomials.encode_index(UInt64, 10000, 5000)
         @test FastPolynomials.decode_site(idx) == 5000
 
-        # NOTE: Skipping max value test due to integer overflow bug in source code
-        # idx = FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
-        # @test FastPolynomials.decode_site(idx) == 65535
+        idx = FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
+        @test FastPolynomials.decode_site(idx) == 65535
 
         idx = FastPolynomials.encode_index(UInt64, 1, 1)
         @test FastPolynomials.decode_site(idx) == 1
@@ -328,9 +325,8 @@ end
         idx = FastPolynomials.encode_index(UInt64, 10000, 5000)
         @test FastPolynomials.decode_operator_id(idx) == 10000
 
-        # NOTE: Skipping max value test due to integer overflow bug in source code
-        # idx = FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
-        # @test FastPolynomials.decode_operator_id(idx) == 281474976710655
+        idx = FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
+        @test FastPolynomials.decode_operator_id(idx) == 281474976710655
 
         idx = FastPolynomials.encode_index(UInt64, 1, 1)
         @test FastPolynomials.decode_operator_id(idx) == 1
@@ -369,9 +365,8 @@ end
     end
 
     @testset "UInt64 round-trip" begin
-        # NOTE: Avoiding max operator_id values due to integer overflow bug in source code
-        for op_id in [1, 10000, 1000000, 100000000]
-            for site in [1, 1000, 10000]
+        for op_id in [1, 10000, 1000000, 100000000, 281474976710655]
+            for site in [1, 1000, 10000, 65535]
                 idx = FastPolynomials.encode_index(UInt64, op_id, site)
                 @test FastPolynomials.decode_operator_id(idx) == op_id
                 @test FastPolynomials.decode_site(idx) == site
@@ -424,6 +419,27 @@ end
         # Both exceed UInt64 capacity
         @test_throws ErrorException FastPolynomials.select_uint_type(281474976710656, 65536)
     end
+
+    @testset "select_uint_type error message validation" begin
+        # Verify error messages are informative
+        try
+            FastPolynomials.select_uint_type(100, 65536)
+            @test false  # Should not reach here
+        catch e
+            @test e isa ErrorException
+            @test occursin("Cannot fit", e.msg)
+            @test occursin("65536", e.msg)  # sites value in message
+        end
+
+        try
+            FastPolynomials.select_uint_type(281474976710656, 100)
+            @test false  # Should not reach here
+        catch e
+            @test e isa ErrorException
+            @test occursin("Cannot fit", e.msg)
+            @test occursin("281474976710656", e.msg)  # operators value in message
+        end
+    end
 end
 
 @testset "Index Encoding: edge case combinations" begin
@@ -450,7 +466,9 @@ end
         @test FastPolynomials.decode_operator_id(idx) == 16777215
         @test FastPolynomials.decode_site(idx) == 255
 
-        # NOTE: Skipping UInt64 max values due to integer overflow bug in source code
+        idx = FastPolynomials.encode_index(UInt64, 281474976710655, 65535)
+        @test FastPolynomials.decode_operator_id(idx) == 281474976710655
+        @test FastPolynomials.decode_site(idx) == 65535
     end
 
     @testset "Mixed boundary values" begin
@@ -462,5 +480,60 @@ end
         idx = FastPolynomials.encode_index(UInt16, 1, 15)
         @test FastPolynomials.decode_operator_id(idx) == 1
         @test FastPolynomials.decode_site(idx) == 15
+    end
+end
+
+@testset "Index Encoding: integration with simplification" begin
+    @testset "ProjectorAlgebra encoding preserved through simplification" begin
+        # Create encoded indices for projector operators on different sites
+        p1_site1 = FastPolynomials.encode_index(UInt16, 1, 1)  # P₁ on site 1
+        p1_site2 = FastPolynomials.encode_index(UInt16, 1, 2)  # P₁ on site 2
+
+        # Create monomial P₁¹ P₁¹ P₁² (two P₁ on site 1, one on site 2)
+        m = Monomial{ProjectorAlgebra}(UInt16[p1_site1, p1_site1, p1_site2])
+
+        # Simplify: P² = P, so P₁¹ P₁¹ → P₁¹
+        result = simplify(m)
+
+        # Verify result preserves encoding
+        @test result.monomial.word[1] == p1_site1  # First should be site 1
+        @test result.monomial.word[2] == p1_site2  # Second should be site 2
+        @test FastPolynomials.decode_site(result.monomial.word[1]) == 1
+        @test FastPolynomials.decode_site(result.monomial.word[2]) == 2
+    end
+
+    @testset "UnipotentAlgebra encoding preserved through simplification" begin
+        # Create encoded indices for unipotent operators on different sites
+        u1_site1 = FastPolynomials.encode_index(UInt16, 1, 1)  # U₁ on site 1
+        u1_site2 = FastPolynomials.encode_index(UInt16, 1, 2)  # U₁ on site 2
+
+        # Create monomial U₁¹ U₁¹ U₁² (two U₁ on site 1, one on site 2)
+        m = Monomial{UnipotentAlgebra}(UInt16[u1_site1, u1_site1, u1_site2])
+
+        # Simplify: U² = I, so U₁¹ U₁¹ → identity (removed)
+        result = simplify(m)
+
+        # After U₁¹ U₁¹ cancels, only U₁² remains
+        @test length(result.monomial.word) == 1
+        @test result.monomial.word[1] == u1_site2
+        @test FastPolynomials.decode_site(result.monomial.word[1]) == 2
+    end
+
+    @testset "NonCommutativeAlgebra site-based commutation" begin
+        # Create encoded indices for operators on different sites
+        x1_site1 = FastPolynomials.encode_index(UInt16, 1, 1)  # x₁ on site 1
+        x2_site2 = FastPolynomials.encode_index(UInt16, 2, 2)  # x₂ on site 2
+        x3_site1 = FastPolynomials.encode_index(UInt16, 3, 1)  # x₃ on site 1
+
+        # Create monomial x₂² x₁¹ x₃¹ (out of site order)
+        m = Monomial{NonCommutativeAlgebra}(UInt16[x2_site2, x1_site1, x3_site1])
+
+        # Simplify should sort by site (operators on different sites commute)
+        result = simplify(m)
+
+        # Site 1 operators should come before site 2
+        @test FastPolynomials.decode_site(result.monomial.word[1]) == 1
+        @test FastPolynomials.decode_site(result.monomial.word[2]) == 1
+        @test FastPolynomials.decode_site(result.monomial.word[3]) == 2
     end
 end

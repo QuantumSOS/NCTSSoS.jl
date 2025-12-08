@@ -93,7 +93,10 @@ end
 """
     neat_dot(a::Monomial, b::Monomial) -> Monomial
 
-Compute adjoint(a) * b for regular Monomials.
+Compute adjoint(a) * b for regular Monomials by concatenating words.
+
+Returns a Monomial with the adjoint of a's word followed by b's word.
+Does NOT apply simplification - callers should simplify! explicitly if needed.
 
 # Examples
 ```jldoctest
@@ -105,26 +108,26 @@ julia> m2 = Monomial{PauliAlgebra}([3, 4]);
 
 julia> result = neat_dot(m1, m2);
 
-julia> result.monomial.word
-6-element Vector{Int64}:
- 2
- 1
- 3
- 4
+julia> result.word
+4-element Vector{Int64}:
+ -2
+ -1
+  3
+  4
 ```
 """
 function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # adjoint(a) * b returns a Term, but for legacy compatibility we need a Monomial
-    # The coefficient is assumed to be 1 for simple algebras
-    result = adjoint(a) * b
-    result.monomial
+    # adjoint(a) * b - concatenate adjoint(a).word with b.word
+    adjoint(a) * b
 end
 
 """
     _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Monomial
 
-Compute adjoint(a) * m * b for regular Monomials.
-Returns a Monomial (extracts from the Term result for legacy compatibility).
+Compute adjoint(a) * m * b for regular Monomials by concatenating words.
+
+Returns a Monomial with adjoint(a).word concatenated with m.word and b.word.
+Does NOT apply simplification - callers should simplify! explicitly if needed.
 
 This is the three-argument form commonly used in moment matrix construction
 where we need adjoint(row_index) * constraint_monomial * column_index.
@@ -149,13 +152,8 @@ julia> result.word
 ```
 """
 function _neat_dot3(a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # For NonCommutativeAlgebra and others: adjoint just reverses
-    # (adjoint(a) * m) * b
-    temp = adjoint(a) * m
-    # temp is a Term, extract monomial for next multiplication
-    result = temp.monomial * b
-    # Return only the monomial for legacy compatibility
-    result.monomial
+    # adjoint(a) * m * b - just concatenate the words
+    adjoint(a) * m * b
 end
 
 # =============================================================================
@@ -242,8 +240,8 @@ end
 function Base.:*(a::Variable, b::Variable)
     m_a = to_monomial(a)
     m_b = to_monomial(b)
-    result = m_a * m_b  # Returns Term
-    Polynomial([result])
+    result = m_a * m_b  # Returns Monomial (word concatenation)
+    Polynomial([Term(one(ComplexF64), result)])
 end
 
 # Scalar * Variable -> Polynomial
@@ -316,8 +314,7 @@ function Base.:^(v::Variable, n::Integer)
     m = to_monomial(v)
     result_m = m
     for _ in 2:n
-        temp = result_m * m  # Returns Term
-        result_m = temp.monomial
+        result_m = result_m * m  # Returns Monomial (word concatenation)
     end
     Polynomial([Term(ComplexF64(1.0), result_m)])
 end

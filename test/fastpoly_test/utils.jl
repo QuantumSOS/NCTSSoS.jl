@@ -95,9 +95,10 @@ using NCTSSoS.FastPolynomials:
         end
 
         # Monomials from registry should multiply correctly
+        # Note: Monomial multiplication now returns Monomial (word concatenation)
         m = x[1] * x[2]
-        @test m isa Term
-        @test degree(m.monomial) == 2
+        @test m isa Monomial
+        @test degree(m) == 2
     end
 
     @testset "Star Operation" begin

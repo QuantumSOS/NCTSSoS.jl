@@ -197,9 +197,10 @@ end
 """
     Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T}) where T
 
-Multiply two bosonic algebra monomials and auto-simplify to normal order.
+Multiply two bosonic algebra monomials by concatenating their words.
 
-Returns a vector of Terms due to delta term generation.
+Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
+if normal ordering with delta corrections is needed.
 
 # Examples
 ```jldoctest
@@ -207,27 +208,16 @@ julia> m1 = Monomial{BosonicAlgebra}(Int32[1]);  # c₁
 
 julia> m2 = Monomial{BosonicAlgebra}(Int32[-1]); # c₁†
 
-julia> terms = m1 * m2;  # c₁ c₁† = c₁† c₁ + 1
+julia> m = m1 * m2;
 
-julia> length(terms)
-2
+julia> m.word
+2-element Vector{Int32}:
+  1
+ -1
 ```
 """
 function Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T}) where {T}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    if isempty(w1)
-        return simplify(m2)
-    end
-    if isempty(w2)
-        return simplify(m1)
-    end
-
-    # Concatenate and simplify
-    result = vcat(w1, w2)
-    m_result = Monomial{BosonicAlgebra}(result)
-    simplify!(m_result)
+    Monomial{BosonicAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
 end
 
 # =============================================================================

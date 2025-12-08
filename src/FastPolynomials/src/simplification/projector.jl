@@ -162,9 +162,10 @@ end
 """
     Base.:*(m1::Monomial{ProjectorAlgebra,T}, m2::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
 
-Multiply two projector monomials with site-aware simplification.
+Multiply two projector monomials by concatenating their words.
 
-Site-encoded operators on different sites commute. Idempotency applies within sites.
+Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
+if site-based ordering and idempotency rules are needed.
 
 # Examples
 ```jldoctest
@@ -180,23 +181,12 @@ julia> m1 = Monomial{ProjectorAlgebra}([idx1_s1]);
 
 julia> m2 = Monomial{ProjectorAlgebra}([idx1_s2]);
 
-julia> t = m1 * m2;
+julia> m = m1 * m2;
 
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1, idx1_s2]
+julia> m.word == [idx1_s1, idx1_s2]
 true
 ```
 """
 function Base.:*(m1::Monomial{ProjectorAlgebra,T}, m2::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Concatenate and simplify using site-aware simplify!
-    result = Monomial{ProjectorAlgebra,T}(vcat(w1, w2), zero(UInt64))
-    simplify!(result)
+    Monomial{ProjectorAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
 end

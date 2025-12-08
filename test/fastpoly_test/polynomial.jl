@@ -369,7 +369,7 @@ using NCTSSoS.FastPolynomials: variable_indices
 
     @testset "Error Paths" begin
         # Division by zero
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1])
         p = Polynomial([Term(6.0, m)])
         @test_throws DivideError p / 0.0
 
@@ -385,7 +385,7 @@ using NCTSSoS.FastPolynomials: variable_indices
 
     @testset "Edge Cases: zero and one from instance" begin
         # zero from instance
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1, 2])
         p = Polynomial([Term(5.0, m)])
         p_zero_from_inst = zero(p)
         @test iszero(p_zero_from_inst)
@@ -399,7 +399,7 @@ using NCTSSoS.FastPolynomials: variable_indices
 
     @testset "Scalar + Polynomial" begin
         # Scalar + polynomial (both orderings)
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1])
         p = Polynomial([Term(2.0, m)])
 
         # Polynomial + scalar

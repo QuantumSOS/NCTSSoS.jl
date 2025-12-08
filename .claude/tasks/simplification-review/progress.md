@@ -429,3 +429,347 @@ Replaced Dict-based grouping with simpler sort+backtrack:
 **Commit:** `10ceae7` - test(fastpoly): add comprehensive FermionicAlgebra and BosonicAlgebra simplification tests
 
 ---
+
+## Session: 2025-12-09 (continued)
+
+**Agent:** orchestrator
+**Feature:** R008 (canonicalization)
+
+### Actions
+- Read canonicalization.jl (344 lines) - all 4 canonicalization functions
+- Verified algorithm correctness for symmetric_canon, cyclic_canon, cyclic_symmetric_canon
+- Investigated TODO at line 143 about "simplify-before-canonicalize"
+- Compared with NCTSSOS reference implementation in utils.jl
+- Ran 106 canonicalization tests - all pass
+
+### Findings
+
+**Algorithm Analysis:**
+| Function | Complexity | Description |
+|----------|------------|-------------|
+| symmetric_canon | O(n/2) | Compare word with reverse, return lex-smaller |
+| cyclic_canon | O(n²) | Try all n rotations, keep minimum |
+| cyclic_symmetric_canon | O(n²) | min(cyclic_canon(word), cyclic_canon(reverse(word))) |
+| canonicalize (Polynomial) | O(m·n²) | Canonicalize each of m terms, then combine |
+
+**TODO Resolution (line 143 - "do I need to simplify first before comparing?"):**
+- Answer: **No, for the current use case**
+- Simplification and canonicalization are **orthogonal operations**:
+  - Simplify: Apply algebraic rules (X²=I, P²=P) - changes word structure
+  - Canonicalize: Find equivalence class representative - preserves word structure
+- In solver context: expressions are typically pre-simplified before canonicalization
+- The TODO is resolved: current behavior is correct
+
+**Test Coverage:**
+- 106 tests covering all edge cases
+- Empty words, single elements, palindromes
+- Type preservation across algebra types
+- Polynomial term combining and cancellation
+
+### Outcome
+- R008 PASS: All canonicalization algorithms mathematically correct
+- O(n²) complexity for cyclic is documented and acceptable for typical word lengths
+- TODO resolved: simplify-before-canonicalize is not needed for current use cases
+
+### Next Steps
+- Continue with R010 (adjoint operations)
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-09 (continued)
+
+**Agent:** orchestrator
+**Feature:** R010 (adjoint-operations)
+
+### Actions
+- Reviewed default `adjoint!` implementation in monomial.jl
+- Tested adjoint behavior for all 6 algebra types
+- Verified sign handling for Signed vs Unsigned types
+- Checked test coverage (comprehensive tests in monomials.jl)
+
+### Findings
+
+**Default Implementation (monomial.jl:335-344):**
+- `adjoint!`: reverse word, then negate if Signed type
+- Type-based dispatch elegantly handles all semantics
+
+**Type-Based Dispatch:**
+| Index Type | Behavior | Use Case |
+|------------|----------|----------|
+| Unsigned (UInt16) | reverse only | Self-adjoint operators (Pauli, Projector, Unipotent) |
+| Signed (Int32) | reverse + negate | Creation/Annihilation (Fermionic, Bosonic) |
+
+**Correctness Verified:**
+- All 6 algebras behave correctly with default adjoint
+- No specialized implementations needed
+- `star!` and `star` are correct aliases
+
+### Outcome
+- R010 PASS: Adjoint implementation mathematically correct
+- Type system enforces correct behavior via Signed/Unsigned dispatch
+
+### Next Steps
+- Continue with R011 (legacy compatibility layer)
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-09 (continued)
+
+**Agent:** orchestrator
+**Feature:** R011 (legacy-compatibility)
+
+### Actions
+- Reviewed SimplifyAlgorithm struct in utils.jl (lines 471-511)
+- Tested Variable struct functionality
+- Checked all legacy wrapper functions
+- Identified code still using legacy API (9 test files)
+
+### Findings
+
+**Legacy Components Status:**
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Variable struct | ✓ Works | Converts to Monomial/Polynomial |
+| SimplifyAlgorithm | ✓ Works | Struct exists, limited use |
+| get_basis(vars, d) | ✗ BROKEN | Calls non-existent signature |
+| get_basis(P, vars, d, sa) | ✗ BROKEN | Same issue |
+| simplify(m, sa) | ✓ Works | Passthrough |
+| is_symmetric(p, sa) | ✓ Works | Delegates correctly |
+
+**BUG FOUND:**
+```julia
+# utils.jl:542 - BROKEN
+get_ncbasis(NonCommutativeAlgebra, n_vars, degree; T=Int)
+
+# Current API (basis.jl:191) requires:
+get_ncbasis(registry::VariableRegistry, d::Int)
+```
+
+The `get_basis` legacy wrapper calls a function signature that no longer exists. The API changed to require a `VariableRegistry` instead of just an `AlgebraType` and count.
+
+**Files Using Legacy API:**
+- test/fastpoly_test/simplify.jl
+- test/fastpoly_test/allocations.jl
+- test/state_poly_opt.jl
+- test/sparse.jl
+- test/solver_utils.jl
+- test/state_moment_solver.jl
+- test/moment_solver.jl
+- test/pxp.jl
+- test/algebra_constructors.jl
+
+**Recommendation:**
+1. Fix `get_basis` to use new VariableRegistry API, OR
+2. Mark legacy API as deprecated and update callers
+
+### Outcome
+- R011 PASS (review complete, bug documented)
+- Legacy Variable and SimplifyAlgorithm work for their limited scope
+- get_basis is broken and needs fixing
+
+### Next Steps
+- Continue with R012 (test coverage)
+- Bug fix for get_basis should be separate task
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-09 (continued)
+
+**Agent:** orchestrator
+**Feature:** R012 (test-coverage)
+
+### Actions
+- Analyzed test counts by file (15 test files)
+- Checked algebra type coverage across all test files
+- Identified gaps and recent additions
+
+### Findings
+
+**Test Count Summary:**
+- Total: 1141 tests across 15 files
+- Largest: algebra_types.jl (133), canonicalization.jl (106), simplify.jl (110)
+
+**Coverage by Algebra Type:**
+| Algebra | Tests | Status |
+|---------|-------|--------|
+| NonCommutativeAlgebra | 300+ | ✓ Excellent |
+| PauliAlgebra | 100+ | ✓ Good |
+| FermionicAlgebra | 83+ | ✓ Good (improved) |
+| BosonicAlgebra | 60+ | ✓ Good (new tests) |
+| ProjectorAlgebra | 20+ | Moderate |
+| UnipotentAlgebra | 25+ | Moderate |
+
+**Recent Improvements (this task):**
+- Added 38 FermionicAlgebra tests (CAR, nilpotency, multi-mode)
+- Added 45 BosonicAlgebra tests (CCR, rook number verification)
+- Test count increased from 1031 → 1141
+
+**Gaps Identified:**
+1. Projector/Unipotent have minimal dedicated simplify tests
+2. No canonicalization tests for Fermionic/Bosonic (N/A - return Vector{Term})
+3. No property-based tests (potential improvement area)
+
+### Outcome
+- R012 PASS: Test coverage is comprehensive for core functionality
+- All algebra types have basic coverage
+- Fermionic/Bosonic significantly improved during this task
+
+### Next Steps
+- Continue with R013 (return type heterogeneity)
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-09 (continued)
+
+**Agent:** orchestrator
+**Feature:** R013 (return-type-heterogeneity)
+
+### Actions
+- Tested simplify! return types for all 6 algebras
+- Located _add_simplified_terms! handling in polynomial.jl
+- Analyzed design rationale
+
+### Findings
+
+**Return Types by Algebra:**
+| Algebra | Return Type | Coefficient Type |
+|---------|-------------|------------------|
+| NonCommutativeAlgebra | Term | Float64 |
+| PauliAlgebra | Term | ComplexF64 |
+| ProjectorAlgebra | Term | Float64 |
+| UnipotentAlgebra | Term | Float64 |
+| FermionicAlgebra | Vector{Term} | Float64 |
+| BosonicAlgebra | Vector{Term} | Float64 |
+
+**Handler Implementation (polynomial.jl:700-730):**
+- `_add_simplified_terms!` has 3 method overloads
+- Handles Monomial, Term, and Vector{Term}
+- Allows uniform Polynomial operations
+
+### Outcome
+- R013 PASS: Return type heterogeneity is intentional and properly handled
+- Design is mathematically sound
+
+### Next Steps
+- Continue with R014 (site-encoding applicability)
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-09 (continued)
+
+**Agent:** orchestrator
+**Feature:** R014 (site-encoding-applicability)
+
+### Actions
+- Analyzed site-encoding bit allocation in algebra_types.jl
+- Checked why only Unsigned types support site encoding
+- Reviewed bit allocation optimality
+
+### Findings
+
+**Why Only Unsigned Types:**
+- Signed types use sign bit for creation/annihilation distinction
+- Site encoding uses bit-packing: `index = (operator_id << site_bits) | site`
+- Can't reuse sign bit for both purposes
+- Fermionic/Bosonic inherently require signed indices
+
+**Bit Allocation (site_bits = n/4):**
+| Type | site_bits | max_sites | max_operators |
+|------|-----------|-----------|---------------|
+| UInt8 | 2 | 3 | 63 |
+| UInt16 | 4 | 15 | 4095 |
+| UInt32 | 8 | 255 | 16M |
+| UInt64 | 16 | 65535 | 281T |
+
+**Practical Assessment:**
+- UInt16 (15 sites × 4095 ops) sufficient for most quantum systems
+- UInt32 available for large-scale problems
+- Fixed allocation is reasonable; configurable would add complexity
+
+### Outcome
+- R014 PASS: Site-encoding design is sound for intended use cases
+- Unsigned-only limitation is mathematically necessary
+- Bit allocation is practical for typical problems
+
+### Next Steps
+- Continue with R015 (higher-level integration)
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-09 (continued)
+
+**Agent:** orchestrator
+**Feature:** R015 (higher-level-integration)
+
+### Actions
+- Examined simplify/canonicalize usage in solver code
+- Checked moment_solver.jl, complex_moment_solver.jl, sparse.jl
+- Reviewed caching patterns
+
+### Findings
+
+**Usage Patterns:**
+| File | simplify | canonicalize | Notes |
+|------|----------|--------------|-------|
+| moment_solver.jl | ✓ | ✓ | Legacy API via SimplifyAlgorithm |
+| complex_moment_solver.jl | ✓ | - | Legacy API |
+| sparse.jl | ✓ | ✓ | Both used in init_activated_supp |
+| sos_solver.jl | - | ✓ | For basis symmetrization |
+
+**Caching:**
+- `monomap::Dict{M,JS}` maps monomials to JuMP variables (O(1) lookup)
+- No explicit simplification caching (monomials simplified on demand)
+
+**Observations:**
+1. All solver code uses legacy `SimplifyAlgorithm` API
+2. `_neat_dot3` is the main entry point for triple products
+3. sparse.jl line 167 mixes canonicalize and simplify (intentional)
+4. NOTE at sparse.jl:263 asks about symmetric canonicalization
+
+**Performance Assessment:**
+- No obvious redundant simplification calls detected
+- `monomap` Dict provides effective caching for JuMP variable lookups
+- Simplification is called per-monomial, appropriate for typical problem sizes
+
+### Outcome
+- R015 PASS: Higher-level integration is coherent
+- Legacy API usage is intentional (solver code predates new API)
+- Caching is adequate for current use cases
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Task Completion Summary
+
+**All 15 review items completed:**
+- R001-R007, R009: Previously completed (8/15)
+- R008-R015: Completed this session (7/15)
+
+**Total: 15/15 PASS**
+
+**Key Findings:**
+1. All simplification algorithms mathematically correct
+2. Legacy API has a bug (get_basis broken)
+3. Return type heterogeneity is intentional
+4. Site-encoding limitations are mathematically necessary
+5. Test coverage improved (1031 → 1141 tests)
+
+**Recommendations for Future Work:**
+1. Fix legacy get_basis function (broken signature)
+2. Consider deprecating SimplifyAlgorithm in favor of AlgebraType dispatch
+3. Add property-based tests for algebraic relations
+
+---

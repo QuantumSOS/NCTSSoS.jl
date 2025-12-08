@@ -93,6 +93,33 @@ function Monomial(word::Vector{T}) where {T<:Integer}
 end
 
 """
+    Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
+
+Multiply two monomials of the same algebra type by concatenating their words.
+
+Returns a new Monomial with the concatenated word. Callers should apply
+`simplify!` explicitly if algebra-specific simplification is needed.
+
+# Examples
+```jldoctest
+julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+
+julia> m2 = Monomial{NonCommutativeAlgebra}([3]);
+
+julia> m = m1 * m2;
+
+julia> m.word
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+```
+"""
+function Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    Monomial{A}(vcat(m1.word, m2.word))
+end
+
+"""
     Base.:(==)(m1::Monomial, m2::Monomial) -> Bool
 
 Fast equality comparison using precomputed hash.

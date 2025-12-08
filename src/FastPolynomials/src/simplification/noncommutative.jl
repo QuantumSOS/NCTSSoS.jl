@@ -129,36 +129,3 @@ function simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
     m_copy = Monomial{NonCommutativeAlgebra,T}(copy(m.word), m.hash)
     simplify!(m_copy)
 end
-
-"""
-    Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
-
-Multiply two non-commutative monomials by concatenating their words.
-
-Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
-if site-based ordering is needed.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> using FastPolynomials: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> idx1_s2 = encode_index(UInt16, 1, 2);
-
-julia> m1 = Monomial{NonCommutativeAlgebra}([idx1_s1]);
-
-julia> m2 = Monomial{NonCommutativeAlgebra}([idx1_s2]);
-
-julia> m = m1 * m2;
-
-julia> m.word == [idx1_s1, idx1_s2]
-true
-```
-"""
-function Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
-    Monomial{NonCommutativeAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
-end
-

@@ -382,29 +382,3 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     m_copy = Monomial{FermionicAlgebra,T}(word_copy, m.hash)
     simplify!(m_copy)
 end
-
-"""
-    Base.:*(m1::Monomial{FermionicAlgebra,T}, m2::Monomial{FermionicAlgebra,T}) where T
-
-Multiply two fermionic monomials by concatenating their words.
-
-Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
-if Wick's theorem / normal ordering is needed.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{FermionicAlgebra}(Int32[1]);   # a₁
-
-julia> m2 = Monomial{FermionicAlgebra}(Int32[-1]);  # a₁†
-
-julia> m = m1 * m2;
-
-julia> m.word
-2-element Vector{Int32}:
-  1
- -1
-```
-"""
-function Base.:*(m1::Monomial{FermionicAlgebra,T}, m2::Monomial{FermionicAlgebra,T}) where {T}
-    Monomial{FermionicAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
-end

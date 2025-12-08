@@ -96,6 +96,51 @@
 ### Next Steps
 - Continue with R002 (NonCommutative simplification) or other review items
 
+**Commit:** `f60de30` - docs(fastpoly): fix Pauli algebra terminology
+
+---
+
+## Session: 2025-12-08 21:30
+
+**Agent:** orchestrator
+**Feature:** R002 (noncommutative-simplification)
+
+### Actions
+- Read noncommutative.jl (165 lines) - site-based simplification for Unsigned types
+- Tested Signed type behavior - confirmed MethodError (intentional, no site encoding)
+- Verified edge cases: empty word, single element, same site, different sites, mixed
+
+### Findings
+
+**Algorithm (Unsigned only):**
+```julia
+sort!(word, alg=InsertionSort, by=decode_site)  # Stable sort preserves within-site order
+```
+
+**Design Decisions:**
+- Only `T<:Unsigned` supported - site encoding requires unsigned bit operations
+- Signed types have no simplify method (MethodError) - intentional
+- Stable sort ensures within-site operator order is preserved
+- InsertionSort used (optimal for small arrays typical in monomials)
+
+**Edge Cases Verified:**
+| Case | Input Sites | Output Sites | Status |
+|------|-------------|--------------|--------|
+| Empty | [] | [] | ✓ |
+| Single | [1] | [1] | ✓ |
+| Same site | [1,1] | [1,1] (order preserved) | ✓ |
+| Different | [3,1,2] | [1,2,3] | ✓ |
+| Mixed | [2,1,2,1] | [1,1,2,2] | ✓ |
+
+**Tests:** All 29 simplify tests pass
+
+### Outcome
+- R002 PASS: NonCommutative simplification is correct and well-designed
+- Unsigned-only constraint is intentional (site encoding requirement)
+
+### Next Steps
+- Continue with R003 (Pauli simplification) or other review items
+
 **Commit:** (no code changes - review only)
 
 ---

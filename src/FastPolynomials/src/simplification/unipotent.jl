@@ -180,67 +180,6 @@ function simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
 end
 
 """
-    Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
-
-Multiply two unipotent monomials by concatenating their words.
-
-Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
-if site-based ordering and U^2=I rules are needed.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> using FastPolynomials: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> idx1_s2 = encode_index(UInt16, 1, 2);
-
-julia> m1 = Monomial{UnipotentAlgebra}([idx1_s1]);
-
-julia> m2 = Monomial{UnipotentAlgebra}([idx1_s2]);
-
-julia> m = m1 * m2;
-
-julia> m.word == [idx1_s1, idx1_s2]
-true
-```
-"""
-function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
-    Monomial{UnipotentAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
-end
-
-"""
-    Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-
-Multiply two unipotent monomials with signed integer indices by concatenating their words.
-
-Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
-if U^2=I rules are needed.
-
-This is provided for backward compatibility with NCTSSoS legacy code that
-uses `Int` indices instead of encoded unsigned indices.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m1 = Monomial{UnipotentAlgebra}(Int[1]);
-
-julia> m2 = Monomial{UnipotentAlgebra}(Int[2]);
-
-julia> m = m1 * m2;
-
-julia> m.word == Int[1, 2]
-true
-```
-"""
-function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-    Monomial{UnipotentAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
-end
-
-"""
     Base.adjoint(m::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
 
 Compute the adjoint of a unipotent monomial with signed indices.

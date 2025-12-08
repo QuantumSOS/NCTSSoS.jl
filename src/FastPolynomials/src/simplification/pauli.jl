@@ -229,29 +229,3 @@ function simplify(m::Monomial{PauliAlgebra,T}) where {T}
     m_copy = Monomial{PauliAlgebra,T}(copy(m.word), m.hash)
     simplify!(m_copy)
 end
-
-"""
-    Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) where T
-
-Multiply two Pauli algebra monomials by concatenating their words.
-
-Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
-if Pauli algebra rules (site ordering, cyclic products, idempotency) are needed.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1]);  # σx₁
-
-julia> m2 = Monomial{PauliAlgebra}([2]);  # σy₁
-
-julia> m = m1 * m2;
-
-julia> m.word
-2-element Vector{Int64}:
- 1
- 2
-```
-"""
-function Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) where {T}
-    Monomial{PauliAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
-end

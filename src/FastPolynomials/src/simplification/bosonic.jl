@@ -194,32 +194,6 @@ function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
     simplify!(m_copy)
 end
 
-"""
-    Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T}) where T
-
-Multiply two bosonic algebra monomials by concatenating their words.
-
-Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
-if normal ordering with delta corrections is needed.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{BosonicAlgebra}(Int32[1]);  # c₁
-
-julia> m2 = Monomial{BosonicAlgebra}(Int32[-1]); # c₁†
-
-julia> m = m1 * m2;
-
-julia> m.word
-2-element Vector{Int32}:
-  1
- -1
-```
-"""
-function Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T}) where {T}
-    Monomial{BosonicAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
-end
-
 # =============================================================================
 # Group-Based Algorithm with Closed-Form Formulas (Rook Numbers)
 # Based on arXiv:quant-ph/0507206 - Combinatorics of boson normal ordering

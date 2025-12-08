@@ -158,35 +158,3 @@ function simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     m_copy = Monomial{ProjectorAlgebra,T}(copy(m.word), m.hash)
     simplify!(m_copy)
 end
-
-"""
-    Base.:*(m1::Monomial{ProjectorAlgebra,T}, m2::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
-
-Multiply two projector monomials by concatenating their words.
-
-Returns a Monomial with concatenated words. Callers should apply simplify! explicitly
-if site-based ordering and idempotency rules are needed.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> using FastPolynomials: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> idx1_s2 = encode_index(UInt16, 1, 2);
-
-julia> m1 = Monomial{ProjectorAlgebra}([idx1_s1]);
-
-julia> m2 = Monomial{ProjectorAlgebra}([idx1_s2]);
-
-julia> m = m1 * m2;
-
-julia> m.word == [idx1_s1, idx1_s2]
-true
-```
-"""
-function Base.:*(m1::Monomial{ProjectorAlgebra,T}, m2::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
-    Monomial{ProjectorAlgebra,T}(vcat(m1.word, m2.word), zero(UInt64))
-end

@@ -144,3 +144,84 @@ sort!(word, alg=InsertionSort, by=decode_site)  # Stable sort preserves within-s
 **Commit:** (no code changes - review only)
 
 ---
+
+## Session: 2025-12-08 21:45
+
+**Agent:** orchestrator
+**Feature:** Refactoring (user-initiated)
+
+### Actions
+- User identified that all algebra-specific `Base.:*` methods were identical
+- Added single generic `Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T})` in monomial.jl
+- Removed 7 duplicate implementations from simplification files
+- Fixed hash handling: use `Monomial{A}(vcat(...))` instead of passing `zero(UInt64)`
+
+### Impact
+- **Lines removed**: 204
+- **Lines added**: 27 (generic impl + docstring)
+- **Net reduction**: 177 lines
+- **Files changed**: 7 simplification files + monomial.jl
+
+### Tests
+All 1060 FastPolynomials tests pass.
+
+**Commit:** `a54f899` - refactor(fastpoly): consolidate Monomial multiplication into single generic method
+
+---
+
+## Session: 2025-12-08 21:55
+
+**Agent:** orchestrator
+**Features:** R006 (projector), R007 (unipotent)
+
+### Actions
+- Read projector.jl (161 lines) and unipotent.jl (207 lines)
+- Tested edge cases for both algebras
+- Analyzed TODO about "bad algorithm"
+- Compared the two implementations
+
+### Findings
+
+**Both use identical structure:**
+1. Group by site using Dict
+2. Sort sites ascending
+3. Process each site group (algebra-specific)
+4. Concatenate results
+
+**Key Difference - Within-Site Processing:**
+
+| Algebra | Rule | Processing |
+|---------|------|------------|
+| Projector | P² = P | Keep first of consecutive duplicates |
+| Unipotent | U² = I | Stack-based pair cancellation |
+
+**Edge Cases Verified:**
+| Test | Projector | Unipotent |
+|------|-----------|-----------|
+| XX | → X | → empty |
+| XXX | → X | → X |
+| XY | → XY | → XY |
+| XYXY | → XYXY | → XYXY |
+| XYYX | → XY | → empty |
+
+**TODO Analysis (line 86):**
+- The Dict-based approach allocates per-site vectors
+- Alternative: stable sort + single pass (like NonCommutative)
+- For typical short words (<20 ops), overhead is negligible
+- Low priority optimization opportunity
+
+**Unipotent Signed types:**
+- Has `adjoint` override for Signed (self-adjoint, just reverses)
+- No `simplify` for Signed (MethodError, intentional)
+
+### Outcome
+- R006 PASS: Projector idempotency correct
+- R007 PASS: Unipotent U²=I correct
+- Both could share code (future refactor opportunity)
+
+### Next Steps
+- Continue with remaining review items
+
+**Commit:** (no code changes - review only)
+
+---

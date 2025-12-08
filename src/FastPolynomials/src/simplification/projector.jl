@@ -83,41 +83,24 @@ julia> m.word == [idx1_s1, idx1_s2]  # Original was mutated
 true
 ```
 """
-# TODO: need to look at NCTSSOS this algorithm seems bad
 function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     word = m.word
 
     # Empty or single: nothing to simplify
     length(word) <= 1 && return Term(1.0, m)
 
-    # Group by site using Dict to collect operators per site, preserving order within site
-    site_groups = Dict{Int,Vector{T}}()
+    # Stable sort by site (operators on different sites commute, within-site order preserved)
+    sort!(word, alg=InsertionSort, by=decode_site)
 
-    for idx in word
-        site = decode_site(idx)
-        if !haskey(site_groups, site)
-            site_groups[site] = T[]
-        end
-        push!(site_groups[site], idx)
-    end
-
-    # Sort sites (ascending order)
-    sorted_sites = sort!(collect(keys(site_groups)))
-
-    # Build result: for each site, apply idempotency (remove consecutive duplicates)
-    empty!(word)
-
-    for site in sorted_sites
-        ops = site_groups[site]
-        if !isempty(ops)
-            prev = ops[1]
-            push!(word, prev)
-            for i in 2:length(ops)
-                if ops[i] != prev
-                    prev = ops[i]
-                    push!(word, prev)
-                end
-            end
+    # Apply P²=P: remove consecutive duplicates (keep first of each run)
+    i = 1
+    while i < length(word)
+        if word[i] == word[i+1]
+            # Consecutive identical: remove duplicate (P² = P)
+            deleteat!(word, i + 1)
+            # No backtrack needed - just keep checking current position
+        else
+            i += 1
         end
     end
 

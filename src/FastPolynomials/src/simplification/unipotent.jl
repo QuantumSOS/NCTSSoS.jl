@@ -106,38 +106,20 @@ function simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     # Empty or single: nothing to simplify
     length(word) <= 1 && return Term(1.0, m)
 
-    # Group by site using Dict to collect operators per site, preserving order within site
-    site_groups = Dict{Int,Vector{T}}()
+    # Stable sort by site (operators on different sites commute, within-site order preserved)
+    sort!(word, alg=InsertionSort, by=decode_site)
 
-    for idx in word
-        site = decode_site(idx)
-        if !haskey(site_groups, site)
-            site_groups[site] = T[]
-        end
-        push!(site_groups[site], idx)
-    end
-
-    # Sort sites (ascending order)
-    sorted_sites = sort!(collect(keys(site_groups)))
-
-    # Build result: for each site, apply U²=I (remove consecutive pairs via stack)
-    empty!(word)
-
-    for site in sorted_sites
-        ops = site_groups[site]
-        if !isempty(ops)
-            # Stack-based approach for U²=I within site
-            stack = T[]
-            for op in ops
-                if !isempty(stack) && stack[end] == op
-                    # Same as stack top: pop (U² = I)
-                    pop!(stack)
-                else
-                    # Different: push
-                    push!(stack, op)
-                end
-            end
-            append!(word, stack)
+    # Apply U²=I: remove consecutive identical pairs with backtracking
+    i = 1
+    while i < length(word)
+        if word[i] == word[i+1]
+            # Consecutive identical: remove both (U² = I)
+            deleteat!(word, i)
+            deleteat!(word, i)
+            # Backtrack to catch cascading cancellations
+            i > 1 && (i -= 1)
+        else
+            i += 1
         end
     end
 

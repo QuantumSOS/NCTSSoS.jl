@@ -284,3 +284,148 @@ Replaced Dict-based grouping with simpler sort+backtrack:
 **Commit:** `805efdf` - refactor(fastpoly): simplify Pauli simplification to sort!-based algorithm
 
 ---
+
+## Session: 2025-12-08 23:30
+
+**Agent:** orchestrator
+**Feature:** R004 (fermionic-simplification)
+
+### Actions
+- Read fermionic.jl (385 lines) - Generalized Wick's Theorem implementation
+- Tested all algebraic rules: CAR {aᵢ, aⱼ†} = δᵢⱼ, {aᵢ, aⱼ} = 0, {aᵢ†, aⱼ†} = 0
+- Verified nilpotency detection (iszero function)
+- Analyzed algorithmic complexity
+
+### Findings
+
+**Algorithm Structure (4-step Wick's Theorem):**
+1. `_find_valid_contractions` - O(n²) scan for annihilation-creation pairs
+2. `_generate_nonoverlapping_combinations` - Recursive enumeration of non-overlapping subsets
+3. `_compute_normal_ordered_term` - Normal ordering with permutation parity
+4. `_combine_like_terms_fermi` - Dict-based term aggregation
+
+**Correctness Verified:**
+| Test Case | Expected | Actual | Status |
+|-----------|----------|--------|--------|
+| a₁ a₁† | 1 - a₁† a₁ | ✓ | PASS |
+| a₁ a₁ | 0 (nilpotent) | ✓ | PASS |
+| a₁ a₂ + a₂ a₁ | 0 (anticommute) | ✓ | PASS |
+| a₁† a₂† + a₂† a₁† | 0 (anticommute) | ✓ | PASS |
+| a₁ a₂ a₃ a₃† a₂† a₁† | 8 terms | ✓ | PASS |
+
+**Complexity Analysis:**
+- For k valid contractions: O(2^k) combinations in worst case
+- Typical pattern `a₁ a₁† a₂ a₂† ... aₙ aₙ†`: n contractions → 2^n terms
+- Performance after JIT: ~0.02ms for n=10 operators
+- Nilpotency early-exit via `iszero()` check (~0.04μs)
+
+**Helper Functions Verified:**
+- `_permutation_parity`: Cycle counting algorithm correct (sign = (-1)^(n-c))
+- `_contraction_sign`: Swap counting for bringing pairs together
+- `_is_creation`, `_fermi_mode`: Inline helpers for signed encoding
+
+**Test Coverage Gap Identified:**
+- No dedicated FermionicAlgebra tests in test/fastpoly_test/simplify.jl
+- Only doctest examples in fermionic.jl itself
+- Recommendation: Add property-based tests for anticommutation relations
+
+### Outcome
+- R004 PASS: Wick's theorem implementation is mathematically correct
+- Algorithm is exponential in number of contractions (inherent to Wick's theorem)
+- Performance is acceptable for typical use cases (<20 operators)
+
+### Next Steps
+- Continue with R005 (Bosonic rook number algorithm)
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-08 23:45
+
+**Agent:** orchestrator
+**Feature:** R005 (bosonic-simplification)
+
+### Actions
+- Read bosonic.jl (483 lines) - Rook number algorithm for normal ordering
+- Verified CCR: [c, c†] = 1 (c c† = c† c + 1)
+- Tested Ferrers board construction and rook number computation
+- Analyzed multi-mode vs single-mode complexity
+
+### Findings
+
+**Algorithm Structure (4-step Rook Number Method):**
+1. `group_by_mode!` - O(n log n) stable sort to partition by mode
+2. `build_ferrers_board` - O(K) per mode, count creations after each annihilation
+3. `compute_rook_numbers` - O(K²) DP for K = operators per mode
+4. `expand_and_construct` - O(∏ᵢ |terms_i|) Cartesian product
+
+**Correctness Verified:**
+| Test Case | Expected | Actual | Status |
+|-----------|----------|--------|--------|
+| c c† | c† c + 1 | ✓ | PASS |
+| c† c | c† c | ✓ | PASS |
+| c c (not nilpotent) | c c | ✓ | PASS |
+| c₁ c₂† | c₂† c₁ | ✓ | PASS |
+| c c c† c† | c†² c² + 4 c† c + 2 | ✓ | PASS |
+| c₁ c₂ c₁† c₂† | 4 terms | ✓ | PASS |
+
+**Rook Number Formula Verified (Eq. 1.40):**
+- For word ω with m creations, n annihilations:
+- ω = Σₖ rₖ(Bω) (a†)^{m-k} a^{n-k}
+- Board: cell (i,j) included if creation i AFTER annihilation j
+- Example: c c c† c† → board=[2,2] → rook=[1,4,2] → c†² c² + 4 c† c + 2 ✓
+
+**Complexity Analysis:**
+| Pattern | Result Size | Time (post-JIT) |
+|---------|-------------|-----------------|
+| n modes × (c c†) | 2^n terms | O(ms) |
+| c^n (c†)^n single mode | n+1 terms | O(μs) |
+
+**Key Insight:** Rook numbers give polynomial-time per mode (n+1 terms max), but multi-mode expansion is exponential in number of modes. This is inherent to the math.
+
+**Test Coverage Gap:**
+- No dedicated BosonicAlgebra tests in test/fastpoly_test/simplify.jl
+- Only doctest examples in bosonic.jl itself
+
+### Outcome
+- R005 PASS: Rook number algorithm correctly implements arXiv:quant-ph/0507206
+- Complexity claims in TODO are accurate: polynomial per mode, exponential across modes
+- Well-documented with mathematical references
+
+### Next Steps
+- Continue with R008 (Canonicalization) - next in priority
+
+**Commit:** (no code changes - review only)
+
+---
+
+## Session: 2025-12-09 00:00 - Checkpoint
+
+**Agent:** orchestrator + qa-gatekeeper
+**Feature:** R012 (test-coverage) - partial
+
+### Actions
+- Completed R004 review (Fermionic Wick's theorem)
+- Completed R005 review (Bosonic rook numbers)
+- Identified test coverage gaps for Fermionic and Bosonic algebras
+- Delegated to qa-gatekeeper to add comprehensive simplification tests
+- qa-gatekeeper added 110 new tests (38 Fermionic + 45 Bosonic + 27 related)
+
+### Outcome
+- R004 PASS: Fermionic Wick's theorem mathematically correct
+- R005 PASS: Bosonic rook number algorithm correct (arXiv:quant-ph/0507206)
+- Test coverage gap addressed: 1031 → 1141 tests
+
+### Current State
+- Features completed: 8/15 (R001-R007, R009)
+- Features pending: 7 (R008, R010-R015)
+- R012 (test-coverage) partially addressed by new tests
+
+### Next Steps
+- Continue with R008 (Canonicalization algorithms)
+- Complete remaining review items (R010-R015)
+
+**Commit:** `10ceae7` - test(fastpoly): add comprehensive FermionicAlgebra and BosonicAlgebra simplification tests
+
+---

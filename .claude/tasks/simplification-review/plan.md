@@ -49,7 +49,7 @@ Each review area below includes:
 
 ---
 
-### 3. [ ] Review: PauliAlgebra Simplification
+### 3. [x] [DONE - REFACTORED] Review: PauliAlgebra Simplification
 **Files:**
 - `src/FastPolynomials/src/simplification/pauli.jl` (lines 1-273)
 
@@ -66,7 +66,7 @@ Each review area below includes:
 
 ---
 
-### 4. [ ] Review: FermionicAlgebra Simplification (Wick's Theorem)
+### 4. [x] [DONE] Review: FermionicAlgebra Simplification (Wick's Theorem)
 **Files:**
 - `src/FastPolynomials/src/simplification/fermionic.jl` (lines 1-407)
 
@@ -85,7 +85,7 @@ Each review area below includes:
 
 ---
 
-### 5. [ ] Review: BosonicAlgebra Simplification (Rook Numbers)
+### 5. [x] [DONE] Review: BosonicAlgebra Simplification (Rook Numbers)
 **Files:**
 - `src/FastPolynomials/src/simplification/bosonic.jl` (lines 1-519)
 

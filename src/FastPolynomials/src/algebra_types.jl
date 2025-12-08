@@ -48,7 +48,7 @@ struct NonCommutativeAlgebra <: AlgebraType end
 Pauli spin matrix algebra.
 
 # Algebraic Rules
-- σᵢ² = I (idempotency)
+- σᵢ² = I (involution: squares to identity)
 - {σᵢ, σⱼ} = 2δᵢⱼ (anticommutation)
 - σₓ σᵧ = i σᵤ, σᵧ σᵤ = i σₓ, σᵤ σₓ = i σᵧ (cyclic products)
 - Operators on different sites commute

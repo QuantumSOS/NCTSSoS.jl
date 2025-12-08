@@ -2,7 +2,7 @@
     Pauli Algebra Simplification
 
 Implements simplification for Pauli spin operators satisfying:
-- σᵢ² = I (idempotency: each Pauli squares to identity)
+- σᵢ² = I (involution: each Pauli squares to identity)
 - Different sites commute: [σᵢⱼ, σₖₗ] = 0 for j ≠ l
 - Same site cyclic products: σₓσᵧ = iσz, σᵧσz = iσₓ, σzσₓ = iσᵧ
 

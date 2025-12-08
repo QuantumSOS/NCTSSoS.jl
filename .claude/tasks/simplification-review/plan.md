@@ -18,7 +18,7 @@ Each review area below includes:
 
 ## Steps
 
-### 1. [ ] Review: Core Algebra Type Definitions
+### 1. [x] [DONE] Review: Core Algebra Type Definitions
 **Files:**
 - `src/FastPolynomials/src/algebra_types.jl` (lines 1-290)
 
@@ -33,7 +33,7 @@ Each review area below includes:
 
 ---
 
-### 2. [ ] Review: NonCommutativeAlgebra Simplification
+### 2. [x] [DONE] Review: NonCommutativeAlgebra Simplification
 **Files:**
 - `src/FastPolynomials/src/simplification/noncommutative.jl` (lines 1-124)
 
@@ -104,7 +104,7 @@ Each review area below includes:
 
 ---
 
-### 6. [ ] Review: ProjectorAlgebra Simplification
+### 6. [x] [DONE] Review: ProjectorAlgebra Simplification - REFACTORED
 **Files:**
 - `src/FastPolynomials/src/simplification/projector.jl` (lines 1-203)
 
@@ -120,7 +120,7 @@ Each review area below includes:
 
 ---
 
-### 7. [ ] Review: UnipotentAlgebra Simplification
+### 7. [x] [DONE] Review: UnipotentAlgebra Simplification - REFACTORED
 **Files:**
 - `src/FastPolynomials/src/simplification/unipotent.jl` (lines 1-253)
 

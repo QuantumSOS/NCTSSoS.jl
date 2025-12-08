@@ -225,3 +225,29 @@ All 1060 FastPolynomials tests pass.
 **Commit:** (no code changes - review only)
 
 ---
+
+## Session: 2025-12-08 22:10
+
+**Agent:** orchestrator + lead-researcher
+**Features:** Refactoring (Projector + Unipotent simplification)
+
+### Research
+- Delegated to lead-researcher to analyze NCTSSOS codebase at `/Users/yushengzhao/projects/NCTSSOS`
+- Found NCTSSOS uses `constraint_reduce!` with backtracking (utils.jl:114-130)
+- Key insight: stable sort by site + NCTSSOS-style backtrack works for our site-encoded indices
+
+### Implementation
+Replaced Dict-based grouping with simpler sort+backtrack:
+
+**Projector (P²=P)**: `sort! + remove consecutive duplicates`
+**Unipotent (U²=I)**: `sort! + remove consecutive pairs + backtrack`
+
+### Impact
+- **Lines removed**: 61
+- **Lines added**: 26
+- **Net reduction**: 35 lines
+- All 1060 tests pass, all edge cases verified
+
+**Commit:** `9a66db0` - refactor(fastpoly): simplify Projector/Unipotent to sort+backtrack algorithm
+
+---

@@ -107,12 +107,12 @@ function simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     length(word) <= 1 && return Term(1.0, m)
 
     # Stable sort by site (operators on different sites commute, within-site order preserved)
-    sort!(word, alg=InsertionSort, by=decode_site)
+    sort!(word; alg=InsertionSort, by=decode_site)
 
     # Apply U²=I: remove consecutive identical pairs with backtracking
     i = 1
     while i < length(word)
-        if word[i] == word[i+1]
+        if word[i] == word[i + 1]
             # Consecutive identical: remove both (U² = I)
             deleteat!(word, i)
             deleteat!(word, i)
@@ -158,31 +158,5 @@ julia> length(m.word)  # Original unchanged
 function simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     # Copy and delegate to simplify!
     m_copy = Monomial{UnipotentAlgebra,T}(copy(m.word), m.hash)
-    simplify!(m_copy)
-end
-
-"""
-    Base.adjoint(m::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-
-Compute the adjoint of a unipotent monomial with signed indices.
-
-Unipotent operators are self-adjoint (U = U†), so adjoint only reverses the word.
-This overrides the default signed behavior which would also negate indices.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m = Monomial{UnipotentAlgebra}(Int[1, 2, 3]);
-
-julia> adjoint(m).word
-3-element Vector{Int64}:
- 3
- 2
- 1
-```
-"""
-function Base.adjoint(m::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-    new_word = reverse(m.word)
-    Monomial{UnipotentAlgebra}(new_word)
+    return simplify!(m_copy)
 end

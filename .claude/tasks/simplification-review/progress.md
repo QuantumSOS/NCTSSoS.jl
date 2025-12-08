@@ -251,3 +251,36 @@ Replaced Dict-based grouping with simpler sort+backtrack:
 **Commit:** `9a66db0` - refactor(fastpoly): simplify Projector/Unipotent to sort+backtrack algorithm
 
 ---
+
+## Session: 2025-12-08 23:00
+
+**Agent:** orchestrator
+**Feature:** R003 (pauli-simplification)
+
+### Actions
+- Researched QMBCertify codebase for Pauli simplification reference (via lead-researcher)
+- Found QMBCertify uses staged pipeline: `reduce1!` (sort) → `reduce3!` (remove pairs) → `reduce2!` (Pauli algebra) → `reduce3!` (cleanup)
+- Refactored pauli.jl to use `sort!` API instead of bubble sort
+- Replaced while loop with single linear pass through sorted site groups
+- Algorithm: sort by site → for each site group, reduce all operators to one (or identity) with coefficient
+
+### Key Changes (pauli.jl)
+- Replaced bubble sort (nested for loops) with `sort!(word, alg=InsertionSort, by=_pauli_site)`
+- Replaced while-changed loop with single linear pass
+- For each site group: accumulate Pauli products into single operator or identity
+- Track complex phase coefficient throughout reduction
+
+### Impact
+- **Lines removed**: 45
+- **Lines added**: 38
+- **Net reduction**: 7 lines
+- All 1060 FastPolynomials tests pass
+- Cleaner, more maintainable code following same pattern as Projector/Unipotent
+
+### Next Steps
+- Continue with remaining review items (R004-R015)
+- R003 is now complete - Pauli simplification uses sort!-based algorithm
+
+**Commit:** `805efdf` - refactor(fastpoly): simplify Pauli simplification to sort!-based algorithm
+
+---

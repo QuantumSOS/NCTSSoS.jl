@@ -15,7 +15,8 @@ end
 
         # Check return type structure
         @test hasfield(typeof(sys), :variables)
-        @test hasfield(typeof(sys), :simplify_algo)
+        @test hasfield(typeof(sys), :is_unipotent)
+        @test hasfield(typeof(sys), :is_projective)
         @test hasfield(typeof(sys), :equality_constraints)
         @test hasfield(typeof(sys), :inequality_constraints)
         @test hasfield(typeof(sys), :comm_gps)
@@ -53,13 +54,12 @@ end
         end
     end
 
-    @testset "SimplifyAlgorithm Properties" begin
+    @testset "Algebra Properties" begin
         sys = pauli_algebra(2)
-        sa = sys.simplify_algo
 
-        @test sa.is_unipotent == true
-        @test sa.is_projective == false
-        @test sa.n_gps == 2
+        @test sys.is_unipotent == true
+        @test sys.is_projective == false
+        @test length(sys.comm_gps) == 2
     end
 
     @testset "Commutation Relations Encoded Correctly" begin

@@ -16,7 +16,7 @@ using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomi
 using .FastPolynomials: Arbitrary, MaxEntangled
 
 # Import legacy compatibility types
-using .FastPolynomials: AbstractPolynomial, Variable, SimplifyAlgorithm
+using .FastPolynomials: AbstractPolynomial, Variable
 
 # Import functions
 using .FastPolynomials: sorted_union, sorted_unique
@@ -33,7 +33,7 @@ using .FastPolynomials: @ncpolyvar
 # Re-export key types and functions for downstream users
 export @ncpolyvar, ς
 
-# Note: Core types (Monomial, Polynomial, Term, Variable, SimplifyAlgorithm)
+# Note: Core types (Monomial, Polynomial, Term, Variable)
 # are NOT exported from NCTSSoS to avoid ambiguity when FastPolynomials
 # is also loaded. Access them via NCTSSoS.FastPolynomials.Monomial etc.
 # or using NCTSSoS.FastPolynomials: Monomial, Polynomial, ...

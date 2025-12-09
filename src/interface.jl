@@ -71,7 +71,6 @@ This function solves a polynomial optimization problem by:
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
 function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {P, OP<:OptimizationProblem{P}}
-    sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_projective=pop.is_projective, is_unipotent=pop.is_unipotent)
     order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
@@ -79,11 +78,11 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     cliques_objective = [reduce(+, [issubset(sort!(variables(mono)), clique) ? coef * mono : zero(coef) * one(mono) for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective))]) for clique in corr_sparsity.cliques]
 
     initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-        init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base, sa)
+        init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
     end
 
     cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-        term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo, sa)
+        term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
     end
 
     moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
@@ -122,15 +121,13 @@ This function performs a higher-order iteration of the CS-NCTSSOS method by:
 This is typically used when the previous relaxation was not tight enough and a higher-order relaxation is needed.
 """
 function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {T,OP<:OptimizationProblem{T}}
-    sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_unipotent=pop.is_unipotent, is_projective=pop.is_projective)
-
-    initial_activated_supps = [sorted_union([poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities]...)
-                               for term_sparsities in prev_res.cliques_term_sparsities]
+    initial_activated_supps = [sorted_union([poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec]...)
+                               for term_sparsities_vec in prev_res.cliques_term_sparsities]
 
     prev_corr_sparsity = prev_res.corr_sparsity
 
     cliques_term_sparsities = map(zip(initial_activated_supps, prev_corr_sparsity.clq_cons, prev_corr_sparsity.clq_mom_mtx_bases, prev_corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-        term_sparsities(init_act_supp, prev_corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo, sa)
+        term_sparsities(init_act_supp, prev_corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
     end
 
 

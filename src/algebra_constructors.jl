@@ -2,6 +2,15 @@
     pauli_algebra(N::Int)
 
 Create a Pauli algebra system for N spin-1/2 sites.
+
+# Returns
+A NamedTuple with fields:
+- `variables`: Tuple of (x, y, z) Pauli operator arrays
+- `is_unipotent`: true (Pauli operators square to identity)
+- `is_projective`: false
+- `equality_constraints`: Vector of Pauli commutation relations
+- `inequality_constraints`: Empty vector
+- `comm_gps`: Commutation groups (operators at same site)
 """
 function pauli_algebra(N::Int)
     @assert N >= 1 "Number of sites N must be at least 1"
@@ -23,15 +32,13 @@ function pauli_algebra(N::Int)
         for i in 1:N
     ])
 
-    # Create SimplifyAlgorithm with unipotent property
-    simplify_algo = SimplifyAlgorithm(comm_gps=comm_gps, is_unipotent=true, is_projective=false)
-
     # No inequality constraints for Pauli algebra
     inequality_constraints = empty(equality_constraints)
 
     return (
         variables=(x, y, z),
-        simplify_algo=simplify_algo,
+        is_unipotent=true,
+        is_projective=false,
         equality_constraints=equality_constraints,
         inequality_constraints=inequality_constraints,
         comm_gps=comm_gps

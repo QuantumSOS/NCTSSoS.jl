@@ -116,10 +116,8 @@ function correlative_sparsity(pop::OP, order::Int, elim_algo::EliminationAlgorit
 
     cliques_cons, global_cons = assign_constraint(cliques, all_cons)
 
-    sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_unipotent=pop.is_unipotent, is_projective=pop.is_projective)
-
     cliques_moment_matrix_bases = map(cliques) do clique
-        sorted_unique(get_basis(P, clique, order, sa))
+        sorted_unique(get_basis(clique, order))
     end
 
     cliques_moment_matrix_bases_dg = map(bs -> NCTSSoS.FastPolynomials.degree.(bs), cliques_moment_matrix_bases)
@@ -163,12 +161,12 @@ function Base.show(io::IO, sparsity::TermSparsity)
     println(io, "Number of Bases Activated in each sub-block", length.(sparsity.block_bases))
 end
 
-function init_activated_supp(partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}, sa::SimplifyAlgorithm) where {T,P<:AbstractPolynomial{T},M}
-    return sorted_union(canonicalize.(monomials(partial_obj), Ref(sa)), mapreduce(a -> simplify.(monomials(a), Ref(sa)), vcat, cons; init=M[]), [simplify!(neat_dot(b, b), sa) for b in mom_mtx_bases])
+function init_activated_supp(partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}) where {T,P<:AbstractPolynomial{T},M}
+    return sorted_union(symmetric_canon.(monomials(partial_obj)), mapreduce(monomials, vcat, cons; init=M[]), [neat_dot(b, b) for b in mom_mtx_bases])
 end
 
 """
-    term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm, sa::SimplifyAlgorithm) where {T,P<:AbstractPolynomial{T},M}
+    term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm) where {T,P<:AbstractPolynomial{T},M}
 
 Computes term sparsity structures for the moment matrix and all localizing matrices.
 
@@ -178,16 +176,15 @@ Computes term sparsity structures for the moment matrix and all localizing matri
 - `mom_mtx_bases::Vector{M}`: Basis monomials for the moment matrix
 - `localizing_mtx_bases::Vector{Vector{M}}`: Basis monomials for each localizing matrix corresponding to constraints
 - `ts_algo::EliminationAlgorithm`: Algorithm for clique tree elimination in term sparsity graphs
-- `sa::SimplifyAlgorithm`: Algorithm for simplifying polynomial expressions
 
 # Returns
 - `Vector{TermSparsity}`: Vector containing term sparsity structures, with the first element corresponding to the moment matrix and subsequent elements corresponding to localizing matrices for each constraint
 """
-function term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm, sa::SimplifyAlgorithm) where {T,P<:AbstractPolynomial{T},M}
+function term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm) where {T,P<:AbstractPolynomial{T},M}
     [
-        [iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo, sa)];
+        [iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo)];
         map(zip(cons, localizing_mtx_bases)) do (poly, basis)
-            iterate_term_sparse_supp(initial_activated_supp, poly, basis, ts_algo, sa)
+            iterate_term_sparse_supp(initial_activated_supp, poly, basis, ts_algo)
         end
     ]
 end
@@ -205,7 +202,7 @@ Constructs a term sparsity graph for polynomial constraints.
 # Returns
 - `SimpleGraph`: Term sparsity graph
 """
-function get_term_sparsity_graph(cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}, sa::SimplifyAlgorithm) where {M}
+function get_term_sparsity_graph(cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}) where {M}
     nterms = length(bases)
     G = SimpleGraph(nterms)
     sorted_activated_supp = sort(activated_supp)
@@ -213,8 +210,8 @@ function get_term_sparsity_graph(cons_support::Vector{M}, activated_supp::Vector
         for supp in cons_support
             connected_mono_lr = _neat_dot3(bases[i], supp, bases[j])
             connected_mono_rl = _neat_dot3(bases[j], supp, bases[i])
-            expval_cm_lr = expval(simplify!(connected_mono_lr, sa)) * one(Monomial)
-            expval_cm_rl = expval(simplify!(connected_mono_rl, sa)) * one(Monomial)
+            expval_cm_lr = expval(connected_mono_lr) * one(Monomial)
+            expval_cm_rl = expval(connected_mono_rl) * one(Monomial)
             if expval_cm_lr in sorted_activated_supp || expval_cm_rl in sorted_activated_supp
                 add_edge!(G, i, j)
                 continue
@@ -238,11 +235,11 @@ Iteratively computes term sparsity support for a polynomial.
 # Returns
 - `TermSparsity`: Term sparsity structure containing graph support and block bases
 """
-function iterate_term_sparse_supp(activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm, sa::SimplifyAlgorithm) where {M,P}
-    F = get_term_sparsity_graph(monomials(poly), activated_supp, basis, sa)
+function iterate_term_sparse_supp(activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm) where {M,P}
+    F = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
     blocks = clique_decomp(F, elim_algo)
     map(block -> add_clique!(F, block), blocks)
-    return TermSparsity(term_sparsity_graph_supp(F, basis, poly, sa), map(x -> basis[x], blocks))
+    return TermSparsity(term_sparsity_graph_supp(F, basis, poly), map(x -> basis[x], blocks))
 end
 
 """
@@ -258,9 +255,9 @@ Computes the support of a term sparsity graph for a given polynomial.
 # Returns
 - `Vector{Monomial}`: Support monomials for the term sparsity graph
 """
-function term_sparsity_graph_supp(G::SimpleGraph, basis::Vector{M}, g::P, sa::SimplifyAlgorithm) where {M,P}
+function term_sparsity_graph_supp(G::SimpleGraph, basis::Vector{M}, g::P) where {M,P}
     # following (10.4) in Sparse Polynomial Optimization: Theory and Practise
     # NOTE: Do I need to symmetric canonicalize it?
-    gsupp(a, b) = map(g_supp -> simplify!(_neat_dot3(a, g_supp, b), sa), monomials(g))
+    gsupp(a, b) = map(g_supp -> _neat_dot3(a, g_supp, b), monomials(g))
     return union([gsupp(basis[v], basis[v]) for v in vertices(G)]..., [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...)
 end

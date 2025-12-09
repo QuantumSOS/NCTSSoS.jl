@@ -71,7 +71,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 export symbols, indices
 
 # Legacy compatibility exports (for NCTSSoS migration)
-export SimplifyAlgorithm, Variable, AbstractPolynomial
+export Variable, AbstractPolynomial
 export sorted_union, sorted_unique
 export get_basis, _neat_dot3
 export monomial

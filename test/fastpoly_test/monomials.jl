@@ -71,27 +71,27 @@ using Test, NCTSSoS.FastPolynomials
     end
 
     @testset "Multiplication" begin
-        # Note: Multiplication behavior depends on algebra type and index encoding
-        # For basic NonCommutativeAlgebra with UInt indices, site-aware simplification applies
+        # Note: Multiplication now returns Monomial (word concatenation only)
+        # Callers should apply simplify! explicitly if needed
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Same variable multiplication produces longer word
+        # Same variable multiplication produces longer word (concatenation)
         result = x[1] * x[1]
-        @test result isa Term
-        @test degree(result.monomial) == 2
+        @test result isa Monomial
+        @test degree(result) == 2
 
         # Different variables
         result2 = x[1] * x[2]
-        @test degree(result2.monomial) == 2
+        @test degree(result2) == 2
 
         # Identity multiplication
         mono_id = one(Monomial{NonCommutativeAlgebra,UInt8})
         mono_x = Monomial{NonCommutativeAlgebra}(UInt8[1])
         result3 = mono_id * mono_x
-        @test result3.monomial == mono_x
+        @test result3 == mono_x
 
         result4 = mono_x * mono_id
-        @test result4.monomial == mono_x
+        @test result4 == mono_x
     end
 
     @testset "Comparison" begin

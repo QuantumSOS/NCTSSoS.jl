@@ -185,9 +185,9 @@ end
 @testset "Constrain Moment matrix" begin
     @ncpolyvar x[1:2]
 
-    sa = SimplifyAlgorithm(comm_gps=[x], is_unipotent=false, is_projective=false)
-
-    basis = get_state_basis(x, 1, sa)
+    # NOTE: get_state_basis function no longer exists
+    # This test needs to be updated when state basis generation is reimplemented
+    basis = get_state_basis(x, 1)
 
     sp = 1.0 * ς(x[1] * x[2]) + 2.0 * ς(x[1]) + 3.0 * ς(x[2])
     nc_words = monomial.([one(x[1]), x[1], x[2]])

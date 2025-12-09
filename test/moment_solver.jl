@@ -29,8 +29,6 @@ using NCTSSoS: substitute_variables
 
         solver_config = SolverConfig(optimizer=SOLVER, order=1)
 
-        sa = SimplifyAlgorithm(comm_gps=cpop.comm_gps, is_projective=cpop.is_projective, is_unipotent=cpop.is_unipotent)
-
         order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [cpop.objective; cpop.eq_constraints; cpop.ineq_constraints]]) : solver_config.order
 
         corr_sparsity = NCTSSoS.correlative_sparsity(cpop, order, solver_config.cs_algo)
@@ -38,11 +36,11 @@ using NCTSSoS: substitute_variables
         cliques_objective = [reduce(+, [issubset(sort!(variables(mono)), clique) ? coef * mono : zero(coef) * one(mono) for (coef, mono) in NCTSSoS.FastPolynomials.terms(cpop.objective)]) for clique in corr_sparsity.cliques]
 
         initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-            NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base, sa)
+            NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
         end
 
         cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-            NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo, sa)
+            NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
         end
 
         cmp = NCTSSoS.moment_relax(cpop, corr_sparsity, cliques_term_sparsities)
@@ -63,7 +61,6 @@ using NCTSSoS: substitute_variables
 
         solver_config = SolverConfig(optimizer=SOLVER, order=1)
 
-        sa = SimplifyAlgorithm(comm_gps=cpop.comm_gps, is_projective=cpop.is_projective, is_unipotent=cpop.is_unipotent)
         order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [cpop.objective; cpop.eq_constraints; cpop.ineq_constraints]]) : solver_config.order
 
         corr_sparsity = NCTSSoS.correlative_sparsity(cpop, order, solver_config.cs_algo)
@@ -71,11 +68,11 @@ using NCTSSoS: substitute_variables
         cliques_objective = [reduce(+, [issubset(sort!(variables(mono)), clique) ? coef * mono : zero(coef) * one(mono) for (coef, mono) in NCTSSoS.FastPolynomials.terms(cpop.objective)]) for clique in corr_sparsity.cliques]
 
         initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-            NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base, sa)
+            NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
         end
 
         cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-            NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo, sa)
+            NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
         end
 
         cmp = NCTSSoS.moment_relax(cpop, corr_sparsity, cliques_term_sparsities)

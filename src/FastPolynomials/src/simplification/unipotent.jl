@@ -106,38 +106,20 @@ function simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     # Empty or single: nothing to simplify
     length(word) <= 1 && return Term(1.0, m)
 
-    # Group by site using Dict to collect operators per site, preserving order within site
-    site_groups = Dict{Int,Vector{T}}()
+    # Stable sort by site (operators on different sites commute, within-site order preserved)
+    sort!(word; alg=InsertionSort, by=decode_site)
 
-    for idx in word
-        site = decode_site(idx)
-        if !haskey(site_groups, site)
-            site_groups[site] = T[]
-        end
-        push!(site_groups[site], idx)
-    end
-
-    # Sort sites (ascending order)
-    sorted_sites = sort!(collect(keys(site_groups)))
-
-    # Build result: for each site, apply U²=I (remove consecutive pairs via stack)
-    empty!(word)
-
-    for site in sorted_sites
-        ops = site_groups[site]
-        if !isempty(ops)
-            # Stack-based approach for U²=I within site
-            stack = T[]
-            for op in ops
-                if !isempty(stack) && stack[end] == op
-                    # Same as stack top: pop (U² = I)
-                    pop!(stack)
-                else
-                    # Different: push
-                    push!(stack, op)
-                end
-            end
-            append!(word, stack)
+    # Apply U²=I: remove consecutive identical pairs with backtracking
+    i = 1
+    while i < length(word)
+        if word[i] == word[i + 1]
+            # Consecutive identical: remove both (U² = I)
+            deleteat!(word, i)
+            deleteat!(word, i)
+            # Backtrack to catch cascading cancellations
+            i > 1 && (i -= 1)
+        else
+            i += 1
         end
     end
 
@@ -176,138 +158,5 @@ julia> length(m.word)  # Original unchanged
 function simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     # Copy and delegate to simplify!
     m_copy = Monomial{UnipotentAlgebra,T}(copy(m.word), m.hash)
-    simplify!(m_copy)
-end
-
-"""
-    Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
-
-Multiply two unipotent monomials with site-aware simplification.
-
-Site-encoded operators on different sites commute. U²=I applies within sites.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> using FastPolynomials: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> idx1_s2 = encode_index(UInt16, 1, 2);
-
-julia> m1 = Monomial{UnipotentAlgebra}([idx1_s1]);
-
-julia> m2 = Monomial{UnipotentAlgebra}([idx1_s2]);
-
-julia> t = m1 * m2;
-
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1, idx1_s2]
-true
-```
-"""
-function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Concatenate and simplify using site-aware simplify!
-    result = Monomial{UnipotentAlgebra,T}(vcat(w1, w2), zero(UInt64))
-    simplify!(result)
-end
-
-"""
-    Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-
-Multiply two unipotent monomials with signed integer indices (legacy fallback).
-
-For signed integers, we cannot use site-based encoding, so we fall back to
-simple concatenation with consecutive duplicate removal (U²=I).
-
-This is provided for backward compatibility with NCTSSoS legacy code that
-uses `Int` indices instead of encoded unsigned indices.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m1 = Monomial{UnipotentAlgebra}(Int[1]);
-
-julia> m2 = Monomial{UnipotentAlgebra}(Int[2]);
-
-julia> t = m1 * m2;
-
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == Int[1, 2]
-true
-
-julia> t2 = m1 * m1;  # U² = I
-
-julia> isempty(t2.monomial.word)
-true
-```
-"""
-function Base.:*(m1::Monomial{UnipotentAlgebra,T}, m2::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Simple concatenation with U²=I (consecutive duplicate removal)
-    result_word = T[]
-
-    # Process w1
-    for idx in w1
-        if !isempty(result_word) && result_word[end] == idx
-            pop!(result_word)  # U² = I
-        else
-            push!(result_word, idx)
-        end
-    end
-
-    # Process w2
-    for idx in w2
-        if !isempty(result_word) && result_word[end] == idx
-            pop!(result_word)  # U² = I
-        else
-            push!(result_word, idx)
-        end
-    end
-
-    result = Monomial{UnipotentAlgebra,T}(result_word, zero(UInt64))
-    return Term(1.0, result)
-end
-
-"""
-    Base.adjoint(m::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-
-Compute the adjoint of a unipotent monomial with signed indices.
-
-Unipotent operators are self-adjoint (U = U†), so adjoint only reverses the word.
-This overrides the default signed behavior which would also negate indices.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m = Monomial{UnipotentAlgebra}(Int[1, 2, 3]);
-
-julia> adjoint(m).word
-3-element Vector{Int64}:
- 3
- 2
- 1
-```
-"""
-function Base.adjoint(m::Monomial{UnipotentAlgebra,T}) where {T<:Signed}
-    new_word = reverse(m.word)
-    Monomial{UnipotentAlgebra}(new_word)
+    return simplify!(m_copy)
 end

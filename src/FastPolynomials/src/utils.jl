@@ -93,7 +93,10 @@ end
 """
     neat_dot(a::Monomial, b::Monomial) -> Monomial
 
-Compute adjoint(a) * b for regular Monomials.
+Compute adjoint(a) * b for regular Monomials by concatenating words.
+
+Returns a Monomial with the adjoint of a's word followed by b's word.
+Does NOT apply simplification - callers should simplify! explicitly if needed.
 
 # Examples
 ```jldoctest
@@ -105,26 +108,26 @@ julia> m2 = Monomial{PauliAlgebra}([3, 4]);
 
 julia> result = neat_dot(m1, m2);
 
-julia> result.monomial.word
-6-element Vector{Int64}:
- 2
- 1
- 3
- 4
+julia> result.word
+4-element Vector{Int64}:
+ -2
+ -1
+  3
+  4
 ```
 """
 function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # adjoint(a) * b returns a Term, but for legacy compatibility we need a Monomial
-    # The coefficient is assumed to be 1 for simple algebras
-    result = adjoint(a) * b
-    result.monomial
+    # adjoint(a) * b - concatenate adjoint(a).word with b.word
+    adjoint(a) * b
 end
 
 """
     _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Monomial
 
-Compute adjoint(a) * m * b for regular Monomials.
-Returns a Monomial (extracts from the Term result for legacy compatibility).
+Compute adjoint(a) * m * b for regular Monomials by concatenating words.
+
+Returns a Monomial with adjoint(a).word concatenated with m.word and b.word.
+Does NOT apply simplification - callers should simplify! explicitly if needed.
 
 This is the three-argument form commonly used in moment matrix construction
 where we need adjoint(row_index) * constraint_monomial * column_index.
@@ -149,13 +152,8 @@ julia> result.word
 ```
 """
 function _neat_dot3(a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # For NonCommutativeAlgebra and others: adjoint just reverses
-    # (adjoint(a) * m) * b
-    temp = adjoint(a) * m
-    # temp is a Term, extract monomial for next multiplication
-    result = temp.monomial * b
-    # Return only the monomial for legacy compatibility
-    result.monomial
+    # adjoint(a) * m * b - just concatenate the words
+    adjoint(a) * m * b
 end
 
 # =============================================================================
@@ -242,8 +240,8 @@ end
 function Base.:*(a::Variable, b::Variable)
     m_a = to_monomial(a)
     m_b = to_monomial(b)
-    result = m_a * m_b  # Returns Term
-    Polynomial([result])
+    result = m_a * m_b  # Returns Monomial (word concatenation)
+    Polynomial([Term(one(ComplexF64), result)])
 end
 
 # Scalar * Variable -> Polynomial
@@ -316,8 +314,7 @@ function Base.:^(v::Variable, n::Integer)
     m = to_monomial(v)
     result_m = m
     for _ in 2:n
-        temp = result_m * m  # Returns Term
-        result_m = temp.monomial
+        result_m = result_m * m  # Returns Monomial (word concatenation)
     end
     Polynomial([Term(ComplexF64(1.0), result_m)])
 end
@@ -471,56 +468,13 @@ function ς(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
 end
 
 # =============================================================================
-# Legacy SimplifyAlgorithm Compatibility Layer
-# =============================================================================
-#
-# The old API used SimplifyAlgorithm struct with configuration:
-#   SimplifyAlgorithm(comm_gps=..., is_unipotent=..., is_projective=...)
-#
-# The new API uses AlgebraType singleton types for dispatch.
-# This compatibility layer allows old code to work during migration.
-#
-
-"""
-    SimplifyAlgorithm
-
-Legacy compatibility struct for old API. The new FastPolynomials uses
-AlgebraType singleton types (PauliAlgebra, FermionicAlgebra, etc.) instead.
-
-This struct is provided for backward compatibility with NCTSSoS code that
-has not yet been migrated to the new API.
-
-# Fields
-- `comm_gps`: Commutative groups (for legacy compatibility)
-- `is_unipotent::Bool`: Whether variables are unipotent (x^2 = 1)
-- `is_projective::Bool`: Whether variables are projective (x^2 = x)
-
-# Note
-New code should use AlgebraType dispatch instead of SimplifyAlgorithm.
-"""
-struct SimplifyAlgorithm
-    comm_gps::Vector{<:Any}  # Allow any element type
-    is_unipotent::Bool
-    is_projective::Bool
-    n_gps::Int  # Number of commutative groups (derived property for compatibility)
-
-    function SimplifyAlgorithm(;
-        comm_gps::Vector=Vector{Any}[],
-        is_unipotent::Bool=false,
-        is_projective::Bool=false
-    )
-        new(comm_gps, is_unipotent, is_projective, length(comm_gps))
-    end
-end
-
-# =============================================================================
 # Legacy get_basis Compatibility
 # =============================================================================
 #
-# The old API: get_basis(vars::Vector{Variable}, degree::Int, sa::SimplifyAlgorithm)
-# The new API: get_ncbasis(AlgebraType, n_vars::Int, degree::Int)
+# The old API: get_basis(vars::Vector{Variable}, degree::Int)
+# The new API: get_ncbasis(VariableRegistry, degree::Int)
 #
-# Provide legacy-compatible wrappers.
+# Provide legacy-compatible wrappers that generate bases directly.
 
 """
     get_basis(vars, degree::Int) -> Vector{Monomial}
@@ -531,102 +485,82 @@ For NCTSSoS migration, this generates a NonCommutativeAlgebra basis
 with the given number of variables and degree.
 
 # Arguments
-- `vars`: Vector of variables (length determines n_vars) OR integer for n_vars
+- `vars`: Vector of variables
 - `degree::Int`: Maximum degree for basis generation
 
 # Returns
 Vector of Monomial{NonCommutativeAlgebra, Int} up to the specified degree.
 
 # Note
-New code should use `get_ncbasis(AlgebraType, n_vars, degree)` directly.
+New code should use `get_ncbasis(VariableRegistry, degree)` directly.
 """
-function get_basis(vars::AbstractVector, degree::Int)
-    n_vars = length(vars)
-    get_ncbasis(NonCommutativeAlgebra, n_vars, degree; T=Int)
-end
+function get_basis(vars::AbstractVector{Variable}, degree::Int)
+    # Extract indices from Variable structs
+    indices = [v.index for v in vars]
 
-# Overload accepting a Polynomial type for type inference
-function get_basis(::Type{P}, vars::AbstractVector, degree::Int, sa::SimplifyAlgorithm) where {P}
-    n_vars = length(vars)
-    # Determine algebra type from SimplifyAlgorithm properties
-    if sa.is_unipotent
-        return get_ncbasis(UnipotentAlgebra, n_vars, degree; T=Int, filter_constraint=true)
-    elseif sa.is_projective
-        return get_ncbasis(ProjectorAlgebra, n_vars, degree; T=Int)
-    else
-        return get_ncbasis(NonCommutativeAlgebra, n_vars, degree; T=Int)
+    # Generate all words (monomial representations) up to the given degree
+    result = Monomial{NonCommutativeAlgebra,Int}[]
+
+    # Helper function to generate all words of a specific degree
+    function generate_words(current_word::Vector{Int}, remaining_deg::Int)
+        if remaining_deg == 0
+            push!(result, Monomial{NonCommutativeAlgebra}(current_word))
+            return
+        end
+        for idx in indices
+            generate_words(vcat(current_word, idx), remaining_deg - 1)
+        end
     end
+
+    # Generate words for each degree from 0 to d
+    for d in 0:degree
+        if d == 0
+            push!(result, Monomial{NonCommutativeAlgebra}(Int[]))  # Identity monomial
+        else
+            generate_words(Int[], d)
+        end
+    end
+
+    return result
 end
 
-# =============================================================================
-# Legacy simplify/canonicalize with SimplifyAlgorithm
-# =============================================================================
+# Fallback for non-Variable vectors (e.g., Monomial vectors)
+function get_basis(vars::AbstractVector, degree::Int)
+    # If vars are Monomials, extract unique variable indices from them
+    indices = Int[]
+    for v in vars
+        if v isa Variable
+            push!(indices, v.index)
+        elseif v isa Monomial
+            for idx in v.word
+                push!(indices, Int(abs(idx)))
+            end
+        end
+    end
+    indices = sort(unique(indices))
 
-"""
-    simplify(m::Monomial, sa::SimplifyAlgorithm) -> Monomial
+    # Generate all words up to the given degree
+    result = Monomial{NonCommutativeAlgebra,Int}[]
 
-Legacy wrapper for simplification with SimplifyAlgorithm.
-Returns the monomial as-is (simplification is done during construction in new API).
-"""
-function simplify(m::Monomial{A,T}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer}
-    # In the new API, simplification is built into monomial multiplication
-    # Return the monomial unchanged
-    m
-end
+    function generate_words(current_word::Vector{Int}, remaining_deg::Int)
+        if remaining_deg == 0
+            push!(result, Monomial{NonCommutativeAlgebra}(current_word))
+            return
+        end
+        for idx in indices
+            generate_words(vcat(current_word, idx), remaining_deg - 1)
+        end
+    end
 
-"""
-    simplify!(m::Monomial, sa::SimplifyAlgorithm) -> Monomial
+    for d in 0:degree
+        if d == 0
+            push!(result, Monomial{NonCommutativeAlgebra}(Int[]))
+        else
+            generate_words(Int[], d)
+        end
+    end
 
-Legacy wrapper for in-place simplification with SimplifyAlgorithm.
-Returns the monomial as-is (simplification is done during construction in new API).
-"""
-function simplify!(m::Monomial{A,T}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer}
-    m
-end
-
-"""
-    simplify(p::Polynomial, sa::SimplifyAlgorithm) -> Polynomial
-
-Legacy wrapper for polynomial simplification with SimplifyAlgorithm.
-Returns the polynomial as-is (simplification is done during construction in new API).
-"""
-function simplify(p::Polynomial{A,T,C}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer,C<:Number}
-    p  # Already simplified during construction
-end
-
-"""
-    simplify!(p::Polynomial, sa::SimplifyAlgorithm) -> Polynomial
-
-Legacy wrapper for in-place polynomial simplification with SimplifyAlgorithm.
-Returns the polynomial as-is (simplification is done during construction in new API).
-"""
-function simplify!(p::Polynomial{A,T,C}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer,C<:Number}
-    p
-end
-
-# StateWord simplification
-function simplify(sw::StateWord{ST,A,T}, sa::SimplifyAlgorithm) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    sw  # Already simplified during construction
-end
-
-function simplify!(sw::StateWord{ST,A,T}, sa::SimplifyAlgorithm) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    sw
-end
-
-"""
-    canonicalize(m::Monomial, sa::SimplifyAlgorithm) -> Monomial
-
-Legacy wrapper for canonicalization with SimplifyAlgorithm.
-Uses symmetric canonicalization (default behavior).
-"""
-function canonicalize(m::Monomial{A,T}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T<:Integer}
-    symmetric_canon(m)
-end
-
-# StateWord canonicalization
-function canonicalize(sw::StateWord{ST,A,T}, sa::SimplifyAlgorithm) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # StateWords are already canonicalized via involution
-    sw
+    return result
 end
 
 # =============================================================================
@@ -764,68 +698,3 @@ const AbstractPolynomial{T} = Union{
     StatePolynomial{T,<:StateType,<:AlgebraType,<:Integer},
     NCStatePolynomial{T,<:StateType,<:AlgebraType,<:Integer}
 }
-
-# =============================================================================
-# Legacy is_symmetric with SimplifyAlgorithm
-# =============================================================================
-
-"""
-    is_symmetric(p, sa::SimplifyAlgorithm) -> Bool
-
-Legacy wrapper for is_symmetric with SimplifyAlgorithm parameter.
-
-For polynomials with commutative groups (like Pauli algebra), this checks symmetry
-by verifying that for each term c*m, there exists a term conj(c)*adjoint(m) with
-equivalent coefficient after accounting for floating point precision.
-
-Key insight: In Pauli algebra, operators at DIFFERENT sites commute.
-So x[1]*x[2] = x[2]*x[1], meaning [a,b] and [b,a] are equivalent when
-a and b belong to different commutative groups.
-
-For practical purposes with legacy NCTSSoS code:
-- We check that each term has a real coefficient (since Hermitian operators
-  should have real coefficients when expressed in the computational basis)
-- For terms with only real coefficients, the polynomial is symmetric if
-  each monomial's coefficient is real
-"""
-function is_symmetric(p::Polynomial{A,T,C}, sa::SimplifyAlgorithm) where {A<:AlgebraType,T,C<:Number}
-    # Build a mapping from variable index to group index
-    var_to_group = Dict{T, Int}()
-    for (gid, gp) in enumerate(sa.comm_gps)
-        for v in gp
-            var_to_group[T(v.index)] = gid
-        end
-    end
-
-    # For each term, check symmetry
-    for t in p.terms
-        coef = t.coefficient
-        word = t.monomial.word
-
-        # Quick check: if coefficient has significant imaginary part, not symmetric
-        # (for self-adjoint operators with real scalars)
-        if abs(imag(coef)) > 1e-10
-            return false
-        end
-
-        # For monomials: check if the word is "group-equivalent" to its reverse
-        # Two words are group-equivalent if they have the same indices, possibly reordered,
-        # where reordering is allowed between different groups (since they commute)
-        #
-        # For simplicity in Pauli algebra case: if each variable appears the same number
-        # of times in word and reverse(word), they're equivalent.
-        # Since we're just reversing, this is always true - the multiset is the same.
-        # But we also need the canonical form to match.
-        #
-        # Actually, for unsigned types with different sites commuting:
-        # adjoint([a, b]) = [b, a] where a and b are from different groups
-        # If different groups commute, [a,b] = [b,a], so adjoint = original
-        #
-        # This means: polynomial is symmetric if all coefficients are real.
-    end
-
-    return true  # All coefficients have negligible imaginary parts
-end
-
-# Fallback for non-Polynomial types
-is_symmetric(p, sa::SimplifyAlgorithm) = is_symmetric(p)

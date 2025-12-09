@@ -695,8 +695,19 @@ end
     _add_simplified_terms!(result, coef, simplified)
 
 Helper function to add simplified monomial multiplication results.
-Handles both single Term and Vector{Term} returns from monomial simplification.
+Handles Monomial (raw concatenation), Term, or Vector{Term} returns from monomial operations.
 """
+function _add_simplified_terms!(
+    result::Vector{Term{Monomial{A,T},C}},
+    coef::C,
+    simplified::Monomial{A,T},
+) where {A,T,C}
+    # Monomial multiplication now returns raw Monomial (no simplification)
+    # Simplify it here to get Term or Vector{Term}
+    term_result = simplify!(simplified)
+    return _add_simplified_terms!(result, coef, term_result)
+end
+
 function _add_simplified_terms!(
     result::Vector{Term{Monomial{A,T},C}},
     coef::C,

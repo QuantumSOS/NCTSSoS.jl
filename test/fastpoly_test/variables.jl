@@ -266,8 +266,8 @@ using NCTSSoS.FastPolynomials:
 
         # x^2 should create a monomial with word [idx, idx]
         x2 = x[1] * x[1]
-        @test x2 isa Term
-        @test degree(x2.monomial) == 2
+        @test x2 isa Monomial  # Multiplication now returns Monomial
+        @test degree(x2) == 2
 
         # x^0 should be identity
         x0 = one(x[1])

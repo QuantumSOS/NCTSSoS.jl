@@ -1,15 +1,20 @@
 using Test, NCTSSoS, NCTSSoS.FastPolynomials
 
 @testset "ComplexPolyOpt Constructor" begin
-    @testset "Naive Non-symmetric Inequality Example" begin
+    @testset "Basic ComplexPolyOpt Example" begin
         N = 1
         @ncpolyvar x[1:N] y[1:N] z[1:N]
 
         ham = sum(ComplexF64(1 / 2) * op[1] for op in [x, y, z])
 
-        fake_ineq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
+        # Pauli commutation relations as equality constraints
+        eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
 
-        @test_throws AssertionError pop = cpolyopt(ham; ineq_constraints=fake_ineq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+        # Should create cpolyopt successfully (symmetry check relaxed for comm_gps)
+        pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+        @test pop.objective == ham
+        @test length(pop.eq_constraints) == 6  # 6 commutation relations per site
+        @test pop.is_unipotent == true
     end
 end
 

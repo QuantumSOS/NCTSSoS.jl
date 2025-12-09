@@ -83,41 +83,24 @@ julia> m.word == [idx1_s1, idx1_s2]  # Original was mutated
 true
 ```
 """
-# TODO: need to look at NCTSSOS this algorithm seems bad
 function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     word = m.word
 
     # Empty or single: nothing to simplify
     length(word) <= 1 && return Term(1.0, m)
 
-    # Group by site using Dict to collect operators per site, preserving order within site
-    site_groups = Dict{Int,Vector{T}}()
+    # Stable sort by site (operators on different sites commute, within-site order preserved)
+    sort!(word, alg=InsertionSort, by=decode_site)
 
-    for idx in word
-        site = decode_site(idx)
-        if !haskey(site_groups, site)
-            site_groups[site] = T[]
-        end
-        push!(site_groups[site], idx)
-    end
-
-    # Sort sites (ascending order)
-    sorted_sites = sort!(collect(keys(site_groups)))
-
-    # Build result: for each site, apply idempotency (remove consecutive duplicates)
-    empty!(word)
-
-    for site in sorted_sites
-        ops = site_groups[site]
-        if !isempty(ops)
-            prev = ops[1]
-            push!(word, prev)
-            for i in 2:length(ops)
-                if ops[i] != prev
-                    prev = ops[i]
-                    push!(word, prev)
-                end
-            end
+    # Apply P²=P: remove consecutive duplicates (keep first of each run)
+    i = 1
+    while i < length(word)
+        if word[i] == word[i+1]
+            # Consecutive identical: remove duplicate (P² = P)
+            deleteat!(word, i + 1)
+            # No backtrack needed - just keep checking current position
+        else
+            i += 1
         end
     end
 
@@ -157,46 +140,4 @@ function simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     # Copy and delegate to simplify!
     m_copy = Monomial{ProjectorAlgebra,T}(copy(m.word), m.hash)
     simplify!(m_copy)
-end
-
-"""
-    Base.:*(m1::Monomial{ProjectorAlgebra,T}, m2::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
-
-Multiply two projector monomials with site-aware simplification.
-
-Site-encoded operators on different sites commute. Idempotency applies within sites.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> using FastPolynomials: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> idx1_s2 = encode_index(UInt16, 1, 2);
-
-julia> m1 = Monomial{ProjectorAlgebra}([idx1_s1]);
-
-julia> m2 = Monomial{ProjectorAlgebra}([idx1_s2]);
-
-julia> t = m1 * m2;
-
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1, idx1_s2]
-true
-```
-"""
-function Base.:*(m1::Monomial{ProjectorAlgebra,T}, m2::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Concatenate and simplify using site-aware simplify!
-    result = Monomial{ProjectorAlgebra,T}(vcat(w1, w2), zero(UInt64))
-    simplify!(result)
 end

@@ -93,6 +93,33 @@ function Monomial(word::Vector{T}) where {T<:Integer}
 end
 
 """
+    Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
+
+Multiply two monomials of the same algebra type by concatenating their words.
+
+Returns a new Monomial with the concatenated word. Callers should apply
+`simplify!` explicitly if algebra-specific simplification is needed.
+
+# Examples
+```jldoctest
+julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+
+julia> m2 = Monomial{NonCommutativeAlgebra}([3]);
+
+julia> m = m1 * m2;
+
+julia> m.word
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+```
+"""
+function Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    Monomial{A}(vcat(m1.word, m2.word))
+end
+
+"""
     Base.:(==)(m1::Monomial, m2::Monomial) -> Bool
 
 Fast equality comparison using precomputed hash.
@@ -108,6 +135,12 @@ function Base.:(==)(m1::Monomial{A1,T1}, m2::Monomial{A2,T2}) where {A1,A2,T1,T2
     # Different algebra types are never equal
     A1 !== A2 && return false
 
+    # If either hash is zero (uninitialized), compare words directly
+    # This handles monomials created via multiplication before simplification
+    if m1.hash == 0 || m2.hash == 0
+        return m1.word == m2.word
+    end
+
     # Fast path: compare hashes first (O(1))
     m1.hash == m2.hash || return false
 
@@ -118,9 +151,14 @@ end
 """
     Base.hash(m::Monomial, h::UInt) -> UInt
 
-Hash function for Monomial. Uses the precomputed hash value.
+Hash function for Monomial. Uses the precomputed hash value if available,
+otherwise computes from the word.
 """
-Base.hash(m::Monomial, h::UInt) = hash(m.hash, h)
+function Base.hash(m::Monomial, h::UInt)
+    # If hash is zero (uninitialized), compute from word
+    word_hash = m.hash == 0 ? hash(m.word) : m.hash
+    hash(word_hash, h)
+end
 
 """
     degree(m::Monomial) -> Int

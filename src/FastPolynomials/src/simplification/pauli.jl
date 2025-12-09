@@ -2,7 +2,7 @@
     Pauli Algebra Simplification
 
 Implements simplification for Pauli spin operators satisfying:
-- σᵢ² = I (idempotency: each Pauli squares to identity)
+- σᵢ² = I (involution: each Pauli squares to identity)
 - Different sites commute: [σᵢⱼ, σₖₗ] = 0 for j ≠ l
 - Same site cyclic products: σₓσᵧ = iσz, σᵧσz = iσₓ, σzσₓ = iσᵧ
 
@@ -16,9 +16,9 @@ For index `idx`:
 - pauli_type = (idx - 1) % 3 (0=X, 1=Y, 2=Z)
 
 # Algorithm
-1. Sort by site (bubble sort to track nothing - sites commute)
-2. Apply cyclic product rules for adjacent same-site operators
-3. Remove pairs (σᵢ² = I) after products collapse them
+1. Sort by site using stable sort (sites commute, stable sort gives deterministic ordering)
+2. Linear pass: reduce each site group to at most one Pauli operator
+3. Track complex phase coefficient through reductions
 
 # Examples
 ```jldoctest
@@ -140,55 +140,48 @@ function simplify!(m::Monomial{PauliAlgebra,T}) where {T}
     # Empty or single: nothing to simplify
     length(word) <= 1 && return Term(coef, m)
 
-    # Iterate until no changes (fixed point)
-    changed = true
-    while changed
-        changed = false
+    # Stage 1: Sort by site (stable sort preserves within-site order for determinism)
+    sort!(word, alg=InsertionSort, by=_pauli_site)
 
-        # Pass 1: Sort by site (bubble sort - stable, tracks nothing since sites commute)
-        for i in length(word):-1:2
-            for j in 1:i-1
-                site_j = _pauli_site(word[j])
-                site_j1 = _pauli_site(word[j+1])
-                if site_j > site_j1
-                    word[j], word[j+1] = word[j+1], word[j]
-                    changed = true
-                end
-            end
+    # Stage 2: Reduce same-site groups in a single linear pass
+    # After sorting, all operators on the same site are adjacent
+    result = T[]
+    i = 1
+    while i <= length(word)
+        current_site = _pauli_site(word[i])
+
+        # Find extent of this site's group: word[i:j-1]
+        j = i + 1
+        while j <= length(word) && _pauli_site(word[j]) == current_site
+            j += 1
         end
 
-        # Pass 2: Apply same-site product rules and pair removal
-        i = 1
-        while i < length(word)
-            idx1 = word[i]
-            idx2 = word[i+1]
-
-            site1 = _pauli_site(idx1)
-            site2 = _pauli_site(idx2)
-
-            if site1 == site2
-                type1 = _pauli_type(idx1)
-                type2 = _pauli_type(idx2)
-
-                phase, result_type = _pauli_product(type1, type2)
-                coef *= phase
-
-                if result_type == -1
-                    # Identity: remove both operators
-                    deleteat!(word, i:i+1)
-                    changed = true
-                else
-                    # Replace with result operator
-                    word[i] = T(_pauli_index(site1, result_type))
-                    deleteat!(word, i + 1)
-                    changed = true
-                end
-                # Don't increment i - check new pair at same position
+        # Reduce all operators in word[i:j-1] to at most one operator
+        # current_type: -1 = identity accumulated, 0/1/2 = X/Y/Z accumulated
+        current_type = _pauli_type(word[i])
+        for k in i+1:j-1
+            next_type = _pauli_type(word[k])
+            if current_type == -1
+                # Identity * next = next (no phase change)
+                current_type = next_type
             else
-                i += 1
+                phase, result_type = _pauli_product(current_type, next_type)
+                coef *= phase
+                current_type = result_type  # Could be -1 (identity)
             end
         end
+
+        # Append result for this site (skip if identity)
+        if current_type != -1
+            push!(result, T(_pauli_index(current_site, current_type)))
+        end
+
+        i = j  # Move to next site group
     end
+
+    # Update word in-place
+    resize!(word, length(result))
+    copyto!(word, result)
 
     return Term(coef, m)
 end
@@ -228,45 +221,4 @@ function simplify(m::Monomial{PauliAlgebra,T}) where {T}
     # Copy and delegate to simplify!
     m_copy = Monomial{PauliAlgebra,T}(copy(m.word), m.hash)
     simplify!(m_copy)
-end
-
-"""
-    Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) where T
-
-Multiply two Pauli algebra monomials and auto-simplify.
-
-Returns a Term with the simplified result and accumulated phase.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1]);  # σx₁
-
-julia> m2 = Monomial{PauliAlgebra}([2]);  # σy₁
-
-julia> t = m1 * m2;  # σx₁ σy₁ = iσz₁
-
-julia> t.coefficient
-0.0 + 1.0im
-
-julia> t.monomial.word
-1-element Vector{Int64}:
- 3
-```
-"""
-function Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) where {T}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    if isempty(w1)
-        return simplify(m2)
-    end
-    if isempty(w2)
-        return simplify(m1)
-    end
-
-    # Concatenate and simplify
-    result = vcat(w1, w2)
-    m_result = Monomial{PauliAlgebra}(result)
-    # TODO: I would like to perform simplifcation during multiplication process itself. need to check with QMBCertify
-    simplify!(m_result)
 end

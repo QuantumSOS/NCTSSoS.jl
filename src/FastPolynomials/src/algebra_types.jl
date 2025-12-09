@@ -8,7 +8,7 @@ Each concrete algebra type is a singleton struct that enables
 multiple dispatch for simplification algorithms.
 
 # Subtypes
-- `NonCommutativeAlgebra`: Standard commutative variables (xy = yx)
+- `NonCommutativeAlgebra`: Standard non-commutative variables (xy ≠ yx)
 - `PauliAlgebra`: Pauli spin matrices satisfying σᵢ² = I and {σᵢ, σⱼ} = 2δᵢⱼ
 - `FermionicAlgebra`: Fermionic creation/annihilation operators with {aᵢ, aⱼ†} = δᵢⱼ
 - `BosonicAlgebra`: Bosonic creation/annihilation operators with [aᵢ, cⱼ†] = δᵢⱼ
@@ -48,7 +48,7 @@ struct NonCommutativeAlgebra <: AlgebraType end
 Pauli spin matrix algebra.
 
 # Algebraic Rules
-- σᵢ² = I (idempotency)
+- σᵢ² = I (involution: squares to identity)
 - {σᵢ, σⱼ} = 2δᵢⱼ (anticommutation)
 - σₓ σᵧ = i σᵤ, σᵧ σᵤ = i σₓ, σᵤ σₓ = i σᵧ (cyclic products)
 - Operators on different sites commute
@@ -59,7 +59,8 @@ For index `idx`: site = `(idx - 1) ÷ 3 + 1`, pauli_type = `(idx - 1) % 3`
 (0=X, 1=Y, 2=Z)
 
 # Integer Type
-Uses `UInt16` (self-adjoint operators).
+Typically uses unsigned integer types (self-adjoint operators).
+Concrete type determined by VariableRegistry.
 """
 struct PauliAlgebra <: AlgebraType end
 
@@ -81,7 +82,8 @@ of all annihilation operators (a).
 - Creation `aᵢ†`: negative index `-i`
 
 # Integer Type
-Uses `Int32` (signed for creation/annihilation distinction).
+Uses signed integer types (sign distinguishes creation/annihilation).
+Concrete type determined by VariableRegistry.
 """
 struct FermionicAlgebra <: AlgebraType end
 
@@ -107,7 +109,8 @@ multiple terms.
 - Creation `cᵢ†`: negative index `-i`
 
 # Integer Type
-Uses `Int32` (signed for creation/annihilation distinction).
+Uses signed integer types (sign distinguishes creation/annihilation).
+Concrete type determined by VariableRegistry.
 """
 struct BosonicAlgebra <: AlgebraType end
 
@@ -125,7 +128,8 @@ Variables use symbols P₁, P₂, P₃, ...
 Projectors are self-adjoint.
 
 # Integer Type
-Uses `UInt16` (self-adjoint operators).
+Typically uses unsigned integer types (self-adjoint operators).
+Concrete type determined by VariableRegistry.
 """
 struct ProjectorAlgebra <: AlgebraType end
 
@@ -142,7 +146,8 @@ Unipotent operator algebra.
 cyclic product rules. Unipotent only removes consecutive pairs.
 
 # Integer Type
-Uses `UInt16` (self-adjoint operators).
+Typically uses unsigned integer types (self-adjoint operators).
+Concrete type determined by VariableRegistry.
 """
 struct UnipotentAlgebra <: AlgebraType end
 
@@ -235,7 +240,7 @@ decode_operator_id(idx)            # 1
     mo = max_operators(T)
     @assert site >= 1 && site <= ms "Site $site out of range for $T (max $ms)"
     @assert operator_id >= 1 && operator_id <= mo "Operator $operator_id out of range for $T (max $mo)"
-    return T((operator_id << k) | site)  # 1-indexed site storage
+    return T((T(operator_id) << k) | site)  # 1-indexed site storage
 end
 
 """

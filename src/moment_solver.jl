@@ -4,7 +4,6 @@ struct MomentProblem{T,M,CR<:ConstraintRef,JS<:AbstractJuMPScalar}
     model::GenericModel{T}
     constraints::Vector{CR}
     monomap::Dict{M,JS}  # TODO: maybe refactor.
-    sa::SimplifyAlgorithm
 end
 
 function substitute_variables(poly::P, monomap::Dict{M,JS}) where {T1,P<:AbstractPolynomial{T1},M,JS<:AbstractJuMPScalar}
@@ -42,12 +41,11 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
     !(T <: Real) && error("Moment relaxation is not supported for PolyOpt, use CPolyOpt")
     model = GenericModel{T}()
 
-    sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_unipotent=pop.is_unipotent, is_projective=pop.is_projective)
     # the union of clique_total_basis
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
             map(monomials(poly)) do m
-                simplify(expval(_neat_dot3(rol_idx, m, col_idx)), sa)
+                expval(_neat_dot3(rol_idx, m, col_idx))
             end
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities) for basis in term_sparsity.block_bases for rol_idx in basis for col_idx in basis
         ])
@@ -68,7 +66,7 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
                             poly,
                             ts_sub_basis,
                             monomap,
-                            poly in pop.eq_constraints ? Zeros() : PSDCone(), sa)
+                            poly in pop.eq_constraints ? Zeros() : PSDCone())
                     end
                 end
             end
@@ -78,14 +76,13 @@ function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliqu
                     corr_sparsity.cons[global_con],
                     [one(pop.objective)],
                     monomap,
-                    corr_sparsity.cons[global_con] in pop.eq_constraints ? Zeros() : PSDCone(),
-                    sa
+                    corr_sparsity.cons[global_con] in pop.eq_constraints ? Zeros() : PSDCone()
                 )
             end]
 
-    @objective(model, Min, mapreduce(p -> p[1] * monomap[canonicalize(expval(p[2]), sa)], +, terms(pop.objective)))
+    @objective(model, Min, mapreduce(p -> p[1] * monomap[symmetric_canon(expval(p[2]))], +, terms(pop.objective)))
 
-    return MomentProblem(model, constraint_matrices, monomap, sa)
+    return MomentProblem(model, constraint_matrices, monomap)
 end
 
 function constrain_moment_matrix!(
@@ -93,12 +90,11 @@ function constrain_moment_matrix!(
     poly::P,
     local_basis::Vector{M1}, # M2 should be expval(M1)
     monomap::Dict{M2,JS},
-    cone, # FIXME: which type should I use?
-    sa::SimplifyAlgorithm
+    cone # FIXME: which type should I use?
 ) where {T,T1,P<:AbstractPolynomial{T},M1,M2,JS<:AbstractJuMPScalar}
     T_prom = promote_type(T, T1)
     moment_mtx = [
-        sum([T_prom(coef) * monomap[simplify!(expval(_neat_dot3(row_idx, mono, col_idx)), sa)] for (coef, mono) in zip(coefficients(poly), monomials(poly))]) for
+        sum([T_prom(coef) * monomap[expval(_neat_dot3(row_idx, mono, col_idx))] for (coef, mono) in zip(coefficients(poly), monomials(poly))]) for
         row_idx in local_basis, col_idx in local_basis
     ]
     return @constraint(model, moment_mtx in cone)

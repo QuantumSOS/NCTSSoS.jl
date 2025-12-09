@@ -87,27 +87,8 @@ function simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
     # Empty or single: nothing to simplify
     length(word) <= 1 && return Term(1.0, m)
 
-    # Group by site using Dict to collect operators per site, preserving order within site
-    site_groups = Dict{Int,Vector{T}}()
-
-    for idx in word
-        site = decode_site(idx)
-        if !haskey(site_groups, site)
-            site_groups[site] = T[]
-        end
-        push!(site_groups[site], idx)
-    end
-
-    # Sort sites (ascending order)
-    sorted_sites = sort!(collect(keys(site_groups)))
-
-    # Build result: for each site, just concatenate (no simplification within site)
-    empty!(word)
-
-    for site in sorted_sites
-        ops = site_groups[site]
-        append!(word, ops)
-    end
+    # Stable sort by site: operators on different sites commute, within-site order preserved
+    sort!(word, alg=Base.Sort.InsertionSort, by=decode_site)
 
     return Term(1.0, m)
 end
@@ -147,93 +128,4 @@ function simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
     # Copy and delegate to simplify!
     m_copy = Monomial{NonCommutativeAlgebra,T}(copy(m.word), m.hash)
     simplify!(m_copy)
-end
-
-"""
-    Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
-
-Multiply two non-commutative monomials with site-aware simplification.
-
-Site-encoded operators on different sites commute.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> using FastPolynomials: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> idx1_s2 = encode_index(UInt16, 1, 2);
-
-julia> m1 = Monomial{NonCommutativeAlgebra}([idx1_s1]);
-
-julia> m2 = Monomial{NonCommutativeAlgebra}([idx1_s2]);
-
-julia> t = m1 * m2;
-
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1, idx1_s2]
-true
-```
-"""
-function Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Concatenate and simplify using site-aware simplify!
-    result = Monomial{NonCommutativeAlgebra,T}(vcat(w1, w2), zero(UInt64))
-    simplify!(result)
-end
-
-# =============================================================================
-# Signed Integer Support (Legacy Compatibility)
-# =============================================================================
-#
-# Legacy NCTSSoS code uses signed integers for variable indices.
-# These overloads provide simple concatenation without site-aware simplification.
-
-"""
-    simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
-
-Simple in-place simplification for non-commutative algebra with signed indices.
-For legacy compatibility - just returns the monomial unchanged (no simplification rules).
-"""
-function simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
-    # No simplification for legacy signed integer indices
-    Term(1.0, m)
-end
-
-"""
-    simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
-
-Simple simplification for non-commutative algebra with signed indices.
-For legacy compatibility - returns a term with coefficient 1.0 and the monomial unchanged.
-"""
-function simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
-    Term(1.0, m)
-end
-
-"""
-    Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
-
-Multiply two non-commutative monomials with signed indices.
-For legacy compatibility - simple word concatenation without site-aware simplification.
-"""
-function Base.:*(m1::Monomial{NonCommutativeAlgebra,T}, m2::Monomial{NonCommutativeAlgebra,T}) where {T<:Signed}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    isempty(w1) && return Term(1.0, m2)
-    isempty(w2) && return Term(1.0, m1)
-
-    # Simple concatenation for legacy compatibility
-    result_word = vcat(w1, w2)
-    result = Monomial{NonCommutativeAlgebra}(result_word)
-    Term(1.0, result)
 end

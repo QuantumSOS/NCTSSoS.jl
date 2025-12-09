@@ -46,7 +46,7 @@ export star, star!, adjoint!
 export symmetric_canon, cyclic_canon, cyclic_symmetric_canon, canonicalize
 
 # Basis generation
-export get_ncbasis, get_ncbasis_deg, has_consecutive_repeats
+export get_ncbasis, get_ncbasis_deg
 
 # Algebra types (singleton types for dispatch)
 export AlgebraType
@@ -71,7 +71,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 export symbols, indices
 
 # Legacy compatibility exports (for NCTSSoS migration)
-export SimplifyAlgorithm, Variable, AbstractPolynomial
+export Variable, AbstractPolynomial
 export sorted_union, sorted_unique
 export get_basis, _neat_dot3
 export monomial

@@ -382,25 +382,3 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     m_copy = Monomial{FermionicAlgebra,T}(word_copy, m.hash)
     simplify!(m_copy)
 end
-
-"""
-    Base.:*(m1::Monomial{FermionicAlgebra,T}, m2::Monomial{FermionicAlgebra,T}) where T
-
-Multiply two fermionic monomials using Wick's theorem simplification.
-"""
-function Base.:*(m1::Monomial{FermionicAlgebra,T}, m2::Monomial{FermionicAlgebra,T}) where {T}
-    w1, w2 = m1.word, m2.word
-
-    # Handle empty cases
-    if isempty(w1)
-        return simplify(m2)
-    end
-    if isempty(w2)
-        return simplify(m1)
-    end
-
-    # Concatenate and apply Wick's theorem
-    result = vcat(w1, w2)
-    m_result = Monomial{FermionicAlgebra}(result)
-    simplify!(m_result)
-end

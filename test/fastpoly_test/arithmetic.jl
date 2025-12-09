@@ -6,13 +6,13 @@ using NCTSSoS.FastPolynomials:
     @testset "Monomial Multiplication" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Variable multiplication creates polynomial via Term
+        # Variable multiplication now returns Monomial (word concatenation)
         m1 = x[1]
         m2 = x[2]
 
         result = m1 * m2
-        @test result isa Term
-        @test degree(result.monomial) == 2
+        @test result isa Monomial
+        @test degree(result) == 2
     end
 
     @testset "Scalar * Monomial -> Polynomial" begin

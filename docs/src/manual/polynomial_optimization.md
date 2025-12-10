@@ -1,4 +1,4 @@
-# [Polynomial Optimization] (@id polynomial-optimization)
+# [Polynomial Optimization](@id polynomial-optimization)
 
 Polynomial optimization is a [mathematical optimization
 problem](https://en.wikipedia.org/wiki/Mathematical_optimization) where the

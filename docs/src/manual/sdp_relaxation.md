@@ -1,4 +1,4 @@
-# [Semidefinite Programming] (@id semidefinite-programming)
+# [Semidefinite Programming](@id semidefinite-programming)
 
 Semidefinite Programming (SDP) is a powerful optimization technique that can be
 used to solve a wide variety of problems in science and engineering, including

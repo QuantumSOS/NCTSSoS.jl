@@ -22,7 +22,7 @@ All 5 phases planned and approved. Ready for implementation.
 - Begin Phase 1 Step 1.1: Refactor pop.jl
 - Comment out tests in runtests.jl (Phase 5.0)
 
-**Commit:** (pending)
+**Commit:** `059a7b5` - docs(fastpoly-integration): complete planning (all 5 phases approved)
 
 ---
 

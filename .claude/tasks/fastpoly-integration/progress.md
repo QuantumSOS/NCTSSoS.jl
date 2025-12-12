@@ -1,5 +1,31 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-12 - Phases 4-5 Planning Approved
+
+**Agent:** orchestrator
+**Feature:** N/A (planning)
+
+### Actions
+- Reviewed Phase 4 (Legacy Code Removal) plan
+- Reviewed Phase 5 (Test Migration) plan
+- Clarified 3 design decisions via user Q&A
+
+### Decisions Made
+1. **Legacy API**: Remove completely - no deprecation warnings, clean break
+2. **Test Migration**: Comment out ALL tests in `runtests.jl`, re-enable incrementally as phases complete
+3. **AbstractPolynomial**: Keep union type for flexibility/future extensions
+
+### Outcome
+All 5 phases planned and approved. Ready for implementation.
+
+### Next Steps
+- Begin Phase 1 Step 1.1: Refactor pop.jl
+- Comment out tests in runtests.jl (Phase 5.0)
+
+**Commit:** (pending)
+
+---
+
 ## Session: 2025-12-12 - Planning Complete (Phases 1-3 Approved)
 
 **Agent:** orchestrator

@@ -214,39 +214,66 @@ end
 
 ### Phase 4: Remove Legacy Code
 
+**Decision:** Complete removal, no deprecation warnings or backward compatibility shims.
+
 #### Step 4.1: Clean up utils.jl in FastPolynomials
 - [ ] Remove `Variable` struct
 - [ ] Remove `@ncpolyvar` macro
 - [ ] Remove `get_basis` wrapper (keep `get_ncbasis` only)
 - [ ] Remove `variables(poly) → Vector{Variable}`
-- [ ] Keep `AbstractPolynomial` as union type (for flexibility)
+- [ ] Remove `_VAR_INDEX_TO_NAME` and `_VAR_NAME_TO_INDEX` globals
+- [ ] Keep `AbstractPolynomial` as union type (for flexibility/extensions)
 
 #### Step 4.2: Update NCTSSoS.jl exports
-- [ ] Remove legacy type exports
-- [ ] Export new algebra constructors
+- [ ] Remove legacy type exports (`Variable`, `@ncpolyvar`)
+- [ ] Export new algebra constructors (`pauli_algebra`, `fermionic_algebra`, etc.)
 - [ ] Update `using .FastPolynomials` imports
+- [ ] Clean up re-exports
 
 ### Phase 5: Test Migration
 
-#### Step 5.1: Update test/pop.jl
-- [ ] Migrate to registry-based API
-- [ ] Test all algebra types
+**Strategy:** Comment out ALL tests in `runtests.jl`. Re-enable incrementally as each phase completes. User will manually verify results.
 
-#### Step 5.2: Update test/sparse.jl
-- [ ] Test new clique decomposition
-- [ ] Verify basis generation
+#### Step 5.0: Prepare test infrastructure
+- [ ] Comment out all `include()` statements in `test/runtests.jl`
+- [ ] Add comment block explaining incremental re-enablement plan
 
-#### Step 5.3: Update test/moment_solver.jl
-- [ ] Test moment matrix construction
-- [ ] Verify numerical results
+#### Step 5.1: FastPolynomials tests (should work immediately)
+- [ ] `test/fastpoly_test/` - Already uses new API, should pass
+- [ ] Suggest: Uncomment `include("fastpoly_test/runtests.jl")`
 
-#### Step 5.4: Update remaining tests
-- [ ] test/sos_solver.jl
-- [ ] test/interface.jl
-- [ ] test/state_poly_opt.jl
-- [ ] test/trace_poly_opt.jl
-- [ ] test/test_gns.jl
-- [ ] test/algebra_constructors.jl
+#### Step 5.2: Core optimization tests (after Phase 1)
+- [ ] Update `test/pop.jl` to registry-based API
+- [ ] Suggest: Uncomment after Phase 1 Step 1.1 complete
+
+#### Step 5.3: Sparsity tests (after Phase 1)
+- [ ] Update `test/sparse.jl` to new clique format
+- [ ] Suggest: Uncomment after Phase 1 Step 1.2 complete
+
+#### Step 5.4: Moment solver tests (after Phase 1)
+- [ ] Update `test/moment_solver.jl` to unified MomentProblem
+- [ ] Suggest: Uncomment after Phase 1 Step 1.3 complete
+
+#### Step 5.5: Interface tests (after Phase 3)
+- [ ] Update `test/interface.jl` - end-to-end cs_nctssos
+- [ ] Suggest: Uncomment after Phase 3 complete
+
+#### Step 5.6: Advanced features (after Phase 3)
+- [ ] `test/sos_solver.jl` - SOS dualization
+- [ ] `test/state_poly_opt.jl` - State polynomial optimization
+- [ ] `test/trace_poly_opt.jl` - Trace polynomial optimization
+- [ ] `test/test_gns.jl` - GNS construction
+- [ ] `test/algebra_constructors.jl` - Algebra helpers
+
+#### Test Re-enablement Order
+```
+Phase 1.1 complete → pop.jl
+Phase 1.2 complete → sparse.jl
+Phase 1.3 complete → moment_solver.jl
+Phase 2 complete   → algebra_constructors.jl
+Phase 3 complete   → interface.jl, sos_solver.jl
+Phase 4 complete   → All remaining tests
+```
 
 ## File Migration Order
 
@@ -287,15 +314,19 @@ end
 
 ## Testing Strategy
 
-### Per-Phase Testing
-- After each step, run affected tests
-- Fix breakages before proceeding
-- Validate numerical equivalence
+### Incremental Re-enablement
+- Start with ALL tests in `runtests.jl` commented out
+- Re-enable tests as each phase completes (see Phase 5 for order)
+- User manually verifies results match expected values
 
-### End-to-End Validation
-- Known problems with known solutions
-- Compare results within tolerance (1e-10)
-- Verify all algebra types work
+### FastPolynomials Tests (Baseline)
+- `make test-FastPoly` should pass throughout refactoring
+- These tests use new API and don't depend on NCTSSoS optimization layer
+
+### Numerical Validation
+- User will compare results against known solutions
+- Tolerance: results within 1e-6 of expected (SDP solver tolerance)
+- Known test problems documented in test files
 
 ### Performance Benchmarks
 - `make bench TARGET=main` after each phase

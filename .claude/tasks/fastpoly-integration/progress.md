@@ -45,7 +45,7 @@ Phase 1.2 complete. The new `CorrelativeSparsity{A,T,P,M}` type with:
 ### Next Steps
 - Phase 1.3: Merge and refactor moment_solver.jl + complex_moment_solver.jl
 
-**Commit:** `507303f` - refactor(sparse): registry-based cliques and index mapping
+**Commit:** `a347588` - refactor(sparse): registry-based cliques and index mapping
 
 ---
 

@@ -1,5 +1,34 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-12 - Checkpoint (Phases 1.1-1.2 Complete)
+
+**Agent:** orchestrator
+**Feature:** N/A (checkpoint)
+
+### Actions
+- Completed Phase 1.1: pop.jl refactored with algebra type parameters
+- Completed Phase 1.2: sparse.jl refactored with registry-based cliques
+- Updated plan.md with progress markers
+- Discussed test re-enablement strategy with user
+
+### Outcome
+Phase 1 is 2/3 complete. Core types refactored with algebra parameters. Module compiles and FastPolynomials tests pass (1141 tests).
+
+### Current State
+- Phase 1.1 (pop.jl): ✓ Complete
+- Phase 1.2 (sparse.jl): ✓ Complete
+- Phase 1.3 (moment solvers): Pending
+- Tests: Commented out, will re-enable after Phase 2
+
+### Next Steps
+- Phase 1.3: Merge and refactor moment_solver.jl + complex_moment_solver.jl
+- Then Phase 2: Algebra constructors
+- Then re-enable tests (pop.jl, algebra_constructors.jl)
+
+**Commit:** (checkpoint push)
+
+---
+
 ## Session: 2025-12-12 - Phase 1.2 Complete (sparse.jl refactored)
 
 **Agent:** polyglot-implementation-engineer

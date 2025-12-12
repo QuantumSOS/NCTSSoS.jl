@@ -42,6 +42,8 @@ Phase 1.1 complete. The new `PolyOpt{A, P}` type with algebra parameter and regi
 - Phase 1.2: Full refactor of sparse.jl
 - Phase 1.3: Full refactor and merge of moment_solver.jl + complex_moment_solver.jl
 
+**Commit:** `3b38219` - refactor(pop): add algebra type parameters and registry-based API
+
 ---
 
 ## Session: 2025-12-12 - Phases 4-5 Planning Approved

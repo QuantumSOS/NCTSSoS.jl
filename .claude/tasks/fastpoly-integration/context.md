@@ -245,42 +245,37 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 - [x] Research complete (all source files analyzed)
 - [x] Key findings documented
 - [x] Risk assessment complete
-- [ ] Implementation plan created
+- [x] Implementation plan created (plan.md)
+- [x] Phase 1.1 complete (pop.jl refactored)
+- [x] Phase 1.2 complete (sparse.jl refactored)
+- [ ] Phase 1.3 (moment_solver.jl merge)
 - [ ] Validation tests defined
 - [ ] Documentation updated
 
-## Handoff Summary
+## Handoff Summary (Updated after Phase 1.2)
 
-**For Implementation Engineer:**
+**Implementation Status:**
+1. **Phase 1.1 Complete**: `PolyOpt{A, P}` with algebra type and registry-based API
+2. **Phase 1.2 Complete**: `CorrelativeSparsity{A,T,P,M}` with index-based cliques
 
-1. **Current State is Already Compatible**
-   - The existing code works with FastPolynomials via legacy compatibility layer
-   - No urgent refactoring needed from correctness perspective
-   - Opportunity: Optimize or expose algebra types if desired
+**Key Changes Made:**
+- `subregistry()` function added to FastPolynomials
+- `variable_indices()` for both Polynomial and Monomial
+- Cliques now store indices (`Vector{T}`) instead of Variables
+- Basis generation via `subregistry()` + `get_ncbasis()`
+- Position-based graph construction for correlative sparsity
 
-2. **Critical Integration Points:**
-   - `get_basis(vars, degree)` in sparse.jl (legacy wrapper works)
-   - `monomap::Dict{M, JuMP.Variable}` indexing (type-stable as-is)
-   - `variables(poly)` extraction (legacy wrapper works)
+**Files Modified in Phase 1.2:**
+- `src/FastPolynomials/src/variable_registry.jl` (+subregistry)
+- `src/FastPolynomials/src/polynomial.jl` (+variable_indices for Monomial)
+- `src/sparse.jl` (major refactor)
+- `src/interface.jl` (PolyOptResult, cs_nctssos)
+- `src/moment_solver.jl` (type signature)
+- `src/complex_moment_solver.jl` (type signature)
 
-3. **Recommended Approach:**
-   - **Option A (Conservative)**: Document current integration, add registry examples
-   - **Option B (Moderate)**: Refactor sparse.jl to use `get_ncbasis` + extract monomials
-   - **Option C (Aggressive)**: Add algebra types to all structs, break user API
+**Next Step:** Phase 1.3 - Merge moment_solver.jl + complex_moment_solver.jl
 
-4. **Testing Strategy:**
-   - Run existing test suite (should pass with current code)
-   - Add registry-based examples to test/ directory
-   - Validate numerical equivalence: legacy API vs native types
-
-5. **Open Question:**
-   - Do we want to expose `AlgebraType` to users, or keep it internal?
-   - If internal: current design is perfect (Variable hides complexity)
-   - If exposed: need new algebra_constructors API
-
-**Blocker:** None. Code is functional. Migration is optional for optimization.
-
-**Next Step:** Write detailed plan.md based on chosen approach (A, B, or C)
+**Blocker:** None. Module compiles, FastPolynomials tests pass (1141 tests)
 
 ## Design Investigation: sparse.jl Refactoring
 

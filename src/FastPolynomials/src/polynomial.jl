@@ -499,6 +499,35 @@ function variable_indices(p::Polynomial{A,T,C}) where {A,T,C}
     return result
 end
 
+"""
+    variable_indices(m::Monomial{A,T}) -> Set{T}
+
+Get the set of all variable indices used in a monomial.
+Returns a Set of integer indices.
+
+For signed index types (Fermionic/Bosonic), uses `abs(idx)` to normalize
+since creation (+) and annihilation (-) refer to the same mode.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([1, 2, 1]);
+
+julia> variable_indices(m)
+Set{Int64} with 2 elements:
+  2
+  1
+```
+"""
+function variable_indices(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
+    result = Set{T}()
+    for idx in m.word
+        push!(result, T(abs(idx)))  # abs for fermionic/bosonic (negative = annihilation)
+    end
+    return result
+end
+
 # =============================================================================
 # Equality and Hashing
 # =============================================================================

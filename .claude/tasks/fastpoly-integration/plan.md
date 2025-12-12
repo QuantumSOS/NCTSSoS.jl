@@ -90,14 +90,19 @@ function polyopt(objective::Polynomial{A}, registry::VariableRegistry{A};
                  ineq_constraints=Polynomial{A}[]) where A
 ```
 
-#### Step 1.2: Refactor sparse.jl
-- [ ] Add algebra type to `CorrelativeSparsity{A, P, M}` and `TermSparsity{A, M}`
-- [ ] Replace `cliques::Vector{Vector{Variable}}` → `cliques::Vector{Vector{T}}` (indices)
-- [ ] Implement `subregistry(reg, indices)` for clique-local basis generation
-- [ ] Replace `get_basis(vars, order)` → `get_ncbasis(sub_registry, order)`
-- [ ] Add `variable_indices(poly)` → returns `Vector{T}` of indices
-- [ ] Update graph construction with position-based index mapping
-- [ ] Handle signed indices as distinct variables (Fermionic/Bosonic)
+#### Step 1.2: Refactor sparse.jl [COMPLETE]
+- [x] Add algebra type to `CorrelativeSparsity{A, T, P, M}` (with index type T)
+- [x] Replace `cliques::Vector{Vector{Variable}}` -> `cliques::Vector{Vector{T}}` (indices)
+- [x] Implement `subregistry(reg, indices)` for clique-local basis generation
+- [x] Replace `get_basis(vars, order)` -> `get_ncbasis(sub_registry, order)`
+- [x] Add `variable_indices(poly)` and `variable_indices(mono)` -> returns `Set{T}`
+- [x] Update graph construction with position-based index mapping
+- [x] Handle signed indices using `abs(idx)` for consistency
+- [x] Add `extract_monomials_from_basis()` helper
+- [x] Add `clique_variables()` backward compatibility function
+- [x] Update `PolyOptResult` type signature
+- [x] Update `cs_nctssos` to use `variable_indices()` for clique objective
+- [x] Update `moment_relax` and `complex_moment_relax` signatures
 
 **Key changes:**
 ```julia

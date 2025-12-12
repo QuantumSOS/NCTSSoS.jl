@@ -1,6 +1,24 @@
-struct PolyOptResult{T,P,M}
-    objective::T # support for high precision solution
-    corr_sparsity::CorrelativeSparsity{P,M}
+"""
+    PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+
+Result of a polynomial optimization problem solution.
+
+# Type Parameters
+- `T`: Coefficient type for the objective value (supports BigFloat for high precision)
+- `A`: Algebra type
+- `TI`: Index type
+- `P`: Polynomial type
+- `M`: Monomial type
+
+# Fields
+- `objective::T`: Optimal objective value
+- `corr_sparsity::CorrelativeSparsity{A,TI,P,M}`: Correlative sparsity structure
+- `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity for each clique
+- `model::GenericModel{T}`: JuMP model used for solving
+"""
+struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+    objective::T
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
 end
@@ -75,7 +93,15 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
 
-    cliques_objective = [reduce(+, [issubset(sort!(variables(mono)), clique) ? coef * mono : zero(coef) * one(mono) for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective))]) for clique in corr_sparsity.cliques]
+    # Compute partial objectives for each clique
+    # cliques are now Vector{T} (indices), use variable_indices() for comparison
+    cliques_objective = map(corr_sparsity.cliques) do clique_indices
+        clique_set = Set(clique_indices)
+        reduce(+, [
+            issubset(variable_indices(mono), clique_set) ? coef * mono : zero(coef) * one(mono)
+            for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective))
+        ])
+    end
 
     initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
         init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)

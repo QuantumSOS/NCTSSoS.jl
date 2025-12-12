@@ -1,5 +1,54 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-12 - Phase 1.2 Complete (sparse.jl refactored)
+
+**Agent:** polyglot-implementation-engineer
+**Feature:** Phase 1.2 (sparse.jl registry-based cliques and index mapping)
+
+### Actions
+- Added `subregistry()` function to FastPolynomials (`src/FastPolynomials/src/variable_registry.jl`)
+- Added `variable_indices()` for Monomial type (`src/FastPolynomials/src/polynomial.jl`)
+- Refactored `CorrelativeSparsity` struct with new type signature:
+  - `CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Monomial{A,T}}`
+  - `cliques::Vector{Vector{T}}` (stores indices instead of Variables)
+  - `registry::VariableRegistry{A,T}` (for symbol lookups)
+- Updated `get_correlative_graph` to use `variable_indices()` and position-based mapping
+- Updated `assign_constraint` to work with index-based cliques
+- Replaced `get_basis(clique, order)` with `subregistry()` + `get_ncbasis()` pattern
+- Added `extract_monomials_from_basis()` helper for basis polynomial -> monomial extraction
+- Added `clique_variables()` function for backward compatibility
+- Updated `PolyOptResult` type signature in interface.jl
+- Updated `cs_nctssos` to use `variable_indices()` for clique objective computation
+- Updated `moment_relax` and `complex_moment_relax` signatures to match new CorrelativeSparsity type
+
+### Files Modified
+- `src/FastPolynomials/src/variable_registry.jl` (+subregistry function)
+- `src/FastPolynomials/src/polynomial.jl` (+variable_indices for Monomial)
+- `src/FastPolynomials/src/FastPolynomials.jl` (exports)
+- `src/NCTSSoS.jl` (imports)
+- `src/sparse.jl` (major refactor)
+- `src/interface.jl` (PolyOptResult type, cs_nctssos logic)
+- `src/moment_solver.jl` (type signature)
+- `src/complex_moment_solver.jl` (type signature)
+
+### Verification
+- `make test-FastPoly` passes (1141 tests)
+- Module compiles without errors
+
+### Outcome
+Phase 1.2 complete. The new `CorrelativeSparsity{A,T,P,M}` type with:
+- Index-based cliques (Vector{Vector{T}})
+- Registry reference for symbol lookups
+- Position-based graph construction using `variable_indices()`
+- Basis generation via `subregistry()` + `get_ncbasis()`
+
+### Next Steps
+- Phase 1.3: Merge and refactor moment_solver.jl + complex_moment_solver.jl
+
+**Commit:** `507303f` - refactor(sparse): registry-based cliques and index mapping
+
+---
+
 ## Session: 2025-12-12 - Phase 1.1 Complete (pop.jl refactored)
 
 **Agent:** polyglot-implementation-engineer

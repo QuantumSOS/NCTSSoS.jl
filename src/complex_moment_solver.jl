@@ -15,7 +15,11 @@ PolyOpt{A,P}, dispatch between real and complex is based on traits, not types.
 
 See also: [`moment_relax`](@ref)
 """
-function complex_moment_relax(cpop::PolyOpt{A,P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {A<:AlgebraType, T, P<:Polynomial{A,T}, M}
+function complex_moment_relax(
+    cpop::PolyOpt{A,P},
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+) where {A<:AlgebraType, TI<:Integer, C<:Number, P<:Polynomial{A,TI,C}, M<:Monomial{A,TI}}
     # the union of clique_total_basis
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [

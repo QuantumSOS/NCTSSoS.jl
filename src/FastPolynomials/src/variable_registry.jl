@@ -83,6 +83,55 @@ index_type(reg)  # UInt8
 """
 index_type(::VariableRegistry{A,T}) where {A,T} = T
 
+"""
+    subregistry(reg::VariableRegistry{A,T}, subset_indices::AbstractVector{<:Integer}) where {A,T}
+
+Create a new VariableRegistry containing only the specified subset of indices.
+
+This is useful for creating clique-local registries for basis generation in
+correlative sparsity decomposition.
+
+# Arguments
+- `reg::VariableRegistry{A,T}`: The parent registry
+- `subset_indices::AbstractVector{<:Integer}`: Indices to include in the sub-registry
+
+# Returns
+A new `VariableRegistry{A,T}` containing only the variables at the specified indices.
+
+# Examples
+```jldoctest
+julia> reg, (x,) = create_noncommutative_variables([("x", 1:5)]);
+
+julia> sorted_idxs = sort(collect(keys(reg.idx_to_variables)));
+
+julia> sub_reg = subregistry(reg, sorted_idxs[1:3]);
+
+julia> length(sub_reg)
+3
+```
+
+# Notes
+- Indices not present in the parent registry are silently ignored
+- The returned registry has the same algebra type as the parent
+- This is a copy operation, not a view - modifications to the sub-registry
+  do not affect the parent registry
+"""
+function subregistry(reg::VariableRegistry{A,T}, subset_indices::AbstractVector{<:Integer}) where {A<:AlgebraType, T<:Integer}
+    filtered_idx_to_vars = Dict{T, Symbol}()
+    filtered_vars_to_idx = Dict{Symbol, T}()
+
+    for idx in subset_indices
+        typed_idx = T(idx)
+        if haskey(reg.idx_to_variables, typed_idx)
+            sym = reg.idx_to_variables[typed_idx]
+            filtered_idx_to_vars[typed_idx] = sym
+            filtered_vars_to_idx[sym] = typed_idx
+        end
+    end
+
+    return VariableRegistry{A,T}(filtered_idx_to_vars, filtered_vars_to_idx)
+end
+
 # Unicode subscript digits: ₀₁₂₃₄₅₆₇₈₉
 const SUBSCRIPT_DIGITS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
 

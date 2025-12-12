@@ -68,7 +68,10 @@ export create_pauli_variables, create_fermionic_variables, create_bosonic_variab
 export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
 
 # Variable registry helpers
-export symbols, indices
+export symbols, indices, subregistry
+
+# Polynomial helpers
+export variable_indices
 
 # Legacy compatibility exports (for NCTSSoS migration)
 export Variable, AbstractPolynomial

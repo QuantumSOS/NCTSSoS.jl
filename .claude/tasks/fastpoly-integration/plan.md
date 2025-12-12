@@ -66,12 +66,15 @@ MomentProblem{A, T, M<:Monomial{A}}
 
 ### Phase 1: Core Type Refactoring
 
-#### Step 1.1: Refactor pop.jl
-- [ ] Add algebra type parameter to `OptimizationProblem{A, P}`
-- [ ] Change `variables::Vector{Variable}` → `registry::VariableRegistry{A}`
-- [ ] Remove `comm_gps` (use algebra type for commutation rules)
-- [ ] Remove `is_unipotent`, `is_projective` (inferred from algebra type)
-- [ ] Update `polyopt()` signature to accept registry
+#### Step 1.1: Refactor pop.jl [COMPLETE]
+- [x] Add algebra type parameter to `OptimizationProblem{A, P}`
+- [x] Change `variables::Vector{Variable}` -> `registry::VariableRegistry{A}`
+- [x] Remove `comm_gps` (use algebra type for commutation rules)
+- [x] Remove `is_unipotent`, `is_projective` (inferred from algebra type)
+- [x] Update `polyopt()` signature to accept registry
+- [x] Add `_is_complex_problem(::Type{A})` trait for dispatch
+- [x] Add backward compatibility accessors (variables, is_unipotent, is_projective, comm_gps)
+- [x] Update dependent files with minimal type signature changes (sparse.jl, interface.jl, moment_solver.jl, complex_moment_solver.jl)
 
 **New API:**
 ```julia

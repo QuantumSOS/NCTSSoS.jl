@@ -110,7 +110,7 @@ variable cliques and assigning constraints to cliques, enabling block-structured
   - `global_cons`: Constraint indices not captured by any single clique
   - `cliques_idcs_bases`: Monomial bases for indexing moment/localizing matrices within each clique
 """
-function correlative_sparsity(pop::OP, order::Int, elim_algo::EliminationAlgorithm) where {T,P<:AbstractPolynomial{T},OP<:OptimizationProblem{P}}
+function correlative_sparsity(pop::OP, order::Int, elim_algo::EliminationAlgorithm) where {A<:AlgebraType, T, P<:Polynomial{A,T}, OP<:OptimizationProblem{A,P}}
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
     cliques = map(x -> sort(pop.variables[x]), clique_decomp(get_correlative_graph(pop.variables, pop.objective, all_cons), elim_algo))
 

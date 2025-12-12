@@ -1,174 +1,268 @@
-abstract type OptimizationProblem{P} end
-
 """
-    PolyOpt{P} <: OptimizationProblem
+    OptimizationProblem{A<:AlgebraType, P}
 
-A polynomial optimization problem structure.
+Abstract type for polynomial optimization problems with algebra type tracking.
 
 # Type Parameters
-- `P`: Type of polynomial, either `Polynomial{T}` or `NCStatePolynomial{T}`
+- `A<:AlgebraType`: The algebra type (PauliAlgebra, FermionicAlgebra, etc.)
+- `P`: Type of polynomial (Polynomial{A,T,C})
+
+The algebra type parameter enables dispatch on algebraic structure:
+- `PauliAlgebra`: Pauli spin matrices with σ² = I and cyclic products
+- `FermionicAlgebra`: Fermionic operators with anticommutation
+- `BosonicAlgebra`: Bosonic operators with commutation
+- `ProjectorAlgebra`: Projectors with P² = P (idempotent)
+- `UnipotentAlgebra`: Operators with U² = I (involutory)
+- `NonCommutativeAlgebra`: Generic non-commutative (no simplification)
+"""
+abstract type OptimizationProblem{A<:AlgebraType, P} end
+
+"""
+    PolyOpt{A<:AlgebraType, P<:Polynomial{A}} <: OptimizationProblem{A, P}
+
+A polynomial optimization problem structure with algebra type tracking.
+
+# Type Parameters
+- `A<:AlgebraType`: The algebra type governing simplification rules
+- `P<:Polynomial{A}`: Type of polynomial matching the algebra
 
 # Fields
 - `objective::P`: The polynomial objective function to be optimized
-- `eq_constraints::Vector{P}`: Vector of equality constraints (assumed to equal 0)
-- `ineq_constraints::Vector{P}`: Vector of inequality constraints (assumed to be >= 0)
-- `variables::Vector{Variable}`: All variables appearing in the problem
-- `comm_gps::Vector{Vector{Variable}}`: Commutative groups - vectors of variables that commute with variables not in the same group
-- `is_unipotent::Bool`: Whether variables square to 1 (e.g., Pauli operators, SWAP operators)
-- `is_projective::Bool`: Whether variables are projective (X² = X)
+- `eq_constraints::Vector{P}`: Vector of equality constraints (p = 0)
+- `ineq_constraints::Vector{P}`: Vector of inequality constraints (p >= 0)
+- `registry::VariableRegistry{A}`: Variable registry mapping symbols to indices
 
 # Notes
-- All constraints are assumed to be simplified using `comm_gp`, `is_unipotent`, and `is_projective`
-- The problem cannot be both unipotent and projective simultaneously
-- Commutative groups must be disjoint sets
+- Algebra type determines simplification rules (no manual comm_gps, is_unipotent, is_projective)
+- Registry provides bidirectional symbol <-> index mapping for variable access
+
+# Examples
+```julia
+# Create Pauli algebra
+reg, (σx, σy, σz) = create_pauli_variables(1:2)
+
+# Build Hamiltonian
+ham = 0.5 * (σx[1]*σx[2] + σy[1]*σy[2] + σz[1]*σz[2])
+
+# Create optimization problem
+pop = polyopt(ham, reg)
+```
+
+See also: [`polyopt`](@ref), [`VariableRegistry`](@ref), [`AlgebraType`](@ref)
 """
-struct PolyOpt{P} <: OptimizationProblem{P}
+struct PolyOpt{A<:AlgebraType, P<:Polynomial{A}} <: OptimizationProblem{A, P}
     objective::P
-    eq_constraints::Vector{P} # NOTE: assuming constraints are all simplified using comm_gp, is_unipotent, and is_projective
+    eq_constraints::Vector{P}
     ineq_constraints::Vector{P}
-    variables::Vector{Variable}
-    comm_gps::Vector{Vector{Variable}} # Vectors of Set of variables that commutes with variables not in the same set
-    is_unipotent::Bool # square to 1. Examples: Pauli Operators, SWAP Operators
-    is_projective::Bool # X^2 = X. Is projective.
+    registry::VariableRegistry{A}
 end
 
 
 """
-    polyopt(objective::P; eq_constraints=Any[], ineq_constraints=Any[], comm_gps=Vector{Variable}[], is_unipotent::Bool=false, is_projective::Bool=false) where {T,P<:AbstractPolynomial{T}}
+    polyopt(objective::Polynomial{A,T,C}, registry::VariableRegistry{A,T};
+            eq_constraints=Polynomial{A,T,C}[],
+            ineq_constraints=Polynomial{A,T,C}[]) where {A<:AlgebraType, T<:Integer, C<:Number}
 
-Create a polynomial optimization problem.
+Create a polynomial optimization problem from objective, registry, and optional constraints.
 
 # Arguments
-- `objective::P`: The polynomial objective function to optimize.
-- `eq_constraints=Any[]`: Equality constraints as polynomials (p = 0).
-- `ineq_constraints=Any[]`: Inequality constraints as polynomials (p ≥ 0).
-- `comm_gps=Vector{Variable}[]`: Groups of variables that commute. If empty, all variables are assumed to commute.
-- `is_unipotent::Bool=false`: Flag indicating if the problem is unipotent.
-- `is_projective::Bool=false`: Flag indicating if the problem is projective.
+- `objective::Polynomial{A,T,C}`: The polynomial objective function to optimize
+- `registry::VariableRegistry{A,T}`: Variable registry for the algebra
+
+# Keyword Arguments
+- `eq_constraints`: Equality constraints as polynomials (p = 0). Default: empty
+- `ineq_constraints`: Inequality constraints as polynomials (p >= 0). Default: empty
 
 # Returns
-A `PolyOpt{P}` structure representing the polynomial optimization problem.
+A `PolyOpt{A, Polynomial{A,T,C}}` structure representing the optimization problem.
 
 # Notes
-- The polynomial coefficients cannot be integers as they are not supported by JuMP solvers.
-- Commutative groups must be disjoint, and all commutative variables must be a subset of all variables.
-- A problem cannot be both unipotent and projective simultaneously.
+- Algebra type `A` is inferred from the polynomial and registry (must match)
+- Coefficient type `C` cannot be an integer subtype (JuMP solver requirement)
+- Simplification rules are determined by the algebra type, not manual flags
+
+# Examples
+```julia
+# Pauli algebra optimization
+reg, (σx, σy, σz) = create_pauli_variables(1:3)
+ham = 0.5 * (σx[1]*σx[2] + σy[1]*σy[2])
+pop = polyopt(ham, reg)
+
+# With equality constraints
+constraint = σx[1]*σx[1] - one(typeof(ham))  # σx² = I (auto-simplified anyway)
+pop = polyopt(ham, reg; eq_constraints=[constraint])
+```
+
+See also: [`PolyOpt`](@ref), [`VariableRegistry`](@ref)
 """
-function polyopt(objective::P; eq_constraints=Any[], ineq_constraints=Any[], comm_gps=Vector{Variable}[], is_unipotent::Bool=false, is_projective::Bool=false) where {T,P<:AbstractPolynomial{T}}
-    @assert !(T <: Integer) "The polynomial coefficients can not be integers (not supported by JuMP solvers)."
-    eq_cons = unique!(collect(P, eq_constraints))
-    ineq_cons = unique!(collect(P, ineq_constraints))
-    vars = sorted_union(variables(objective), variables.(eq_cons)..., variables.(ineq_cons)...)
-    if !isempty(comm_gps)
-        @assert all([isempty(intersect(gp_a, gp_b)) for gp_a in comm_gps, gp_b in comm_gps if gp_a != gp_b]) "The commutative groups must be disjoint."
-        @assert issubset(union(comm_gps...), vars) "The commutative variables must be a subset of the variables."
-        @assert all(issorted(gp) for gp in comm_gps) "The commutative groups must be sorted."
-    else
-        push!(comm_gps, sort(vars))
-    end
-    @assert !(is_unipotent && is_projective) "The problem cannot be both unipotent and projective."
-    return PolyOpt{P}(objective, eq_cons, ineq_cons, vars, comm_gps, is_unipotent, is_projective)
+function polyopt(
+    objective::Polynomial{A,T,C},
+    registry::VariableRegistry{A,T};
+    eq_constraints::Vector{Polynomial{A,T,C}}=Polynomial{A,T,C}[],
+    ineq_constraints::Vector{Polynomial{A,T,C}}=Polynomial{A,T,C}[]
+) where {A<:AlgebraType, T<:Integer, C<:Number}
+    @assert !(C <: Integer) "The polynomial coefficients cannot be integers (not supported by JuMP solvers)."
+
+    # Deduplicate constraints
+    eq_cons = unique!(copy(eq_constraints))
+    ineq_cons = unique!(copy(ineq_constraints))
+
+    P = Polynomial{A,T,C}
+    return PolyOpt{A, P}(objective, eq_cons, ineq_cons, registry)
 end
 
-function Base.show(io::IO, pop::P) where {P<:OptimizationProblem}
-    cons_str(cons::Vector{P}, iseq::Bool) where {P} =
-        join(["$(string(c)) " * (iseq ? "= 0" : ">= 0 \n") for c in cons], " \t")
+
+"""
+    Base.show(io::IO, pop::OptimizationProblem{A,P})
+
+Display an optimization problem showing objective, constraints, and algebra type.
+"""
+function Base.show(io::IO, pop::OptimizationProblem{A,P}) where {A,P}
+    function cons_str(cons::Vector, iseq::Bool)
+        join(["$(string(c)) " * (iseq ? "= 0" : ">= 0") for c in cons], "\n            ")
+    end
+
+    nvars = length(pop.registry)
+    var_syms = symbols(pop.registry)
+    var_str = nvars <= 10 ? join(string.(var_syms), ", ") :
+              join(string.(var_syms[1:5]), ", ") * ", ..., " * join(string.(var_syms[end-2:end]), ", ")
+
     res_str = """
-        obj: \n
-            $(string(pop.objective)) \n
-        constraints: \n
-            $(cons_str(pop.eq_constraints,true))
-            $(cons_str(pop.ineq_constraints,false))
-        variables:
-            $(join(string.(pop.variables)," ")) \n
-        is_unipotent:
-            $(pop.is_unipotent) \n
-        is_projective:
-            $(pop.is_projective) \n
-    """
+        Optimization Problem ($(nameof(A)))
+        ────────────────────────────────────
+        Objective:
+            $(string(pop.objective))
+
+        Equality constraints ($(length(pop.eq_constraints))):
+            $(isempty(pop.eq_constraints) ? "(none)" : cons_str(pop.eq_constraints, true))
+
+        Inequality constraints ($(length(pop.ineq_constraints))):
+            $(isempty(pop.ineq_constraints) ? "(none)" : cons_str(pop.ineq_constraints, false))
+
+        Variables ($nvars):
+            $var_str
+        """
     print(io, res_str)
 end
 
 
-# ComplexPolyOpt is not only for coefficients being complex,
-# but the product of variables are not hermitians
-struct ComplexPolyOpt{P} <: OptimizationProblem{P}
-    objective::P
-    eq_constraints::Vector{P} # NOTE: assuming constraints are all simplified using comm_gp, is_unipotent, and is_projective
-    ineq_constraints::Vector{P}
-    variables::Vector{Variable}
-    comm_gps::Vector{Vector{Variable}} # Vectors of Set of variables that commutes with variables not in the same set
-    is_unipotent::Bool # square to 1. Examples: Pauli Operators, SWAP Operators
-    is_projective::Bool # X^2 = X. Is projective.
-end
+# =============================================================================
+# Algebra Trait Functions
+# =============================================================================
+
+"""
+    _is_complex_problem(::Type{A}) where {A<:AlgebraType} -> Bool
+
+Determine if an algebra type requires complex moment relaxation (Hermitian PSD).
+
+Returns true for algebras that produce complex phases during simplification:
+- `PauliAlgebra`: Pauli products produce i phases (sigma_x * sigma_y = i*sigma_z)
+- `FermionicAlgebra`: Anticommutation can produce phases
+- `BosonicAlgebra`: Normal ordering can produce complex terms
+
+Returns false for "real" algebras:
+- `NonCommutativeAlgebra`: No simplification rules, no complex phases
+- `ProjectorAlgebra`: P^2 = P, no phases
+- `UnipotentAlgebra`: U^2 = I, no phases
+
+This trait is used by interface.jl to dispatch between moment_relax (real)
+and complex_moment_relax (Hermitian).
+"""
+_is_complex_problem(::Type{PauliAlgebra}) = true
+_is_complex_problem(::Type{FermionicAlgebra}) = true
+_is_complex_problem(::Type{BosonicAlgebra}) = true
+_is_complex_problem(::Type{NonCommutativeAlgebra}) = false
+_is_complex_problem(::Type{ProjectorAlgebra}) = false
+_is_complex_problem(::Type{UnipotentAlgebra}) = false
+_is_complex_problem(::Type{A}) where {A<:AlgebraType} = false  # Default fallback
 
 
-function cpolyopt(objective::P; eq_constraints=Any[], ineq_constraints=Any[], comm_gps=Vector{Variable}[], is_unipotent::Bool=false, is_projective::Bool=false) where {T,P<:AbstractPolynomial{T}}
-    @assert !(T <: Integer) "The polynomial coefficients can not be integers (not supported by JuMP solvers)."
-    eq_cons = unique!(collect(P, eq_constraints))
-    ineq_cons = unique!(collect(P, ineq_constraints))
-    vars = sorted_union(variables(objective), variables.(eq_cons)..., variables.(ineq_cons)...)
-    if !isempty(comm_gps)
-        @assert all([isempty(intersect(gp_a, gp_b)) for gp_a in comm_gps, gp_b in comm_gps if gp_a != gp_b]) "The commutative groups must be disjoint."
-        @assert issubset(union(comm_gps...), vars) "The commutative variables must be a subset of the variables."
+# =============================================================================
+# Accessor Functions
+# =============================================================================
+
+"""
+    Base.getproperty(pop::PolyOpt{A,P}, sym::Symbol) where {A,P}
+
+Custom property access for backward compatibility.
+
+Provides access to:
+- `variables`: Returns Vector{Variable} derived from registry (for backward compat)
+- `is_unipotent`: Returns true if algebra type is UnipotentAlgebra
+- `is_projective`: Returns true if algebra type is ProjectorAlgebra
+- Standard fields: objective, eq_constraints, ineq_constraints, registry
+"""
+function Base.getproperty(pop::PolyOpt{A,P}, sym::Symbol) where {A<:AlgebraType, P}
+    if sym === :variables
+        # Backward compatibility: derive Variable vector from registry
+        reg = getfield(pop, :registry)
+        syms = symbols(reg)
+        T = index_type(reg)
+        return [Variable(s, false, Int(reg[s])) for s in syms]
+    elseif sym === :is_unipotent
+        return A === UnipotentAlgebra
+    elseif sym === :is_projective
+        return A === ProjectorAlgebra
+    elseif sym === :comm_gps
+        # Backward compatibility: return all variables as a single commutative group
+        # (actual commutation is handled by algebra type)
+        reg = getfield(pop, :registry)
+        syms = symbols(reg)
+        T = index_type(reg)
+        vars = [Variable(s, false, Int(reg[s])) for s in syms]
+        return [vars]
     else
-        push!(comm_gps, vars)
+        return getfield(pop, sym)
     end
-    @assert !(is_unipotent && is_projective) "The problem cannot be both unipotent and projective."
+end
 
-    # For complex polynomial optimization with commutation groups, we relax the
-    # strict symmetry check. The original is_symmetric(p, sa) with SimplifyAlgorithm
-    # just checked that coefficients were real. Since we're minimizing a Hermitian
-    # operator, we check that the polynomial would be Hermitian when commutation
-    # relations are taken into account. For now, we skip this check as the SDP
-    # formulation enforces the proper constraints.
-    # TODO: Implement proper symmetry check that accounts for comm_gps
+# Prevent setproperty for computed properties
+function Base.setproperty!(pop::PolyOpt, sym::Symbol, value)
+    if sym in (:variables, :is_unipotent, :is_projective, :comm_gps)
+        error("Cannot set computed property :$sym")
+    end
+    setfield!(pop, sym, value)
+end
 
-    return ComplexPolyOpt{P}(objective, eq_cons, ineq_cons, vars, comm_gps, is_unipotent, is_projective)
+# Define propertynames for tab-completion and introspection
+function Base.propertynames(::PolyOpt, private::Bool=false)
+    return (:objective, :eq_constraints, :ineq_constraints, :registry,
+            :variables, :is_unipotent, :is_projective, :comm_gps)
 end
 
 
+# =============================================================================
+# Backward Compatibility (temporary - will be removed in Phase 4)
+# =============================================================================
+
 """
-    cpolyopt(objective::P, algebra; eq_constraints=Any[], ineq_constraints=Any[])
+    ComplexPolyOpt{A, P}
 
-Create a complex polynomial optimization problem using a predefined algebra system.
+Type alias for `PolyOpt{A, P}`.
 
-Convenience method that automatically extracts commutation groups, simplification
-properties, and algebraic constraints from an algebra created by `pauli_algebra(N)` or
-`bosonic_algebra(N)`, merging them with user-provided constraints.
+In the legacy API, `ComplexPolyOpt` was a separate type for optimization problems
+with complex coefficients or non-Hermitian products. In the new design, `PolyOpt{A, P}`
+handles both cases, with the algebra type `A` determining the appropriate behavior.
 
-# Arguments
-- `objective::P`: The polynomial objective function to optimize
-- `algebra`: A NamedTuple returned by `pauli_algebra(N)` or `bosonic_algebra(N)`
+# Deprecated
+Use `PolyOpt` directly for new code. This alias will be removed in Phase 4.
 
-# Keyword Arguments
-- `eq_constraints=Any[]`: Additional equality constraints (merged with algebra constraints)
-- `ineq_constraints=Any[]`: Inequality constraints (p ≥ 0)
-
-# Example
-```julia
-sys = pauli_algebra(2)
-x, y, z = sys.variables
-ham = ComplexF64(0.5) * (x[1] * x[2])
-pop = cpolyopt(ham, sys)
-```
+See also: [`PolyOpt`](@ref)
 """
-function cpolyopt(objective::P, algebra::NamedTuple; eq_constraints=Any[], ineq_constraints=Any[]) where {T,P<:AbstractPolynomial{T}}
-    # Extract properties from algebra
-    comm_gps = algebra.comm_gps
-    is_unipotent = algebra.is_unipotent
-    is_projective = algebra.is_projective
+const ComplexPolyOpt = PolyOpt
 
-    # Merge algebra constraints with user-provided constraints
-    # Convert user constraints by multiplying with T(1) to match coefficient type
-    converted_user_eq = isempty(eq_constraints) ? typeof(algebra.equality_constraints)[] : [T(1) * poly for poly in eq_constraints]
-    merged_eq_constraints = vcat(algebra.equality_constraints, converted_user_eq)
+"""
+    cpolyopt(objective, registry; kwargs...)
 
-    # Call the original cpolyopt with merged constraints
-    return cpolyopt(objective;
-        eq_constraints=merged_eq_constraints,
-        ineq_constraints=ineq_constraints,
-        comm_gps=comm_gps,
-        is_unipotent=is_unipotent,
-        is_projective=is_projective)
-end
+Backward compatibility alias for `polyopt`.
+
+This function exists to ease migration from the legacy API where `cpolyopt` was
+used for complex polynomial optimization problems. In the new design, `polyopt`
+handles both real and complex problems based on the algebra type and coefficient type.
+
+# Deprecated
+Use `polyopt` directly for new code. This alias will be removed in Phase 4.
+
+See also: [`polyopt`](@ref)
+"""
+const cpolyopt = polyopt

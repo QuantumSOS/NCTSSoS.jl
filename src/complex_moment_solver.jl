@@ -5,7 +5,17 @@ struct ComplexMomentProblem{T,M,P<:AbstractPolynomial{T}}
     total_basis::Vector{M}
 end
 
-function moment_relax(cpop::ComplexPolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {T,P<:AbstractPolynomial{T},M}
+"""
+    complex_moment_relax(cpop, corr_sparsity, cliques_term_sparsities)
+
+Construct a complex moment relaxation (Hermitian positive semidefinite constraints).
+
+This is the complex/Hermitian variant of moment_relax. In the new design with unified
+PolyOpt{A,P}, dispatch between real and complex is based on traits, not types.
+
+See also: [`moment_relax`](@ref)
+"""
+function complex_moment_relax(cpop::PolyOpt{A,P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {A<:AlgebraType, T, P<:Polynomial{A,T}, M}
     # the union of clique_total_basis
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [

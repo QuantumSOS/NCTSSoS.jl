@@ -35,7 +35,7 @@ This function creates a semidefinite programming relaxation of the input polynom
 
 The relaxation exploits correlative sparsity to reduce the size of the semidefinite program by partitioning constraints into cliques and handling global constraints separately.
 """
-function moment_relax(pop::PolyOpt{P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {T,P<:AbstractPolynomial{T},M}
+function moment_relax(pop::PolyOpt{A,P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {A<:AlgebraType, T, P<:Polynomial{A,T}, M}
     # NOTE: objective and constraints may have integer coefficients, but popular JuMP solvers does not support integer coefficients
     # left type here to support BigFloat model for higher precision
     !(T <: Real) && error("Moment relaxation is not supported for PolyOpt, use CPolyOpt")

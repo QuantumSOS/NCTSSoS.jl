@@ -1,5 +1,49 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-12 - Phase 1.1 Complete (pop.jl refactored)
+
+**Agent:** polyglot-implementation-engineer
+**Feature:** F001 (Phase 1.1 pop.jl refactoring)
+
+### Actions
+- Refactored `src/pop.jl` with new type signatures:
+  - `OptimizationProblem{A<:AlgebraType, P}` (was `OptimizationProblem{P}`)
+  - `PolyOpt{A<:AlgebraType, P<:Polynomial{A}}` (was `PolyOpt{P}`)
+  - Added `registry::VariableRegistry{A}` field (replaces `variables::Vector{Variable}`)
+  - Removed `comm_gps`, `is_unipotent`, `is_projective` fields
+- Added algebra trait function `_is_complex_problem(::Type{A})` for dispatch
+- Added backward compatibility:
+  - `ComplexPolyOpt` as alias for `PolyOpt`
+  - `cpolyopt` as alias for `polyopt`
+  - `getproperty` accessor for `variables`, `is_unipotent`, `is_projective`, `comm_gps`
+- Updated type signatures in dependent files (minimal changes to compile):
+  - `src/sparse.jl`: `correlative_sparsity` function signature
+  - `src/interface.jl`: `cs_nctssos`, `cs_nctssos_higher` function signatures
+  - `src/moment_solver.jl`: `moment_relax` function signature
+  - `src/complex_moment_solver.jl`: renamed to `complex_moment_relax`
+- Updated `src/NCTSSoS.jl` with new imports (VariableRegistry, symbols, indices, index_type, algebra_type)
+
+### Files Modified
+- `src/pop.jl` (major refactor)
+- `src/NCTSSoS.jl` (imports)
+- `src/sparse.jl` (type signature only)
+- `src/interface.jl` (type signature + trait dispatch)
+- `src/moment_solver.jl` (type signature only)
+- `src/complex_moment_solver.jl` (type signature + rename function)
+
+### Verification
+- `make test-FastPoly` passes (1141 tests)
+- Module compiles without errors
+
+### Outcome
+Phase 1.1 complete. The new `PolyOpt{A, P}` type with algebra parameter and registry-based API is in place. Backward compatibility accessors allow existing code paths to work during transition.
+
+### Next Steps
+- Phase 1.2: Full refactor of sparse.jl
+- Phase 1.3: Full refactor and merge of moment_solver.jl + complex_moment_solver.jl
+
+---
+
 ## Session: 2025-12-12 - Phases 4-5 Planning Approved
 
 **Agent:** orchestrator

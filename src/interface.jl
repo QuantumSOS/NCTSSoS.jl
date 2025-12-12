@@ -70,7 +70,7 @@ This function solves a polynomial optimization problem by:
 
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
-function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {P, OP<:OptimizationProblem{P}}
+function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
     order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
@@ -85,9 +85,13 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
         term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
     end
 
-    moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
-
-    (pop isa ComplexPolyOpt{P} && !dualize) && error("Solving Moment Problem for Complex Poly Opt is not supported")
+    # Dispatch between real and complex moment relaxation based on algebra traits
+    moment_problem = if _is_complex_problem(A)
+        !dualize && error("Solving Moment Problem for complex algebra is not supported (dualize=false)")
+        complex_moment_relax(pop, corr_sparsity, cliques_term_sparsities)
+    else
+        moment_relax(pop, corr_sparsity, cliques_term_sparsities)
+    end
     problem_to_solve = !dualize ? moment_problem : sos_dualize(moment_problem)
 
     set_optimizer(problem_to_solve.model, solver_config.optimizer)
@@ -120,7 +124,7 @@ This function performs a higher-order iteration of the CS-NCTSSOS method by:
 
 This is typically used when the previous relaxation was not tight enough and a higher-order relaxation is needed.
 """
-function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {T,OP<:OptimizationProblem{T}}
+function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
     initial_activated_supps = [sorted_union([poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec]...)
                                for term_sparsities_vec in prev_res.cliques_term_sparsities]
 

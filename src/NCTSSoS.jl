@@ -14,6 +14,7 @@ using .FastPolynomials: AlgebraType, NonCommutativeAlgebra, PauliAlgebra
 using .FastPolynomials: UnipotentAlgebra, ProjectorAlgebra, FermionicAlgebra, BosonicAlgebra
 using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomial
 using .FastPolynomials: Arbitrary, MaxEntangled
+using .FastPolynomials: VariableRegistry, symbols, indices, index_type, algebra_type
 
 # Import legacy compatibility types
 using .FastPolynomials: AbstractPolynomial, Variable

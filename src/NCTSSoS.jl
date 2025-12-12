@@ -57,7 +57,9 @@ include("sparse.jl")
 
 include("moment_solver.jl")
 
-include("complex_moment_solver.jl")
+# NOTE: complex_moment_solver.jl has been merged into moment_solver.jl
+# The unified MomentProblem{A,T,M,P} handles both real and complex algebras.
+# complex_moment_relax() is now a backward-compatibility alias in moment_solver.jl.
 
 include("sos_solver.jl")
 

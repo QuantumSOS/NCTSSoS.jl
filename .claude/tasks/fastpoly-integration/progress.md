@@ -1,5 +1,58 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-12 - Phase 1.3 Complete (Unified Symbolic MomentProblem)
+
+**Agent:** polyglot-implementation-engineer
+**Feature:** Phase 1.3 (moment_solver.jl + complex_moment_solver.jl merge)
+
+### Actions
+- Merged `moment_solver.jl` and `complex_moment_solver.jl` into unified symbolic design
+- Created `MomentProblem{A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P<:Polynomial{A,T}}`:
+  - `objective::P` - polynomial objective function
+  - `constraints::Vector{Tuple{Symbol, Matrix{P}}}` - symbolic constraint matrices
+  - `total_basis::Vector{M}` - union of basis monomials
+- Implemented unified `moment_relax()` that dispatches on `_is_complex_problem(A)`:
+  - Real algebras (NonCommutative, Projector, Unipotent): `:PSD` cone
+  - Complex algebras (Pauli, Fermionic, Bosonic): `:HPSD` cone
+- Added `_build_constraint_matrix()` for symbolic constraint construction
+- Added `solve_moment_problem()` interface for direct solving (with `_solve_real_moment_problem` and `_solve_complex_moment_problem` helpers)
+- Updated `sos_solver.jl` with unified `sos_dualize()`:
+  - `_sos_dualize_real()` for real algebras
+  - `_sos_dualize_hermitian()` for complex algebras with 2n x 2n embedding
+- Added backward compatibility:
+  - `complex_moment_relax()` as alias for `moment_relax()`
+  - `ComplexMomentProblem` type alias
+- Updated `interface.jl` to use unified `moment_relax()`
+- Deleted `src/complex_moment_solver.jl` (merged into moment_solver.jl)
+
+### Files Modified
+- `src/moment_solver.jl` (major refactor - unified symbolic MomentProblem)
+- `src/sos_solver.jl` (refactored for unified type)
+- `src/interface.jl` (simplified dispatch logic)
+- `src/NCTSSoS.jl` (removed complex_moment_solver.jl include)
+
+### Files Deleted
+- `src/complex_moment_solver.jl` (merged into moment_solver.jl)
+
+### Verification
+- Module compiles without errors
+- `make test-FastPoly` passes (1141 tests)
+
+### Outcome
+Phase 1.3 complete. The new `MomentProblem{A,T,M,P}` is a purely symbolic representation:
+- No JuMP model in the struct (moved to `solve_moment_problem()`)
+- Constraints as `Vector{Tuple{Symbol, Matrix{P}}}` with cone types (:Zero, :PSD, :HPSD)
+- Unified `moment_relax()` handles both real and complex via `_is_complex_problem(A)` trait
+- `sos_dualize()` handles both real and Hermitian dualization
+
+### Next Steps
+- Phase 2: Refactor algebra_constructors.jl
+- Re-enable tests for completed phases
+
+**Commit:** `1a3c257` - refactor(moment): unified symbolic MomentProblem{A,T,M,P}
+
+---
+
 ## Session: 2025-12-12 - Checkpoint (Phases 1.1-1.2 Complete)
 
 **Agent:** orchestrator

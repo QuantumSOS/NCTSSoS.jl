@@ -111,12 +111,12 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
         term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
     end
 
-    # Dispatch between real and complex moment relaxation based on algebra traits
-    moment_problem = if _is_complex_problem(A)
-        !dualize && error("Solving Moment Problem for complex algebra is not supported (dualize=false)")
-        complex_moment_relax(pop, corr_sparsity, cliques_term_sparsities)
-    else
-        moment_relax(pop, corr_sparsity, cliques_term_sparsities)
+    # Create unified symbolic moment problem (handles both real and complex via algebra traits)
+    moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
+
+    # Check if direct solving is requested for complex algebras
+    if !dualize && _is_complex_problem(A)
+        error("Solving Moment Problem for complex algebra is not yet supported (dualize=false). Use dualize=true.")
     end
     problem_to_solve = !dualize ? moment_problem : sos_dualize(moment_problem)
 
@@ -163,6 +163,10 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
 
     moment_problem = moment_relax(pop, prev_res.corr_sparsity, cliques_term_sparsities)
 
+    # Check if direct solving is requested for complex algebras
+    if !dualize && _is_complex_problem(A)
+        error("Solving Moment Problem for complex algebra is not yet supported (dualize=false). Use dualize=true.")
+    end
     problem_to_solve = !dualize ? moment_problem : sos_dualize(moment_problem)
 
     set_optimizer(problem_to_solve.model, solver_config.optimizer)

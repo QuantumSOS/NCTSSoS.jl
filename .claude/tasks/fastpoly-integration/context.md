@@ -248,32 +248,41 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 - [x] Implementation plan created (plan.md)
 - [x] Phase 1.1 complete (pop.jl refactored)
 - [x] Phase 1.2 complete (sparse.jl refactored)
-- [ ] Phase 1.3 (moment_solver.jl merge)
-- [ ] Validation tests defined
-- [ ] Documentation updated
+- [x] Phase 1.3 complete (moment_solver.jl + complex_moment_solver.jl merged)
+- [ ] Phase 2 (algebra_constructors.jl)
+- [ ] Phase 3 (interface.jl, sos_solver.jl, gns.jl)
+- [ ] Phase 4 (legacy code removal)
+- [ ] Phase 5 (test migration)
 
-## Handoff Summary (Updated after Phase 1.2)
+## Handoff Summary (Updated after Phase 1.3)
 
 **Implementation Status:**
 1. **Phase 1.1 Complete**: `PolyOpt{A, P}` with algebra type and registry-based API
 2. **Phase 1.2 Complete**: `CorrelativeSparsity{A,T,P,M}` with index-based cliques
+3. **Phase 1.3 Complete**: Unified symbolic `MomentProblem{A,T,M,P}`
 
-**Key Changes Made:**
-- `subregistry()` function added to FastPolynomials
-- `variable_indices()` for both Polynomial and Monomial
-- Cliques now store indices (`Vector{T}`) instead of Variables
-- Basis generation via `subregistry()` + `get_ncbasis()`
-- Position-based graph construction for correlative sparsity
+**Phase 1.3 Key Changes:**
+- Merged `moment_solver.jl` and `complex_moment_solver.jl` into unified design
+- New `MomentProblem{A,T,M,P}` is purely symbolic (no JuMP model in struct):
+  - `objective::P` - polynomial objective function
+  - `constraints::Vector{Tuple{Symbol, Matrix{P}}}` - (:Zero, :PSD, :HPSD)
+  - `total_basis::Vector{M}` - union of all basis monomials
+- Unified `moment_relax()` dispatches on `_is_complex_problem(A)` trait
+- `sos_dualize()` updated with `_sos_dualize_real()` and `_sos_dualize_hermitian()`
+- Added `solve_moment_problem()` for direct solving (not via SOS dual)
+- Backward compatibility aliases: `complex_moment_relax()`, `ComplexMomentProblem`
+- Deleted `src/complex_moment_solver.jl` (merged into moment_solver.jl)
 
-**Files Modified in Phase 1.2:**
-- `src/FastPolynomials/src/variable_registry.jl` (+subregistry)
-- `src/FastPolynomials/src/polynomial.jl` (+variable_indices for Monomial)
-- `src/sparse.jl` (major refactor)
-- `src/interface.jl` (PolyOptResult, cs_nctssos)
-- `src/moment_solver.jl` (type signature)
-- `src/complex_moment_solver.jl` (type signature)
+**Files Modified in Phase 1.3:**
+- `src/moment_solver.jl` (major refactor - unified symbolic MomentProblem)
+- `src/sos_solver.jl` (refactored for unified type)
+- `src/interface.jl` (simplified dispatch logic)
+- `src/NCTSSoS.jl` (removed complex_moment_solver.jl include)
 
-**Next Step:** Phase 1.3 - Merge moment_solver.jl + complex_moment_solver.jl
+**Files Deleted:**
+- `src/complex_moment_solver.jl` (merged into moment_solver.jl)
+
+**Next Step:** Phase 2 - Refactor algebra_constructors.jl
 
 **Blocker:** None. Module compiles, FastPolynomials tests pass (1141 tests)
 

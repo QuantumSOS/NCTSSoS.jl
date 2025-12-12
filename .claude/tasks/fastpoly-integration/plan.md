@@ -121,13 +121,13 @@ all_indices = sorted_unique(variable_indices(objective)...)
 idx_to_node = Dict(idx => pos for (pos, idx) in enumerate(all_indices))
 ```
 
-#### Step 1.3: Refactor & Merge moment_solver.jl + complex_moment_solver.jl
-- [ ] Create single symbolic `MomentProblem{A, T, M, P}` (no JuMP model)
-- [ ] Store constraints as `Vector{Tuple{Symbol, Matrix{P}}}` (:Zero, :PSD, :HPSD)
-- [ ] Basis is `Vector{Polynomial}` (simplified polynomials as basis elements)
-- [ ] Add `is_complex_problem(A, C)` trait for dispatch
-- [ ] Add `solve_moment_problem(mp, optimizer)` interface for direct solving
-- [ ] Delete complex_moment_solver.jl after merge
+#### Step 1.3: Refactor & Merge moment_solver.jl + complex_moment_solver.jl [COMPLETE]
+- [x] Create single symbolic `MomentProblem{A, T, M, P}` (no JuMP model)
+- [x] Store constraints as `Vector{Tuple{Symbol, Matrix{P}}}` (:Zero, :PSD, :HPSD)
+- [x] Basis is `Vector{M}` (monomials as basis elements)
+- [x] Use existing `_is_complex_problem(A)` trait for dispatch
+- [x] Add `solve_moment_problem(mp, optimizer)` interface for direct solving
+- [x] Delete complex_moment_solver.jl after merge
 
 **New structure:**
 ```julia

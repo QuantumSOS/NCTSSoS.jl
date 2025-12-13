@@ -90,7 +90,9 @@ function simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
     # Stable sort by site: operators on different sites commute, within-site order preserved
     sort!(word, alg=Base.Sort.InsertionSort, by=decode_site)
 
-    return Term(1.0, m)
+    # Create new monomial with correct hash (can't update hash in-place since Monomial is immutable)
+    simplified_mono = Monomial{NonCommutativeAlgebra}(word)
+    return Term(1.0, simplified_mono)
 end
 
 """

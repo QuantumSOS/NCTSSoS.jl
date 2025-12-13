@@ -137,11 +137,11 @@ function moment_relax(
 ) where {A<:AlgebraType, TI<:Integer, C<:Number, P<:Polynomial{A,TI,C}, M<:Monomial{A,TI}}
 
     # Compute total basis: union of all moment matrix entry monomials
+    # _neat_dot3 returns a Polynomial (with simplified terms), extract monomials from each
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
-            map(monomials(poly)) do m
-                expval(_neat_dot3(rol_idx, m, col_idx))
-            end
+            # _neat_dot3 returns Polynomial; extract monomials (may be multiple for Bosonic)
+            [mono for m in monomials(poly) for mono in monomials(_neat_dot3(rol_idx, m, col_idx))]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
             for basis in term_sparsity.block_bases
             for rol_idx in basis

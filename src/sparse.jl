@@ -412,17 +412,16 @@ function get_term_sparsity_graph(
     G = SimpleGraph(nterms)
     sorted_activated_supp = sort(activated_supp)
 
-    # Use type-parameterized identity monomial
-    identity_mono = one(M)
-
     for i in 1:nterms, j in i+1:nterms
         for supp in cons_support
-            connected_mono_lr = _neat_dot3(bases[i], supp, bases[j])
-            connected_mono_rl = _neat_dot3(bases[j], supp, bases[i])
-            # Scale expectation value to monomial type
-            expval_cm_lr = expval(connected_mono_lr) * identity_mono
-            expval_cm_rl = expval(connected_mono_rl) * identity_mono
-            if expval_cm_lr in sorted_activated_supp || expval_cm_rl in sorted_activated_supp
+            # _neat_dot3 returns Polynomial (with simplified terms)
+            connected_poly_lr = _neat_dot3(bases[i], supp, bases[j])
+            connected_poly_rl = _neat_dot3(bases[j], supp, bases[i])
+            # Check if any monomial from the simplified result is in activated support
+            monos_lr = monomials(connected_poly_lr)
+            monos_rl = monomials(connected_poly_rl)
+            if any(m in sorted_activated_supp for m in monos_lr) ||
+               any(m in sorted_activated_supp for m in monos_rl)
                 add_edge!(G, i, j)
                 break  # Edge already added, no need to continue checking supports
             end
@@ -473,7 +472,8 @@ function term_sparsity_graph_supp(
     G::SimpleGraph, basis::Vector{M}, g::P
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
     # Compute products basis[a]† * g_support * basis[b] for all graph edges
-    gsupp(a, b) = map(g_supp -> _neat_dot3(a, g_supp, b), monomials(g))
+    # _neat_dot3 returns Polynomial, extract monomials from each result
+    gsupp(a, b) = reduce(vcat, [monomials(_neat_dot3(a, g_supp, b)) for g_supp in monomials(g)])
     return union(
         [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
         [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...

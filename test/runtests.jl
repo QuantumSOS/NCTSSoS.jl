@@ -50,11 +50,11 @@ using NCTSSoS, Test
     # TODO: Debug numerical accuracy issues and re-enable these tests
     # =============================================================================
     # include("moment_solver.jl")
-    # if haskey(ENV, "LOCAL_TESTING")
-    #     include("heisenberg.jl")
-    # end
-    # include("sos_solver.jl")
-    # include("interface.jl")
+    if haskey(ENV, "LOCAL_TESTING")
+        include("heisenberg.jl")
+    end
+    include("sos_solver.jl")
+    include("interface.jl")
 
     # State/Trace polynomial tests - not yet migrated (uses specialized features: ς, tr)
     # include("state_poly_opt.jl")

@@ -122,12 +122,13 @@ function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:I
 end
 
 """
-    _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Monomial
+    _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Polynomial
 
-Compute adjoint(a) * m * b for regular Monomials by concatenating words.
+Compute adjoint(a) * m * b for regular Monomials with algebra-specific simplification.
 
-Returns a Monomial with adjoint(a).word concatenated with m.word and b.word.
-Does NOT apply simplification - callers should simplify! explicitly if needed.
+Returns a Polynomial containing the simplified result. For algebras with non-trivial
+simplification rules (e.g., Pauli algebra where σ² = I and σₓσᵧ = iσz), the
+simplification is applied automatically.
 
 This is the three-argument form commonly used in moment matrix construction
 where we need adjoint(row_index) * constraint_monomial * column_index.
@@ -144,16 +145,28 @@ julia> m3 = Monomial{NonCommutativeAlgebra}(UInt16[3]);
 
 julia> result = _neat_dot3(m1, m2, m3);
 
-julia> result.word
+julia> monomials(result)[1].word
 3-element Vector{UInt16}:
  0x0001
  0x0002
  0x0003
 ```
+
+For Pauli algebra, simplification is applied:
+```julia
+julia> a = Monomial{PauliAlgebra}(UInt8[1]);  # σx₁
+
+julia> result = _neat_dot3(a, one(a), a);  # σx₁ * I * σx₁ = I
+
+julia> isone(monomials(result)[1])  # Result is identity
+true
+```
 """
 function _neat_dot3(a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # adjoint(a) * m * b - just concatenate the words
-    adjoint(a) * m * b
+    # adjoint(a) * m * b - concatenate words then simplify
+    concatenated = adjoint(a) * m * b
+    simplified_term = simplify(concatenated)
+    return Polynomial(simplified_term)
 end
 
 # =============================================================================

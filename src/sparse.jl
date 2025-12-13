@@ -19,9 +19,9 @@ Structure representing the correlative sparsity pattern of a polynomial optimiza
 - `clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}`: Monomial bases for localizing matrices within each clique
 
 # Notes
-- Cliques store variable indices (type `T`), not `Variable` structs
-- Use `clique_variables(cs, i)` to get `Vector{Variable}` for backward compatibility
+- Cliques store variable indices (type `T`), not symbols
 - Use `subregistry(cs.registry, cs.cliques[i])` to get a clique-local registry
+- Use `cs.registry[idx]` to look up symbol names for indices
 """
 struct CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Monomial{A,T}}
     cliques::Vector{Vector{T}}
@@ -31,27 +31,6 @@ struct CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Mo
     global_cons::Vector{Int}
     clq_mom_mtx_bases::Vector{Vector{M}}
     clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}
-end
-
-"""
-    clique_variables(cs::CorrelativeSparsity{A,T,P,M}, clique_idx::Int) -> Vector{Variable}
-
-Get the variables in a clique as `Variable` structs for backward compatibility.
-
-# Arguments
-- `cs::CorrelativeSparsity`: The correlative sparsity structure
-- `clique_idx::Int`: Index of the clique (1-based)
-
-# Returns
-Vector of `Variable` structs corresponding to the indices in the specified clique.
-
-# Notes
-This function provides backward compatibility with code that expects `Vector{Variable}`.
-New code should use `cs.cliques[i]` directly to get the indices.
-"""
-function clique_variables(cs::CorrelativeSparsity{A,T,P,M}, clique_idx::Int) where {A,T,P,M}
-    clique_indices = cs.cliques[clique_idx]
-    return [Variable(cs.registry[idx], false, Int(idx)) for idx in clique_indices]
 end
 
 function Base.show(io::IO, cs::CorrelativeSparsity{A,T,P,M}) where {A,T,P,M}
@@ -73,18 +52,6 @@ function Base.show(io::IO, cs::CorrelativeSparsity{A,T,P,M}) where {A,T,P,M}
     println(io, "   Global Constraints: ")
     for geq_cons in cs.global_cons
         println(io, "     $(geq_cons)")
-    end
-end
-
-# Backward compatibility: allow accessing cliques as Vector{Vector{Variable}}
-# This is used by interface.jl: `for clique in corr_sparsity.cliques`
-function Base.getproperty(cs::CorrelativeSparsity{A,T,P,M}, sym::Symbol) where {A,T,P,M}
-    if sym === :cliques
-        # Return the raw indices - interface.jl will need to be updated
-        # to use clique_variables() or work with indices directly
-        return getfield(cs, :cliques)
-    else
-        return getfield(cs, sym)
     end
 end
 

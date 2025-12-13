@@ -182,57 +182,22 @@ _is_complex_problem(::Type{A}) where {A<:AlgebraType} = false  # Default fallbac
 # =============================================================================
 
 """
-    Base.getproperty(pop::PolyOpt{A,P}, sym::Symbol) where {A,P}
+    is_unipotent(pop::PolyOpt{A,P}) where {A,P} -> Bool
 
-Custom property access for backward compatibility.
-
-Provides access to:
-- `variables`: Returns Vector{Variable} derived from registry (for backward compat)
-- `is_unipotent`: Returns true if algebra type is UnipotentAlgebra
-- `is_projective`: Returns true if algebra type is ProjectorAlgebra
-- Standard fields: objective, eq_constraints, ineq_constraints, registry
+Returns true if the algebra type is UnipotentAlgebra.
 """
-function Base.getproperty(pop::PolyOpt{A,P}, sym::Symbol) where {A<:AlgebraType, P}
-    if sym === :variables
-        # Backward compatibility: derive Variable vector from registry
-        reg = getfield(pop, :registry)
-        syms = symbols(reg)
-        T = index_type(reg)
-        return [Variable(s, false, Int(reg[s])) for s in syms]
-    elseif sym === :is_unipotent
-        return A === UnipotentAlgebra
-    elseif sym === :is_projective
-        return A === ProjectorAlgebra
-    elseif sym === :comm_gps
-        # Backward compatibility: return all variables as a single commutative group
-        # (actual commutation is handled by algebra type)
-        reg = getfield(pop, :registry)
-        syms = symbols(reg)
-        T = index_type(reg)
-        vars = [Variable(s, false, Int(reg[s])) for s in syms]
-        return [vars]
-    else
-        return getfield(pop, sym)
-    end
-end
+is_unipotent(::PolyOpt{A,P}) where {A<:AlgebraType, P} = A === UnipotentAlgebra
 
-# Prevent setproperty for computed properties
-function Base.setproperty!(pop::PolyOpt, sym::Symbol, value)
-    if sym in (:variables, :is_unipotent, :is_projective, :comm_gps)
-        error("Cannot set computed property :$sym")
-    end
-    setfield!(pop, sym, value)
-end
+"""
+    is_projective(pop::PolyOpt{A,P}) where {A,P} -> Bool
 
-# Define propertynames for tab-completion and introspection
-function Base.propertynames(::PolyOpt, private::Bool=false)
-    return (:objective, :eq_constraints, :ineq_constraints, :registry,
-            :variables, :is_unipotent, :is_projective, :comm_gps)
-end
+Returns true if the algebra type is ProjectorAlgebra.
+"""
+is_projective(::PolyOpt{A,P}) where {A<:AlgebraType, P} = A === ProjectorAlgebra
 
 
 # =============================================================================
-# Backward Compatibility (temporary - will be removed in Phase 4)
+# Type Aliases (for user convenience)
 # =============================================================================
 
 """
@@ -244,9 +209,6 @@ In the legacy API, `ComplexPolyOpt` was a separate type for optimization problem
 with complex coefficients or non-Hermitian products. In the new design, `PolyOpt{A, P}`
 handles both cases, with the algebra type `A` determining the appropriate behavior.
 
-# Deprecated
-Use `PolyOpt` directly for new code. This alias will be removed in Phase 4.
-
 See also: [`PolyOpt`](@ref)
 """
 const ComplexPolyOpt = PolyOpt
@@ -254,14 +216,10 @@ const ComplexPolyOpt = PolyOpt
 """
     cpolyopt(objective, registry; kwargs...)
 
-Backward compatibility alias for `polyopt`.
+Alias for `polyopt`.
 
-This function exists to ease migration from the legacy API where `cpolyopt` was
-used for complex polynomial optimization problems. In the new design, `polyopt`
-handles both real and complex problems based on the algebra type and coefficient type.
-
-# Deprecated
-Use `polyopt` directly for new code. This alias will be removed in Phase 4.
+This function provides a convenient alternative name that emphasizes the complex
+polynomial aspect of the optimization problem.
 
 See also: [`polyopt`](@ref)
 """

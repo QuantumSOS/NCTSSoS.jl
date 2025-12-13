@@ -320,9 +320,9 @@ end
         ncsp = NCStatePolynomial([1.0], [ncsw])
 
         vars = variables(ncsp)
-        # NCStatePolynomial.variables() returns Vector{Variable} for NCTSSoS compatibility
+        # NCStatePolynomial.variables() returns Set{T} of indices (new API)
         # Check that we have 4 variables with indices 1-4
         @test length(vars) == 4
-        @test all(v.index in 1:4 for v in vars)
+        @test all(v in 1:4 for v in vars)
     end
 end

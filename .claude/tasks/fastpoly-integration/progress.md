@@ -1,5 +1,93 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-13 - Phase 4 Complete (Legacy Code Removal)
+
+**Agent:** polyglot-implementation-engineer
+**Feature:** Phase 4.1 (Legacy Variable/get_basis/ncpolyvar removal)
+
+### Actions
+- Removed legacy `Variable` struct and all associated code from `src/FastPolynomials/src/utils.jl`:
+  - Removed `_VAR_INDEX_TO_NAME` global Dict
+  - Removed `Variable` struct and all methods (arithmetic, comparison, hash, show)
+  - Removed `to_monomial(v::Variable)`, `to_polynomial(v::Variable)`
+  - Removed `variables(p::Polynomial) -> Vector{Variable}` override
+  - Removed `variables(v::Variable)`, `variables(m::Monomial)`, `variables(ncsp::NCStatePolynomial)` overrides
+  - Removed `get_basis(vars::AbstractVector{Variable}, degree)` and fallback
+  - Removed `monomial(v::Variable)`, `monomial(vars, exponents)`
+  - Removed `Polynomial(coeffs, monomials)` legacy constructor
+  - Removed `@ncpolyvar` macro
+- Kept: `sorted_union()`, `sorted_unique()`, `_neat_dot3()`, `neat_dot()`, `AbstractPolynomial` type alias, `one(::Type{Monomial})`
+
+- Updated `src/FastPolynomials/src/FastPolynomials.jl`:
+  - Removed exports: `Variable`, `get_basis`, `monomial`, `@ncpolyvar`
+  - Kept: `AbstractPolynomial`, `sorted_union`, `sorted_unique`, `_neat_dot3`
+
+- Updated `src/NCTSSoS.jl`:
+  - Removed imports: `Variable`, `get_basis`, `@ncpolyvar`, `monomial`
+  - Removed export: `@ncpolyvar`
+  - Updated comment about unexported types
+
+- Updated `src/sparse.jl`:
+  - Removed `clique_variables()` backward compatibility function
+  - Removed getproperty override (was no-op anyway)
+  - Updated docstring to remove Variable references
+
+- Updated `src/pop.jl`:
+  - Removed `getproperty` override that returned `Vector{Variable}`
+  - Removed `setproperty!` override for computed properties
+  - Removed `propertynames` override
+  - Added `is_unipotent()` and `is_projective()` as standalone functions
+  - Updated section header to "Type Aliases" (no longer "temporary")
+
+- Fixed tests that used legacy API:
+  - `test/fastpoly_test/polynomial.jl`: Changed "Variables" testset to "variable_indices"
+  - `test/fastpoly_test/statepolynomial.jl`: Updated NCStatePolynomial Variables test
+  - `test/fastpoly_test/runtests.jl`: Removed `@ncpolyvar` import
+
+- Updated documentation:
+  - Removed outdated comment in `polynomial.jl` about `variables(p)` for legacy code
+
+### Files Modified
+- `src/FastPolynomials/src/utils.jl` (major removal - ~520 lines removed)
+- `src/FastPolynomials/src/FastPolynomials.jl` (exports)
+- `src/FastPolynomials/src/polynomial.jl` (docstring)
+- `src/NCTSSoS.jl` (imports/exports)
+- `src/sparse.jl` (removed backward compat)
+- `src/pop.jl` (removed backward compat accessors)
+- `test/fastpoly_test/runtests.jl` (removed import)
+- `test/fastpoly_test/polynomial.jl` (updated test)
+- `test/fastpoly_test/statepolynomial.jl` (updated test)
+
+### Verification
+- Module compiles without errors
+- `make test-FastPoly` passes (1141 tests)
+- No `Variable` struct anywhere in source code
+- No `@ncpolyvar` macro anywhere in source code
+- No `get_basis` function anywhere in source code
+- No backward compatibility shims for Vector{Variable}
+
+### Outcome
+Phase 4 complete. All legacy code removed:
+- `Variable` struct and all methods: REMOVED
+- `@ncpolyvar` macro: REMOVED
+- `get_basis(vars, degree)`: REMOVED
+- `variables(poly) -> Vector{Variable}`: REMOVED
+- Backward compatibility accessors in `PolyOpt`: REMOVED
+- `clique_variables()` in sparse.jl: REMOVED
+
+The codebase now uses exclusively:
+- `VariableRegistry{A,T}` for variable management
+- `variable_indices(poly) -> Set{T}` for index extraction
+- `get_ncbasis(registry, degree)` for basis generation
+- `subregistry(registry, indices)` for clique-local registries
+
+### Next Steps
+- Phase 5: Test migration (remaining NCTSSoS tests)
+
+**Commit:** `8904c84` - refactor: remove legacy Variable/get_basis/ncpolyvar code
+
+---
+
 ## Session: 2025-12-13 - Phase 3.3 Complete (gns.jl Registry-Based GNS Reconstruction)
 
 **Agent:** polyglot-implementation-engineer

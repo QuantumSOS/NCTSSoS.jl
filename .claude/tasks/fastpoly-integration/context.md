@@ -251,11 +251,11 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 - [x] Phase 1.3 complete (moment_solver.jl + complex_moment_solver.jl merged)
 - [x] Phase 2 complete (algebra_constructors.jl refactored)
 - [x] Phase 3.3 complete (gns.jl refactored)
-- [ ] Phase 3.1-3.2 (interface.jl, sos_solver.jl) - already done in Phase 1.3
-- [ ] Phase 4 (legacy code removal)
+- [x] Phase 3.1-3.2 (interface.jl, sos_solver.jl) - already done in Phase 1.3
+- [x] Phase 4 complete (legacy code removal)
 - [ ] Phase 5 (test migration)
 
-## Handoff Summary (Updated after Phase 3.3 - gns.jl)
+## Handoff Summary (Updated after Phase 4 - Legacy Code Removal)
 
 **Implementation Status:**
 1. **Phase 1.1 Complete**: `PolyOpt{A, P}` with algebra type and registry-based API
@@ -263,19 +263,27 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 3. **Phase 1.3 Complete**: Unified symbolic `MomentProblem{A,T,M,P}`
 4. **Phase 2 Complete**: Registry-based algebra constructors
 5. **Phase 3.3 Complete**: Registry-based GNS reconstruction
+6. **Phase 4 Complete**: All legacy code removed
 
-**Phase 3.3 Key Changes:**
-- Refactored `gns.jl` to use registry-based API
-- Updated imports: removed `Variable`, `get_basis`, `monomial`; added `VariableRegistry`, `get_ncbasis`, `indices`
-- Added `extract_monomials_from_basis()` helper to convert basis polynomials to monomials
-- New `reconstruct()` signature: `reconstruct(H::Matrix, registry::VariableRegistry{A,TI}, H_deg; atol)`
-- New `construct_localizing_matrix()` takes variable index instead of Variable object
-- Returns `Dict{TI, Matrix{T}}` mapping variable indices to matrices (instead of `Vector{Matrix}`)
+**Phase 4 Key Changes:**
+- Removed `Variable` struct and all associated methods from utils.jl
+- Removed `@ncpolyvar` macro
+- Removed `get_basis(vars, degree)` function
+- Removed `variables(poly) -> Vector{Variable}` overrides
+- Removed backward compatibility accessors in PolyOpt and CorrelativeSparsity
+- Updated FastPolynomials.jl and NCTSSoS.jl exports/imports
+- Fixed tests to use `variable_indices()` instead of legacy API
 
-**Files Modified in Phase 3.3:**
-- `src/gns.jl` (major refactor - registry-based API)
+**Files Modified in Phase 4:**
+- `src/FastPolynomials/src/utils.jl` (major removal - ~520 lines)
+- `src/FastPolynomials/src/FastPolynomials.jl` (exports)
+- `src/FastPolynomials/src/polynomial.jl` (docstring)
+- `src/NCTSSoS.jl` (imports/exports)
+- `src/sparse.jl` (removed clique_variables)
+- `src/pop.jl` (removed getproperty override)
+- `test/fastpoly_test/runtests.jl`, `polynomial.jl`, `statepolynomial.jl` (test updates)
 
-**Next Step:** Phase 4 - Legacy code removal (utils.jl cleanup)
+**Next Step:** Phase 5 - Test migration (remaining NCTSSoS tests)
 
 **Blocker:** None. Module compiles, FastPolynomials tests pass (1141 tests)
 

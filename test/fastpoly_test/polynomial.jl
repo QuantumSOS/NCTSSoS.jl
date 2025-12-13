@@ -100,20 +100,18 @@ using NCTSSoS.FastPolynomials: variable_indices
         @test degree(p_zero) == -1  # convention for zero polynomial
     end
 
-    @testset "Variables" begin
+    @testset "variable_indices" begin
         m1 = Monomial{NonCommutativeAlgebra}([1, 2])
         m2 = Monomial{NonCommutativeAlgebra}([2, 3])
 
         p = Polynomial([Term(1.0, m1), Term(1.0, m2)])
 
-        vars = variables(p)
-        # variables() returns Vector{Variable} for NCTSSoS compatibility
-        # Check that we have 3 variables with indices 1, 2, 3
-        @test length(vars) == 3
-        var_indices = Set(v.index for v in vars)
-        @test 1 in var_indices
-        @test 2 in var_indices
-        @test 3 in var_indices
+        var_idxs = variable_indices(p)
+        # variable_indices() returns Set{T} of indices
+        @test length(var_idxs) == 3
+        @test 1 in var_idxs
+        @test 2 in var_idxs
+        @test 3 in var_idxs
     end
 
     @testset "Zero and One" begin

@@ -73,11 +73,11 @@ export symbols, indices, subregistry
 # Polynomial helpers
 export variable_indices
 
-# Legacy compatibility exports (for NCTSSoS migration)
-export Variable, AbstractPolynomial
+# Type alias for backward compatibility
+export AbstractPolynomial
+
+# Utility functions (kept from legacy API)
 export sorted_union, sorted_unique
-export get_basis, _neat_dot3
-export monomial
-export @ncpolyvar
+export _neat_dot3
 
 end

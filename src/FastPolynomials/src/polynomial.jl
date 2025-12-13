@@ -470,8 +470,6 @@ support(p::Polynomial) = monomials(p)
 Get the set of all variable indices used in the polynomial's monomials.
 Returns a Set of integer indices.
 
-For legacy NCTSSoS code that needs Vector{Variable}, use `variables(p)` instead.
-
 # Examples
 ```jldoctest
 julia> using FastPolynomials

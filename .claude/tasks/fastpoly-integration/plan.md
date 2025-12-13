@@ -220,23 +220,23 @@ end
 - [x] Return `Dict{TI, Matrix{T}}` mapping variable indices to matrices
 - [x] Replace `monomial(var)` with `Monomial{A}([TM(var_idx)])`
 
-### Phase 4: Remove Legacy Code
+### Phase 4: Remove Legacy Code [COMPLETE]
 
 **Decision:** Complete removal, no deprecation warnings or backward compatibility shims.
 
 #### Step 4.1: Clean up utils.jl in FastPolynomials
-- [ ] Remove `Variable` struct
-- [ ] Remove `@ncpolyvar` macro
-- [ ] Remove `get_basis` wrapper (keep `get_ncbasis` only)
-- [ ] Remove `variables(poly) → Vector{Variable}`
-- [ ] Remove `_VAR_INDEX_TO_NAME` and `_VAR_NAME_TO_INDEX` globals
-- [ ] Keep `AbstractPolynomial` as union type (for flexibility/extensions)
+- [x] Remove `Variable` struct
+- [x] Remove `@ncpolyvar` macro
+- [x] Remove `get_basis` wrapper (keep `get_ncbasis` only)
+- [x] Remove `variables(poly) -> Vector{Variable}`
+- [x] Remove `_VAR_INDEX_TO_NAME` and `_VAR_NAME_TO_INDEX` globals
+- [x] Keep `AbstractPolynomial` as union type (for flexibility/extensions)
 
 #### Step 4.2: Update NCTSSoS.jl exports
-- [ ] Remove legacy type exports (`Variable`, `@ncpolyvar`)
-- [ ] Export new algebra constructors (`pauli_algebra`, `fermionic_algebra`, etc.)
-- [ ] Update `using .FastPolynomials` imports
-- [ ] Clean up re-exports
+- [x] Remove legacy type exports (`Variable`, `@ncpolyvar`)
+- [x] Export new algebra constructors (`pauli_algebra`, `fermionic_algebra`, etc.)
+- [x] Update `using .FastPolynomials` imports
+- [x] Clean up re-exports
 
 ### Phase 5: Test Migration
 

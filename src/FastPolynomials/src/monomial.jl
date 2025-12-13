@@ -120,6 +120,49 @@ function Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:
 end
 
 """
+    Base.:^(m::Monomial{A,T}, n::Integer) where {A<:AlgebraType, T<:Integer}
+
+Raise a monomial to an integer power by repeated multiplication.
+
+For n ≥ 0, returns m^n = m * m * ... * m (n times).
+For n = 0, returns the identity monomial (empty word).
+Throws DomainError for negative exponents (monomials are not invertible in general).
+
+# Examples
+```jldoctest
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> m2 = m^2;
+
+julia> m2.word
+4-element Vector{Int64}:
+ 1
+ 2
+ 1
+ 2
+
+julia> m^0 |> isone
+true
+
+julia> m^1 == m
+true
+```
+"""
+function Base.:^(m::Monomial{A,T}, n::Integer) where {A<:AlgebraType,T<:Integer}
+    if n < 0
+        throw(DomainError(n, "monomial exponent must be non-negative"))
+    elseif n == 0
+        return one(m)
+    elseif n == 1
+        return m
+    else
+        # Repeat the word n times
+        repeated_word = repeat(m.word, n)
+        return Monomial{A}(repeated_word)
+    end
+end
+
+"""
     Base.:(==)(m1::Monomial, m2::Monomial) -> Bool
 
 Fast equality comparison using precomputed hash.

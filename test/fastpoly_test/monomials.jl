@@ -288,4 +288,58 @@ using Test, NCTSSoS.FastPolynomials
         @test m_pauli != m_fermi
         @test m_unipotent != m_fermi
     end
+
+    @testset "Power Operator" begin
+        # Basic power operations
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
+
+        # m^0 should be identity
+        m0 = m^0
+        @test isone(m0)
+        @test degree(m0) == 0
+
+        # m^1 should equal m
+        m1 = m^1
+        @test m1 == m
+        @test degree(m1) == 2
+
+        # m^2 should repeat word twice
+        m2 = m^2
+        @test m2.word == [1, 2, 1, 2]
+        @test degree(m2) == 4
+
+        # m^3 should repeat word three times
+        m3 = m^3
+        @test m3.word == [1, 2, 1, 2, 1, 2]
+        @test degree(m3) == 6
+
+        # Power of single variable
+        x = Monomial{NonCommutativeAlgebra}([3])
+        x5 = x^5
+        @test x5.word == [3, 3, 3, 3, 3]
+        @test degree(x5) == 5
+
+        # Power of identity stays identity
+        id = one(m)
+        @test isone(id^10)
+
+        # Different integer types
+        m_uint8 = Monomial{PauliAlgebra}(UInt8[1, 3])
+        m_sq = m_uint8^2
+        @test m_sq.word == UInt8[1, 3, 1, 3]
+        @test typeof(m_sq) == Monomial{PauliAlgebra,UInt8}
+
+        m_int32 = Monomial{FermionicAlgebra}(Int32[1, -2])
+        m_cubed = m_int32^3
+        @test m_cubed.word == Int32[1, -2, 1, -2, 1, -2]
+
+        # Power distribution: m^(a+b) = m^a * m^b
+        m_test = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        left = m_test^3
+        right = m_test^2 * m_test
+        @test left == right
+
+        right2 = m_test * m_test^2
+        @test left == right2
+    end
 end

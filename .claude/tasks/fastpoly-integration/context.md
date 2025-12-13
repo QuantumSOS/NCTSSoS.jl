@@ -301,13 +301,23 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 - state_poly_opt.jl: NOT MIGRATED
 - trace_poly_opt.jl: NOT MIGRATED
 
-**Blocker: sparse.jl expval() issue**
-- `src/sparse.jl` line 423 calls `expval(mono)` for plain Monomials
-- `expval()` is only defined for StateWord/NCStateWord types
-- This prevents any test that calls `cs_nctssos()` with algebra types that trigger this path
-- FIX REQUIRED IN SRC/: Need to define `expval(::Monomial)` or refactor sparse.jl
+**FIXED: sparse.jl expval() issue**
+- Added `expval(::Monomial)` identity method in `src/FastPolynomials/src/monomial.jl:717`
+- This allows tests to run without MethodError
 
-**Next Step:** Fix sparse.jl expval() bug, then enable remaining tests
+**BLOCKER: Numerical Accuracy in cs_nctssos()**
+The solver runs but produces **incorrect numerical results**:
+- XXX Model: Expected -0.467129, got -0.480 (~3% error)
+- J1-J2 Model: Expected -0.427, got -13.35 (~3000% error!)
+- Transverse Field Ising: Expected -1.017/-1.010, got -0.876 (~14% error)
+
+Root cause unknown - likely in moment_solver.jl or sparse.jl algebra handling.
+This blocks all solver integration tests from passing.
+
+**Task Status: BLOCKED**
+Requires separate investigation task to debug numerical accuracy.
+
+**Next Step:** Create new task for numerical accuracy investigation
 
 ## Design Investigation: sparse.jl Refactoring
 

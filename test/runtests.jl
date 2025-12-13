@@ -22,8 +22,8 @@ using NCTSSoS, Test
 
     # === Commented out during fastpoly-integration ===
     # Core optimization (re-enable after Phase 1)
-    # include("pop.jl")
-    # include("sparse.jl")
+    include("pop.jl")
+    include("sparse.jl")
     # include("solver_utils.jl")
 
     # Moment solver (re-enable after Phase 1, LOCAL_TESTING only)

@@ -966,6 +966,58 @@ Subtract a scalar from a polynomial.
 Base.:(-)(p::Polynomial, c::Number) = p + (-c)
 
 """
+    Base.:*(m::Monomial{A,T}, p::Polynomial{A,T,C}) where {A,T,C}
+
+Multiply a monomial by a polynomial. Returns a Polynomial.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{NonCommutativeAlgebra}([1]);
+
+julia> p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}([2])), Term(2.0, Monomial{NonCommutativeAlgebra}([3]))]);
+
+julia> result = m * p;
+
+julia> length(terms(result))
+2
+```
+"""
+function Base.:*(
+    m::Monomial{A,T}, p::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    # Convert monomial to polynomial and multiply
+    return Polynomial(m) * p
+end
+
+"""
+    Base.:*(p::Polynomial{A,T,C}, m::Monomial{A,T}) where {A,T,C}
+
+Multiply a polynomial by a monomial. Returns a Polynomial.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}([1])), Term(2.0, Monomial{NonCommutativeAlgebra}([2]))]);
+
+julia> m = Monomial{NonCommutativeAlgebra}([3]);
+
+julia> result = p * m;
+
+julia> length(terms(result))
+2
+```
+"""
+function Base.:*(
+    p::Polynomial{A,T,C}, m::Monomial{A,T}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    # Convert monomial to polynomial and multiply
+    return p * Polynomial(m)
+end
+
+"""
     Base.:(^)(p::Polynomial, n::Int)
 
 Raise polynomial to integer power using binary exponentiation (power by squaring).

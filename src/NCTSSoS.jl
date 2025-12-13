@@ -26,7 +26,7 @@ using .FastPolynomials: AbstractPolynomial
 using .FastPolynomials: sorted_union, sorted_unique
 using .FastPolynomials: monomials, coefficients, terms, degree, maxdegree, variables
 using .FastPolynomials: get_ncbasis, get_ncbasis_deg
-using .FastPolynomials: simplify, simplify!, canonicalize
+using .FastPolynomials: simplify, simplify!, canonicalize, symmetric_canon
 using .FastPolynomials: neat_dot, _neat_dot3, expval
 using .FastPolynomials: star, star!
 

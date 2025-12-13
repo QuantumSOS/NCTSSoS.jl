@@ -336,12 +336,32 @@ function Base.show(io::IO, sparsity::TermSparsity)
     println(io, "Number of Bases Activated in each sub-block", length.(sparsity.block_bases))
 end
 
-function init_activated_supp(partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}) where {T,P<:AbstractPolynomial{T},M}
-    return sorted_union(symmetric_canon.(monomials(partial_obj)), mapreduce(monomials, vcat, cons; init=M[]), [neat_dot(b, b) for b in mom_mtx_bases])
+"""
+    init_activated_supp(partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}) where {A,T,C,P,M}
+
+Initialize the activated support for term sparsity iteration.
+
+# Arguments
+- `partial_obj::P`: Partial objective polynomial for this clique
+- `cons::Vector{P}`: Constraint polynomials assigned to this clique
+- `mom_mtx_bases::Vector{M}`: Moment matrix basis monomials
+
+# Returns
+- `Vector{M}`: Sorted union of symmetric-canonicalized objective monomials,
+  constraint monomials, and diagonal moment entries
+"""
+function init_activated_supp(
+    partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+    return sorted_union(
+        symmetric_canon.(monomials(partial_obj)),
+        mapreduce(monomials, vcat, cons; init=M[]),
+        [neat_dot(b, b) for b in mom_mtx_bases]
+    )
 end
 
 """
-    term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm) where {T,P<:AbstractPolynomial{T},M}
+    term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm) where {A,T,C,P,M}
 
 Computes term sparsity structures for the moment matrix and all localizing matrices.
 
@@ -353,9 +373,16 @@ Computes term sparsity structures for the moment matrix and all localizing matri
 - `ts_algo::EliminationAlgorithm`: Algorithm for clique tree elimination in term sparsity graphs
 
 # Returns
-- `Vector{TermSparsity}`: Vector containing term sparsity structures, with the first element corresponding to the moment matrix and subsequent elements corresponding to localizing matrices for each constraint
+- `Vector{TermSparsity{M}}`: Vector containing term sparsity structures, with the first element
+  corresponding to the moment matrix and subsequent elements corresponding to localizing matrices
 """
-function term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm) where {T,P<:AbstractPolynomial{T},M}
+function term_sparsities(
+    initial_activated_supp::Vector{M},
+    cons::Vector{P},
+    mom_mtx_bases::Vector{M},
+    localizing_mtx_bases::Vector{Vector{M}},
+    ts_algo::EliminationAlgorithm
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
     [
         [iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo)];
         map(zip(cons, localizing_mtx_bases)) do (poly, basis)
@@ -365,31 +392,39 @@ function term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom
 end
 
 """
-    get_term_sparsity_graph(cons_support::Vector{Monomial}, activated_supp::Vector{Monomial}, basis::Vector{Monomial})
+    get_term_sparsity_graph(cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}) where {A,T,M}
 
 Constructs a term sparsity graph for polynomial constraints.
 
 # Arguments
-- `cons_support::Vector{Monomial}`: Support monomials of constraints
-- `activated_supp::Vector{Monomial}`: Support from previous iterations
-- `bases::Vector{Monomial}`: Basis used to index the moment matrix
+- `cons_support::Vector{M}`: Support monomials of constraints
+- `activated_supp::Vector{M}`: Support from previous iterations
+- `bases::Vector{M}`: Basis used to index the moment matrix
 
 # Returns
-- `SimpleGraph`: Term sparsity graph
+- `SimpleGraph`: Term sparsity graph where edges connect basis elements
+  whose products have support in the activated support set
 """
-function get_term_sparsity_graph(cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}) where {M}
+function get_term_sparsity_graph(
+    cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}
+) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}}
     nterms = length(bases)
     G = SimpleGraph(nterms)
     sorted_activated_supp = sort(activated_supp)
+
+    # Use type-parameterized identity monomial
+    identity_mono = one(M)
+
     for i in 1:nterms, j in i+1:nterms
         for supp in cons_support
             connected_mono_lr = _neat_dot3(bases[i], supp, bases[j])
             connected_mono_rl = _neat_dot3(bases[j], supp, bases[i])
-            expval_cm_lr = expval(connected_mono_lr) * one(Monomial)
-            expval_cm_rl = expval(connected_mono_rl) * one(Monomial)
+            # Scale expectation value to monomial type
+            expval_cm_lr = expval(connected_mono_lr) * identity_mono
+            expval_cm_rl = expval(connected_mono_rl) * identity_mono
             if expval_cm_lr in sorted_activated_supp || expval_cm_rl in sorted_activated_supp
                 add_edge!(G, i, j)
-                continue
+                break  # Edge already added, no need to continue checking supports
             end
         end
     end
@@ -397,20 +432,22 @@ function get_term_sparsity_graph(cons_support::Vector{M}, activated_supp::Vector
 end
 
 """
-    iterate_term_sparse_supp(activated_supp::Vector{Monomial}, poly::Polynomial, basis::Vector{Monomial}, elim_algo::EliminationAlgorithm)
+    iterate_term_sparse_supp(activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm) where {A,T,C,P,M}
 
 Iteratively computes term sparsity support for a polynomial.
 
 # Arguments
-- `activated_supp::Vector{Monomial}`: Currently activated support monomials
-- `poly::Polynomial`: Input polynomial
-- `basis::Vector{Monomial}`: Basis monomials
+- `activated_supp::Vector{M}`: Currently activated support monomials
+- `poly::P`: Input polynomial
+- `basis::Vector{M}`: Basis monomials
 - `elim_algo::EliminationAlgorithm`: Elimination algorithm for clique decomposition
 
 # Returns
-- `TermSparsity`: Term sparsity structure containing graph support and block bases
+- `TermSparsity{M}`: Term sparsity structure containing graph support and block bases
 """
-function iterate_term_sparse_supp(activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm) where {M,P}
+function iterate_term_sparse_supp(
+    activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
     F = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
     blocks = clique_decomp(F, elim_algo)
     map(block -> add_clique!(F, block), blocks)
@@ -418,20 +455,27 @@ function iterate_term_sparse_supp(activated_supp::Vector{M}, poly::P, basis::Vec
 end
 
 """
-    term_sparsity_graph_supp(G::SimpleGraph, basis::Vector{Monomial}, g::Polynomial)
+    term_sparsity_graph_supp(G::SimpleGraph, basis::Vector{M}, g::P) where {A,T,C,P,M}
 
 Computes the support of a term sparsity graph for a given polynomial.
 
+Implements equation (10.4) from "Sparse Polynomial Optimization: Theory and Practice".
+
 # Arguments
 - `G::SimpleGraph`: Term sparsity graph
-- `basis::Vector{Monomial}`: Basis monomials
-- `g::Polynomial`: Input polynomial
+- `basis::Vector{M}`: Basis monomials
+- `g::P`: Input polynomial
 
 # Returns
-- `Vector{Monomial}`: Support monomials for the term sparsity graph
+- `Vector{M}`: Support monomials for the term sparsity graph
 """
-function term_sparsity_graph_supp(G::SimpleGraph, basis::Vector{M}, g::P) where {M,P}
-    # following (10.4) in Sparse Polynomial Optimization: Theory and Practise
+function term_sparsity_graph_supp(
+    G::SimpleGraph, basis::Vector{M}, g::P
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+    # Compute products basis[a]† * g_support * basis[b] for all graph edges
     gsupp(a, b) = map(g_supp -> _neat_dot3(a, g_supp, b), monomials(g))
-    return union([gsupp(basis[v], basis[v]) for v in vertices(G)]..., [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...)
+    return union(
+        [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
+        [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...
+    )
 end

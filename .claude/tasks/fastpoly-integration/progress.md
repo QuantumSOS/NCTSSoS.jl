@@ -37,7 +37,7 @@
 - Update plan.md checkboxes
 
 ### Commits
-- (WIP - to be committed)
+- `e5f7f42` - feat(interface): add solve_moment_problem support for complex algebras
 
 ---
 

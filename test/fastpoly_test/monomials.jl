@@ -391,4 +391,70 @@ using Test, NCTSSoS.FastPolynomials
         @test p7 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
         @test length(terms(p7)) == 2
     end
+
+    @testset "Display with Registry and Exponents" begin
+        # Create a simple test registry
+        struct TestRegistry
+            idx_to_variables::Dict{UInt8, Symbol}
+        end
+
+        reg = TestRegistry(Dict(
+            UInt8(1) => :x,
+            UInt8(2) => :y,
+            UInt8(3) => :z
+        ))
+
+        function test_display(m::Monomial, expected_contains::Vector{String};
+                             expected_not_contains::Vector{String} = String[])
+            buf = IOBuffer()
+            show(IOContext(buf, :registry => reg), m)
+            str = String(take!(buf))
+
+            for expected in expected_contains
+                @test occursin(expected, str)
+            end
+            for not_expected in expected_not_contains
+                @test !occursin(not_expected, str)
+            end
+            return str
+        end
+
+        # Test x^3 displays with exponent
+        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 1])
+        str1 = test_display(m1, ["x³"], expected_not_contains = ["xxx", "x^3", "^[", ","])
+
+        # Test x*y^2
+        m2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 2])
+        str2 = test_display(m2, ["x", "y²"], expected_not_contains = ["[2, 2]", "^2", "^3"])
+
+        # Test x^2*y^3
+        m3 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 2, 2, 2])
+        str3 = test_display(m3, ["x²", "y³"], expected_not_contains = ["[1, 1]", "[2, 2, 2]"])
+
+        # Test single variable no exponent
+        m4 = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        str4 = test_display(m4, ["x"], expected_not_contains = ["^", "²", "³"])
+
+        # Test three different variables, no repetition
+        m5 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
+        str5 = test_display(m5, ["x", "y", "z"], expected_not_contains = ["^", "²", "³"])
+
+        # Test large exponent (10) - should use ^10 syntax
+        m6 = Monomial{NonCommutativeAlgebra}(UInt8[fill(1, 10)..., 2])
+        str6 = test_display(m6, ["x^10", "y"], expected_not_contains = ["xxxxxxxxxx"])
+
+        # Test exponent 4-9 for superscript coverage
+        m7 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 1, 1])  # 4 x's
+        str7 = test_display(m7, ["x⁴"], expected_not_contains = ["^4"])
+
+        m8 = Monomial{NonCommutativeAlgebra}(UInt8[fill(1, 9)..., 2])  # 9 x's
+        str8 = test_display(m8, ["x⁹", "y"], expected_not_contains = ["^9"])
+
+        # Test identity displays as 𝟙 symbol
+        m_identity = Monomial{NonCommutativeAlgebra}(UInt8[])
+        buf = IOBuffer()
+        show(IOContext(buf, :registry => reg), m_identity)
+        str_identity = String(take!(buf))
+        @test contains(str_identity, "𝟙")
+    end
 end

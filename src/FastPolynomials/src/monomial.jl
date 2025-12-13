@@ -613,6 +613,11 @@ end
 Display a monomial. If a `:registry` is present in the IOContext, uses symbol names
 from the registry. Otherwise, falls back to displaying raw indices.
 
+When using a registry, consecutive identical variables are displayed with exponents:
+- `[1, 1, 1]` with index 1 mapping to `:x` displays as `x³`
+- `[1, 2, 2]` displays as `x₁y₂²`
+- `[1, 1, 2, 2, 2]` displays as `x₁²y₂³`
+
 # Examples
 ```julia
 # Without registry (raw indices)
@@ -625,6 +630,11 @@ julia> reg, (σx, σy, σz) = create_pauli_variables(1:2);
 julia> m = σx[1] * σy[1];
 julia> show(IOContext(stdout, :registry => reg), m)
 σx₁σy₁
+
+# With exponents for repeated variables
+julia> m = Monomial{PauliAlgebra}([1, 1, 1]);
+julia> show(IOContext(stdout, :registry => reg), m)
+σx₁³
 ```
 
 See also: [`VariableRegistry`](@ref)
@@ -637,18 +647,44 @@ function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
 
     registry = get(io, :registry, nothing)
     if registry !== nothing
-        # Use symbols from registry
-        for (i, idx) in enumerate(m.word)
-            sym = get(registry.idx_to_variables, T(abs(idx)), nothing)
+        # Use symbols from registry with exponent grouping
+        i = 1
+        while i <= length(m.word)
+            idx = m.word[i]
+            abs_idx = T(abs(idx))
+            sym = get(registry.idx_to_variables, abs_idx, nothing)
+
             if sym !== nothing
+                # Count consecutive occurrences of the same variable
+                count = 1
+                while i + count <= length(m.word) && abs(m.word[i + count]) == abs_idx
+                    count += 1
+                end
+
                 # Handle signed indices (e.g., -1 for creation operator)
                 if idx < 0 && T <: Signed
                     print(io, string(sym), "†")
                 else
                     print(io, string(sym))
                 end
+
+                # Print exponent if count > 1
+                if count > 1
+                    # Use superscript digits for nicer display
+                    superscripts = Dict(2 => "²", 3 => "³", 4 => "⁴", 5 => "⁵",
+                                       6 => "⁶", 7 => "⁷", 8 => "⁸", 9 => "⁹")
+                    if haskey(superscripts, count)
+                        print(io, superscripts[count])
+                    else
+                        print(io, "^", count)
+                    end
+                end
+
+                i += count
             else
-                print(io, "[", idx, "]")  # Fallback for missing index
+                # Fallback for missing index: print raw
+                print(io, "[", idx, "]")
+                i += 1
             end
         end
     else

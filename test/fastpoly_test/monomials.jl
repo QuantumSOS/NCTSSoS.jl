@@ -342,4 +342,53 @@ using Test, NCTSSoS.FastPolynomials
         right2 = m_test * m_test^2
         @test left == right2
     end
+
+    @testset "Monomial addition" begin
+        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2])
+
+        # Test monomial + monomial
+        p = m1 + m2
+        @test p isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(p)) == 2
+        @test coefficients(p) == [1.0, 1.0]
+
+        # Test subtraction
+        p2 = m1 - m2
+        @test p2 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(p2)) == 2
+        coeffs = coefficients(p2)
+        @test coeffs[1] == 1.0
+        @test coeffs[2] == -1.0
+
+        # Test negation
+        t = -m1
+        @test t isa Term{Monomial{NonCommutativeAlgebra, UInt8}, Float64}
+        @test t.coefficient == -1.0
+        @test t.monomial === m1
+
+        # Test scalar addition
+        p3 = m1 + 2.0
+        @test p3 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(p3)) == 2
+
+        # Test scalar subtraction
+        p4 = m1 - 3.0
+        @test p4 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+
+        p5 = 4.0 - m2
+        @test p5 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+
+        # Test with powers
+        m_sq = m1^2
+        p6 = m1 + m_sq
+        @test p6 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(p6)) == 2
+
+        # Test that monomial + monomial handles different monomials
+        mono_diff = Monomial{NonCommutativeAlgebra}(UInt8[3, 4])
+        p7 = m2 + mono_diff
+        @test p7 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(p7)) == 2
+    end
 end

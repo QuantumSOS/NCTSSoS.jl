@@ -457,3 +457,202 @@ true
 See also: [`adjoint`](@ref)
 """
 star(m::Monomial) = adjoint(m)
+
+# =============================================================================
+# Addition of Monomials
+# =============================================================================
+
+"""
+    Base.:(+)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A,T}
+
+Add two monomials of the same algebra type. Returns a Polynomial with two terms.
+
+This enables expressions like `x + x^2` where both operands are monomials.
+
+# Examples
+```jldoctest
+julia> m1 = Monomial{PauliAlgebra}([1]);
+
+julia> m2 = Monomial{PauliAlgebra}([1, 2]);
+
+julia> p = m1 + m2;
+
+julia> length(terms(p))
+2
+
+julia> p isa Polynomial{PauliAlgebra}
+true
+```
+"""
+function Base.:(+)(
+    m1::Monomial{A,T}, m2::Monomial{A,T}
+) where {A<:AlgebraType,T<:Integer}
+    # Convert both monomials to polynomials and add
+    return Polynomial([Term(1.0, m1), Term(1.0, m2)])
+end
+
+"""
+    Base.:(+)(m::Monomial{A,T}, c::Number) where {A,T}
+    Base.:(+)(c::Number, m::Monomial{A,T}) where {A,T}
+
+Add a scalar to a monomial. Returns a Polynomial with two terms (the monomial and a constant).
+
+# Examples
+```jldoctest
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> p = m + 2.0;
+
+julia> length(terms(p))
+2
+
+julia> p2 = 3.0 + m;
+
+julia> length(terms(p2))
+2
+```
+"""
+function Base.:(+)(
+    m::Monomial{A,T}, c::Number
+) where {A<:AlgebraType,T<:Integer}
+    # Create monomial term + constant term
+    I = one(Monomial{A,T})  # Identity monomial for constant
+    return Polynomial([Term(float(c), I), Term(1.0, m)])
+end
+
+Base.:(+)(c::Number, m::Monomial) = m + c
+
+"""
+    Base.:(-)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A,T}
+
+Subtract one monomial from another. Returns a Polynomial with two terms.
+
+# Examples
+```jldoctest
+julia> m1 = Monomial{PauliAlgebra}([1]);
+
+julia> m2 = Monomial{PauliAlgebra}([1, 2]);
+
+julia> p = m1 - m2;
+
+julia> coefficients(p)
+2-element Vector{Float64}:
+  1.0
+ -1.0
+```
+"""
+function Base.:(-)(
+    m1::Monomial{A,T}, m2::Monomial{A,T}
+) where {A<:AlgebraType,T<:Integer}
+    # Convert both monomials to polynomials and subtract
+    return Polynomial([Term(1.0, m1), Term(-1.0, m2)])
+end
+
+"""
+    Base.:(-)(m::Monomial{A,T}) where {A,T}
+
+Negate a monomial. Returns a Term with negated coefficient.
+
+# Examples
+```jldoctest
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> t = -m;
+
+julia> t.coefficient
+-1.0
+
+julia> t.monomial === m
+true
+```
+"""
+Base.:(-)(m::Monomial) = Term(-1.0, m)
+
+"""
+    Base.:(-)(m::Monomial{A,T}, c::Number) where {A,T}
+    Base.:(-)(c::Number, m::Monomial{A,T}) where {A,T}
+
+Subtract operations involving monomials and scalars. Returns a Polynomial.
+
+# Examples
+```jldoctest
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> p = m - 2.0;
+
+julia> length(terms(p))
+2
+
+julia> p2 = 3.0 - m;
+
+julia> length(terms(p2))
+2
+```
+"""
+function Base.:(-)(
+    m::Monomial{A,T}, c::Number
+) where {A<:AlgebraType,T<:Integer}
+    I = one(Monomial{A,T})
+    return Polynomial([Term(1.0, m), Term(-float(c), I)])
+end
+
+function Base.:(-)(
+    c::Number, m::Monomial{A,T}
+) where {A<:AlgebraType,T<:Integer}
+    I = one(Monomial{A,T})
+    return Polynomial([Term(float(c), I), Term(-1.0, m)])
+end
+
+# =============================================================================
+# Display
+# =============================================================================
+
+"""
+    Base.show(io::IO, m::Monomial{A,T}) where {A,T}
+
+Display a monomial. If a `:registry` is present in the IOContext, uses symbol names
+from the registry. Otherwise, falls back to displaying raw indices.
+
+# Examples
+```julia
+# Without registry (raw indices)
+julia> m = Monomial{PauliAlgebra}([1, 2, 3]);
+julia> show(stdout, m)
+[1, 2, 3]
+
+# With registry (symbolic names)
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:2);
+julia> m = σx[1] * σy[1];
+julia> show(IOContext(stdout, :registry => reg), m)
+σx₁σy₁
+```
+
+See also: [`VariableRegistry`](@ref)
+"""
+function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    if isempty(m.word)
+        print(io, "𝟙")  # Identity symbol
+        return
+    end
+
+    registry = get(io, :registry, nothing)
+    if registry !== nothing
+        # Use symbols from registry
+        for (i, idx) in enumerate(m.word)
+            sym = get(registry.idx_to_variables, T(abs(idx)), nothing)
+            if sym !== nothing
+                # Handle signed indices (e.g., -1 for creation operator)
+                if idx < 0 && T <: Signed
+                    print(io, string(sym), "†")
+                else
+                    print(io, string(sym))
+                end
+            else
+                print(io, "[", idx, "]")  # Fallback for missing index
+            end
+        end
+    else
+        # Fallback: print raw word
+        print(io, m.word)
+    end
+end

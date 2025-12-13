@@ -157,6 +157,42 @@ using NCTSSoS.FastPolynomials: variable_indices
         @test coeffs[m2_idx] == 5.0
     end
 
+    @testset "Polynomial + Monomial Addition" begin
+        # Setup: create a polynomial and a different monomial
+        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2])
+        m3 = Monomial{NonCommutativeAlgebra}(UInt8[3])
+
+        p = Polynomial([Term(2.0, m1), Term(3.0, m2)])
+
+        # Test Polynomial + Monomial
+        result1 = p + m3
+        @test result1 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(result1)) == 3  # Original 2 terms + new monomial
+
+        # Test Monomial + Polynomial
+        result2 = m3 + p
+        @test result2 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test result2 == result1  # Should be commutative
+
+        # Test reduction: summing vector of monomials
+        monomials_vec = [m1, m2, m3]
+        sum_result = sum(monomials_vec)
+        @test sum_result isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(sum_result)) == 3
+
+        # Test with powers: x + x^2 pattern that was failing
+        x = Monomial{NonCommutativeAlgebra}(UInt8[5])
+        expr_result = x + x^2
+        @test expr_result isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test length(terms(expr_result)) == 2
+        # Check the monomials are correct
+        monos = monomials(expr_result)
+        degrees = [degree(m) for m in monos]
+        @test 1 in degrees
+        @test 2 in degrees
+    end
+
     @testset "Polynomial Subtraction" begin
         m1 = Monomial{NonCommutativeAlgebra}([1])
         m2 = Monomial{NonCommutativeAlgebra}([2])

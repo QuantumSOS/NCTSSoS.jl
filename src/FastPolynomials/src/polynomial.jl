@@ -869,6 +869,82 @@ end
 Base.:(+)(c::Number, p::Polynomial) = p + c
 
 """
+    Base.:(+)(p::Polynomial{A,T,C}, m::Monomial{A,T}) where {A,T,C}
+    Base.:(+)(m::Monomial{A,T}, p::Polynomial{A,T,C}) where {A,T,C}
+
+Add a monomial to a polynomial. Converts the monomial to a single-term polynomial and adds.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}([1]))]);
+
+julia> m = Monomial{NonCommutativeAlgebra}([2, 3]);
+
+julia> result = p + m;
+
+julia> length(terms(result))
+2
+
+julia> result2 = m + p;
+
+julia> length(terms(result2))
+2
+```
+"""
+function Base.:(+)(
+    p::Polynomial{A,T,C}, m::Monomial{A,T}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    # Convert monomial to polynomial and add
+    m_poly = Polynomial([Term(one(C), m)])
+    return p + m_poly
+end
+
+Base.:(+)(m::Monomial{A,T}, p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number} = p + m
+
+"""
+    Base.:(-)(p::Polynomial{A,T,C}, m::Monomial{A,T}) where {A,T,C}
+    Base.:(-)(m::Monomial{A,T}, p::Polynomial{A,T,C}) where {A,T,C}
+
+Subtract a monomial from a polynomial or vice versa.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}([1]))]);
+
+julia> m = Monomial{NonCommutativeAlgebra}([2, 3]);
+
+julia> result = p - m;
+
+julia> length(terms(result))
+2
+
+julia> result2 = m - p;
+
+julia> length(terms(result2))
+2
+```
+"""
+function Base.:(-)(
+    p::Polynomial{A,T,C}, m::Monomial{A,T}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    # Convert monomial to polynomial with negative coefficient and add
+    m_poly = Polynomial([Term(-one(C), m)])
+    return p + m_poly
+end
+
+function Base.:(-)(
+    m::Monomial{A,T}, p::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    # Convert monomial to polynomial and subtract p
+    m_poly = Polynomial([Term(one(C), m)])
+    return m_poly - p
+end
+
+"""
     Base.:(-)(c::Number, p::Polynomial)
 
 Subtract a polynomial from a scalar.

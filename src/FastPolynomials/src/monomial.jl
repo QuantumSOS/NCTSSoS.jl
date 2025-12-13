@@ -692,3 +692,26 @@ function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
         print(io, m.word)
     end
 end
+
+# =============================================================================
+# Expectation Value (identity for regular monomials)
+# =============================================================================
+
+"""
+    expval(m::Monomial{A,T}) where {A,T} -> Monomial{A,T}
+
+Return the expectation value of a monomial. For regular (non-state) monomials,
+this is an identity operation - the monomial is returned unchanged.
+
+This method exists for API compatibility with `NCStateWord`, where `expval`
+extracts the underlying monomial from a state word. For regular monomials,
+no extraction is needed.
+
+# Examples
+```julia
+julia> m = Monomial{NonCommutativeAlgebra,UInt8}([1, 2, 3]);
+julia> expval(m) === m
+true
+```
+"""
+expval(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = m

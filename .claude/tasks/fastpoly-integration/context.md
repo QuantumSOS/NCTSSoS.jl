@@ -255,7 +255,7 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 - [x] Phase 4 complete (legacy code removal)
 - [ ] Phase 5 (test migration)
 
-## Handoff Summary (Updated after Phase 4 - Legacy Code Removal)
+## Handoff Summary (Updated after Phase 5 - Test Migration)
 
 **Implementation Status:**
 1. **Phase 1.1 Complete**: `PolyOpt{A, P}` with algebra type and registry-based API
@@ -264,28 +264,50 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 4. **Phase 2 Complete**: Registry-based algebra constructors
 5. **Phase 3.3 Complete**: Registry-based GNS reconstruction
 6. **Phase 4 Complete**: All legacy code removed
+7. **Phase 5 Partial**: Test migration (see details below)
 
-**Phase 4 Key Changes:**
-- Removed `Variable` struct and all associated methods from utils.jl
-- Removed `@ncpolyvar` macro
-- Removed `get_basis(vars, degree)` function
-- Removed `variables(poly) -> Vector{Variable}` overrides
-- Removed backward compatibility accessors in PolyOpt and CorrelativeSparsity
-- Updated FastPolynomials.jl and NCTSSoS.jl exports/imports
-- Fixed tests to use `variable_indices()` instead of legacy API
+**Phase 5 Key Changes:**
+- Enabled `test/Aqua.jl` (removed MLStyle stale dependency from Project.toml)
+- Disabled `test/Doctest.jl` (FastPolynomials doctests use invalid "using FastPolynomials")
+- Enabled `test/ExplicitImports.jl` (fixed stale imports in NCTSSoS.jl)
+- Enabled `test/solver_utils.jl` (removed unused @ncpolyvar and get_basis imports)
+- Migrated and enabled `test/algebra_constructors.jl` (complete rewrite for new API)
+- Migrated `test/heisenberg.jl` (pauli_algebra() API, but disabled - see blocker)
+- Migrated `test/moment_solver.jl` (new API, but disabled - see blocker)
 
-**Files Modified in Phase 4:**
-- `src/FastPolynomials/src/utils.jl` (major removal - ~520 lines)
-- `src/FastPolynomials/src/FastPolynomials.jl` (exports)
-- `src/FastPolynomials/src/polynomial.jl` (docstring)
-- `src/NCTSSoS.jl` (imports/exports)
-- `src/sparse.jl` (removed clique_variables)
-- `src/pop.jl` (removed getproperty override)
-- `test/fastpoly_test/runtests.jl`, `polynomial.jl`, `statepolynomial.jl` (test updates)
+**Files Modified in Phase 5:**
+- `test/runtests.jl` (enabled tests, added comments for disabled ones)
+- `test/solver_utils.jl` (removed legacy imports)
+- `test/algebra_constructors.jl` (complete rewrite)
+- `test/heisenberg.jl` (migrated to pauli_algebra() API)
+- `test/moment_solver.jl` (migrated to new API)
+- `test/Doctest.jl` (updated setup, but disabled)
+- `src/NCTSSoS.jl` (removed stale FastPolynomials imports)
+- `Project.toml` (removed MLStyle stale dependency)
 
-**Next Step:** Phase 5 - Test migration (remaining NCTSSoS tests)
+**Test Status (1357 tests passing):**
+- FastPolynomials tests: ENABLED (1218 tests)
+- pop.jl: ENABLED
+- sparse.jl: ENABLED
+- solver_utils.jl: ENABLED
+- Aqua.jl: ENABLED
+- ExplicitImports.jl: ENABLED
+- algebra_constructors.jl: ENABLED (54 tests)
+- Doctest.jl: DISABLED (FastPolynomials doctests invalid)
+- moment_solver.jl: DISABLED (expval blocker)
+- heisenberg.jl: DISABLED (expval blocker)
+- interface.jl: NOT MIGRATED (same blocker)
+- sos_solver.jl: NOT MIGRATED
+- state_poly_opt.jl: NOT MIGRATED
+- trace_poly_opt.jl: NOT MIGRATED
 
-**Blocker:** None. Module compiles, FastPolynomials tests pass (1141 tests)
+**Blocker: sparse.jl expval() issue**
+- `src/sparse.jl` line 423 calls `expval(mono)` for plain Monomials
+- `expval()` is only defined for StateWord/NCStateWord types
+- This prevents any test that calls `cs_nctssos()` with algebra types that trigger this path
+- FIX REQUIRED IN SRC/: Need to define `expval(::Monomial)` or refactor sparse.jl
+
+**Next Step:** Fix sparse.jl expval() bug, then enable remaining tests
 
 ## Design Investigation: sparse.jl Refactoring
 

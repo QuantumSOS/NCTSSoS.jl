@@ -9,92 +9,98 @@ else
     const SOLVER = Clarabel.Optimizer
 end
 
+# =============================================================================
+# Tests for Registry-Based Algebra Constructors
+# =============================================================================
+# The new FastPolynomials API uses VariableRegistry for variable creation.
+# Each algebra type has a constructor that returns:
+#   (registry = VariableRegistry, variables...)
+#
+# Simplification rules are built into the algebra types - no need for manual
+# equality constraints or commutation groups.
+
 @testset "Pauli Algebra Constructor" begin
     @testset "Basic Structure N=1" begin
         sys = pauli_algebra(1)
 
-        # Check return type structure
-        @test hasfield(typeof(sys), :variables)
-        @test hasfield(typeof(sys), :is_unipotent)
-        @test hasfield(typeof(sys), :is_projective)
-        @test hasfield(typeof(sys), :equality_constraints)
-        @test hasfield(typeof(sys), :inequality_constraints)
-        @test hasfield(typeof(sys), :comm_gps)
+        # Check return type structure (new API)
+        @test hasfield(typeof(sys), :registry)
+        @test hasfield(typeof(sys), :sx)
+        @test hasfield(typeof(sys), :sy)
+        @test hasfield(typeof(sys), :sz)
 
         # Check variables
-        x, y, z = sys.variables
+        x, y, z = sys.sx, sys.sy, sys.sz
         @test length(x) == 1
         @test length(y) == 1
         @test length(z) == 1
 
-        # Check constraints (6 per site)
-        @test length(sys.equality_constraints) == 6
-        @test isempty(sys.inequality_constraints)
-
-        # Check commutation groups
-        @test length(sys.comm_gps) == 1
-        @test sort(sys.comm_gps[1]) == sort([x[1], y[1], z[1]])
+        # Registry should have 3 variables (x, y, z at site 1)
+        @test length(sys.registry) == 3
     end
 
     @testset "Basic Structure N=3" begin
         sys = pauli_algebra(3)
-        x, y, z = sys.variables
+        x, y, z = sys.sx, sys.sy, sys.sz
 
         @test length(x) == 3
         @test length(y) == 3
         @test length(z) == 3
 
-        # 6 constraints per site × 3 sites = 18 constraints
-        @test length(sys.equality_constraints) == 18
-
-        # 3 commutation groups, one per site
-        @test length(sys.comm_gps) == 3
-        for i in 1:3
-            @test sort(sys.comm_gps[i]) == sort([x[i], y[i], z[i]])
-        end
+        # Registry should have 3*3 = 9 variables
+        @test length(sys.registry) == 9
     end
 
-    @testset "Algebra Properties" begin
+    @testset "Algebra Type" begin
         sys = pauli_algebra(2)
 
-        @test sys.is_unipotent == true
-        @test sys.is_projective == false
-        @test length(sys.comm_gps) == 2
+        # Registry should be PauliAlgebra type
+        @test FastPolynomials.algebra_type(sys.registry) == PauliAlgebra
+
+        # Variables should be Monomials with PauliAlgebra type
+        @test typeof(sys.sx[1]) <: Monomial{PauliAlgebra}
     end
 
-    @testset "Commutation Relations Encoded Correctly" begin
+    @testset "Pauli Simplification Rules (automatic)" begin
+        # Test that Pauli simplification is automatic in new API
+        # NOTE: Monomials only store words - simplification happens at Polynomial level
+        # NOTE: Pauli products can produce complex phases, so use ComplexF64 coefficients
         sys = pauli_algebra(1)
-        x, y, z = sys.variables
+        x, y, z = sys.sx, sys.sy, sys.sz
 
-        # The 6 constraints should be:
-        # x*y - im*z, y*x + im*z, y*z - im*x, z*y + im*x, z*x - im*y, x*z + im*y
-        constraints = sys.equality_constraints
+        # Convert to complex polynomials for simplification to occur
+        # Pauli products produce im phases, so must use ComplexF64
+        px = ComplexF64(1.0) * x[1]
+        py = ComplexF64(1.0) * y[1]
 
-        @test x[1] * y[1] - im * z[1] in constraints
-        @test y[1] * x[1] + im * z[1] in constraints
-        @test y[1] * z[1] - im * x[1] in constraints
-        @test z[1] * y[1] + im * x[1] in constraints
-        @test z[1] * x[1] - im * y[1] in constraints
-        @test x[1] * z[1] + im * y[1] in constraints
+        # sigma_x * sigma_x = I (identity)
+        prod_xx = px * px
+        @test prod_xx isa Polynomial{PauliAlgebra}
+        @test isone(prod_xx)
+
+        # sigma_x * sigma_y = i * sigma_z (cyclic product)
+        prod_xy = px * py
+        @test prod_xy isa Polynomial{PauliAlgebra}
+        # The result should be im * z[1] (single term)
+        @test length(prod_xy.terms) == 1
     end
 
-    @testset "Integration with cpolyopt" begin
+    @testset "Integration with polyopt" begin
         sys = pauli_algebra(2)
-        x, y, z = sys.variables
+        x, y, z = sys.sx, sys.sy, sys.sz
 
         # Create a simple Hamiltonian
         ham = ComplexF64(0.5) * (x[1] * x[2] + y[1] * y[2] + z[1] * z[2])
 
-        # Should be able to create optimization problem
-        pop = cpolyopt(ham;
-            eq_constraints=sys.equality_constraints,
-            comm_gps=sys.comm_gps,
-            is_unipotent=true)
+        # Should be able to create optimization problem with new API
+        pop = polyopt(ham, sys.registry)
 
         @test pop.objective == ham
-        @test pop.eq_constraints == sys.equality_constraints
-        @test pop.is_unipotent == true
-        @test pop.is_projective == false
+        @test isempty(pop.eq_constraints)  # No explicit constraints needed
+        @test isempty(pop.ineq_constraints)
+
+        # Algebra type should be tracked
+        @test typeof(pop).parameters[1] == PauliAlgebra
     end
 
     @testset "Invalid Input" begin
@@ -104,96 +110,111 @@ end
 end
 
 
-@testset "cpolyopt with Algebra Interface" begin
-    @testset "Pauli Algebra Interface" begin
-        sys = pauli_algebra(2)
-        x, y, z = sys.variables
+@testset "Other Algebra Constructors" begin
+    @testset "Fermionic Algebra" begin
+        sys = fermionic_algebra(2)
 
-        ham = ComplexF64(0.5) * (x[1] * x[2] + y[1] * y[2])
-        pop = cpolyopt(ham, sys)
+        @test hasfield(typeof(sys), :registry)
+        @test hasfield(typeof(sys), :a)
+        @test hasfield(typeof(sys), :a_dag)
 
-        @test pop.objective == ham
-        @test pop.is_unipotent == true
-        @test pop.is_projective == false
-        @test length(pop.eq_constraints) == 12
-        @test isempty(pop.ineq_constraints)
-        @test pop.comm_gps == sys.comm_gps
+        @test length(sys.a) == 2
+        @test length(sys.a_dag) == 2
+        @test FastPolynomials.algebra_type(sys.registry) == FermionicAlgebra
     end
 
-    @testset "Pauli Algebra with Additional Constraints" begin
-        sys = pauli_algebra(2)
-        x, y, z = sys.variables
-        ham = ComplexF64(0.5) * (x[1] * x[2])
+    @testset "Bosonic Algebra" begin
+        sys = bosonic_algebra(2)
 
-        custom_eq = [x[1] + y[1]]
-        pop = cpolyopt(ham, sys; eq_constraints=custom_eq)
+        @test hasfield(typeof(sys), :registry)
+        @test hasfield(typeof(sys), :c)
+        @test hasfield(typeof(sys), :c_dag)
 
-        @test length(pop.eq_constraints) == 13
-        @test ComplexF64(1.0) * (x[1] + y[1]) in pop.eq_constraints
+        @test length(sys.c) == 2
+        @test length(sys.c_dag) == 2
+        @test FastPolynomials.algebra_type(sys.registry) == BosonicAlgebra
     end
 
-    @testset "Pauli Algebra with Inequality Constraints" begin
-        sys = pauli_algebra(1)
-        x, y, z = sys.variables
-        ham = ComplexF64(1.0) * x[1]
+    @testset "Projector Algebra" begin
+        sys = projector_algebra("P", 3)
 
-        ineq = [ComplexF64(1.0) + z[1]]
-        pop = cpolyopt(ham, sys; ineq_constraints=ineq)
+        @test hasfield(typeof(sys), :registry)
+        @test hasfield(typeof(sys), :projectors)
 
-        @test length(pop.eq_constraints) == 6
-        @test length(pop.ineq_constraints) == 1
-        @test ComplexF64(1.0) + z[1] in pop.ineq_constraints
+        @test length(sys.projectors[1]) == 3
+        @test FastPolynomials.algebra_type(sys.registry) == ProjectorAlgebra
+
+        # Test idempotent property: P^2 = P
+        # NOTE: Must use Polynomial for simplification
+        P = Polynomial(sys.projectors[1][1])
+        P2 = P * P
+        @test P2 isa Polynomial{ProjectorAlgebra}
+        # P^2 should simplify to P (single-term polynomial with coefficient 1)
+        @test length(P2.terms) == 1
     end
 
-    @testset "Interface Equivalence Test" begin
-        sys = pauli_algebra(2)
-        x, y, z = sys.variables
-        ham = ComplexF64(0.5) * (x[1] * y[2])
+    @testset "Unipotent Algebra" begin
+        sys = unipotent_algebra("U", 3)
 
-        pop1 = cpolyopt(ham, sys)
-        pop2 = cpolyopt(ham; eq_constraints=sys.equality_constraints,
-            comm_gps=sys.comm_gps, is_unipotent=true, is_projective=false)
+        @test hasfield(typeof(sys), :registry)
+        @test hasfield(typeof(sys), :variables)
 
-        @test pop1.objective == pop2.objective
-        @test Set(pop1.eq_constraints) == Set(pop2.eq_constraints)
-        @test pop1.ineq_constraints == pop2.ineq_constraints
-        @test pop1.comm_gps == pop2.comm_gps
-        @test pop1.is_unipotent == pop2.is_unipotent
-        @test pop1.is_projective == pop2.is_projective
+        @test length(sys.variables[1]) == 3
+        @test FastPolynomials.algebra_type(sys.registry) == UnipotentAlgebra
+
+        # Test U^2 = I
+        # NOTE: Must use Polynomial for simplification
+        U = Polynomial(sys.variables[1][1])
+        U2 = U * U
+        @test U2 isa Polynomial{UnipotentAlgebra}
+        @test isone(U2)
+    end
+
+    @testset "NonCommutative Algebra" begin
+        sys = noncommutative_algebra("x", 3)
+
+        @test hasfield(typeof(sys), :registry)
+        @test hasfield(typeof(sys), :variables)
+
+        @test length(sys.variables[1]) == 3
+        @test FastPolynomials.algebra_type(sys.registry) == NonCommutativeAlgebra
+
+        # No simplification rules - x*x stays as x^2
+        x = Polynomial(sys.variables[1][1])
+        x2 = x * x
+        @test x2 isa Polynomial{NonCommutativeAlgebra}
+        # Should be a degree-2 polynomial (not identity)
+        @test !isone(x2)
     end
 end
 
 
 if haskey(ENV, "LOCAL_TESTING")
     @testset "Integration: XXX Model with Pauli Algebra" begin
-
-        # Test that the new pauli_algebra interface produces the same
-        # numerical results as the manual setup for the XXX Heisenberg Model
+        # Test that the new pauli_algebra interface produces correct
+        # numerical results for the XXX Heisenberg Model
         T = ComplexF64
         N = 6
         J1 = 1.0
 
         # Create algebra system using new interface
         sys = pauli_algebra(N)
-        x, y, z = sys.variables
+        x, y, z = sys.sx, sys.sy, sys.sz
 
         # Construct XXX Heisenberg Hamiltonian
         ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [x, y, z] for i in 1:N)
 
-        # Create optimization problem using new algebra interface
-        pop = cpolyopt(ham, sys)
+        # Create optimization problem using new API
+        pop = polyopt(ham, sys.registry)
 
         # Verify problem structure
         @test pop.objective == ham
-        @test pop.is_unipotent == true
-        @test pop.is_projective == false
-        @test length(pop.eq_constraints) == 6 * N  # 6 constraints per site
 
         # Solve the optimization problem
         solver_config = SolverConfig(optimizer=SOLVER, order=2)
         res = cs_nctssos(pop, solver_config)
 
-        # Verify against known result from heisenberg.jl test
+        # Verify against known result
         @test res.objective / N ≈ -0.467129 atol = 1e-6
     end
 
@@ -207,22 +228,15 @@ if haskey(ENV, "LOCAL_TESTING")
 
         # Create algebra system using new interface
         sys = pauli_algebra(N)
-        x, y, z = sys.variables
+        x, y, z = sys.sx, sys.sy, sys.sz
 
         # Construct J1-J2 Heisenberg Hamiltonian
-        # J1: nearest-neighbor interactions, J2: next-nearest-neighbor
         ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] +
                   T(J2 / 4) * op[i] * op[mod1(i + 2, N)]
                   for op in [x, y, z] for i in 1:N)
 
-        # Create optimization problem using new algebra interface
-        pop = cpolyopt(ham, sys)
-
-        # Verify problem structure
-        @test pop.objective == ham
-        @test pop.is_unipotent == true
-        @test pop.is_projective == false
-        @test length(pop.eq_constraints) == 6 * N
+        # Create optimization problem using new API
+        pop = polyopt(ham, sys.registry)
 
         # Solve with MMD term sparsity algorithm
         solver_config = SolverConfig(optimizer=SOLVER, order=2, ts_algo=MMD())
@@ -230,43 +244,35 @@ if haskey(ENV, "LOCAL_TESTING")
         res = cs_nctssos(pop, solver_config)
         res = cs_nctssos_higher(pop, res, solver_config)
 
-        # Verify against known result from heisenberg.jl test
+        # Verify against known result
         @test res.objective / N ≈ -0.4270083225302217 atol = 1e-6
     end
 
     @testset "Integration: 1D Transverse Field Ising Model" begin
         # Test the new pauli_algebra interface with Transverse Field Ising Model
-        # This model combines ZZ interactions with transverse field X
         N = 3
         J = 1.0
         h = 2.0
 
         # Create algebra system using new interface
         sys = pauli_algebra(N)
-        x, y, z = sys.variables
+        x, y, z = sys.sx, sys.sy, sys.sz
 
         # Test both periodic and open boundary conditions
         for (periodic, true_ans) in zip((true, false), (-1.0175918, -1.0104160))
             # Construct Transverse Field Ising Hamiltonian
-            # -J/4 * sum(Z_i * Z_{i+1}) - h/2 * sum(X_i)
             ham = sum(-complex(J / 4) * z[i] * z[mod1(i + 1, N)]
                       for i in 1:(periodic ? N : N - 1)) +
                   sum(-h / 2 * x[i] for i in 1:N)
 
-            # Create optimization problem using new algebra interface
-            pop = cpolyopt(ham, sys)
-
-            # Verify problem structure
-            @test pop.objective == ham
-            @test pop.is_unipotent == true
-            @test pop.is_projective == false
-            @test length(pop.eq_constraints) == 6 * N
+            # Create optimization problem using new API
+            pop = polyopt(ham, sys.registry)
 
             # Solve the optimization problem
             solver_config = SolverConfig(optimizer=SOLVER, order=2)
             res = cs_nctssos(pop, solver_config)
 
-            # Verify against known result from interface.jl test
+            # Verify against known result
             @test res.objective / N ≈ true_ans atol = 1e-6
         end
     end

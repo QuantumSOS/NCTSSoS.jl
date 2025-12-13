@@ -20,31 +20,36 @@ using NCTSSoS, Test
     # FastPolynomials - uses new API, should pass throughout refactor
     include("fastpoly_test/runtests.jl")
 
-    # === Commented out during fastpoly-integration ===
-    # Core optimization (re-enable after Phase 1)
+    # Core optimization tests
     include("pop.jl")
     include("sparse.jl")
-    # include("solver_utils.jl")
+    include("solver_utils.jl")
 
-    # Moment solver (re-enable after Phase 1, LOCAL_TESTING only)
+    # Quality checks
+    include("Aqua.jl")
+    # NOTE: Doctest.jl disabled - FastPolynomials doctests use "using FastPolynomials"
+    # but FastPolynomials is a submodule, not a registered package.
+    # TODO: Fix FastPolynomials doctests to use correct import path
+    # include("Doctest.jl")
+    include("ExplicitImports.jl")
+
+    # Algebra constructors - migrated to new API
+    include("algebra_constructors.jl")
+
+    # Moment solver tests - disabled due to sparse.jl expval() bug
+    # The expval() function is only defined for StateWord/NCStateWord types,
+    # but sparse.jl (line 423) calls it on plain Monomials. This needs src/ fix.
+    # Files migrated but not enabled: moment_solver.jl, heisenberg.jl
+    # include("moment_solver.jl")
     # if haskey(ENV, "LOCAL_TESTING")
-    #     include("moment_solver.jl")
     #     include("heisenberg.jl")
     # end
 
-    # Algebra constructors (re-enable after Phase 2)
-    # include("algebra_constructors.jl")
-
-    # Interface & SOS (re-enable after Phase 3)
+    # Interface & SOS - disabled, same expval() issue in sparse.jl
     # include("sos_solver.jl")
     # include("interface.jl")
 
-    # Advanced features (re-enable after Phase 3)
+    # State/Trace polynomial tests - not yet migrated (uses specialized features)
     # include("state_poly_opt.jl")
     # include("trace_poly_opt.jl")
-
-    # Quality checks (re-enable after Phase 4)
-    # include("Aqua.jl")
-    # include("Doctest.jl")
-    # include("ExplicitImports.jl")
 end

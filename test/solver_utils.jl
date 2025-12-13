@@ -2,12 +2,9 @@ using Test, NCTSSoS
 using JuMP
 using NCTSSoS.FastPolynomials
 using NCTSSoS: get_dim, sorted_unique
-using NCTSSoS.FastPolynomials: get_basis
 
 @testset "Utilities" begin
-    @ncpolyvar x y z
-    @testset "VectorConstraint Diexport @ncpolyvar
-m" begin
+    @testset "VectorConstraint Dim" begin
         model = Model()
         n = 5
         var1 = @variable(model, [1:n, 1:n])

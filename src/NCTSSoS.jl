@@ -8,13 +8,11 @@ import CliqueTrees.cliquetree
 include("FastPolynomials/src/FastPolynomials.jl")
 using .FastPolynomials
 
-# Import types (new and legacy compatibility)
-using .FastPolynomials: Monomial, Polynomial, Term
+# Import types (core types for internal use)
+using .FastPolynomials: Monomial, Polynomial
 using .FastPolynomials: AlgebraType, NonCommutativeAlgebra, PauliAlgebra
 using .FastPolynomials: UnipotentAlgebra, ProjectorAlgebra, FermionicAlgebra, BosonicAlgebra
-using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomial
-using .FastPolynomials: Arbitrary, MaxEntangled
-using .FastPolynomials: VariableRegistry, symbols, indices, index_type, algebra_type, subregistry
+using .FastPolynomials: VariableRegistry, symbols, indices, subregistry
 using .FastPolynomials: variable_indices
 using .FastPolynomials: create_pauli_variables, create_fermionic_variables, create_bosonic_variables
 using .FastPolynomials: create_projector_variables, create_unipotent_variables, create_noncommutative_variables
@@ -22,13 +20,12 @@ using .FastPolynomials: create_projector_variables, create_unipotent_variables, 
 # Import type alias for backward compatibility
 using .FastPolynomials: AbstractPolynomial
 
-# Import functions
+# Import functions (only those actually used in NCTSSoS)
 using .FastPolynomials: sorted_union, sorted_unique
-using .FastPolynomials: monomials, coefficients, terms, degree, maxdegree, variables
-using .FastPolynomials: get_ncbasis, get_ncbasis_deg
-using .FastPolynomials: simplify, simplify!, canonicalize, symmetric_canon
+using .FastPolynomials: monomials, coefficients, terms, maxdegree
+using .FastPolynomials: get_ncbasis
+using .FastPolynomials: symmetric_canon
 using .FastPolynomials: neat_dot, _neat_dot3, expval
-using .FastPolynomials: star, star!
 
 # Re-export key types and functions for downstream users
 export ς

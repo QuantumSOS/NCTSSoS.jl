@@ -19,8 +19,8 @@ using NCTSSoS.FastPolynomials: create_pauli_variables, create_noncommutative_var
         ncons = 3
         reg, (x,) = create_noncommutative_variables([("x", 1:nvars)])
 
-        objective = 1.0 * sum(Polynomial.(x) .^ 2)
-        constraints = [1.0 * sum(i .* Polynomial.(x)) for i = 1:ncons]
+        objective = sum(x .^ 2)
+        constraints = [sum(Float64(i) .* x) for i = 1:ncons]
 
         @testset "Unconstrained" begin
             pop = polyopt(objective, reg)
@@ -37,7 +37,7 @@ using NCTSSoS.FastPolynomials: create_pauli_variables, create_noncommutative_var
             @test isempty(pop.eq_constraints)
 
             # Add an additional non-zero constraint
-            extra_constraint = 1.0 * Polynomial(x[1])
+            extra_constraint = 1.0 * x[1]
             all_constraints = [constraints; extra_constraint]
             pop = polyopt(objective, reg; ineq_constraints=all_constraints)
             @test length(pop.ineq_constraints) == length(all_constraints)
@@ -57,14 +57,14 @@ using NCTSSoS.FastPolynomials: create_pauli_variables, create_noncommutative_var
     @testset "Unipotent Algebra" begin
         reg, (x,) = create_unipotent_variables([("x", 1:5)])
 
-        objective = 1.0 * sum(Polynomial.(x) .^ 2)
+        objective = sum(x .^ 2)
         pop = polyopt(objective, reg)
     end
 
     @testset "Projector Algebra" begin
         reg, (P,) = create_projector_variables([("P", 1:5)])
 
-        objective = 1.0 * sum(Polynomial.(P) .^ 2)
+        objective = 1.0 * sum(P .^ 2)
         pop = polyopt(objective, reg)
     end
 end

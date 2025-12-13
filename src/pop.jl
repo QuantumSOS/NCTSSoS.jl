@@ -116,10 +116,18 @@ end
     Base.show(io::IO, pop::OptimizationProblem{A,P})
 
 Display an optimization problem showing objective, constraints, and algebra type.
+Uses registry-aware display for polynomials (shows symbolic variable names).
 """
 function Base.show(io::IO, pop::OptimizationProblem{A,P}) where {A,P}
+    # Helper to format a polynomial as string with registry for symbolic display
+    function poly_str(p)
+        buf = IOBuffer()
+        show(IOContext(buf, :registry => pop.registry), p)
+        String(take!(buf))
+    end
+
     function cons_str(cons::Vector, iseq::Bool)
-        join(["$(string(c)) " * (iseq ? "= 0" : ">= 0") for c in cons], "\n            ")
+        join([poly_str(c) * (iseq ? " = 0" : " >= 0") for c in cons], "\n            ")
     end
 
     nvars = length(pop.registry)
@@ -131,7 +139,7 @@ function Base.show(io::IO, pop::OptimizationProblem{A,P}) where {A,P}
         Optimization Problem ($(nameof(A)))
         ────────────────────────────────────
         Objective:
-            $(string(pop.objective))
+            $(poly_str(pop.objective))
 
         Equality constraints ($(length(pop.eq_constraints))):
             $(isempty(pop.eq_constraints) ? "(none)" : cons_str(pop.eq_constraints, true))

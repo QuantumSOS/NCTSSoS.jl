@@ -115,6 +115,7 @@ function Base.:(==)(t1::Term{M1,C1}, t2::Term{M2,C2}) where {M1,M2,C1,C2}
 end
 
 # Show method for clean output
+# Passes IOContext to monomial show for registry-aware display
 function Base.show(io::IO, t::Term{M,C}) where {M<:Monomial,C}
     if iszero(t)
         print(io, "0")
@@ -123,11 +124,13 @@ function Base.show(io::IO, t::Term{M,C}) where {M<:Monomial,C}
     elseif isempty(t.monomial.word)
         print(io, t.coefficient)
     elseif t.coefficient == one(C)
-        print(io, t.monomial.word)
+        show(io, t.monomial)
     elseif t.coefficient == -one(C)
-        print(io, "-", t.monomial.word)
+        print(io, "-")
+        show(io, t.monomial)
     else
-        print(io, t.coefficient, " * ", t.monomial.word)
+        print(io, t.coefficient, " * ")
+        show(io, t.monomial)
     end
 end
 

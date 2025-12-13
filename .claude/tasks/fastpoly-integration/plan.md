@@ -149,14 +149,14 @@ result = solve(sos_problem, optimizer)
 result = solve_moment_problem(moment_problem, optimizer)            # Direct (rare)
 ```
 
-### Phase 2: Algebra Constructor Refactoring
+### Phase 2: Algebra Constructor Refactoring [COMPLETE]
 
-#### Step 2.1: Refactor algebra_constructors.jl
-- [ ] Replace `@ncpolyvar` with `create_*_variables` for each algebra
-- [ ] Remove manual equality constraints (algebra simplification handles Pauli rules, etc.)
-- [ ] Remove `is_unipotent`, `is_projective`, `comm_gps` from return type
-- [ ] Return simplified NamedTuple: `(registry=..., var1=..., var2=...)`
-- [ ] Users add problem-specific constraints via `polyopt(...; eq_constraints=[...])`
+#### Step 2.1: Refactor algebra_constructors.jl [COMPLETE]
+- [x] Replace `@ncpolyvar` with `create_*_variables` for each algebra
+- [x] Remove manual equality constraints (algebra simplification handles Pauli rules, etc.)
+- [x] Remove `is_unipotent`, `is_projective`, `comm_gps` from return type
+- [x] Return simplified NamedTuple: `(registry=..., var1=..., var2=...)`
+- [x] Users add problem-specific constraints via `polyopt(...; eq_constraints=[...])`
 
 **New API:**
 ```julia

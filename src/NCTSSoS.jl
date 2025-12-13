@@ -16,6 +16,8 @@ using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomi
 using .FastPolynomials: Arbitrary, MaxEntangled
 using .FastPolynomials: VariableRegistry, symbols, indices, index_type, algebra_type, subregistry
 using .FastPolynomials: variable_indices
+using .FastPolynomials: create_pauli_variables, create_fermionic_variables, create_bosonic_variables
+using .FastPolynomials: create_projector_variables, create_unipotent_variables, create_noncommutative_variables
 
 # Import legacy compatibility types
 using .FastPolynomials: AbstractPolynomial, Variable
@@ -45,7 +47,10 @@ export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher
 export reconstruct
-export pauli_algebra
+
+# Algebra constructors (registry-based)
+export pauli_algebra, fermionic_algebra, bosonic_algebra
+export projector_algebra, unipotent_algebra, noncommutative_algebra
 
 include("pop.jl")
 

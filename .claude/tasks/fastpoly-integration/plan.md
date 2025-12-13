@@ -214,11 +214,11 @@ end
   ```
 - [ ] Remove `SimplifyAlgorithm`, use `symmetric_canon` from FastPolynomials
 
-#### Step 3.3: Refactor gns.jl
-- [ ] Change signature: `reconstruct(H, registry::VariableRegistry{A}, H_deg)`
-- [ ] Use `get_ncbasis_monomials(registry, deg)` instead of `get_basis`
-- [ ] Return `Vector{Matrix}` ordered by registry iteration
-- [ ] Replace `monomial(var)` with `Monomial{A}([var_idx])`
+#### Step 3.3: Refactor gns.jl [COMPLETE]
+- [x] Change signature: `reconstruct(H, registry::VariableRegistry{A,TI}, H_deg)`
+- [x] Use `get_ncbasis(registry, deg)` + `extract_monomials_from_basis()` instead of `get_basis`
+- [x] Return `Dict{TI, Matrix{T}}` mapping variable indices to matrices
+- [x] Replace `monomial(var)` with `Monomial{A}([TM(var_idx)])`
 
 ### Phase 4: Remove Legacy Code
 

@@ -1,35 +1,66 @@
 using LinearAlgebra
-# Legacy imports from FastPolynomials for GNS reconstruction
-# Uses Variable struct and get_basis with legacy API
+# Registry-based imports from FastPolynomials for GNS reconstruction
 using ..FastPolynomials:
-    Variable, Monomial, get_basis, monomials, monomial, neat_dot, NonCommutativeAlgebra
+    Monomial, Polynomial, VariableRegistry, AlgebraType,
+    get_ncbasis, neat_dot, monomials, NonCommutativeAlgebra,
+    indices, subregistry
 
 """
-    reconstruct(H::Matrix, vars::Vector{Variable}, H_deg::Int; atol::Float64=1e-3)
+    extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
+
+Extract monomials from a vector of single-term polynomials.
+
+For NonCommutativeAlgebra, Pauli, Projector, and Unipotent algebras, each basis polynomial
+has exactly one term. This function extracts the monomial from each polynomial.
+
+For Fermionic/Bosonic algebras, basis polynomials may have multiple terms due to
+normal ordering corrections. In these cases, we extract the leading monomial.
+
+# Returns
+Vector of monomials in the same order as the input polynomials.
+"""
+function extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
+    result = Monomial{A,T}[]
+    for poly in basis_polys
+        poly_monomials = monomials(poly)
+        if isempty(poly_monomials)
+            # This shouldn't happen for a proper basis, but handle gracefully
+            push!(result, Monomial{A}(T[]))
+        else
+            # Take the first monomial (leading term after simplification)
+            push!(result, first(poly_monomials))
+        end
+    end
+    return result
+end
+
+"""
+    reconstruct(H::Matrix, registry::VariableRegistry{A,TI}, H_deg::Int; atol::Float64=1e-3)
 
 Perform GNS (Gelfand-Naimark-Segal) reconstruction to extract finite-dimensional
 matrix representations of non-commuting variables from moment data encoded in a Hankel matrix.
 
 The GNS construction recovers matrix representations X₁, X₂, ..., Xₙ for variables
-x₁, x₂, ..., xₙ from the moment matrix (Hankel matrix) of a linear functional.
+indexed by the registry from the moment matrix (Hankel matrix) of a linear functional.
 
 # Arguments
 - `H::Matrix`: Hankel matrix where H[i,j] = ⟨basis[i], basis[j]⟩ for the moment functional,
   indexed by the full monomial basis up to degree `H_deg`
-- `vars::Vector{Variable}`: Vector of non-commuting variables to reconstruct matrix representations for
+- `registry::VariableRegistry{A,TI}`: Variable registry containing the non-commuting variables
+  to reconstruct matrix representations for
 - `H_deg::Int`: Maximum degree of monomials used to index the full Hankel matrix `H`
 - `atol::Float64=1e-3`: Absolute tolerance for determining which singular values are considered non-zero.
   Singular values greater than `atol` are retained in the reconstruction.
 
 # Returns
-- `Vector{Matrix}`: Vector of matrix representations, one for each variable in `vars`.
+- `Dict{TI, Matrix{T}}`: Dictionary mapping variable indices to their matrix representations.
   The size of each matrix is determined by the number of singular values exceeding `atol`.
 
 # Algorithm
 The reconstruction follows these steps:
 1. Extract the principal `(H_deg-1)` × `(H_deg-1)` block from `H`
 2. Perform SVD: H_block = U S Uᵀ and keep singular values > `atol`
-3. For each variable xᵢ, construct localizing matrix Kᵢ where Kᵢ[j,k] = ⟨basis[j], xᵢ·basis[k]⟩
+3. For each variable index i, construct localizing matrix Kᵢ where Kᵢ[j,k] = ⟨basis[j], xᵢ·basis[k]⟩
 4. Compute matrix representation: Xᵢ = S^(-1/2) Uᵀ Kᵢ U S^(-1/2)
 
 # References
@@ -37,25 +68,28 @@ The reconstruction follows these steps:
 
 # Example
 ```julia
-@ncpolyvar x y
-# Construct Hankel matrix from moment data
+# Create variables and a Hankel matrix from moment data
+reg, (x,) = create_noncommutative_variables([("x", 1:2)])
 H = [1.0  0.5  0.5;
      0.5  1.0  0.0;
      0.5  0.0  1.0]
 
 # Reconstruct matrix representations, keeping singular values > 1e-3
-X_mat, Y_mat = reconstruct(H, [x, y], 1)
+matrices = reconstruct(H, reg, 1)
+
+# Access matrix for variable x₁ (index 1)
+X1_mat = matrices[first(indices(reg))]
 
 # Use custom tolerance
-X_mat, Y_mat = reconstruct(H, [x, y], 1; atol=1e-6)
+matrices = reconstruct(H, reg, 1; atol=1e-6)
 ```
 """
 function reconstruct(
     H::Matrix{T},
-    vars::Vector{Variable},
+    registry::VariableRegistry{A,TI},
     H_deg::Int;
     atol::Float64=1e-3,
-) where {T<:Number}
+) where {T<:Number, A<:AlgebraType, TI<:Integer}
     H_deg < 0 && throw(ArgumentError("H_deg must be non-negative"))
     H_deg == 0 && throw(ArgumentError("H_deg must be positive for reconstruction"))
     atol < 0 && throw(ArgumentError("atol must be non-negative"))
@@ -63,8 +97,13 @@ function reconstruct(
     # Set hankel_deg to H_deg - 1 as required
     hankel_deg = H_deg - 1
 
-    H_basis = get_basis(vars, H_deg)
-    hankel_basis = get_basis(vars, hankel_deg)
+    # Generate bases using registry
+    H_basis_polys = get_ncbasis(registry, H_deg)
+    hankel_basis_polys = get_ncbasis(registry, hankel_deg)
+
+    # Extract monomials from polynomials for indexing
+    H_basis = extract_monomials_from_basis(H_basis_polys)
+    hankel_basis = extract_monomials_from_basis(hankel_basis_polys)
 
     len_H = length(H_basis)
     len_hankel = length(hankel_basis)
@@ -85,7 +124,7 @@ function reconstruct(
 
     # Determine output dimension based on singular values exceeding atol
     output_dim = count(s -> s > atol, S)
-    
+
     if output_dim == 0
         throw(ArgumentError(
             "No singular values exceed tolerance $atol. " *
@@ -122,49 +161,54 @@ function reconstruct(
 
     hankel_dict = hankel_entries_dict(H, H_basis)
 
-    matrices = Matrix{T}[]
+    # Return dictionary mapping variable indices to matrices
+    matrices = Dict{TI, Matrix{T}}()
     diag_inv = Diagonal(sqrt_S_inv)
-    for var in vars
-        K = construct_localizing_matrix(hankel_dict, var, hankel_basis)
+
+    var_indices = indices(registry)
+    for var_idx in var_indices
+        K = construct_localizing_matrix(hankel_dict, var_idx, hankel_basis)
         X = diag_inv * (U_trunc' * K * U_trunc) * diag_inv
-        push!(matrices, X)
-        println("Variable $(var.name): constructed $(size(X)) matrix representation")
+        matrices[var_idx] = X
+        # Get variable name for display
+        var_name = registry[var_idx]
+        println("Variable $(var_name): constructed $(size(X)) matrix representation")
     end
 
     return matrices
 end
 
 """
-    hankel_entries_dict(hankel::Matrix{T}, basis::Vector{Monomial}) where {T <: Number} -> Dict{Monomial, T}
+    hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:Monomial}) where {T <: Number} -> Dict{Monomial, T}
 
 Create a lookup dictionary mapping monomial products to Hankel matrix entries.
 
-This function constructs a dictionary where keys are monomials of the form 
-`neat_dot(u, v)` (representing the product u·v) and values are the corresponding 
+This function constructs a dictionary where keys are monomials of the form
+`neat_dot(u, v)` (representing the product u†·v) and values are the corresponding
 Hankel matrix entries `hankel[i, j]` where `basis[i] = u` and `basis[j] = v`.
 
-The dictionary allows efficient lookup of moment values ⟨u·v⟩ from the Hankel 
+The dictionary allows efficient lookup of moment values ⟨u†·v⟩ from the Hankel
 matrix structure, which is essential for constructing localizing matrices.
 
 # Arguments
-- `hankel::Matrix{T}`: Square Hankel matrix where hankel[i,j] = ⟨basis[i], basis[j]⟩
-- `basis::Vector{Monomial}`: Monomial basis used to index the rows and columns of `hankel`
+- `hankel::Matrix{T}`: Square Hankel matrix where hankel[i,j] = ⟨basis[i]†, basis[j]⟩
+- `basis::Vector{<:Monomial}`: Monomial basis used to index the rows and columns of `hankel`
 
 # Returns
 - `Dict{Monomial, T}`: Dictionary mapping monomial products to their moment values
 
 # Notes
-- If multiple pairs (i,j) yield the same product u·v, only one entry is stored
+- If multiple pairs (i,j) yield the same product u†·v, only one entry is stored
 - The Hankel matrix must be square and match the basis length
 
 # Example
 ```julia
-@ncpolyvar x
-basis = get_basis([x], 2)  # [1, x, x²]
+reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+basis = extract_monomials_from_basis(get_ncbasis(reg, 2))
 H = [1.0 0.5 0.3; 0.5 1.0 0.6; 0.3 0.6 1.0]
 dict = hankel_entries_dict(H, basis)
-# Access ⟨x·x⟩ = ⟨x²⟩
-value = dict[neat_dot(x, x)]  # Returns H[2,2] = 1.0
+# Access ⟨x†·x⟩ = ⟨x²⟩
+# value = dict[neat_dot(x[1], x[1])]
 ```
 """
 function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:Monomial}) where {T<:Number}
@@ -191,53 +235,61 @@ function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:Monomial}) where
 end
 
 """
-    construct_localizing_matrix(hankel_dict::Dict{Monomial, T}, var::Variable, basis::Vector{Monomial}) where {T <: Number} -> Matrix{T}
+    construct_localizing_matrix(hankel_dict::Dict{M,T}, var_idx::TI, basis::Vector{M}) where {A,TM,M<:Monomial{A,TM},T,TI}
 
-Construct the localizing matrix for a given variable using precomputed Hankel data.
+Construct the localizing matrix for a given variable index using precomputed Hankel data.
 
-The localizing matrix K for variable `a` is defined by K[i,j] = ⟨basis[i], a·basis[j]⟩,
-which encodes the action of right-multiplication by `a` on the space spanned by the basis.
+The localizing matrix K for variable with index `var_idx` is defined by
+K[i,j] = ⟨basis[i]†, xᵥ·basis[j]⟩, which encodes the action of right-multiplication
+by the variable on the space spanned by the basis.
 
-This matrix is a key component in the GNS construction, where it's used to compute 
+This matrix is a key component in the GNS construction, where it's used to compute
 the matrix representation of the variable in the reconstructed Hilbert space.
 
 # Arguments
-- `hankel_dict::Dict{Monomial, T}`: Dictionary mapping monomial products to moment values,
+- `hankel_dict::Dict{M, T}`: Dictionary mapping monomial products to moment values,
   typically created by `hankel_entries_dict`
-- `var::Variable`: The variable for which to construct the localizing matrix
-- `basis::Vector{Monomial}`: Monomial basis for indexing rows and columns of the localizing matrix
+- `var_idx::TI`: The variable index for which to construct the localizing matrix
+- `basis::Vector{M}`: Monomial basis for indexing rows and columns of the localizing matrix
 
 # Returns
-- `Matrix{T}`: The n×n localizing matrix where n = length(basis), with entries K[i,j] = ⟨basis[i], a·basis[j]⟩
+- `Matrix{T}`: The n×n localizing matrix where n = length(basis),
+  with entries K[i,j] = ⟨basis[i]†, xᵥ·basis[j]⟩
 
 # Algorithm
 For each position (i,j):
-1. Compute the product a·basis[j]
-2. Form the inner product key: neat_dot(basis[i], a·basis[j])
-3. Look up this key in hankel_dict, using 0 if not found
+1. Create the variable monomial from var_idx
+2. Compute the product: var_monomial * basis[j]
+3. Form the inner product key: neat_dot(basis[i], var_monomial * basis[j])
+4. Look up this key in hankel_dict, using 0 if not found
 
 # Example
 ```julia
-@ncpolyvar x
-basis = get_basis([x], 1)  # [1, x]
+reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+basis = extract_monomials_from_basis(get_ncbasis(reg, 1))
 H = [1.0 0.5; 0.5 1.0]
 dict = hankel_entries_dict(H, basis)
-K = construct_localizing_matrix(dict, x, basis)
-# K[1,1] = ⟨1, x·1⟩ = ⟨x⟩
-# K[1,2] = ⟨1, x·x⟩ = ⟨x²⟩
+var_idx = first(indices(reg))
+K = construct_localizing_matrix(dict, var_idx, basis)
 ```
 """
 function construct_localizing_matrix(
     hankel_dict::Dict{M,T},
-    var::Variable,
+    var_idx::TI,
     basis::Vector{M},
-) where {M<:Monomial,T<:Number}
+) where {A<:AlgebraType,TM<:Integer,M<:Monomial{A,TM},T<:Number,TI<:Integer}
     n = length(basis)
     K = zeros(T, n, n)
 
+    # Create monomial from variable index
+    var_monomial = Monomial{A}([TM(var_idx)])
+
     for (i, row_mono) in enumerate(basis)
         for (j, col_mono) in enumerate(basis)
-            key = neat_dot(row_mono, neat_dot(monomial(var), col_mono))
+            # Compute key = neat_dot(row_mono, var_monomial * col_mono)
+            # This is adjoint(row_mono) * var_monomial * col_mono
+            product = var_monomial * col_mono
+            key = neat_dot(row_mono, product)
             K[i, j] = get(hankel_dict, key, zero(T))
         end
     end

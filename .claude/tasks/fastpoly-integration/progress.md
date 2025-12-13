@@ -1,5 +1,51 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-13 - Phase 3.3 Complete (gns.jl Registry-Based GNS Reconstruction)
+
+**Agent:** polyglot-implementation-engineer
+**Feature:** Phase 3.3 (gns.jl refactoring)
+
+### Actions
+- Refactored `gns.jl` to use registry-based API instead of legacy `Variable` and `get_basis`
+- Updated imports from FastPolynomials:
+  - Removed: `Variable`, `get_basis`, `monomial`
+  - Added: `Polynomial`, `VariableRegistry`, `AlgebraType`, `get_ncbasis`, `indices`, `subregistry`
+- Added `extract_monomials_from_basis()` helper function to convert basis polynomials to monomials
+- Refactored `reconstruct()` signature:
+  - Old: `reconstruct(H::Matrix, vars::Vector{Variable}, H_deg; atol)`
+  - New: `reconstruct(H::Matrix, registry::VariableRegistry{A,TI}, H_deg; atol)`
+- Updated basis generation to use `get_ncbasis(registry, deg)` instead of `get_basis(vars, deg)`
+- Refactored `construct_localizing_matrix()`:
+  - Old: Takes `var::Variable`, uses `monomial(var)`
+  - New: Takes `var_idx::TI` (registry index), creates `Monomial{A}([TM(var_idx)])`
+- Updated return type:
+  - Old: Returns `Vector{Matrix}` ordered by input `vars` vector
+  - New: Returns `Dict{TI, Matrix{T}}` mapping variable indices to matrices
+- Fixed type parameter ordering in `where` clause: `{A<:AlgebraType,TM<:Integer,M<:Monomial{A,TM},T<:Number,TI<:Integer}`
+
+### Files Modified
+- `src/gns.jl` (major refactor)
+
+### Verification
+- Module compiles without errors
+- `make test-FastPoly` passes (1141 tests)
+- No `Variable` or `get_basis` legacy API usage remaining in gns.jl
+
+### Outcome
+Phase 3.3 complete. The GNS reconstruction now uses:
+- `VariableRegistry{A,TI}` instead of `Vector{Variable}`
+- `get_ncbasis(registry, deg)` instead of `get_basis(vars, deg)`
+- Variable indices (`TI`) instead of `Variable` objects
+- Returns `Dict{TI, Matrix{T}}` for flexible access by index
+
+### Next Steps
+- Phase 4: Legacy code removal (utils.jl cleanup)
+- Phase 5: Test migration
+
+**Commit:** `a8c76a6` - refactor(gns): registry-based GNS reconstruction
+
+---
+
 ## Session: 2025-12-13 - Phase 2 Complete (Registry-Based Algebra Constructors)
 
 **Agent:** polyglot-implementation-engineer

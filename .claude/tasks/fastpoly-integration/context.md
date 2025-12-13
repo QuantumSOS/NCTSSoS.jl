@@ -250,36 +250,32 @@ vars = sorted_union(variables(objective), variables.(constraints)...)
 - [x] Phase 1.2 complete (sparse.jl refactored)
 - [x] Phase 1.3 complete (moment_solver.jl + complex_moment_solver.jl merged)
 - [x] Phase 2 complete (algebra_constructors.jl refactored)
-- [ ] Phase 3 (interface.jl, sos_solver.jl, gns.jl)
+- [x] Phase 3.3 complete (gns.jl refactored)
+- [ ] Phase 3.1-3.2 (interface.jl, sos_solver.jl) - already done in Phase 1.3
 - [ ] Phase 4 (legacy code removal)
 - [ ] Phase 5 (test migration)
 
-## Handoff Summary (Updated after Phase 2)
+## Handoff Summary (Updated after Phase 3.3 - gns.jl)
 
 **Implementation Status:**
 1. **Phase 1.1 Complete**: `PolyOpt{A, P}` with algebra type and registry-based API
 2. **Phase 1.2 Complete**: `CorrelativeSparsity{A,T,P,M}` with index-based cliques
 3. **Phase 1.3 Complete**: Unified symbolic `MomentProblem{A,T,M,P}`
 4. **Phase 2 Complete**: Registry-based algebra constructors
+5. **Phase 3.3 Complete**: Registry-based GNS reconstruction
 
-**Phase 2 Key Changes:**
-- Refactored `algebra_constructors.jl` to use FastPolynomials `create_*_variables` functions
-- Removed `@ncpolyvar` macro usage (replaced with registry-based variable creation)
-- Removed manual equality constraints (algebra simplification handles Pauli rules automatically)
-- Removed `is_unipotent`, `is_projective`, `comm_gps` fields (inferred from algebra type)
-- Added six algebra constructors:
-  - `pauli_algebra(N)` returns `(registry, sx, sy, sz)`
-  - `fermionic_algebra(N)` returns `(registry, a, a_dag)`
-  - `bosonic_algebra(N)` returns `(registry, c, c_dag)`
-  - `projector_algebra(prefix, N)` and `projector_algebra(prefixes, N)` returns `(registry, projectors)`
-  - `unipotent_algebra(prefix, N)` and `unipotent_algebra(prefixes, N)` returns `(registry, variables)`
-  - `noncommutative_algebra(prefix, N)` and `noncommutative_algebra(prefixes, N)` returns `(registry, variables)`
+**Phase 3.3 Key Changes:**
+- Refactored `gns.jl` to use registry-based API
+- Updated imports: removed `Variable`, `get_basis`, `monomial`; added `VariableRegistry`, `get_ncbasis`, `indices`
+- Added `extract_monomials_from_basis()` helper to convert basis polynomials to monomials
+- New `reconstruct()` signature: `reconstruct(H::Matrix, registry::VariableRegistry{A,TI}, H_deg; atol)`
+- New `construct_localizing_matrix()` takes variable index instead of Variable object
+- Returns `Dict{TI, Matrix{T}}` mapping variable indices to matrices (instead of `Vector{Matrix}`)
 
-**Files Modified in Phase 2:**
-- `src/algebra_constructors.jl` (complete rewrite - registry-based constructors)
-- `src/NCTSSoS.jl` (imports for create_*_variables, exports for new constructors)
+**Files Modified in Phase 3.3:**
+- `src/gns.jl` (major refactor - registry-based API)
 
-**Next Step:** Phase 3 - Interface refactoring (interface.jl, sos_solver.jl, gns.jl)
+**Next Step:** Phase 4 - Legacy code removal (utils.jl cleanup)
 
 **Blocker:** None. Module compiles, FastPolynomials tests pass (1141 tests)
 

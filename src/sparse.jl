@@ -174,7 +174,7 @@ function assign_constraint(
     end
 
     # Global constraints are those not assigned to any clique
-    assigned = union(clique_cons...)
+    assigned = isempty(clique_cons) ? Int[] : union(clique_cons...)
     global_cons = setdiff(1:length(cons), assigned)
 
     return clique_cons, collect(global_cons)

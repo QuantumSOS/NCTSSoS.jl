@@ -1,4 +1,4 @@
-using Test, NCTSSoS
+using Test, NCTSSoS, NCTSSoS.FastPolynomials
 
 using Clarabel
 if haskey(ENV, "LOCAL_TESTING")
@@ -9,19 +9,19 @@ else
     const SOLVER = Clarabel.Optimizer
 end
 
-if haskey(ENV, "LOCAL_TESTING") 
+if haskey(ENV, "LOCAL_TESTING")
     @testset "1D Transverse Field Ising Model" begin
         N = 3
-        @ncpolyvar x[1:N] y[1:N] z[1:N]
+        # Use Pauli algebra - simplification handles σ² = I and commutation relations automatically
+        registry, sx, sy, sz = pauli_algebra(N)
 
         J = 1.0
         h = 2.0
         for (periodic, true_ans) in zip((true, false), (-1.0175918, -1.0104160))
-            ham = sum(-complex(J / 4) * z[i] * z[mod1(i + 1, N)] for i in 1:(periodic ? N : N - 1)) + sum(-h / 2 * x[i] for i in 1:N)
+            ham = sum(-complex(J / 4) * sz[i] * sz[mod1(i + 1, N)] for i in 1:(periodic ? N : N - 1)) + sum(-h / 2 * sx[i] for i in 1:N)
 
-            eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
-
-            pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+            # No eq_constraints needed - Pauli algebra handles simplification
+            pop = cpolyopt(ham, registry)
 
             solver_config = SolverConfig(optimizer=SOLVER, order=2)
 
@@ -31,55 +31,47 @@ if haskey(ENV, "LOCAL_TESTING")
     end
 end
 
-# SKIP: basis.jl type mismatch - see TODO in basis.jl
-if false
 @testset "Naive Example" begin
     N = 1
-    @ncpolyvar x[1:N] y[1:N] z[1:N]
+    registry, sx, sy, sz = pauli_algebra(N)
 
-    ham = sum(ComplexF64(1/2) * op[1] for op in [x,y,z])
+    ham = sum(ComplexF64(1 / 2) * op[1] for op in [sx, sy, sz])
 
-    eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
-
-    pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+    pop = cpolyopt(ham, registry)
 
     solver_config = SolverConfig(optimizer=SOLVER, order=1)
 
-    @test_throws ErrorException cs_nctssos(pop, solver_config; dualize=false)
-    res = cs_nctssos(pop, solver_config)
-    @test res.objective ≈ -0.8660254037844387 atol = 1e-6
+    # Both dualize=true and dualize=false now work for complex (Pauli) algebra
+    res_mom = cs_nctssos(pop, solver_config; dualize=false)
+    res_sos = cs_nctssos(pop, solver_config; dualize=true)
+    # Both should give the same result
+    @test res_mom.objective ≈ res_sos.objective atol = 1e-5
+    @test res_sos.objective ≈ -0.8660254037844387 atol = 1e-5  # relaxed tolerance for solver precision
 end
-end  # if false - Naive Example
 
-# SKIP: basis.jl type mismatch - see TODO in basis.jl
-if false
 @testset "Naive Example 2" begin
     N = 1
-    @ncpolyvar x[1:N] y[1:N] z[1:N]
+    registry, sx, sy, sz = pauli_algebra(N)
 
-    ham = one(ComplexF64) * x[1] * y[1] + one(ComplexF64) * y[1] * x[1] 
+    # σx * σy + σy * σx = 0 (anticommutation of distinct Pauli ops)
+    ham = one(ComplexF64) * sx[1] * sy[1] + one(ComplexF64) * sy[1] * sx[1]
 
-    eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
-
-    pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+    pop = cpolyopt(ham, registry)
 
     solver_config = SolverConfig(optimizer=SOLVER, order=3)
 
     res = cs_nctssos(pop, solver_config)
     @test res.objective ≈ -0.0 atol = 1e-6
 end
-end  # if false - Naive Example 2
 
 if haskey(ENV, "LOCAL_TESTING")
     @testset "1D Heisenberg Chain" begin
         N = 6
-        @ncpolyvar x[1:N] y[1:N] z[1:N]
+        registry, sx, sy, sz = pauli_algebra(N)
 
-        ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [x, y, z] for i in 1:N)
+        ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [sx, sy, sz] for i in 1:N)
 
-        eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
-
-        pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+        pop = cpolyopt(ham, registry)
 
         solver_config = SolverConfig(optimizer=SOLVER, order=2)
 
@@ -89,12 +81,12 @@ if haskey(ENV, "LOCAL_TESTING")
     end
 
     @testset "Example" begin
-        @ncpolyvar x[1:3]
-        @ncpolyvar y[1:3]
+        # Use projector algebra (P² = P)
+        registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
         f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
             x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]  # objective function
 
-        pop = polyopt(-f; comm_gps=[x, y], is_projective=true)
+        pop = polyopt(-f, registry)
 
         for (cs_algo, ts_algo, ans) in zip([NoElimination(), MF(), MF()],
             [NoElimination(), MMD(), MaximalElimination()],
@@ -106,8 +98,6 @@ if haskey(ENV, "LOCAL_TESTING")
     end
 end
 
-# SKIP: basis.jl type mismatch - see TODO in basis.jl
-if false
 @testset "Majumdar Gosh Model" begin
     num_sites = 6
     J1_interactions =
@@ -126,7 +116,9 @@ if false
             1:(num_sites*(num_sites-1)÷2),
         ),
     )
-    @ncpolyvar hij[1:(num_sites*(num_sites-1)÷2)]
+
+    # Use projector algebra (P² = P)
+    registry, (hij,) = create_projector_variables([("h", 1:(num_sites*(num_sites-1)÷2))])
 
     objective = (
         sum([J1 * hij[ij2idx_dict[(i, j)]] for (i, j) in J1_interactions]) + sum([J2 * hij[ij2idx_dict[(i, j)]] for (i, j) in J2_interactions])
@@ -147,11 +139,7 @@ if false
         (i != j && j != k && i != k)
     ])
 
-    pop = polyopt(
-        -objective;
-        eq_constraints=gs,
-        is_projective=true,
-    )
+    pop = polyopt(-objective, registry; eq_constraints=gs)
 
     solver_config = SolverConfig(optimizer=SOLVER; order=1)
 
@@ -159,18 +147,14 @@ if false
 
     @test isapprox(result.objective, true_ans; atol=1e-4)
 end
-end  # if false - Majumdar Gosh Model
 
-# SKIP: basis.jl type mismatch - see TODO in basis.jl
-if false
 @testset "Problem Creation Interface" begin
     n = 2
-    @ncpolyvar x[1:n]
+    registry, (x,) = create_noncommutative_variables([("x", 1:n)])
     f = 2.0 - x[1]^2 + x[1] * x[2]^2 * x[1] - x[2]^2
     g = 4.0 - x[1]^2 - x[2]^2
     h1 = x[1] * x[2] + x[2] * x[1] - 2.0
-    # change struct name
-    pop = polyopt(f; ineq_constraints=[g], eq_constraints=[h1])
+    pop = polyopt(f, registry; ineq_constraints=[g], eq_constraints=[h1])
 
     solver_config = SolverConfig(
         optimizer=SOLVER;
@@ -185,13 +169,9 @@ if false
     result_higher = cs_nctssos_higher(pop, result, solver_config)
     @test isapprox(result.objective, result_higher.objective; atol=1e-4)
 end
-end  # if false - Problem Creation Interface
 
-
-# SKIP: basis.jl type mismatch - see TODO in basis.jl
-if false
 @testset "README Example Unconstrained" begin
-    @ncpolyvar x[1:3]
+    registry, (x,) = create_noncommutative_variables([("x", 1:3)])
     f =
         1.0 +
         x[1]^4 +
@@ -202,7 +182,7 @@ if false
         x[2] * x[3] +
         x[3] * x[2]
 
-    pop = polyopt(f)
+    pop = polyopt(f, registry)
 
     solver_config_dense = SolverConfig(optimizer=SOLVER)
 
@@ -220,17 +200,14 @@ if false
 
     @test isapprox(result_cs.objective, result_cs_ts.objective, atol=1e-4)
 end
-end  # if false - README Example Unconstrained
 
-# SKIP: basis.jl type mismatch - see TODO in basis.jl
-if false
 @testset "README Example Constrained" begin
-    @ncpolyvar x[1:2]
+    registry, (x,) = create_noncommutative_variables([("x", 1:2)])
     f = 2.0 - x[1]^2 + x[1] * x[2]^2 * x[1] - x[2]^2
     g = 4.0 - x[1]^2 - x[2]^2
     h1 = x[1] * x[2] + x[2] * x[1] - 2.0
 
-    pop = polyopt(f; ineq_constraints=[g], eq_constraints=[h1])
+    pop = polyopt(f, registry; ineq_constraints=[g], eq_constraints=[h1])
 
     result_dense = cs_nctssos(pop, SolverConfig(optimizer=SOLVER))
 
@@ -254,4 +231,3 @@ if false
 
     @test isapprox(result_dense.objective, result_cs_ts_higher.objective, atol=1e-4)
 end
-end  # if false - README Example Constrained

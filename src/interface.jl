@@ -89,6 +89,34 @@ This function solves a polynomial optimization problem by:
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
 function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
+    # Handle trivial case: objective is constant (no variables) and no constraints
+    if isempty(variable_indices(pop.objective)) && isempty(pop.eq_constraints) && isempty(pop.ineq_constraints)
+        # Objective is a constant - return it directly
+        coeffs = coefficients(pop.objective)
+        const_val = isempty(coeffs) ? zero(eltype(coeffs)) : real(coeffs[1])
+        # Create a minimal JuMP model for the result
+        C = typeof(const_val)
+        trivial_model = GenericModel{C}()
+        @variable(trivial_model, dummy)
+        @constraint(trivial_model, dummy == const_val)
+        @objective(trivial_model, Min, dummy)
+        set_optimizer(trivial_model, solver_config.optimizer)
+        optimize!(trivial_model)
+        # Return with empty sparsity structures - get index type from registry
+        TI = eltype(keys(pop.registry.idx_to_variables))
+        M = Monomial{A, TI}
+        empty_corr = CorrelativeSparsity{A, TI, P, M}(
+            Vector{Vector{TI}}(),      # cliques
+            pop.registry,               # registry
+            Vector{P}(),                # cons
+            Vector{Vector{Int}}(),      # clq_cons
+            Vector{Int}(),              # global_cons
+            Vector{Vector{M}}(),        # clq_mom_mtx_bases
+            Vector{Vector{Vector{M}}}() # clq_localizing_mtx_bases
+        )
+        return PolyOptResult(objective_value(trivial_model), empty_corr, Vector{Vector{TermSparsity{M}}}(), trivial_model)
+    end
+
     order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
@@ -114,15 +142,17 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     # Create unified symbolic moment problem (handles both real and complex via algebra traits)
     moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
 
-    # Check if direct solving is requested for complex algebras
-    if !dualize && _is_complex_problem(A)
-        error("Solving Moment Problem for complex algebra is not yet supported (dualize=false). Use dualize=true.")
+    if dualize
+        # Dualize to SOS problem and solve
+        sos_problem = sos_dualize(moment_problem)
+        set_optimizer(sos_problem.model, solver_config.optimizer)
+        optimize!(sos_problem.model)
+        return PolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model)
+    else
+        # Solve moment problem directly
+        result = solve_moment_problem(moment_problem, solver_config.optimizer)
+        return PolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model)
     end
-    problem_to_solve = !dualize ? moment_problem : sos_dualize(moment_problem)
-
-    set_optimizer(problem_to_solve.model, solver_config.optimizer)
-    optimize!(problem_to_solve.model)
-    return PolyOptResult(objective_value(problem_to_solve.model), corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
 end
 
 """
@@ -163,13 +193,15 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
 
     moment_problem = moment_relax(pop, prev_res.corr_sparsity, cliques_term_sparsities)
 
-    # Check if direct solving is requested for complex algebras
-    if !dualize && _is_complex_problem(A)
-        error("Solving Moment Problem for complex algebra is not yet supported (dualize=false). Use dualize=true.")
+    if dualize
+        # Dualize to SOS problem and solve
+        sos_problem = sos_dualize(moment_problem)
+        set_optimizer(sos_problem.model, solver_config.optimizer)
+        optimize!(sos_problem.model)
+        return PolyOptResult(objective_value(sos_problem.model), prev_res.corr_sparsity, cliques_term_sparsities, sos_problem.model)
+    else
+        # Solve moment problem directly
+        result = solve_moment_problem(moment_problem, solver_config.optimizer)
+        return PolyOptResult(result.objective, prev_res.corr_sparsity, cliques_term_sparsities, result.model)
     end
-    problem_to_solve = !dualize ? moment_problem : sos_dualize(moment_problem)
-
-    set_optimizer(problem_to_solve.model, solver_config.optimizer)
-    optimize!(problem_to_solve.model)
-    return PolyOptResult(objective_value(problem_to_solve.model), prev_res.corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
 end

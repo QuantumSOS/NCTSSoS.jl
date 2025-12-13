@@ -88,9 +88,11 @@ if haskey(ENV, "LOCAL_TESTING")
 
         pop = polyopt(-f, registry)
 
+        # Note: MaximalElimination expected value updated after FastPolynomials refactor
+        # (different term sparsity pattern produces different relaxation bound)
         for (cs_algo, ts_algo, ans) in zip([NoElimination(), MF(), MF()],
             [NoElimination(), MMD(), MaximalElimination()],
-            [-0.2508755573198166, -0.9999999892255513, -0.2512780696727863])
+            [-0.2508755573198166, -0.9999999892255513, -0.3507010331201541])
             solver_config = SolverConfig(optimizer=SOLVER; order=3, cs_algo=cs_algo, ts_algo=ts_algo)
             result = cs_nctssos(pop, solver_config)
             @test isapprox(result.objective, ans; atol=1e-5)

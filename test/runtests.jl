@@ -1,19 +1,19 @@
 using NCTSSoS, Test
 
 # =============================================================================
-# FastPolynomials Integration - Test Status (2024-12-13)
+# FastPolynomials Integration - Test Status (2025-12-13)
 # =============================================================================
 # Migration status:
 #   ✓ FastPolynomials tests - using new API, all pass
 #   ✓ pop.jl, sparse.jl, solver_utils.jl - migrated, all pass
-#   ✓ algebra_constructors.jl - migrated (unit tests pass)
+#   ✓ algebra_constructors.jl - migrated, all pass
+#   ✓ moment_solver.jl, sos_solver.jl, interface.jl - migrated, all pass
 #   ✓ Aqua.jl, ExplicitImports.jl - pass
+#   ✓ heisenberg.jl - passes (only runs with LOCAL_TESTING=true)
 #
-# Known issues:
-#   - Solver integration tests produce incorrect numerical results
-#     (moment_solver.jl, heisenberg.jl, interface.jl integration tests)
-#   - State/trace polynomial tests not yet migrated
-#   - Doctest.jl needs import path fix for FastPolynomials submodule
+# Remaining:
+#   - state_poly_opt.jl, trace_poly_opt.jl - not yet migrated (uses ς, tr)
+#   - Doctest.jl disabled (FastPolynomials doctests use invalid import path)
 # =============================================================================
 
 @testset "NCTSSoS.jl" begin
@@ -33,23 +33,11 @@ using NCTSSoS, Test
     # include("Doctest.jl")
     include("ExplicitImports.jl")
 
-    # Algebra constructors - migrated to new API (unit tests pass)
-    # Note: Integration tests commented out in file due to numerical accuracy issues
+    # Algebra constructors - migrated to new API
     include("algebra_constructors.jl")
 
-    # =============================================================================
-    # Solver Integration Tests - DISABLED
-    # =============================================================================
-    # These tests run cs_nctssos() on physics models and verify numerical results.
-    # Currently producing incorrect values after FastPolynomials migration:
-    #   - XXX Model: Expected -0.467129, got -0.480 (≈3% error)
-    #   - J1-J2 Model: Expected -0.427, got -13.35 (completely wrong)
-    #   - Transverse Field Ising: Expected -1.017/-1.010, got -0.876 (≈14% error)
-    #
-    # Root cause: Likely issue in moment_solver.jl or sparse.jl algebra handling
-    # TODO: Debug numerical accuracy issues and re-enable these tests
-    # =============================================================================
-    # include("moment_solver.jl")
+    # Solver integration tests
+    include("moment_solver.jl")
     if haskey(ENV, "LOCAL_TESTING")
         include("heisenberg.jl")
     end

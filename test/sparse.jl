@@ -202,15 +202,16 @@ end
                     x[j] * x[k] + 2.0 * x[j]^2 * x[k] + x[j]^2 * x[k]^2 for j in jset for k in jset
                 ])
             end
+
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, typeof(f)[])
+
             savegraph("example3.lgz", G)
 
-            # Check expected number of neighbors for each variable
-            # x[1] connects to 6 vars, x[2] to 7, x[3] to 8, x[4-7] to 9, x[8] to 8, x[9] to 7, x[10] to 6
-            expected_neighbor_counts = [6, 7, 8, 9, 9, 9, 9, 8, 7, 6]
+            expected_neighbors = [[2, 3, 4, 5, 6, 7], [1, 3, 4, 5, 6, 7, 8], [1, 2, 4, 5, 6, 7, 8, 9], [1, 2, 3, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 8, 9, 10], [2, 3, 4, 5, 6, 7, 9, 10], [3, 4, 5, 6, 7, 8, 10], [4, 5, 6, 7, 8, 9]]
+
+            adj = graph_adjacency_by_index(G, sorted_indices)
             for i in 1:n
-                node = idx_to_node[x_idx[i]]
-                @test length(neighbors(G, node)) == expected_neighbor_counts[i]
+                @test sort(adj[x_idx[i]]) == sort(x_idx[expected_neighbors[i]])
             end
         end
 
@@ -232,10 +233,13 @@ end
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, cons)
             savegraph("example4.lgz", G)
 
-            # Chain structure: x[1]-x[2]-x[3], so x[1] and x[3] have 1 neighbor, x[2] has 2
-            @test length(neighbors(G, idx_to_node[x_idx[1]])) == 1
-            @test length(neighbors(G, idx_to_node[x_idx[2]])) == 2
-            @test length(neighbors(G, idx_to_node[x_idx[3]])) == 1
+            expected_neighbors = [[2], [1, 3], [2]]
+
+            adj = graph_adjacency_by_index(G, sorted_indices)
+
+            for i in 1:n
+                @test sort(adj[x_idx[i]]) == sort(x_idx[expected_neighbors[i]])
+            end
         end
 
         @testset "Bipartite (x[1:3], y[1:3])" begin
@@ -252,47 +256,71 @@ end
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, typeof(f)[])
             savegraph("example5.lgz", G)
 
-            # Check connectivity pattern: x[i] connects to y[j]
-            # x[1] -> y[1], y[2], y[3] (3 neighbors)
-            # x[2] -> y[1], y[2], y[3] (3 neighbors)
-            # x[3] -> y[1], y[2] (2 neighbors)
-            @test length(neighbors(G, idx_to_node[x_idx[1]])) == 3
-            @test length(neighbors(G, idx_to_node[x_idx[2]])) == 3
-            @test length(neighbors(G, idx_to_node[x_idx[3]])) == 2
-        end
+            adj = graph_adjacency_by_index(G, sorted_indices)
 
-        # Clean up saved graphs
-        for f in ["example1.lgz", "example2.lgz", "example3.lgz", "example4.lgz", "example5.lgz"]
-            isfile(f) && rm(f)
+            # Check connectivity pattern: x[i] connects to y[j], y[j] connects to x[i]
+            # x[1] -> y[1], y[2], y[3]
+            @test sort(adj[x_idx[1]]) == sort([y_idx[1], y_idx[2], y_idx[3]])
+            # x[2] -> y[1], y[2], y[3]
+            @test sort(adj[x_idx[2]]) == sort([y_idx[1], y_idx[2], y_idx[3]])
+            # x[3] -> y[1], y[2]
+            @test sort(adj[x_idx[3]]) == sort([y_idx[1], y_idx[2]])
+            # y[1] -> x[1], x[2], x[3]
+            @test sort(adj[y_idx[1]]) == sort([x_idx[1], x_idx[2], x_idx[3]])
+            # y[2] -> x[1], x[2], x[3]
+            @test sort(adj[y_idx[2]]) == sort([x_idx[1], x_idx[2], x_idx[3]])
+            # y[3] -> x[1], x[2]
+            @test sort(adj[y_idx[3]]) == sort([x_idx[1], x_idx[2]])
         end
     end
 
     @testset "Clique Decomposition" begin
-        @testset "Ring graph cliques" begin
-            # Recreate example1 graph
-            n = 4
-            registry, (x,) = create_noncommutative_variables([("x", 1:n)])
-            f = sum(x[i] * x[mod1(i + 1, n)] for i = 1:n)
-            G, _, _ = get_correlative_graph(registry, f, typeof(f)[])
+        G = loadgraph("example1.lgz")
+        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:4)]
+        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [1, 4], [2, 3], [3, 4]]
+        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2, 4], [2, 3, 4]]
+        rm("example1.lgz")
 
-            @test sort.(clique_decomp(G, NoElimination())) == [collect(1:4)]
-            @test length(clique_decomp(G, AsIsElimination())) == 4
-            @test length(clique_decomp(G, MF())) == 2
-        end
+        G = loadgraph("example2.lgz")
+        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:3)]
+        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [2, 3]]
+        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2], [2, 3]]
+        rm("example2.lgz")
 
-        @testset "Chain graph cliques" begin
-            n = 3
-            registry, (x,) = create_noncommutative_variables([("x", 1:n)])
-            f = x[1]^2 - x[1] * x[2] - x[2] * x[1] + 3.0 * x[2]^2 - 2.0 * x[1] * x[2] * x[1] +
-                2.0 * x[1] * x[2]^2 * x[1] - x[2] * x[3] - x[3] * x[2] +
-                6.0 * x[3]^2
+        G = loadgraph("example3.lgz")
+        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:10)]
+        @test sort(sort.(clique_decomp(G, AsIsElimination()))) ==  [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
+        # [
+        #     [1, 3, 4, 5, 6, 7, 8],
+        #     [2, 5, 6, 7, 8, 9, 10],
+        #     [3, 4, 5, 6, 7, 8, 9],
+        #     [4, 5, 6, 7, 8, 9, 10]
+        # ]
+        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
+        # [
+        #     [1, 3, 4, 5, 6, 7, 8],
+        #     [2, 5, 6, 7, 8, 9, 10],
+        #     [3, 4, 5, 6, 7, 8, 9],
+        #     [4, 5, 6, 7, 8, 9, 10]
+        # ]
+        rm("example3.lgz")
 
-            G, _, _ = get_correlative_graph(registry, f, typeof(f)[])
+        G = loadgraph("example4.lgz")
+        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:3)]
+        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [2, 3]]
+        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2], [2, 3]]
+        rm("example4.lgz")
 
-            @test sort.(clique_decomp(G, NoElimination())) == [collect(1:3)]
-            @test length(clique_decomp(G, AsIsElimination())) == 2
-            @test length(clique_decomp(G, MF())) == 2
-        end
+        G = loadgraph("example5.lgz")
+        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:6)]
+        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [2, 6], [3, 4], [3, 5]]
+        # [
+        #     [1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [3, 4], [3, 5], [3, 6]
+        # ]
+        @test sort(sort.(clique_decomp(G, MF()))) == [
+            [1, 2, 4, 5], [1, 2, 6], [3, 4, 5]
+        ]
+        rm("example5.lgz")
     end
 
     @testset "Assign Constraint" begin
@@ -359,4 +387,97 @@ end
         # Should contain monomials from objective and diagonal entries
         @test length(supp) >= 2  # At least identity + objective monomials
     end
+
+    # TODO: Migrate to new FastPolynomials API
+    # These tests use the legacy @ncpolyvar macro and SimplifyAlgorithm
+    #
+    # @testset "Term Sparsity Graph Poly Opt" begin
+    #     # Example 10.2
+    #     @ncpolyvar x y
+    #     activated_support = [
+    #         one(x),
+    #         x^2,
+    #         x * y^2 * x,
+    #         y^2,
+    #         x * y * x * y,
+    #         y * x * y * x,
+    #         x^3 * y,
+    #         y * x^3,
+    #         x * y^3,
+    #         y^3 * x,
+    #     ]
+    #
+    #     mtx_basis = [one(x), x, y, x^2, y^2, x * y, y * x]
+    #
+    #     sa = SimplifyAlgorithm(comm_gps=[[x, y]], is_unipotent=false, is_projective=false)
+    #
+    #     G_tsp = get_term_sparsity_graph([one(x)], activated_support, mtx_basis, sa)
+    #     @test G_tsp.fadjlist == [[4, 5], Int[], Int[], [1, 6], [1, 7], [4, 7], [5, 6]]
+    #     @test sort(term_sparsity_graph_supp(G_tsp, mtx_basis, one(1.0 * x * y), sa)) == sort([
+    #         one(x * y),
+    #         x^2,
+    #         y^2,
+    #         x^4,
+    #         y^4,
+    #         y * x^2 * y,
+    #         x * y^2 * x,
+    #         x^3 * y,
+    #         y^3 * x,
+    #         y * x * y * x,
+    #     ])
+    #     @test sort(term_sparsity_graph_supp(G_tsp, mtx_basis, 1.0 - x^2, sa)) == sort([
+    #         one(x * y),
+    #         x^2,
+    #         y^2,
+    #         y * x * y * x,
+    #         y * x^2 * y,
+    #         y^3 * x,
+    #         y^4,
+    #         x * y^2 * x,
+    #         x^2 * y^2,
+    #         x^3 * y,
+    #         x^4,
+    #         y * x^3 * y * x,
+    #         y * x^4 * y,
+    #         y^2 * x^2 * y * x,
+    #         y^2 * x^2 * y^2,
+    #         x * y * x^2 * y * x,
+    #         x^5 * y,
+    #         x^6,
+    #     ])
+    # end
+
+    # TODO: Migrate to new FastPolynomials API
+    # These tests use NCStateWord, ς (state operator), and SimplifyAlgorithm
+    #
+    # @testset "Test Case 7.2.0" begin
+    #     @ncpolyvar x[1:2] y[1:2]
+    #     sp =
+    #         (-1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) - 1.0 * ς(x[2] * y[1]) +
+    #          1.0 * ς(x[2] * y[2])) * one(Monomial)
+    #
+    #     d = 1
+    #
+    #     sa = SimplifyAlgorithm(comm_gps=[x, y], is_unipotent=true, is_projective=false)
+    #     basis = get_state_basis(Arbitrary, [x; y], d, sa)
+    #
+    #     init_act_supp = [one(NCStateWord{Arbitrary}), ς(x[1]) * ς(x[1]) * one(Monomial), ς(x[2]) * ς(x[2]) * one(Monomial), ς(y[1]) * ς(y[1]) * one(Monomial), ς(y[2]) * ς(y[2]) * one(Monomial), ς(x[1] * y[1]) * one(Monomial), ς(x[1] * y[2]) * one(Monomial), ς(x[2] * y[1]) * one(Monomial), ς(x[2] * y[2]) * one(Monomial)]
+    #
+    #     @testset "Initial Activated Support" begin
+    #         @test init_activated_supp(sp, typeof(sp)[], basis, sa) == init_act_supp
+    #     end
+    #
+    #     @testset "Get Term Sparsity Graph" begin
+    #         using NCTSSoS: get_term_sparsity_graph
+    #
+    #         G = get_term_sparsity_graph([one(NCStateWord{Arbitrary})], init_act_supp, basis, sa)
+    #
+    #         @test G.fadjlist == [[], [6], [7], [8], [9], [2, 8, 9], [3, 8, 9], [4, 6, 7], [5, 6, 7]]
+    #     end
+    #
+    #     @testset "Iterate Term Sparse Supp" begin
+    #         using NCTSSoS: iterate_term_sparse_supp
+    #         ts = iterate_term_sparse_supp(init_act_supp, 1.0 * one(NCStateWord{Arbitrary}), basis, MMD(), sa)
+    #     end
+    # end
 end

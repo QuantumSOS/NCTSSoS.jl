@@ -246,17 +246,20 @@ end
 - [ ] Comment out all `include()` statements in `test/runtests.jl`
 - [ ] Add comment block explaining incremental re-enablement plan
 
-#### Step 5.1: FastPolynomials tests (should work immediately)
-- [ ] `test/fastpoly_test/` - Already uses new API, should pass
-- [ ] Suggest: Uncomment `include("fastpoly_test/runtests.jl")`
+#### Step 5.1: FastPolynomials tests (should work immediately) [COMPLETE]
+- [x] `test/fastpoly_test/` - Already uses new API, tests pass
+- [x] Uncommented `include("fastpoly_test/runtests.jl")`
 
-#### Step 5.2: Core optimization tests (after Phase 1)
-- [ ] Update `test/pop.jl` to registry-based API
-- [ ] Suggest: Uncomment after Phase 1 Step 1.1 complete
+#### Step 5.2: Core optimization tests (after Phase 1) [COMPLETE]
+- [x] Update `test/pop.jl` to registry-based API
+- [x] Migrated to `create_noncommutative_variables` API
 
-#### Step 5.3: Sparsity tests (after Phase 1)
-- [ ] Update `test/sparse.jl` to new clique format
-- [ ] Suggest: Uncomment after Phase 1 Step 1.2 complete
+#### Step 5.3: Sparsity tests (after Phase 1) [COMPLETE]
+- [x] Update `test/sparse.jl` to new clique format
+- [x] Migrated all tests to `create_noncommutative_variables` API
+- [x] Improved graph tests with item-wise adjacency verification
+- [x] Reverted clique decomposition to use `loadgraph()` + exact clique tests
+- [x] Preserved legacy Term Sparsity tests as comments (TODO: migrate)
 
 #### Step 5.4: Moment solver tests (after Phase 1)
 - [ ] Update `test/moment_solver.jl` to unified MomentProblem

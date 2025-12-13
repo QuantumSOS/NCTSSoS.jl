@@ -1,5 +1,43 @@
 # Progress Log: fastpoly-integration
 
+## Session: 2025-12-13 - Checkpoint (test/sparse.jl + test/pop.jl complete)
+
+**Agent:** orchestrator
+**Feature:** Phase 5 (Test Migration - sparse.jl + pop.jl)
+
+### Actions
+
+#### test/sparse.jl improvements:
+- Improved "Dense graph (n=10)" test: replaced neighbor count checks with item-wise adjacency verification using `expected_neighbors` array
+- Improved "Chain with constraints (n=3)" test: same pattern, using `expected_neighbors` array with loop
+- Enhanced "Bipartite (x[1:3], y[1:3])" test: restored full item-wise adjacency checks for all 6 variables (x[1-3] and y[1-3])
+- Reverted "Clique Decomposition" testset: now uses `loadgraph()` to load saved graphs instead of regenerating them, tests exact clique contents
+- Restored commented-out legacy tests in "Term Sparsity" section:
+  - "Term Sparsity Graph Poly Opt" (Example 10.2) - uses `@ncpolyvar`, `SimplifyAlgorithm`
+  - "Test Case 7.2.0" - uses `NCStateWord`, `ς` state operator, `SimplifyAlgorithm`
+  - Both marked with `TODO: Migrate to new FastPolynomials API`
+
+#### test/pop.jl:
+- Migrated to new FastPolynomials API (done by user)
+
+#### test/fastpoly_test/:
+- Already uses new API, tests pass (done by user)
+
+### Outcome
+test/sparse.jl, test/pop.jl, and test/fastpoly_test/ fully migrated. sparse.jl has more rigorous tests that verify exact graph structure and clique contents. Legacy tests preserved as comments for future migration reference.
+
+### Current State
+- Phase 5 test migration: ~40% complete (fastpoly_test + sparse.jl + pop.jl done)
+- Remaining: algebra_constructors.jl tests, interface tests, moment solver tests, sos_solver tests
+
+### Next Steps
+- Run tests to verify all changes work correctly
+- Continue with other test file migrations (algebra_constructors.jl, interface.jl)
+
+**Commit:** (WIP commit to follow)
+
+---
+
 ## Session: 2025-12-13 - Checkpoint (sparse.jl API update + test migration)
 
 **Agent:** orchestrator

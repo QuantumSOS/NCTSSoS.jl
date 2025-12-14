@@ -5,7 +5,7 @@ using NCTSSoS, Test
 # =============================================================================
 # Migration status:
 #   ✓ FastPolynomials tests - using new API, all pass
-#   ✓ pop.jl, sparse.jl, solver_utils.jl - migrated, all pass
+#   ✓ pop.jl, sparse.jl - migrated, all pass
 #   ✓ algebra_constructors.jl - migrated, all pass
 #   ✓ moment_solver.jl, sos_solver.jl, interface.jl - migrated, all pass
 #   ✓ Aqua.jl, ExplicitImports.jl - pass
@@ -23,7 +23,6 @@ using NCTSSoS, Test
     # Core optimization tests - migrated to new API
     include("pop.jl")
     include("sparse.jl")
-    include("solver_utils.jl")
 
     # Quality checks
     include("Aqua.jl")

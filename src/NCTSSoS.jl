@@ -45,11 +45,13 @@ export reconstruct
 export pauli_algebra, fermionic_algebra, bosonic_algebra
 export projector_algebra, unipotent_algebra, noncommutative_algebra
 
+# Variable creation functions (public API)
+export create_pauli_variables, create_fermionic_variables, create_bosonic_variables
+export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
+
 include("pop.jl")
 
 include("elimination.jl")
-
-include("solver_utils.jl")
 
 include("sparse.jl")
 

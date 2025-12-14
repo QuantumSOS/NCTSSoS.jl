@@ -1,6 +1,4 @@
 using Test, NCTSSoS, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: create_pauli_variables, create_noncommutative_variables,
-    create_unipotent_variables, create_projector_variables, Polynomial, Monomial
 
 @testset "PolyOpt Constructor" begin
     @testset "Pauli Algebra Example" begin

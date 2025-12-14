@@ -7,7 +7,10 @@ using NCTSSoS.FastPolynomials:
     create_projector_variables,
     create_unipotent_variables,
     create_fermionic_variables,
-    create_bosonic_variables
+    create_bosonic_variables,
+    get_ncbasis,
+    terms,
+    monomials
 
 # Note: The new API uses AlgebraType dispatch for simplification instead of SimplifyAlgorithm
 # Each algebra type (NonCommutativeAlgebra, PauliAlgebra, UnipotentAlgebra, etc.) has its own simplification rules
@@ -64,6 +67,29 @@ using NCTSSoS.FastPolynomials:
         result = P[1] * P[2]
         @test result isa Monomial
         @test degree(result) == 2
+
+        # Equivalence test: P[2] * P[1]^2 * P[2] == P[2] * P[1] * P[2] (since P^2 = P)
+        lhs = simplify(P[2] * P[1] * P[1] * P[2])
+        rhs = simplify(P[2] * P[1] * P[2])
+        @test lhs.monomial == rhs.monomial
+        @test lhs.coefficient == rhs.coefficient
+
+        # Basis simplification test: verify unique monomials after simplifying basis
+        # For 3 projector variables up to degree 3, P_i^2 = P_i reduces consecutive duplicates
+        reg3, ((x,), (y, z)) = create_projector_variables([("V", 1:1), ("W", 1:2)])
+        basis = get_ncbasis(reg3, 3)
+
+        # Extract unique monomials from the simplified basis
+        basis_monos = Set(m for p in basis for m in monomials(p))
+
+        # Expected unique monomials (identity + 3 degree-1 + 6 degree-2 + 2 valid degree-3 combos = 12 total)
+        expected = Set([
+            one(x),  # identity monomial
+            x, y, z,
+            x * y, x * z, y * z, z * y,
+            x * y * z, x * z * y, y * z * y, z * y * z
+        ])
+        @test basis_monos == expected
     end
 
     @testset "Unipotent Simplification" begin
@@ -77,6 +103,30 @@ using NCTSSoS.FastPolynomials:
         result = U[1] * U[2]
         @test result isa Monomial
         @test degree(result) == 2
+
+        # Equivalence test: U[2] * U[1]^2 * U[2] == I (since U^2 = I)
+        # U[2] * U[1]^2 * U[2] = U[2] * I * U[2] = U[2]^2 = I
+        m = simplify(U[2] * U[1] * U[1] * U[2])
+        @test isempty(m.monomial.word)  # Identity monomial has empty word
+        @test m.coefficient == 1.0
+
+        # Basis simplification test: verify unique monomials after simplifying basis
+        # For 3 unipotent variables up to degree 3, U_i^2 = I reduces many words
+        reg3, ((x,), (y, z)) = create_unipotent_variables([("V", 1:1), ("W", 1:2)])
+        basis = get_ncbasis(reg3, 3)
+
+        # Extract unique monomials from the simplified basis
+        basis_monos = Set(m for p in basis for m in monomials(p))
+
+        # Expected unique monomials (identity + 3 degree-1 + 6 degree-2 + 2 valid degree-3 combos = 12 total)
+        # For unipotent: U_i^2 = I, so consecutive same-index pairs vanish
+        expected = Set([
+            one(x),  # identity monomial
+            x, y, z,
+            x * y, x * z, y * z, z * y,
+            x * y * z, x * z * y, y * z * y, z * y * z
+        ])
+        @test basis_monos == expected
     end
 
 

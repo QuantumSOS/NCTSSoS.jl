@@ -569,6 +569,26 @@ function Base.hash(p::Polynomial, h::UInt)
     return h
 end
 
+"""
+    Base.isless(p1::Polynomial{A,T,C}, p2::Polynomial{A,T,C}) where {A,T,C} -> Bool
+
+Compare two polynomials for sorting. Uses graded lexicographic ordering:
+1. Fewer terms comes first
+2. For same number of terms, compare term-by-term using monomial ordering
+"""
+function Base.isless(
+    p1::Polynomial{A,T,C}, p2::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    # Compare by number of terms first
+    length(p1.terms) != length(p2.terms) && return length(p1.terms) < length(p2.terms)
+
+    # Then compare term-by-term (by monomial)
+    for (t1, t2) in zip(p1.terms, p2.terms)
+        t1.monomial != t2.monomial && return isless(t1.monomial, t2.monomial)
+    end
+    return false  # Equal polynomials
+end
+
 # =============================================================================
 # Display
 # =============================================================================

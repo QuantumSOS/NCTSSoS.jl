@@ -179,8 +179,7 @@ function simplify!(m::Monomial{PauliAlgebra,T}) where {T}
         i = j  # Move to next site group
     end
 
-    # Create new monomial with correct hash (can't update hash in-place since Monomial is immutable)
-    # The simplified word is in `result`
+    # Create new monomial with the simplified word
     simplified_mono = Monomial{PauliAlgebra}(result)
     return Term(coef, simplified_mono)
 end

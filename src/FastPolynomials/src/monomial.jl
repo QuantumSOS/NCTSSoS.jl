@@ -75,7 +75,7 @@ julia> m1 == m3
 true
 ```
 """
-struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial
+mutable struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial
     word::Vector{T}
     hash::UInt64
 end
@@ -90,6 +90,29 @@ end
 function Monomial(word::Vector{T}) where {T<:Integer}
     word_filtered = filter(!iszero, word)
     Monomial{NonCommutativeAlgebra,T}(word_filtered, hash(word_filtered))
+end
+
+"""
+    update_hash!(m::Monomial{A,T}) where {A,T} -> Monomial{A,T}
+
+Recompute the hash field from the current word vector.
+Call this after mutating the word to maintain hash consistency.
+
+# Examples
+```jldoctest
+julia> m = Monomial{NonCommutativeAlgebra}(UInt16[2, 1]);
+
+julia> m.word[1], m.word[2] = m.word[2], m.word[1];  # Swap in-place
+
+julia> update_hash!(m);
+
+julia> m.hash == hash(m.word)
+true
+```
+"""
+@inline function update_hash!(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    m.hash = hash(m.word)
+    return m
 end
 
 """

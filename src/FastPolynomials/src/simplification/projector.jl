@@ -103,9 +103,9 @@ function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
         end
     end
 
-    # Create new monomial with correct hash (can't update hash in-place since Monomial is immutable)
-    simplified_mono = Monomial{ProjectorAlgebra}(word)
-    return simplified_mono
+    # Update hash after mutation and return the same monomial
+    update_hash!(m)
+    return m
 end
 
 """

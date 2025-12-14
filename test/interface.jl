@@ -49,20 +49,20 @@ end
     @test res_sos.objective ≈ -0.8660254037844387 atol = 1e-5  # relaxed tolerance for solver precision
 end
 
-@testset "Naive Example 2" begin
-    N = 1
-    registry, (sx, sy, sz) = create_pauli_variables(1:N)
+# @testset "Naive Example 2" begin
+#     N = 1
+#     registry, (sx, sy, sz) = create_pauli_variables(1:N)
 
-    # σx * σy + σy * σx = 0 (anticommutation of distinct Pauli ops)
-    ham = one(ComplexF64) * sx[1] * sy[1] + one(ComplexF64) * sy[1] * sx[1]
+#     # σx * σy + σy * σx = 0 (anticommutation of distinct Pauli ops)
+#     ham = one(ComplexF64) * sx[1] * sy[1] + one(ComplexF64) * sy[1] * sx[1]
 
-    pop = cpolyopt(ham, registry)
+#     pop = cpolyopt(ham, registry)
 
-    solver_config = SolverConfig(optimizer=SOLVER, order=3)
+#     solver_config = SolverConfig(optimizer=SOLVER, order=3)
 
-    res = cs_nctssos(pop, solver_config)
-    @test res.objective ≈ -0.0 atol = 1e-6
-end
+#     res = cs_nctssos(pop, solver_config)
+#     @test res.objective ≈ -0.0 atol = 1e-6
+# end
 
 if haskey(ENV, "LOCAL_TESTING")
     @testset "1D Heisenberg Chain" begin

@@ -25,7 +25,8 @@ using Graphs
         # Use unipotent variables for x^2 = I property
         registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
-        f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
+        f = x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
+
         pop = polyopt(f, registry)
 
         solver_config = SolverConfig(optimizer=SOLVER; order=1)

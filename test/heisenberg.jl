@@ -41,8 +41,6 @@ end
     end
 end
 
-
-
 @testset "XXX Model" begin
     T = ComplexF64
     N = 6
@@ -88,31 +86,32 @@ end
 end
 
 # 2D Model commented out - too slow for regular testing
-# @testset "2D Model" begin
-#     T = ComplexF64
-#     Nx = 3
-#     Ny = 3
-#     N = Nx * Ny
-#     J1 = 1.0
-#     J2 = 0.0
-#
-#     registry, (x, y, z) = create_pauli_variables(1:N)
-#
-#     LI = LinearIndices((1:Nx, 1:Ny))
-#
-#     ham = sum(T(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(i, mod1(j + 1, Ny))]] + T(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), j)]] + T(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j + 1, Ny))]] + T(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j - 1, Ny))]] for op in [x, y, z] for i in 1:Nx for j in 1:Ny)
-#
-#     pop = polyopt(ham, registry)
-#
-#     solver_config = SolverConfig(optimizer=SOLVER, order=3, cs_algo=MF(), ts_algo=MMD())
-#
-#     res = cs_nctssos(pop, solver_config)
-#
-#     res = cs_nctssos_higher(pop, res, solver_config)
-#     res = cs_nctssos_higher(pop, res, solver_config)
-#
-#     res = cs_nctssos_higher(pop, res, solver_config) # -4.390300714054776 = -0.4878111904505307 * N
-#     res = cs_nctssos_higher(pop, res, solver_config) # -4.381164563801521 = -0.48679606264461345
-#
-#     @test res.objective / N ≈ -0.44100019443650207 atol = 1e-6
-# end
+@testset "2D Model" begin
+    T = ComplexF64
+    Nx = 3
+    Ny = 3
+    N = Nx * Ny
+    J1 = 1.0
+    J2 = 0.0
+
+    registry, (x, y, z) = create_pauli_variables(1:N)
+
+    LI = LinearIndices((1:Nx, 1:Ny))
+
+    ham = sum(T(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(i, mod1(j + 1, Ny))]] + T(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), j)]] + T(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j + 1, Ny))]] + T(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j - 1, Ny))]] for op in [x, y, z] for i in 1:Nx for j in 1:Ny)
+
+    pop = polyopt(ham, registry)
+
+    solver_config = SolverConfig(optimizer=SOLVER, order=3, cs_algo=MF(), ts_algo=MMD())
+
+    res = cs_nctssos(pop, solver_config)
+
+    res = cs_nctssos_higher(pop, res, solver_config)
+    res = cs_nctssos_higher(pop, res, solver_config)
+
+    res = cs_nctssos_higher(pop, res, solver_config) # -4.390300714054776 = -0.4878111904505307 * N
+    res = cs_nctssos_higher(pop, res, solver_config) # -4.381164563801521 = -0.48679606264461345
+
+    # FIXME
+    @test res.objective / N ≈ -0.44100019443650207 atol = 1e-6
+end

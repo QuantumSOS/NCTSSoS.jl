@@ -22,12 +22,11 @@ using Graphs
 
 @testset "Special Constraint Type" begin
     @testset "CHSH Inequality" begin
-        # Use unipotent_algebra for x^2 = I property
-        sys = unipotent_algebra(["x", "y"], 2)
-        x, y = sys.variables
+        # Use unipotent variables for x^2 = I property
+        registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
         f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
-        pop = polyopt(f, sys.registry)
+        pop = polyopt(f, registry)
 
         solver_config = SolverConfig(optimizer=SOLVER; order=1)
 
@@ -40,8 +39,7 @@ end
 @testset "CS TS Example" begin
     order = 3
     n = 10
-    sys = noncommutative_algebra("x", n)
-    x = sys.variables[1]
+    registry, (x,) = create_noncommutative_variables([("x", 1:n)])
 
     # Build polynomial using new API
     f = Polynomial{NonCommutativeAlgebra,UInt8,Float64}(Term{Monomial{NonCommutativeAlgebra,UInt8},Float64}[])
@@ -64,7 +62,7 @@ end
 
     cons = vcat([(1.0 - x[i]^2) for i = 1:n], [(1.0 * x[i] - 1.0 / 3) for i = 1:n])
 
-    pop = polyopt(f, sys.registry; ineq_constraints=cons)
+    pop = polyopt(f, registry; ineq_constraints=cons)
 
     solver_config =
         SolverConfig(optimizer=SOLVER; order=order, cs_algo=MF(), ts_algo=MMD())
@@ -84,9 +82,8 @@ end
 
     findvaridx(i, j) = findfirst(x -> x == (i, j), vec_idx2ij)
 
-    # Use unipotent algebra for projector-like variables
-    sys = unipotent_algebra("pij", length(vec_idx2ij))
-    pij = sys.variables[1]
+    # Use unipotent variables for projector-like variables
+    registry, (pij,) = create_unipotent_variables([("pij", 1:length(vec_idx2ij))])
 
     objective = sum(1.0 * pij[[findvaridx(ee.src, ee.dst) for ee in edges(g)]])
 
@@ -101,7 +98,7 @@ end
     ])
 
 
-    pop = polyopt(objective, sys.registry; eq_constraints=gs)
+    pop = polyopt(objective, registry; eq_constraints=gs)
     order = 1
     cs_algo = MF()
 
@@ -118,8 +115,7 @@ end
 @testset "Moment Method Example 1" begin
     order = 2
     n = 3
-    sys = noncommutative_algebra("x", n)
-    x = sys.variables[1]
+    registry, (x,) = create_noncommutative_variables([("x", 1:n)])
 
     f =
         1.0 * x[1]^2 - 1.0 * x[1] * x[2] - 1.0 * x[2] * x[1] + 3.0 * x[2]^2 - 2.0 * x[1] * x[2] * x[1] +
@@ -128,7 +124,7 @@ end
         9.0 * x[2]^2 * x[3] +
         9.0 * x[3] * x[2]^2 - 54.0 * x[3] * x[2] * x[3] + 142.0 * x[3] * x[2]^2 * x[3]
 
-    pop = polyopt(f, sys.registry)
+    pop = polyopt(f, registry)
 
     @testset "Dense" begin
         solver_config = SolverConfig(
@@ -164,14 +160,13 @@ end
 @testset "Moment Method Example 2" begin
     order = 2
     n = 2
-    sys = noncommutative_algebra("x", n)
-    x = sys.variables[1]
+    registry, (x,) = create_noncommutative_variables([("x", 1:n)])
 
     f = 2.0 - 1.0 * x[1]^2 + 1.0 * x[1] * x[2]^2 * x[1] - 1.0 * x[2]^2
     g = 4.0 - 1.0 * x[1]^2 - 1.0 * x[2]^2
     h1 = 1.0 * x[1] * x[2] + 1.0 * x[2] * x[1] - 2.0
 
-    pop = polyopt(f, sys.registry; eq_constraints=[h1], ineq_constraints=[g])
+    pop = polyopt(f, registry; eq_constraints=[h1], ineq_constraints=[g])
 
     @testset "Dense" begin
         solver_config = SolverConfig(
@@ -198,8 +193,7 @@ end
 
 @testset "Moment Method Correlative Sparsity" begin
     n = 3
-    sys = noncommutative_algebra("x", n)
-    x = sys.variables[1]
+    registry, (x,) = create_noncommutative_variables([("x", 1:n)])
 
     f =
         1.0 * x[1]^2 - 1.0 * x[1] * x[2] - 1.0 * x[2] * x[1] + 3.0 * x[2]^2 - 2.0 * x[1] * x[2] * x[1] +
@@ -211,7 +205,7 @@ end
     cons = vcat([1.0 - 1.0 * x[i]^2 for i = 1:n], [1.0 * x[i] - 1.0 / 3 for i = 1:n])
     order = 3
 
-    pop = polyopt(f, sys.registry; ineq_constraints=cons)
+    pop = polyopt(f, registry; ineq_constraints=cons)
 
     @testset "Correlative Sparse" begin
         solver_config = SolverConfig(

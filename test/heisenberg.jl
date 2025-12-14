@@ -9,7 +9,7 @@ else
     const SOLVER = Clarabel.Optimizer
 end
 
-# Heisenberg model tests use PauliAlgebra via the pauli_algebra() helper.
+# Heisenberg model tests use PauliAlgebra via create_pauli_variables().
 # PauliAlgebra automatically handles simplification rules (sigma^2 = I, cyclic products).
 
 @testset "J1 J2 Model (N=4)" begin
@@ -18,17 +18,16 @@ end
     J1 = 1.0
     J2s = 0.1:0.1:2.1
 
-    # Create Pauli algebra system
-    sys = pauli_algebra(N)
-    x, y, z = sys.sx, sys.sy, sys.sz
+    # Create Pauli variables
+    registry, (x, y, z) = create_pauli_variables(1:N)
 
     energy_lower_bounds = zeros(length(J2s))
 
     for (idx, J2) in enumerate(J2s)
         ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] + T(J2 / 4) * op[i] * op[mod1(i + 2, N)] for op in [x, y, z] for i in 1:N)
 
-        # Use new registry-based API - Pauli simplification is automatic
-        pop = polyopt(ham, sys.registry)
+        # Pauli simplification is automatic
+        pop = polyopt(ham, registry)
 
         solver_config = SolverConfig(optimizer=SOLVER, order=2, ts_algo=MMD())
 
@@ -49,14 +48,13 @@ end
     N = 6
     J1 = 1.0
 
-    # Create Pauli algebra system
-    sys = pauli_algebra(N)
-    x, y, z = sys.sx, sys.sy, sys.sz
+    # Create Pauli variables
+    registry, (x, y, z) = create_pauli_variables(1:N)
 
     ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [x, y, z] for i in 1:N)
 
-    # Use new registry-based API - Pauli simplification is automatic
-    pop = polyopt(ham, sys.registry)
+    # Pauli simplification is automatic
+    pop = polyopt(ham, registry)
 
     solver_config = SolverConfig(optimizer=SOLVER, order=2)
 
@@ -72,14 +70,13 @@ end
     J1 = 1.0
     J2 = 0.2
 
-    # Create Pauli algebra system
-    sys = pauli_algebra(N)
-    x, y, z = sys.sx, sys.sy, sys.sz
+    # Create Pauli variables
+    registry, (x, y, z) = create_pauli_variables(1:N)
 
     ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] + T(J2 / 4) * op[i] * op[mod1(i + 2, N)] for op in [x, y, z] for i in 1:N)
 
-    # Use new registry-based API - Pauli simplification is automatic
-    pop = polyopt(ham, sys.registry)
+    # Pauli simplification is automatic
+    pop = polyopt(ham, registry)
 
     solver_config = SolverConfig(optimizer=SOLVER, order=2, ts_algo=MMD())
 
@@ -99,14 +96,13 @@ end
 #     J1 = 1.0
 #     J2 = 0.0
 #
-#     sys = pauli_algebra(N)
-#     x, y, z = sys.sx, sys.sy, sys.sz
+#     registry, (x, y, z) = create_pauli_variables(1:N)
 #
 #     LI = LinearIndices((1:Nx, 1:Ny))
 #
 #     ham = sum(T(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(i, mod1(j + 1, Ny))]] + T(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), j)]] + T(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j + 1, Ny))]] + T(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j - 1, Ny))]] for op in [x, y, z] for i in 1:Nx for j in 1:Ny)
 #
-#     pop = polyopt(ham, sys.registry)
+#     pop = polyopt(ham, registry)
 #
 #     solver_config = SolverConfig(optimizer=SOLVER, order=3, cs_algo=MF(), ts_algo=MMD())
 #

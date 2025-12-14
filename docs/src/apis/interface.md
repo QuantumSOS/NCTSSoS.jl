@@ -8,10 +8,15 @@ NCTSSoS.polyopt
 NCTSSoS.cpolyopt
 ```
 
-## Algebra Constructors
+## Variable Creation
 
 ```@docs
-NCTSSoS.pauli_algebra
+NCTSSoS.FastPolynomials.create_pauli_variables
+NCTSSoS.FastPolynomials.create_fermionic_variables
+NCTSSoS.FastPolynomials.create_bosonic_variables
+NCTSSoS.FastPolynomials.create_projector_variables
+NCTSSoS.FastPolynomials.create_unipotent_variables
+NCTSSoS.FastPolynomials.create_noncommutative_variables
 ```
 
 ## Solver Interface

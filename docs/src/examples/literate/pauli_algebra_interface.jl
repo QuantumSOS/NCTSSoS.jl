@@ -1,8 +1,8 @@
-# # [Simplified Quantum Spin Models with Pauli Algebra Interface](@id pauli-algebra-interface)
+# # [Simplified Quantum Spin Models with Pauli Algebra](@id pauli-algebra-interface)
 
 # `NCTSSoS.jl` provides a convenient interface for working with common quantum algebras,
 # eliminating the need to manually specify commutation relations and constraints.
-# This tutorial demonstrates the [`pauli_algebra`](@ref) constructor for quantum spin systems,
+# This tutorial demonstrates the [`create_pauli_variables`](@ref) function for quantum spin systems,
 # which significantly simplifies the problem setup for [polynomial optimization](@ref polynomials)
 # problems in quantum many-body physics [wang2024Certifying](@cite).
 
@@ -56,24 +56,24 @@ pop_old = cpolyopt(ham;
 # This approach requires **36 constraint equations** for just 6 spins! As the system
 # size grows, this becomes increasingly cumbersome and error-prone.
 
-# ## The Solution: Algebra Constructors
+# ## The Solution: Typed Algebra Variables
 
-# The [`pauli_algebra`](@ref) constructor encapsulates all these constraints
-# automatically, allowing you to focus on the physics rather than the algebra.
+# The [`create_pauli_variables`](@ref) function encapsulates all these constraints
+# automatically through Julia's type system, allowing you to focus on the physics
+# rather than the algebra.
 
-# ### Simplified Approach with `pauli_algebra`
+# ### Simplified Approach with `create_pauli_variables`
 
 # The same problem can be solved much more concisely:
 
-sys = pauli_algebra(N)
-x_new, y_new, z_new = sys.variables
+registry, (sx, sy, sz) = create_pauli_variables(1:N)
 
-# Construct the Hamiltonian (same formula, different variables)
+# Construct the Hamiltonian (same formula, cleaner variables)
 ham_new = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
-              for op in [x_new, y_new, z_new] for i in 1:N)
+              for op in [sx, sy, sz] for i in 1:N)
 
-# Create the optimization problem - constraints are automatic!
-pop_new = cpolyopt(ham_new, sys)
+# Create the optimization problem - constraints are handled automatically by the algebra type!
+pop_new = cpolyopt(ham_new, registry)
 
 # Both approaches produce identical optimization problems, but the new interface is
 # **10 lines shorter** and eliminates the possibility of typos in constraint equations.
@@ -97,16 +97,16 @@ energy_per_site = res.objective / N
 # which matches the exact value to high precision [wang2024Certifying](@cite).
 
 
-# ## Advantages of Algebra Constructors
+# ## Advantages of Typed Algebra Variables
 
-# The [`pauli_algebra`](@ref) interface provides several key benefits:
+# The [`create_pauli_variables`](@ref) interface provides several key benefits:
 
 # 1. **Automatic constraint generation**: All Pauli commutation relations are
-#    encoded correctly without manual specification.
+#    encoded correctly through the `PauliAlgebra` type without manual specification.
 #
 # 2. **Error prevention**: Eliminates typos and sign errors in constraint equations.
 #
-# 3. **Code clarity**: The physics intent is immediately clear from `pauli_algebra(N)`.
+# 3. **Code clarity**: The physics intent is immediately clear from the function name.
 #
 # 4. **Scalability**: Works seamlessly for any system size without code modification.
 #
@@ -114,6 +114,16 @@ energy_per_site = res.objective / N
 #
 # 6. **Extensibility**: Can still add custom constraints when needed for specific
 #    physical scenarios.
+
+# ## Other Algebra Types
+
+# Similar functions exist for other quantum algebras:
+#
+# - [`create_fermionic_variables`](@ref): Fermionic operators with anticommutation relations
+# - [`create_bosonic_variables`](@ref): Bosonic operators with commutation relations
+# - [`create_projector_variables`](@ref): Projector operators (P² = P)
+# - [`create_unipotent_variables`](@ref): Unipotent operators (U² = I)
+# - [`create_noncommutative_variables`](@ref): Generic non-commutative variables
 
 # ## Next Steps
 
@@ -123,6 +133,6 @@ energy_per_site = res.objective / N
 # - For correlation function bounds, see [certifying ground state properties](@ref certify-property)
 # - For non-local correlations, explore [Bell inequalities](@ref bell-inequalities)
 #
-# The algebra constructor approach demonstrates how `NCTSSoS.jl` bridges the gap
+# The typed algebra approach demonstrates how `NCTSSoS.jl` bridges the gap
 # between physical intuition and mathematical formalism, making quantum many-body
 # optimization more accessible and reliable.

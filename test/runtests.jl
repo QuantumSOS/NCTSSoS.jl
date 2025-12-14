@@ -6,7 +6,6 @@ using NCTSSoS, Test
 # Migration status:
 #   ✓ FastPolynomials tests - using new API, all pass
 #   ✓ pop.jl, sparse.jl - migrated, all pass
-#   ✓ algebra_constructors.jl - migrated, all pass
 #   ✓ moment_solver.jl, sos_solver.jl, interface.jl - migrated, all pass
 #   ✓ Aqua.jl, ExplicitImports.jl - pass
 #   ✓ heisenberg.jl - passes (only runs with LOCAL_TESTING=true)
@@ -31,9 +30,6 @@ using NCTSSoS, Test
     # TODO: Fix FastPolynomials doctests to use correct import path
     # include("Doctest.jl")
     include("ExplicitImports.jl")
-
-    # Algebra constructors - migrated to new API
-    include("algebra_constructors.jl")
 
     # Solver integration tests
     include("moment_solver.jl")

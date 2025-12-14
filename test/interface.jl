@@ -12,8 +12,8 @@ end
 if haskey(ENV, "LOCAL_TESTING")
     @testset "1D Transverse Field Ising Model" begin
         N = 3
-        # Use Pauli algebra - simplification handles σ² = I and commutation relations automatically
-        registry, sx, sy, sz = pauli_algebra(N)
+        # Pauli simplification handles σ² = I and commutation relations automatically
+        registry, (sx, sy, sz) = create_pauli_variables(1:N)
 
         J = 1.0
         h = 2.0
@@ -33,7 +33,7 @@ end
 
 @testset "Naive Example" begin
     N = 1
-    registry, sx, sy, sz = pauli_algebra(N)
+    registry, (sx, sy, sz) = create_pauli_variables(1:N)
 
     ham = sum(ComplexF64(1 / 2) * op[1] for op in [sx, sy, sz])
 
@@ -51,7 +51,7 @@ end
 
 @testset "Naive Example 2" begin
     N = 1
-    registry, sx, sy, sz = pauli_algebra(N)
+    registry, (sx, sy, sz) = create_pauli_variables(1:N)
 
     # σx * σy + σy * σx = 0 (anticommutation of distinct Pauli ops)
     ham = one(ComplexF64) * sx[1] * sy[1] + one(ComplexF64) * sy[1] * sx[1]
@@ -67,7 +67,7 @@ end
 if haskey(ENV, "LOCAL_TESTING")
     @testset "1D Heisenberg Chain" begin
         N = 6
-        registry, sx, sy, sz = pauli_algebra(N)
+        registry, (sx, sy, sz) = create_pauli_variables(1:N)
 
         ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [sx, sy, sz] for i in 1:N)
 

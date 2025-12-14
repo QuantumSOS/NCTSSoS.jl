@@ -324,7 +324,7 @@ function _combine_like_terms_fermi(terms::Vector{Term{Monomial{FermionicAlgebra,
 end
 
 """
-    simplify!(m::Monomial{FermionicAlgebra,T}) where T -> Vector{Term}
+    simplify!(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
 
 Simplify fermionic monomial using Generalized Wick's Theorem.
 
@@ -335,19 +335,19 @@ Simplify fermionic monomial using Generalized Wick's Theorem.
 4. Combine like terms
 
 # Returns
-Vector of Terms representing the normal-ordered expansion.
+Polynomial representing the normal-ordered expansion (potentially with multiple terms due to anticommutation).
 """
 function simplify!(m::Monomial{FermionicAlgebra,T}) where {T}
     word = m.word
 
     # Handle empty word
     if isempty(word)
-        return [Term(1.0, Monomial{FermionicAlgebra}(T[]))]
+        return Polynomial([Term(1.0, Monomial{FermionicAlgebra}(T[]))])
     end
 
     # Early exit for nilpotent monomials (aᵢ² = 0)
     if iszero(m)
-        return [Term(0.0, Monomial{FermionicAlgebra}(T[]))]
+        return Polynomial([Term(0.0, Monomial{FermionicAlgebra}(T[]))])
     end
 
     # Step 1: Find valid contractions
@@ -369,13 +369,14 @@ function simplify!(m::Monomial{FermionicAlgebra,T}) where {T}
     # Combine like terms
     result_terms = _combine_like_terms_fermi(result_terms)
 
-    return result_terms
+    return Polynomial(result_terms)
 end
 
 """
-    simplify(m::Monomial{FermionicAlgebra,T}) where T -> Vector{Term}
+    simplify(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
 
 Non-mutating version of simplify!.
+Returns a Polynomial representing the normal-ordered expansion (potentially with multiple terms due to anticommutation).
 """
 function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     word_copy = copy(m.word)

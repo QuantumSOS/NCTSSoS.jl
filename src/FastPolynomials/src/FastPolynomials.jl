@@ -6,6 +6,9 @@ include("variable_registry.jl")
 include("monomial.jl")
 include("term.jl")
 
+# Polynomial type (needed by simplification algorithms and composed_monomial)
+include("polynomial.jl")
+
 # Simplification algorithms
 include("simplification/projector.jl")
 include("simplification/unipotent.jl")
@@ -14,11 +17,8 @@ include("simplification/pauli.jl")
 include("simplification/fermionic.jl")
 include("simplification/bosonic.jl")
 
-# Composed types
+# Composed types (depends on Polynomial for type checking in simplify)
 include("composed_monomial.jl")
-
-# Polynomial type
-include("polynomial.jl")
 
 # Canonicalization algorithms
 include("canonicalization.jl")

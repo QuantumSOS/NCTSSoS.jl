@@ -127,10 +127,10 @@ function find_first_out_of_order_bosonic(word::Vector{T}) where {T}
 end
 
 """
-    simplify!(m::Monomial{BosonicAlgebra,T}) where T -> Vector{Term{Monomial{BosonicAlgebra,T},Float64}}
+    simplify!(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}
 
 In-place simplification and normal ordering of a bosonic algebra monomial.
-Returns a vector of Terms due to delta corrections from commutation.
+Returns a Polynomial (potentially with multiple terms) due to delta corrections from commutation.
 
 Uses a group-based algorithm with closed-form formulas (rook numbers on Ferrers boards)
 based on . This is more efficient than iterative expansion,
@@ -142,29 +142,31 @@ especially for expressions with multiple modes.
 3. Expand product across all modes
 4. Construct final terms
 
-**Note:** Returns multiple terms because [c, c†] = 1 creates delta corrections:
+**Note:** Returns a Polynomial because [c, c†] = 1 creates delta corrections:
 c c† = c† c + 1
 
 # Examples
 ```jldoctest
 julia> m = Monomial{BosonicAlgebra}(Int32[1, -1]);  # c₁ c₁†
 
-julia> terms = simplify!(m);
+julia> poly = simplify!(m);
 
-julia> length(terms)
+julia> length(terms(poly))
 2
 ```
 """
 function simplify!(m::Monomial{BosonicAlgebra,T}) where {T}
-    return simplify_bosonic_grouped!(m)
+    term_vec = simplify_bosonic_grouped!(m)
+    return Polynomial(term_vec)
 end
 
 """
-    simplify(m::Monomial{BosonicAlgebra,T}) where T -> Vector{Term{Monomial{BosonicAlgebra,T},Float64}}
+    simplify(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}
 
 Simplify and normal order a bosonic algebra monomial.
 
 Non-mutating version - creates a copy and simplifies it.
+Returns a Polynomial (potentially with multiple terms) due to delta corrections from commutation.
 
 # Algebraic Rules
 - Commutation: [cᵢ, cⱼ†] = δᵢⱼ (swapping creates delta term when modes match)
@@ -176,12 +178,12 @@ Non-mutating version - creates a copy and simplifies it.
 ```jldoctest
 julia> m = Monomial{BosonicAlgebra}(Int32[2, -1]);  # c₂ c₁†
 
-julia> terms = simplify(m);
+julia> poly = simplify(m);
 
-julia> length(terms)  # Just one term (different modes, no delta)
+julia> length(terms(poly))  # Just one term (different modes, no delta)
 1
 
-julia> terms[1].monomial.word
+julia> monomials(poly)[1].word
 2-element Vector{Int32}:
  -1
   2

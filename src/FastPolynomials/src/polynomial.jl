@@ -192,6 +192,28 @@ function Polynomial(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
 end
 
 """
+    Polynomial(p::Polynomial{A,T,C}) where {A,T,C}
+
+Identity constructor: returns the polynomial unchanged.
+Useful for generic code that may receive Monomial, Term, or Polynomial.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> p1 = Polynomial([Term(2.0, Monomial{PauliAlgebra}([1]))]);
+
+julia> p2 = Polynomial(p1);
+
+julia> p1 === p2
+true
+```
+"""
+function Polynomial(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    return p
+end
+
+"""
     Polynomial{A,T,C}(c::Number) where {A,T,C}
 
 Construct a constant polynomial (coefficient times identity monomial).
@@ -742,7 +764,7 @@ end
     _add_simplified_terms!(result, coef, simplified)
 
 Helper function to add simplified monomial multiplication results.
-Handles Monomial (raw concatenation), Term, or Vector{Term} returns from monomial operations.
+Handles Monomial (raw concatenation), Term, Vector{Term}, or Polynomial returns from monomial operations.
 """
 function _add_simplified_terms!(
     result::Vector{Term{Monomial{A,T},C}},
@@ -750,7 +772,7 @@ function _add_simplified_terms!(
     simplified::Monomial{A,T},
 ) where {A,T,C}
     # Monomial multiplication now returns raw Monomial (no simplification)
-    # Simplify it here to get Term or Vector{Term}
+    # Simplify it here to get Term, Vector{Term}, or Polynomial
     term_result = simplify!(simplified)
     return _add_simplified_terms!(result, coef, term_result)
 end
@@ -769,6 +791,19 @@ function _add_simplified_terms!(
     simplified::Vector{Term{Monomial{A,T},SC}},
 ) where {A,T,C,SC}
     for term in simplified
+        combined_coef = C(coef * term.coefficient)
+        if !iszero(combined_coef)
+            push!(result, Term(combined_coef, term.monomial))
+        end
+    end
+end
+
+function _add_simplified_terms!(
+    result::Vector{Term{Monomial{A,T},C}},
+    coef::C,
+    simplified::Polynomial{A,T,SC},
+) where {A,T,C,SC}
+    for term in simplified.terms
         combined_coef = C(coef * term.coefficient)
         if !iszero(combined_coef)
             push!(result, Term(combined_coef, term.monomial))

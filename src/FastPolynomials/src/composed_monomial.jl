@@ -212,17 +212,21 @@ function Base.isone(t::Term{ComposedMonomial{Ts},C}) where {Ts,C}
 end
 
 """
-    simplify(cm::ComposedMonomial)
+    simplify(cm::ComposedMonomial) -> Union{ComposedMonomial, Term, Polynomial}
 
 Simplify each component according to its algebra type.
 
-Returns a vector of `Term{ComposedMonomial}` because some algebras (Bosonic, Fermionic)
-can produce multiple terms during simplification.
+The return type depends on the component simplification results:
+- If any component returns `Polynomial` (Bosonic, Fermionic) → returns `Polynomial`
+- Else if any component returns `Term` (Pauli) → returns `Term`
+- Else (all components return `Monomial`: NC, Projector, Unipotent) → returns `ComposedMonomial`
+
+This type hierarchy ensures that more complex return types propagate upward.
 
 # Algorithm
 1. Simplify each component using its algebra's simplify function
-2. Combine coefficients (product for single-term algebras)
-3. Handle multi-term algebras (Bosonic, Fermionic) by computing Cartesian product
+2. Determine return type based on component results
+3. For multi-term algebras (Bosonic, Fermionic), compute Cartesian product
 
 # Examples
 ```jldoctest
@@ -238,18 +242,18 @@ julia> m_unip = Monomial{UnipotentAlgebra}([u2, u2]);
 
 julia> cm = ComposedMonomial((m_pauli, m_unip));
 
-julia> terms = simplify(cm);
+julia> result = simplify(cm);  # Pauli returns Term, so result is Term
 
-julia> length(terms)
-1
-
-julia> terms[1].coefficient
-1.0 + 0.0im
-
-julia> isempty(terms[1].monomial[1].word)  # Pauli [1,1] -> [] (sigma_x squared = I)
+julia> result isa Term
 true
 
-julia> isempty(terms[1].monomial[2].word)  # Unipotent [2,2] -> []
+julia> result.coefficient
+1.0 + 0.0im
+
+julia> isempty(result.monomial[1].word)  # Pauli [1,1] -> [] (sigma_x squared = I)
+true
+
+julia> isempty(result.monomial[2].word)  # Unipotent [2,2] -> []
 true
 ```
 """
@@ -257,8 +261,28 @@ function simplify(cm::ComposedMonomial)
     # Simplify each component - collect results
     simplified_components = map(simplify, cm.components)
 
-    # Expand all combinations (Cartesian product for multi-term results)
-    return _expand_simplified_components(simplified_components)
+    # Determine return type based on component types:
+    # - If any component is Polynomial -> return Polynomial
+    # - Else if any component is Term -> return Term
+    # - Else (all Monomial) -> return Monomial
+    has_polynomial = any(x -> x isa Polynomial, simplified_components)
+    has_term = any(x -> x isa Term, simplified_components)
+
+    if has_polynomial
+        # Return Polynomial
+        term_vec = _expand_simplified_components(simplified_components)
+        return Polynomial(term_vec)
+    elseif has_term
+        # Return Term (single term from Cartesian product)
+        term_vec = _expand_simplified_components(simplified_components)
+        # Should always be single term when no Polynomial components
+        return length(term_vec) == 1 ? term_vec[1] : Polynomial(term_vec)
+    else
+        # All Monomials - return composed Monomial
+        # Combine coefficients (should all be 1.0 for Monomials)
+        coef = 1.0
+        return ComposedMonomial(simplified_components)
+    end
 end
 
 # Helper to expand Cartesian product of simplified components
@@ -299,6 +323,11 @@ function _infer_coef_type(component_terms::Tuple)
     return T
 end
 
+# Convert a Monomial to vector format (coefficient 1.0)
+function _to_term_vector(m::Monomial)
+    return [(1.0, m)]
+end
+
 # Convert a single Term to vector format
 function _to_term_vector(t::Term)
     return [(t.coefficient, t.monomial)]
@@ -307,6 +336,11 @@ end
 # Convert Vector{Term} to vector format (already in right form)
 function _to_term_vector(ts::Vector{<:Term})
     return [(t.coefficient, t.monomial) for t in ts]
+end
+
+# Convert a Polynomial to vector format
+function _to_term_vector(p::Polynomial)
+    return [(t.coefficient, t.monomial) for t in p.terms]
 end
 
 # Recursive Cartesian product builder

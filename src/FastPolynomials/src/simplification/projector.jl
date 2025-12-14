@@ -42,13 +42,15 @@ true
 """
 
 """
-    simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
+    simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
 
 Site-aware in-place simplification for projector algebra with encoded indices.
 
 Operators on different sites commute and are sorted by site (ascending).
 Within each site, idempotency applies: consecutive identical operators collapse (P² = P).
 Order of different operators within the same site is preserved (non-commutative within site).
+
+Returns the simplified Monomial (no coefficient changes, just reordering and collapsing).
 
 # Algorithm
 1. Group operators by site (using `decode_site`)
@@ -71,12 +73,9 @@ julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
 julia> m = Monomial{ProjectorAlgebra}([idx1_s2, idx1_s1]);
 
-julia> t = simplify!(m);
+julia> result = simplify!(m);
 
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1, idx1_s2]
+julia> result.word == [idx1_s1, idx1_s2]
 true
 
 julia> m.word == [idx1_s1, idx1_s2]  # Original was mutated
@@ -87,7 +86,7 @@ function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     word = m.word
 
     # Empty or single: nothing to simplify
-    length(word) <= 1 && return Term(1.0, m)
+    length(word) <= 1 && return m
 
     # Stable sort by site (operators on different sites commute, within-site order preserved)
     sort!(word, alg=InsertionSort, by=decode_site)
@@ -106,15 +105,16 @@ function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
 
     # Create new monomial with correct hash (can't update hash in-place since Monomial is immutable)
     simplified_mono = Monomial{ProjectorAlgebra}(word)
-    return Term(1.0, simplified_mono)
+    return simplified_mono
 end
 
 """
-    simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
+    simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
 
 Simplify a projector algebra monomial with site-aware commutation and idempotency.
 
 Non-mutating version - creates a copy and simplifies it.
+Returns the simplified Monomial (no coefficient changes, just reordering and collapsing).
 
 # Examples
 ```jldoctest
@@ -126,12 +126,9 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> m = Monomial{ProjectorAlgebra}([idx1_s1, idx1_s1, idx1_s1]);
 
-julia> t = simplify(m);
+julia> result = simplify(m);
 
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1]
+julia> result.word == [idx1_s1]
 true
 
 julia> length(m.word)  # Original unchanged

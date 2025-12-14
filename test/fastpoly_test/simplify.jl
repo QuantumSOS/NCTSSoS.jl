@@ -28,11 +28,10 @@ using NCTSSoS.FastPolynomials:
         @test result isa Monomial
         @test degree(result) == 2
 
-        # After simplify!, we get a Term with coefficient
-        term = simplify!(result)
-        @test term isa Term
-        @test term.coefficient == 1.0
-        @test degree(term.monomial) == 2
+        # After simplify!, we get a Monomial (NC algebra returns Monomial)
+        simplified = simplify!(result)
+        @test simplified isa Monomial
+        @test degree(simplified) == 2
 
         # Same variable twice
         result2 = x[1] * x[1]
@@ -69,10 +68,12 @@ using NCTSSoS.FastPolynomials:
         @test degree(result) == 2
 
         # Equivalence test: P[2] * P[1]^2 * P[2] == P[2] * P[1] * P[2] (since P^2 = P)
+        # Projector simplify returns Monomial
         lhs = simplify(P[2] * P[1] * P[1] * P[2])
         rhs = simplify(P[2] * P[1] * P[2])
-        @test lhs.monomial == rhs.monomial
-        @test lhs.coefficient == rhs.coefficient
+        @test lhs isa Monomial
+        @test rhs isa Monomial
+        @test lhs == rhs
 
         # Basis simplification test: verify unique monomials after simplifying basis
         # For 3 projector variables up to degree 3, P_i^2 = P_i reduces consecutive duplicates
@@ -106,9 +107,10 @@ using NCTSSoS.FastPolynomials:
 
         # Equivalence test: U[2] * U[1]^2 * U[2] == I (since U^2 = I)
         # U[2] * U[1]^2 * U[2] = U[2] * I * U[2] = U[2]^2 = I
+        # Unipotent simplify returns Monomial
         m = simplify(U[2] * U[1] * U[1] * U[2])
-        @test isempty(m.monomial.word)  # Identity monomial has empty word
-        @test m.coefficient == 1.0
+        @test m isa Monomial
+        @test isempty(m.word)  # Identity monomial has empty word
 
         # Basis simplification test: verify unique monomials after simplifying basis
         # For 3 unipotent variables up to degree 3, U_i^2 = I reduces many words
@@ -147,11 +149,11 @@ using NCTSSoS.FastPolynomials:
 
     @testset "simplify! Mutation" begin
         # Test that simplify! mutates the monomial
+        # NonCommutative simplify! returns Monomial
         m = Monomial{NonCommutativeAlgebra}(UInt8[2, 1])  # Will be sorted by site
 
         result = simplify!(m)
-        @test result isa Term
-        @test result.coefficient == 1.0
+        @test result isa Monomial
     end
 
     @testset "Star and Simplification Interaction" begin
@@ -168,41 +170,42 @@ end
     # FermionicAlgebra uses Wick's theorem with contractions
     # CAR: {aᵢ, aⱼ†} = δᵢⱼ, {aᵢ, aⱼ} = 0, {aᵢ†, aⱼ†} = 0
     # Nilpotency: aᵢ² = 0, (aᵢ†)² = 0
-    # Returns Vector{Term} due to delta corrections
+    # Returns Polynomial due to delta corrections
 
     reg, (a, a_dag) = create_fermionic_variables(1:3)
 
     @testset "Basic Operations" begin
         # Empty word → identity term
         m_empty = Monomial{FermionicAlgebra}(Int32[])
-        terms = simplify(m_empty)
-        @test length(terms) == 1
-        @test terms[1].coefficient == 1.0
-        @test isempty(terms[1].monomial.word)
+        result = simplify(m_empty)
+        @test result isa Polynomial
+        @test length(result.terms) == 1
+        @test result.terms[1].coefficient == 1.0
+        @test isempty(result.terms[1].monomial.word)
 
         # Single annihilation a₁ → unchanged
         m_a1 = a[1]
-        terms_a1 = simplify(m_a1)
-        @test length(terms_a1) == 1
-        @test terms_a1[1].coefficient == 1.0
-        @test terms_a1[1].monomial.word == [1]
+        result_a1 = simplify(m_a1)
+        @test length(result_a1.terms) == 1
+        @test result_a1.terms[1].coefficient == 1.0
+        @test result_a1.terms[1].monomial.word == [1]
 
         # Single creation a₁† → unchanged
         m_a1_dag = a_dag[1]
-        terms_a1_dag = simplify(m_a1_dag)
-        @test length(terms_a1_dag) == 1
-        @test terms_a1_dag[1].coefficient == 1.0
-        @test terms_a1_dag[1].monomial.word == [-1]
+        result_a1_dag = simplify(m_a1_dag)
+        @test length(result_a1_dag.terms) == 1
+        @test result_a1_dag.terms[1].coefficient == 1.0
+        @test result_a1_dag.terms[1].monomial.word == [-1]
     end
 
     @testset "Anticommutation (CAR)" begin
         # a₁ a₁† = 1 - a₁† a₁ (verify both terms)
         m = a[1] * a_dag[1]  # a₁ a₁†
-        terms = simplify(m)
-        @test length(terms) == 2
+        result = simplify(m)
+        @test length(result.terms) == 2
 
         # Sort terms by degree (identity first, then normal-ordered)
-        terms_sorted = sort(terms, by=t -> degree(t.monomial))
+        terms_sorted = sort(result.terms, by=t -> degree(t.monomial))
 
         # First term: identity (scalar contraction)
         @test terms_sorted[1].coefficient == 1.0
@@ -214,40 +217,40 @@ end
 
         # a₁† a₁ → unchanged (already normal)
         m_normal = a_dag[1] * a[1]
-        terms_normal = simplify(m_normal)
-        @test length(terms_normal) == 1
-        @test terms_normal[1].coefficient == 1.0
-        @test terms_normal[1].monomial.word == [-1, 1]
+        result_normal = simplify(m_normal)
+        @test length(result_normal.terms) == 1
+        @test result_normal.terms[1].coefficient == 1.0
+        @test result_normal.terms[1].monomial.word == [-1, 1]
 
         # a₁ a₂ → a₁ a₂ (annihilators already in order by mode)
         m_diff = a[1] * a[2]
-        terms_diff = simplify(m_diff)
-        @test length(terms_diff) == 1
-        @test terms_diff[1].coefficient == 1.0
-        @test terms_diff[1].monomial.word == [1, 2]  # Sorted by mode
+        result_diff = simplify(m_diff)
+        @test length(result_diff.terms) == 1
+        @test result_diff.terms[1].coefficient == 1.0
+        @test result_diff.terms[1].monomial.word == [1, 2]  # Sorted by mode
 
         # a₁† a₂† → a₁† a₂† (creators already in order)
         m_cr = a_dag[1] * a_dag[2]
-        terms_cr = simplify(m_cr)
-        @test length(terms_cr) == 1
-        @test terms_cr[1].coefficient == 1.0
-        @test terms_cr[1].monomial.word == [-1, -2]
+        result_cr = simplify(m_cr)
+        @test length(result_cr.terms) == 1
+        @test result_cr.terms[1].coefficient == 1.0
+        @test result_cr.terms[1].monomial.word == [-1, -2]
     end
 
     @testset "Nilpotency" begin
         # a₁ a₁ = 0
         m_a1a1 = a[1] * a[1]
         @test iszero(m_a1a1)
-        terms_a1a1 = simplify(m_a1a1)
-        @test length(terms_a1a1) == 1
-        @test terms_a1a1[1].coefficient == 0.0
+        result_a1a1 = simplify(m_a1a1)
+        # Zero polynomial has no terms (zero coefficients are filtered out)
+        @test isempty(result_a1a1.terms) || (length(result_a1a1.terms) == 1 && iszero(result_a1a1.terms[1].coefficient))
 
         # a₁† a₁† = 0
         m_dag_dag = a_dag[1] * a_dag[1]
         @test iszero(m_dag_dag)
-        terms_dag_dag = simplify(m_dag_dag)
-        @test length(terms_dag_dag) == 1
-        @test terms_dag_dag[1].coefficient == 0.0
+        result_dag_dag = simplify(m_dag_dag)
+        # Zero polynomial has no terms (zero coefficients are filtered out)
+        @test isempty(result_dag_dag.terms) || (length(result_dag_dag.terms) == 1 && iszero(result_dag_dag.terms[1].coefficient))
 
         # Direct monomial construction
         m_nilp = Monomial{FermionicAlgebra}(Int32[1, 1])
@@ -261,32 +264,32 @@ end
     @testset "Multi-mode" begin
         # a₁ a₂† → -a₂† a₁ (different modes, need to swap an and cr)
         m_cross = a[1] * a_dag[2]
-        terms_cross = simplify(m_cross)
-        @test length(terms_cross) == 1
-        @test terms_cross[1].coefficient == -1.0  # Sign from anticommutation
-        @test terms_cross[1].monomial.word == [-2, 1]
+        result_cross = simplify(m_cross)
+        @test length(result_cross.terms) == 1
+        @test result_cross.terms[1].coefficient == -1.0  # Sign from anticommutation
+        @test result_cross.terms[1].monomial.word == [-2, 1]
 
         # a₁ a₁† a₂ a₂† → 4 terms from two contractions
         m_two_mode = a[1] * a_dag[1] * a[2] * a_dag[2]
-        terms_two_mode = simplify(m_two_mode)
-        @test length(terms_two_mode) == 4
+        result_two_mode = simplify(m_two_mode)
+        @test length(result_two_mode.terms) == 4
 
         # Check total coefficient sum (should be 1 + 1 - 1 - 1 = 0 is wrong; it's more complex)
         # The correct expansion is: (1 - a₁† a₁)(1 - a₂† a₂) = 1 - a₁† a₁ - a₂† a₂ + a₁† a₁ a₂† a₂
-        coeffs = [t.coefficient for t in terms_two_mode]
+        coeffs = [t.coefficient for t in result_two_mode.terms]
         @test 1.0 in coeffs  # Identity term
     end
 
     @testset "Complex Case" begin
         # a₁ a₂ a₃ a₃† a₂† a₁†
         m_complex = a[1] * a[2] * a[3] * a_dag[3] * a_dag[2] * a_dag[1]
-        terms_complex = simplify(m_complex)
+        result_complex = simplify(m_complex)
 
         # Multiple contraction possibilities should produce multiple terms
-        @test length(terms_complex) > 1
+        @test length(result_complex.terms) > 1
 
         # Should include fully contracted term (identity)
-        identity_term = findfirst(t -> isempty(t.monomial.word), terms_complex)
+        identity_term = findfirst(t -> isempty(t.monomial.word), result_complex.terms)
         @test !isnothing(identity_term)
     end
 end
@@ -295,41 +298,42 @@ end
     # BosonicAlgebra uses rook numbers on Ferrers boards
     # CCR: [cᵢ, cⱼ†] = δᵢⱼ, [cᵢ, cⱼ] = 0, [cᵢ†, cⱼ†] = 0
     # NOT nilpotent: cᵢ² ≠ 0
-    # Returns Vector{Term} due to delta corrections
+    # Returns Polynomial due to delta corrections
 
     reg, (c, c_dag) = create_bosonic_variables(1:3)
 
     @testset "Basic Operations" begin
         # Empty word → identity term
         m_empty = Monomial{BosonicAlgebra}(Int32[])
-        terms = simplify(m_empty)
-        @test length(terms) == 1
-        @test terms[1].coefficient == 1.0
-        @test isempty(terms[1].monomial.word)
+        result = simplify(m_empty)
+        @test result isa Polynomial
+        @test length(result.terms) == 1
+        @test result.terms[1].coefficient == 1.0
+        @test isempty(result.terms[1].monomial.word)
 
         # Single annihilation c₁ → unchanged
         m_c1 = c[1]
-        terms_c1 = simplify(m_c1)
-        @test length(terms_c1) == 1
-        @test terms_c1[1].coefficient == 1.0
-        @test terms_c1[1].monomial.word == [1]
+        result_c1 = simplify(m_c1)
+        @test length(result_c1.terms) == 1
+        @test result_c1.terms[1].coefficient == 1.0
+        @test result_c1.terms[1].monomial.word == [1]
 
         # Single creation c₁† → unchanged
         m_c1_dag = c_dag[1]
-        terms_c1_dag = simplify(m_c1_dag)
-        @test length(terms_c1_dag) == 1
-        @test terms_c1_dag[1].coefficient == 1.0
-        @test terms_c1_dag[1].monomial.word == [-1]
+        result_c1_dag = simplify(m_c1_dag)
+        @test length(result_c1_dag.terms) == 1
+        @test result_c1_dag.terms[1].coefficient == 1.0
+        @test result_c1_dag.terms[1].monomial.word == [-1]
     end
 
     @testset "Commutation (CCR)" begin
         # c₁ c₁† = c₁† c₁ + 1 (verify both terms)
         m = c[1] * c_dag[1]  # c₁ c₁†
-        terms = simplify(m)
-        @test length(terms) == 2
+        result = simplify(m)
+        @test length(result.terms) == 2
 
         # Sort terms by degree (identity first, then normal-ordered)
-        terms_sorted = sort(terms, by=t -> degree(t.monomial))
+        terms_sorted = sort(result.terms, by=t -> degree(t.monomial))
 
         # First term: identity (delta correction)
         @test terms_sorted[1].coefficient == 1.0
@@ -341,65 +345,65 @@ end
 
         # c₁† c₁ → unchanged (already normal)
         m_normal = c_dag[1] * c[1]
-        terms_normal = simplify(m_normal)
-        @test length(terms_normal) == 1
-        @test terms_normal[1].coefficient == 1.0
-        @test terms_normal[1].monomial.word == [-1, 1]
+        result_normal = simplify(m_normal)
+        @test length(result_normal.terms) == 1
+        @test result_normal.terms[1].coefficient == 1.0
+        @test result_normal.terms[1].monomial.word == [-1, 1]
 
         # c₁ c₂ → c₁ c₂ (annihilators commute, just sort by mode)
         m_comm = c[1] * c[2]
-        terms_comm = simplify(m_comm)
-        @test length(terms_comm) == 1
-        @test terms_comm[1].coefficient == 1.0
-        @test terms_comm[1].monomial.word == [1, 2]
+        result_comm = simplify(m_comm)
+        @test length(result_comm.terms) == 1
+        @test result_comm.terms[1].coefficient == 1.0
+        @test result_comm.terms[1].monomial.word == [1, 2]
 
         # c₁† c₂† → c₁† c₂† (creators commute)
         m_cr = c_dag[1] * c_dag[2]
-        terms_cr = simplify(m_cr)
-        @test length(terms_cr) == 1
-        @test terms_cr[1].coefficient == 1.0
-        @test terms_cr[1].monomial.word == [-1, -2]
+        result_cr = simplify(m_cr)
+        @test length(result_cr.terms) == 1
+        @test result_cr.terms[1].coefficient == 1.0
+        @test result_cr.terms[1].monomial.word == [-1, -2]
     end
 
     @testset "NOT Nilpotent" begin
         # c₁ c₁ ≠ 0 (bosons are NOT nilpotent)
         m_c1c1 = c[1] * c[1]
         # Note: iszero is only defined for FermionicAlgebra, not BosonicAlgebra
-        terms_c1c1 = simplify(m_c1c1)
-        @test length(terms_c1c1) == 1
-        @test terms_c1c1[1].coefficient == 1.0
-        @test terms_c1c1[1].monomial.word == [1, 1]  # Stays as c₁ c₁
+        result_c1c1 = simplify(m_c1c1)
+        @test length(result_c1c1.terms) == 1
+        @test result_c1c1.terms[1].coefficient == 1.0
+        @test result_c1c1.terms[1].monomial.word == [1, 1]  # Stays as c₁ c₁
 
         # c₁† c₁† ≠ 0
         m_dag_dag = c_dag[1] * c_dag[1]
-        terms_dag_dag = simplify(m_dag_dag)
-        @test length(terms_dag_dag) == 1
-        @test terms_dag_dag[1].coefficient == 1.0
-        @test terms_dag_dag[1].monomial.word == [-1, -1]
+        result_dag_dag = simplify(m_dag_dag)
+        @test length(result_dag_dag.terms) == 1
+        @test result_dag_dag.terms[1].coefficient == 1.0
+        @test result_dag_dag.terms[1].monomial.word == [-1, -1]
     end
 
     @testset "Multi-mode" begin
         # c₁ c₂† → c₂† c₁ (different modes, no delta)
         m_cross = c[1] * c_dag[2]
-        terms_cross = simplify(m_cross)
-        @test length(terms_cross) == 1
-        @test terms_cross[1].coefficient == 1.0
-        @test terms_cross[1].monomial.word == [-2, 1]
+        result_cross = simplify(m_cross)
+        @test length(result_cross.terms) == 1
+        @test result_cross.terms[1].coefficient == 1.0
+        @test result_cross.terms[1].monomial.word == [-2, 1]
 
         # c₁ c₂ c₁† c₂† → 4 terms
         # Expansion: (c₁ c₁† + 1)(c₂ c₂† + 1) - (direct but with commutations)
         # Normal form: 1 + c₁† c₁ + c₂† c₂ + c₁† c₂† c₁ c₂
         m_two_mode = c[1] * c[2] * c_dag[1] * c_dag[2]
-        terms_two_mode = simplify(m_two_mode)
-        @test length(terms_two_mode) == 4
+        result_two_mode = simplify(m_two_mode)
+        @test length(result_two_mode.terms) == 4
 
         # Check for identity term
-        identity_terms = filter(t -> isempty(t.monomial.word), terms_two_mode)
+        identity_terms = filter(t -> isempty(t.monomial.word), result_two_mode.terms)
         @test length(identity_terms) == 1
         @test identity_terms[1].coefficient == 1.0
 
         # Check for fully normal-ordered term c₁† c₂† c₁ c₂
-        full_term = findfirst(t -> length(t.monomial.word) == 4, terms_two_mode)
+        full_term = findfirst(t -> length(t.monomial.word) == 4, result_two_mode.terms)
         @test !isnothing(full_term)
     end
 
@@ -407,13 +411,13 @@ end
         # c c c† c† = c†² c² + 4 c† c + 2
         # This is a specific rook number identity
         m_rook = c[1] * c[1] * c_dag[1] * c_dag[1]
-        terms_rook = simplify(m_rook)
+        result_rook = simplify(m_rook)
 
         # Should have 3 terms: c₁†² c₁², c₁† c₁, and identity
-        @test length(terms_rook) == 3
+        @test length(result_rook.terms) == 3
 
         # Find and verify each term
-        terms_by_degree = Dict(degree(t.monomial) => t for t in terms_rook)
+        terms_by_degree = Dict(degree(t.monomial) => t for t in result_rook.terms)
 
         # Identity term (degree 0) with coefficient 2
         @test haskey(terms_by_degree, 0)

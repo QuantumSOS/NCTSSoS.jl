@@ -769,12 +769,40 @@ Handles Monomial (raw concatenation), Term, Vector{Term}, or Polynomial returns 
 function _add_simplified_terms!(
     result::Vector{Term{Monomial{A,T},C}},
     coef::C,
-    simplified::Monomial{A,T},
+    mono::Monomial{A,T},
 ) where {A,T,C}
-    # Monomial multiplication now returns raw Monomial (no simplification)
-    # Simplify it here to get Term, Vector{Term}, or Polynomial
-    term_result = simplify!(simplified)
-    return _add_simplified_terms!(result, coef, term_result)
+    # Simplify the monomial - returns Monomial, Term, or Polynomial depending on algebra
+    simplified = simplify!(mono)
+
+    # Dispatch based on return type
+    if simplified isa Monomial
+        # For NC, Projector, Unipotent: returns Monomial with implicit coefficient 1.0
+        if !iszero(coef)
+            push!(result, Term(coef, simplified))
+        end
+    elseif simplified isa Term
+        # For Pauli: returns Term with phase coefficient
+        combined_coef = C(coef * simplified.coefficient)
+        if !iszero(combined_coef)
+            push!(result, Term(combined_coef, simplified.monomial))
+        end
+    elseif simplified isa Polynomial
+        # For Bosonic, Fermionic: returns Polynomial with multiple terms
+        for term in simplified.terms
+            combined_coef = C(coef * term.coefficient)
+            if !iszero(combined_coef)
+                push!(result, Term(combined_coef, term.monomial))
+            end
+        end
+    else
+        # Legacy: handle Vector{Term} just in case
+        for term in simplified
+            combined_coef = C(coef * term.coefficient)
+            if !iszero(combined_coef)
+                push!(result, Term(combined_coef, term.monomial))
+            end
+        end
+    end
 end
 
 function _add_simplified_terms!(

@@ -133,14 +133,24 @@ function get_ncbasis_deg(registry::VariableRegistry{A,T}, d::Int) where {A<:Alge
     for word in all_words
         mono = Monomial{A}(word)
         simplified = simplify(mono)
-        # Handle both Term and Vector{Term} return types from simplify
-        if simplified isa Vector
-            # Convert to ComplexF64 coefficients
-            terms = [Term(ComplexF64(t.coefficient), t.monomial) for t in simplified]
-            push!(result, Polynomial(terms))
-        else
+        # Handle different return types from simplify:
+        # - Monomial: NC, Projector, Unipotent (coefficient is implicitly 1.0)
+        # - Term: Pauli (has coefficient)
+        # - Polynomial: Bosonic, Fermionic (multiple terms possible)
+        if simplified isa Monomial
+            term = Term(ComplexF64(1.0), simplified)
+            push!(result, Polynomial([term]))
+        elseif simplified isa Term
             term = Term(ComplexF64(simplified.coefficient), simplified.monomial)
             push!(result, Polynomial([term]))
+        elseif simplified isa Polynomial
+            # Convert to ComplexF64 coefficients
+            terms = [Term(ComplexF64(t.coefficient), t.monomial) for t in simplified.terms]
+            push!(result, Polynomial(terms))
+        else
+            # Legacy: handle Vector{Term} just in case
+            terms = [Term(ComplexF64(t.coefficient), t.monomial) for t in simplified]
+            push!(result, Polynomial(terms))
         end
     end
 

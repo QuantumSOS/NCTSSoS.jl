@@ -269,14 +269,14 @@ function simplify(cm::ComposedMonomial)
     has_term = any(x -> x isa Term, simplified_components)
 
     if has_polynomial
-        # Return Polynomial
+        # Return Vector{Term} for ComposedMonomial (Polynomial type doesn't support ComposedMonomial)
         term_vec = _expand_simplified_components(simplified_components)
-        return Polynomial(term_vec)
+        return term_vec
     elseif has_term
         # Return Term (single term from Cartesian product)
         term_vec = _expand_simplified_components(simplified_components)
         # Should always be single term when no Polynomial components
-        return length(term_vec) == 1 ? term_vec[1] : Polynomial(term_vec)
+        return length(term_vec) == 1 ? term_vec[1] : term_vec
     else
         # All Monomials - return composed Monomial
         # Combine coefficients (should all be 1.0 for Monomials)
@@ -303,9 +303,18 @@ function _expand_simplified_components(simplified::Tuple)
 
     if isempty(result)
         # Return zero term with identity monomials
-        one_components = map(
-            x -> x isa Vector ? one(x[1].monomial) : one(x.monomial), simplified
-        )
+        one_components = map(simplified) do x
+            if x isa Polynomial
+                isempty(x.terms) ? one(Monomial{typeof(x).parameters[1],typeof(x).parameters[2]}) : one(x.terms[1].monomial)
+            elseif x isa Term
+                one(x.monomial)
+            elseif x isa Monomial
+                one(x)
+            else
+                # Vector{Term}
+                one(x[1].monomial)
+            end
+        end
         return [Term(zero(CoefType), ComposedMonomial(one_components))]
     end
 

@@ -495,11 +495,11 @@ end
         # Simplify: P² = P, so P₁¹ P₁¹ → P₁¹
         result = simplify(m)
 
-        # Verify result preserves encoding
-        @test result.monomial.word[1] == p1_site1  # First should be site 1
-        @test result.monomial.word[2] == p1_site2  # Second should be site 2
-        @test FastPolynomials.decode_site(result.monomial.word[1]) == 1
-        @test FastPolynomials.decode_site(result.monomial.word[2]) == 2
+        # Verify result preserves encoding (simplify returns Monomial for ProjectorAlgebra)
+        @test result.word[1] == p1_site1  # First should be site 1
+        @test result.word[2] == p1_site2  # Second should be site 2
+        @test FastPolynomials.decode_site(result.word[1]) == 1
+        @test FastPolynomials.decode_site(result.word[2]) == 2
     end
 
     @testset "UnipotentAlgebra encoding preserved through simplification" begin
@@ -513,10 +513,10 @@ end
         # Simplify: U² = I, so U₁¹ U₁¹ → identity (removed)
         result = simplify(m)
 
-        # After U₁¹ U₁¹ cancels, only U₁² remains
-        @test length(result.monomial.word) == 1
-        @test result.monomial.word[1] == u1_site2
-        @test FastPolynomials.decode_site(result.monomial.word[1]) == 2
+        # After U₁¹ U₁¹ cancels, only U₁² remains (simplify returns Monomial for UnipotentAlgebra)
+        @test length(result.word) == 1
+        @test result.word[1] == u1_site2
+        @test FastPolynomials.decode_site(result.word[1]) == 2
     end
 
     @testset "NonCommutativeAlgebra site-based commutation" begin
@@ -531,9 +531,9 @@ end
         # Simplify should sort by site (operators on different sites commute)
         result = simplify(m)
 
-        # Site 1 operators should come before site 2
-        @test FastPolynomials.decode_site(result.monomial.word[1]) == 1
-        @test FastPolynomials.decode_site(result.monomial.word[2]) == 1
-        @test FastPolynomials.decode_site(result.monomial.word[3]) == 2
+        # Site 1 operators should come before site 2 (simplify returns Monomial for NonCommutativeAlgebra)
+        @test FastPolynomials.decode_site(result.word[1]) == 1
+        @test FastPolynomials.decode_site(result.word[2]) == 1
+        @test FastPolynomials.decode_site(result.word[3]) == 2
     end
 end

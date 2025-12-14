@@ -201,22 +201,25 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
 
     @testset "Simplification - Single-term algebras (Pauli)" begin
         # Pauli: [1, 1] -> [] with coefficient 1 (σ_x^2 = I)
+        # ComposedMonomial with Pauli returns Term (since Pauli returns Term)
         m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])
         m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])
         cm = ComposedMonomial((m_pauli, m_unip))
 
-        terms = simplify(cm)
+        result = simplify(cm)
 
-        @test length(terms) == 1
-        @test terms[1].coefficient ≈ 1.0 + 0.0im
-        @test isempty(terms[1].monomial[1].word)  # Pauli simplified
-        @test terms[1].monomial[2].word == [encode_index(UInt16, 1, 1)]
+        # Result is a Term (Pauli is the most complex component returning Term)
+        @test result isa Term
+        @test result.coefficient ≈ 1.0 + 0.0im
+        @test isempty(result.monomial[1].word)  # Pauli simplified
+        @test result.monomial[2].word == [encode_index(UInt16, 1, 1)]
     end
 
     @testset "Simplification - Single-term algebras (UnipotentAlgebra)" begin
         # Unipotent: U² = I (consecutive pairs cancel)
         # [u, u] -> [] (pair cancels)
         # [u1, u1, u2] -> [u2] (u1 pair cancels, u2 remains)
+        # ComposedMonomial with Pauli returns Term (since Pauli returns Term)
         u1 = encode_index(UInt16, 1, 1)
         u2 = encode_index(UInt16, 2, 1)
 
@@ -224,57 +227,63 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
         m_pauli = Monomial{PauliAlgebra}(UInt16[1])
         cm = ComposedMonomial((m_pauli, m_unip))
 
-        terms = simplify(cm)
+        result = simplify(cm)
 
-        @test length(terms) == 1
+        # Result is a Term (Pauli is the most complex component returning Term)
+        @test result isa Term
         # Unipotent [u1, u1, u2] -> [u2] (u1 pair cancels via U²=I)
-        @test terms[1].monomial[2].word == [u2]
+        @test result.monomial[2].word == [u2]
     end
 
     @testset "Simplification - Single-term algebras (ProjectorAlgebra)" begin
         # Projector: [e_ii, e_ii] -> [e_ii] (idempotent)
+        # ComposedMonomial with Pauli returns Term (since Pauli returns Term)
         p1 = encode_index(UInt16, 1, 1)
 
         m_proj = Monomial{ProjectorAlgebra}(UInt16[p1, p1])
         m_pauli = Monomial{PauliAlgebra}(UInt16[])
         cm = ComposedMonomial((m_proj, m_pauli))
 
-        terms = simplify(cm)
+        result = simplify(cm)
 
-        @test length(terms) == 1
-        @test terms[1].monomial[1].word == [p1]  # Projector simplified
+        # Result is a Term (Pauli is the most complex component returning Term)
+        @test result isa Term
+        @test result.monomial[1].word == [p1]  # Projector simplified
     end
 
     @testset "Simplification - Multi-term algebras (FermionicAlgebra)" begin
         # Fermionic: anti-commutation can produce multiple terms
         # a1 * a1 = 0 (creation operator squared)
         # But a1 * a1† = 1 - a1† * a1 (anti-commutation)
+        # ComposedMonomial with Fermionic returns Vector{Term} (Polynomial type doesn't support ComposedMonomial)
 
         # Simple case: [1, 1] (a1 * a1) -> should give zero or single term
         m_fermi = Monomial{FermionicAlgebra}(Int32[1, 1])
         m_pauli = Monomial{PauliAlgebra}(UInt16[])
         cm = ComposedMonomial((m_fermi, m_pauli))
 
-        terms = simplify(cm)
+        result = simplify(cm)
 
         # Fermionic [1, 1] -> should simplify (exact behavior depends on implementation)
-        # Let's just verify it returns a vector of terms
-        @test terms isa Vector{<:Term}
-        @test all(t -> t.monomial isa ComposedMonomial, terms)
+        # Result is Vector{Term} (since Fermionic returns Polynomial)
+        @test result isa Vector{<:Term}
+        @test all(t -> t.monomial isa ComposedMonomial, result)
     end
 
     @testset "Simplification - Multi-term algebras (BosonicAlgebra)" begin
         # Bosonic: [b, b†] -> b† b + 1 (commutation)
+        # ComposedMonomial with Bosonic returns Vector{Term} (Polynomial type doesn't support ComposedMonomial)
         m_bosonic = Monomial{BosonicAlgebra}(Int32[1, -1])
         m_pauli = Monomial{PauliAlgebra}(UInt16[])
         cm = ComposedMonomial((m_bosonic, m_pauli))
 
-        terms = simplify(cm)
+        result = simplify(cm)
 
         # Should produce multiple terms due to commutation
-        @test terms isa Vector{<:Term}
+        # Result is Vector{Term} (since Bosonic returns Polynomial)
+        @test result isa Vector{<:Term}
         # Exact count depends on simplification rules - just verify structure
-        @test all(t -> t.monomial isa ComposedMonomial, terms)
+        @test all(t -> t.monomial isa ComposedMonomial, result)
     end
 
     @testset "Simplification - Cartesian product" begin
@@ -282,43 +291,49 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
         # Fermionic [1, -1] might produce [(coef1, mono1), (coef2, mono2)]
         # Pauli [1, 1] -> [(1, [])]
         # Result should be product
+        # ComposedMonomial with Fermionic returns Vector{Term}
 
         m_fermi = Monomial{FermionicAlgebra}(Int32[1, -1])
         m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])
         cm = ComposedMonomial((m_fermi, m_pauli))
 
-        terms = simplify(cm)
+        result = simplify(cm)
 
-        # Verify we get a vector of properly structured terms
-        @test terms isa Vector{<:Term}
-        @test all(t -> length(t.monomial.components) == 2, terms)
+        # Verify we get Vector{Term} with properly structured terms
+        @test result isa Vector{<:Term}
+        @test all(t -> length(t.monomial.components) == 2, result)
     end
 
     @testset "Simplification - Type promotion" begin
         # Test _infer_coef_type: Float64 + ComplexF64 -> ComplexF64
+        # Pauli returns Term, so ComposedMonomial returns Term
         m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])  # Returns ComplexF64
         m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])  # Returns Float64
 
         cm = ComposedMonomial((m_pauli, m_unip))
-        terms = simplify(cm)
+        result = simplify(cm)
 
-        # Result should have ComplexF64 coefficient
-        @test all(t -> t.coefficient isa ComplexF64, terms)
+        # Result should have ComplexF64 coefficient (returns Term for Pauli+Unipotent)
+        @test result isa Term
+        @test result.coefficient isa ComplexF64
     end
 
     @testset "Simplification - Zero result handling" begin
         # Create a situation that simplifies to zero
         # Fermionic: a * a = 0 (same creation operator twice)
+        # ComposedMonomial with Fermionic returns Vector{Term}
         m_fermi = Monomial{FermionicAlgebra}(Int32[1, 1])
         m_pauli = Monomial{PauliAlgebra}(UInt16[])
         cm = ComposedMonomial((m_fermi, m_pauli))
 
-        terms = simplify(cm)
+        result = simplify(cm)
 
+        # Result is Vector{Term} (since Fermionic returns Polynomial)
+        @test result isa Vector{<:Term}
         # Should return a zero term if simplification gives zero
-        if isempty(filter(!iszero, terms))
-            @test length(terms) >= 1  # Should have at least one zero term
-            @test all(t -> iszero(t.coefficient) || iszero(t), terms)
+        if isempty(filter(!iszero, result))
+            @test length(result) >= 1  # Should have at least one zero term
+            @test all(t -> iszero(t.coefficient) || iszero(t), result)
         end
     end
 

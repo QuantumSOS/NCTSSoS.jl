@@ -6,47 +6,52 @@ Implement changes in phases: first add infrastructure (F007-F010), then modify s
 ## Steps
 
 ### Phase 1: Infrastructure
-1. [ ] F007: Add Polynomial constructors for Monomial/Polynomial inputs
-   - Files: `src/FastPolynomials/src/types/polynomial.jl`
+1. ✓ F007: Add Polynomial constructors for Monomial/Polynomial inputs
+   - Files: `src/FastPolynomials/src/polynomial.jl`
 
-2. [ ] F008: Update `_add_simplified_terms!` overloads
-   - Files: `src/FastPolynomials/src/types/polynomial.jl`
+2. ✓ F008: Update `_add_simplified_terms!` overloads
+   - Files: `src/FastPolynomials/src/polynomial.jl`
 
-3. [ ] F009: Update `_to_term_vector` overloads
-   - Files: `src/FastPolynomials/src/simplification/composed_monomial.jl`
+3. ✓ F009: Update `_to_term_vector` overloads
+   - Files: `src/FastPolynomials/src/composed_monomial.jl`
 
-4. [ ] F010: Update `_neat_dot3` and utils
+4. ✓ F010: Update `_neat_dot3` and utils
    - Files: `src/FastPolynomials/src/utils.jl`
 
 ### Phase 2: Simple Algebras (return Monomial)
-5. [ ] F001: NonCommutative simplify → Monomial
+5. ✓ F001: NonCommutative simplify → Monomial
    - Files: `src/FastPolynomials/src/simplification/noncommutative.jl`
 
-6. [ ] F002: Projector simplify → Monomial
+6. ✓ F002: Projector simplify → Monomial
    - Files: `src/FastPolynomials/src/simplification/projector.jl`
 
-7. [ ] F003: Unipotent simplify → Monomial
+7. ✓ F003: Unipotent simplify → Monomial
    - Files: `src/FastPolynomials/src/simplification/unipotent.jl`
 
 ### Phase 3: Complex Algebras (return Polynomial)
-8. [ ] F004: Bosonic simplify → Polynomial
+8. ✓ F004: Bosonic simplify → Polynomial
    - Files: `src/FastPolynomials/src/simplification/bosonic.jl`
 
-9. [ ] F005: Fermionic simplify → Polynomial
+9. ✓ F005: Fermionic simplify → Polynomial
    - Files: `src/FastPolynomials/src/simplification/fermionic.jl`
 
 ### Phase 4: Composed Monomials
-10. [ ] F006: ComposedMonomial simplify → appropriate type
-    - Files: `src/FastPolynomials/src/simplification/composed_monomial.jl`
+10. ✓ F006: ComposedMonomial simplify → appropriate type
+    - Files: `src/FastPolynomials/src/composed_monomial.jl`
+    - Note: Returns Vector{Term} instead of Polynomial for multi-term results (Polynomial type doesn't support ComposedMonomial)
 
 ### Phase 5: Integration
-11. [ ] F011: FastPolynomials tests pass
-12. [ ] F012: Full test suite passes
+11. ✓ F011: FastPolynomials tests pass (1225/1225)
+12. ✓ F012: Full test suite passes (1404/1404)
 
 ## Testing Strategy
 - Run `make test-FastPoly` after each phase
 - Run `make test` after completing all phases
 - Fix regressions immediately before proceeding
+
+## Commits
+- `a0c35b2` - feat(simplify): change return types to match algebra semantics
+- `417e2cd` - fix(simplify): correct return type handling and update tests
 
 ## Citations
 - Research report: `.claude/tasks/simplify-return-types/context.md`

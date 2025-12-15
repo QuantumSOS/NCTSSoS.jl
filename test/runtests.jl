@@ -35,6 +35,7 @@ using NCTSSoS, Test
     include("moment_solver.jl")
     if haskey(ENV, "LOCAL_TESTING")
         include("heisenberg.jl")
+        include("xy_model.jl")
     end
     include("sos_solver.jl")
     include("interface.jl")

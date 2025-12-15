@@ -28,7 +28,7 @@ end
 SUITE["Example 1"] = @benchmarkable result = cs_nctssos(pop, solver_config) setup = (
     begin
         n = 20
-        @ncpolyvar x[1:n]
+        reg, (x,) = create_noncommutative_variables([("x", 1:n)])
         f = make_poly(x, n)
         order = 3
         cons = vcat([(1 - x[i]^2) for i = 1:n], [(x[i] - 1 / 3) for i = 1:n])
@@ -41,8 +41,9 @@ SUITE["Example 1"] = @benchmarkable result = cs_nctssos(pop, solver_config) setu
 
 SUITE["Example 2"] = @benchmarkable result = cs_nctssos(pop, solver_config) setup = (
     begin
-        @ncpolyvar x[1:3]
-        @ncpolyvar y[1:3]
+        reg, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+        
+        
         f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
             x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]  # objective function
         pop = polyopt(-f; comm_gps=[x, y], is_projective=true)
@@ -70,7 +71,7 @@ SUITE["Example 3"] = @benchmarkable result = cs_nctssos(pop, solver_config) setu
                 1:(num_sites*(num_sites-1)÷2),
             ),
         )
-        @ncpolyvar hij[1:(num_sites*(num_sites-1)÷2)]
+        reg, (pij,) = create_unipotent_variables([("pij", 1:(num_sites*(num_sites-1)÷2))])
 
         objective = (
             sum([J1 * hij[ij2idx_dict[(i, j)]] for (i, j) in J1_interactions]) + sum([J2 * hij[ij2idx_dict[(i, j)]] for (i, j) in J2_interactions])

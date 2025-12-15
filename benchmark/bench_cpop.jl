@@ -4,7 +4,7 @@ using NCTSSoS, MosekTools
 
 const SUITE = BenchmarkGroup()
 N = 3
-@ncpolyvar x[1:N] y[1:N] z[1:N]
+reg, (x, y, z) = create_pauli_variables(1:N)
 
 J = 1.0
 h = 2.0

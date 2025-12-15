@@ -5,7 +5,7 @@ using NCTSSoS.FastPolynomials: monomial, monomials, neat_dot, star, SimplifyAlgo
 
 const SUITE = BenchmarkGroup()
 
-@ncpolyvar x[1:10]
+reg, (x,) = create_noncommutative_variables([("x", 1:10)])
 var_vec = [x[1], x[2], x[2], x[1], x[3]]
 z_vec = [10, 20, 2, 0, 3]
 

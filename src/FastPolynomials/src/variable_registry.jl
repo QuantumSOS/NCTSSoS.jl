@@ -648,18 +648,6 @@ function create_noncommutative_variables(
     _create_noncommutative_variables(NonCommutativeAlgebra, prefix_subscripts)
 end
 
-"""
-    _select_contiguous_type(n::Int) -> Type{<:Unsigned}
-
-Select smallest unsigned type for contiguous 1-indexed variables.
-"""
-function _select_contiguous_type(n::Int)
-    n <= typemax(UInt8) && return UInt8
-    n <= typemax(UInt16) && return UInt16
-    n <= typemax(UInt32) && return UInt32
-    return UInt64
-end
-
 @inline _encode_index(::Type{T}, global_idx::Int, physical_site::Int) where {T<:Integer} = T(global_idx << (sizeof(T) * 2) | T(physical_site))
 
 """
@@ -688,11 +676,12 @@ function _create_noncommutative_variables(
     ::Type{A},
     prefix_subscripts::Vector{Tuple{String, VT}}
 ) where {A<:AlgebraType, T<:Integer, VT<:AbstractVector{T}}
-    n = sum(x -> length(x[2]), prefix_subscripts)
-    IndexT = _select_contiguous_type(n)
+    n_operators = sum(x -> length(x[2]), prefix_subscripts)
+    n_sites = length(prefix_subscripts)
+    IndexT = _select_unsigned_type(n_operators, n_sites)
 
-    all_symbols = Vector{Symbol}(undef, n)
-    all_indices = Vector{IndexT}(undef, n)
+    all_symbols = Vector{Symbol}(undef, n_operators)
+    all_indices = Vector{IndexT}(undef, n_operators)
 
     global_idx = 1
     for (physical_site, (prefix, subscript_gp)) in enumerate(prefix_subscripts)

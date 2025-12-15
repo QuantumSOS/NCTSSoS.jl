@@ -73,8 +73,6 @@ export symbols, indices, subregistry
 # Polynomial helpers
 export variable_indices
 
-# Type alias for backward compatibility
-export AbstractPolynomial
 
 # Utility functions (kept from legacy API)
 export sorted_union, sorted_unique

@@ -5,17 +5,14 @@ using Profile
 
 const SOLVER = optimizer_with_attributes(Mosek.Optimizer, MOI.Silent() => true)
 
+# Create variables at module level for reuse
+const reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+const f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
+const pop = polyopt(f, reg)
+
 function chsh_problem(order::Int = 6)
-    @ncpolyvar x[1:2]
-    @ncpolyvar y[1:2]
-
-    f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
-    pop = polyopt(f; comm_gps = [x, y], is_unipotent = true)
-
     solver_config = SolverConfig(optimizer = SOLVER; order = order)
-
     result = cs_nctssos(pop, solver_config; dualize=true)
-
     return result
 end
 
@@ -28,5 +25,5 @@ println("\nStarting profiling...")
 Profile.clear()
 @profile chsh_problem(12)
 
-Profile.print( mincount=1000)
+Profile.print(mincount=1000)
 

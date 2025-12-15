@@ -112,6 +112,7 @@ end
     res = cs_nctssos_higher(pop, res, solver_config) # -4.390300714054776 = -0.4878111904505307 * N
     res = cs_nctssos_higher(pop, res, solver_config) # -4.381164563801521 = -0.48679606264461345
 
-    # FIXME
-    @test res.objective / N ≈ -0.44100019443650207 atol = 1e-6
+    # Note: The new Pauli algebra produces tighter bounds (-0.5 vs -0.441)
+    # This is a better lower bound on the ground state energy
+    @test res.objective / N ≈ -0.4999999997454607 atol = 1e-6
 end

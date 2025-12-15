@@ -52,7 +52,7 @@ function cs_nctssos_with_blockade(pop::OP, solver_config::SolverConfig, blockade
         # @show cons
     end
 
-   (pop isa NCTSSoS.ComplexPolyOpt{P} && !dualize) && error("Solving Moment Problem for Complex Poly Opt is not supported")
+   # Note: All algebra types now support moment relaxation
    problem_to_solve = !dualize ? moment_problem : NCTSSoS.sos_dualize(moment_problem)
 
    set_optimizer(problem_to_solve.model, solver_config.optimizer)
@@ -80,7 +80,7 @@ function solve_n1n2_bounds(target_energy, cur_spreading)
     n1n2 = ((one(T) - σz[1]) / 2) * ((one(T) - σz[2]) / 2)
 
 
-    pop_lower = cpolyopt(n1n2, reg)
+    pop_lower = polyopt(n1n2, reg)
 
     SOLVER = optimizer_with_attributes(Mosek.Optimizer, "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8, "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8, "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8, "MSK_IPAR_NUM_THREADS" => 0)
 
@@ -90,7 +90,7 @@ function solve_n1n2_bounds(target_energy, cur_spreading)
 
     res_lower = cs_nctssos_with_blockade(pop_lower, solver_config, blockade_constraints, energy_cons)
 
-    pop_upper = cpolyopt(-n1n2, reg)
+    pop_upper = polyopt(-n1n2, reg)
 
     res_upper = cs_nctssos_with_blockade(pop_upper, solver_config, blockade_constraints, energy_cons)
 

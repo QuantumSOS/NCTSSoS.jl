@@ -173,8 +173,8 @@ Returns false for "real" algebras:
 - `ProjectorAlgebra`: P^2 = P, no phases
 - `UnipotentAlgebra`: U^2 = I, no phases
 
-This trait is used by interface.jl to dispatch between moment_relax (real)
-and complex_moment_relax (Hermitian).
+This trait is used by interface.jl to dispatch between real and Hermitian
+constraint handling in moment_relax.
 """
 _is_complex_problem(::Type{PauliAlgebra}) = true
 _is_complex_problem(::Type{FermionicAlgebra}) = true
@@ -185,50 +185,3 @@ _is_complex_problem(::Type{UnipotentAlgebra}) = false
 _is_complex_problem(::Type{A}) where {A<:AlgebraType} = false  # Default fallback
 
 
-# =============================================================================
-# Accessor Functions
-# =============================================================================
-
-"""
-    is_unipotent(pop::PolyOpt{A,P}) where {A,P} -> Bool
-
-Returns true if the algebra type is UnipotentAlgebra.
-"""
-is_unipotent(::PolyOpt{A,P}) where {A<:AlgebraType, P} = A === UnipotentAlgebra
-
-"""
-    is_projective(pop::PolyOpt{A,P}) where {A,P} -> Bool
-
-Returns true if the algebra type is ProjectorAlgebra.
-"""
-is_projective(::PolyOpt{A,P}) where {A<:AlgebraType, P} = A === ProjectorAlgebra
-
-
-# =============================================================================
-# Type Aliases (for user convenience)
-# =============================================================================
-
-"""
-    ComplexPolyOpt{A, P}
-
-Type alias for `PolyOpt{A, P}`.
-
-In the legacy API, `ComplexPolyOpt` was a separate type for optimization problems
-with complex coefficients or non-Hermitian products. In the new design, `PolyOpt{A, P}`
-handles both cases, with the algebra type `A` determining the appropriate behavior.
-
-See also: [`PolyOpt`](@ref)
-"""
-const ComplexPolyOpt = PolyOpt
-
-"""
-    cpolyopt(objective, registry; kwargs...)
-
-Alias for `polyopt`.
-
-This function provides a convenient alternative name that emphasizes the complex
-polynomial aspect of the optimization problem.
-
-See also: [`polyopt`](@ref)
-"""
-const cpolyopt = polyopt

@@ -52,7 +52,7 @@ function cs_nctssos_with_blockade(pop::OP, solver_config::SolverConfig, blockade
         # @show cons
     end
 
-   (pop isa NCTSSoS.ComplexPolyOpt{P} && !dualize) && error("Solving Moment Problem for Complex Poly Opt is not supported")
+   # Note: All algebra types now support moment relaxation
    problem_to_solve = !dualize ? moment_problem : NCTSSoS.sos_dualize(moment_problem)
 
    set_optimizer(problem_to_solve.model, solver_config.optimizer)
@@ -68,19 +68,19 @@ function solve_n1n2_bounds(target_energy, cur_spreading)
     Lx = 2
     Ly = 2
     N = Lx * Ly
-    @ncpolyvar x[1:N] y[1:N] z[1:N]
+    reg, (σx, σy, σz) = create_pauli_variables(1:N)
 
-    H = -sum(data["Detuning"] ./ 2 .* (ones(T, N) .- z)) + sum(data["Rabi"] ./ 2 .* x) + sum(map(V -> V[3] / 4 * (1 - z[Int(V[1])]) * (1 - z[Int(V[2])]), data["Vanderwaals"]); init=zero(T))
+    H = -sum(data["Detuning"] ./ 2 .* (ones(T, N) .- σz)) + sum(data["Rabi"] ./ 2 .* σx) + sum(map(V -> V[3] / 4 * (1 - σz[Int(V[1])]) * (1 - σz[Int(V[2])]), data["Vanderwaals"]); init=zero(T))
 
     Pauli_algebra =
-        reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
+        reduce(vcat, [[σx[i] * σy[i] - im * σz[i], σy[i] * σx[i] + im * σz[i], σy[i] * σz[i] - im * σx[i], σz[i] * σy[i] + im * σx[i], σz[i] * σx[i] - im * σy[i], σx[i] * σz[i] + im * σy[i]] for i in 1:N])
 
-    blockade_constraints = [one(T) - z[e[1]] - z[e[2]] + z[e[1]] * z[e[2]] for e in data["PXP"]]
+    blockade_constraints = [one(T) - σz[e[1]] - σz[e[2]] + σz[e[1]] * σz[e[2]] for e in data["PXP"]]
 
-    n1n2 = ((one(T) - z[1]) / 2) * ((one(T) - z[2]) / 2)
+    n1n2 = ((one(T) - σz[1]) / 2) * ((one(T) - σz[2]) / 2)
 
 
-    pop_lower = cpolyopt(n1n2; eq_constraints=Pauli_algebra, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+    pop_lower = polyopt(n1n2, reg)
 
     SOLVER = optimizer_with_attributes(Mosek.Optimizer, "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8, "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8, "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8, "MSK_IPAR_NUM_THREADS" => 0)
 
@@ -90,7 +90,7 @@ function solve_n1n2_bounds(target_energy, cur_spreading)
 
     res_lower = cs_nctssos_with_blockade(pop_lower, solver_config, blockade_constraints, energy_cons)
 
-    pop_upper = cpolyopt(-n1n2; eq_constraints=Pauli_algebra, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+    pop_upper = polyopt(-n1n2, reg)
 
     res_upper = cs_nctssos_with_blockade(pop_upper, solver_config, blockade_constraints, energy_cons)
 

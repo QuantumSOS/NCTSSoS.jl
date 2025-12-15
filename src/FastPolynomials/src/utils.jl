@@ -200,17 +200,16 @@ This fallback is needed for code that uses `one(Monomial)` without type paramete
 Base.one(::Type{Monomial}) = Monomial{NonCommutativeAlgebra}(UInt[])
 
 # =============================================================================
-# Legacy AbstractPolynomial Type Alias
+# Internal AbstractPolynomial Type Alias
 # =============================================================================
 
 """
     AbstractPolynomial{T}
 
-Legacy type alias for compatibility with old NCTSSoS code.
+Internal type alias used by NCTSSoS for type constraints.
 Maps to Union of Polynomial types with any algebra type.
 
-# Note
-New code should use `Polynomial{A,T,C}` directly.
+This is NOT exported - for internal use only.
 """
 const AbstractPolynomial{T} = Union{
     Polynomial{<:AlgebraType,<:Integer,T},

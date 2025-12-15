@@ -26,7 +26,7 @@ end
 
 n = 5
 
-@ncpolyvar x[1:n]
+reg, (x,) = create_noncommutative_variables([("x", 1:n)])
 
 SUITE["Polynomial Creation"] = @benchmarkable poly_create(x, n)
 

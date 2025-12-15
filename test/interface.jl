@@ -21,7 +21,7 @@ if haskey(ENV, "LOCAL_TESTING")
             ham = sum(-complex(J / 4) * sz[i] * sz[mod1(i + 1, N)] for i in 1:(periodic ? N : N - 1)) + sum(-h / 2 * sx[i] for i in 1:N)
 
             # No eq_constraints needed - Pauli algebra handles simplification
-            pop = cpolyopt(ham, registry)
+            pop = polyopt(ham, registry)
 
             solver_config = SolverConfig(optimizer=SOLVER, order=2)
 
@@ -37,7 +37,7 @@ end
 
     ham = sum(ComplexF64(1 / 2) * op[1] for op in [sx, sy, sz])
 
-    pop = cpolyopt(ham, registry)
+    pop = polyopt(ham, registry)
 
     solver_config = SolverConfig(optimizer=SOLVER, order=1)
 
@@ -56,7 +56,7 @@ end
 #     # σx * σy + σy * σx = 0 (anticommutation of distinct Pauli ops)
 #     ham = one(ComplexF64) * sx[1] * sy[1] + one(ComplexF64) * sy[1] * sx[1]
 
-#     pop = cpolyopt(ham, registry)
+#     pop = polyopt(ham, registry)
 
 #     solver_config = SolverConfig(optimizer=SOLVER, order=3)
 
@@ -71,7 +71,7 @@ if haskey(ENV, "LOCAL_TESTING")
 
         ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [sx, sy, sz] for i in 1:N)
 
-        pop = cpolyopt(ham, registry)
+        pop = polyopt(ham, registry)
 
         solver_config = SolverConfig(optimizer=SOLVER, order=2)
 

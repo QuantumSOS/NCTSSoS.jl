@@ -1,14 +1,14 @@
 using Test, NCTSSoS
 using NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: neat_dot
+using NCTSSoS.FastPolynomials: neat_dot, get_ncbasis
 using LinearAlgebra
 using NCTSSoS: get_basis, neat_dot
 
 @testset "GNS Construction" begin
     @testset "Hankel dictionary utilities" begin
-        @ncpolyvar x
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
 
-        basis = get_basis([x], 2)  # [1, x, x^2]
+        basis = get_ncbasis(reg, 2)  # [1, x, x^2]
         H = [
             1.0  0.2  0.7;
             0.2  0.8  0.3;
@@ -35,10 +35,10 @@ using NCTSSoS: get_basis, neat_dot
     end
     
     @testset "Localizing Matrix Construction" begin
-        @ncpolyvar x y
+        reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
 
         # Test the localizing matrix construction directly
-        basis = get_basis([x, y], 2)  # [1, x, y, xy, x^2, yx, y^2]
+        basis = get_ncbasis(reg, 2)  # [1, x, y, xy, x^2, yx, y^2]
 
         # We want to reorder to: [1, x, y, x^2, xy, yx, y^2]
         # Original indices:      1   2   3   4    5    6    7
@@ -84,7 +84,7 @@ using NCTSSoS: get_basis, neat_dot
 @testset "GNS Reconstruction Tests" begin
 
     @testset "Dimension Mismatch" begin
-        @ncpolyvar x y
+        reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
 
         # Hankel matrix size doesn't match basis size
         H = [1.0 0.0; 0.0 1.0]  # 2x2 matrix
@@ -94,7 +94,7 @@ using NCTSSoS: get_basis, neat_dot
     end
     
     @testset "Invalid atol" begin
-        @ncpolyvar x
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
         H = [1.0 0.5; 0.5 1.0]
         
         # Negative atol should throw error
@@ -102,7 +102,7 @@ using NCTSSoS: get_basis, neat_dot
     end
     
     @testset "No singular values exceed tolerance" begin
-        @ncpolyvar x
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
         # Create a matrix with very small singular values
         H = 1e-10 * [1.0 0.5; 0.5 1.0]
         
@@ -111,9 +111,9 @@ using NCTSSoS: get_basis, neat_dot
     end
 
     @testset "Example 2.7" begin
-        @ncpolyvar x y
+        reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
 
-        basis = get_basis([x, y], 2)  # [1, x, y, xy, x^2, yx, y^2]
+        basis = get_ncbasis(reg, 2)  # [1, x, y, xy, x^2, yx, y^2]
 
         perm = [1, 2, 3, 5, 4, 6, 7]
 

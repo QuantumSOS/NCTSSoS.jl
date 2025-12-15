@@ -28,11 +28,11 @@ using NCTSSoS:
 
 
 @testset "State Polynomial Opt 7.2.0" begin
-    @ncpolyvar x[1:2] y[1:2]
+    reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
     sp =
         -1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) - 1.0 * ς(x[2] * y[1]) +
         1.0 * ς(x[2] * y[2])
-    spop = polyopt(sp * one(Monomial); is_unipotent = true, comm_gps = [x, y])
+    spop = polyopt(sp * one(Monomial), reg)
 
     d = 1
 
@@ -48,12 +48,12 @@ using NCTSSoS:
 end
 
 @testset "State Polynomial Opt 7.2.1" begin
-    @ncpolyvar x[1:2] y[1:2]
+    reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
     sp1 = 1.0 * ς(x[1] * y[2]) + 1.0 * ς(x[2] * y[1])
     sp2 = 1.0 * ς(x[1] * y[1]) + -1.0 * ς(x[2] * y[2])
     sp = -1.0 * sp1 * sp1 - 1.0 * sp2 * sp2
 
-    spop = polyopt(sp * one(Monomial); is_unipotent=true, comm_gps=[x, y])
+    spop = polyopt(sp * one(Monomial), reg)
 
     d = 3
     cr = correlative_sparsity(spop, d, NoElimination())
@@ -101,30 +101,27 @@ end
 end
 
 @testset "State Polynomial Opt 7.2.2" begin
-    @ncpolyvar x[1:3] y[1:3]
-    cov(a, b) = 1.0 * ς(x[a] * y[b]) - 1.0 * ς(x[a]) * ς(y[b])
-    sp =
-        cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) -
-        cov(3, 2)
+    reg, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+    sp = sum([1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0] .* [ς(x[1]*y[1]), ς(x[1]*y[2]), ς(x[1]*y[3]), ς(x[2]*y[1]), ς(x[2]*y[2]), ς(x[2]*y[3]), ς(x[3]*y[1]), ς(x[3]*y[2]), ς(x[3]*y[3])])
 
-    spop = polyopt(sp*one(Monomial); is_unipotent = true, comm_gps = [x[1:3], y[1:3]])
+    spop = polyopt(sp*one(Monomial), reg)
 
     solver_config = SolverConfig(; optimizer = SOLVER, order = 2)
 
     @test cs_nctssos(spop, solver_config) ≈ -5.0 atol = 1e-2
 
-    @ncpolyvar x[1:6]
-    sp =
-        -1.0 * ς(x[1] * x[4]) + 1 * ς(x[1]) * ς(x[4]) - 1 * ς(x[1] * x[5]) +
-        1 * ς(x[1]) * ς(x[5]) - 1 * ς(x[1] * x[6]) + 1 * ς(x[1]) * ς(x[6]) -
-        1 * ς(x[2] * x[4]) + 1 * ς(x[2]) * ς(x[4]) - 1 * ς(x[2] * x[5]) +
-        1 * ς(x[2]) * ς(x[5]) +
-        1 * ς(x[2] * x[6]) - 1 * ς(x[2]) * ς(x[6]) - 1 * ς(x[3] * x[4]) +
-        1 * ς(x[3]) * ς(x[4]) +
-        1 * ς(x[3] * x[5]) - 1 * ς(x[3]) * ς(x[5])
+    reg2, (x2,) = create_unipotent_variables([("x", 1:6)])
+    sp2 =
+        -1.0 * ς(x2[1] * x2[4]) + 1 * ς(x2[1]) * ς(x2[4]) - 1 * ς(x2[1] * x2[5]) +
+        1 * ς(x2[1]) * ς(x2[5]) - 1 * ς(x2[1] * x2[6]) + 1 * ς(x2[1]) * ς(x2[6]) -
+        1 * ς(x2[2] * x2[4]) + 1 * ς(x2[2]) * ς(x2[4]) - 1 * ς(x2[2] * x2[5]) +
+        1 * ς(x2[2]) * ς(x2[5]) +
+        1 * ς(x2[2] * x2[6]) - 1 * ς(x2[2]) * ς(x2[6]) - 1 * ς(x2[3] * x2[4]) +
+        1 * ς(x2[3]) * ς(x2[4]) +
+        1 * ς(x2[3] * x2[5]) - 1 * ς(x2[3]) * ς(x2[5])
 
 
-    spop = polyopt(sp; is_unipotent = true, comm_gps = [x[1:3], x[4:6]])
+    spop = polyopt(sp2, reg2)
 
     solver_config = SolverConfig(; optimizer = SOLVER, order = 2)
 
@@ -183,7 +180,7 @@ end
 
 
 @testset "Constrain Moment matrix" begin
-    @ncpolyvar x[1:2]
+    reg, (x,) = create_unipotent_variables([("x", 1:2)])
 
     # NOTE: get_state_basis function no longer exists
     # This test needs to be updated when state basis generation is reimplemented

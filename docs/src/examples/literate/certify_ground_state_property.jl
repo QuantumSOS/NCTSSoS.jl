@@ -63,6 +63,10 @@ end
 # `NCTSSoS.jl`. This approach formulates the quantum ground-state problem
 # as a polynomial optimization problem and solves its semidefinite
 # programming relaxation, providing certified lower bounds.
+#
+# The new FastPolynomials API provides type-safe Pauli algebra with automatic
+# simplification. No explicit commutation constraints are needed - the
+# `PauliAlgebra` type handles σ² = I and the cyclic product rules automatically.
 
 using NCTSSoS, NCTSSoS.FastPolynomials
 using MosekTools
@@ -85,29 +89,20 @@ J = 1.0                  # Coupling strength
 
 ## Loop over the same magnetic field values as before
 for (i, h) in enumerate(0.1:0.2:2.0)
-    ## Define non-commutative polynomial variables for Pauli operators
-    @ncpolyvar x[1:N] y[1:N] z[1:N]  # x = σ^x, y = σ^y, z = σ^z
+    ## Create Pauli algebra variables using the new FastPolynomials API
+    ## PauliAlgebra automatically handles:
+    ##   - σ² = I (unipotent property)
+    ##   - Cyclic product rules: σx·σy = iσz, σy·σz = iσx, σz·σx = iσy
+    ##   - Commutation relations between different sites
+    registry, (x, y, z) = create_pauli_variables(1:N)  # x = σx, y = σy, z = σz
 
     ## Objective function: we want to minimize the Hamiltonian
     ## H = J/4 * Σ z_i z_{i+1} + h/2 * Σ x_i
     ham = sum(T1(J / 4) * z[i] * z[mod1(i + 1, N)] + T1(h / 2) * x[i] for i in 1:N)
 
-    ## Pauli operator algebra constraints (commutation relations)
-    ## These encode the fundamental quantum mechanical properties of spin operators
-    eq_cons = reduce(vcat, [
-        [x[i] * y[i] - im * z[i],   # [σ^x_i, σ^y_i] = iσ^z_i
-         y[i] * x[i] + im * z[i],   # [σ^y_i, σ^x_i] = -iσ^z_i
-         y[i] * z[i] - im * x[i],   # [σ^y_i, σ^z_i] = iσ^x_i
-         z[i] * y[i] + im * x[i],   # [σ^z_i, σ^y_i] = -iσ^x_i
-         z[i] * x[i] - im * y[i],   # [σ^z_i, σ^x_i] = iσ^y_i
-         x[i] * z[i] + im * y[i]]   # [σ^x_i, σ^z_i] = -iσ^y_i
-        for i in 1:N])
-
     ## Create polynomial optimization problem
-    pop = cpolyopt(ham;
-        eq_constraints=eq_cons,                    # Pauli algebra constraints
-        comm_gps=[[x[i], y[i], z[i]] for i in 1:N], # Spin operators on same site commute
-        is_unipotent=true)                         # Pauli operators square to identity
+    ## No explicit algebra constraints needed - PauliAlgebra handles them automatically
+    pop = polyopt(ham, registry)
 
     ## Configure solver with second-order moment relaxation
     solver_config = SolverConfig(optimizer=SOLVER, order=2)
@@ -138,10 +133,12 @@ for bounding specific correlation functions in quantum systems.
 This function builds the moment matrix relaxation with sparsity patterns
 and adds semidefinite constraints to bound specific operator expectations.
 """
-function cs_nctssos_with_entry(pop::OP, solver_config::SolverConfig, entry_constraints::Vector{Polynomial{T}}; dualize::Bool=true) where {T,P<:Polynomial{T},OP<:NCTSSoS.OptimizationProblem{P}}
-
-   ## Initialize simplification algorithm for polynomial reduction
-   sa = SimplifyAlgorithm(comm_gps=pop.comm_gps, is_projective=pop.is_projective, is_unipotent=pop.is_unipotent)
+function cs_nctssos_with_entry(
+    pop::OP,
+    solver_config::SolverConfig,
+    entry_constraints::Vector{P};
+    dualize::Bool=true
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, OP<:NCTSSoS.OptimizationProblem{P}}
 
    ## Determine the order of moment relaxation (automatic if not specified)
    order = iszero(solver_config.order) ?
@@ -155,13 +152,14 @@ function cs_nctssos_with_entry(pop::OP, solver_config::SolverConfig, entry_const
    cliques_objective = [reduce(+, [issubset(sort!(variables(mono)), clique) ? coef * mono : zero(coef) * one(mono) for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective))]) for clique in corr_sparsity.cliques]
 
    ## Initialize support patterns for term sparsity
+   ## Note: SimplifyAlgorithm is no longer needed - algebra type dispatch handles simplification
    initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-        NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base, sa)
+        NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
    end
 
    ## Apply term sparsity to further reduce problem size
    cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-        NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo, sa)
+        NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
    end
 
    ## Build the moment relaxation problem
@@ -173,8 +171,7 @@ function cs_nctssos_with_entry(pop::OP, solver_config::SolverConfig, entry_const
        push!(moment_problem.constraints,(:HPSD, [c;;]))
    end
 
-   ## Handle complex polynomial optimization (dual formulation)
-   (pop isa NCTSSoS.ComplexPolyOpt{P} && !dualize) && error("Solving Moment Problem for Complex Poly Opt is not supported")
+   ## Dualize and solve
    problem_to_solve = !dualize ? moment_problem : NCTSSoS.sos_dualize(moment_problem)
 
    ## Solve the semidefinite program
@@ -205,17 +202,14 @@ J = 1.0  # Coupling strength (same as before)
 
 ## Loop over magnetic field values
 for (i, h) in enumerate(0.1:0.2:2.0)
-    ## Define polynomial variables for Pauli operators
-    @ncpolyvar x[1:N] y[1:N] z[1:N]
+    ## Create Pauli algebra variables
+    registry, (x, y, z) = create_pauli_variables(1:N)
 
     ## Objective function: S^z_1 * S^z_2 correlation
     obj = one(T1) * z[1] * z[2]
 
     ## Hamiltonian (same form as before)
-    ham = sum(T1(J / 4) * z[i] * z[mod1(i + 1, N)] + T1(h / 2) * x[i] for i in 1:N)
-
-    ## Pauli algebra constraints
-    eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
+    ham = sum(T1(J / 4) * z[j] * z[mod1(j + 1, N)] + T1(h / 2) * x[j] for j in 1:N)
 
     ## Energy constraint: ensure ground state energy is within reference bounds
     ## This is crucial for obtaining physically meaningful correlation bounds
@@ -223,11 +217,8 @@ for (i, h) in enumerate(0.1:0.2:2.0)
 
     ## Create optimization problems for lower and upper bounds
     ## We solve two separate problems: minimize and maximize the correlation
-    pop_l = cpolyopt(obj; eq_constraints=eq_cons, ineq_constraints=ineq_cons,
-        comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
-
-    pop_u = cpolyopt(-obj; eq_constraints=eq_cons, ineq_constraints=ineq_cons,
-        comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+    pop_l = polyopt(obj, registry; ineq_constraints=ineq_cons)
+    pop_u = polyopt(-obj, registry; ineq_constraints=ineq_cons)
 
     ## Configure solver
     solver_config = SolverConfig(optimizer=SOLVER, order=2)
@@ -296,6 +287,10 @@ f
 # 4. **Physical constraints**: Energy bounds ensure physically meaningful
 #    correlation function bounds, preventing unphysical results.
 #
+# 5. **Type-safe algebra**: The new FastPolynomials API with `PauliAlgebra`
+#    automatically handles Pauli operator relations (σ² = I, commutation rules)
+#    without requiring explicit constraints.
+#
 # This certification methodology is particularly valuable for quantum many-body
 # systems where exact solutions are unavailable, providing guaranteed error
-# bars on computed properties."}
+# bars on computed properties.

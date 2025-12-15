@@ -328,31 +328,3 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
 end
 
 
-# =============================================================================
-# Legacy Compatibility
-# =============================================================================
-
-# The old API had:
-# - sos_dualize(moment_problem::MomentProblem{T,M}) for real (with JuMP model inside)
-# - sos_dualize(cmp::ComplexMomentProblem{T,P}) for complex (symbolic)
-#
-# The new unified API has:
-# - sos_dualize(mp::MomentProblem{A,T,M,P}) for both (all symbolic)
-#
-# ComplexMomentProblem is now an alias, so the old complex call signature still works.
-
-"""
-    ComplexMomentProblem{T, M, P}
-
-Type alias for `MomentProblem{A,TI,M,P}` for backward compatibility.
-
-In the legacy API, `ComplexMomentProblem` was a separate type for Hermitian
-moment problems. In the new unified design, `MomentProblem{A,T,M,P}` handles
-both real and complex cases based on the algebra type `A`.
-
-# Deprecated
-Use `MomentProblem` directly. This alias will be removed in Phase 4.
-
-See also: [`MomentProblem`](@ref)
-"""
-const ComplexMomentProblem{T,M,P} = MomentProblem{A,TI,M,P} where {A<:AlgebraType, TI<:Integer}

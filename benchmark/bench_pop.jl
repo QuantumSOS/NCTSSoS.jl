@@ -28,7 +28,7 @@ end
 SUITE["Example 1"] = @benchmarkable result = cs_nctssos(pop, solver_config) setup = (
     begin
         n = 20
-        @ncpolyvar x[1:n]
+        reg, (x,) = create_noncommutative_variables([("x", 1:n)])
         f = make_poly(x, n)
         order = 3
         cons = vcat([(1 - x[i]^2) for i = 1:n], [(x[i] - 1 / 3) for i = 1:n])
@@ -41,11 +41,11 @@ SUITE["Example 1"] = @benchmarkable result = cs_nctssos(pop, solver_config) setu
 
 SUITE["Example 2"] = @benchmarkable result = cs_nctssos(pop, solver_config) setup = (
     begin
-        @ncpolyvar x[1:3]
-        @ncpolyvar y[1:3]
+        reg, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
+
         f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
             x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]  # objective function
-        pop = polyopt(-f; comm_gps=[x, y], is_projective=true)
+        pop = polyopt(-f, reg)
         solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3,
             cs_algo=MF(), ts_algo=MMD())
     end
@@ -70,32 +70,28 @@ SUITE["Example 3"] = @benchmarkable result = cs_nctssos(pop, solver_config) setu
                 1:(num_sites*(num_sites-1)÷2),
             ),
         )
-        @ncpolyvar hij[1:(num_sites*(num_sites-1)÷2)]
+        reg, (pij,) = create_projector_variables([("pij", 1:(num_sites*(num_sites-1)÷2))])
 
         objective = (
-            sum([J1 * hij[ij2idx_dict[(i, j)]] for (i, j) in J1_interactions]) + sum([J2 * hij[ij2idx_dict[(i, j)]] for (i, j) in J2_interactions])
+            sum([J1 * pij[ij2idx_dict[(i, j)]] for (i, j) in J1_interactions]) + sum([J2 * pij[ij2idx_dict[(i, j)]] for (i, j) in J2_interactions])
         )
 
         gs = unique!([
             (
-                hij[ij2idx_dict[tuple(sort([i, j])...)]] *
-                hij[ij2idx_dict[tuple(sort([j, k])...)]] +
-                hij[ij2idx_dict[tuple(sort([j, k])...)]] *
-                hij[ij2idx_dict[tuple(sort([i, j])...)]] -
+                pij[ij2idx_dict[tuple(sort([i, j])...)]] *
+                pij[ij2idx_dict[tuple(sort([j, k])...)]] +
+                pij[ij2idx_dict[tuple(sort([j, k])...)]] *
+                pij[ij2idx_dict[tuple(sort([i, j])...)]] -
                 0.5 * (
-                    hij[ij2idx_dict[tuple(sort([i, j])...)]] +
-                    hij[ij2idx_dict[tuple(sort([j, k])...)]] -
-                    hij[ij2idx_dict[tuple(sort([i, k])...)]]
+                    pij[ij2idx_dict[tuple(sort([i, j])...)]] +
+                    pij[ij2idx_dict[tuple(sort([j, k])...)]] -
+                    pij[ij2idx_dict[tuple(sort([i, k])...)]]
                 )
             ) for i in 1:num_sites, j in 1:num_sites, k in 1:num_sites if
             (i != j && j != k && i != k)
         ])
 
-        pop = polyopt(
-            -objective;
-            eq_constraints=gs,
-            is_projective=true,
-        )
+        pop = polyopt(-objective, reg; eq_constraints=gs)
 
         solver_config = SolverConfig(optimizer=Mosek.Optimizer; order=1)
     end

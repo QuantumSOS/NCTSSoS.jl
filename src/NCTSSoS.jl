@@ -17,7 +17,7 @@ using .FastPolynomials: variable_indices
 using .FastPolynomials: create_pauli_variables, create_fermionic_variables, create_bosonic_variables
 using .FastPolynomials: create_projector_variables, create_unipotent_variables, create_noncommutative_variables
 
-# Import type alias for backward compatibility
+# Import internal type alias (not exported, for internal use)
 using .FastPolynomials: AbstractPolynomial
 
 # Import functions (only those actually used in NCTSSoS)
@@ -35,7 +35,7 @@ export ς
 # is also loaded. Access them via NCTSSoS.FastPolynomials.Monomial etc.
 # or using NCTSSoS.FastPolynomials: Monomial, Polynomial, ...
 
-export polyopt, cpolyopt
+export polyopt
 export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher
@@ -53,9 +53,7 @@ include("sparse.jl")
 
 include("moment_solver.jl")
 
-# NOTE: complex_moment_solver.jl has been merged into moment_solver.jl
-# The unified MomentProblem{A,T,M,P} handles both real and complex algebras.
-# complex_moment_relax() is now a backward-compatibility alias in moment_solver.jl.
+# NOTE: The unified MomentProblem{A,T,M,P} handles both real and complex algebras.
 
 include("sos_solver.jl")
 

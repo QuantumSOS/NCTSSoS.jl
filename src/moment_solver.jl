@@ -436,34 +436,3 @@ function _substitute_complex_poly(
 end
 
 
-# =============================================================================
-# Backward Compatibility
-# =============================================================================
-
-# Legacy type alias for gradual migration
-# NOTE: The old MomentProblem had different type parameters:
-# MomentProblem{T,M,CR<:ConstraintRef,JS<:AbstractJuMPScalar}
-# This alias helps during transition but callers may need updates.
-
-"""
-    complex_moment_relax(pop, corr_sparsity, cliques_term_sparsities)
-
-Backward compatibility alias for `moment_relax`.
-
-In the new unified design, `moment_relax` handles both real and complex algebras
-based on `_is_complex_problem(A)`. This function is provided for compatibility
-with existing code that explicitly called `complex_moment_relax`.
-
-# Deprecated
-Use `moment_relax` directly. This alias will be removed in Phase 4.
-
-See also: [`moment_relax`](@ref)
-"""
-function complex_moment_relax(
-    pop::PolyOpt{A,P},
-    corr_sparsity::CorrelativeSparsity{A,TI,P,M},
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
-) where {A<:AlgebraType, TI<:Integer, C<:Number, P<:Polynomial{A,TI,C}, M<:Monomial{A,TI}}
-    # Delegate to unified moment_relax
-    return moment_relax(pop, corr_sparsity, cliques_term_sparsities)
-end

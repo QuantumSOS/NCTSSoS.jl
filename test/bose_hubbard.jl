@@ -211,3 +211,60 @@ end
     @test res.objective isa Real
     @test res.objective ≥ -1e-4  # Should be ≈ 0 (vacuum energy)
 end
+
+@testset "Bose-Hubbard Chain Ground State" begin
+    # Bose-Hubbard Model on a Chain Lattice (OBC)
+    #
+    # H = -J Σ_{<ij>} (a†_i a_j + a†_j a_i) + (U/2) Σ_i n_i(n_i - 1)
+    #
+    # where:
+    #   <i,j> denotes neighboring sites on the chain (OBC)
+    #   a†_i, a_i are bosonic creation and annihilation operators
+    #   n_i = a†_i a_i is the number operator on site i
+    #   J = hopping amplitude
+    #   U = on-site interaction strength
+    #
+    # BROKEN: The SDP relaxation is unbounded without particle number constraints.
+    # Bosonic systems (unlike fermionic) have no natural occupation limit, so the
+    # optimization diverges to -∞. Need to add either:
+    #   1. Particle number constraint (Σ n_i = N), or
+    #   2. Occupation cutoff (n_i ≤ n_max), or
+    #   3. Chemical potential to bound the problem
+
+    M = 4  # Number of sites
+    J = 1.0
+    U = 1.0
+
+    # Create bosonic variables
+    registry, (a, a_dag) = create_bosonic_variables(1:M)
+
+    # Number operators
+    n = [a_dag[k] * a[k] for k in 1:M]
+
+    # Hopping term: -J Σ_{<ij>} (a†_i a_j + a†_j a_i)
+    ham_hop = sum(-J * (a_dag[k] * a[k+1] + a_dag[k+1] * a[k]) for k in 1:M-1)
+
+    # Interaction term: (U/2) Σ_i n_i(n_i - 1)
+    ham_int = sum((U / 2) * (n[k] * n[k] - n[k]) for k in 1:M)
+
+    # Total Hamiltonian
+    ham = ham_hop + ham_int
+
+    # Create optimization problem
+    pop = polyopt(ham, registry)
+
+    # Solve with order-2 relaxation
+    solver_config = SolverConfig(optimizer=SOLVER, order=2)
+    res = cs_nctssos(pop, solver_config)
+
+    # Refine with higher-order iterations
+    res = cs_nctssos_higher(pop, res, solver_config)
+
+    # Expected ground state energy
+    E0_exact = -6.911424152031056
+
+    println("Ground state energy lower bound: ", res.objective)
+    println("Exact ground state energy: ", E0_exact)
+
+    @test_broken res.objective ≈ E0_exact atol = 1e-4
+end

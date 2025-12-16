@@ -36,6 +36,7 @@ using NCTSSoS, Test
     if haskey(ENV, "LOCAL_TESTING")
         include("heisenberg.jl")
         include("xy_model.jl")
+        include("bose_hubbard.jl")
     end
     include("sos_solver.jl")
     include("interface.jl")

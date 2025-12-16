@@ -1,0 +1,213 @@
+using NCTSSoS, NCTSSoS.FastPolynomials, Test
+using NCTSSoS.FastPolynomials: simplify
+using JuMP
+
+if haskey(ENV, "LOCAL_TESTING")
+    using MosekTools
+    const SOLVER = Mosek.Optimizer
+else
+    using Clarabel
+    const SOLVER = Clarabel.Optimizer
+end
+
+# Bose-Hubbard Model on a Chain Lattice
+#
+# H = -t Σ_{<i,j>} (b†_i b_j + b†_j b_i) + (U/2) Σ_i n̂_i(n̂_i - 1) - μ Σ_i n̂_i
+#
+# where:
+#   <i,j> denotes neighboring sites on the lattice
+#   b†_i, b_i are bosonic creation and annihilation operators
+#   n̂_i = b†_i b_i is the number operator on site i
+#   t = hopping amplitude
+#   U = on-site interaction strength
+#   μ = chemical potential
+#
+# The bosonic operators satisfy the canonical commutation relations (CCR):
+#   [b_i, b†_j] = δ_{ij}
+#   [b_i, b_j] = 0
+#   [b†_i, b†_j] = 0
+#
+# On a chain lattice with open boundary conditions (OBC),
+# neighbors are: (1,2), (2,3), ..., (N-1, N)
+
+@testset "Bose-Hubbard Hamiltonian Construction" begin
+    N = 4  # Number of sites
+
+    # Create bosonic variables (b = annihilation, b_dag = creation)
+    registry, (b, b_dag) = create_bosonic_variables(1:N)
+
+    @testset "Variable creation" begin
+        @test length(b) == N
+        @test length(b_dag) == N
+        @test b[1] isa Monomial{BosonicAlgebra}
+        @test b_dag[1] isa Monomial{BosonicAlgebra}
+    end
+
+    @testset "Number operator n_i = b†_i b_i" begin
+        # Number operator for site 1
+        n1 = b_dag[1] * b[1]
+        @test n1 isa Monomial{BosonicAlgebra}
+        @test degree(n1) == 2
+
+        # Simplify should keep it in normal order
+        n1_simplified = simplify(n1)
+        @test length(n1_simplified.terms) == 1
+        @test n1_simplified.terms[1].coefficient == 1.0
+    end
+
+    @testset "Hopping terms b†_i b_j + b†_j b_i" begin
+        # Hopping between sites 1 and 2
+        hop_12 = b_dag[1] * b[2] + b_dag[2] * b[1]
+
+        @test hop_12 isa Polynomial{BosonicAlgebra}
+        @test length(hop_12.terms) == 2
+    end
+
+    @testset "Interaction term n_i(n_i - 1) = b†_i b_i b†_i b_i - b†_i b_i" begin
+        # For site 1: n₁(n₁ - 1) = (b†₁ b₁)(b†₁ b₁ - 1) = b†₁ b₁ b†₁ b₁ - b†₁ b₁
+        n1 = b_dag[1] * b[1]
+        n1_squared = n1 * n1  # b†₁ b₁ b†₁ b₁
+
+        # After simplification using CCR: b b† = b† b + 1
+        # b†₁ b₁ b†₁ b₁ = b†₁ (b†₁ b₁ + 1) b₁ = b†₁ b†₁ b₁ b₁ + b†₁ b₁
+        simplified = simplify(n1_squared)
+
+        # Should have 2 terms: (b†)² b² and b† b
+        @test length(simplified.terms) == 2
+
+        # Check for the b†₁ b†₁ b₁ b₁ term (degree 4)
+        degree4_terms = filter(t -> degree(t.monomial) == 4, simplified.terms)
+        @test length(degree4_terms) == 1
+        @test degree4_terms[1].coefficient == 1.0
+
+        # Check for the b†₁ b₁ term (degree 2)
+        degree2_terms = filter(t -> degree(t.monomial) == 2, simplified.terms)
+        @test length(degree2_terms) == 1
+        @test degree2_terms[1].coefficient == 1.0
+    end
+
+    @testset "Full Hamiltonian construction (OBC chain)" begin
+        t_hop = 1.0  # Hopping amplitude
+        U = 2.0      # On-site interaction
+        μ = 0.5      # Chemical potential
+
+        # Hopping term: -t Σ_{<i,j>} (b†_i b_j + b†_j b_i)
+        ham_hop = sum(-t_hop * (b_dag[k] * b[k+1] + b_dag[k+1] * b[k]) for k in 1:N-1)
+
+        # Number operators for each site
+        n = [b_dag[k] * b[k] for k in 1:N]
+
+        # Interaction term: (U/2) Σ_i n_i(n_i - 1)
+        # n_i(n_i - 1) = n_i² - n_i
+        ham_int = sum((U / 2) * (n[k] * n[k] - n[k]) for k in 1:N)
+
+        # Chemical potential term: -μ Σ_i n_i
+        ham_chem = sum(-μ * n[k] for k in 1:N)
+
+        # Total Hamiltonian
+        ham = ham_hop + ham_int + ham_chem
+
+        @test ham isa Polynomial{BosonicAlgebra}
+
+        # The Hamiltonian should have multiple terms
+        @test length(ham.terms) > 0
+    end
+end
+
+@testset "Bose-Hubbard CCR Verification" begin
+    # Verify canonical commutation relations: [b_i, b†_j] = δ_{ij}
+    # This is the key algebraic property that the bosonic simplification must satisfy
+
+    registry, (b, b_dag) = create_bosonic_variables(1:3)
+
+    @testset "Same-site commutator: b b† = b† b + 1" begin
+        # [b₁, b₁†] = b₁ b₁† - b₁† b₁ = 1
+        # So: b₁ b₁† = b₁† b₁ + 1
+        lhs = simplify(b[1] * b_dag[1])  # b b†
+        rhs = simplify(b_dag[1] * b[1])  # b† b
+
+        # lhs should have 2 terms: b† b + 1
+        @test length(lhs.terms) == 2
+
+        # Find the identity term (degree 0) with coefficient 1
+        identity_term = filter(t -> degree(t.monomial) == 0, lhs.terms)
+        @test length(identity_term) == 1
+        @test identity_term[1].coefficient == 1.0
+
+        # Find the b† b term (degree 2) with coefficient 1
+        number_term = filter(t -> degree(t.monomial) == 2, lhs.terms)
+        @test length(number_term) == 1
+        @test number_term[1].coefficient == 1.0
+
+        # rhs should have 1 term: b† b
+        @test length(rhs.terms) == 1
+        @test rhs.terms[1].coefficient == 1.0
+        @test degree(rhs.terms[1].monomial) == 2
+    end
+
+    @testset "Different-site commutator: [b_i, b†_j] = 0 for i ≠ j" begin
+        # b₁ b₂† = b₂† b₁ (they commute, no delta term)
+        lhs = simplify(b[1] * b_dag[2])
+        rhs = simplify(b_dag[2] * b[1])
+
+        # Both should be single terms with coefficient 1
+        @test length(lhs.terms) == 1
+        @test length(rhs.terms) == 1
+        @test lhs.terms[1].coefficient == 1.0
+        @test rhs.terms[1].coefficient == 1.0
+
+        # Both should have the same normal-ordered form: b₂† b₁
+        @test lhs.terms[1].monomial == rhs.terms[1].monomial
+    end
+
+    @testset "Annihilators commute: [b_i, b_j] = 0" begin
+        # b₁ b₂ = b₂ b₁
+        m12 = simplify(b[1] * b[2])
+        m21 = simplify(b[2] * b[1])
+
+        @test length(m12.terms) == 1
+        @test length(m21.terms) == 1
+        @test m12.terms[1].monomial == m21.terms[1].monomial
+    end
+
+    @testset "Creators commute: [b†_i, b†_j] = 0" begin
+        # b₁† b₂† = b₂† b₁†
+        m12 = simplify(b_dag[1] * b_dag[2])
+        m21 = simplify(b_dag[2] * b_dag[1])
+
+        @test length(m12.terms) == 1
+        @test length(m21.terms) == 1
+        @test m12.terms[1].monomial == m21.terms[1].monomial
+    end
+end
+
+@testset "Bose-Hubbard Ground State (vacuum reference)" begin
+    # With large positive chemical potential μ > 2t, the vacuum is the ground state
+    # because adding any particle costs more energy than the hopping can provide.
+    # In this limit, E₀ = 0 (vacuum energy).
+
+    N = 2
+    t_hop = 1.0
+    μ = 10.0  # Large chemical potential → vacuum is ground state
+
+    registry, (b, b_dag) = create_bosonic_variables(1:N)
+
+    # Number operators
+    n = [b_dag[k] * b[k] for k in 1:N]
+
+    # Hamiltonian: hopping + chemical potential (no interaction)
+    # H = -t(b₁†b₂ + b₂†b₁) + μ(n₁ + n₂)
+    ham = -t_hop * (b_dag[1] * b[2] + b_dag[2] * b[1]) + μ * (n[1] + n[2])
+
+    # Create optimization problem
+    pop = polyopt(ham, registry)
+
+    # Solve with order-1 relaxation
+    solver_config = SolverConfig(optimizer=SOLVER, order=1)
+    res = cs_nctssos(pop, solver_config)
+
+    # With μ >> t, the vacuum (no particles) is the ground state with E = 0
+    # The SDP should find a lower bound close to 0
+    @test res.objective isa Real
+    @test res.objective ≥ -1e-4  # Should be ≈ 0 (vacuum energy)
+end

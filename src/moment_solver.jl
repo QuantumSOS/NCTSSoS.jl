@@ -149,6 +149,11 @@ function moment_relax(
         ])
     end...)
 
+    # NOTE: For fermionic algebras, we do NOT filter odd-parity monomials from the basis.
+    # The parity superselection rule is enforced via constraints (see _add_parity_constraints!)
+    # rather than basis filtering. This is because moment matrix entries M[i,j] = <basis[i]^dag * op * basis[j]>
+    # can have even total parity even when basis[i] and basis[j] are individually odd-parity.
+
     # Determine cone type based on algebra
     is_complex = _is_complex_problem(A)
     psd_cone = is_complex ? :HPSD : :PSD
@@ -179,7 +184,13 @@ function moment_relax(
         push!(constraints, constraint)
     end
 
-    return MomentProblem{A, TI, M, P}(pop.objective, constraints, total_basis)
+    mp = MomentProblem{A, TI, M, P}(pop.objective, constraints, total_basis)
+
+    # Add parity superselection constraints for fermionic algebras
+    # This enforces that odd-parity moment entries are zero
+    _add_parity_constraints!(mp)
+
+    return mp
 end
 
 
@@ -386,6 +397,8 @@ end
 
 Substitute monomials in a polynomial with JuMP variables.
 Returns a JuMP affine expression.
+
+Monomials not in monomap are treated as having expectation value 0.
 """
 function _substitute_poly(
     poly::P,
@@ -394,8 +407,12 @@ function _substitute_poly(
     if iszero(poly)
         return zero(T) * first(values(monomap))
     end
+    # Skip monomials not in monomap (expectation value 0)
     return sum(
-        coef * monomap[symmetric_canon(expval(mono))]
+        (
+            canon_mono = symmetric_canon(expval(mono));
+            haskey(monomap, canon_mono) ? coef * monomap[canon_mono] : zero(coef) * first(values(monomap))
+        )
         for (coef, mono) in zip(coefficients(poly), monomials(poly))
     )
 end
@@ -405,6 +422,8 @@ end
 
 Substitute monomials in a polynomial with separate real/imaginary JuMP variables.
 Returns (real_expr, imag_expr) tuple.
+
+Monomials not in basis_to_idx are treated as having expectation value 0.
 """
 function _substitute_complex_poly(
     poly::P,
@@ -422,6 +441,12 @@ function _substitute_complex_poly(
 
     for (coef, mono) in zip(coefficients(poly), monomials(poly))
         canon_mono = symmetric_canon(expval(mono))
+
+        # Skip monomials not in basis (expectation value 0)
+        if !haskey(basis_to_idx, canon_mono)
+            continue
+        end
+
         idx = basis_to_idx[canon_mono]
 
         # (a + bi)(x + yi) = (ax - by) + (ay + bx)i
@@ -435,4 +460,92 @@ function _substitute_complex_poly(
     return (re_expr, im_expr)
 end
 
+
+# =============================================================================
+# Fermionic Parity Superselection Constraints
+# =============================================================================
+
+"""
+    _has_odd_parity_only(poly::Polynomial{FermionicAlgebra,T,C}) where {T,C}
+
+Check if a polynomial's expectation value must be zero due to parity superselection.
+Returns `true` if all non-zero terms have odd parity after canonicalization.
+
+For fermionic systems, only operators with even total fermion parity can have
+non-zero expectation values (parity superselection rule). This function checks
+whether ALL terms in a polynomial have odd parity, meaning the entire polynomial
+must have zero expectation value.
+
+# Arguments
+- `poly`: A fermionic polynomial to check
+
+# Returns
+- `true` if all non-zero terms have odd parity (expectation value must be 0)
+- `false` if at least one term has even parity (expectation value may be non-zero)
+"""
+function _has_odd_parity_only(
+    poly::Polynomial{FermionicAlgebra,T,C}
+) where {T<:Integer,C<:Number}
+    has_nonzero_term = false
+
+    for t in terms(poly)
+        if !iszero(t.coefficient)
+            has_nonzero_term = true
+            canon_mono = symmetric_canon(expval(t.monomial))
+            if has_even_parity(canon_mono)
+                return false  # Found even-parity term
+            end
+        end
+    end
+
+    return has_nonzero_term  # true only if all terms are odd parity
+end
+
+# Fallback for non-fermionic algebras (always returns false)
+_has_odd_parity_only(poly::Polynomial) = false
+
+"""
+    _add_parity_constraints!(mp::MomentProblem{A,T,M,P})
+
+Add zero constraints for moment matrix entries with odd fermion parity.
+
+For fermionic algebras, the parity superselection rule requires that expectation
+values of odd-parity operators be zero. This function scans all constraint matrices
+and adds explicit Zero cone constraints for entries where the polynomial has only
+odd-parity terms.
+
+This approach is correct because:
+- We keep ALL monomials in the basis (including odd-parity ones)
+- Moment matrix entry M[i,j] = <basis[i]^dag * op * basis[j]>
+- Even if basis[i] and basis[j] are individually odd-parity, the product
+  basis[i]^dag * basis[j] may have even total parity
+- We only constrain entries where the TOTAL expression has odd parity
+
+For non-fermionic algebras, this function is a no-op.
+
+# Arguments
+- `mp`: A MomentProblem to process (modified in place for fermionic algebras)
+"""
+function _add_parity_constraints!(
+    mp::MomentProblem{A,T,M,P}
+) where {A<:AlgebraType,T<:Integer,M,P}
+    # Only FermionicAlgebra needs parity constraints
+    A === FermionicAlgebra || return nothing
+
+    parity_constraints = Tuple{Symbol, Matrix{P}}[]
+
+    for (cone, mat) in mp.constraints
+        dim = size(mat, 1)
+        for i in 1:dim, j in 1:dim
+            poly = mat[i,j]
+            if _has_odd_parity_only(poly)
+                # This entry must be zero - add as 1x1 Zero constraint
+                push!(parity_constraints, (:Zero, reshape([poly], 1, 1)))
+            end
+        end
+    end
+
+    # Add all parity constraints to the problem
+    append!(mp.constraints, parity_constraints)
+end
 

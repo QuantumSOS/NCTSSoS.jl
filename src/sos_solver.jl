@@ -54,6 +54,9 @@ Extract coefficient matrix for dualization from a symbolic polynomial constraint
 This function decomposes the constraint matrix into a sparse representation
 where each non-zero coefficient is indexed by the basis monomial position
 and the matrix position (row, col).
+
+Note: Monomials not found in the basis (e.g., odd-parity fermionic monomials
+filtered by superselection) are skipped since they have expectation value 0.
 """
 function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {T,M,P<:AbstractPolynomial{T}}
     dim = size(localizing_mtx, 1)
@@ -62,9 +65,16 @@ function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) whe
     # basis idx, row, col -> coefficient
     dictionary_of_keys = Dict{Tuple{Int,Int,Int},T}()
 
+    n_basis = length(unsymmetrized_basis)
+
     for ci in cis
         for (coeff, alpha) in terms(localizing_mtx[ci])
-            dictionary_of_keys[(searchsortedfirst(unsymmetrized_basis, alpha), ci.I[1], ci.I[2])] = coeff
+            idx = searchsortedfirst(unsymmetrized_basis, alpha)
+            # Skip monomials not in basis (e.g., odd-parity fermionic monomials)
+            # These have expectation value 0 and don't contribute
+            if idx <= n_basis && unsymmetrized_basis[idx] == alpha
+                dictionary_of_keys[(idx, ci.I[1], ci.I[2])] = coeff
+            end
         end
     end
 
@@ -271,9 +281,19 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     @variable(dual_model, b)
     @objective(dual_model, Max, b)
 
-    # Sort basis for indexing
-    symmetric_basis = sort(mp.total_basis)
+    # Symmetrize basis: moment problem uses unsymmetrized basis, but
+    # we need to match coefficients of symmetric (canonicalized) monomials
+    # This is the same canonicalization used in real SOS dualization
+    symmetric_basis = sorted_unique(symmetric_canon.(mp.total_basis))
     n_basis = length(symmetric_basis)
+
+    # Create mapping from unsymmetrized basis to symmetric basis position
+    # (same approach as real SOS dualization)
+    sorted_unsym_basis = sort(mp.total_basis)
+    basis_to_sym_idx = Dict(
+        m => searchsortedfirst(symmetric_basis, symmetric_canon(m))
+        for m in mp.total_basis
+    )
 
     # Real and imaginary parts of constraint expressions
     fα_constraints_re = [zero(GenericAffExpr{RC,VariableRef}) for _ in 1:n_basis]
@@ -281,8 +301,9 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
 
     # Add objective polynomial coefficients (real and imaginary parts)
     for (coef, mono) in zip(coefficients(mp.objective), monomials(mp.objective))
-        idx = searchsortedfirst(symmetric_basis, mono)
-        if idx <= n_basis && symmetric_basis[idx] == mono
+        canon_mono = symmetric_canon(mono)
+        idx = searchsortedfirst(symmetric_basis, canon_mono)
+        if idx <= n_basis && symmetric_basis[idx] == canon_mono
             add_to_expression!(fα_constraints_re[idx], real(coef))
             add_to_expression!(fα_constraints_im[idx], imag(coef))
         end
@@ -293,30 +314,36 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
 
     # Process each constraint matrix
     for (i, (_, mat)) in enumerate(mp.constraints)
-        Cαjs = get_Cαj(symmetric_basis, mat)
+        Cαjs = get_Cαj(sorted_unsym_basis, mat)
         for (ky, coef) in Cαjs
-            basis_idx, row, col = ky
+            unsym_basis_idx, row, col = ky
 
-            # For complex coefficient coef = c_re + i*c_im
-            # The contribution to real constraint from Re(G) is -c_re
-            # The contribution to real constraint from Im(G) is +c_im
-            # The contribution to imag constraint from Re(G) is -c_im
-            # The contribution to imag constraint from Im(G) is -c_re
+            # Map unsymmetrized basis index to symmetric index
+            if unsym_basis_idx <= length(sorted_unsym_basis)
+                unsym_mono = sorted_unsym_basis[unsym_basis_idx]
+                sym_idx = basis_to_sym_idx[unsym_mono]
 
-            # This comes from: coef * G = (c_re + i*c_im) * (X1 + i*X2)
-            # Real part: c_re*X1 - c_im*X2
-            # Imag part: c_im*X1 + c_re*X2
+                # For complex coefficient coef = c_re + i*c_im
+                # The contribution to real constraint from Re(G) is -c_re
+                # The contribution to real constraint from Im(G) is +c_im
+                # The contribution to imag constraint from Re(G) is -c_im
+                # The contribution to imag constraint from Im(G) is -c_re
 
-            c_re = real(coef)
-            c_im = imag(coef)
+                # This comes from: coef * G = (c_re + i*c_im) * (X1 + i*X2)
+                # Real part: c_re*X1 - c_im*X2
+                # Imag part: c_im*X1 + c_re*X2
 
-            # Real constraint gets -c_re*X1[row,col] + c_im*X2[row,col]
-            add_to_expression!(fα_constraints_re[basis_idx], -c_re, Xs[1][i][row, col])
-            add_to_expression!(fα_constraints_re[basis_idx], +c_im, Xs[2][i][row, col])
+                c_re = real(coef)
+                c_im = imag(coef)
 
-            # Imag constraint gets -c_im*X1[row,col] - c_re*X2[row,col]
-            add_to_expression!(fα_constraints_im[basis_idx], -c_im, Xs[1][i][row, col])
-            add_to_expression!(fα_constraints_im[basis_idx], -c_re, Xs[2][i][row, col])
+                # Real constraint gets -c_re*X1[row,col] + c_im*X2[row,col]
+                add_to_expression!(fα_constraints_re[sym_idx], -c_re, Xs[1][i][row, col])
+                add_to_expression!(fα_constraints_re[sym_idx], +c_im, Xs[2][i][row, col])
+
+                # Imag constraint gets -c_im*X1[row,col] - c_re*X2[row,col]
+                add_to_expression!(fα_constraints_im[sym_idx], -c_im, Xs[1][i][row, col])
+                add_to_expression!(fα_constraints_im[sym_idx], -c_re, Xs[2][i][row, col])
+            end
         end
     end
 

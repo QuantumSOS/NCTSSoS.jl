@@ -53,6 +53,9 @@ export AlgebraType
 export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra, BosonicAlgebra
 export ProjectorAlgebra, UnipotentAlgebra
 
+# Fermionic algebra helpers
+export has_even_parity
+
 # State types
 export StateType, Arbitrary, MaxEntangled
 export StateWord, NCStateWord

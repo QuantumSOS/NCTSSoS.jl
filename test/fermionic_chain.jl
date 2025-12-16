@@ -50,7 +50,7 @@ end
     pop = polyopt(ham, registry)
 
     # Solve with order-2 relaxation
-    solver_config = SolverConfig(optimizer=SOLVER, order=2, ts_algo=MMD())
+    solver_config = SolverConfig(optimizer=SOLVER, order=2)
     res = cs_nctssos(pop, solver_config)
 
     # Refine with higher-order iterations

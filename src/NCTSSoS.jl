@@ -16,6 +16,7 @@ using .FastPolynomials: VariableRegistry, symbols, indices, subregistry
 using .FastPolynomials: variable_indices
 using .FastPolynomials: create_pauli_variables, create_fermionic_variables, create_bosonic_variables
 using .FastPolynomials: create_projector_variables, create_unipotent_variables, create_noncommutative_variables
+using .FastPolynomials: has_even_parity
 
 # Import internal type alias (not exported, for internal use)
 using .FastPolynomials: AbstractPolynomial
@@ -44,6 +45,9 @@ export reconstruct
 # Variable creation functions (public API)
 export create_pauli_variables, create_fermionic_variables, create_bosonic_variables
 export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
+
+# Fermionic algebra helpers (public API)
+export has_even_parity
 
 include("pop.jl")
 

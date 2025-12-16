@@ -30,6 +30,45 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 @inline _fermi_mode(op::Integer) = abs(op)
 
 """
+    has_even_parity(m::Monomial{FermionicAlgebra,T}) where T -> Bool
+
+Check if a fermionic monomial has even parity (even number of operators).
+
+In fermionic systems, parity superselection forbids observables with odd fermion
+number from having non-zero expectation values. Only operators with even parity
+(even number of creation/annihilation operators) can have non-zero physical
+expectation values.
+
+# Arguments
+- `m::Monomial{FermionicAlgebra,T}`: A fermionic monomial
+
+# Returns
+- `true` if the monomial has an even number of operators (including 0 for identity)
+- `false` if the monomial has an odd number of operators
+
+# Examples
+```jldoctest
+julia> using NCTSSoS.FastPolynomials
+
+julia> registry, (a, a_dag) = create_fermionic_variables(1:2);
+
+julia> has_even_parity(one(typeof(a[1])))  # Identity has 0 operators
+true
+
+julia> has_even_parity(a[1])  # Single annihilation: 1 operator (odd)
+false
+
+julia> has_even_parity(a_dag[1] * a[1])  # Number operator: 2 operators (even)
+true
+```
+
+See also: [`FermionicAlgebra`](@ref), [`simplify!`](@ref)
+"""
+function has_even_parity(m::Monomial{FermionicAlgebra,T}) where {T}
+    return iseven(length(m.word))
+end
+
+"""
     Base.iszero(m::Monomial{FermionicAlgebra,T}) -> Bool
 
 Check if a fermionic monomial is zero due to nilpotency.

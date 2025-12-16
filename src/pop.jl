@@ -103,6 +103,18 @@ function polyopt(
 ) where {A<:AlgebraType, T<:Integer, C<:Number}
     @assert !(C <: Integer) "The polynomial coefficients cannot be integers (not supported by JuMP solvers)."
 
+    # For fermionic algebra, validate objective has even parity (superselection rule)
+    if A == FermionicAlgebra
+        for term in terms(objective)
+            mono = term.monomial
+            if !has_even_parity(mono)
+                error("Fermionic objective must have even parity (even number of operators). " *
+                      "Monomial with word $(mono.word) has odd parity and would always have " *
+                      "zero expectation value due to parity superselection.")
+            end
+        end
+    end
+
     # Deduplicate constraints
     eq_cons = unique!(copy(eq_constraints))
     ineq_cons = unique!(copy(ineq_constraints))

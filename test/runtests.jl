@@ -40,6 +40,9 @@ using NCTSSoS, Test
     include("sos_solver.jl")
     include("interface.jl")
 
+    # Fermionic parity superselection tests
+    include("fermionic_parity_test.jl")
+
     # State/Trace polynomial tests - not yet migrated (uses specialized features: ς, tr)
     # include("state_poly_opt.jl")
     # include("trace_poly_opt.jl")

@@ -693,3 +693,77 @@ julia> length(sw.state_monos)
 See also: [`ς`](@ref), [`StateWord`](@ref)
 """
 tr(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateWord{MaxEntangled}(m)
+
+# =============================================================================
+# State Basis Generation
+# =============================================================================
+
+"""
+    get_state_basis(registry::VariableRegistry{A,T}, d::Int;
+                    state_type::Type{ST}=Arbitrary) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+
+Generate a basis of NCStateWord elements up to degree d.
+
+This function generates all unique NCStateWord basis elements that can be formed
+from the variables in the registry up to the specified degree. Each basis element
+is an NCStateWord with identity StateWord part and a monomial nc_word part.
+
+# Arguments
+- `registry`: Variable registry containing the variable indices
+- `d`: Maximum degree (inclusive)
+
+# Keyword Arguments
+- `state_type`: The state type for the basis elements (default: `Arbitrary`)
+
+# Returns
+- `Vector{NCStateWord{ST,A,T}}`: Sorted unique NCStateWord basis elements
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> reg, (x,) = create_unipotent_variables([("x", 1:2)]);
+
+julia> basis = get_state_basis(reg, 1);
+
+julia> length(basis)  # identity + 2 variables
+3
+
+julia> all(b -> b isa NCStateWord{Arbitrary}, basis)
+true
+```
+
+For projector algebra:
+```jldoctest
+julia> using FastPolynomials
+
+julia> reg, (P,) = create_projector_variables([("P", 1:2)]);
+
+julia> basis = get_state_basis(reg, 2; state_type=MaxEntangled);
+
+julia> all(b -> b isa NCStateWord{MaxEntangled}, basis)
+true
+```
+
+See also: [`NCStateWord`](@ref), [`get_ncbasis`](@ref)
+"""
+function get_state_basis(
+    registry::VariableRegistry{A,T},
+    d::Int;
+    state_type::Type{ST}=Arbitrary
+) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+    poly_basis = get_ncbasis(registry, d)
+
+    result = NCStateWord{ST,A,T}[]
+    identity_sw = one(StateWord{ST,A,T})
+
+    for poly in poly_basis
+        for term in poly.terms
+            ncsw = NCStateWord(identity_sw, term.monomial)
+            push!(result, ncsw)
+        end
+    end
+
+    unique!(sort!(result))
+    return result
+end

@@ -46,7 +46,7 @@ export star, star!, adjoint!
 export symmetric_canon, cyclic_canon, cyclic_symmetric_canon, canonicalize
 
 # Basis generation
-export get_ncbasis, get_ncbasis_deg
+export get_ncbasis, get_ncbasis_deg, get_state_basis
 
 # Algebra types (singleton types for dispatch)
 export AlgebraType

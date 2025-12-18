@@ -1,18 +1,19 @@
 using NCTSSoS, Test
 
 # =============================================================================
-# FastPolynomials Integration - Test Status (2025-12-13)
+# FastPolynomials Integration - Test Status (2025-12-18)
 # =============================================================================
 # Migration status:
 #   ✓ FastPolynomials tests - using new API, all pass
 #   ✓ pop.jl, sparse.jl - migrated, all pass
 #   ✓ moment_solver.jl, sos_solver.jl, interface.jl - migrated, all pass
 #   ✓ Aqua.jl, ExplicitImports.jl - pass
-#   ✓ heisenberg.jl - passes (only runs with LOCAL_TESTING=true)
+#   ✓ heisenberg.jl, xy_model.jl, bose_hubbard.jl - pass (LOCAL_TESTING only)
+#   ✓ bell_ineq.jl - migrated to ProjectorAlgebra API (LOCAL_TESTING only)
 #
 # Remaining:
 #   - state_poly_opt.jl, trace_poly_opt.jl - not yet migrated (uses ς, tr)
-#   - Doctest.jl disabled (FastPolynomials doctests use invalid import path)
+#   - Doctest.jl disabled (FastPolynomials doctests need import path fix)
 # =============================================================================
 
 @testset "NCTSSoS.jl" begin
@@ -37,6 +38,7 @@ using NCTSSoS, Test
         include("heisenberg.jl")
         include("xy_model.jl")
         include("bose_hubbard.jl")
+        include("bell_ineq.jl")
     end
     include("sos_solver.jl")
     include("interface.jl")

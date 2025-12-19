@@ -282,7 +282,8 @@ function cs_nctssos(pop::StatePolyOpt{A,ST,P}, solver_config::SolverConfig; dual
         optimize!(sos_problem.model)
         return StatePolyOptResult{C,A,ST,T,P,M}(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model)
     else
-        # Direct moment solving not yet implemented for state polynomials
-        error("Direct moment solving (dualize=false) is not yet implemented for StatePolyOpt. Use dualize=true.")
+        # Solve moment problem directly
+        result = solve_moment_problem(moment_problem, solver_config.optimizer)
+        return StatePolyOptResult{C,A,ST,T,P,M}(result.objective, corr_sparsity, cliques_term_sparsities, result.model)
     end
 end

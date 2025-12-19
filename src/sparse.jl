@@ -648,6 +648,49 @@ function assign_state_constraint(
 end
 
 """
+    _extract_compound_state_words(obj, cons) -> Vector{StateWord}
+
+Extract compound StateWords (those with multiple expectations) from objective and constraints.
+
+For state polynomial optimization, objectives may contain products of expectations like
+`<A><B>`. To properly represent these in the moment matrix, the basis needs elements
+of the form `<A>*I` and `<B>*I`. This function identifies all StateWords from the
+objective and constraints that have multiple expectations (compound StateWords).
+
+# Returns
+A vector of StateWords that contain multiple expectations. These need to be passed
+to `get_state_basis` to generate the extended basis elements.
+"""
+function _extract_compound_state_words(
+    obj::NCStatePolynomial{C,ST,A,T},
+    cons::Vector{NCStatePolynomial{C,ST,A,T}}
+) where {C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer}
+    result = StateWord{ST,A,T}[]
+
+    # Extract from objective
+    for ncsw in monomials(obj)
+        sw = ncsw.sw
+        # A compound StateWord has more than one state monomial, OR has a non-identity
+        # state monomial that differs from the identity (meaning it has actual expectations)
+        if length(sw.state_monos) > 1 || (!isone(sw) && !isempty(sw.state_monos))
+            push!(result, sw)
+        end
+    end
+
+    # Extract from constraints
+    for con in cons
+        for ncsw in monomials(con)
+            sw = ncsw.sw
+            if length(sw.state_monos) > 1 || (!isone(sw) && !isempty(sw.state_monos))
+                push!(result, sw)
+            end
+        end
+    end
+
+    return unique(result)
+end
+
+"""
     correlative_sparsity(pop::StatePolyOpt, order, elim_algo) -> StateCorrelativeSparsity
 
 Decomposes a state polynomial optimization problem into a correlative sparsity pattern.
@@ -683,6 +726,11 @@ function correlative_sparsity(
     # Assign constraints to cliques
     cliques_cons, global_cons = assign_state_constraint(cliques, all_cons, registry)
 
+    # Extract compound StateWords from objective and constraints that require extended basis
+    # For objectives containing products of expectations like <A><B>, we need basis elements
+    # of the form <A>*I to properly represent these terms in the moment matrix
+    required_state_words = _extract_compound_state_words(pop.objective, all_cons)
+
     # Generate moment matrix bases for each clique using subregistry + get_state_basis
     M = NCStateWord{ST,A,T}
     cliques_moment_matrix_bases = Vector{Vector{M}}()
@@ -690,8 +738,13 @@ function correlative_sparsity(
     for clique_indices in cliques
         # Create sub-registry for this clique
         sub_reg = subregistry(registry, clique_indices)
-        # Generate NCStateWord basis using get_state_basis
-        basis = get_state_basis(sub_reg, order; state_type=ST)
+        # Filter required_state_words to only those relevant to this clique
+        clique_set = Set(clique_indices)
+        clique_required_sws = filter(required_state_words) do sw
+            issubset(variables(sw), clique_set)
+        end
+        # Generate NCStateWord basis using get_state_basis with extended requirements
+        basis = get_state_basis(sub_reg, order; state_type=ST, required_state_words=clique_required_sws)
         # Sort and deduplicate
         push!(cliques_moment_matrix_bases, sorted_unique(basis))
     end

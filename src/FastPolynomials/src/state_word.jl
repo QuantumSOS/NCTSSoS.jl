@@ -700,7 +700,8 @@ tr(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateWord{MaxEntangled}
 
 """
     get_state_basis(registry::VariableRegistry{A,T}, d::Int;
-                    state_type::Type{ST}=Arbitrary) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+                    state_type::Type{ST}=Arbitrary,
+                    required_state_words::Vector{StateWord{ST,A,T}}=StateWord{ST,A,T}[]) where {A<:AlgebraType, T<:Integer, ST<:StateType}
 
 Generate a basis of NCStateWord elements up to degree d.
 
@@ -708,12 +709,21 @@ This function generates all unique NCStateWord basis elements that can be formed
 from the variables in the registry up to the specified degree. Each basis element
 is an NCStateWord with identity StateWord part and a monomial nc_word part.
 
+Additionally, if `required_state_words` is provided, the basis will include
+NCStateWord elements with non-identity StateWord parts that are needed to
+represent compound state expectations in the moment matrix. This is essential
+for objectives containing products of expectations like `<A><B>`.
+
 # Arguments
 - `registry`: Variable registry containing the variable indices
 - `d`: Maximum degree (inclusive)
 
 # Keyword Arguments
 - `state_type`: The state type for the basis elements (default: `Arbitrary`)
+- `required_state_words`: Additional StateWords that must be representable in the moment
+  matrix. For each StateWord containing multiple expectations `<M1><M2>...`, the basis
+  will include elements `<Mi>*I` that can generate the compound forms through moment
+  matrix multiplication. (default: empty)
 
 # Returns
 - `Vector{NCStateWord{ST,A,T}}`: Sorted unique NCStateWord basis elements
@@ -750,17 +760,38 @@ See also: [`NCStateWord`](@ref), [`get_ncbasis`](@ref)
 function get_state_basis(
     registry::VariableRegistry{A,T},
     d::Int;
-    state_type::Type{ST}=Arbitrary
+    state_type::Type{ST}=Arbitrary,
+    required_state_words::Vector{StateWord{ST,A,T}}=StateWord{ST,A,T}[]
 ) where {A<:AlgebraType, T<:Integer, ST<:StateType}
     poly_basis = get_ncbasis(registry, d)
 
     result = NCStateWord{ST,A,T}[]
     identity_sw = one(StateWord{ST,A,T})
+    identity_mono = one(Monomial{A,T})
 
+    # Standard basis: <I> * M for all monomials M up to degree d
     for poly in poly_basis
         for term in poly.terms
             ncsw = NCStateWord(identity_sw, term.monomial)
             push!(result, ncsw)
+        end
+    end
+
+    # Extended basis for compound StateWords: <M> * I where M appears in required_state_words
+    # This is needed to represent compound state expectations like <A><B> in the moment matrix
+    # When we compute _neat_dot3(<A>*I, ..., <A>*I), we can get <A><A>
+    if !isempty(required_state_words)
+        state_monos_seen = Set{Monomial{A,T}}()
+        for sw in required_state_words
+            for state_mono in sw.state_monos
+                if !(state_mono in state_monos_seen) && !isone(state_mono)
+                    push!(state_monos_seen, state_mono)
+                    # Create NCStateWord with this single expectation and identity operator
+                    single_sw = StateWord{ST}([state_mono])
+                    ncsw = NCStateWord(single_sw, identity_mono)
+                    push!(result, ncsw)
+                end
+            end
         end
     end
 

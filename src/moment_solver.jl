@@ -683,3 +683,145 @@ function moment_relax(
     return StateMomentProblem{A, ST, TI, M, P}(pop.objective, constraints, total_basis)
 end
 
+
+# =============================================================================
+# Direct Solving for State Moment Problems
+# =============================================================================
+
+"""
+    solve_moment_problem(mp::StateMomentProblem{A,ST,T,M,P}, optimizer; silent::Bool=true)
+
+Directly solve a symbolic state moment problem by instantiating a JuMP model.
+
+# Arguments
+- `mp`: Symbolic state moment problem from `moment_relax`
+- `optimizer`: JuMP-compatible optimizer (e.g., Clarabel.Optimizer)
+
+# Keyword Arguments
+- `silent`: Suppress optimizer output (default: true)
+
+# Returns
+- `NamedTuple` with:
+  - `objective`: Optimal objective value
+  - `model`: The JuMP model (for extracting dual values, etc.)
+  - `monomap`: Dictionary mapping StateWords to JuMP variable values
+
+# Description
+This function instantiates the symbolic state moment problem as a JuMP model:
+1. Creates variables for each unique StateWord (via expval of NCStateWord)
+2. Sets y[identity] = 1 (normalization)
+3. Adds constraint matrices in appropriate cones
+4. Minimizes the objective
+5. Solves and returns results
+
+State polynomial optimization uses real-valued SDP (no complex embedding needed).
+
+# Examples
+```julia
+mp = moment_relax(spop, corr_sparsity, term_sparsities)
+result = solve_moment_problem(mp, Clarabel.Optimizer)
+println("Optimal value: ", result.objective)
+```
+
+See also: [`moment_relax`](@ref), [`StateMomentProblem`](@ref), [`sos_dualize`](@ref)
+"""
+function solve_moment_problem(
+    mp::StateMomentProblem{A,ST,T,M,P},
+    optimizer;
+    silent::Bool=true
+) where {A<:AlgebraType, ST<:StateType, T<:Integer, M<:NCStateWord{ST,A,T}, P<:NCStatePolynomial}
+
+    # Get coefficient type from polynomial
+    C = eltype(coefficients(mp.objective))
+
+    # State polynomial optimization uses real-valued model
+    model = GenericModel{C}()
+
+    # Build the StateWord basis from total_basis NCStateWords
+    # We need to convert NCStateWord -> StateWord via expval for moment variables
+    SW = StateWord{ST,A,T}
+    state_basis = sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in mp.total_basis])
+    n_basis = length(state_basis)
+
+    # Create variables for basis StateWords
+    @variable(model, y[1:n_basis], set_string_name=false)
+
+    # Normalization: y[identity] = 1
+    identity_sw = one(SW)
+    identity_idx = searchsortedfirst(state_basis, identity_sw)
+    if identity_idx <= n_basis && state_basis[identity_idx] == identity_sw
+        @constraint(model, y[identity_idx] == 1)
+    else
+        error("Identity StateWord not found in basis - this shouldn't happen")
+    end
+
+    # Map StateWord to variable index
+    sw_to_idx = Dict(sw => i for (i, sw) in enumerate(state_basis))
+
+    # Add constraints
+    for (cone, mat) in mp.constraints
+        dim = size(mat, 1)
+        # Convert NCStatePolynomial matrix to JuMP expression matrix
+        jump_mat = [
+            _substitute_state_poly(mat[i,j], sw_to_idx, y)
+            for i in 1:dim, j in 1:dim
+        ]
+
+        if cone == :Zero
+            @constraint(model, jump_mat in Zeros())
+        elseif cone == :PSD
+            @constraint(model, jump_mat in PSDCone())
+        else
+            error("Unexpected cone type $cone for state polynomial problem")
+        end
+    end
+
+    # Set objective
+    obj_expr = _substitute_state_poly(mp.objective, sw_to_idx, y)
+    @objective(model, Min, obj_expr)
+
+    # Solve
+    set_optimizer(model, optimizer)
+    silent && set_silent(model)
+    optimize!(model)
+
+    # Build monomap returning StateWord -> value
+    monomap = Dict(sw => value(y[i]) for (sw, i) in sw_to_idx)
+
+    return (objective=objective_value(model), model=model, monomap=monomap)
+end
+
+"""
+    _substitute_state_poly(poly::NCStatePolynomial, sw_to_idx::Dict, y::Vector) -> AffExpr
+
+Substitute StateWords in an NCStatePolynomial with JuMP variables.
+Returns a JuMP affine expression.
+
+NCStateWords are converted to StateWords via expval, then canonicalized.
+StateWords not in sw_to_idx are treated as having expectation value 0.
+"""
+function _substitute_state_poly(
+    poly::P,
+    sw_to_idx::Dict{SW,Int},
+    y::Vector{V}
+) where {C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer, P<:NCStatePolynomial{C,ST,A,T}, SW<:StateWord{ST,A,T}, V}
+
+    if iszero(poly)
+        return zero(eltype(y))
+    end
+
+    expr = zero(eltype(y))
+    for (coef, ncsw) in zip(coefficients(poly), monomials(poly))
+        # Convert NCStateWord to StateWord via expval, then canonicalize
+        canon_sw = symmetric_canon(expval(ncsw))
+
+        # Skip StateWords not in basis (expectation value 0)
+        if haskey(sw_to_idx, canon_sw)
+            idx = sw_to_idx[canon_sw]
+            expr += coef * y[idx]
+        end
+    end
+
+    return expr
+end
+

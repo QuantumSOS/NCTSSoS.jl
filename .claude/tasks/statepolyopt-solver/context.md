@@ -99,10 +99,46 @@ Workaround: Use `ts_algo=NoElimination()` for state polynomial optimization.
 
 ## Next Steps
 
-To fully support test 7.2.1:
+To fully support test 7.2.1 (compound expectations like `<A>²`):
 
-1. Implement objective analysis to detect when compound StateWords are needed
-2. Create specialized basis generation for compound expectation objectives
-3. Ensure dualization correctly handles mixed basis types
+### Why This Is Hard
+
+The fundamental issue is mathematical, not just implementation:
+
+1. **Current approach**: Uses NCStateWord-indexed moment matrix with `<I>*M` basis
+   - Moment matrix entries: `M[i,j] = <basis_i† * op * basis_j>` = single expectation
+   - Cannot represent `<A><B>` (product of expectations) in this framework
+
+2. **The `<A>²` problem**: The term `<xy>²` is the SQUARE of an expectation value
+   - This is NOT the same as `<(xy)²>` = `<xyxy>`
+   - `<xy>²` can range from 0 to 1 (square of value in [-1,1])
+   - `<xyxy>` can be negative (e.g., for anticommuting operators)
+
+3. **Attempted fix failed**: Using `<M>*I` basis to generate `<A><B>` works but:
+   - Breaks the moment matrix structure (double-counting variables)
+   - Results in infeasible or incorrect problems
+
+### Fundamental Redesign Needed
+
+To support compound expectations properly:
+
+1. **StateWord-indexed variables**: Moment variables indexed by StateWords, not NCStateWords
+   - Variable for `<xy>` separate from variables for `<x>`, `<y>`
+   - Variable for `<xy>²` = `(<xy>)²` separate from variable for `<xyxy>`
+
+2. **Polynomial constraints**: Add constraints like `<xy>² = <xy>²` (trivial) 
+   and enforce consistency with PSD structure differently
+
+3. **Different SDP formulation**: May need to use different constraint structure
+   that captures products of expectations
+
+This is a significant architectural change beyond the current StatePolyOpt implementation.
+
+### Workarounds
+
+For now, users with squared expectations should:
+1. Reformulate the problem to avoid `<A>²` terms if possible
+2. Use higher-level relaxations that may give correct bounds
+3. Wait for architectural improvements
 
 See `research.md` for original implementation plan.

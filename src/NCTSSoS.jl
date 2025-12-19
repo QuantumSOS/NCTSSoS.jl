@@ -28,8 +28,13 @@ using .FastPolynomials: get_ncbasis, get_state_basis
 using .FastPolynomials: symmetric_canon
 using .FastPolynomials: neat_dot, _neat_dot3, expval
 
+# State polynomial types
+using .FastPolynomials: StateType, Arbitrary, MaxEntangled
+using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomial
+using .FastPolynomials: ς, tr
+
 # Re-export key types and functions for downstream users
-export ς
+export ς, tr
 
 # Note: Core types (Monomial, Polynomial, Term)
 # are NOT exported from NCTSSoS to avoid ambiguity when FastPolynomials

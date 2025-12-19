@@ -767,3 +767,83 @@ function get_state_basis(
     unique!(sort!(result))
     return result
 end
+
+# =============================================================================
+# StateWord Canonicalization
+# =============================================================================
+#
+# Import symmetric_canon from canonicalization.jl (included before this file)
+# and extend it for StateWord types.
+
+"""
+    symmetric_canon(sw::StateWord{ST,A,T}) where {ST,A,T}
+
+Return a new StateWord with symmetrically canonicalized monomials.
+
+For StateWords, symmetric canonicalization applies `symmetric_canon` to each
+state monomial individually (state monomials are already involution-canonicalized
+during StateWord construction via `_involution_canon`).
+
+Since StateWords represent products of expectations which commute, the overall
+StateWord is already in a canonical sorted form. This function ensures each
+constituent monomial is in its symmetric canonical form.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([3, 2, 1]);
+
+julia> sw = StateWord{Arbitrary}([m]);
+
+julia> sw_canon = symmetric_canon(sw);
+
+julia> sw_canon.state_monos[1].word
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+```
+"""
+function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    # Apply symmetric_canon to each monomial in the state word
+    canon_monos = [symmetric_canon(m) for m in sw.state_monos]
+    StateWord{ST}(canon_monos)
+end
+
+"""
+    symmetric_canon(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Return a new NCStateWord with symmetrically canonicalized components.
+
+For NCStateWords, this canonicalizes both the StateWord part and the nc_word part.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m1 = Monomial{PauliAlgebra}([3, 2, 1]);
+
+julia> m2 = Monomial{PauliAlgebra}([2, 1]);
+
+julia> sw = StateWord{Arbitrary}([m1]);
+
+julia> ncsw = NCStateWord(sw, m2);
+
+julia> ncsw_canon = symmetric_canon(ncsw);
+
+julia> ncsw_canon.sw.state_monos[1].word
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+
+julia> ncsw_canon.nc_word.word
+2-element Vector{Int64}:
+ 1
+ 2
+```
+"""
+function symmetric_canon(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    NCStateWord(symmetric_canon(ncsw.sw), symmetric_canon(ncsw.nc_word))
+end

@@ -74,7 +74,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 export symbols, indices, subregistry
 
 # Polynomial helpers
-export variable_indices
+export variable_indices, maxdegree
 
 
 # Utility functions (kept from legacy API)

@@ -74,11 +74,10 @@ An NCStatePolynomial representing the simplified triple product.
 The nc_word parts are simplified using algebra-specific rules (e.g., x²=I for unipotent).
 """
 function _neat_dot3(a::NCStateWord{ST,A,T}, m::Monomial{A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # Compute state word part: adjoint(a.sw) * m_sw * b.sw (commutative)
+    # Compute state word part: adjoint(a.sw) * b.sw (commutative)
     # For monomial m, the associated StateWord is identity (no state part)
-    sw_prod_term = adjoint(a.sw) * b.sw  # Returns Term{StateWord, Float64}
-    sw_prod = sw_prod_term.monomial
-    sw_coef = sw_prod_term.coefficient
+    # StateWord * StateWord returns StateWord (commutative, no phase)
+    sw_prod = adjoint(a.sw) * b.sw
 
     # Compute nc_word part: adjoint(a.nc_word) * m * b.nc_word (non-commutative)
     nc_concat = adjoint(a.nc_word) * m * b.nc_word
@@ -88,11 +87,11 @@ function _neat_dot3(a::NCStateWord{ST,A,T}, m::Monomial{A,T}, b::NCStateWord{ST,
 
     # Convert to NCStatePolynomial
     if simplified isa Monomial
-        return NCStatePolynomial([sw_coef], [NCStateWord(sw_prod, simplified)])
+        return NCStatePolynomial([1.0], [NCStateWord(sw_prod, simplified)])
     elseif simplified isa Term
-        return NCStatePolynomial([sw_coef * simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
+        return NCStatePolynomial([simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
     elseif simplified isa Polynomial
-        coeffs = [sw_coef * t.coefficient for t in simplified.terms]
+        coeffs = [t.coefficient for t in simplified.terms]
         ncsws = [NCStateWord(sw_prod, t.monomial) for t in simplified.terms]
         return NCStatePolynomial(coeffs, ncsws)
     else
@@ -102,13 +101,8 @@ end
 
 function _neat_dot3(a::NCStateWord{ST,A,T}, m::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     # Compute state word part: adjoint(a.sw) * m.sw * b.sw (commutative)
-    # StateWord * StateWord returns Term{StateWord, Float64}
-    # We need to chain the multiplications carefully
-    term1 = adjoint(a.sw) * m.sw  # Returns Term{StateWord, Float64}
-    # term1 * b.sw won't work directly - we need to extract and multiply
-    sw_prod_term2 = term1.monomial * b.sw  # StateWord * StateWord -> Term
-    sw_prod = sw_prod_term2.monomial
-    sw_coef = term1.coefficient * sw_prod_term2.coefficient
+    # StateWord * StateWord returns StateWord (commutative, no phase)
+    sw_prod = adjoint(a.sw) * m.sw * b.sw
 
     # Compute nc_word part: adjoint(a.nc_word) * m.nc_word * b.nc_word (non-commutative)
     nc_concat = adjoint(a.nc_word) * m.nc_word * b.nc_word
@@ -118,11 +112,11 @@ function _neat_dot3(a::NCStateWord{ST,A,T}, m::NCStateWord{ST,A,T}, b::NCStateWo
 
     # Convert to NCStatePolynomial
     if simplified isa Monomial
-        return NCStatePolynomial([sw_coef], [NCStateWord(sw_prod, simplified)])
+        return NCStatePolynomial([1.0], [NCStateWord(sw_prod, simplified)])
     elseif simplified isa Term
-        return NCStatePolynomial([sw_coef * simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
+        return NCStatePolynomial([simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
     elseif simplified isa Polynomial
-        coeffs = [sw_coef * t.coefficient for t in simplified.terms]
+        coeffs = [t.coefficient for t in simplified.terms]
         ncsws = [NCStateWord(sw_prod, t.monomial) for t in simplified.terms]
         return NCStatePolynomial(coeffs, ncsws)
     else

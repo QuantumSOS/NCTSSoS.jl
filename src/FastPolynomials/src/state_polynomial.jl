@@ -483,10 +483,10 @@ function Base.:(*)(
 
     for (ca, swa) in zip(a.coeffs, a.state_words)
         for (cb, swb) in zip(b.coeffs, b.state_words)
-            # StateWord multiplication returns Term{StateWord, Float64}
-            prod_term = swa * swb
-            push!(result_coeffs, C(ca * cb * prod_term.coefficient))
-            push!(result_sws, prod_term.monomial)
+            # StateWord multiplication returns StateWord (commutative, no phase)
+            prod_sw = swa * swb
+            push!(result_coeffs, C(ca * cb))
+            push!(result_sws, prod_sw)
         end
     end
 
@@ -507,9 +507,10 @@ function Base.:(*)(
     result_sws = StateWord{ST,A,T}[]
 
     for (coef, sp_sw) in zip(sp.coeffs, sp.state_words)
-        prod_term = sp_sw * sw
-        push!(result_coeffs, C(coef * prod_term.coefficient))
-        push!(result_sws, prod_term.monomial)
+        # StateWord multiplication returns StateWord (commutative, no phase)
+        prod_sw = sp_sw * sw
+        push!(result_coeffs, coef)
+        push!(result_sws, prod_sw)
     end
 
     StatePolynomial(result_coeffs, result_sws)

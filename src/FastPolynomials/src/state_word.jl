@@ -278,16 +278,16 @@ function Base.isless(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:Stat
 end
 
 # =============================================================================
-# Multiplication - Returns Term for consistency with other AbstractMonomial types
+# Multiplication - Returns StateWord (commutative, no phase)
 # =============================================================================
 
 """
     Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST,A,T}
 
 Multiply two StateWords by concatenating and re-sorting their monomials.
-Returns a Term{StateWord, Float64} for consistency with other monomial algebras.
 
-State expectations commute, so the result is sorted.
+State expectations commute, so the result is a sorted StateWord containing
+all expectations from both operands.
 
 # Examples
 ```jldoctest
@@ -303,16 +303,15 @@ julia> sw2 = StateWord{Arbitrary}([m2]);
 
 julia> result = sw1 * sw2;
 
-julia> result isa Term
+julia> result isa StateWord
 true
 
-julia> length(result.monomial.state_monos)
+julia> length(result.state_monos)
 2
 ```
 """
 function Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    product_sw = StateWord{ST}(vcat(a.state_monos, b.state_monos))
-    Term(1.0, product_sw)
+    StateWord{ST}(vcat(a.state_monos, b.state_monos))
 end
 
 # =============================================================================
@@ -513,9 +512,9 @@ Multiply two NCStateWords: multiply sw parts (commutative) and nc_word parts (no
 function Base.:(*)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     # nc_word multiplication returns Monomial (word concatenation only)
     nc_prod = a.nc_word * b.nc_word
-    # StateWord multiplication returns Term, extract the monomial
+    # StateWord multiplication returns StateWord (commutative, no phase)
     sw_prod = a.sw * b.sw
-    NCStateWord(sw_prod.monomial, nc_prod)
+    NCStateWord(sw_prod, nc_prod)
 end
 
 # =============================================================================

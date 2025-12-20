@@ -64,7 +64,7 @@ end
     solver_config = SolverConfig(; optimizer=QUICK_SOLVER, order=d)
 
     result_sos = cs_nctssos(spop, solver_config)
-    @test_skip isapprox(result_sos.objective, -4.0, atol=1e-4)
+    @test isapprox(result_sos.objective, -4.0, atol=1e-4)
 end
 
 @testset "State Polynomial Opt 7.2.2" begin

@@ -699,30 +699,26 @@ tr(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateWord{MaxEntangled}
 
 """
     get_state_basis(registry::VariableRegistry{A,T}, d::Int;
-                    state_type::Type{ST}=Arbitrary,
-                    required_state_words::Vector{StateWord{ST,A,T}}=StateWord{ST,A,T}[]) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+                    state_type::Type{ST}=Arbitrary) where {A<:AlgebraType, T<:Integer, ST<:StateType}
 
 Generate a basis of NCStateWord elements up to degree d.
 
 This function generates all unique NCStateWord basis elements that can be formed
-from the variables in the registry up to the specified degree. Each basis element
-is an NCStateWord with identity StateWord part and a monomial nc_word part.
+from the variables in the registry up to the specified degree. The basis includes
+all (StateWord, Monomial) combinations where `degree(sw) + degree(nc_word) <= d`.
 
-Additionally, if `required_state_words` is provided, the basis will include
-NCStateWord elements with non-identity StateWord parts that are needed to
-represent compound state expectations in the moment matrix. This is essential
-for objectives containing products of expectations like `<A><B>`.
+This generates:
+- `<I>*M` forms (identity StateWord, operator monomial)
+- `<M>*I` forms (single expectation, identity operator)
+- `<M1><M2>*I` forms (compound expectations, identity operator)
+- `<M>*N` mixed forms (expectation with operator)
 
 # Arguments
 - `registry`: Variable registry containing the variable indices
-- `d`: Maximum degree (inclusive)
+- `d`: Maximum total degree (inclusive)
 
 # Keyword Arguments
 - `state_type`: The state type for the basis elements (default: `Arbitrary`)
-- `required_state_words`: Additional StateWords that must be representable in the moment
-  matrix. For each StateWord containing multiple expectations `<M1><M2>...`, the basis
-  will include elements `<Mi>*I` that can generate the compound forms through moment
-  matrix multiplication. (default: empty)
 
 # Returns
 - `Vector{NCStateWord{ST,A,T}}`: Sorted unique NCStateWord basis elements
@@ -735,8 +731,8 @@ julia> reg, (x,) = create_unipotent_variables([("x", 1:2)]);
 
 julia> basis = get_state_basis(reg, 1);
 
-julia> length(basis)  # identity + 2 variables
-3
+julia> length(basis)  # includes <I>*I, <I>*x1, <I>*x2, <x1>*I, <x2>*I
+5
 
 julia> all(b -> b isa NCStateWord{Arbitrary}, basis)
 true
@@ -759,42 +755,126 @@ See also: [`NCStateWord`](@ref), [`get_ncbasis`](@ref)
 function get_state_basis(
     registry::VariableRegistry{A,T},
     d::Int;
-    state_type::Type{ST}=Arbitrary,
-    required_state_words::Vector{StateWord{ST,A,T}}=StateWord{ST,A,T}[]
+    state_type::Type{ST}=Arbitrary
 ) where {A<:AlgebraType, T<:Integer, ST<:StateType}
-    poly_basis = get_ncbasis(registry, d)
-
-    result = NCStateWord{ST,A,T}[]
-    identity_sw = one(StateWord{ST,A,T})
-    identity_mono = one(Monomial{A,T})
-
-    # Standard basis: <I> * M for all monomials M up to degree d
-    for poly in poly_basis
-        for term in poly.terms
-            ncsw = NCStateWord(identity_sw, term.monomial)
-            push!(result, ncsw)
+    
+    # Collect monomials by degree
+    monos_by_deg = Vector{Vector{Monomial{A,T}}}(undef, d + 1)
+    for deg in 0:d
+        poly_basis = get_ncbasis(registry, deg)
+        monos = Monomial{A,T}[]
+        for poly in poly_basis
+            for term in poly.terms
+                push!(monos, term.monomial)
+            end
         end
+        unique!(sort!(monos))
+        monos_by_deg[deg + 1] = monos
     end
-
-    # Extended basis for compound StateWords: <M> * I where M appears in required_state_words
-    # This is needed to represent compound state expectations like <A><B> in the moment matrix
-    # When we compute _neat_dot3(<A>*I, ..., <A>*I), we can get <A><A>
-    if !isempty(required_state_words)
-        state_monos_seen = Set{Monomial{A,T}}()
-        for sw in required_state_words
-            for state_mono in sw.state_monos
-                if !(state_mono in state_monos_seen) && !isone(state_mono)
-                    push!(state_monos_seen, state_mono)
-                    # Create NCStateWord with this single expectation and identity operator
-                    single_sw = StateWord{ST}([state_mono])
-                    ncsw = NCStateWord(single_sw, identity_mono)
-                    push!(result, ncsw)
+    
+    # All monomials up to degree d
+    all_monos = reduce(vcat, monos_by_deg)
+    unique!(sort!(all_monos))
+    
+    result = NCStateWord{ST,A,T}[]
+    
+    # Generate all (StateWord, Monomial) combinations with total degree <= d
+    for nc_deg in 0:d
+        nc_monos = monos_by_deg[nc_deg + 1]
+        sw_max_deg = d - nc_deg
+        
+        # Get all StateWords up to sw_max_deg
+        sw_basis = _generate_statewords_up_to_degree(all_monos, sw_max_deg, ST)
+        
+        # Create NCStateWords for all valid combinations
+        for sw in sw_basis
+            for nc_m in nc_monos
+                if degree(sw) + degree(nc_m) <= d
+                    push!(result, NCStateWord(sw, nc_m))
                 end
             end
         end
     end
-
+    
     unique!(sort!(result))
+    return result
+end
+
+"""
+    _generate_statewords_up_to_degree(monos, max_deg, ST) -> Vector{StateWord}
+
+Generate all StateWords with total degree <= max_deg.
+
+Includes:
+- Identity StateWord <I> (degree 0)
+- Single expectations <M>
+- Compound expectations <M1><M2>, <M1><M2><M3>, etc.
+
+# Arguments
+- `monos`: Vector of all available monomials
+- `max_deg`: Maximum total degree for the StateWord
+- `ST`: StateType (Arbitrary or MaxEntangled)
+
+# Returns
+Vector of unique, sorted StateWords.
+"""
+function _generate_statewords_up_to_degree(
+    monos::Vector{Monomial{A,T}},
+    max_deg::Int,
+    ::Type{ST}
+) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+    
+    result = StateWord{ST,A,T}[]
+    
+    # Always include identity StateWord
+    push!(result, one(StateWord{ST,A,T}))
+    
+    if max_deg == 0
+        return result
+    end
+    
+    # Filter to non-identity monomials with degree <= max_deg
+    valid_monos = filter(m -> !isone(m) && degree(m) <= max_deg, monos)
+    
+    isempty(valid_monos) && return result
+    
+    # Use BFS to build StateWords level by level
+    # Each level contains StateWords with one more expectation than previous
+    current_level = Tuple{StateWord{ST,A,T}, Int}[]
+    
+    # Start with single expectations
+    for m in valid_monos
+        if degree(m) <= max_deg
+            sw = StateWord{ST}([m])
+            push!(current_level, (sw, degree(m)))
+            push!(result, sw)
+        end
+    end
+    
+    # Build compound expectations iteratively
+    while !isempty(current_level)
+        next_level = Tuple{StateWord{ST,A,T}, Int}[]
+        seen = Set{StateWord{ST,A,T}}()
+        
+        for (sw, sw_deg) in current_level
+            for m in valid_monos
+                new_deg = sw_deg + degree(m)
+                if new_deg <= max_deg
+                    # Create compound StateWord by adding this expectation
+                    new_sw = StateWord{ST}(vcat(sw.state_monos, [m]))
+                    if !(new_sw in seen)
+                        push!(seen, new_sw)
+                        push!(next_level, (new_sw, new_deg))
+                        push!(result, new_sw)
+                    end
+                end
+            end
+        end
+        
+        current_level = next_level
+    end
+    
+    unique!(result)
     return result
 end
 

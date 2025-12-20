@@ -726,25 +726,17 @@ function correlative_sparsity(
     # Assign constraints to cliques
     cliques_cons, global_cons = assign_state_constraint(cliques, all_cons, registry)
 
-    # Extract compound StateWords from objective and constraints that require extended basis
-    # For objectives containing products of expectations like <A><B>, we need basis elements
-    # of the form <A>*I to properly represent these terms in the moment matrix
-    required_state_words = _extract_compound_state_words(pop.objective, all_cons)
-
     # Generate moment matrix bases for each clique using subregistry + get_state_basis
+    # Note: get_state_basis now automatically generates all (StateWord, Monomial) combinations
+    # including compound forms like <M1><M2>*I needed for products of expectations
     M = NCStateWord{ST,A,T}
     cliques_moment_matrix_bases = Vector{Vector{M}}()
 
     for clique_indices in cliques
         # Create sub-registry for this clique
         sub_reg = subregistry(registry, clique_indices)
-        # Filter required_state_words to only those relevant to this clique
-        clique_set = Set(clique_indices)
-        clique_required_sws = filter(required_state_words) do sw
-            issubset(variables(sw), clique_set)
-        end
-        # Generate NCStateWord basis using get_state_basis with extended requirements
-        basis = get_state_basis(sub_reg, order; state_type=ST, required_state_words=clique_required_sws)
+        # Generate NCStateWord basis - includes all compound forms automatically
+        basis = get_state_basis(sub_reg, order; state_type=ST)
         # Sort and deduplicate
         push!(cliques_moment_matrix_bases, sorted_unique(basis))
     end

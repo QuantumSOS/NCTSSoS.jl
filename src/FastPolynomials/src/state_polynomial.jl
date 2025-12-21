@@ -258,6 +258,15 @@ function Base.:(-)(
 end
 
 """
+    Base.:(-)(sw::StateWord{ST,A,T}) where {ST,A,T}
+
+Negate a StateWord to create a StatePolynomial with coefficient -1.0.
+"""
+function Base.:(-)(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    StatePolynomial([-1.0], [sw])
+end
+
+"""
     Base.:(+)(sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {ST,A,T,TC}
 
 Add a StateWord to a Term{StateWord} to create a StatePolynomial.

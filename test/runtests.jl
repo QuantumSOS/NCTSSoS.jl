@@ -1,7 +1,7 @@
 using NCTSSoS, Test
 
 # =============================================================================
-# FastPolynomials Integration - Test Status (2025-12-18)
+# FastPolynomials Integration - Test Status (2025-12-21)
 # =============================================================================
 # Migration status:
 #   ✓ FastPolynomials tests - using new API, all pass
@@ -10,9 +10,9 @@ using NCTSSoS, Test
 #   ✓ Aqua.jl, ExplicitImports.jl - pass
 #   ✓ heisenberg.jl, xy_model.jl, bose_hubbard.jl - pass (LOCAL_TESTING only)
 #   ✓ bell_ineq.jl - migrated to ProjectorAlgebra API (LOCAL_TESTING only)
+#   ✓ state_poly_opt.jl, trace_poly_opt.jl - migrated (uses ς, tr)
 #
 # Remaining:
-#   - state_poly_opt.jl, trace_poly_opt.jl - not yet migrated (uses ς, tr)
 #   - Doctest.jl disabled (FastPolynomials doctests need import path fix)
 # =============================================================================
 
@@ -46,7 +46,7 @@ using NCTSSoS, Test
     # Fermionic parity superselection tests
     include("fermionic_parity_test.jl")
 
-    # State/Trace polynomial tests - not yet migrated (uses specialized features: ς, tr)
-    # include("state_poly_opt.jl")
-    # include("trace_poly_opt.jl")
+    # State/Trace polynomial tests
+    include("state_poly_opt.jl")
+    include("trace_poly_opt.jl")
 end

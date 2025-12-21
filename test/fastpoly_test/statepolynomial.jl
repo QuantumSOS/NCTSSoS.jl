@@ -111,6 +111,22 @@ using NCTSSoS.FastPolynomials:
         @test sp_diff.coeffs == [2.0]
     end
 
+    @testset "Unary Negation" begin
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        sw = tr(m)
+
+        # Negate a StateWord directly
+        neg_sw = -sw
+        @test neg_sw isa StatePolynomial
+        @test neg_sw.coeffs == [-1.0]
+        @test neg_sw.state_words == [sw]
+
+        # Negate a StatePolynomial
+        sp = StatePolynomial([2.0], [sw])
+        neg_sp = -sp
+        @test neg_sp.coeffs == [-2.0]
+    end
+
     @testset "Scalar Multiplication" begin
         m = Monomial{NonCommutativeAlgebra}([1])
         sw = tr(m)

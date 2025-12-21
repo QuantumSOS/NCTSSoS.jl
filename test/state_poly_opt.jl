@@ -21,9 +21,8 @@ using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStat
 
 @testset "State Polynomial Opt 7.2.0" begin
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-    sp =
-        -1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) - 1.0 * ς(x[2] * y[1]) +
-        1.0 * ς(x[2] * y[2])
+    # Test unary minus on StateWord (uses new -sw syntax)
+    sp = -ς(x[1] * y[1]) - ς(x[1] * y[2]) - ς(x[2] * y[1]) + ς(x[2] * y[2])
     # Use typed identity monomial to convert StatePolynomial to NCStatePolynomial
     spop = polyopt(sp * one(typeof(x[1])), reg)
 

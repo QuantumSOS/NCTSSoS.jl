@@ -52,7 +52,10 @@ end
 end
 
 # Example 6.2.1 involves squared trace expressions (tr(xy) * tr(xy))
-# At order=2, the relaxation gives -8.0 (not tight). Order=3 gives the tight bound of -4.0.
+# Known issue: The new StatePolyOpt solver gives -8.0 at order=2, unlike the main branch which gives -4.0.
+# This is due to a difference in how the SOS dualization handles objective polynomial coefficients.
+# At order=3, the relaxation correctly gives the tight bound of -4.0.
+# TODO: Investigate SOS dualization difference between main branch and StatePolyOpt.
 @testset "Example 6.2.1" begin
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
@@ -60,7 +63,7 @@ end
 
     tpop = polyopt((-1.0 * p) * one(typeof(x[1])), reg)
 
-    # Order=2 gives -8.0 (not tight), order=3 needed for tight bound
+    # Order=3 gives the correct tight bound of -4.0
     if haskey(ENV, "LOCAL_TESTING")
         solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 

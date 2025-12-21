@@ -64,10 +64,10 @@ using NCTSSoS.FastPolynomials:
         sw1 = StateWord{MaxEntangled}([m1])
         sw2 = StateWord{MaxEntangled}([m2])
 
-        # Multiplication returns Term{StateWord, Float64}
+        # Multiplication returns StateWord (commutative, no phase)
         result = sw1 * sw2
-        @test result isa Term
-        @test length(result.monomial.state_monos) == 2
+        @test result isa StateWord
+        @test length(result.state_monos) == 2
     end
 
     @testset "Comparison" begin
@@ -115,9 +115,10 @@ end
         sw1 = ς(m1)
         sw2 = ς(m2)
 
+        # Multiplication returns StateWord (commutative, no phase)
         result = sw1 * sw2
-        @test result isa Term
-        @test length(result.monomial.state_monos) == 2
+        @test result isa StateWord
+        @test length(result.state_monos) == 2
     end
 end
 

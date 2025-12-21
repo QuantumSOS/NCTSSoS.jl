@@ -24,12 +24,17 @@ using .FastPolynomials: AbstractPolynomial
 # Import functions (only those actually used in NCTSSoS)
 using .FastPolynomials: sorted_union, sorted_unique
 using .FastPolynomials: monomials, coefficients, terms, maxdegree
-using .FastPolynomials: get_ncbasis
+using .FastPolynomials: get_ncbasis, get_state_basis
 using .FastPolynomials: symmetric_canon
 using .FastPolynomials: neat_dot, _neat_dot3, expval
 
+# State polynomial types
+using .FastPolynomials: StateType
+using .FastPolynomials: StateWord, NCStateWord, NCStatePolynomial
+using .FastPolynomials: ς, tr
+
 # Re-export key types and functions for downstream users
-export ς
+export ς, tr
 
 # Note: Core types (Monomial, Polynomial, Term)
 # are NOT exported from NCTSSoS to avoid ambiguity when FastPolynomials

@@ -278,16 +278,16 @@ function Base.isless(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:Stat
 end
 
 # =============================================================================
-# Multiplication - Returns Term for consistency with other AbstractMonomial types
+# Multiplication - Returns StateWord (commutative, no phase)
 # =============================================================================
 
 """
     Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST,A,T}
 
 Multiply two StateWords by concatenating and re-sorting their monomials.
-Returns a Term{StateWord, Float64} for consistency with other monomial algebras.
 
-State expectations commute, so the result is sorted.
+State expectations commute, so the result is a sorted StateWord containing
+all expectations from both operands.
 
 # Examples
 ```jldoctest
@@ -303,16 +303,15 @@ julia> sw2 = StateWord{Arbitrary}([m2]);
 
 julia> result = sw1 * sw2;
 
-julia> result isa Term
+julia> result isa StateWord
 true
 
-julia> length(result.monomial.state_monos)
+julia> length(result.state_monos)
 2
 ```
 """
 function Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    product_sw = StateWord{ST}(vcat(a.state_monos, b.state_monos))
-    Term(1.0, product_sw)
+    StateWord{ST}(vcat(a.state_monos, b.state_monos))
 end
 
 # =============================================================================
@@ -513,9 +512,9 @@ Multiply two NCStateWords: multiply sw parts (commutative) and nc_word parts (no
 function Base.:(*)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     # nc_word multiplication returns Monomial (word concatenation only)
     nc_prod = a.nc_word * b.nc_word
-    # StateWord multiplication returns Term, extract the monomial
+    # StateWord multiplication returns StateWord (commutative, no phase)
     sw_prod = a.sw * b.sw
-    NCStateWord(sw_prod.monomial, nc_prod)
+    NCStateWord(sw_prod, nc_prod)
 end
 
 # =============================================================================
@@ -693,3 +692,268 @@ julia> length(sw.state_monos)
 See also: [`ς`](@ref), [`StateWord`](@ref)
 """
 tr(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateWord{MaxEntangled}(m)
+
+# =============================================================================
+# State Basis Generation
+# =============================================================================
+
+"""
+    get_state_basis(registry::VariableRegistry{A,T}, d::Int;
+                    state_type::Type{ST}=Arbitrary) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+
+Generate a basis of NCStateWord elements up to degree d.
+
+This function generates all unique NCStateWord basis elements that can be formed
+from the variables in the registry up to the specified degree. The basis includes
+all (StateWord, Monomial) combinations where `degree(sw) + degree(nc_word) <= d`.
+
+This generates:
+- `<I>*M` forms (identity StateWord, operator monomial)
+- `<M>*I` forms (single expectation, identity operator)
+- `<M1><M2>*I` forms (compound expectations, identity operator)
+- `<M>*N` mixed forms (expectation with operator)
+
+# Arguments
+- `registry`: Variable registry containing the variable indices
+- `d`: Maximum total degree (inclusive)
+
+# Keyword Arguments
+- `state_type`: The state type for the basis elements (default: `Arbitrary`)
+
+# Returns
+- `Vector{NCStateWord{ST,A,T}}`: Sorted unique NCStateWord basis elements
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> reg, (x,) = create_unipotent_variables([("x", 1:2)]);
+
+julia> basis = get_state_basis(reg, 1);
+
+julia> length(basis)  # includes <I>*I, <I>*x1, <I>*x2, <x1>*I, <x2>*I
+5
+
+julia> all(b -> b isa NCStateWord{Arbitrary}, basis)
+true
+```
+
+For projector algebra:
+```jldoctest
+julia> using FastPolynomials
+
+julia> reg, (P,) = create_projector_variables([("P", 1:2)]);
+
+julia> basis = get_state_basis(reg, 2; state_type=MaxEntangled);
+
+julia> all(b -> b isa NCStateWord{MaxEntangled}, basis)
+true
+```
+
+See also: [`NCStateWord`](@ref), [`get_ncbasis`](@ref)
+"""
+function get_state_basis(
+    registry::VariableRegistry{A,T},
+    d::Int;
+    state_type::Type{ST}=Arbitrary
+) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+    
+    # Collect monomials by degree
+    monos_by_deg = Vector{Vector{Monomial{A,T}}}(undef, d + 1)
+    for deg in 0:d
+        poly_basis = get_ncbasis(registry, deg)
+        monos = Monomial{A,T}[]
+        for poly in poly_basis
+            for term in poly.terms
+                push!(monos, term.monomial)
+            end
+        end
+        unique!(sort!(monos))
+        monos_by_deg[deg + 1] = monos
+    end
+    
+    # All monomials up to degree d
+    all_monos = reduce(vcat, monos_by_deg)
+    unique!(sort!(all_monos))
+    
+    result = NCStateWord{ST,A,T}[]
+    
+    # Generate all (StateWord, Monomial) combinations with total degree <= d
+    for nc_deg in 0:d
+        nc_monos = monos_by_deg[nc_deg + 1]
+        sw_max_deg = d - nc_deg
+        
+        # Get all StateWords up to sw_max_deg
+        sw_basis = _generate_statewords_up_to_degree(all_monos, sw_max_deg, ST)
+        
+        # Create NCStateWords for all valid combinations
+        for sw in sw_basis
+            for nc_m in nc_monos
+                if degree(sw) + degree(nc_m) <= d
+                    push!(result, NCStateWord(sw, nc_m))
+                end
+            end
+        end
+    end
+    
+    unique!(sort!(result))
+    return result
+end
+
+"""
+    _generate_statewords_up_to_degree(monos, max_deg, ST) -> Vector{StateWord}
+
+Generate all StateWords with total degree <= max_deg.
+
+Includes:
+- Identity StateWord <I> (degree 0)
+- Single expectations <M>
+- Compound expectations <M1><M2>, <M1><M2><M3>, etc.
+
+# Arguments
+- `monos`: Vector of all available monomials
+- `max_deg`: Maximum total degree for the StateWord
+- `ST`: StateType (Arbitrary or MaxEntangled)
+
+# Returns
+Vector of unique, sorted StateWords.
+"""
+function _generate_statewords_up_to_degree(
+    monos::Vector{Monomial{A,T}},
+    max_deg::Int,
+    ::Type{ST}
+) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+    
+    result = StateWord{ST,A,T}[]
+    
+    # Always include identity StateWord
+    push!(result, one(StateWord{ST,A,T}))
+    
+    if max_deg == 0
+        return result
+    end
+    
+    # Filter to non-identity monomials with degree <= max_deg
+    valid_monos = filter(m -> !isone(m) && degree(m) <= max_deg, monos)
+    
+    isempty(valid_monos) && return result
+    
+    # Use BFS to build StateWords level by level
+    # Each level contains StateWords with one more expectation than previous
+    current_level = Tuple{StateWord{ST,A,T}, Int}[]
+    
+    # Start with single expectations
+    for m in valid_monos
+        if degree(m) <= max_deg
+            sw = StateWord{ST}([m])
+            push!(current_level, (sw, degree(m)))
+            push!(result, sw)
+        end
+    end
+    
+    # Build compound expectations iteratively
+    while !isempty(current_level)
+        next_level = Tuple{StateWord{ST,A,T}, Int}[]
+        seen = Set{StateWord{ST,A,T}}()
+        
+        for (sw, sw_deg) in current_level
+            for m in valid_monos
+                new_deg = sw_deg + degree(m)
+                if new_deg <= max_deg
+                    # Create compound StateWord by adding this expectation
+                    new_sw = StateWord{ST}(vcat(sw.state_monos, [m]))
+                    if !(new_sw in seen)
+                        push!(seen, new_sw)
+                        push!(next_level, (new_sw, new_deg))
+                        push!(result, new_sw)
+                    end
+                end
+            end
+        end
+        
+        current_level = next_level
+    end
+    
+    unique!(result)
+    return result
+end
+
+# =============================================================================
+# StateWord Canonicalization
+# =============================================================================
+#
+# Import symmetric_canon from canonicalization.jl (included before this file)
+# and extend it for StateWord types.
+
+"""
+    symmetric_canon(sw::StateWord{ST,A,T}) where {ST,A,T}
+
+Return a new StateWord with symmetrically canonicalized monomials.
+
+For StateWords, symmetric canonicalization applies `symmetric_canon` to each
+state monomial individually (state monomials are already involution-canonicalized
+during StateWord construction via `_involution_canon`).
+
+Since StateWords represent products of expectations which commute, the overall
+StateWord is already in a canonical sorted form. This function ensures each
+constituent monomial is in its symmetric canonical form.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([3, 2, 1]);
+
+julia> sw = StateWord{Arbitrary}([m]);
+
+julia> sw_canon = symmetric_canon(sw);
+
+julia> sw_canon.state_monos[1].word
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+```
+"""
+function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    # Apply symmetric_canon to each monomial in the state word
+    canon_monos = [symmetric_canon(m) for m in sw.state_monos]
+    StateWord{ST}(canon_monos)
+end
+
+"""
+    symmetric_canon(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Return a new NCStateWord with symmetrically canonicalized components.
+
+For NCStateWords, this canonicalizes both the StateWord part and the nc_word part.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m1 = Monomial{PauliAlgebra}([3, 2, 1]);
+
+julia> m2 = Monomial{PauliAlgebra}([2, 1]);
+
+julia> sw = StateWord{Arbitrary}([m1]);
+
+julia> ncsw = NCStateWord(sw, m2);
+
+julia> ncsw_canon = symmetric_canon(ncsw);
+
+julia> ncsw_canon.sw.state_monos[1].word
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+
+julia> ncsw_canon.nc_word.word
+2-element Vector{Int64}:
+ 1
+ 2
+```
+"""
+function symmetric_canon(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    NCStateWord(symmetric_canon(ncsw.sw), symmetric_canon(ncsw.nc_word))
+end

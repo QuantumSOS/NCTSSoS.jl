@@ -326,6 +326,64 @@ struct TermSparsity{M}
     block_bases::Vector{Vector{M}}
 end
 
+# =============================================================================
+# State Correlative Sparsity
+# =============================================================================
+
+"""
+    StateCorrelativeSparsity{A<:AlgebraType, ST<:StateType, T<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
+
+Structure representing the correlative sparsity pattern for state polynomial optimization.
+
+Similar to `CorrelativeSparsity` but for NCStatePolynomial problems.
+
+# Type Parameters
+- `A<:AlgebraType`: The algebra type
+- `ST<:StateType`: The state type (Arbitrary or MaxEntangled)
+- `T<:Integer`: The index type used in the registry
+- `P<:NCStatePolynomial`: The state polynomial type
+- `M<:NCStateWord`: The state word type
+
+# Fields
+- `cliques::Vector{Vector{T}}`: Groups of variable indices that form cliques
+- `registry::VariableRegistry{A,T}`: Variable registry for symbol lookups
+- `cons::Vector{P}`: All constraints in the problem
+- `clq_cons::Vector{Vector{Int}}`: Constraint indices assigned to each clique
+- `global_cons::Vector{Int}`: Constraint indices not captured by any single clique
+- `clq_mom_mtx_bases::Vector{Vector{M}}`: NCStateWord bases for moment matrices
+- `clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}`: NCStateWord bases for localizing matrices
+"""
+struct StateCorrelativeSparsity{A<:AlgebraType, ST<:StateType, T<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
+    cliques::Vector{Vector{T}}
+    registry::VariableRegistry{A,T}
+    cons::Vector{P}
+    clq_cons::Vector{Vector{Int}}
+    global_cons::Vector{Int}
+    clq_mom_mtx_bases::Vector{Vector{M}}
+    clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}
+end
+
+function Base.show(io::IO, cs::StateCorrelativeSparsity{A,ST,T,P,M}) where {A,ST,T,P,M}
+    max_size = isempty(cs.cliques) ? 0 : maximum(length.(cs.cliques))
+    println(io, "State Correlative Sparsity ($(nameof(A)), $(nameof(ST))): \n")
+    println(io, "   maximum clique size: $max_size")
+    println(io, "   number of cliques: $(length(cs.cliques))")
+    for clique_i in 1:length(cs.cliques)
+        println(io, "   Clique $clique_i: ")
+        clique_syms = [cs.registry[idx] for idx in cs.cliques[clique_i]]
+        println(io, "       Variables: ", clique_syms)
+        println(io, "       Bases length: ", length(cs.clq_mom_mtx_bases[clique_i]))
+        println(io, "       Constraints: ")
+        for cons_j in eachindex(cs.clq_cons[clique_i])
+            println(io, "           ", cs.cons[cons_j], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][cons_j])) basis NCStateWords")
+        end
+    end
+    println(io, "   Global Constraints: ")
+    for geq_cons in cs.global_cons
+        println(io, "     $(geq_cons)")
+    end
+end
+
 function debug(ts::TermSparsity)
     println("Term Sparse Graph Support", ts.term_sparse_graph_supp)
     println("Block bases", ts.block_bases)
@@ -473,6 +531,379 @@ function term_sparsity_graph_supp(
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
     # Compute products basis[a]† * g_support * basis[b] for all graph edges
     # _neat_dot3 returns Polynomial, extract monomials from each result
+    gsupp(a, b) = reduce(vcat, [monomials(_neat_dot3(a, g_supp, b)) for g_supp in monomials(g)])
+    return union(
+        [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
+        [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...
+    )
+end
+
+# =============================================================================
+# State Correlative Sparsity Implementation
+# =============================================================================
+
+"""
+    get_state_correlative_graph(registry, obj, cons) -> (SimpleGraph, Vector{T}, Dict{T,Int})
+
+Constructs a correlative sparsity graph for state polynomial optimization.
+
+Similar to `get_correlative_graph` but uses `variable_indices` on NCStatePolynomials.
+
+# Arguments
+- `registry`: Variable registry
+- `obj`: Objective NCStatePolynomial
+- `cons`: Vector of constraint NCStatePolynomials
+
+# Returns
+- Tuple containing:
+  - `SimpleGraph`: Graph representing variable correlations
+  - `sorted_indices::Vector{T}`: All unique indices in sorted order
+  - `idx_to_node::Dict{T,Int}`: Mapping from variable index to graph node position
+"""
+function get_state_correlative_graph(
+    registry::VariableRegistry{A,T},
+    obj::NCStatePolynomial{C,ST,A,T},
+    cons::Vector{NCStatePolynomial{C,ST,A,T}}
+) where {A<:AlgebraType, ST<:StateType, T<:Integer, C<:Number}
+    # Collect all unique variable indices from objective and constraints
+    all_indices = Set{T}()
+    union!(all_indices, variable_indices(obj))
+    for c in cons
+        union!(all_indices, variable_indices(c))
+    end
+
+    # Sort indices for consistent ordering
+    sorted_indices = sort(collect(all_indices))
+    nvars = length(sorted_indices)
+
+    # Create mapping: variable index -> graph node position (1:N)
+    idx_to_node = Dict{T,Int}(idx => pos for (pos, idx) in enumerate(sorted_indices))
+
+    # Build correlative graph
+    G = SimpleGraph(nvars)
+
+    # Helper to get graph positions from an NCStateWord
+    function get_positions(ncsw::NCStateWord{ST,A,T})
+        positions = Int[]
+        for idx in variables(ncsw)
+            if haskey(idx_to_node, idx)
+                push!(positions, idx_to_node[idx])
+            end
+        end
+        return positions
+    end
+
+    # Add cliques from objective NC state words
+    for ncsw in monomials(obj)
+        positions = get_positions(ncsw)
+        add_clique!(G, positions)
+    end
+
+    # Add cliques from constraints
+    for con in cons
+        for ncsw in monomials(con)
+            positions = get_positions(ncsw)
+            add_clique!(G, positions)
+        end
+    end
+
+    return G, sorted_indices, idx_to_node
+end
+
+"""
+    assign_state_constraint(cliques, cons, registry) -> (Vector{Vector{Int}}, Vector{Int})
+
+Assigns state polynomial constraints to cliques based on variable support.
+
+# Arguments
+- `cliques::Vector{Vector{T}}`: Variable index cliques
+- `cons::Vector{NCStatePolynomial}`: Constraint state polynomials
+- `registry`: Variable registry
+
+# Returns
+- Tuple containing:
+  - Constraint indices for each clique
+  - Global constraint indices not captured by any single clique
+"""
+function assign_state_constraint(
+    cliques::Vector{Vector{T}},
+    cons::Vector{NCStatePolynomial{C,ST,A,T}},
+    registry::VariableRegistry{A,T}
+) where {A<:AlgebraType, ST<:StateType, T<:Integer, C<:Number}
+    # For each clique, find constraints whose variables are all in the clique
+    clique_sets = [Set{T}(clq) for clq in cliques]
+
+    clique_cons = map(clique_sets) do clique_set
+        findall(cons) do con
+            con_indices = variable_indices(con)
+            issubset(con_indices, clique_set)
+        end
+    end
+
+    # Global constraints are those not assigned to any clique
+    assigned = isempty(clique_cons) ? Int[] : union(clique_cons...)
+    global_cons = setdiff(1:length(cons), assigned)
+
+    return clique_cons, collect(global_cons)
+end
+
+"""
+    _extract_compound_state_words(obj, cons) -> Vector{StateWord}
+
+Extract compound StateWords (those with multiple expectations) from objective and constraints.
+
+For state polynomial optimization, objectives may contain products of expectations like
+`<A><B>`. To properly represent these in the moment matrix, the basis needs elements
+of the form `<A>*I` and `<B>*I`. This function identifies all StateWords from the
+objective and constraints that have multiple expectations (compound StateWords).
+
+# Returns
+A vector of StateWords that contain multiple expectations. These need to be passed
+to `get_state_basis` to generate the extended basis elements.
+"""
+function _extract_compound_state_words(
+    obj::NCStatePolynomial{C,ST,A,T},
+    cons::Vector{NCStatePolynomial{C,ST,A,T}}
+) where {C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer}
+    result = StateWord{ST,A,T}[]
+
+    # Extract from objective
+    for ncsw in monomials(obj)
+        sw = ncsw.sw
+        # A compound StateWord has more than one state monomial, OR has a non-identity
+        # state monomial that differs from the identity (meaning it has actual expectations)
+        if length(sw.state_monos) > 1 || (!isone(sw) && !isempty(sw.state_monos))
+            push!(result, sw)
+        end
+    end
+
+    # Extract from constraints
+    for con in cons
+        for ncsw in monomials(con)
+            sw = ncsw.sw
+            if length(sw.state_monos) > 1 || (!isone(sw) && !isempty(sw.state_monos))
+                push!(result, sw)
+            end
+        end
+    end
+
+    return unique(result)
+end
+
+"""
+    correlative_sparsity(pop::StatePolyOpt, order, elim_algo) -> StateCorrelativeSparsity
+
+Decomposes a state polynomial optimization problem into a correlative sparsity pattern.
+
+# Arguments
+- `pop::StatePolyOpt{A,ST,P}`: State polynomial optimization problem
+- `order::Int`: Order of the moment relaxation
+- `elim_algo::EliminationAlgorithm`: Algorithm for clique tree elimination
+
+# Returns
+- `StateCorrelativeSparsity{A,ST,T,P,M}`: State correlative sparsity structure
+"""
+function correlative_sparsity(
+    pop::StatePolyOpt{A,ST,P},
+    order::Int,
+    elim_algo::EliminationAlgorithm
+) where {A<:AlgebraType, ST<:StateType, C<:Number, T<:Integer, P<:NCStatePolynomial{C,ST,A,T}}
+    registry = pop.registry
+    all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
+
+    # Build correlative graph and get index mappings
+    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, all_cons)
+
+    # Decompose graph into cliques
+    clique_node_sets = clique_decomp(G, elim_algo)
+
+    # Convert clique node positions back to variable indices
+    node_to_idx = Dict{Int,T}(pos => idx for (idx, pos) in idx_to_node)
+    cliques = map(clique_node_sets) do node_set
+        sort([node_to_idx[node] for node in node_set])
+    end
+
+    # Assign constraints to cliques
+    cliques_cons, global_cons = assign_state_constraint(cliques, all_cons, registry)
+
+    # Generate moment matrix bases for each clique using subregistry + get_state_basis
+    # Note: get_state_basis now automatically generates all (StateWord, Monomial) combinations
+    # including compound forms like <M1><M2>*I needed for products of expectations
+    M = NCStateWord{ST,A,T}
+    cliques_moment_matrix_bases = Vector{Vector{M}}()
+
+    for clique_indices in cliques
+        # Create sub-registry for this clique
+        sub_reg = subregistry(registry, clique_indices)
+        # Generate NCStateWord basis - includes all compound forms automatically
+        basis = get_state_basis(sub_reg, order; state_type=ST)
+        # Sort and deduplicate
+        push!(cliques_moment_matrix_bases, sorted_unique(basis))
+    end
+
+    # Compute degrees for localizing matrix basis truncation
+    cliques_moment_matrix_bases_dg = [NCTSSoS.FastPolynomials.degree.(bs) for bs in cliques_moment_matrix_bases]
+
+    # Generate localizing matrix bases (truncated based on constraint degree)
+    cliques_localizing_bases = map(zip(eachindex(cliques), cliques_cons)) do (clique_idx, clique_cons_indices)
+        if isempty(clique_cons_indices)
+            return Vector{M}[]
+        end
+
+        # For each constraint, compute the reduced order basis
+        cur_orders = order .- cld.(maxdegree.(all_cons[clique_cons_indices]), 2)
+        cur_lengths = map(cur_orders) do o
+            searchsortedfirst(cliques_moment_matrix_bases_dg[clique_idx], o + 1) - 1
+        end
+
+        map(cur_lengths) do len
+            if iszero(len)
+                M[]
+            else
+                cliques_moment_matrix_bases[clique_idx][1:len]
+            end
+        end
+    end
+
+    return StateCorrelativeSparsity{A,ST,T,P,M}(
+        cliques,
+        registry,
+        all_cons,
+        cliques_cons,
+        global_cons,
+        cliques_moment_matrix_bases,
+        cliques_localizing_bases
+    )
+end
+
+# =============================================================================
+# State Term Sparsity
+# =============================================================================
+
+"""
+    init_activated_supp(partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M})
+
+Initialize the activated support for state polynomial term sparsity iteration.
+
+# Arguments
+- `partial_obj::NCStatePolynomial`: Partial objective for this clique
+- `cons::Vector{NCStatePolynomial}`: Constraint state polynomials
+- `mom_mtx_bases::Vector{NCStateWord}`: Moment matrix basis NCStateWords
+
+# Returns
+- `Vector{NCStateWord}`: Sorted union of canonicalized objective and constraint monomials
+"""
+function init_activated_supp(
+    partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
+) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
+    # For diagonal entries, use _neat_dot3 which returns NCStatePolynomial
+    diagonal_entries = M[]
+    for b in mom_mtx_bases
+        poly = _neat_dot3(b, one(M), b)
+        append!(diagonal_entries, monomials(poly))
+    end
+    return sorted_union(
+        symmetric_canon.(monomials(partial_obj)),
+        mapreduce(monomials, vcat, cons; init=M[]),
+        diagonal_entries
+    )
+end
+
+"""
+    term_sparsities(initial_activated_supp, cons, mom_mtx_bases, localizing_mtx_bases, ts_algo)
+
+Computes term sparsity structures for state polynomial optimization.
+
+# Arguments
+- `initial_activated_supp::Vector{NCStateWord}`: Initial activated support
+- `cons::Vector{NCStatePolynomial}`: Constraint state polynomials
+- `mom_mtx_bases::Vector{NCStateWord}`: Moment matrix basis NCStateWords
+- `localizing_mtx_bases::Vector{Vector{NCStateWord}}`: Localizing matrix bases
+- `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity graphs
+
+# Returns
+- `Vector{TermSparsity{NCStateWord}}`: Term sparsity structures
+"""
+function term_sparsities(
+    initial_activated_supp::Vector{M},
+    cons::Vector{P},
+    mom_mtx_bases::Vector{M},
+    localizing_mtx_bases::Vector{Vector{M}},
+    ts_algo::EliminationAlgorithm
+) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
+    [
+        [iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo)];
+        map(zip(cons, localizing_mtx_bases)) do (poly, basis)
+            iterate_term_sparse_supp(initial_activated_supp, poly, basis, ts_algo)
+        end
+    ]
+end
+
+"""
+    get_term_sparsity_graph(cons_support, activated_supp, bases) for NCStateWord
+
+Constructs a term sparsity graph for state polynomial constraints.
+"""
+function get_term_sparsity_graph(
+    cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}
+) where {ST<:StateType, A<:AlgebraType, T<:Integer, M<:NCStateWord{ST,A,T}}
+    nterms = length(bases)
+    G = SimpleGraph(nterms)
+    sorted_activated_supp = sort(activated_supp)
+
+    for i in 1:nterms, j in i+1:nterms
+        for supp in cons_support
+            # _neat_dot3 for NCStateWord now returns NCStatePolynomial
+            connected_lr = _neat_dot3(bases[i], supp, bases[j])
+            connected_rl = _neat_dot3(bases[j], supp, bases[i])
+            # Check if any resulting NCStateWord is in activated support
+            found = false
+            for ncsw in monomials(connected_lr)
+                if ncsw in sorted_activated_supp
+                    found = true
+                    break
+                end
+            end
+            if !found
+                for ncsw in monomials(connected_rl)
+                    if ncsw in sorted_activated_supp
+                        found = true
+                        break
+                    end
+                end
+            end
+            if found
+                add_edge!(G, i, j)
+                break
+            end
+        end
+    end
+    return G
+end
+
+"""
+    iterate_term_sparse_supp(activated_supp, poly, basis, elim_algo) for NCStatePolynomial
+
+Iteratively computes term sparsity support for a state polynomial.
+"""
+function iterate_term_sparse_supp(
+    activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
+) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
+    F = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
+    blocks = clique_decomp(F, elim_algo)
+    map(block -> add_clique!(F, block), blocks)
+    return TermSparsity(term_sparsity_graph_supp(F, basis, poly), map(x -> basis[x], blocks))
+end
+
+"""
+    term_sparsity_graph_supp(G, basis, g) for NCStatePolynomial
+
+Computes the support of a term sparsity graph for a state polynomial.
+"""
+function term_sparsity_graph_supp(
+    G::SimpleGraph, basis::Vector{M}, g::P
+) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
+    # _neat_dot3 now returns NCStatePolynomial, extract monomials from each result
     gsupp(a, b) = reduce(vcat, [monomials(_neat_dot3(a, g_supp, b)) for g_supp in monomials(g)])
     return union(
         [gsupp(basis[v], basis[v]) for v in vertices(G)]...,

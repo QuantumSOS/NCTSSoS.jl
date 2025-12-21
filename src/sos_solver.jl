@@ -221,6 +221,141 @@ end
 # =============================================================================
 
 """
+    sos_dualize(mp::StateMomentProblem{A,ST,TI,M,P}) -> SOSProblem
+
+Convert a symbolic state moment problem into its dual SOS problem.
+
+State polynomial optimization problems (with Unipotent, Projector algebras) use
+real PSD constraints without complex embedding.
+
+# Arguments
+- `mp::StateMomentProblem`: The symbolic state moment problem
+
+# Returns
+- `SOSProblem`: The dual SOS problem
+"""
+function sos_dualize(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:AlgebraType, ST<:StateType, TI<:Integer, M<:NCStateWord{ST,A,TI}, P<:NCStatePolynomial}
+    # State polynomial optimization uses real PSD constraints
+    return _sos_dualize_state(mp)
+end
+
+"""
+    _sos_dualize_state(mp::StateMomentProblem) -> SOSProblem
+
+Internal: Dualize a state polynomial moment problem.
+
+State polynomial optimization with algebras like UnipotentAlgebra and ProjectorAlgebra
+uses real-valued SDP with standard PSD constraints.
+"""
+function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:AlgebraType, ST<:StateType, TI<:Integer, M<:NCStateWord{ST,A,TI}, P<:NCStatePolynomial}
+    # Get coefficient type from polynomial
+    C = eltype(coefficients(mp.objective))
+
+    dual_model = GenericModel{C}()
+
+    # Create matrix variables for each constraint
+    dual_variables = map(mp.constraints) do (cone, mat)
+        G_dim = size(mat, 1)
+        if cone == :Zero
+            @variable(dual_model, [1:G_dim, 1:G_dim] in SymmetricMatrixSpace())
+        else  # :PSD
+            @variable(dual_model, [1:G_dim, 1:G_dim] in PSDCone())
+        end
+    end
+
+    # Scalar variable b to bound minimum
+    @variable(dual_model, b)
+    @objective(dual_model, Max, b)
+
+    # For state polynomial optimization, we work with expectation values (StateWords)
+    # The key insight: expval(<I>*xy) = <xy> = expval(<xy>*I)
+    # So we convert NCStateWords to StateWords via expval for comparison
+
+    # Create canonical StateWord basis from total_basis
+    # Apply expval to convert NCStateWord to StateWord, then symmetric_canon
+    SW = StateWord{ST,A,TI}
+    state_basis = sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in mp.total_basis])
+    n_basis = length(state_basis)
+
+    # Create mapping from NCStateWord to canonical StateWord basis position
+    ncsw_to_sw_idx = Dict{M, Int}()
+    for ncsw in mp.total_basis
+        sw = symmetric_canon(expval(ncsw))
+        idx = searchsortedfirst(state_basis, sw)
+        if idx <= n_basis && state_basis[idx] == sw
+            ncsw_to_sw_idx[ncsw] = idx
+        end
+    end
+
+    # Initialize constraint expressions
+    fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in 1:n_basis]
+
+    # Add objective polynomial coefficients
+    # Objective NCStateWords have form <xy>*I, we need to match them to basis StateWords
+    for (coef, ncsw) in zip(coefficients(mp.objective), monomials(mp.objective))
+        canon_sw = symmetric_canon(expval(ncsw))
+        sym_idx = searchsortedfirst(state_basis, canon_sw)
+        if sym_idx <= n_basis && state_basis[sym_idx] == canon_sw
+            add_to_expression!(fα_constraints[sym_idx], coef)
+        end
+    end
+
+    # Subtract b from the constant term (identity StateWord)
+    add_to_expression!(fα_constraints[1], -one(C), b)
+
+    # Process each constraint matrix
+    # The constraint matrix entries are NCStatePolynomials with NCStateWords of form <I>*xy
+    sorted_unsym_basis = sort(mp.total_basis)
+    for (i, (_, mat)) in enumerate(mp.constraints)
+        Cαjs = _get_state_Cαj(sorted_unsym_basis, mat)
+        for (ky, coef) in Cαjs
+            basis_idx, row, col = ky
+            # Map unsymmetrized NCStateWord to StateWord index
+            if basis_idx <= length(sorted_unsym_basis)
+                unsym_ncsw = sorted_unsym_basis[basis_idx]
+                if haskey(ncsw_to_sw_idx, unsym_ncsw)
+                    sw_idx = ncsw_to_sw_idx[unsym_ncsw]
+                    add_to_expression!(fα_constraints[sw_idx], -coef, dual_variables[i][row, col])
+                end
+            end
+        end
+    end
+
+    # All coefficient constraints
+    @constraint(dual_model, fα_constraints .== 0)
+
+    return SOSProblem(dual_model)
+end
+
+"""
+    _get_state_Cαj(unsymmetrized_basis, localizing_mtx)
+
+Extract coefficient matrix for state polynomial dualization.
+"""
+function _get_state_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, M<:NCStateWord{ST,A,T}, P<:NCStatePolynomial{C,ST,A,T}}
+    dim = size(localizing_mtx, 1)
+    cis = CartesianIndices((dim, dim))
+
+    # basis idx, row, col -> coefficient
+    dictionary_of_keys = Dict{Tuple{Int,Int,Int},C}()
+
+    n_basis = length(unsymmetrized_basis)
+
+    for ci in cis
+        poly = localizing_mtx[ci]
+        for (coeff, ncsw) in zip(coefficients(poly), monomials(poly))
+            idx = searchsortedfirst(unsymmetrized_basis, ncsw)
+            # Skip NCStateWords not in basis
+            if idx <= n_basis && unsymmetrized_basis[idx] == ncsw
+                dictionary_of_keys[(idx, ci.I[1], ci.I[2])] = coeff
+            end
+        end
+    end
+
+    return dictionary_of_keys
+end
+
+"""
     _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) -> SOSProblem
 
 Internal: Dualize a complex/Hermitian symbolic moment problem.

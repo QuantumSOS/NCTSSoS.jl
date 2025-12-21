@@ -197,3 +197,112 @@ _is_complex_problem(::Type{UnipotentAlgebra}) = false
 _is_complex_problem(::Type{A}) where {A<:AlgebraType} = false  # Default fallback
 
 
+# =============================================================================
+# State Polynomial Optimization Problem
+# =============================================================================
+
+# Import state polynomial types from FastPolynomials
+using .FastPolynomials: StateType
+using .FastPolynomials: StateWord, NCStateWord, NCStatePolynomial
+
+"""
+    StatePolyOpt{A<:AlgebraType, ST<:StateType, P<:NCStatePolynomial} <: OptimizationProblem{A, P}
+
+A state polynomial optimization problem structure.
+
+State polynomial optimization extends standard polynomial optimization by
+including state expectations (expectation values in a quantum state).
+The objective and constraints are NCStatePolynomial objects.
+
+# Type Parameters
+- `A<:AlgebraType`: The algebra type governing simplification rules
+- `ST<:StateType`: The state type (Arbitrary or MaxEntangled)
+- `P<:NCStatePolynomial`: Type of state polynomial
+
+# Fields
+- `objective::P`: The NCStatePolynomial objective function
+- `eq_constraints::Vector{P}`: Vector of equality constraints
+- `ineq_constraints::Vector{P}`: Vector of inequality constraints
+- `registry::VariableRegistry{A}`: Variable registry for symbols
+
+# Examples
+```julia
+# Create unipotent variables for CHSH-like optimization
+reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+
+# Build CHSH polynomial using state expectations
+sp = -1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) -
+      1.0 * ς(x[2] * y[1]) + 1.0 * ς(x[2] * y[2])
+
+# Create optimization problem (multiply by identity Monomial for NCStatePolynomial)
+spop = polyopt(sp * one(Monomial), reg)
+```
+
+See also: [`polyopt`](@ref), [`NCStatePolynomial`](@ref), [`ς`](@ref)
+"""
+struct StatePolyOpt{A<:AlgebraType, ST<:StateType, P<:NCStatePolynomial{<:Number,ST,A}} <: OptimizationProblem{A, P}
+    objective::P
+    eq_constraints::Vector{P}
+    ineq_constraints::Vector{P}
+    registry::VariableRegistry{A}
+end
+
+"""
+    polyopt(objective::NCStatePolynomial{C,ST,A,T}, registry::VariableRegistry{A,T};
+            eq_constraints=NCStatePolynomial{C,ST,A,T}[],
+            ineq_constraints=NCStatePolynomial{C,ST,A,T}[])
+
+Create a state polynomial optimization problem.
+
+# Arguments
+- `objective::NCStatePolynomial{C,ST,A,T}`: The state polynomial objective to optimize
+- `registry::VariableRegistry{A,T}`: Variable registry for the algebra
+
+# Keyword Arguments
+- `eq_constraints`: Equality constraints as NCStatePolynomials. Default: empty
+- `ineq_constraints`: Inequality constraints as NCStatePolynomials. Default: empty
+
+# Returns
+A `StatePolyOpt{A, ST, NCStatePolynomial{C,ST,A,T}}` structure.
+
+# Examples
+```julia
+# CHSH-type Bell inequality optimization
+reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+sp = -1.0 * ς(x[1]*y[1]) - 1.0 * ς(x[1]*y[2]) - 1.0 * ς(x[2]*y[1]) + 1.0 * ς(x[2]*y[2])
+spop = polyopt(sp * one(Monomial), reg)
+```
+
+See also: [`StatePolyOpt`](@ref), [`NCStatePolynomial`](@ref)
+"""
+function polyopt(
+    objective::NCStatePolynomial{C,ST,A,T},
+    registry::VariableRegistry{A,T};
+    eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[],
+    ineq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[]
+) where {C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer}
+    @assert !(C <: Integer) "The polynomial coefficients cannot be integers (not supported by JuMP solvers)."
+
+    # Deduplicate constraints
+    eq_cons = unique!(copy(eq_constraints))
+    ineq_cons = unique!(copy(ineq_constraints))
+
+    P = NCStatePolynomial{C,ST,A,T}
+    return StatePolyOpt{A, ST, P}(objective, eq_cons, ineq_cons, registry)
+end
+
+"""
+    Base.show(io::IO, spop::StatePolyOpt{A,ST,P})
+
+Display a state polynomial optimization problem.
+"""
+function Base.show(io::IO, spop::StatePolyOpt{A,ST,P}) where {A,ST,P}
+    println(io, "State Polynomial Optimization Problem ($(nameof(A)), $(nameof(ST)))")
+    println(io, "────────────────────────────────────────────────")
+    println(io, "Objective: ", spop.objective)
+    println(io, "Equality constraints: ", length(spop.eq_constraints))
+    println(io, "Inequality constraints: ", length(spop.ineq_constraints))
+    println(io, "Variables: ", length(spop.registry))
+end
+
+

@@ -46,7 +46,7 @@ export star, star!, adjoint!
 export symmetric_canon, cyclic_canon, cyclic_symmetric_canon, canonicalize
 
 # Basis generation
-export get_ncbasis, get_ncbasis_deg
+export get_ncbasis, get_ncbasis_deg, get_state_basis
 
 # Algebra types (singleton types for dispatch)
 export AlgebraType
@@ -74,7 +74,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 export symbols, indices, subregistry
 
 # Polynomial helpers
-export variable_indices
+export variable_indices, maxdegree
 
 
 # Utility functions (kept from legacy API)

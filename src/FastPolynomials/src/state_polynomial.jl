@@ -258,6 +258,40 @@ function Base.:(-)(
 end
 
 """
+    Base.:(+)(sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {ST,A,T,TC}
+
+Add a StateWord to a Term{StateWord} to create a StatePolynomial.
+"""
+function Base.:(+)(
+    sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+) where {ST<:StateType,A<:AlgebraType,T<:Integer,TC<:Number}
+    StatePolynomial(TC[one(TC), t.coefficient], [sw, t.monomial])
+end
+Base.:(+)(t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}) where {ST,A,T,TC} = sw + t
+
+"""
+    Base.:(-)(sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {ST,A,T,TC}
+
+Subtract a Term{StateWord} from a StateWord to create a StatePolynomial.
+"""
+function Base.:(-)(
+    sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+) where {ST<:StateType,A<:AlgebraType,T<:Integer,TC<:Number}
+    StatePolynomial(TC[one(TC), -t.coefficient], [sw, t.monomial])
+end
+
+"""
+    Base.:(-)(t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}) where {ST,A,T,TC}
+
+Subtract a StateWord from a Term{StateWord} to create a StatePolynomial.
+"""
+function Base.:(-)(
+    t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}
+) where {ST<:StateType,A<:AlgebraType,T<:Integer,TC<:Number}
+    StatePolynomial(TC[t.coefficient, -one(TC)], [t.monomial, sw])
+end
+
+"""
     Base.:(+)(sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {C,TC,ST,A,T}
 
 Add a Term{StateWord} to a StatePolynomial.
@@ -449,14 +483,49 @@ function Base.:(*)(
 
     for (ca, swa) in zip(a.coeffs, a.state_words)
         for (cb, swb) in zip(b.coeffs, b.state_words)
-            # StateWord multiplication returns Term{StateWord, Float64}
-            prod_term = swa * swb
-            push!(result_coeffs, C(ca * cb * prod_term.coefficient))
-            push!(result_sws, prod_term.monomial)
+            # StateWord multiplication returns StateWord (commutative, no phase)
+            prod_sw = swa * swb
+            push!(result_coeffs, C(ca * cb))
+            push!(result_sws, prod_sw)
         end
     end
 
     StatePolynomial(result_coeffs, result_sws)
+end
+
+"""
+    Base.:(*)(sp::StatePolynomial{C,ST,A,T}, sw::StateWord{ST,A,T}) where {C,ST,A,T}
+
+Multiply a StatePolynomial by a StateWord.
+"""
+function Base.:(*)(
+    sp::StatePolynomial{C,ST,A,T}, sw::StateWord{ST,A,T}
+) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    isempty(sp.state_words) && return zero(StatePolynomial{C,ST,A,T})
+
+    result_coeffs = C[]
+    result_sws = StateWord{ST,A,T}[]
+
+    for (coef, sp_sw) in zip(sp.coeffs, sp.state_words)
+        # StateWord multiplication returns StateWord (commutative, no phase)
+        prod_sw = sp_sw * sw
+        push!(result_coeffs, coef)
+        push!(result_sws, prod_sw)
+    end
+
+    StatePolynomial(result_coeffs, result_sws)
+end
+
+"""
+    Base.:(*)(sw::StateWord{ST,A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
+
+Multiply a StateWord by a StatePolynomial.
+"""
+function Base.:(*)(
+    sw::StateWord{ST,A,T}, sp::StatePolynomial{C,ST,A,T}
+) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    # StateWord multiplication is commutative, so sw * sp = sp * sw
+    sp * sw
 end
 
 # =============================================================================
@@ -609,6 +678,39 @@ function variables(ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T}
     end
     result
 end
+
+"""
+    variable_indices(ncsp::NCStatePolynomial) -> Set{T}
+
+Get all variable indices from an NCStatePolynomial.
+Extracts indices from both the StateWord and nc_word parts of each NCStateWord.
+
+This is an alias for `variables()` that matches the naming convention used
+by regular Polynomial types.
+"""
+function variable_indices(ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T}
+    variables(ncsp)
+end
+
+"""
+    variable_indices(ncsw::NCStateWord) -> Set{T}
+
+Get variable indices from an NCStateWord.
+
+This is an alias for `variables()` that matches the naming convention used
+by regular Monomial types.
+"""
+function variable_indices(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
+    variables(ncsw)
+end
+
+"""
+    maxdegree(ncsp::NCStatePolynomial) -> Int
+
+Get the maximum degree of an NCStatePolynomial.
+Alias for `degree()` to match the Polynomial API.
+"""
+maxdegree(ncsp::NCStatePolynomial) = degree(ncsp)
 
 # =============================================================================
 # NCStatePolynomial - zero and one

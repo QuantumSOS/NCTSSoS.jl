@@ -341,3 +341,5 @@ function canonicalize(
     # Polynomial constructor handles sorting, deduplication, and zero removal
     Polynomial(new_terms)
 end
+
+

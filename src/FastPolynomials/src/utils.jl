@@ -70,23 +70,64 @@ The middle element `m` can be:
 - A StateWord: converted to NCStateWord and multiplied
 
 # Returns
-An NCStateWord representing the triple product.
+An NCStatePolynomial representing the simplified triple product.
+The nc_word parts are simplified using algebra-specific rules (e.g., x²=I for unipotent).
 """
 function _neat_dot3(a::NCStateWord{ST,A,T}, m::Monomial{A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # adjoint(a) * m * b
-    # Convert m to NCStateWord for multiplication
-    m_ncsw = NCStateWord(one(StateWord{ST,A,T}), m)
-    return adjoint(a) * m_ncsw * b
+    # Compute state word part: adjoint(a.sw) * b.sw (commutative)
+    # For monomial m, the associated StateWord is identity (no state part)
+    # StateWord * StateWord returns StateWord (commutative, no phase)
+    sw_prod = adjoint(a.sw) * b.sw
+
+    # Compute nc_word part: adjoint(a.nc_word) * m * b.nc_word (non-commutative)
+    nc_concat = adjoint(a.nc_word) * m * b.nc_word
+
+    # Simplify the nc_word using algebra-specific rules
+    simplified = simplify(nc_concat)
+
+    # Convert to NCStatePolynomial
+    if simplified isa Monomial
+        return NCStatePolynomial([1.0], [NCStateWord(sw_prod, simplified)])
+    elseif simplified isa Term
+        return NCStatePolynomial([simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
+    elseif simplified isa Polynomial
+        coeffs = [t.coefficient for t in simplified.terms]
+        ncsws = [NCStateWord(sw_prod, t.monomial) for t in simplified.terms]
+        return NCStatePolynomial(coeffs, ncsws)
+    else
+        error("Unexpected simplification result type: $(typeof(simplified))")
+    end
 end
 
 function _neat_dot3(a::NCStateWord{ST,A,T}, m::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    return adjoint(a) * m * b
+    # Compute state word part: adjoint(a.sw) * m.sw * b.sw (commutative)
+    # StateWord * StateWord returns StateWord (commutative, no phase)
+    sw_prod = adjoint(a.sw) * m.sw * b.sw
+
+    # Compute nc_word part: adjoint(a.nc_word) * m.nc_word * b.nc_word (non-commutative)
+    nc_concat = adjoint(a.nc_word) * m.nc_word * b.nc_word
+
+    # Simplify the nc_word using algebra-specific rules
+    simplified = simplify(nc_concat)
+
+    # Convert to NCStatePolynomial
+    if simplified isa Monomial
+        return NCStatePolynomial([1.0], [NCStateWord(sw_prod, simplified)])
+    elseif simplified isa Term
+        return NCStatePolynomial([simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
+    elseif simplified isa Polynomial
+        coeffs = [t.coefficient for t in simplified.terms]
+        ncsws = [NCStateWord(sw_prod, t.monomial) for t in simplified.terms]
+        return NCStatePolynomial(coeffs, ncsws)
+    else
+        error("Unexpected simplification result type: $(typeof(simplified))")
+    end
 end
 
 function _neat_dot3(a::NCStateWord{ST,A,T}, sw::StateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     # Convert StateWord to NCStateWord with identity nc_word
     m_ncsw = NCStateWord(sw)
-    return adjoint(a) * m_ncsw * b
+    return _neat_dot3(a, m_ncsw, b)
 end
 
 # Overload for regular Monomials (non-state context)

@@ -472,9 +472,9 @@ function get_term_sparsity_graph(
 
     for i in 1:nterms, j in i+1:nterms
         for supp in cons_support
-            # _neat_dot3 returns Polynomial (with simplified terms)
-            connected_poly_lr = _neat_dot3(bases[i], supp, bases[j])
-            connected_poly_rl = _neat_dot3(bases[j], supp, bases[i])
+            # _neat_dot3 returns Monomial, simplify to get Polynomial with algebra-specific rules
+            connected_poly_lr = Polynomial(simplify(_neat_dot3(bases[i], supp, bases[j])))
+            connected_poly_rl = Polynomial(simplify(_neat_dot3(bases[j], supp, bases[i])))
             # Check if any monomial from the simplified result is in activated support
             monos_lr = monomials(connected_poly_lr)
             monos_rl = monomials(connected_poly_rl)
@@ -530,8 +530,8 @@ function term_sparsity_graph_supp(
     G::SimpleGraph, basis::Vector{M}, g::P
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
     # Compute products basis[a]† * g_support * basis[b] for all graph edges
-    # _neat_dot3 returns Polynomial, extract monomials from each result
-    gsupp(a, b) = reduce(vcat, [monomials(_neat_dot3(a, g_supp, b)) for g_supp in monomials(g)])
+    # _neat_dot3 returns Monomial, simplify then extract monomials
+    gsupp(a, b) = reduce(vcat, [monomials(Polynomial(simplify(_neat_dot3(a, g_supp, b)))) for g_supp in monomials(g)])
     return union(
         [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
         [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...

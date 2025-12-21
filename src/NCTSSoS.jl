@@ -27,6 +27,7 @@ using .FastPolynomials: monomials, coefficients, terms, maxdegree
 using .FastPolynomials: get_ncbasis, get_state_basis
 using .FastPolynomials: symmetric_canon
 using .FastPolynomials: neat_dot, _neat_dot3, expval
+using .FastPolynomials: simplify
 
 # State polynomial types
 using .FastPolynomials: StateType

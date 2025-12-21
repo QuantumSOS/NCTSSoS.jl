@@ -30,12 +30,7 @@ julia> sorted_union([1, 2], [2, 3], [3, 4])
  4
 ```
 """
-function sorted_union(args...)
-    isempty(args) && return []
-    result = unique(vcat(args...))
-    sort!(result)
-    return result
-end
+sorted_union(xs...) = sort!(union(xs...))
 
 """
     sorted_unique(v::Vector) -> Vector
@@ -51,83 +46,30 @@ julia> sorted_unique([3, 1, 2, 1, 3])
  3
 ```
 """
-function sorted_unique(v::Vector)
-    isempty(v) && return similar(v, 0)
-    result = unique(v)
-    sort!(result)
-    return result
-end
+sorted_unique(v::Vector) = sort!(unique(v))
 
 """
-    _neat_dot3(a::NCStateWord, m::M, b::NCStateWord) where M
+    _neat_dot3(a::NCStateWord, m::NCStateWord, b::NCStateWord) -> NCStatePolynomial
 
-Compute adjoint(a) * m * b for NCStateWords with a middle monomial/polynomial.
+Compute adjoint(a) * m * b for NCStateWords.
 This is a common pattern in moment matrix construction.
-
-The middle element `m` can be:
-- A Monomial: converted to NCStateWord and multiplied
-- An NCStateWord: direct multiplication
-- A StateWord: converted to NCStateWord and multiplied
 
 # Returns
 An NCStatePolynomial representing the simplified triple product.
 The nc_word parts are simplified using algebra-specific rules (e.g., x²=I for unipotent).
 """
-function _neat_dot3(a::NCStateWord{ST,A,T}, m::Monomial{A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # Compute state word part: adjoint(a.sw) * b.sw (commutative)
-    # For monomial m, the associated StateWord is identity (no state part)
-    # StateWord * StateWord returns StateWord (commutative, no phase)
-    sw_prod = adjoint(a.sw) * b.sw
-
-    # Compute nc_word part: adjoint(a.nc_word) * m * b.nc_word (non-commutative)
-    nc_concat = adjoint(a.nc_word) * m * b.nc_word
-
-    # Simplify the nc_word using algebra-specific rules
-    simplified = simplify(nc_concat)
-
-    # Convert to NCStatePolynomial
-    if simplified isa Monomial
-        return NCStatePolynomial([1.0], [NCStateWord(sw_prod, simplified)])
-    elseif simplified isa Term
-        return NCStatePolynomial([simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
-    elseif simplified isa Polynomial
-        coeffs = [t.coefficient for t in simplified.terms]
-        ncsws = [NCStateWord(sw_prod, t.monomial) for t in simplified.terms]
-        return NCStatePolynomial(coeffs, ncsws)
-    else
-        error("Unexpected simplification result type: $(typeof(simplified))")
-    end
-end
-
 function _neat_dot3(a::NCStateWord{ST,A,T}, m::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     # Compute state word part: adjoint(a.sw) * m.sw * b.sw (commutative)
-    # StateWord * StateWord returns StateWord (commutative, no phase)
     sw_prod = adjoint(a.sw) * m.sw * b.sw
 
-    # Compute nc_word part: adjoint(a.nc_word) * m.nc_word * b.nc_word (non-commutative)
-    nc_concat = adjoint(a.nc_word) * m.nc_word * b.nc_word
-
-    # Simplify the nc_word using algebra-specific rules
-    simplified = simplify(nc_concat)
+    # Compute nc_word part via _neat_dot3 on Monomials, then simplify
+    nc_mono = _neat_dot3(a.nc_word, m.nc_word, b.nc_word)
+    nc_poly = Polynomial(simplify(nc_mono))
 
     # Convert to NCStatePolynomial
-    if simplified isa Monomial
-        return NCStatePolynomial([1.0], [NCStateWord(sw_prod, simplified)])
-    elseif simplified isa Term
-        return NCStatePolynomial([simplified.coefficient], [NCStateWord(sw_prod, simplified.monomial)])
-    elseif simplified isa Polynomial
-        coeffs = [t.coefficient for t in simplified.terms]
-        ncsws = [NCStateWord(sw_prod, t.monomial) for t in simplified.terms]
-        return NCStatePolynomial(coeffs, ncsws)
-    else
-        error("Unexpected simplification result type: $(typeof(simplified))")
-    end
-end
-
-function _neat_dot3(a::NCStateWord{ST,A,T}, sw::StateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # Convert StateWord to NCStateWord with identity nc_word
-    m_ncsw = NCStateWord(sw)
-    return _neat_dot3(a, m_ncsw, b)
+    coeffs = [t.coefficient for t in nc_poly.terms]
+    ncsws = [NCStateWord(sw_prod, t.monomial) for t in nc_poly.terms]
+    return NCStatePolynomial(coeffs, ncsws)
 end
 
 # Overload for regular Monomials (non-state context)
@@ -137,7 +79,10 @@ end
 Compute adjoint(a) * b for regular Monomials by concatenating words.
 
 Returns a Monomial with the adjoint of a's word followed by b's word.
-Does NOT apply simplification - callers should simplify! explicitly if needed.
+
+!!! note
+    The returned Monomial is NOT simplified. Callers should call `simplify!`
+    explicitly if algebra-specific simplification is needed.
 
 # Examples
 ```jldoctest
@@ -158,21 +103,34 @@ julia> result.word
 ```
 """
 function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # adjoint(a) * b - concatenate adjoint(a).word with b.word
-    adjoint(a) * b
+    # Preallocate result: reverse(a.word) ++ b.word (single allocation)
+    n_a, n_b = length(a.word), length(b.word)
+    result = Vector{T}(undef, n_a + n_b)
+
+    # Copy reversed a.word (with negation for signed types)
+    @inbounds for i in 1:n_a
+        result[i] = T <: Signed ? -a.word[n_a - i + 1] : a.word[n_a - i + 1]
+    end
+
+    # Copy b.word
+    @inbounds for i in 1:n_b
+        result[n_a + i] = b.word[i]
+    end
+
+    Monomial{A}(result)
 end
 
 """
-    _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Polynomial
+    _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Monomial
 
-Compute adjoint(a) * m * b for regular Monomials with algebra-specific simplification.
-
-Returns a Polynomial containing the simplified result. For algebras with non-trivial
-simplification rules (e.g., Pauli algebra where σ² = I and σₓσᵧ = iσz), the
-simplification is applied automatically.
+Compute adjoint(a) * m * b for regular Monomials by concatenating words.
 
 This is the three-argument form commonly used in moment matrix construction
 where we need adjoint(row_index) * constraint_monomial * column_index.
+
+!!! note
+    The returned Monomial is NOT simplified. Callers should call `simplify`
+    explicitly if algebra-specific simplification is needed.
 
 # Examples
 ```jldoctest
@@ -186,28 +144,34 @@ julia> m3 = Monomial{NonCommutativeAlgebra}(UInt16[3]);
 
 julia> result = _neat_dot3(m1, m2, m3);
 
-julia> monomials(result)[1].word
+julia> result.word
 3-element Vector{UInt16}:
  0x0001
  0x0002
  0x0003
 ```
-
-For Pauli algebra, simplification is applied:
-```julia
-julia> a = Monomial{PauliAlgebra}(UInt8[1]);  # σx₁
-
-julia> result = _neat_dot3(a, one(a), a);  # σx₁ * I * σx₁ = I
-
-julia> isone(monomials(result)[1])  # Result is identity
-true
-```
 """
 function _neat_dot3(a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # adjoint(a) * m * b - concatenate words then simplify
-    concatenated = adjoint(a) * m * b
-    simplified_term = simplify(concatenated)
-    return Polynomial(simplified_term)
+    # Preallocate: reverse(a.word) ++ m.word ++ b.word (single allocation)
+    n_a, n_m, n_b = length(a.word), length(m.word), length(b.word)
+    result = Vector{T}(undef, n_a + n_m + n_b)
+
+    # Copy reversed a.word (with negation for signed types)
+    @inbounds for i in 1:n_a
+        result[i] = T <: Signed ? -a.word[n_a - i + 1] : a.word[n_a - i + 1]
+    end
+
+    # Copy m.word
+    @inbounds for i in 1:n_m
+        result[n_a + i] = m.word[i]
+    end
+
+    # Copy b.word
+    @inbounds for i in 1:n_b
+        result[n_a + n_m + i] = b.word[i]
+    end
+
+    Monomial{A}(result)
 end
 
 # =============================================================================

@@ -80,8 +80,9 @@ function _build_constraint_matrix(
     for (i, row_idx) in enumerate(local_basis)
         for (j, col_idx) in enumerate(local_basis)
             # Build polynomial for this matrix element
+            # _neat_dot3 returns Monomial, simplify to get Polynomial
             element_poly = sum(
-                coef * _neat_dot3(row_idx, mono, col_idx)
+                coef * Polynomial(simplify(_neat_dot3(row_idx, mono, col_idx)))
                 for (coef, mono) in zip(coefficients(poly), monomials(poly))
             )
             moment_mtx[i, j] = element_poly
@@ -137,11 +138,11 @@ function moment_relax(
 ) where {A<:AlgebraType, TI<:Integer, C<:Number, P<:Polynomial{A,TI,C}, M<:Monomial{A,TI}}
 
     # Compute total basis: union of all moment matrix entry monomials
-    # _neat_dot3 returns a Polynomial (with simplified terms), extract monomials from each
+    # _neat_dot3 returns Monomial, simplify then extract monomials
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
-            # _neat_dot3 returns Polynomial; extract monomials (may be multiple for Bosonic)
-            [mono for m in monomials(poly) for mono in monomials(_neat_dot3(rol_idx, m, col_idx))]
+            # _neat_dot3 returns Monomial; simplify then extract monomials (may be multiple for Bosonic)
+            [mono for m in monomials(poly) for mono in monomials(Polynomial(simplify(_neat_dot3(rol_idx, m, col_idx))))]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
             for basis in term_sparsity.block_bases
             for rol_idx in basis

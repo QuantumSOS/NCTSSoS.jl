@@ -950,6 +950,46 @@ function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraT
 end
 
 """
+    symmetric_canon(sw::StateWord{ST,ProjectorAlgebra,T}) where {ST,T}
+
+Specialized symmetric canonicalization for ProjectorAlgebra StateWords.
+
+For projector algebra, this applies the idempotency rule (P² = P) via `simplify`
+before cyclic canonicalization. This ensures that equivalent StateWords like
+`<P₁P₁P₂>` and `<P₁P₂>` are recognized as identical.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> using FastPolynomials: encode_index
+
+julia> idx1 = encode_index(UInt8, 1, 1);
+
+julia> m = Monomial{ProjectorAlgebra}([idx1, idx1]);  # P₁P₁
+
+julia> sw = StateWord{MaxEntangled}([m]);
+
+julia> sw_canon = symmetric_canon(sw);
+
+julia> length(sw_canon.state_monos[1].word)  # P₁P₁ → P₁
+1
+```
+"""
+function symmetric_canon(sw::StateWord{ST,ProjectorAlgebra,T}) where {ST<:StateType,T<:Integer}
+    # For projector algebra, apply P²=P simplification before cyclic canonicalization
+    canon_monos = Monomial{ProjectorAlgebra,T}[]
+    for m in sw.state_monos
+        simplified = simplify(m)  # Returns Monomial for ProjectorAlgebra
+        # Only keep non-identity monomials
+        if !isone(simplified)
+            push!(canon_monos, symmetric_canon(simplified))
+        end
+    end
+    StateWord{ST}(canon_monos)
+end
+
+"""
     symmetric_canon(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
 
 Return a new NCStateWord with symmetrically canonicalized components.

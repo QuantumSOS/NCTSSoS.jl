@@ -11,10 +11,8 @@ else
     const SOLVER = Clarabel.Optimizer
 end
 
-# Example 6.1 with ProjectorAlgebra: The StatePolyOpt solver doesn't apply projector-specific
-# simplification rules (P² = P) the same way the main branch's PolyOpt with is_projective=true does.
-# This results in a different SDP structure (108 vs 81 constraints) and different objective value.
-# TODO: Add projector simplification to StatePolyOpt solver to match main branch behavior.
+# Example 6.1 with ProjectorAlgebra: Uses specialized symmetric_canon for ProjectorAlgebra
+# that applies idempotency simplification (P² = P) to StateWords before canonicalization.
 @testset "Example 6.1" begin
     reg, (x,) = create_projector_variables([("x", 1:3)])
 
@@ -26,14 +24,14 @@ end
 
     result = cs_nctssos(tpop, solver_config)
 
-    @test_skip result.objective ≈ -0.046717378455438933 atol = 1e-6
+    @test result.objective ≈ -0.046717378455438933 atol = 1e-6
 
     if haskey(ENV, "LOCAL_TESTING")
         solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 
         result = cs_nctssos(tpop, solver_config)
 
-        @test_skip result.objective ≈ -0.03124998978001017 atol = 1e-6
+        @test result.objective ≈ -0.03124998978001017 atol = 1e-6
     end
 end
 
@@ -55,7 +53,6 @@ end
 
 # Example 6.2.1 involves squared trace expressions (tr(xy) * tr(xy))
 # At order=2, the relaxation gives -8.0 (not tight). Order=3 gives the tight bound of -4.0.
-# The test uses order=2, so we skip it. Enable with order=3 to get the correct result.
 @testset "Example 6.2.1" begin
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
@@ -63,11 +60,14 @@ end
 
     tpop = polyopt((-1.0 * p) * one(typeof(x[1])), reg)
 
-    solver_config = SolverConfig(; optimizer=SOLVER, order=2)
+    # Order=2 gives -8.0 (not tight), order=3 needed for tight bound
+    if haskey(ENV, "LOCAL_TESTING")
+        solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 
-    result = cs_nctssos(tpop, solver_config)
+        result = cs_nctssos(tpop, solver_config)
 
-    @test_skip result.objective ≈ -4.0 atol = 1e-4
+        @test result.objective ≈ -4.0 atol = 1e-4
+    end
 end
 
 @testset "Example 6.2.2" begin

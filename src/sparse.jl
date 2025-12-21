@@ -796,16 +796,26 @@ Initialize the activated support for state polynomial term sparsity iteration.
 function init_activated_supp(
     partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
-    # For diagonal entries, use _neat_dot3 which returns NCStatePolynomial
-    diagonal_entries = M[]
-    for b in mom_mtx_bases
-        poly = _neat_dot3(b, one(M), b)
-        append!(diagonal_entries, monomials(poly))
+    # For NCStateWord, we need to include all pairwise products _neat_dot3(bi, I, bj)
+    # in the activated support. This is because:
+    # 1. The term sparsity graph checks if _neat_dot3(bi, I, bj) is in activated_supp
+    # 2. Unlike Monomials where objective terms directly match basis elements,
+    #    NCStateWord objectives may have compound expectations that don't directly
+    #    appear as _neat_dot3 products of degree-1 basis elements
+    # 3. Including all pairwise products ensures proper connectivity in the graph
+    pairwise_entries = M[]
+    identity = one(M)
+    for i in eachindex(mom_mtx_bases)
+        for j in i:length(mom_mtx_bases)
+            # _neat_dot3 returns NCStatePolynomial
+            poly = _neat_dot3(mom_mtx_bases[i], identity, mom_mtx_bases[j])
+            append!(pairwise_entries, monomials(poly))
+        end
     end
     return sorted_union(
         symmetric_canon.(monomials(partial_obj)),
         mapreduce(monomials, vcat, cons; init=M[]),
-        diagonal_entries
+        pairwise_entries
     )
 end
 

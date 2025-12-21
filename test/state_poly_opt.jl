@@ -34,14 +34,14 @@ using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStat
     @test isapprox(result_sos.objective, -2.8284271321623202, atol=1e-5)
 
 
-    # Term sparsity (MMD) causes incorrect results for state polynomial optimization
-    # by breaking the moment matrix into blocks that don't capture the full problem
+    # Term sparsity (MMD) now works correctly for state polynomial optimization
+    # after fixing init_activated_supp to include all pairwise basis products
     @testset "Sparse" begin
         solver_config = SolverConfig(; optimizer=SOLVER, order=d, cs_algo=NoElimination(), ts_algo=MMD())
 
         result = cs_nctssos(spop, solver_config)
 
-        @test_skip result.objective ≈ -2.8284271321623202 atol = 1e-5
+        @test result.objective ≈ -2.8284271321623202 atol = 1e-5
     end
 end
 

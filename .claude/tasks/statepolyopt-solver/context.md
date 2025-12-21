@@ -17,7 +17,7 @@ StatePolyOpt solver support is fully implemented and working. All tests pass inc
 ## Test Status
 
 - Test 7.2.0: PASS (-2.828...)
-- Test 7.2.0 Sparse (with MMD term sparsity): SKIP (term sparsity needs separate fix)
+- Test 7.2.0 Sparse (with MMD term sparsity): PASS (-2.828...) ✅ Fixed!
 - Test 7.2.1: PASS (-4.0) ✅ Fixed!
 - Test 7.2.2: PASS (-5.0)
 
@@ -61,13 +61,27 @@ The key insight from analyzing the main branch was that **mixed forms** like `<M
 - `test/state_poly_opt.jl`: 
   - Changed `@test_skip` to `@test` for test 7.2.1
 
-### Known Issue: Term Sparsity (MMD) with State Polynomials
+### Fixed: Term Sparsity (MMD) with State Polynomials ✅
 
-The MMD term sparsity algorithm creates incorrect blocks for state polynomial optimization.
-When enabled, it returns 0 instead of the correct value. This is because the term sparsity
-graph construction doesn't properly handle NCStateWord/StateWord types.
+The MMD term sparsity algorithm now works correctly for state polynomial optimization.
 
-Workaround: Use `ts_algo=NoElimination()` for state polynomial optimization.
+**Previous Issue**: The term sparsity graph was creating singleton blocks (one basis element per block)
+because `init_activated_supp` only included diagonal entries `_neat_dot3(b, I, b)`. The off-diagonal
+products `_neat_dot3(bi, I, bj)` were not in the activated support, so no edges were added to the
+term sparsity graph.
+
+**Root Cause**: For NCStateWords, objective monomials like `<x1*y1>*I` don't directly match the
+off-diagonal products of degree-1 basis elements. Unlike Monomials where objective terms like `x1`
+appear directly in the basis, NCStateWord objectives have compound expectations that require the
+full pairwise products to be included.
+
+**Fix**: Modified `init_activated_supp` for NCStateWord to include ALL pairwise products
+`_neat_dot3(bi, I, bj)` instead of just diagonal entries. This ensures proper connectivity
+in the term sparsity graph.
+
+**Files Modified**:
+- `src/sparse.jl`: Updated `init_activated_supp` for NCStateWord to compute pairwise products
+- `test/state_poly_opt.jl`: Changed `@test_skip` to `@test` for the sparse variant of test 7.2.0
 
 ## Original Files Modified for StatePolyOpt Support
 

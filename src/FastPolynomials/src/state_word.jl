@@ -45,8 +45,10 @@ struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial
     hash::UInt64
 
     function StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-        # Apply involution invariant: canonicalize each monomial to min(m, adjoint(m))
-        canonicalized = [_involution_canon(m) for m in monos]
+        # Apply canonicalization based on state type:
+        # - MaxEntangled (trace): cyclic-symmetric canonicalization since tr(ABC) = tr(BCA) = tr(C†B†A†)
+        # - Arbitrary: involution canonicalization (symmetric only) since <M> = <M†>
+        canonicalized = [_state_canon(ST, m) for m in monos]
 
         # Filter out identity monomials (unless all are identity)
         filtered = filter(m -> !isone(m), canonicalized)
@@ -65,6 +67,32 @@ This ensures that m and adjoint(m) are treated as equivalent in state expectatio
 function _involution_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     m_adj = adjoint(m)
     return isless(m, m_adj) ? m : (m == m_adj ? m : m_adj)
+end
+
+"""
+    _state_canon(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A,T}
+
+Apply state-type-specific canonicalization to a monomial.
+
+- For `Arbitrary`: involution canonicalization (min of m and adjoint(m))
+- For `MaxEntangled`: cyclic-symmetric canonicalization (trace invariance)
+
+# Arguments
+- `ST`: The state type (Arbitrary or MaxEntangled)
+- `m`: The monomial to canonicalize
+
+# Returns
+A canonicalized monomial.
+"""
+function _state_canon(::Type{Arbitrary}, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    # For arbitrary states: <M> = <M†>, so use involution (symmetric) canonicalization
+    _involution_canon(m)
+end
+
+function _state_canon(::Type{MaxEntangled}, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    # For trace states: tr(ABC) = tr(BCA) = tr(CBA)† = tr(A†B†C†)
+    # Use cyclic-symmetric canonicalization
+    cyclic_symmetric_canon(m)
 end
 
 # Convenience constructors
@@ -918,6 +946,46 @@ julia> sw_canon.state_monos[1].word
 function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     # Apply symmetric_canon to each monomial in the state word
     canon_monos = [symmetric_canon(m) for m in sw.state_monos]
+    StateWord{ST}(canon_monos)
+end
+
+"""
+    symmetric_canon(sw::StateWord{ST,ProjectorAlgebra,T}) where {ST,T}
+
+Specialized symmetric canonicalization for ProjectorAlgebra StateWords.
+
+For projector algebra, this applies the idempotency rule (P² = P) via `simplify`
+before cyclic canonicalization. This ensures that equivalent StateWords like
+`<P₁P₁P₂>` and `<P₁P₂>` are recognized as identical.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> using FastPolynomials: encode_index
+
+julia> idx1 = encode_index(UInt8, 1, 1);
+
+julia> m = Monomial{ProjectorAlgebra}([idx1, idx1]);  # P₁P₁
+
+julia> sw = StateWord{MaxEntangled}([m]);
+
+julia> sw_canon = symmetric_canon(sw);
+
+julia> length(sw_canon.state_monos[1].word)  # P₁P₁ → P₁
+1
+```
+"""
+function symmetric_canon(sw::StateWord{ST,ProjectorAlgebra,T}) where {ST<:StateType,T<:Integer}
+    # For projector algebra, apply P²=P simplification before cyclic canonicalization
+    canon_monos = Monomial{ProjectorAlgebra,T}[]
+    for m in sw.state_monos
+        simplified = simplify(m)  # Returns Monomial for ProjectorAlgebra
+        # Only keep non-identity monomials
+        if !isone(simplified)
+            push!(canon_monos, symmetric_canon(simplified))
+        end
+    end
     StateWord{ST}(canon_monos)
 end
 

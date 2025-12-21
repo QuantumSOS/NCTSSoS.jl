@@ -28,6 +28,37 @@ using NCTSSoS.FastPolynomials:
         @test sw_tr isa StateWord{MaxEntangled}
     end
 
+    @testset "Cyclic Canonicalization for Trace" begin
+        # For MaxEntangled (trace) states, cyclic permutations should be equivalent
+        # tr(ABC) = tr(BCA) = tr(CAB)
+        m_abc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m_bca = Monomial{NonCommutativeAlgebra}([2, 3, 1])
+        m_cab = Monomial{NonCommutativeAlgebra}([3, 1, 2])
+
+        sw_abc = tr(m_abc)
+        sw_bca = tr(m_bca)
+        sw_cab = tr(m_cab)
+
+        @test sw_abc == sw_bca
+        @test sw_bca == sw_cab
+        @test sw_abc == sw_cab
+        @test hash(sw_abc) == hash(sw_bca) == hash(sw_cab)
+
+        # Also test with reversal (tr(ABC) = tr(C†B†A†))
+        # For NonCommutativeAlgebra, adjoint reverses the word
+        m_cba = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        sw_cba = tr(m_cba)
+        @test sw_abc == sw_cba
+
+        # Test with longer words
+        m_12345 = Monomial{NonCommutativeAlgebra}([1, 2, 3, 4, 5])
+        m_23451 = Monomial{NonCommutativeAlgebra}([2, 3, 4, 5, 1])
+        m_34512 = Monomial{NonCommutativeAlgebra}([3, 4, 5, 1, 2])
+
+        @test tr(m_12345) == tr(m_23451)
+        @test tr(m_12345) == tr(m_34512)
+    end
+
     @testset "Degree" begin
         m1 = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
         m2 = Monomial{NonCommutativeAlgebra}([3])     # degree 1
@@ -119,6 +150,26 @@ end
         result = sw1 * sw2
         @test result isa StateWord
         @test length(result.state_monos) == 2
+    end
+
+    @testset "Involution (not Cyclic) Canonicalization for Arbitrary" begin
+        # For Arbitrary states, only involution canonicalization is applied
+        # <M> = <M†> but <ABC> ≠ <BCA> in general
+
+        m_abc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m_bca = Monomial{NonCommutativeAlgebra}([2, 3, 1])
+        # adjoint([1, 2, 3]) = [-3, -2, -1] for NonCommutativeAlgebra
+        m_abc_adj = Monomial{NonCommutativeAlgebra}([-3, -2, -1])
+
+        sw_abc = ς(m_abc)
+        sw_bca = ς(m_bca)
+        sw_abc_adj = ς(m_abc_adj)
+
+        # Cyclic permutations should NOT be equal for Arbitrary states
+        @test sw_abc != sw_bca
+
+        # But m and adjoint(m) should be equal (involution symmetry)
+        @test sw_abc == sw_abc_adj
     end
 end
 

@@ -202,8 +202,8 @@ _is_complex_problem(::Type{A}) where {A<:AlgebraType} = false  # Default fallbac
 # =============================================================================
 
 # Import state polynomial types from FastPolynomials
-using .FastPolynomials: StateType, Arbitrary, MaxEntangled
-using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomial
+using .FastPolynomials: StateType
+using .FastPolynomials: StateWord, NCStateWord, NCStatePolynomial
 
 """
     StatePolyOpt{A<:AlgebraType, ST<:StateType, P<:NCStatePolynomial} <: OptimizationProblem{A, P}

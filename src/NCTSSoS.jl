@@ -29,8 +29,8 @@ using .FastPolynomials: symmetric_canon
 using .FastPolynomials: neat_dot, _neat_dot3, expval
 
 # State polynomial types
-using .FastPolynomials: StateType, Arbitrary, MaxEntangled
-using .FastPolynomials: StateWord, NCStateWord, StatePolynomial, NCStatePolynomial
+using .FastPolynomials: StateType
+using .FastPolynomials: StateWord, NCStateWord, NCStatePolynomial
 using .FastPolynomials: ς, tr
 
 # Re-export key types and functions for downstream users

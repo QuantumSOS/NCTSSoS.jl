@@ -32,12 +32,9 @@ julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
 julia> m = Monomial{UnipotentAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
 
-julia> t = simplify(m);
+julia> result = simplify(m);
 
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1]
+julia> result.word == [idx1_s1]
 true
 ```
 
@@ -51,9 +48,9 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> m = Monomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
 
-julia> t = simplify(m);
+julia> result = simplify(m);
 
-julia> isempty(t.monomial.word)
+julia> isempty(result.word)
 true
 ```
 """
@@ -96,6 +93,22 @@ julia> result.word == [idx1_s1, idx1_s2]
 true
 
 julia> m.word == [idx1_s1, idx1_s2]  # Original was mutated
+true
+```
+
+U²=I pair removal:
+```jldoctest
+julia> using FastPolynomials
+
+julia> using FastPolynomials: encode_index
+
+julia> idx1_s1 = encode_index(UInt16, 1, 1);
+
+julia> m = Monomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
+
+julia> result = simplify!(m);
+
+julia> isempty(result.word)
 true
 ```
 """

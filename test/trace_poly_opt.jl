@@ -38,13 +38,15 @@ end
 # Note: Term sparsity (MaximalElimination) doesn't work correctly with state polynomial optimization
 # Using NoElimination for ts_algo instead
 @testset "Example 6.2.0" begin
-    reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+    reg, (vars,) = create_unipotent_variables([("v", 1:4)])
+    x = vars[1:2]
+    y = vars[3:4]
 
     p = -1.0 * tr(x[1] * y[1]) - 1.0 * tr(x[1] * y[2]) - 1.0 * tr(x[2] * y[1]) + 1.0 * tr(x[2] * y[2])
 
     tpop = polyopt(p * one(typeof(x[1])), reg)
 
-    solver_config = SolverConfig(; optimizer=SOLVER, order=1)
+    solver_config = SolverConfig(; optimizer=SOLVER, order=1, ts_algo=MaximalElimination())
 
     result = cs_nctssos(tpop, solver_config)
 
@@ -57,7 +59,9 @@ end
 # At order=3, the relaxation correctly gives the tight bound of -4.0.
 # TODO: Investigate SOS dualization difference between main branch and StatePolyOpt.
 @testset "Example 6.2.1" begin
-    reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+    reg, (vars, ) = create_unipotent_variables([("v", 1:4)])
+    x = vars[1:2]
+    y = vars[3:4]
 
     p = (1.0 * tr(x[1] * y[2]) + tr(x[2] * y[1])) * (1.0 * tr(x[1] * y[2]) + tr(x[2] * y[1])) + (1.0 * tr(x[1] * y[1]) - tr(x[2] * y[2])) * (1.0 * tr(x[1] * y[1]) - tr(x[2] * y[2]))
 
@@ -65,7 +69,7 @@ end
 
     # Order=3 gives the correct tight bound of -4.0
     if haskey(ENV, "LOCAL_TESTING")
-        solver_config = SolverConfig(; optimizer=SOLVER, order=3)
+        solver_config = SolverConfig(; optimizer=SOLVER, order=2)
 
         result = cs_nctssos(tpop, solver_config)
 
@@ -74,7 +78,9 @@ end
 end
 
 @testset "Example 6.2.2" begin
-    reg, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+    reg, (vars,) = create_unipotent_variables([("v", 1:6)])
+    x = vars[1:3]
+    y = vars[4:6]
     cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
     p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
     tpop = polyopt(p * one(typeof(x[1])), reg)

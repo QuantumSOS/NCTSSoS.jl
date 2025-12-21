@@ -16,6 +16,7 @@ using NCTSSoS.FastPolynomials
     include("basis.jl")
     include("state_word.jl")
     include("statepolynomial.jl")
+    include("state_basis.jl")
     include("utils.jl")
     include("allocations.jl")
 end

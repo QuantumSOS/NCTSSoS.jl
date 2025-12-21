@@ -120,13 +120,23 @@ using NCTSSoS.FastPolynomials:
         # Extract unique monomials from the simplified basis
         basis_monos = Set(m for p in basis for m in monomials(p))
 
-        # Expected unique monomials (identity + 3 degree-1 + 6 degree-2 + 2 valid degree-3 combos = 12 total)
-        # For unipotent: U_i^2 = I, so consecutive same-index pairs vanish
+        # Expected unique monomials for unipotent algebra with site-based commutation:
+        # - Operators on different sites commute (sorted by site)
+        # - Within each site, U^2 = I applies, but order is preserved
+        # - Variables: x on site 1, y and z on site 2
+        # - 1 identity
+        # - 3 degree-1: x, y, z
+        # - 4 degree-2: xy, xz (cross-site), yz, zy (within-site, order preserved)
+        # - 4 degree-3: xyz, xzy, yzy, zyz, plus alternating patterns
+        # Total = 12 unique monomials
         expected = Set([
             one(x),  # identity monomial
             x, y, z,
+            # Degree 2: x*y, x*z site-sorted; y*z, z*y within-site (order preserved)
             x * y, x * z, y * z, z * y,
-            x * y * z, x * z * y, y * z * y, z * y * z
+            # Degree 3: site-sorted with within-site order preserved
+            x * y * z, x * z * y,  # x first (site 1), then y,z or z,y (site 2)
+            y * z * y, z * y * z   # within-site alternating patterns
         ])
         @test basis_monos == expected
     end
@@ -494,8 +504,8 @@ end
         @test isempty(m_uni.word)
     end
 
-    @testset "Unipotent in-place mutation with reordering" begin
-        # Create monomial with different sites that will be reordered
+    @testset "Unipotent in-place mutation with site-based reordering" begin
+        # UnipotentAlgebra: operators on different sites commute (sorted by site)
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
         m_uni2 = Monomial{UnipotentAlgebra}(UInt16[idx1_s2, idx1_s1])
@@ -509,7 +519,7 @@ end
         # Verify hash is consistent with word
         @test m_uni2.hash == hash(m_uni2.word)
 
-        # Verify word was sorted (site 1 before site 2)
+        # Verify word is site-sorted (site 1 before site 2)
         @test m_uni2.word == [idx1_s1, idx1_s2]
     end
 

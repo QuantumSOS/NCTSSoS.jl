@@ -545,6 +545,7 @@ end
     Base.show(io::IO, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
 Display a StatePolynomial.
+Uses registry from IO context if available for human-readable symbols.
 """
 function Base.show(io::IO, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
     if isempty(sp.state_words)
@@ -554,10 +555,29 @@ function Base.show(io::IO, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
     first_term = true
     for (c, sw) in zip(sp.coeffs, sp.state_words)
-        if !first_term
-            print(io, " + ")
+        # Handle sign and coefficient display
+        if first_term
+            if c == one(C)
+                # Don't print coefficient for +1
+            elseif c == -one(C)
+                print(io, "-")
+            else
+                print(io, c)
+            end
+        else
+            if c == one(C)
+                print(io, " + ")
+            elseif c == -one(C)
+                print(io, " - ")
+            elseif real(c) < 0
+                print(io, " - ", -c)
+            else
+                print(io, " + ", c)
+            end
         end
-        print(io, c, " * ", sw)
+
+        # Print the state word (will use registry from context)
+        show(io, sw)
         first_term = false
     end
 end
@@ -894,6 +914,7 @@ end
     Base.show(io::IO, ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
 Display an NCStatePolynomial.
+Uses registry from IO context if available for human-readable symbols.
 """
 function Base.show(io::IO, ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T}
     if isempty(ncsp.nc_state_words)
@@ -903,10 +924,29 @@ function Base.show(io::IO, ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
     first_term = true
     for (c, ncsw) in zip(ncsp.coeffs, ncsp.nc_state_words)
-        if !first_term
-            print(io, " + ")
+        # Handle sign and coefficient display
+        if first_term
+            if c == one(C)
+                # Don't print coefficient for +1
+            elseif c == -one(C)
+                print(io, "-")
+            else
+                print(io, c)
+            end
+        else
+            if c == one(C)
+                print(io, " + ")
+            elseif c == -one(C)
+                print(io, " - ")
+            elseif real(c) < 0
+                print(io, " - ", -c)
+            else
+                print(io, " + ", c)
+            end
         end
-        print(io, c, " * ", ncsw)
+
+        # Print the NC state word (will use registry from context)
+        show(io, ncsw)
         first_term = false
     end
 end

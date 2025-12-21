@@ -331,23 +331,31 @@ end
     _get_state_Cαj(unsymmetrized_basis, localizing_mtx)
 
 Extract coefficient matrix for state polynomial dualization.
+
+Only iterates over upper triangle (row <= col) to avoid double-counting
+off-diagonal entries. Off-diagonal contributions are multiplied by 2
+to account for symmetry, matching the standard SDP formulation.
 """
 function _get_state_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, M<:NCStateWord{ST,A,T}, P<:NCStatePolynomial{C,ST,A,T}}
     dim = size(localizing_mtx, 1)
-    cis = CartesianIndices((dim, dim))
 
     # basis idx, row, col -> coefficient
     dictionary_of_keys = Dict{Tuple{Int,Int,Int},C}()
 
     n_basis = length(unsymmetrized_basis)
 
-    for ci in cis
-        poly = localizing_mtx[ci]
-        for (coeff, ncsw) in zip(coefficients(poly), monomials(poly))
-            idx = searchsortedfirst(unsymmetrized_basis, ncsw)
-            # Skip NCStateWords not in basis
-            if idx <= n_basis && unsymmetrized_basis[idx] == ncsw
-                dictionary_of_keys[(idx, ci.I[1], ci.I[2])] = coeff
+    # Only iterate over upper triangle to avoid double-counting
+    for row in 1:dim
+        for col in row:dim
+            poly = localizing_mtx[row, col]
+            for (coeff, ncsw) in zip(coefficients(poly), monomials(poly))
+                idx = searchsortedfirst(unsymmetrized_basis, ncsw)
+                # Skip NCStateWords not in basis
+                if idx <= n_basis && unsymmetrized_basis[idx] == ncsw
+                    # Multiply off-diagonal entries by 2 for symmetric matrix contribution
+                    effective_coeff = (row == col) ? coeff : 2 * coeff
+                    dictionary_of_keys[(idx, row, col)] = effective_coeff
+                end
             end
         end
     end

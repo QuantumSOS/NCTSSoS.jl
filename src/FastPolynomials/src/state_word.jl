@@ -387,17 +387,24 @@ star(sw::StateWord) = adjoint(sw)
     Base.show(io::IO, sw::StateWord{ST,A,T}) where {ST,A,T}
 
 Display a StateWord with appropriate brackets based on state type.
+Uses registry from IO context if available for human-readable symbols.
 """
 function Base.show(io::IO, sw::StateWord{ST,A,T}) where {ST,A,T}
     if ST == MaxEntangled
         prefix = "tr("
         suffix = ")"
     else  # Arbitrary or other
-        prefix = "<"
-        suffix = ">"
+        prefix = "⟨"
+        suffix = "⟩"
     end
-    parts = [prefix * string(m.word) * suffix for m in sw.state_monos]
-    print(io, join(parts, " "))
+
+    parts = String[]
+    for m in sw.state_monos
+        # Capture monomial display using the same IO context (with registry)
+        mono_str = sprint(show, m; context=io)
+        push!(parts, prefix * mono_str * suffix)
+    end
+    print(io, join(parts, ""))
 end
 
 # =============================================================================
@@ -629,9 +636,17 @@ end
     Base.show(io::IO, ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
 
 Display an NCStateWord.
+Uses registry from IO context if available for human-readable symbols.
 """
 function Base.show(io::IO, ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
-    print(io, ncsw.sw, " * ", ncsw.nc_word.word)
+    # Print StateWord part (will use registry from context)
+    show(io, ncsw.sw)
+
+    # Only print nc_word if it's not identity
+    if !isone(ncsw.nc_word)
+        print(io, "⊗")
+        show(io, ncsw.nc_word)
+    end
 end
 
 # =============================================================================

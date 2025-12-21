@@ -299,7 +299,13 @@ Display a state polynomial optimization problem.
 function Base.show(io::IO, spop::StatePolyOpt{A,ST,P}) where {A,ST,P}
     println(io, "State Polynomial Optimization Problem ($(nameof(A)), $(nameof(ST)))")
     println(io, "────────────────────────────────────────────────")
-    println(io, "Objective: ", spop.objective)
+
+    # Create IO context with registry for pretty printing
+    io_ctx = IOContext(io, :registry => spop.registry)
+    print(io, "Objective: ")
+    show(io_ctx, spop.objective)
+    println(io)
+
     println(io, "Equality constraints: ", length(spop.eq_constraints))
     println(io, "Inequality constraints: ", length(spop.ineq_constraints))
     println(io, "Variables: ", length(spop.registry))

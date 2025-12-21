@@ -42,11 +42,9 @@ using NCTSSoS:
     @test isapprox(result_mom.objective, result_sos.objective, atol=1e-3)
 end
 
-# Test 7.2.1: Known limitation - objectives with squared expectations <A><A>
-# The current basis (NCStateWords with identity StateWord) cannot generate
-# compound StateWords like <A><B> through _neat_dot3. These terms are ignored
-# in the optimization, leading to incorrect results for this test case.
-# See .claude/tasks/statepolyopt-solver/context.md for detailed analysis.
+# Test 7.2.1: Objectives with squared expectations <A><A>
+# This test requires order=3 to get the tight bound of -4.0.
+# The complete basis generation now handles compound StateWords correctly.
 @testset "State Polynomial Opt 7.2.1" begin
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
     sp1 = 1.0 * ς(x[1] * y[2]) + 1.0 * ς(x[2] * y[1])
@@ -58,10 +56,9 @@ end
     d = 3
     solver_config = SolverConfig(; optimizer = QUICK_SOLVER, order = d)
 
-    # Known limitation: compound StateWords not properly handled
-    # Expected: -4.0, but solver returns different value
+    # This test now passes with the complete basis generation
     result_sos = cs_nctssos(spop, solver_config)
-    @test_skip isapprox(result_sos.objective, -4.0, atol = 1e-4)
+    @test isapprox(result_sos.objective, -4.0, atol = 1e-4)
 end
 
 # Test 7.2.2 with covariance expression: cov(a,b) = <xy> - <x><y>

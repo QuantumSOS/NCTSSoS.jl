@@ -53,7 +53,7 @@ end
 end
 
 # Example 6.2.1 involves squared trace expressions (tr(xy) * tr(xy))
-# This is the same compound StateWord limitation as test 7.2.1
+# Uses order=3 to get tight bound (order=2 gives -8.0, order=3 gives -4.0)
 @testset "Example 6.2.1" begin
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
@@ -61,11 +61,11 @@ end
 
     tpop = polyopt((-1.0 * p) * one(typeof(x[1])), reg)
 
-    solver_config = SolverConfig(; optimizer=SOLVER, order=2)
+    solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 
     result = cs_nctssos(tpop, solver_config)
 
-    @test_skip result.objective ≈ -4.000000007460838 atol = 1e-5
+    @test result.objective ≈ -4.0 atol = 1e-4
 end
 
 @testset "Example 6.2.2" begin

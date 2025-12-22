@@ -489,27 +489,6 @@ Alias for `degree(p)`. Compute the maximum degree of all monomials.
 maxdegree(p::Polynomial) = degree(p)
 
 """
-    support(p::Polynomial) -> Vector{Monomial}
-
-Get the support of the polynomial (all unique monomials with non-zero coefficients).
-For a valid polynomial, this is the same as `monomials(p)`.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m = Monomial{PauliAlgebra}([1, 2]);
-
-julia> p = Polynomial(Term(1.0+0im, m));
-
-julia> support(p)
-1-element Vector{Monomial{PauliAlgebra, Int64}}:
- Monomial{PauliAlgebra, Int64}([1, 2], 0xf28b9e193dfe87c0)
-```
-"""
-support(p::Polynomial) = monomials(p)
-
-"""
     variable_indices(p::Polynomial) -> Set
 
 Get the set of all variable indices used in the polynomial's monomials.
@@ -1218,44 +1197,3 @@ true
 See also: [`adjoint`](@ref)
 """
 star(p::Polynomial) = adjoint(p)
-
-"""
-    is_symmetric(p::Polynomial) -> Bool
-
-Check if a polynomial is symmetric (Hermitian), i.e., p == adjoint(p).
-
-A polynomial is symmetric if it equals its adjoint. This is equivalent to
-checking if the polynomial represents a Hermitian operator.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m = Monomial{PauliAlgebra}([1, 2]);
-
-julia> p_real = Polynomial(Term(1.0 + 0.0im, m));
-
-julia> is_symmetric(p_real)  # Real coefficient, symmetric word
-true
-
-julia> p_complex = Polynomial(Term(1.0 + 1.0im, m));
-
-julia> is_symmetric(p_complex)  # Complex coefficient breaks symmetry
-false
-```
-
-Self-adjoint monomials with real coefficients are symmetric:
-```jldoctest
-julia> using FastPolynomials
-
-julia> m = Monomial{PauliAlgebra}([1]);  # Single Pauli is self-adjoint
-
-julia> p = Polynomial(Term(2.0 + 0.0im, m));
-
-julia> is_symmetric(p)
-true
-```
-
-See also: [`adjoint`](@ref), [`star`](@ref)
-"""
-is_symmetric(p::Polynomial) = p == adjoint(p)

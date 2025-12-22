@@ -58,33 +58,7 @@ function VariableRegistry{T}(idx_to_vars::Dict{T, Symbol}, vars_to_idx::Dict{Sym
 end
 
 """
-    algebra_type(::VariableRegistry{A,T}) where {A,T} -> Type{A}
-
-Return the algebra type parameter of the registry.
-
-# Examples
-```julia
-reg, _ = create_pauli_variables(1:2)
-algebra_type(reg)  # PauliAlgebra
-```
-"""
-algebra_type(::VariableRegistry{A,T}) where {A,T} = A
-
-"""
-    index_type(::VariableRegistry{A,T}) where {A,T} -> Type{T}
-
-Return the index type parameter of the registry.
-
-# Examples
-```julia
-reg, _ = create_pauli_variables(1:2)
-index_type(reg)  # UInt8
-```
-"""
-index_type(::VariableRegistry{A,T}) where {A,T} = T
-
-"""
-    subregistry(reg::VariableRegistry{A,T}, subset_indices::AbstractVector{<:Integer}) where {A,T}
+    subregistry(reg::VariableRegistry{A,T}, subset_indices::VT) where {A,T,VT<:AbstractVector{T}}
 
 Create a new VariableRegistry containing only the specified subset of indices.
 
@@ -93,7 +67,7 @@ correlative sparsity decomposition.
 
 # Arguments
 - `reg::VariableRegistry{A,T}`: The parent registry
-- `subset_indices::AbstractVector{<:Integer}`: Indices to include in the sub-registry
+- `subset_indices::AbstractVector{T}`: Indices to include in the sub-registry (must match registry's index type)
 
 # Returns
 A new `VariableRegistry{A,T}` containing only the variables at the specified indices.
@@ -116,16 +90,15 @@ julia> length(sub_reg)
 - This is a copy operation, not a view - modifications to the sub-registry
   do not affect the parent registry
 """
-function subregistry(reg::VariableRegistry{A,T}, subset_indices::AbstractVector{<:Integer}) where {A<:AlgebraType, T<:Integer}
+function subregistry(reg::VariableRegistry{A,T}, subset_indices::VT) where {A<:AlgebraType, T<:Integer, VT<:AbstractVector{T}}
     filtered_idx_to_vars = Dict{T, Symbol}()
     filtered_vars_to_idx = Dict{Symbol, T}()
 
     for idx in subset_indices
-        typed_idx = T(idx)
-        if haskey(reg.idx_to_variables, typed_idx)
-            sym = reg.idx_to_variables[typed_idx]
-            filtered_idx_to_vars[typed_idx] = sym
-            filtered_vars_to_idx[sym] = typed_idx
+        if haskey(reg.idx_to_variables, idx)
+            sym = reg.idx_to_variables[idx]
+            filtered_idx_to_vars[idx] = sym
+            filtered_vars_to_idx[sym] = idx
         end
     end
 
@@ -648,7 +621,7 @@ function create_noncommutative_variables(
     _create_noncommutative_variables(NonCommutativeAlgebra, prefix_subscripts)
 end
 
-@inline _encode_index(::Type{T}, global_idx::Int, physical_site::Int) where {T<:Integer} = T(global_idx << (sizeof(T) * 2) | T(physical_site))
+# Use encode_index from algebra_types.jl for site-based index encoding
 
 """
     _create_noncommutative_variables(::Type{A}, prefix_subscripts::Vector{Tuple{String, VT}})
@@ -687,7 +660,7 @@ function _create_noncommutative_variables(
     for (physical_site, (prefix, subscript_gp)) in enumerate(prefix_subscripts)
         for subscript in subscript_gp
             subscript_str = _subscript_string(subscript)
-            encoded_idx = _encode_index(IndexT, global_idx, physical_site)
+            encoded_idx = encode_index(IndexT, global_idx, physical_site)
             all_symbols[global_idx] = Symbol(prefix * subscript_str)
             all_indices[global_idx] = encoded_idx
             global_idx += 1

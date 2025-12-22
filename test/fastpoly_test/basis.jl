@@ -1,5 +1,5 @@
 using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words, index_type
+using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
 
 @testset "Basis Generation" begin
 
@@ -205,7 +205,7 @@ using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
         end
 
         # Index type should match
-        T = index_type(reg)
+        T = eltype(keys(reg.idx_to_variables))
         for poly in basis
             for mono in monomials(poly)
                 if !isempty(mono.word)

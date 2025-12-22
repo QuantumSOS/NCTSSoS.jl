@@ -10,7 +10,9 @@ using NCTSSoS.FastPolynomials:
     create_bosonic_variables,
     get_ncbasis,
     terms,
-    monomials
+    monomials,
+    encode_index,
+    decode_site
 
 # Note: The new API uses AlgebraType dispatch for simplification instead of SimplifyAlgorithm
 # Each algebra type (NonCommutativeAlgebra, PauliAlgebra, UnipotentAlgebra, etc.) has its own simplification rules
@@ -581,5 +583,60 @@ end
 
         # Hash is now correct
         @test m.hash == hash(m.word)
+    end
+end
+
+@testset "Index Encoding: integration with simplification" begin
+    @testset "ProjectorAlgebra encoding preserved through simplification" begin
+        # Create encoded indices for projector operators on different sites
+        p1_site1 = encode_index(UInt16, 1, 1)  # P₁ on site 1
+        p1_site2 = encode_index(UInt16, 1, 2)  # P₁ on site 2
+
+        # Create monomial P₁¹ P₁¹ P₁² (two P₁ on site 1, one on site 2)
+        m = Monomial{ProjectorAlgebra}(UInt16[p1_site1, p1_site1, p1_site2])
+
+        # Simplify: P² = P, so P₁¹ P₁¹ → P₁¹
+        result = simplify(m)
+
+        # Verify result preserves encoding (simplify returns Monomial for ProjectorAlgebra)
+        @test result.word[1] == p1_site1  # First should be site 1
+        @test result.word[2] == p1_site2  # Second should be site 2
+        @test decode_site(result.word[1]) == 1
+        @test decode_site(result.word[2]) == 2
+    end
+
+    @testset "UnipotentAlgebra encoding preserved through simplification" begin
+        # Create encoded indices for unipotent operators on different sites
+        u1_site1 = encode_index(UInt16, 1, 1)  # U₁ on site 1
+        u1_site2 = encode_index(UInt16, 1, 2)  # U₁ on site 2
+
+        # Create monomial U₁¹ U₁¹ U₁² (two U₁ on site 1, one on site 2)
+        m = Monomial{UnipotentAlgebra}(UInt16[u1_site1, u1_site1, u1_site2])
+
+        # Simplify: U² = I, so U₁¹ U₁¹ → identity (removed)
+        result = simplify(m)
+
+        # After U₁¹ U₁¹ cancels, only U₁² remains (simplify returns Monomial for UnipotentAlgebra)
+        @test length(result.word) == 1
+        @test result.word[1] == u1_site2
+        @test decode_site(result.word[1]) == 2
+    end
+
+    @testset "NonCommutativeAlgebra site-based commutation" begin
+        # Create encoded indices for operators on different sites
+        x1_site1 = encode_index(UInt16, 1, 1)  # x₁ on site 1
+        x2_site2 = encode_index(UInt16, 2, 2)  # x₂ on site 2
+        x3_site1 = encode_index(UInt16, 3, 1)  # x₃ on site 1
+
+        # Create monomial x₂² x₁¹ x₃¹ (out of site order)
+        m = Monomial{NonCommutativeAlgebra}(UInt16[x2_site2, x1_site1, x3_site1])
+
+        # Simplify should sort by site (operators on different sites commute)
+        result = simplify(m)
+
+        # Site 1 operators should come before site 2 (simplify returns Monomial for NonCommutativeAlgebra)
+        @test decode_site(result.word[1]) == 1
+        @test decode_site(result.word[2]) == 1
+        @test decode_site(result.word[3]) == 2
     end
 end

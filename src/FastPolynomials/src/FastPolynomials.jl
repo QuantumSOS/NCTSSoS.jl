@@ -40,7 +40,7 @@ export AbstractMonomial, Monomial, ComposedMonomial
 export Term
 export AbstractPolynomial, Polynomial
 export degree, maxdegree
-export coefficients, monomials, terms, support, variables
+export coefficients, monomials, terms, variables
 export simplify, simplify!
 export star, star!, adjoint!
 export symmetric_canon, cyclic_canon, cyclic_symmetric_canon, canonicalize
@@ -63,8 +63,7 @@ export StatePolynomial, NCStatePolynomial
 export expval, neat_dot
 export ς, tr
 
-# Polynomial utilities
-export is_symmetric
+
 
 # Variable creation functions
 export create_pauli_variables, create_fermionic_variables, create_bosonic_variables

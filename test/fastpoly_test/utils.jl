@@ -10,7 +10,6 @@ using NCTSSoS.FastPolynomials:
     create_unipotent_variables,
     star,
     indices,
-    index_type,
     degree,
     Term,
     Polynomial,

@@ -84,7 +84,6 @@ using NCTSSoS.FastPolynomials: variable_indices
 
         @test length(coefficients(p)) == 2
         @test length(monomials(p)) == 2
-        @test support(p) == monomials(p)
     end
 
     @testset "Degree" begin
@@ -346,34 +345,6 @@ using NCTSSoS.FastPolynomials: variable_indices
 
         @test star(p) == adjoint(p)
         @test coefficients(star(p))[1] == 1.0 - 1.0im
-    end
-
-    @testset "is_symmetric" begin
-        # Identity is symmetric
-        p_identity = one(Polynomial{PauliAlgebra,Int64,ComplexF64})
-        @test is_symmetric(p_identity)
-
-        # Real scalar is symmetric
-        p_real = Polynomial{PauliAlgebra,Int64,ComplexF64}(3.0)
-        @test is_symmetric(p_real)
-
-        # Complex coefficient breaks symmetry
-        m = Monomial{PauliAlgebra}([1])
-        p_complex = Polynomial([Term(1.0 + 1.0im, m)])
-        @test !is_symmetric(p_complex)
-
-        # Non-self-adjoint monomial
-        m_non_self = Monomial{PauliAlgebra}([1, 2])
-        p_non_sym = Polynomial([Term(1.0 + 0.0im, m_non_self)])
-        @test !is_symmetric(p_non_sym)
-
-        # Sum of term and its adjoint with proper negation
-        # For NonCommutativeAlgebra: adjoint reverses and negates
-        # [1,2] -> [-2,-1], so we need both terms
-        m_pos = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_neg = Monomial{NonCommutativeAlgebra}([-2, -1])
-        p_hermitian = Polynomial([Term(1.0 + 0.0im, m_pos), Term(1.0 + 0.0im, m_neg)])
-        @test is_symmetric(p_hermitian)
     end
 
     @testset "variable_indices" begin

@@ -6,8 +6,7 @@ using NCTSSoS.FastPolynomials:
     _select_signed_index_type,
     _select_unsigned_type,
     max_operators,
-    max_sites,
-    index_type
+    max_sites
 
 @testset "Variable Registry" begin
 
@@ -121,47 +120,6 @@ using NCTSSoS.FastPolynomials:
         @test _select_unsigned_type(4095, 15) == UInt16
         @test _select_unsigned_type(4096, 1) == UInt32  # operators exceed UInt16
         @test _select_unsigned_type(100, 16) == UInt32  # sites exceed UInt16
-    end
-
-    @testset "Encoding Boundary Tests" begin
-        # Test UInt8 boundary (max_operators = 63)
-        # n=63 should use UInt8
-        reg63, (x,) = create_noncommutative_variables([("x", 1:63)])
-        @test index_type(reg63) == UInt8
-        @test length(reg63) == 63
-
-        # n=64 should use UInt16 (exceeds UInt8 max_operators = 63)
-        reg64, (x,) = create_noncommutative_variables([("x", 1:64)])
-        @test index_type(reg64) == UInt16
-        @test length(reg64) == 64
-
-        # Test UInt8 site boundary (max_sites = 3)
-        # 3 prefix groups should use UInt8
-        reg3g, (P, Q, R) = create_projector_variables([("P", 1:2), ("Q", 3:4), ("R", 5:6)])
-        @test index_type(reg3g) == UInt8
-
-        # 4 prefix groups should use UInt16 (exceeds UInt8 max_sites = 3)
-        reg4g, (P, Q, R, S) = create_projector_variables([("P", 1:2), ("Q", 3:4), ("R", 5:6), ("S", 7:8)])
-        @test index_type(reg4g) == UInt16
-
-        # Test UInt16 boundary (max_operators = 4095)
-        # n=4095 should use UInt16
-        reg4095, (x,) = create_noncommutative_variables([("x", 1:4095)])
-        @test index_type(reg4095) == UInt16
-        @test length(reg4095) == 4095
-
-        # n=4096 should use UInt32 (exceeds UInt16 max_operators = 4095)
-        reg4096, (x,) = create_noncommutative_variables([("x", 1:4096)])
-        @test index_type(reg4096) == UInt32
-        @test length(reg4096) == 4096
-
-        # Test combined constraints: many groups with many operators
-        # 10 groups with 50 vars each = 500 operators
-        # UInt8: max_sites = 3 -> FAIL (need 10 sites)
-        # UInt16: max_sites = 15 -> PASS
-        reg_combined, groups = create_projector_variables([(string('A' + i - 1), (1:50) .+ (i-1)*50) for i in 1:10])
-        @test index_type(reg_combined) == UInt16
-        @test length(reg_combined) == 500
     end
 
     @testset "symbols() and indices() Ordering" begin

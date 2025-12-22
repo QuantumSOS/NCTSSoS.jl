@@ -11,7 +11,12 @@ using NCTSSoS.FastPolynomials:
     terms,
     monomials,
     encode_index,
-    decode_site
+    decode_site,
+    # Fermionic helper
+    has_even_parity,
+    # Bosonic helpers
+    is_normal_ordered,
+    find_first_out_of_order_bosonic
 
 # Note: The new API uses AlgebraType dispatch for simplification instead of SimplifyAlgorithm
 # Each algebra type (NonCommutativeAlgebra, PauliAlgebra, UnipotentAlgebra, etc.) has its own simplification rules
@@ -304,6 +309,38 @@ end
         identity_term = findfirst(t -> isempty(t.monomial.word), result_complex.terms)
         @test !isnothing(identity_term)
     end
+
+    @testset "has_even_parity" begin
+        # Identity (empty word) has 0 operators → even parity
+        m_identity = Monomial{FermionicAlgebra}(Int32[])
+        @test has_even_parity(m_identity) == true
+
+        # Single annihilation a₁ → 1 operator → odd parity
+        @test has_even_parity(a[1]) == false
+
+        # Single creation a₁† → 1 operator → odd parity
+        @test has_even_parity(a_dag[1]) == false
+
+        # Two operators a₁ a₂ → even parity
+        m_two_ann = a[1] * a[2]
+        @test has_even_parity(m_two_ann) == true
+
+        # Two operators a₁† a₂† → even parity
+        m_two_cre = a_dag[1] * a_dag[2]
+        @test has_even_parity(m_two_cre) == true
+
+        # Number operator a₁† a₁ → 2 operators → even parity
+        m_number = a_dag[1] * a[1]
+        @test has_even_parity(m_number) == true
+
+        # Three operators → odd parity
+        m_three = a_dag[1] * a[1] * a[2]
+        @test has_even_parity(m_three) == false
+
+        # Four operators → even parity
+        m_four = a_dag[1] * a_dag[2] * a[1] * a[2]
+        @test has_even_parity(m_four) == true
+    end
 end
 
 @testset "BosonicAlgebra Simplification" begin
@@ -442,6 +479,64 @@ end
         # c₁†² c₁² term (degree 4) with coefficient 1
         @test haskey(terms_by_degree, 4)
         @test terms_by_degree[4].coefficient == 1.0
+    end
+
+    @testset "is_normal_ordered helper" begin
+        # Empty word → normal ordered
+        @test is_normal_ordered(Int32[]) == true
+
+        # Single operator → normal ordered
+        @test is_normal_ordered(Int32[1]) == true    # c₁
+        @test is_normal_ordered(Int32[-1]) == true   # c₁†
+
+        # Normal order: creators (negative) before annihilators (positive)
+        # c₁† c₁ (normal)
+        @test is_normal_ordered(Int32[-1, 1]) == true
+
+        # c₁ c₁† (not normal - annihilator before creator)
+        @test is_normal_ordered(Int32[1, -1]) == false
+
+        # Multiple creators sorted by mode: c₁† c₂† (normal)
+        @test is_normal_ordered(Int32[-1, -2]) == true
+
+        # Multiple creators unsorted: c₂† c₁† (not normal)
+        @test is_normal_ordered(Int32[-2, -1]) == false
+
+        # Multiple annihilators sorted by mode: c₁ c₂ (normal)
+        @test is_normal_ordered(Int32[1, 2]) == true
+
+        # Multiple annihilators unsorted: c₂ c₁ (not normal)
+        @test is_normal_ordered(Int32[2, 1]) == false
+
+        # Full normal form: c₁† c₂† c₁ c₂
+        @test is_normal_ordered(Int32[-1, -2, 1, 2]) == true
+
+        # Not normal: c₁† c₁ c₂† c₂ (annihilator before second creator)
+        @test is_normal_ordered(Int32[-1, 1, -2, 2]) == false
+    end
+
+    @testset "find_first_out_of_order_bosonic helper" begin
+        # Empty word → already normal (returns 0)
+        @test find_first_out_of_order_bosonic(Int32[]) == 0
+
+        # Single operator → already normal (returns 0)
+        @test find_first_out_of_order_bosonic(Int32[1]) == 0
+
+        # Normal order → returns 0
+        @test find_first_out_of_order_bosonic(Int32[-1, 1]) == 0
+        @test find_first_out_of_order_bosonic(Int32[-1, -2, 1, 2]) == 0
+
+        # c₁ c₁† → position 1 is out of order (annihilator followed by creator)
+        @test find_first_out_of_order_bosonic(Int32[1, -1]) == 1
+
+        # c₂† c₁† → position 1 is out of order (creator with higher mode before lower)
+        @test find_first_out_of_order_bosonic(Int32[-2, -1]) == 1
+
+        # c₁† c₂ c₁ → position 2 is out of order (annihilator c₂ before c₁)
+        @test find_first_out_of_order_bosonic(Int32[-1, 2, 1]) == 2
+
+        # c₁† c₁ c₂† c₂ → position 2 is out of order (annihilator before creator)
+        @test find_first_out_of_order_bosonic(Int32[-1, 1, -2, 2]) == 2
     end
 end
 

@@ -25,9 +25,8 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 4. Evaluate signs using permutation parity
 """
 
-# Helper functions
-@inline _is_creation(op::Integer) = op < 0
-@inline _fermi_mode(op::Integer) = abs(op)
+# Helper functions (use shared _is_creation from utils.jl)
+@inline _fermi_mode(op::Integer) = _operator_mode(op)
 
 """
     has_even_parity(m::Monomial{FermionicAlgebra,T}) where T -> Bool
@@ -62,7 +61,7 @@ julia> has_even_parity(a_dag[1] * a[1])  # Number operator: 2 operators (even)
 true
 ```
 
-See also: [`FermionicAlgebra`](@ref), [`simplify!`](@ref)
+See also: [`FermionicAlgebra`](@ref), [`simplify`](@ref)
 """
 function has_even_parity(m::Monomial{FermionicAlgebra,T}) where {T}
     return iseven(length(m.word))
@@ -363,9 +362,12 @@ function _combine_like_terms_fermi(terms::Vector{Term{Monomial{FermionicAlgebra,
 end
 
 """
-    simplify!(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
+    simplify(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
 
-Simplify fermionic monomial using Generalized Wick's Theorem.
+Simplify and normal-order a fermionic algebra monomial using Generalized Wick's Theorem.
+
+Returns a Polynomial representing the normal-ordered expansion (potentially with multiple 
+terms due to anticommutation). The original monomial is unchanged.
 
 # Algorithm
 1. Find all valid contractions (aᵢ...aᵢ† pairs with same mode)
@@ -373,10 +375,30 @@ Simplify fermionic monomial using Generalized Wick's Theorem.
 3. For each combination, compute the normal-ordered term with sign
 4. Combine like terms
 
-# Returns
-Polynomial representing the normal-ordered expansion (potentially with multiple terms due to anticommutation).
+# Algebraic Rules
+- {aᵢ, aⱼ†} = δᵢⱼ (anticommutation gives delta correction)
+- {aᵢ, aⱼ} = 0 (annihilation-annihilation anticommute)
+- {aᵢ†, aⱼ†} = 0 (creation-creation anticommute)
+- aᵢ² = 0, (aᵢ†)² = 0 (nilpotency)
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{FermionicAlgebra}(Int32[1, -1]);  # a₁ a₁†
+
+julia> poly = simplify(m);
+
+julia> length(terms(poly))  # Two terms: 1 - a₁† a₁
+2
+```
+
+# Note
+Unlike other algebra types, fermionic simplification returns a `Polynomial` (not a `Monomial`)
+because anticommutation creates multiple terms. There is no `simplify!` variant since the
+return type differs from the input type.
 """
-function simplify!(m::Monomial{FermionicAlgebra,T}) where {T}
+function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     word = m.word
 
     # Handle empty word
@@ -409,16 +431,4 @@ function simplify!(m::Monomial{FermionicAlgebra,T}) where {T}
     result_terms = _combine_like_terms_fermi(result_terms)
 
     return Polynomial(result_terms)
-end
-
-"""
-    simplify(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
-
-Non-mutating version of simplify!.
-Returns a Polynomial representing the normal-ordered expansion (potentially with multiple terms due to anticommutation).
-"""
-function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
-    word_copy = copy(m.word)
-    m_copy = Monomial{FermionicAlgebra,T}(word_copy)
-    simplify!(m_copy)
 end

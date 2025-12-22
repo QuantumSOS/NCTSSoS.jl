@@ -178,3 +178,46 @@ function _neat_dot3(
 
     return Monomial{A}(result)
 end
+
+# =============================================================================
+# Shared Helper Functions for Fermionic/Bosonic Algebras
+# =============================================================================
+
+"""
+    _is_creation(op::Integer) -> Bool
+
+Check if an operator index represents a creation operator.
+In the fermionic/bosonic encoding, creation operators have negative indices.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials: _is_creation
+
+julia> _is_creation(-1)  # a₁† (creation)
+true
+
+julia> _is_creation(1)   # a₁ (annihilation)
+false
+```
+"""
+@inline _is_creation(op::T) where {T<:Integer} = op < 0
+
+"""
+    _operator_mode(op::T) where T<:Integer -> T
+
+Extract the mode (site) index from a fermionic or bosonic operator.
+The mode is the absolute value of the operator index.
+Returns the same integer type as the input for type stability.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials: _operator_mode
+
+julia> _operator_mode(-3)  # a₃† → mode 3
+3
+
+julia> _operator_mode(2)   # a₂ → mode 2
+2
+```
+"""
+@inline _operator_mode(op::T) where {T<:Integer} = abs(op)

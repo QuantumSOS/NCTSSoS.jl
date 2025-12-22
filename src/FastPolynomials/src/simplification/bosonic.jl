@@ -53,7 +53,7 @@ naive iterative expansion.
 **TODO**: Verify complexity bounds against literature.
 
 # Returns
-`Vector{Term{Monomial{BosonicAlgebra,T},Float64}}` - multiple terms due to delta corrections
+`Polynomial{BosonicAlgebra,T,Float64}` - potentially multiple terms due to delta corrections
 
 # Examples
 ```jldoctest
@@ -61,9 +61,9 @@ julia> using FastPolynomials
 
 julia> m = Monomial{BosonicAlgebra}(Int32[1, -1]);  # c₁ c₁†
 
-julia> terms = simplify(m);
+julia> poly = simplify(m);
 
-julia> length(terms)  # Two terms: c₁† c₁ and identity
+julia> length(terms(poly))  # Two terms: c₁† c₁ and identity
 2
 ```
 """
@@ -71,12 +71,12 @@ julia> length(terms)  # Two terms: c₁† c₁ and identity
 # Encoding helper functions (exported for testing)
 
 """
-    bosonic_mode(op::Integer) -> Int
+    bosonic_mode(op::T) where T<:Integer -> T
 
 Extract the mode (site) index from a bosonic operator.
-Same as fermionic.
+Returns the absolute value, preserving the input integer type.
 """
-@inline bosonic_mode(op::Integer) = abs(op)
+@inline bosonic_mode(op::Integer) = _operator_mode(op)
 
 """
     bosonic_sort_key(op::T) where T
@@ -127,46 +127,16 @@ function find_first_out_of_order_bosonic(word::Vector{T}) where {T}
 end
 
 """
-    simplify!(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}
-
-In-place simplification and normal ordering of a bosonic algebra monomial.
-Returns a Polynomial (potentially with multiple terms) due to delta corrections from commutation.
-
-Uses a group-based algorithm with closed-form formulas (rook numbers on Ferrers boards)
-based on . This is more efficient than iterative expansion,
-especially for expressions with multiple modes.
-
-**Algorithm:**
-1. Group operators by mode (preserving relative order within each mode)
-2. For each mode, compute normal form using rook number formula
-3. Expand product across all modes
-4. Construct final terms
-
-**Note:** Returns a Polynomial because [c, c†] = 1 creates delta corrections:
-c c† = c† c + 1
-
-# Examples
-```jldoctest
-julia> m = Monomial{BosonicAlgebra}(Int32[1, -1]);  # c₁ c₁†
-
-julia> poly = simplify!(m);
-
-julia> length(terms(poly))
-2
-```
-"""
-function simplify!(m::Monomial{BosonicAlgebra,T}) where {T}
-    term_vec = simplify_bosonic_grouped!(m)
-    return Polynomial(term_vec)
-end
-
-"""
     simplify(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}
 
-Simplify and normal order a bosonic algebra monomial.
+Simplify and normal-order a bosonic algebra monomial.
 
-Non-mutating version - creates a copy and simplifies it.
 Returns a Polynomial (potentially with multiple terms) due to delta corrections from commutation.
+The original monomial is unchanged.
+
+Uses a group-based algorithm with closed-form formulas (rook numbers on Ferrers boards)
+based on arXiv:quant-ph/0507206. This is more efficient than iterative expansion,
+especially for expressions with multiple modes.
 
 # Algebraic Rules
 - Commutation: [cᵢ, cⱼ†] = δᵢⱼ (swapping creates delta term when modes match)
@@ -176,6 +146,8 @@ Returns a Polynomial (potentially with multiple terms) due to delta corrections 
 
 # Examples
 ```jldoctest
+julia> using FastPolynomials
+
 julia> m = Monomial{BosonicAlgebra}(Int32[2, -1]);  # c₂ c₁†
 
 julia> poly = simplify(m);
@@ -188,12 +160,18 @@ julia> monomials(poly)[1].word
  -1
   2
 ```
+
+# Note
+Unlike other algebra types, bosonic simplification returns a `Polynomial` (not a `Monomial`)
+because commutation creates multiple terms. There is no `simplify!` variant since the
+return type differs from the input type.
 """
 function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
     # Create a copy of the word to work with
     word_copy = copy(m.word)
     m_copy = Monomial{BosonicAlgebra,T}(word_copy)
-    simplify!(m_copy)
+    term_vec = simplify_bosonic_grouped!(m_copy)
+    return Polynomial(term_vec)
 end
 
 # =============================================================================

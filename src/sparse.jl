@@ -807,8 +807,8 @@ function init_activated_supp(
     identity = one(M)
     for i in eachindex(mom_mtx_bases)
         for j in i:length(mom_mtx_bases)
-            # _neat_dot3 returns NCStatePolynomial
-            poly = _neat_dot3(mom_mtx_bases[i], identity, mom_mtx_bases[j])
+            # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
+            poly = simplify(_neat_dot3(mom_mtx_bases[i], identity, mom_mtx_bases[j]))
             append!(pairwise_entries, monomials(poly))
         end
     end
@@ -863,9 +863,9 @@ function get_term_sparsity_graph(
 
     for i in 1:nterms, j in i+1:nterms
         for supp in cons_support
-            # _neat_dot3 for NCStateWord now returns NCStatePolynomial
-            connected_lr = _neat_dot3(bases[i], supp, bases[j])
-            connected_rl = _neat_dot3(bases[j], supp, bases[i])
+            # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
+            connected_lr = simplify(_neat_dot3(bases[i], supp, bases[j]))
+            connected_rl = simplify(_neat_dot3(bases[j], supp, bases[i]))
             # Check if any resulting NCStateWord is in activated support
             found = false
             for ncsw in monomials(connected_lr)
@@ -913,8 +913,8 @@ Computes the support of a term sparsity graph for a state polynomial.
 function term_sparsity_graph_supp(
     G::SimpleGraph, basis::Vector{M}, g::P
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
-    # _neat_dot3 now returns NCStatePolynomial, extract monomials from each result
-    gsupp(a, b) = reduce(vcat, [monomials(_neat_dot3(a, g_supp, b)) for g_supp in monomials(g)])
+    # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
+    gsupp(a, b) = reduce(vcat, [monomials(simplify(_neat_dot3(a, g_supp, b))) for g_supp in monomials(g)])
     return union(
         [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
         [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...

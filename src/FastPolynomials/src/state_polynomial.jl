@@ -35,7 +35,7 @@ julia> length(sp.state_words)
 
 See also: [`StateWord`](@ref), [`NCStatePolynomial`](@ref)
 """
-struct StatePolynomial{C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+struct StatePolynomial{C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractPolynomial{C}
     coeffs::Vector{C}
     state_words::Vector{StateWord{ST,A,T}}
 
@@ -583,6 +583,38 @@ function Base.show(io::IO, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 end
 
 # =============================================================================
+# Polynomial to StatePolynomial Conversion
+# =============================================================================
+
+"""
+    ς(p::Polynomial{A,T,C}) -> StatePolynomial
+
+Create a StatePolynomial from a Polynomial.
+Converts each term's monomial to a StateWord{Arbitrary}.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> p = Polynomial([Term(1.0+0im, m)]);
+
+julia> sp = ς(p);
+
+julia> sp isa StatePolynomial
+true
+```
+"""
+function ς(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    isempty(p.terms) && return StatePolynomial(C[], StateWord{Arbitrary,A,T}[])
+
+    state_words = [StateWord{Arbitrary}(t.monomial) for t in p.terms]
+    coeffs = C[t.coefficient for t in p.terms]
+    return StatePolynomial(coeffs, state_words)
+end
+
+# =============================================================================
 # NCStatePolynomial
 # =============================================================================
 
@@ -618,7 +650,7 @@ julia> length(ncsp.nc_state_words)
 
 See also: [`NCStateWord`](@ref), [`StatePolynomial`](@ref)
 """
-struct NCStatePolynomial{C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+struct NCStatePolynomial{C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractPolynomial{C}
     coeffs::Vector{C}
     nc_state_words::Vector{NCStateWord{ST,A,T}}
 

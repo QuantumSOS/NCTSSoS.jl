@@ -302,6 +302,14 @@ function Base.one(::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
 end
 
 """
+    Base.one(::Type{Monomial}) -> Monomial{NonCommutativeAlgebra,UInt}
+
+Create the identity monomial (empty word) for the generic Monomial type.
+This fallback is needed for code that uses `one(Monomial)` without type parameters.
+"""
+Base.one(::Type{Monomial}) = Monomial{NonCommutativeAlgebra}(UInt[])
+
+"""
     Base.isless(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A,T} -> Bool
 
 Compare two monomials of the same algebra type using degree-first (graded) ordering,

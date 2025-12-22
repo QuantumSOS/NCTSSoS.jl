@@ -1,4 +1,27 @@
 """
+    AbstractPolynomial{C<:Number}
+
+Abstract supertype for all polynomial types in FastPolynomials.
+
+# Type Parameters
+- `C<:Number`: Coefficient type (Float64, ComplexF64, etc.)
+
+# Subtypes
+- `Polynomial{A,T,C}`: Standard polynomial over a non-commutative algebra
+- `StatePolynomial{C,ST,A,T}`: Polynomial of state expectations (commutative)
+- `NCStatePolynomial{C,ST,A,T}`: Polynomial of state-operator products
+
+# Interface
+All subtypes should implement:
+- `coefficients(p)`: Return vector of coefficients
+- `monomials(p)`: Return vector of monomials/terms
+- `degree(p)`: Return maximum degree
+- `Base.zero(::Type{P})`, `Base.one(::Type{P})`: Identity elements
+- `Base.:(+)`, `Base.:(-)`, `Base.:(*)`: Arithmetic operations
+"""
+abstract type AbstractPolynomial{C<:Number} end
+
+"""
     Polynomial{A<:AlgebraType, T<:Integer, C<:Number}
 
 A polynomial represented as a sum of terms with coefficients.
@@ -55,7 +78,7 @@ julia> coefficients(p)[1]  # Coefficients added
 
 See also: [`Term`](@ref), [`Monomial`](@ref), [`coefficients`](@ref), [`monomials`](@ref)
 """
-struct Polynomial{A<:AlgebraType,T<:Integer,C<:Number}
+struct Polynomial{A<:AlgebraType,T<:Integer,C<:Number} <: AbstractPolynomial{C}
     terms::Vector{Term{Monomial{A,T},C}}
 
     # Inner constructor enforces invariants: sorted, deduplicated, non-zero coefficients

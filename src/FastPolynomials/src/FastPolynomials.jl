@@ -38,7 +38,7 @@ include("utils.jl")
 export VariableRegistry
 export AbstractMonomial, Monomial, ComposedMonomial
 export Term
-export Polynomial
+export AbstractPolynomial, Polynomial
 export degree, maxdegree
 export coefficients, monomials, terms, support, variables
 export simplify, simplify!

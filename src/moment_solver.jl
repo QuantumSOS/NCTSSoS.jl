@@ -603,11 +603,10 @@ function _build_state_constraint_matrix(
     for (i, row_idx) in enumerate(local_basis)
         for (j, col_idx) in enumerate(local_basis)
             # Build NCStatePolynomial for this matrix element
-            # _neat_dot3 for NCStateWord now returns NCStatePolynomial (simplified)
+            # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
             element_poly = zero(P)
             for (coef, ncsw) in zip(coefficients(poly), monomials(poly))
-                # _neat_dot3 returns NCStatePolynomial
-                prod_poly = _neat_dot3(row_idx, ncsw, col_idx)
+                prod_poly = simplify(_neat_dot3(row_idx, ncsw, col_idx))
                 element_poly = element_poly + coef * prod_poly
             end
             moment_mtx[i, j] = element_poly
@@ -637,16 +636,15 @@ function moment_relax(
 ) where {A<:AlgebraType, ST<:StateType, TI<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,TI}, M<:NCStateWord{ST,A,TI}}
 
     # Compute total basis: union of all moment matrix entry NCStateWords
-    # _neat_dot3 now returns NCStatePolynomial, so we need to extract monomials from it
+    # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
-            # _neat_dot3 returns NCStatePolynomial, extract its monomials
             [ncsw_result
              for ncsw in monomials(poly)
              for basis in term_sparsity.block_bases
              for rol_idx in basis
              for col_idx in basis
-             for ncsw_result in monomials(_neat_dot3(rol_idx, ncsw, col_idx))]
+             for ncsw_result in monomials(simplify(_neat_dot3(rol_idx, ncsw, col_idx)))]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
         ])
     end...)

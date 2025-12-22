@@ -49,26 +49,60 @@ julia> sorted_unique([3, 1, 2, 1, 3])
 sorted_unique(v::Vector) = sort!(unique(v))
 
 """
-    _neat_dot3(a::NCStateWord, m::NCStateWord, b::NCStateWord) -> NCStatePolynomial
+    _neat_dot3(a::NCStateWord, m::NCStateWord, b::NCStateWord) -> NCStateWord
 
 Compute adjoint(a) * m * b for NCStateWords.
 This is a common pattern in moment matrix construction.
 
+!!! note
+    The returned NCStateWord is NOT simplified. Callers should call `simplify`
+    explicitly if algebra-specific simplification is needed.
+
 # Returns
-An NCStatePolynomial representing the simplified triple product.
-The nc_word parts are simplified using algebra-specific rules (e.g., x²=I for unipotent).
+An NCStateWord representing the triple product (unsimplified).
 """
-function _neat_dot3(a::NCStateWord{ST,A,T}, m::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # Compute state word part: adjoint(a.sw) * m.sw * b.sw (commutative)
+function _neat_dot3(
+    a::NCStateWord{ST,A,T}, m::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}
+) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    # Concatenate state word parts directly (adjoint is identity due to Hermitian invariance)
     sw_prod = adjoint(a.sw) * m.sw * b.sw
 
-    # Compute nc_word part via _neat_dot3 on Monomials, then simplify
+    # Compute nc_word part via _neat_dot3 on Monomials (no simplification)
     nc_mono = _neat_dot3(a.nc_word, m.nc_word, b.nc_word)
-    nc_poly = Polynomial(simplify(nc_mono))
 
-    # Convert to NCStatePolynomial
+    return NCStateWord(sw_prod, nc_mono)
+end
+
+"""
+    simplify(ncsw::NCStateWord) -> NCStatePolynomial
+
+Simplify an NCStateWord by applying algebra-specific simplification rules to its
+nc_word (Monomial) part. Returns an NCStatePolynomial since simplification may
+produce multiple terms (e.g., Pauli algebra phase factors).
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{UnipotentAlgebra}(UInt[1, 1]);  # x₁²
+
+julia> sw = StateWord{Arbitrary}([one(Monomial{UnipotentAlgebra,UInt})]);
+
+julia> ncsw = NCStateWord(sw, m);
+
+julia> result = simplify(ncsw);
+
+julia> result isa NCStatePolynomial
+true
+```
+"""
+function simplify(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    # Simplify the nc_word part (may produce multiple terms with phases)
+    nc_poly = Polynomial(simplify(ncsw.nc_word))
+
+    # Convert to NCStatePolynomial: each term gets the same StateWord
     coeffs = [t.coefficient for t in nc_poly.terms]
-    ncsws = [NCStateWord(sw_prod, t.monomial) for t in nc_poly.terms]
+    ncsws = [NCStateWord(ncsw.sw, t.monomial) for t in nc_poly.terms]
     return NCStatePolynomial(coeffs, ncsws)
 end
 
@@ -117,7 +151,7 @@ function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:I
         result[n_a + i] = b.word[i]
     end
 
-    Monomial{A}(result)
+    return Monomial{A}(result)
 end
 
 """
@@ -136,22 +170,26 @@ where we need adjoint(row_index) * constraint_monomial * column_index.
 ```jldoctest
 julia> using FastPolynomials
 
-julia> m1 = Monomial{NonCommutativeAlgebra}(UInt16[1]);
+julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}(UInt16[2]);
+julia> m2 = Monomial{PauliAlgebra}([3]);
 
-julia> m3 = Monomial{NonCommutativeAlgebra}(UInt16[3]);
+julia> m3 = Monomial{PauliAlgebra}([4, 5]);
 
 julia> result = _neat_dot3(m1, m2, m3);
 
 julia> result.word
-3-element Vector{UInt16}:
- 0x0001
- 0x0002
- 0x0003
+5-element Vector{Int64}:
+ -2
+ -1
+  3
+  4
+  5
 ```
 """
-function _neat_dot3(a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function _neat_dot3(
+    a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}
+) where {A<:AlgebraType,T<:Integer}
     # Preallocate: reverse(a.word) ++ m.word ++ b.word (single allocation)
     n_a, n_m, n_b = length(a.word), length(m.word), length(b.word)
     result = Vector{T}(undef, n_a + n_m + n_b)
@@ -171,53 +209,5 @@ function _neat_dot3(a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}) where 
         result[n_a + n_m + i] = b.word[i]
     end
 
-    Monomial{A}(result)
+    return Monomial{A}(result)
 end
-
-# =============================================================================
-# Polynomial to StatePolynomial Conversion (kept from legacy API)
-# =============================================================================
-
-"""
-    ς(p::Polynomial{A,T,C}) -> StatePolynomial
-
-Create a StatePolynomial from a Polynomial.
-Converts each term's monomial to a StateWord{Arbitrary}.
-"""
-function ς(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    isempty(p.terms) && return StatePolynomial(C[], StateWord{Arbitrary,A,T}[])
-
-    state_words = [StateWord{Arbitrary}(t.monomial) for t in p.terms]
-    coeffs = C[t.coefficient for t in p.terms]
-    StatePolynomial(coeffs, state_words)
-end
-
-# =============================================================================
-# Monomial Identity Fallback
-# =============================================================================
-
-"""
-    Base.one(::Type{Monomial}) -> Monomial{NonCommutativeAlgebra,UInt}
-
-Create the identity monomial (empty word) for the generic Monomial type.
-This fallback is needed for code that uses `one(Monomial)` without type parameters.
-"""
-Base.one(::Type{Monomial}) = Monomial{NonCommutativeAlgebra}(UInt[])
-
-# =============================================================================
-# Internal AbstractPolynomial Type Alias
-# =============================================================================
-
-"""
-    AbstractPolynomial{T}
-
-Internal type alias used by NCTSSoS for type constraints.
-Maps to Union of Polynomial types with any algebra type.
-
-This is NOT exported - for internal use only.
-"""
-const AbstractPolynomial{T} = Union{
-    Polynomial{<:AlgebraType,<:Integer,T},
-    StatePolynomial{T,<:StateType,<:AlgebraType,<:Integer},
-    NCStatePolynomial{T,<:StateType,<:AlgebraType,<:Integer}
-}

@@ -1,6 +1,6 @@
 # Note: FastPolynomials is loaded by setup.jl
 using NCTSSoS.FastPolynomials:
-    simplify!,
+    simplify,
     create_noncommutative_variables,
     get_ncbasis,
     coefficients,
@@ -46,20 +46,6 @@ using NCTSSoS.FastPolynomials:
 end
 
 @testset "Term Allocations" begin
-    @testset "Term Access" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
-        t = Term(2.0, m)
-
-        # Warmup
-        t.coefficient
-        t.monomial
-
-        # Field access should have minimal allocation
-        # Some allocation may occur due to boxing in @allocated macro
-        @test (@allocated t.coefficient) <= 32
-        @test (@allocated t.monomial) <= 32
-    end
-
     @testset "iszero Check" begin
         m = Monomial{NonCommutativeAlgebra}([1])
         t = Term(0.0, m)

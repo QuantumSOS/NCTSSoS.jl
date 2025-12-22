@@ -85,9 +85,16 @@ struct Polynomial{A<:AlgebraType,T<:Integer,C<:Number} <: AbstractPolynomial{C}
     function Polynomial{A,T,C}(
         input_terms::Vector{Term{Monomial{A,T},C}}
     ) where {A<:AlgebraType,T<:Integer,C<:Number}
-        processed = _process_terms(input_terms, C)
-        return new{A,T,C}(processed)
+        return new{A,T,C}(input_terms)
     end
+end
+
+# Delegate explicit type calls to the inner constructor
+function Polynomial(
+    input_terms::Vector{Term{Monomial{A,T},C}}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    processed = _process_terms(input_terms, C)
+    return Polynomial{A,T,C}(processed)
 end
 
 """
@@ -105,7 +112,7 @@ This is the core algorithm for maintaining polynomial invariants.
 function _process_terms(
     input_terms::Vector{Term{Monomial{A,T},C}}, ::Type{C}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
-    isempty(input_terms) && return Term{Monomial{A,T},C}[]
+    isempty(input_terms) && return input_terms
 
     # Sort by monomial
     sorted = sort(input_terms; by=t -> t.monomial)
@@ -138,33 +145,6 @@ end
 # =============================================================================
 # Constructors
 # =============================================================================
-
-"""
-    Polynomial(terms::Vector{Term{Monomial{A,T}, C}}) where {A,T,C}
-
-Construct a polynomial from a vector of terms.
-Automatically sorts, combines duplicates, and removes zero coefficients.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m1 = Monomial{PauliAlgebra}([1]);
-
-julia> t1 = Term(2.0 + 0.0im, m1);
-
-julia> p = Polynomial([t1]);
-
-julia> coefficients(p)
-1-element Vector{ComplexF64}:
- 2.0 + 0.0im
-```
-"""
-function Polynomial(
-    input_terms::Vector{Term{Monomial{A,T},C}}
-) where {A<:AlgebraType,T<:Integer,C<:Number}
-    return Polynomial{A,T,C}(input_terms)
-end
 
 """
     Polynomial(t::Term{Monomial{A,T}, C}) where {A,T,C}
@@ -542,7 +522,7 @@ Set{Int64} with 2 elements:
   1
 ```
 """
-function variable_indices(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
+function variable_indices(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     result = Set{T}()
     for idx in m.word
         push!(result, T(abs(idx)))  # abs for fermionic/bosonic (negative = annihilation)
@@ -769,12 +749,10 @@ Helper function to add simplified monomial multiplication results.
 Handles Monomial (raw concatenation), Term, Vector{Term}, or Polynomial returns from monomial operations.
 """
 function _add_simplified_terms!(
-    result::Vector{Term{Monomial{A,T},C}},
-    coef::C,
-    mono::Monomial{A,T},
+    result::Vector{Term{Monomial{A,T},C}}, coef::C, mono::Monomial{A,T}
 ) where {A,T,C}
     # Simplify the monomial - returns Monomial, Term, or Polynomial depending on algebra
-    simplified = simplify!(mono)
+    simplified = simplify(mono)
 
     # Dispatch based on return type
     if simplified isa Monomial
@@ -808,9 +786,7 @@ function _add_simplified_terms!(
 end
 
 function _add_simplified_terms!(
-    result::Vector{Term{Monomial{A,T},C}},
-    coef::C,
-    simplified::Term{Monomial{A,T},SC},
+    result::Vector{Term{Monomial{A,T},C}}, coef::C, simplified::Term{Monomial{A,T},SC}
 ) where {A,T,C,SC}
     return _add_simplified_terms!(result, coef, [simplified])
 end
@@ -829,9 +805,7 @@ function _add_simplified_terms!(
 end
 
 function _add_simplified_terms!(
-    result::Vector{Term{Monomial{A,T},C}},
-    coef::C,
-    simplified::Polynomial{A,T,SC},
+    result::Vector{Term{Monomial{A,T},C}}, coef::C, simplified::Polynomial{A,T,SC}
 ) where {A,T,C,SC}
     for term in simplified.terms
         combined_coef = C(coef * term.coefficient)
@@ -986,7 +960,11 @@ function Base.:(+)(
     return p + m_poly
 end
 
-Base.:(+)(m::Monomial{A,T}, p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number} = p + m
+function Base.:(+)(
+    m::Monomial{A,T}, p::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    return p + m
+end
 
 """
     Base.:(-)(p::Polynomial{A,T,C}, m::Monomial{A,T}) where {A,T,C}
@@ -1138,7 +1116,11 @@ end
 """
     Base.adjoint(p::Polynomial{A,T,C}) where {A,T,C}
 
-Compute the adjoint (star/dagger) of a polynomial.
+Compute the adjoint (Hermitian conjugate) of a polynomial.
+
+!!! note "Physics notation"
+    This is the dagger (†) or star (*) operation in physics notation.
+    You can also use the Julia syntax `p'` as shorthand for `adjoint(p)`.
 
 The adjoint of a polynomial is computed by:
 1. Taking the adjoint of each monomial (reverse word, negate for signed types)
@@ -1164,9 +1146,12 @@ julia> monomials(p_adj)[1].word
  3
  2
  1
+
+julia> p' == adjoint(p)  # Julia syntax shorthand
+true
 ```
 
-See also: [`star`](@ref), [`adjoint(::Monomial)`](@ref)
+See also: [`adjoint(::Monomial)`](@ref)
 """
 function Base.adjoint(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
     isempty(p.terms) && return zero(Polynomial{A,T,C})
@@ -1175,25 +1160,3 @@ function Base.adjoint(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:
     new_terms = [Term(conj(t.coefficient), adjoint(t.monomial)) for t in p.terms]
     return Polynomial(new_terms)
 end
-
-"""
-    star(p::Polynomial)
-
-Alias for `adjoint`. Compute the star (dagger) of a polynomial.
-This notation is common in physics for the adjoint/Hermitian conjugate.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m = Monomial{PauliAlgebra}([1, 2]);
-
-julia> p = Polynomial(Term(1.0 + 1.0im, m));
-
-julia> star(p) == adjoint(p)
-true
-```
-
-See also: [`adjoint`](@ref)
-"""
-star(p::Polynomial) = adjoint(p)

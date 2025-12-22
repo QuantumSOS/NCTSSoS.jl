@@ -612,3 +612,82 @@ end
         @test decode_site(result.word[3]) == 2
     end
 end
+
+@testset "Mutable simplify! functions" begin
+    using NCTSSoS.FastPolynomials: simplify!, encode_index
+
+    @testset "NonCommutativeAlgebra simplify!" begin
+        idx1_s1 = encode_index(UInt16, 1, 1)
+        idx1_s2 = encode_index(UInt16, 1, 2)
+        m = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
+
+        # simplify! mutates and returns the same monomial
+        result = simplify!(m)
+
+        @test result === m  # Same object
+        @test m.word == [idx1_s1, idx1_s2]  # Mutated in place
+    end
+
+    @testset "ProjectorAlgebra simplify!" begin
+        idx1_s1 = encode_index(UInt16, 1, 1)
+        m = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1, idx1_s1])
+
+        # simplify! mutates and returns the same monomial
+        result = simplify!(m)
+
+        @test result === m  # Same object
+        @test m.word == [idx1_s1]  # P³ = P, mutated in place
+    end
+
+    @testset "UnipotentAlgebra simplify!" begin
+        idx1_s1 = encode_index(UInt16, 1, 1)
+        m = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
+
+        # simplify! mutates and returns the same monomial
+        result = simplify!(m)
+
+        @test result === m  # Same object
+        @test isempty(m.word)  # U² = I, mutated in place
+    end
+
+    @testset "simplify! vs simplify behavior" begin
+        idx1_s1 = encode_index(UInt16, 1, 1)
+        idx1_s2 = encode_index(UInt16, 1, 2)
+
+        # NonCommutative: simplify creates new, simplify! mutates
+        m1 = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
+
+        result1 = simplify(m1)
+        result2 = simplify!(m2)
+
+        @test result1 !== m1  # simplify returns new object
+        @test result2 === m2  # simplify! returns same object
+        @test m1.word == [idx1_s2, idx1_s1]  # Original unchanged by simplify
+        @test m2.word == [idx1_s1, idx1_s2]  # Original mutated by simplify!
+
+        # Projector: simplify creates new, simplify! mutates
+        m3 = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m4 = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
+
+        result3 = simplify(m3)
+        result4 = simplify!(m4)
+
+        @test result3 !== m3
+        @test result4 === m4
+        @test length(m3.word) == 2  # Original unchanged
+        @test length(m4.word) == 1  # Original mutated
+
+        # Unipotent: simplify creates new, simplify! mutates
+        m5 = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m6 = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
+
+        result5 = simplify(m5)
+        result6 = simplify!(m6)
+
+        @test result5 !== m5
+        @test result6 === m6
+        @test length(m5.word) == 2  # Original unchanged
+        @test isempty(m6.word)  # Original mutated
+    end
+end

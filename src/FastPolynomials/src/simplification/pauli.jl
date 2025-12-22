@@ -102,43 +102,26 @@ If type1 == type2, returns (1.0, -1) to indicate identity (σᵢ² = I).
 end
 
 """
-    simplify!(m::Monomial{PauliAlgebra,T}) where T -> Term{Monomial{PauliAlgebra,T},ComplexF64}
+    _simplify_pauli_word!(word::Vector{T}) where {T<:Integer} -> Tuple{Vector{T}, ComplexF64}
 
-In-place simplification of a Pauli algebra monomial.
-Mutates the monomial's word vector and returns a Term.
+In-place site-aware simplification for Pauli algebra word vectors.
 
-Applies:
-- Site sorting (operators on different sites commute)
-- Cyclic product rules (σₓσᵧ = iσz, etc.)
-- Idempotency (σᵢ² = I)
+Operators on different sites commute and are sorted by site (ascending).
+Within each site, Pauli product rules apply: σₓσᵧ = iσz, σᵢ² = I, etc.
 
-# Warning
-This mutates the input monomial. Use `simplify` for a non-mutating version.
+Returns a tuple of (simplified_word, coefficient) where:
+- simplified_word is a new vector with the reduced operators
+- coefficient is the accumulated complex phase
 
-# Examples
-```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁
-
-julia> t = simplify!(m);
-
-julia> t.coefficient
-0.0 + 1.0im
-
-julia> t.monomial.word  # Result: σz₁
-1-element Vector{Int64}:
- 3
-
-julia> m.word  # Original was mutated
-1-element Vector{Int64}:
- 3
-```
+# Algorithm
+1. Stable sort by site (using `_pauli_site`)
+2. Reduce each site group to at most one operator, tracking phase
 """
-function simplify!(m::Monomial{PauliAlgebra,T}) where {T}
-    word = m.word
+function _simplify_pauli_word!(word::Vector{T}) where {T<:Integer}
     coef = ComplexF64(1.0)
 
     # Empty or single: nothing to simplify
-    length(word) <= 1 && return Term(coef, m)
+    length(word) <= 1 && return (word, coef)
 
     # Stage 1: Sort by site (stable sort preserves within-site order for determinism)
     sort!(word, alg=InsertionSort, by=_pauli_site)
@@ -159,7 +142,7 @@ function simplify!(m::Monomial{PauliAlgebra,T}) where {T}
         # Reduce all operators in word[i:j-1] to at most one operator
         # current_type: -1 = identity accumulated, 0/1/2 = X/Y/Z accumulated
         current_type = _pauli_type(word[i])
-        for k in i+1:j-1
+        for k in (i + 1):(j - 1)
             next_type = _pauli_type(word[k])
             if current_type == -1
                 # Identity * next = next (no phase change)
@@ -179,9 +162,7 @@ function simplify!(m::Monomial{PauliAlgebra,T}) where {T}
         i = j  # Move to next site group
     end
 
-    # Create new monomial with the simplified word
-    simplified_mono = Monomial{PauliAlgebra}(result)
-    return Term(coef, simplified_mono)
+    return (result, coef)
 end
 
 """
@@ -189,15 +170,18 @@ end
 
 Simplify a Pauli algebra monomial.
 
-Non-mutating version - creates a copy and simplifies it.
+Returns a Term containing the simplified monomial and accumulated phase coefficient.
+The original monomial is unchanged.
 
 # Algebraic Rules
-- σᵢ² = I (idempotency)
+- σᵢ² = I (involution)
 - Different sites commute
 - Same site cyclic products: σₓσᵧ = iσz, σᵧσz = iσₓ, σzσₓ = iσᵧ
 
 # Examples
 ```jldoctest
+julia> using FastPolynomials
+
 julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁
 
 julia> t = simplify(m);
@@ -216,7 +200,7 @@ julia> m.word  # Original unchanged
 ```
 """
 function simplify(m::Monomial{PauliAlgebra,T}) where {T}
-    # Copy and delegate to simplify!
-    m_copy = Monomial{PauliAlgebra,T}(copy(m.word))
-    simplify!(m_copy)
+    word_copy = copy(m.word)
+    result, coef = _simplify_pauli_word!(word_copy)
+    Term(coef, Monomial{PauliAlgebra}(result))
 end

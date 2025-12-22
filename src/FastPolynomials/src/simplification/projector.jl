@@ -75,6 +75,21 @@ function _simplify_projector_word!(word::Vector{T}) where {T<:Unsigned}
 end
 
 """
+    simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
+
+In-place simplification of a projector algebra monomial.
+
+Mutates the input monomial's word vector and returns the same monomial.
+
+# Warning
+This mutates the input monomial. Use `simplify` for a non-mutating version.
+"""
+function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
+    _simplify_projector_word!(m.word)
+    return m
+end
+
+"""
     simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
 
 Simplify a projector algebra monomial with site-aware commutation and idempotency.

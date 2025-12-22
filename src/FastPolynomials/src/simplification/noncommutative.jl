@@ -38,7 +38,7 @@ true
 """
 
 """
-    simplify!(word::Vector{T}) where {T<:Unsigned} -> Vector{T}
+    _simplify_nc_word!(word::Vector{T}) where {T<:Unsigned} -> Vector{T}
 
 In-place site-aware simplification for non-commutative algebra word vectors.
 
@@ -58,6 +58,21 @@ function _simplify_nc_word!(word::Vector{T}) where {T<:Unsigned}
     # Stable sort by site: operators on different sites commute, within-site order preserved
     sort!(word, alg=Base.Sort.InsertionSort, by=decode_site)
     return word
+end
+
+"""
+    simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned} -> Monomial
+
+In-place simplification of a non-commutative algebra monomial.
+
+Mutates the input monomial's word vector and returns the same monomial.
+
+# Warning
+This mutates the input monomial. Use `simplify` for a non-mutating version.
+"""
+function simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
+    _simplify_nc_word!(m.word)
+    return m
 end
 
 """

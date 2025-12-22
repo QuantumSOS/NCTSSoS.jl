@@ -81,8 +81,7 @@ function _simplify_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
     while i < length(word)
         if word[i] == word[i + 1]
             # Consecutive identical: remove both (U² = I)
-            deleteat!(word, i)
-            deleteat!(word, i)
+            deleteat!(word, i:i+1)
             # Backtrack to catch cascading cancellations
             i > 1 && (i -= 1)
         else
@@ -91,6 +90,21 @@ function _simplify_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
     end
 
     return word
+end
+
+"""
+    simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned} -> Monomial
+
+In-place simplification of a unipotent algebra monomial.
+
+Mutates the input monomial's word vector and returns the same monomial.
+
+# Warning
+This mutates the input monomial. Use `simplify` for a non-mutating version.
+"""
+function simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
+    _simplify_unipotent_word!(m.word)
+    return m
 end
 
 """

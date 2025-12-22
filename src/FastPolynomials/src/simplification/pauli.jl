@@ -217,6 +217,6 @@ julia> m.word  # Original unchanged
 """
 function simplify(m::Monomial{PauliAlgebra,T}) where {T}
     # Copy and delegate to simplify!
-    m_copy = Monomial{PauliAlgebra,T}(copy(m.word), m.hash)
+    m_copy = Monomial{PauliAlgebra,T}(copy(m.word))
     simplify!(m_copy)
 end

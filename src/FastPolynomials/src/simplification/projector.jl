@@ -31,62 +31,30 @@ julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
 julia> m = Monomial{ProjectorAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
 
-julia> t = simplify(m);
-
-julia> t.coefficient
-1.0
-
-julia> t.monomial.word == [idx1_s1, idx1_s2]
-true
-```
-"""
-
-"""
-    simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
-
-Site-aware in-place simplification for projector algebra with encoded indices.
-
-Operators on different sites commute and are sorted by site (ascending).
-Within each site, idempotency applies: consecutive identical operators collapse (P² = P).
-Order of different operators within the same site is preserved (non-commutative within site).
-
-Returns the simplified Monomial (no coefficient changes, just reordering and collapsing).
-
-# Algorithm
-1. Group operators by site (using `decode_site`)
-2. Sort groups by site (ascending)
-3. Within each site: remove consecutive duplicates (idempotency)
-4. Concatenate sorted groups
-
-# Warning
-This mutates the input monomial. Use `simplify` for a non-mutating version.
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> using FastPolynomials: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> idx1_s2 = encode_index(UInt16, 1, 2);
-
-julia> m = Monomial{ProjectorAlgebra}([idx1_s2, idx1_s1]);
-
-julia> result = simplify!(m);
+julia> result = simplify(m);
 
 julia> result.word == [idx1_s1, idx1_s2]
 true
-
-julia> m.word == [idx1_s1, idx1_s2]  # Original was mutated
-true
 ```
 """
-function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
-    word = m.word
 
+"""
+    _simplify_projector_word!(word::Vector{T}) where {T<:Unsigned} -> Vector{T}
+
+In-place site-aware simplification for projector algebra word vectors.
+
+Operators on different sites commute and are sorted by site (ascending).
+Within each site, idempotency applies: consecutive identical operators collapse (P² = P).
+
+Returns the simplified word vector (mutated in place).
+
+# Algorithm
+1. Stable sort by site (using `decode_site`)
+2. Remove consecutive duplicates (idempotency)
+"""
+function _simplify_projector_word!(word::Vector{T}) where {T<:Unsigned}
     # Empty or single: nothing to simplify
-    length(word) <= 1 && return m
+    length(word) <= 1 && return word
 
     # Stable sort by site (operators on different sites commute, within-site order preserved)
     sort!(word, alg=InsertionSort, by=decode_site)
@@ -103,9 +71,7 @@ function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
         end
     end
 
-    # Update hash after mutation and return the same monomial
-    update_hash!(m)
-    return m
+    return word
 end
 
 """
@@ -113,8 +79,8 @@ end
 
 Simplify a projector algebra monomial with site-aware commutation and idempotency.
 
-Non-mutating version - creates a copy and simplifies it.
-Returns the simplified Monomial (no coefficient changes, just reordering and collapsing).
+Returns a new simplified Monomial (no coefficient changes, just reordering and collapsing).
+The original monomial is unchanged.
 
 # Examples
 ```jldoctest
@@ -136,7 +102,7 @@ julia> length(m.word)  # Original unchanged
 ```
 """
 function simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
-    # Copy and delegate to simplify!
-    m_copy = Monomial{ProjectorAlgebra,T}(copy(m.word), m.hash)
-    simplify!(m_copy)
+    word_copy = copy(m.word)
+    _simplify_projector_word!(word_copy)
+    Monomial{ProjectorAlgebra,T}(word_copy)
 end

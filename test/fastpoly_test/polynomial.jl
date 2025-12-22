@@ -67,6 +67,24 @@ using NCTSSoS.FastPolynomials: variable_indices
         @test monomials(p)[1] == m
     end
 
+    @testset "From Monomial - No Simplification" begin
+        # Polynomial(m) does NOT simplify the monomial - this is documented behavior
+        # For Pauli: σx * σx should simplify to I, but Polynomial(m) should preserve it
+        m_reducible = Monomial{PauliAlgebra}([1, 1])  # σx₁ * σx₁ (same Pauli twice)
+        p = Polynomial(m_reducible)
+
+        # Should preserve the un-simplified monomial
+        @test length(terms(p)) == 1
+        @test degree(p) == 2  # Still degree 2, not 0 (identity)
+        @test monomials(p)[1] == m_reducible
+
+        # For comparison, multiplication DOES simplify
+        σx = Monomial{PauliAlgebra}([1])
+        p_simplified = Polynomial(σx) * Polynomial(σx)
+        # After simplification, σx₁ * σx₁ = I (identity)
+        @test degree(p_simplified) == 0  # Simplified to identity
+    end
+
     @testset "From Term" begin
         m = Monomial{NonCommutativeAlgebra}([1, 2])
         t = Term(3.0, m)
@@ -339,12 +357,29 @@ using NCTSSoS.FastPolynomials: variable_indices
         @test iszero(adjoint(p_zero))
     end
 
-    @testset "Star (alias for adjoint)" begin
+    @testset "Adjoint with Julia syntax" begin
         m = Monomial{PauliAlgebra}([1, 2])
         p = Polynomial([Term(1.0 + 1.0im, m)])
 
-        @test star(p) == adjoint(p)
-        @test coefficients(star(p))[1] == 1.0 - 1.0im
+        @test p' == adjoint(p)
+        @test coefficients(p')[1] == 1.0 - 1.0im
+    end
+
+    @testset "Adjoint for Fermionic Polynomials" begin
+        # Fermionic adjoint: reverse order AND negate indices
+        # For [1, -2] (a₁ a₂†), adjoint is a₂ a₁† = [2, -1] after reversing [-(-2), -1]
+        m = Monomial{FermionicAlgebra}(Int32[1, -2])
+        p = Polynomial([Term(2.0, m)])
+
+        p_adj = adjoint(p)
+
+        # Real coefficient stays unchanged
+        @test coefficients(p_adj)[1] == 2.0
+        # Monomial adjoint: reverse and negate: [1, -2] -> [2, -1]
+        @test monomials(p_adj)[1].word == Int32[2, -1]
+
+        # Test involution: adjoint(adjoint(p)) == p
+        @test adjoint(adjoint(p)) == p
     end
 
     @testset "variable_indices" begin
@@ -366,10 +401,11 @@ using NCTSSoS.FastPolynomials: variable_indices
         @test variable_indices(p_single) == Set([1])
 
         # Test with signed types (fermionic/bosonic)
-        m_signed = Monomial{FermionicAlgebra}([-1, 2, -3])  # negative = annihilation
+        # Note: negative = creation (a†), positive = annihilation (a)
+        m_signed = Monomial{FermionicAlgebra}([-1, 2, -3])  # a₁†, a₂, a₃†
         p_signed = Polynomial([Term(1.0, m_signed)])
         var_set_signed = variable_indices(p_signed)
-        @test var_set_signed == Set([1, 2, 3])  # abs() applied
+        @test var_set_signed == Set([1, 2, 3])  # abs() normalizes for sparsity analysis
     end
 
     @testset "Error Paths" begin

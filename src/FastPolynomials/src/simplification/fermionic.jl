@@ -419,6 +419,6 @@ Returns a Polynomial representing the normal-ordered expansion (potentially with
 """
 function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     word_copy = copy(m.word)
-    m_copy = Monomial{FermionicAlgebra,T}(word_copy, m.hash)
+    m_copy = Monomial{FermionicAlgebra,T}(word_copy)
     simplify!(m_copy)
 end

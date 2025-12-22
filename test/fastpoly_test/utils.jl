@@ -8,7 +8,6 @@ using NCTSSoS.FastPolynomials:
     create_noncommutative_variables,
     create_pauli_variables,
     create_unipotent_variables,
-    star,
     indices,
     degree,
     Term,
@@ -100,17 +99,20 @@ using NCTSSoS.FastPolynomials:
         @test degree(m) == 2
     end
 
-    @testset "Star Operation" begin
-        # Star operation reverses word for unsigned types (self-adjoint)
+    @testset "Adjoint Operation" begin
+        # Adjoint operation reverses word for unsigned types (self-adjoint)
         m = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
-        m_star = star(m)
-        @test m_star.word == [3, 2, 1]
+        m_adj = adjoint(m)
+        @test m_adj.word == [3, 2, 1]
 
-        # Star is involution
-        @test star(star(m)) == m
+        # Adjoint is involution
+        @test adjoint(adjoint(m)) == m
 
-        # Empty monomial star
+        # Empty monomial adjoint
         m_empty = Monomial{NonCommutativeAlgebra}(UInt8[])
-        @test isone(star(m_empty))
+        @test isone(adjoint(m_empty))
+
+        # Julia syntax shorthand
+        @test m' == m_adj
     end
 end

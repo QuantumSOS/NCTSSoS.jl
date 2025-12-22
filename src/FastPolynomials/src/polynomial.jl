@@ -177,6 +177,12 @@ end
 
 Construct a polynomial from a monomial with coefficient 1.0.
 
+!!! note "No automatic simplification"
+    This constructor does NOT call `simplify` on the monomial. If the monomial
+    is not in canonical form (e.g., a Pauli product like `σx₁ * σx₁` that should
+    simplify to identity), the resulting polynomial will contain the unsimplified
+    monomial. Use `simplify(Polynomial(m))` if canonical form is required.
+
 # Examples
 ```jldoctest
 julia> using FastPolynomials
@@ -495,7 +501,9 @@ function variable_indices(p::Polynomial{A,T,C}) where {A,T,C}
     result = Set{T}()
     for t in p.terms
         for idx in t.monomial.word
-            push!(result, abs(idx))  # abs for fermionic/bosonic (negative = annihilation)
+            # For signed types (Fermionic/Bosonic), use abs() to treat creation (-) and
+            # annihilation (+) of the same mode as the same variable for sparsity analysis
+            push!(result, T(abs(idx)))
         end
     end
     return result
@@ -507,8 +515,10 @@ end
 Get the set of all variable indices used in a monomial.
 Returns a Set of integer indices.
 
-For signed index types (Fermionic/Bosonic), uses `abs(idx)` to normalize
-since creation (+) and annihilation (-) refer to the same mode.
+For signed index types (Fermionic/Bosonic), uses `abs(idx)` to normalize indices.
+This treats creation operators (negative indices like -1 for a₁†) and annihilation
+operators (positive indices like 1 for a₁) as referring to the same physical mode,
+which is the correct behavior for correlative sparsity analysis.
 
 # Examples
 ```jldoctest
@@ -525,7 +535,9 @@ Set{Int64} with 2 elements:
 function variable_indices(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     result = Set{T}()
     for idx in m.word
-        push!(result, T(abs(idx)))  # abs for fermionic/bosonic (negative = annihilation)
+        # For signed types (Fermionic/Bosonic), use abs() to treat creation (-) and
+        # annihilation (+) of the same mode as the same variable for sparsity analysis
+        push!(result, T(abs(idx)))
     end
     return result
 end

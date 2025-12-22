@@ -1,7 +1,6 @@
 # Note: FastPolynomials is loaded by setup.jl
 using NCTSSoS.FastPolynomials:
     simplify,
-    simplify!,
     create_noncommutative_variables,
     create_pauli_variables,
     create_projector_variables,
@@ -30,8 +29,8 @@ using NCTSSoS.FastPolynomials:
         @test result isa Monomial
         @test degree(result) == 2
 
-        # After simplify!, we get a Monomial (NC algebra returns Monomial)
-        simplified = simplify!(result)
+        # After simplify, we get a Monomial (NC algebra returns Monomial)
+        simplified = simplify(result)
         @test simplified isa Monomial
         @test degree(simplified) == 2
 
@@ -159,22 +158,23 @@ using NCTSSoS.FastPolynomials:
         @test t_scaled.coefficient == 6.0
     end
 
-    @testset "simplify! Mutation" begin
-        # Test that simplify! mutates the monomial
-        # NonCommutative simplify! returns Monomial
+    @testset "simplify returns Monomial" begin
+        # Test that simplify returns a new Monomial
+        # NonCommutative simplify returns Monomial
         m = Monomial{NonCommutativeAlgebra}(UInt8[2, 1])  # Will be sorted by site
 
-        result = simplify!(m)
+        result = simplify(m)
         @test result isa Monomial
     end
 
-    @testset "Star and Simplification Interaction" begin
-        # Test star involution on directly created monomials (with proper hash)
+    @testset "Adjoint and Simplification Interaction" begin
+        # Test adjoint involution on directly created monomials
         m = Monomial{NonCommutativeAlgebra}(UInt8[5, 9])
-        m_star = star(m)
+        m_adj = adjoint(m)
 
-        # star is involutory: star(star(m)).word == m.word
-        @test star(star(m)).word == m.word
+        # adjoint is involutory: adjoint(adjoint(m)).word == m.word
+        @test adjoint(adjoint(m)).word == m.word
+        @test m' == m_adj  # Julia syntax shorthand
     end
 end
 
@@ -465,124 +465,96 @@ end
     end
 end
 
-@testset "Mutable Monomial Hash Consistency" begin
-    using NCTSSoS.FastPolynomials: update_hash!, encode_index
+@testset "Immutable Monomial Simplification" begin
+    using NCTSSoS.FastPolynomials: encode_index
 
-    @testset "NonCommutative in-place mutation" begin
+    @testset "NonCommutative simplification returns new monomial" begin
         # Create monomial with indices out of order by site
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
         m_nc = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
-        original_id = objectid(m_nc)
 
-        result_nc = simplify!(m_nc)
+        result_nc = simplify(m_nc)
 
-        # Verify same object returned
-        @test objectid(result_nc) == original_id
+        # Verify different object returned (immutable)
+        @test result_nc !== m_nc
 
-        # Verify hash is consistent with word
-        @test m_nc.hash == hash(m_nc.word)
+        # Verify result is sorted (site 1 before site 2)
+        @test result_nc.word == [idx1_s1, idx1_s2]
 
-        # Verify word was sorted (site 1 before site 2)
-        @test m_nc.word == [idx1_s1, idx1_s2]
+        # Original is unchanged
+        @test m_nc.word == [idx1_s2, idx1_s1]
     end
 
-    @testset "Unipotent in-place mutation with pair cancellation" begin
+    @testset "Unipotent simplification with pair cancellation" begin
         # Create monomial that will have pairs cancel: U[1] * U[1] = I
         idx1_s1 = encode_index(UInt16, 1, 1)
         m_uni = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
-        original_id = objectid(m_uni)
 
-        result_uni = simplify!(m_uni)
+        result_uni = simplify(m_uni)
 
-        # Verify same object returned
-        @test result_uni === m_uni
-        @test objectid(result_uni) == original_id
-
-        # Verify hash is consistent with word
-        @test m_uni.hash == hash(m_uni.word)
+        # Verify different object returned (immutable)
+        @test result_uni !== m_uni
 
         # Verify word is empty (U^2 = I = empty word)
-        @test isempty(m_uni.word)
+        @test isempty(result_uni.word)
+
+        # Original is unchanged
+        @test length(m_uni.word) == 2
     end
 
-    @testset "Unipotent in-place mutation with site-based reordering" begin
+    @testset "Unipotent simplification with site-based reordering" begin
         # UnipotentAlgebra: operators on different sites commute (sorted by site)
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
         m_uni2 = Monomial{UnipotentAlgebra}(UInt16[idx1_s2, idx1_s1])
-        original_id = objectid(m_uni2)
 
-        result_uni2 = simplify!(m_uni2)
+        result_uni2 = simplify(m_uni2)
 
-        # Verify same object returned
-        @test result_uni2 === m_uni2
-
-        # Verify hash is consistent with word
-        @test m_uni2.hash == hash(m_uni2.word)
+        # Verify different object returned (immutable)
+        @test result_uni2 !== m_uni2
 
         # Verify word is site-sorted (site 1 before site 2)
-        @test m_uni2.word == [idx1_s1, idx1_s2]
+        @test result_uni2.word == [idx1_s1, idx1_s2]
+
+        # Original is unchanged
+        @test m_uni2.word == [idx1_s2, idx1_s1]
     end
 
-    @testset "Projector in-place mutation with duplicate removal" begin
+    @testset "Projector simplification with duplicate removal" begin
         # Create monomial with consecutive duplicates: P[1] * P[1] * P[1] = P[1]
         idx1_s1 = encode_index(UInt16, 1, 1)
         m_proj = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1, idx1_s1])
-        original_id = objectid(m_proj)
 
-        result_proj = simplify!(m_proj)
+        result_proj = simplify(m_proj)
 
-        # Verify same object returned
-        @test result_proj === m_proj
-        @test objectid(result_proj) == original_id
-
-        # Verify hash is consistent with word
-        @test m_proj.hash == hash(m_proj.word)
+        # Verify different object returned (immutable)
+        @test result_proj !== m_proj
 
         # Verify word has single element (P^3 = P)
-        @test length(m_proj.word) == 1
-        @test m_proj.word == [idx1_s1]
+        @test length(result_proj.word) == 1
+        @test result_proj.word == [idx1_s1]
+
+        # Original is unchanged
+        @test length(m_proj.word) == 3
     end
 
-    @testset "Projector in-place mutation with reordering" begin
+    @testset "Projector simplification with reordering" begin
         # Create monomial with different sites that will be reordered
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
         m_proj2 = Monomial{ProjectorAlgebra}(UInt16[idx1_s2, idx1_s1])
-        original_id = objectid(m_proj2)
 
-        result_proj2 = simplify!(m_proj2)
+        result_proj2 = simplify(m_proj2)
 
-        # Verify same object returned
-        @test result_proj2 === m_proj2
-
-        # Verify hash is consistent with word
-        @test m_proj2.hash == hash(m_proj2.word)
+        # Verify different object returned (immutable)
+        @test result_proj2 !== m_proj2
 
         # Verify word was sorted (site 1 before site 2)
-        @test m_proj2.word == [idx1_s1, idx1_s2]
-    end
+        @test result_proj2.word == [idx1_s1, idx1_s2]
 
-    @testset "update_hash! function" begin
-        # Test the update_hash! helper directly
-        m = Monomial{NonCommutativeAlgebra}(UInt16[1, 2])
-        old_hash = m.hash
-
-        # Manually mutate the word
-        m.word[1], m.word[2] = m.word[2], m.word[1]
-
-        # Hash is now stale
-        @test m.hash != hash(m.word)
-
-        # Call update_hash!
-        result = update_hash!(m)
-
-        # Verify it returns the same object
-        @test result === m
-
-        # Hash is now correct
-        @test m.hash == hash(m.word)
+        # Original is unchanged
+        @test m_proj2.word == [idx1_s2, idx1_s1]
     end
 end
 

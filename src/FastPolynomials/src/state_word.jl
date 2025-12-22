@@ -343,14 +343,18 @@ function Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateT
 end
 
 # =============================================================================
-# Adjoint / Star
+# Adjoint
 # =============================================================================
 
 """
     Base.adjoint(sw::StateWord{ST,A,T}) where {ST,A,T}
 
-Compute the adjoint of a StateWord by adjointing each monomial.
+Compute the adjoint (Hermitian conjugate) of a StateWord.
 Due to the involution invariant, adjoint(sw) == sw for all StateWords.
+
+!!! note "Physics notation"
+    This is the dagger (†) or star (*) operation in physics notation.
+    You can also use the Julia syntax `sw'` as shorthand for `adjoint(sw)`.
 
 # Examples
 ```jldoctest
@@ -371,13 +375,6 @@ function Base.adjoint(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType
     # So adjoint of StateWord is the StateWord itself
     sw
 end
-
-"""
-    star(sw::StateWord)
-
-Alias for `adjoint`. Compute the star (dagger) of a StateWord.
-"""
-star(sw::StateWord) = adjoint(sw)
 
 # =============================================================================
 # Display
@@ -447,7 +444,7 @@ struct NCStateWord{ST<:StateType,A<:AlgebraType,T<:Integer}
     hash::UInt64
 
     function NCStateWord(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-        h = hash((sw.hash, nc_word.hash))
+        h = hash((sw.hash, hash(nc_word)))
         new{ST,A,T}(sw, nc_word, h)
     end
 end
@@ -559,18 +556,15 @@ end
 """
     Base.adjoint(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
 
-Compute the adjoint of an NCStateWord by adjointing both parts.
+Compute the adjoint (Hermitian conjugate) of an NCStateWord by adjointing both parts.
+
+!!! note "Physics notation"
+    This is the dagger (†) or star (*) operation in physics notation.
+    You can also use the Julia syntax `ncsw'` as shorthand for `adjoint(ncsw)`.
 """
 function Base.adjoint(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     NCStateWord(adjoint(ncsw.sw), adjoint(ncsw.nc_word))
 end
-
-"""
-    star(ncsw::NCStateWord)
-
-Alias for `adjoint`. Compute the star (dagger) of an NCStateWord.
-"""
-star(ncsw::NCStateWord) = adjoint(ncsw)
 
 # =============================================================================
 # NCStateWord - Operations
@@ -677,6 +671,43 @@ end
 Check if an NCStateWord is the identity.
 """
 Base.isone(ncsw::NCStateWord) = isone(ncsw.sw) && isone(ncsw.nc_word)
+
+# =============================================================================
+# NCStateWord - Simplification
+# =============================================================================
+
+"""
+    simplify(ncsw::NCStateWord) -> NCStatePolynomial
+
+Simplify an NCStateWord by applying algebra-specific simplification rules to its
+nc_word (Monomial) part. Returns an NCStatePolynomial since simplification may
+produce multiple terms (e.g., Pauli algebra phase factors).
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{UnipotentAlgebra}(UInt[1, 1]);  # x₁²
+
+julia> sw = StateWord{Arbitrary}([one(Monomial{UnipotentAlgebra,UInt})]);
+
+julia> ncsw = NCStateWord(sw, m);
+
+julia> result = simplify(ncsw);
+
+julia> result isa NCStatePolynomial
+true
+```
+"""
+function simplify(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    # Simplify the nc_word part (may produce multiple terms with phases)
+    nc_poly = Polynomial(simplify(ncsw.nc_word))
+
+    # Convert to NCStatePolynomial: each term gets the same StateWord
+    coeffs = [t.coefficient for t in nc_poly.terms]
+    ncsws = [NCStateWord(ncsw.sw, t.monomial) for t in nc_poly.terms]
+    return NCStatePolynomial(coeffs, ncsws)
+end
 
 # =============================================================================
 # Convenience Constructors: ς and tr

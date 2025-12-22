@@ -51,23 +51,30 @@ using Test, NCTSSoS.FastPolynomials
         @test hash(mono_empty) == hash(mono_zero_filtered)
     end
 
-    @testset "Star Operation" begin
-        # Star reverses word for self-adjoint algebras (unsigned types)
+    @testset "Adjoint Operation" begin
+        # Adjoint reverses word for self-adjoint algebras (unsigned types)
         mono1 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
-        mono1_star = star(mono1)
-        @test mono1_star.word == [3, 2, 1]
+        mono1_adj = adjoint(mono1)
+        @test mono1_adj.word == [3, 2, 1]
 
-        # Empty monomial star should be empty
+        # Empty monomial adjoint should be empty
         mono_empty = Monomial{NonCommutativeAlgebra}(UInt8[])
-        @test isone(star(mono_empty))
+        @test isone(adjoint(mono_empty))
 
-        # Single element star
+        # Single element adjoint
         mono_single = Monomial{NonCommutativeAlgebra}(UInt8[5])
-        @test star(mono_single).word == [5]
+        @test adjoint(mono_single).word == [5]
 
-        # Star is involution: star(star(m)) == m
+        # Adjoint is involution: adjoint(adjoint(m)) == m
         mono2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3, 4])
-        @test star(star(mono2)) == mono2
+        @test adjoint(adjoint(mono2)) == mono2
+
+        # Julia syntax shorthand
+        @test mono1' == adjoint(mono1)
+
+        mono_grouped = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 20, 21, 3])
+        # simplification are done separately from adjoint in this version
+        @test adjoint(mono_grouped).word == UInt8[3, 21, 20, 2, 1]
     end
 
     @testset "Multiplication" begin
@@ -136,57 +143,6 @@ using Test, NCTSSoS.FastPolynomials
         @test mono_unipotent isa Monomial{UnipotentAlgebra}
     end
 
-    @testset "adjoint! for Signed Types" begin
-        # Test signed type negation (critical for Fermionic/Bosonic algebras)
-        word_signed = Int32[1, -2, 3]
-        adjoint!(word_signed)
-        @test word_signed == Int32[-3, 2, -1]
-
-        # Test with all positive indices
-        word_pos = Int64[1, 2, 3]
-        adjoint!(word_pos)
-        @test word_pos == Int64[-3, -2, -1]
-
-        # Test with all negative indices
-        word_neg = Int32[-1, -2, -3]
-        adjoint!(word_neg)
-        @test word_neg == Int32[3, 2, 1]
-
-        # Test empty word
-        word_empty = Int32[]
-        adjoint!(word_empty)
-        @test word_empty == Int32[]
-
-        # Test single element
-        word_single = Int64[5]
-        adjoint!(word_single)
-        @test word_single == Int64[-5]
-
-        # Test unsigned types (should only reverse, not negate)
-        word_unsigned = UInt16[1, 2, 3]
-        adjoint!(word_unsigned)
-        @test word_unsigned == UInt16[3, 2, 1]
-    end
-
-    @testset "star! Direct Tests" begin
-        # Verify star! is correctly aliased to adjoint!
-        word_unsigned = UInt16[1, 2, 3]
-        star!(word_unsigned)
-        @test word_unsigned == UInt16[3, 2, 1]
-
-        # Test star! for signed types
-        word_signed = Int32[1, -2, 3]
-        star!(word_signed)
-        @test word_signed == Int32[-3, 2, -1]
-
-        # Verify star! and adjoint! produce identical results
-        word1 = Int64[1, 2, 3]
-        word2 = Int64[1, 2, 3]
-        adjoint!(word1)
-        star!(word2)
-        @test word1 == word2
-    end
-
     @testset "Adjoint for Fermionic/Signed Types" begin
         # Test FermionicAlgebra adjoint (reverses AND negates)
         m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2, 3])
@@ -205,8 +161,8 @@ using Test, NCTSSoS.FastPolynomials
         m_single = Monomial{FermionicAlgebra}(Int32[5])
         @test adjoint(m_single).word == Int32[-5]
 
-        # star() should also work for signed types
-        @test star(m_ferm) == m_adj
+        # Julia syntax shorthand
+        @test m_ferm' == m_adj
     end
 
     @testset "one(m::Monomial) Instance Method" begin
@@ -289,6 +245,29 @@ using Test, NCTSSoS.FastPolynomials
         @test m_unipotent != m_fermi
     end
 
+    @testset "Cross-Algebra Safety" begin
+        # Test that hash/equality contract is maintained across algebras
+        m_pauli = Monomial{PauliAlgebra}([1, 2, 3])
+        m_nc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+
+        # Same word, different algebra = different hash (ensures Dict safety)
+        @test hash(m_pauli) != hash(m_nc)
+
+        # Verify isless throws descriptive error for cross-algebra comparison
+        @test_throws ArgumentError isless(m_pauli, m_nc)
+        @test_throws ArgumentError m_pauli < m_nc
+
+        # Verify error message is informative
+        try
+            isless(m_pauli, m_nc)
+            @test false  # Should not reach here
+        catch e
+            @test e isa ArgumentError
+            @test occursin("PauliAlgebra", string(e))
+            @test occursin("NonCommutativeAlgebra", string(e))
+        end
+    end
+
     @testset "Power Operator" begin
         # Basic power operations
         m = Monomial{NonCommutativeAlgebra}([1, 2])
@@ -349,13 +328,13 @@ using Test, NCTSSoS.FastPolynomials
 
         # Test monomial + monomial
         p = m1 + m2
-        @test p isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test p isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
         @test length(terms(p)) == 2
         @test coefficients(p) == [1.0, 1.0]
 
         # Test subtraction
         p2 = m1 - m2
-        @test p2 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test p2 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
         @test length(terms(p2)) == 2
         coeffs = coefficients(p2)
         @test coeffs[1] == 1.0
@@ -363,39 +342,39 @@ using Test, NCTSSoS.FastPolynomials
 
         # Test negation
         t = -m1
-        @test t isa Term{Monomial{NonCommutativeAlgebra, UInt8}, Float64}
+        @test t isa Term{Monomial{NonCommutativeAlgebra,UInt8},Float64}
         @test t.coefficient == -1.0
         @test t.monomial === m1
 
         # Test scalar addition
         p3 = m1 + 2.0
-        @test p3 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test p3 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
         @test length(terms(p3)) == 2
 
         # Test scalar subtraction
         p4 = m1 - 3.0
-        @test p4 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test p4 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
 
         p5 = 4.0 - m2
-        @test p5 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test p5 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
 
         # Test with powers
         m_sq = m1^2
         p6 = m1 + m_sq
-        @test p6 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test p6 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
         @test length(terms(p6)) == 2
 
         # Test that monomial + monomial handles different monomials
         mono_diff = Monomial{NonCommutativeAlgebra}(UInt8[3, 4])
         p7 = m2 + mono_diff
-        @test p7 isa Polynomial{NonCommutativeAlgebra, UInt8, Float64}
+        @test p7 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
         @test length(terms(p7)) == 2
     end
 
     @testset "Display with Registry and Exponents" begin
         # Create a simple test registry
         struct TestRegistry
-            idx_to_variables::Dict{UInt8, Symbol}
+            idx_to_variables::Dict{UInt8,Symbol}
         end
 
         reg = TestRegistry(Dict(
@@ -405,7 +384,7 @@ using Test, NCTSSoS.FastPolynomials
         ))
 
         function test_display(m::Monomial, expected_contains::Vector{String};
-                             expected_not_contains::Vector{String} = String[])
+            expected_not_contains::Vector{String}=String[])
             buf = IOBuffer()
             show(IOContext(buf, :registry => reg), m)
             str = String(take!(buf))
@@ -421,34 +400,34 @@ using Test, NCTSSoS.FastPolynomials
 
         # Test x^3 displays with exponent
         m1 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 1])
-        str1 = test_display(m1, ["x³"], expected_not_contains = ["xxx", "x^3", "^[", ","])
+        str1 = test_display(m1, ["x³"], expected_not_contains=["xxx", "x^3", "^[", ","])
 
         # Test x*y^2
         m2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 2])
-        str2 = test_display(m2, ["x", "y²"], expected_not_contains = ["[2, 2]", "^2", "^3"])
+        str2 = test_display(m2, ["x", "y²"], expected_not_contains=["[2, 2]", "^2", "^3"])
 
         # Test x^2*y^3
         m3 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 2, 2, 2])
-        str3 = test_display(m3, ["x²", "y³"], expected_not_contains = ["[1, 1]", "[2, 2, 2]"])
+        str3 = test_display(m3, ["x²", "y³"], expected_not_contains=["[1, 1]", "[2, 2, 2]"])
 
         # Test single variable no exponent
         m4 = Monomial{NonCommutativeAlgebra}(UInt8[1])
-        str4 = test_display(m4, ["x"], expected_not_contains = ["^", "²", "³"])
+        str4 = test_display(m4, ["x"], expected_not_contains=["^", "²", "³"])
 
         # Test three different variables, no repetition
         m5 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
-        str5 = test_display(m5, ["x", "y", "z"], expected_not_contains = ["^", "²", "³"])
+        str5 = test_display(m5, ["x", "y", "z"], expected_not_contains=["^", "²", "³"])
 
         # Test large exponent (10) - should use ^10 syntax
         m6 = Monomial{NonCommutativeAlgebra}(UInt8[fill(1, 10)..., 2])
-        str6 = test_display(m6, ["x^10", "y"], expected_not_contains = ["xxxxxxxxxx"])
+        str6 = test_display(m6, ["x^10", "y"], expected_not_contains=["xxxxxxxxxx"])
 
         # Test exponent 4-9 for superscript coverage
         m7 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 1, 1])  # 4 x's
-        str7 = test_display(m7, ["x⁴"], expected_not_contains = ["^4"])
+        str7 = test_display(m7, ["x⁴"], expected_not_contains=["^4"])
 
         m8 = Monomial{NonCommutativeAlgebra}(UInt8[fill(1, 9)..., 2])  # 9 x's
-        str8 = test_display(m8, ["x⁹", "y"], expected_not_contains = ["^9"])
+        str8 = test_display(m8, ["x⁹", "y"], expected_not_contains=["^9"])
 
         # Test identity displays as 𝟙 symbol
         m_identity = Monomial{NonCommutativeAlgebra}(UInt8[])

@@ -192,7 +192,7 @@ julia> monomials(poly)[1].word
 function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
     # Create a copy of the word to work with
     word_copy = copy(m.word)
-    m_copy = Monomial{BosonicAlgebra,T}(word_copy, m.hash)
+    m_copy = Monomial{BosonicAlgebra,T}(word_copy)
     simplify!(m_copy)
 end
 

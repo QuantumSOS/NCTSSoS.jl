@@ -9,16 +9,26 @@ Subtypes:
 """
 abstract type AbstractMonomial end
 
+# Module-level constant for superscript display (avoids allocation in show loop)
+const SUPERSCRIPT_EXPONENTS = Dict(
+    2 => "²",
+    3 => "³",
+    4 => "⁴",
+    5 => "⁵",
+    6 => "⁶",
+    7 => "⁷",
+    8 => "⁸",
+    9 => "⁹",
+)
+
 """
     Monomial{A<:AlgebraType, T<:Integer} <: AbstractMonomial
 
-Represents a monomial with a precomputed hash for efficient comparison.
-The monomial vector is word representation for non-commutative monomials (e.g.,
-[1,3,1,3] = xzxz)
+Represents an immutable monomial in word representation for non-commutative algebras.
+The word vector represents a product of operators (e.g., [1,3,1,3] = xzxz).
 
 # Fields
 - `word::Vector{T}`: The monomial representation word
-- `hash::UInt64`: Precomputed hash for fast inequality checks
 
 # Type Parameters
 - `A<:AlgebraType`: Algebra type for dispatch (PauliAlgebra, FermionicAlgebra, etc.)
@@ -31,6 +41,9 @@ The algebra type is in the type parameter, enabling:
 - Zero per-element overhead (no runtime metadata)
 - Compile-time dispatch for multiplication/simplification
 - Type safety: can't accidentally multiply incompatible algebras
+
+The struct is immutable for safety - simplification operations return new monomials
+rather than mutating existing ones.
 
 # Examples
 ```jldoctest
@@ -60,7 +73,7 @@ julia> typeof(m_fermi)
 Monomial{FermionicAlgebra, Int32}
 ```
 
-Fast inequality checks via precomputed hash:
+Equality comparison:
 ```jldoctest
 julia> m1 = Monomial{PauliAlgebra}([1, 3, 1, 3]);
 
@@ -75,44 +88,20 @@ julia> m1 == m3
 true
 ```
 """
-mutable struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial
+struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial
     word::Vector{T}
-    hash::UInt64
 end
 
 # Outer constructor: infer integer type from vector
 function Monomial{A}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
     word_filtered = filter(!iszero, word)
-    Monomial{A,T}(word_filtered, hash(word_filtered))
+    return Monomial{A,T}(word_filtered)
 end
 
 # Convenience constructor: defaults to NonCommutativeAlgebra
 function Monomial(word::Vector{T}) where {T<:Integer}
     word_filtered = filter(!iszero, word)
-    Monomial{NonCommutativeAlgebra,T}(word_filtered, hash(word_filtered))
-end
-
-"""
-    update_hash!(m::Monomial{A,T}) where {A,T} -> Monomial{A,T}
-
-Recompute the hash field from the current word vector.
-Call this after mutating the word to maintain hash consistency.
-
-# Examples
-```jldoctest
-julia> m = Monomial{NonCommutativeAlgebra}(UInt16[2, 1]);
-
-julia> m.word[1], m.word[2] = m.word[2], m.word[1];  # Swap in-place
-
-julia> update_hash!(m);
-
-julia> m.hash == hash(m.word)
-true
-```
-"""
-@inline function update_hash!(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    m.hash = hash(m.word)
-    return m
+    return Monomial{NonCommutativeAlgebra,T}(word_filtered)
 end
 
 """
@@ -139,7 +128,7 @@ julia> m.word
 ```
 """
 function Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    Monomial{A}(vcat(m1.word, m2.word))
+    return Monomial{A}(vcat(m1.word, m2.word))
 end
 
 """
@@ -188,43 +177,25 @@ end
 """
     Base.:(==)(m1::Monomial, m2::Monomial) -> Bool
 
-Fast equality comparison using precomputed hash.
-First compares hashes (O(1)), only does full vector comparison on hash collision.
-
+Equality comparison for monomials.
 Monomials of different algebra types are never equal (type-level distinction).
-
-# Performance
-- **50-100× faster** inequality checks vs. direct vector comparison
-- Full comparison only needed in rare hash collision cases (~0.01%)
 """
 function Base.:(==)(m1::Monomial{A1,T1}, m2::Monomial{A2,T2}) where {A1,A2,T1,T2}
     # Different algebra types are never equal
     A1 !== A2 && return false
-
-    # If either hash is zero (uninitialized), compare words directly
-    # This handles monomials created via multiplication before simplification
-    if m1.hash == 0 || m2.hash == 0
-        return m1.word == m2.word
-    end
-
-    # Fast path: compare hashes first (O(1))
-    m1.hash == m2.hash || return false
-
-    # Slow path: full comparison only on hash collision
-    m1.word == m2.word
+    return m1.word == m2.word
 end
 
 """
     Base.hash(m::Monomial, h::UInt) -> UInt
 
-Hash function for Monomial. Uses the precomputed hash value if available,
-otherwise computes from the word.
+Hash function for Monomial. Includes algebra type for consistency with equality.
+
+The hash includes both the algebra type `A` and the word vector, ensuring that
+monomials from different algebras with the same word have different hashes.
+This maintains the hash/equality contract: if `m1 == m2`, then `hash(m1) == hash(m2)`.
 """
-function Base.hash(m::Monomial, h::UInt)
-    # If hash is zero (uninitialized), compute from word
-    word_hash = m.hash == 0 ? hash(m.word) : m.hash
-    hash(word_hash, h)
-end
+Base.hash(m::Monomial{A}, h::UInt) where {A} = hash(A, hash(m.word, h))
 
 """
     degree(m::Monomial) -> Int
@@ -289,7 +260,7 @@ Int64[]
 ```
 """
 function Base.one(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer}
-    Monomial{A}(T[])
+    return Monomial{A}(T[])
 end
 
 """
@@ -298,7 +269,7 @@ end
 Create the identity monomial for the same type as `m`.
 """
 function Base.one(::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    one(Monomial{A,T})
+    return one(Monomial{A,T})
 end
 
 """
@@ -363,73 +334,28 @@ See also: [`cmp`](@ref), [`degree`](@ref)
 """
 function Base.isless(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Compare by degree first (graded ordering)
-    length(m1.word) != length(m2.word) && return length(m1.word) < length(m2.word)
+    degree(m1) != degree(m2) && return degree(m1) < degree(m2)
     # Then lexicographic on word vector
     return m1.word < m2.word
 end
 
-
-# =============================================================================
-# Adjoint / Star Operations
-# =============================================================================
-
-"""
-    adjoint!(word::Vector{T}) where {T<:Integer}
-
-In-place adjoint of a word vector. Reverses the word and negates elements for signed types.
-This is the core implementation shared by all adjoint functions.
-
-# Behavior
-- For unsigned types (UInt16, etc.): just reverses the word (self-adjoint algebras)
-- For signed types (Int32, Int64, etc.): reverses AND negates each element (non-self-adjoint algebras)
-
-# Examples
-```jldoctest
-julia> word = UInt16[1, 2, 3];
-
-julia> adjoint!(word);
-
-julia> word
-3-element Vector{UInt16}:
- 0x0003
- 0x0002
- 0x0001
-
-julia> word_signed = Int32[1, -2, 3];
-
-julia> adjoint!(word_signed);
-
-julia> word_signed
-3-element Vector{Int32}:
- -3
-  2
- -1
-```
-"""
-function adjoint!(word::Vector{T}) where {T<:Integer}
-    reverse!(word)
-    # For signed types (Fermionic/Bosonic): negate each element
-    if T <: Signed
-        @inbounds for i in eachindex(word)
-            word[i] = -word[i]
-        end
-    end
-    word
+# Fallback for cross-algebra comparison: provide descriptive error
+function Base.isless(m1::Monomial{A1}, m2::Monomial{A2}) where {A1<:AlgebraType,A2<:AlgebraType}
+    throw(ArgumentError("Cannot compare monomials of different algebras: $A1 vs $A2"))
 end
 
-"""
-    star!(word::Vector{T}) where {T<:Integer}
-
-Alias for `adjoint!`. In-place star (dagger) operation on a word vector.
-
-See also: [`adjoint!`](@ref)
-"""
-star!(word::Vector{T}) where {T<:Integer} = adjoint!(word)
+# =============================================================================
+# Adjoint Operation
+# =============================================================================
 
 """
     Base.adjoint(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
 
-Compute the adjoint (star/dagger) of a monomial. Returns a new monomial.
+Compute the adjoint (Hermitian conjugate) of a monomial. Returns a new monomial.
+
+!!! note "Physics notation"
+    This is the dagger (†) or star (*) operation in physics notation.
+    You can also use the Julia syntax `m'` as shorthand for `adjoint(m)`.
 
 For self-adjoint algebras (Pauli, Projector, Unipotent with unsigned types): reverses the word.
 For non-self-adjoint algebras (Fermionic, Bosonic with signed types): reverses and negates indices.
@@ -448,6 +374,9 @@ julia> adjoint(m).word
  2
  1
 
+julia> m' == adjoint(m)  # Julia syntax shorthand
+true
+
 julia> m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2, 3]);
 
 julia> adjoint(m_ferm).word  # reverse + negate
@@ -456,38 +385,14 @@ julia> adjoint(m_ferm).word  # reverse + negate
   2
  -1
 ```
-
-See also: [`star`](@ref), [`adjoint!`](@ref)
 """
 function Base.adjoint(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    new_word = copy(m.word)
-    adjoint!(new_word)
-    Monomial{A}(new_word)
+    new_word = reverse(m.word)
+    if T <: Signed
+        new_word .= .-new_word
+    end
+    return Monomial{A}(new_word)
 end
-
-"""
-    star(m::Monomial)
-
-Alias for `adjoint`. Compute the star (dagger) of a monomial.
-This notation is common in physics for the adjoint/Hermitian conjugate.
-
-# Examples
-```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2, 3]);
-
-julia> star(m).word
-3-element Vector{Int64}:
- 3
- 2
- 1
-
-julia> star(m) == adjoint(m)
-true
-```
-
-See also: [`adjoint`](@ref)
-"""
-star(m::Monomial) = adjoint(m)
 
 # =============================================================================
 # Addition of Monomials
@@ -515,9 +420,7 @@ julia> p isa Polynomial{PauliAlgebra}
 true
 ```
 """
-function Base.:(+)(
-    m1::Monomial{A,T}, m2::Monomial{A,T}
-) where {A<:AlgebraType,T<:Integer}
+function Base.:(+)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Convert both monomials to polynomials and add
     return Polynomial([Term(1.0, m1), Term(1.0, m2)])
 end
@@ -543,9 +446,7 @@ julia> length(terms(p2))
 2
 ```
 """
-function Base.:(+)(
-    m::Monomial{A,T}, c::Number
-) where {A<:AlgebraType,T<:Integer}
+function Base.:(+)(m::Monomial{A,T}, c::Number) where {A<:AlgebraType,T<:Integer}
     # Create monomial term + constant term
     I = one(Monomial{A,T})  # Identity monomial for constant
     return Polynomial([Term(float(c), I), Term(1.0, m)])
@@ -572,9 +473,7 @@ julia> coefficients(p)
  -1.0
 ```
 """
-function Base.:(-)(
-    m1::Monomial{A,T}, m2::Monomial{A,T}
-) where {A<:AlgebraType,T<:Integer}
+function Base.:(-)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Convert both monomials to polynomials and subtract
     return Polynomial([Term(1.0, m1), Term(-1.0, m2)])
 end
@@ -620,16 +519,12 @@ julia> length(terms(p2))
 2
 ```
 """
-function Base.:(-)(
-    m::Monomial{A,T}, c::Number
-) where {A<:AlgebraType,T<:Integer}
+function Base.:(-)(m::Monomial{A,T}, c::Number) where {A<:AlgebraType,T<:Integer}
     I = one(Monomial{A,T})
     return Polynomial([Term(1.0, m), Term(-float(c), I)])
 end
 
-function Base.:(-)(
-    c::Number, m::Monomial{A,T}
-) where {A<:AlgebraType,T<:Integer}
+function Base.:(-)(c::Number, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     I = one(Monomial{A,T})
     return Polynomial([Term(float(c), I), Term(-1.0, m)])
 end
@@ -673,7 +568,7 @@ See also: [`VariableRegistry`](@ref)
 function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     if isempty(m.word)
         print(io, "𝟙")  # Identity symbol
-        return
+        return nothing
     end
 
     registry = get(io, :registry, nothing)
@@ -701,11 +596,8 @@ function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
 
                 # Print exponent if count > 1
                 if count > 1
-                    # Use superscript digits for nicer display
-                    superscripts = Dict(2 => "²", 3 => "³", 4 => "⁴", 5 => "⁵",
-                                       6 => "⁶", 7 => "⁷", 8 => "⁸", 9 => "⁹")
-                    if haskey(superscripts, count)
-                        print(io, superscripts[count])
+                    if haskey(SUPERSCRIPT_EXPONENTS, count)
+                        print(io, SUPERSCRIPT_EXPONENTS[count])
                     else
                         print(io, "^", count)
                     end

@@ -73,39 +73,6 @@ function _neat_dot3(
     return NCStateWord(sw_prod, nc_mono)
 end
 
-"""
-    simplify(ncsw::NCStateWord) -> NCStatePolynomial
-
-Simplify an NCStateWord by applying algebra-specific simplification rules to its
-nc_word (Monomial) part. Returns an NCStatePolynomial since simplification may
-produce multiple terms (e.g., Pauli algebra phase factors).
-
-# Examples
-```jldoctest
-julia> using FastPolynomials
-
-julia> m = Monomial{UnipotentAlgebra}(UInt[1, 1]);  # x₁²
-
-julia> sw = StateWord{Arbitrary}([one(Monomial{UnipotentAlgebra,UInt})]);
-
-julia> ncsw = NCStateWord(sw, m);
-
-julia> result = simplify(ncsw);
-
-julia> result isa NCStatePolynomial
-true
-```
-"""
-function simplify(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # Simplify the nc_word part (may produce multiple terms with phases)
-    nc_poly = Polynomial(simplify(ncsw.nc_word))
-
-    # Convert to NCStatePolynomial: each term gets the same StateWord
-    coeffs = [t.coefficient for t in nc_poly.terms]
-    ncsws = [NCStateWord(ncsw.sw, t.monomial) for t in nc_poly.terms]
-    return NCStatePolynomial(coeffs, ncsws)
-end
-
 # Overload for regular Monomials (non-state context)
 """
     neat_dot(a::Monomial, b::Monomial) -> Monomial

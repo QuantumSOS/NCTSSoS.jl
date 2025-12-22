@@ -90,7 +90,7 @@ The moment order is automatically determined from the polynomial degrees if not 
 """
 function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
 
-    order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
+    order = iszero(solver_config.order) ? maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
 
@@ -243,7 +243,7 @@ This function solves a state polynomial optimization problem by:
 """
 function cs_nctssos(pop::StatePolyOpt{A,ST,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, ST<:StateType, C<:Number, T<:Integer, P<:NCStatePolynomial{C,ST,A,T}}
 
-    order = iszero(solver_config.order) ? maximum([ceil(Int, maxdegree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
+    order = iszero(solver_config.order) ? maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
 

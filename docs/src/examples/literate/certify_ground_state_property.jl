@@ -142,7 +142,7 @@ function cs_nctssos_with_entry(
 
    ## Determine the order of moment relaxation (automatic if not specified)
    order = iszero(solver_config.order) ?
-       maximum([ceil(Int, maxdegree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) :
+       maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) :
        solver_config.order
 
    ## Exploit correlative sparsity to reduce problem size

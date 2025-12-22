@@ -151,6 +151,36 @@ Concrete type determined by VariableRegistry.
 """
 struct UnipotentAlgebra <: AlgebraType end
 
+# =============================================================================
+# Default Coefficient Types
+# =============================================================================
+
+"""
+    default_coeff_type(::Type{A}) where {A<:AlgebraType} -> Type{<:Number}
+
+Return the default coefficient type for a given algebra type.
+
+Different algebras naturally work with different coefficient types:
+- `PauliAlgebra`: `ComplexF64` (Pauli products generate complex phases)
+- All others: `Float64` (real coefficients suffice)
+
+This is used by constructors like `Polynomial(m::Monomial)` to infer
+the appropriate coefficient type when not explicitly specified.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> default_coeff_type(PauliAlgebra)
+ComplexF64
+
+julia> default_coeff_type(NonCommutativeAlgebra)
+Float64
+```
+"""
+default_coeff_type(::Type{<:AlgebraType}) = Float64
+default_coeff_type(::Type{PauliAlgebra}) = ComplexF64
+
 # Show methods for clean output
 Base.show(io::IO, ::NonCommutativeAlgebra) = print(io, "NonCommutativeAlgebra()")
 Base.show(io::IO, ::PauliAlgebra) = print(io, "PauliAlgebra()")

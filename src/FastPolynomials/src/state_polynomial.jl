@@ -765,13 +765,7 @@ function variable_indices(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
     variables(ncsw)
 end
 
-"""
-    maxdegree(ncsp::NCStatePolynomial) -> Int
 
-Get the maximum degree of an NCStatePolynomial.
-Alias for `degree()` to match the Polynomial API.
-"""
-maxdegree(ncsp::NCStatePolynomial) = degree(ncsp)
 
 # =============================================================================
 # NCStatePolynomial - zero and one

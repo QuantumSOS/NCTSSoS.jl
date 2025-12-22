@@ -47,10 +47,10 @@ make test-FastPoly
 - [x] Monomial is immutable (no hash field, hash computed on demand)
 - [x] Monomial ordering (`isless`) is consistent and total
 - [x] Term arithmetic handles coefficient types correctly
-- [ ] Polynomial invariants: sorted terms, no duplicates, no zero coefficients
-- [ ] Polynomial arithmetic preserves invariants
+- [x] Polynomial invariants: sorted terms, no duplicates, no zero coefficients
+- [x] Polynomial arithmetic preserves invariants
 
-**Review Status:** 🔄 IN PROGRESS
+**Review Status:** ✅ APPROVED
 
 **Changes Made (monomial.jl - 2025-01-XX):**
 - Made `Monomial` immutable (`struct` instead of `mutable struct`)
@@ -71,6 +71,20 @@ make test-FastPoly
 - Added `one`/`isone` for `ComposedMonomial` in composed_monomial.jl
 - Fixed complex coefficient display with parentheses: `(1.0 + 2.0im) * [1, 2]`
 - Kept `iterate` for destructuring support used in sos_solver.jl
+
+**Changes Made (polynomial.jl - 2025-01-22):**
+- Added `default_coeff_type` trait in algebra_types.jl (ComplexF64 for Pauli, Float64 for others)
+- Updated `Polynomial(m::Monomial)` to use `default_coeff_type(A)` instead of hardcoded Float64
+- Added `simplify(p::Polynomial)` function that normalizes each monomial using algebra-specific rules
+- Refactored polynomial multiplication to use raw concatenation + simplify (decoupled arithmetic from simplification)
+- Removed old `_add_simplified_terms!` functions (replaced by `_collect_simplified_terms!` in simplify)
+- Changed `degree(zero_polynomial)` from -1 to -Inf to preserve algebraic identity `deg(p*q) = deg(p) + deg(q)`
+- Removed `maxdegree` alias - all usages converted to `degree`
+
+**Layer 2 Complete** ✅
+- `monomial.jl`: APPROVED
+- `term.jl`: APPROVED
+- `polynomial.jl`: APPROVED
 
 ---
 

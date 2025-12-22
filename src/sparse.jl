@@ -284,7 +284,7 @@ function correlative_sparsity(
         end
 
         # For each constraint, compute the reduced order basis
-        cur_orders = order .- cld.(maxdegree.(all_cons[clique_cons_indices]), 2)
+        cur_orders = order .- cld.(degree.(all_cons[clique_cons_indices]), 2)
         cur_lengths = map(cur_orders) do o
             searchsortedfirst(cliques_moment_matrix_bases_dg[clique_idx], o + 1) - 1
         end
@@ -751,7 +751,7 @@ function correlative_sparsity(
         end
 
         # For each constraint, compute the reduced order basis
-        cur_orders = order .- cld.(maxdegree.(all_cons[clique_cons_indices]), 2)
+        cur_orders = order .- cld.(degree.(all_cons[clique_cons_indices]), 2)
         cur_lengths = map(cur_orders) do o
             searchsortedfirst(cliques_moment_matrix_bases_dg[clique_idx], o + 1) - 1
         end

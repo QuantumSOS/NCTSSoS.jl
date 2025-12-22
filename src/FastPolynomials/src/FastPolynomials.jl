@@ -39,7 +39,7 @@ export VariableRegistry
 export AbstractMonomial, Monomial, ComposedMonomial
 export Term
 export AbstractPolynomial, Polynomial
-export degree, maxdegree
+export degree
 export coefficients, monomials, terms, variables
 export simplify, simplify!
 export symmetric_canon, cyclic_canon, cyclic_symmetric_canon, canonicalize
@@ -51,6 +51,7 @@ export get_ncbasis, get_ncbasis_deg, get_state_basis
 export AlgebraType
 export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra, BosonicAlgebra
 export ProjectorAlgebra, UnipotentAlgebra
+export default_coeff_type
 
 # Fermionic algebra helpers
 export has_even_parity
@@ -72,7 +73,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 export symbols, indices, subregistry
 
 # Polynomial helpers
-export variable_indices, maxdegree
+export variable_indices
 
 
 # Utility functions (kept from legacy API)

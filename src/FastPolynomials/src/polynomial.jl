@@ -175,7 +175,11 @@ end
 """
     Polynomial(m::Monomial{A,T}) where {A,T}
 
-Construct a polynomial from a monomial with coefficient 1.0.
+Construct a polynomial from a monomial with coefficient 1.
+
+The coefficient type is determined by `default_coeff_type(A)`:
+- `PauliAlgebra`: uses `ComplexF64` (Pauli products generate complex phases)
+- All others: uses `Float64`
 
 !!! note "No automatic simplification"
     This constructor does NOT call `simplify` on the monomial. If the monomial
@@ -192,12 +196,13 @@ julia> m = Monomial{PauliAlgebra}([1, 2]);
 julia> p = Polynomial(m);
 
 julia> coefficients(p)
-1-element Vector{Float64}:
- 1.0
+1-element Vector{ComplexF64}:
+ 1.0 + 0.0im
 ```
 """
 function Polynomial(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    return Polynomial(Term(1.0, m))
+    C = default_coeff_type(A)
+    return Polynomial(Term(one(C), m))
 end
 
 """
@@ -443,10 +448,11 @@ julia> length(ms)
 monomials(p::Polynomial) = [t.monomial for t in p.terms]
 
 """
-    degree(p::Polynomial) -> Int
+    degree(p::Polynomial) -> Union{Int, Float64}
 
 Compute the maximum degree of all monomials in the polynomial.
-Returns -1 for the zero polynomial (convention).
+Returns `-Inf` for the zero polynomial to preserve the algebraic identity
+`deg(p * q) = deg(p) + deg(q)`.
 
 # Examples
 ```jldoctest
@@ -460,19 +466,17 @@ julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
 
 julia> degree(p)
 3
+
+julia> degree(zero(Polynomial{PauliAlgebra,Int64,ComplexF64}))
+-Inf
 ```
 """
 function degree(p::Polynomial)
-    isempty(p.terms) && return -1  # Convention for zero polynomial
+    isempty(p.terms) && return -Inf
     return maximum(degree(t.monomial) for t in p.terms)
 end
 
-"""
-    maxdegree(p::Polynomial) -> Int
 
-Alias for `degree(p)`. Compute the maximum degree of all monomials.
-"""
-maxdegree(p::Polynomial) = degree(p)
 
 """
     variable_indices(p::Polynomial) -> Set
@@ -708,9 +712,13 @@ end
 """
     Base.:(*)(p1::Polynomial{A,T,C1}, p2::Polynomial{A,T,C2}) where {A,T,C1,C2}
 
-Multiply two polynomials. Computes the Cartesian product of terms and
-processes the result (handling monomial simplification which may return
-single Term or Vector{Term}).
+Multiply two polynomials. Computes the Cartesian product of terms,
+concatenates monomials, and simplifies the result using algebra-specific rules.
+
+The multiplication proceeds in three steps:
+1. Form all pairwise products of terms (coefficient multiplication + monomial concatenation)
+2. Apply `simplify` to normalize monomials to canonical form
+3. Combine like terms and remove zeros
 
 # Examples
 ```jldoctest
@@ -734,97 +742,27 @@ function Base.:(*)(
     p1::Polynomial{A,T,C1}, p2::Polynomial{A,T,C2}
 ) where {A<:AlgebraType,T<:Integer,C1<:Number,C2<:Number}
     # Handle zero cases
-    isempty(p1.terms) && return zero(Polynomial{A,T,promote_type(C1, C2)})
-    isempty(p2.terms) && return zero(Polynomial{A,T,promote_type(C1, C2)})
-
     C = promote_type(C1, C2)
-    result_terms = Term{Monomial{A,T},C}[]
+    isempty(p1.terms) && return zero(Polynomial{A,T,C})
+    isempty(p2.terms) && return zero(Polynomial{A,T,C})
+
+    # Step 1: Form raw products (monomial concatenation, no simplification)
+    raw_terms = Term{Monomial{A,T},C}[]
 
     for t1 in p1.terms
         for t2 in p2.terms
             coef = C(t1.coefficient * t2.coefficient)
             iszero(coef) && continue
 
-            # Monomial multiplication - may return Term or Vector{Term}
-            simplified = t1.monomial * t2.monomial
-            _add_simplified_terms!(result_terms, coef, simplified)
+            # Raw monomial concatenation (no simplification yet)
+            raw_mono = t1.monomial * t2.monomial
+            push!(raw_terms, Term(coef, raw_mono))
         end
     end
 
-    return Polynomial(result_terms)
-end
-
-"""
-    _add_simplified_terms!(result, coef, simplified)
-
-Helper function to add simplified monomial multiplication results.
-Handles Monomial (raw concatenation), Term, Vector{Term}, or Polynomial returns from monomial operations.
-"""
-function _add_simplified_terms!(
-    result::Vector{Term{Monomial{A,T},C}}, coef::C, mono::Monomial{A,T}
-) where {A,T,C}
-    # Simplify the monomial - returns Monomial, Term, or Polynomial depending on algebra
-    simplified = simplify(mono)
-
-    # Dispatch based on return type
-    if simplified isa Monomial
-        # For NC, Projector, Unipotent: returns Monomial with implicit coefficient 1.0
-        if !iszero(coef)
-            push!(result, Term(coef, simplified))
-        end
-    elseif simplified isa Term
-        # For Pauli: returns Term with phase coefficient
-        combined_coef = C(coef * simplified.coefficient)
-        if !iszero(combined_coef)
-            push!(result, Term(combined_coef, simplified.monomial))
-        end
-    elseif simplified isa Polynomial
-        # For Bosonic, Fermionic: returns Polynomial with multiple terms
-        for term in simplified.terms
-            combined_coef = C(coef * term.coefficient)
-            if !iszero(combined_coef)
-                push!(result, Term(combined_coef, term.monomial))
-            end
-        end
-    else
-        # Legacy: handle Vector{Term} just in case
-        for term in simplified
-            combined_coef = C(coef * term.coefficient)
-            if !iszero(combined_coef)
-                push!(result, Term(combined_coef, term.monomial))
-            end
-        end
-    end
-end
-
-function _add_simplified_terms!(
-    result::Vector{Term{Monomial{A,T},C}}, coef::C, simplified::Term{Monomial{A,T},SC}
-) where {A,T,C,SC}
-    return _add_simplified_terms!(result, coef, [simplified])
-end
-
-function _add_simplified_terms!(
-    result::Vector{Term{Monomial{A,T},C}},
-    coef::C,
-    simplified::Vector{Term{Monomial{A,T},SC}},
-) where {A,T,C,SC}
-    for term in simplified
-        combined_coef = C(coef * term.coefficient)
-        if !iszero(combined_coef)
-            push!(result, Term(combined_coef, term.monomial))
-        end
-    end
-end
-
-function _add_simplified_terms!(
-    result::Vector{Term{Monomial{A,T},C}}, coef::C, simplified::Polynomial{A,T,SC}
-) where {A,T,C,SC}
-    for term in simplified.terms
-        combined_coef = C(coef * term.coefficient)
-        if !iszero(combined_coef)
-            push!(result, Term(combined_coef, term.monomial))
-        end
-    end
+    # Step 2 & 3: Simplify and normalize via Polynomial constructor
+    raw_poly = Polynomial{A,T,C}(raw_terms)
+    return simplify(raw_poly)
 end
 
 """
@@ -1171,4 +1109,113 @@ function Base.adjoint(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:
     # Adjoint of polynomial: adjoint each monomial, conjugate each coefficient
     new_terms = [Term(conj(t.coefficient), adjoint(t.monomial)) for t in p.terms]
     return Polynomial(new_terms)
+end
+
+# =============================================================================
+# Simplification
+# =============================================================================
+
+"""
+    simplify(p::Polynomial{A,T,C}) where {A,T,C} -> Polynomial
+
+Simplify a polynomial by applying algebra-specific simplification rules to each
+monomial and rebuilding the polynomial.
+
+This function:
+1. Iterates over each term in the polynomial
+2. Simplifies each monomial using algebra-specific rules (via `simplify(::Monomial)`)
+3. Combines the resulting terms (which may expand to multiple terms for some algebras)
+4. Applies standard polynomial normalization (sorting, deduplication, zero removal)
+
+# Algebra-Specific Behavior
+- `NonCommutativeAlgebra`: Reorders by site (different sites commute)
+- `PauliAlgebra`: Applies σᵢ² = I and cyclic product rules, returns complex phases
+- `FermionicAlgebra`: Normal ordering with anticommutation, may return multiple terms
+- `BosonicAlgebra`: Normal ordering with commutation, may return multiple terms
+- `ProjectorAlgebra`: Applies Pᵢ² = Pᵢ idempotency
+- `UnipotentAlgebra`: Applies U² = I involution
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([1, 1]);  # σx₁ * σx₁
+
+julia> p = Polynomial(m);  # Not simplified during construction
+
+julia> degree(p)
+2
+
+julia> p_simplified = simplify(p);  # Now apply Pauli rules: σx² = I
+
+julia> degree(p_simplified)
+0
+
+julia> isone(monomials(p_simplified)[1])
+true
+```
+
+See also: [`simplify(::Monomial)`](@ref), [`canonicalize`](@ref)
+"""
+function simplify(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    isempty(p.terms) && return zero(Polynomial{A,T,C})
+
+    # Collect all simplified terms
+    # Use the wider of C and the algebra's default coefficient type
+    # (e.g., ComplexF64 for Pauli even if input was Float64)
+    DC = default_coeff_type(A)
+    NC = promote_type(C, DC)
+    result_terms = Term{Monomial{A,T},NC}[]
+
+    for t in p.terms
+        coef = NC(t.coefficient)
+        iszero(coef) && continue
+
+        # Simplify the monomial - returns Monomial, Term, or Polynomial
+        simplified = simplify(t.monomial)
+        _collect_simplified_terms!(result_terms, coef, simplified)
+    end
+
+    return Polynomial(result_terms)
+end
+
+"""
+    _collect_simplified_terms!(result, coef, simplified)
+
+Internal helper to collect terms from monomial simplification results.
+
+Handles the different return types from algebra-specific `simplify(::Monomial)`:
+- `Monomial`: Implicit coefficient 1 (NonCommutative, Projector, Unipotent)
+- `Term`: Single term with phase coefficient (Pauli)
+- `Polynomial`: Multiple terms from normal ordering (Fermionic, Bosonic)
+"""
+function _collect_simplified_terms!(
+    result::Vector{Term{Monomial{A,T},C}}, coef::C, mono::Monomial{A,T}
+) where {A,T,C}
+    # Monomial return means coefficient is implicitly 1
+    if !iszero(coef)
+        push!(result, Term(coef, mono))
+    end
+end
+
+function _collect_simplified_terms!(
+    result::Vector{Term{Monomial{A,T},C}}, coef::C, term::Term{Monomial{A,T}}
+) where {A,T,C}
+    # Term return: multiply coefficient by term's coefficient
+    combined_coef = C(coef * term.coefficient)
+    if !iszero(combined_coef)
+        push!(result, Term(combined_coef, term.monomial))
+    end
+end
+
+function _collect_simplified_terms!(
+    result::Vector{Term{Monomial{A,T},C}}, coef::C, poly::Polynomial{A,T}
+) where {A,T,C}
+    # Polynomial return: multiply each term's coefficient
+    for term in poly.terms
+        combined_coef = C(coef * term.coefficient)
+        if !iszero(combined_coef)
+            push!(result, Term(combined_coef, term.monomial))
+        end
+    end
 end

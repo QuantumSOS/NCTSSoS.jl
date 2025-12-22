@@ -114,7 +114,7 @@ using NCTSSoS.FastPolynomials: variable_indices
 
         # Zero polynomial
         p_zero = zero(Polynomial{NonCommutativeAlgebra,Int64,Float64})
-        @test degree(p_zero) == -1  # convention for zero polynomial
+        @test degree(p_zero) == -Inf  # preserves deg(p*q) = deg(p) + deg(q)
     end
 
     @testset "variable_indices" begin
@@ -546,12 +546,117 @@ using NCTSSoS.FastPolynomials: variable_indices
         @test isempty(terms(p))
     end
 
-    @testset "maxdegree alias" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2, 3, 4])
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+    @testset "Polynomial(m::Monomial) uses default_coeff_type" begin
+        # PauliAlgebra should create ComplexF64 coefficients
+        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        p_pauli = Polynomial(m_pauli)
+        @test eltype(coefficients(p_pauli)) == ComplexF64
+        @test coefficients(p_pauli)[1] == 1.0 + 0.0im
 
-        @test maxdegree(p) == degree(p)
-        @test maxdegree(p) == 3
+        # NonCommutativeAlgebra should create Float64 coefficients
+        m_nc = Monomial{NonCommutativeAlgebra}(UInt16[1, 2])
+        p_nc = Polynomial(m_nc)
+        @test eltype(coefficients(p_nc)) == Float64
+        @test coefficients(p_nc)[1] == 1.0
+
+        # FermionicAlgebra should create Float64 coefficients
+        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2])
+        p_ferm = Polynomial(m_ferm)
+        @test eltype(coefficients(p_ferm)) == Float64
+    end
+
+    @testset "simplify(p::Polynomial) - direct tests" begin
+        # Test 1: Pauli simplification - σx₁ * σx₁ = I
+        m_xx = Monomial{PauliAlgebra}([1, 1])
+        p_unsimplified = Polynomial(m_xx)
+        @test degree(p_unsimplified) == 2  # Before simplify
+
+        p_simplified = simplify(p_unsimplified)
+        @test degree(p_simplified) == 0  # After simplify: identity
+        @test isone(monomials(p_simplified)[1])
+        @test coefficients(p_simplified)[1] == 1.0 + 0.0im
+
+        # Test 2: Pauli simplification with phase - σx₁ * σy₁ = i*σz₁
+        m_xy = Monomial{PauliAlgebra}([1, 2])  # σx₁ * σy₁
+        p_xy = Polynomial(m_xy)
+        p_xy_simplified = simplify(p_xy)
+        @test degree(p_xy_simplified) == 1
+        @test coefficients(p_xy_simplified)[1] ≈ 0.0 + 1.0im  # Phase is i
+
+        # Test 3: Zero polynomial stays zero
+        p_zero = zero(Polynomial{PauliAlgebra,Int64,ComplexF64})
+        @test iszero(simplify(p_zero))
+
+        # Test 4: Multiple terms - each simplified independently
+        m1 = Monomial{PauliAlgebra}([1, 1])  # σx₁² = I
+        m2 = Monomial{PauliAlgebra}([4])     # σx₂ (already simple)
+        p_multi = Polynomial([Term(2.0+0im, m1), Term(3.0+0im, m2)])
+        p_multi_simplified = simplify(p_multi)
+        # Should have identity term (coef 2) and σx₂ term (coef 3)
+        @test length(terms(p_multi_simplified)) == 2
+
+        # Test 5: Coefficient type promotion (Float64 → ComplexF64 for Pauli)
+        m_pauli = Monomial{PauliAlgebra}([1])
+        p_float = Polynomial([Term(2.0, m_pauli)])  # Float64 coefficient
+        p_promoted = simplify(p_float)
+        @test eltype(coefficients(p_promoted)) == ComplexF64
+    end
+
+    @testset "Monomial * Polynomial multiplication" begin
+        # m * p
+        m = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}(UInt16[2])),
+                       Term(2.0, Monomial{NonCommutativeAlgebra}(UInt16[3]))])
+
+        result_mp = m * p
+        @test result_mp isa Polynomial{NonCommutativeAlgebra,UInt16,Float64}
+        @test length(terms(result_mp)) == 2
+
+        # p * m
+        result_pm = p * m
+        @test result_pm isa Polynomial{NonCommutativeAlgebra,UInt16,Float64}
+        @test length(terms(result_pm)) == 2
+
+        # Note: For NonCommutativeAlgebra with site-based encoding,
+        # operators on different sites commute after simplification.
+        # Both m*p and p*m should give same result when sites differ.
+        @test result_mp == result_pm
+    end
+
+    @testset "Polynomial * Polynomial (NonCommutativeAlgebra)" begin
+        # Test multiplication with UInt16 (required by simplify for NC)
+        m1 = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt16[2])
+
+        p1 = Polynomial(Term(2.0, m1))
+        p2 = Polynomial(Term(3.0, m2))
+
+        p_prod = p1 * p2
+        @test coefficients(p_prod)[1] == 6.0
+        @test degree(p_prod) == 2
+    end
+
+    @testset "Polynomial - Monomial subtraction" begin
+        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt8[2])
+        p = Polynomial([Term(3.0, m1)])
+
+        # p - m
+        result1 = p - m2
+        @test length(terms(result1)) == 2
+        monos = monomials(result1)
+        coeffs = coefficients(result1)
+        m2_idx = findfirst(==(m2), monos)
+        @test coeffs[m2_idx] == -1.0
+
+        # m - p
+        result2 = m2 - p
+        @test length(terms(result2)) == 2
+        monos2 = monomials(result2)
+        coeffs2 = coefficients(result2)
+        m1_idx = findfirst(==(m1), monos2)
+        m2_idx2 = findfirst(==(m2), monos2)
+        @test coeffs2[m1_idx] == -3.0
+        @test coeffs2[m2_idx2] == 1.0
     end
 end

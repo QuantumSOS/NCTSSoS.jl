@@ -46,6 +46,18 @@ using NCTSSoS.FastPolynomials
     end
 end
 
+@testset "default_coeff_type trait" begin
+    # PauliAlgebra uses ComplexF64 (Pauli products generate complex phases)
+    @test default_coeff_type(PauliAlgebra) == ComplexF64
+
+    # All other algebras use Float64
+    @test default_coeff_type(NonCommutativeAlgebra) == Float64
+    @test default_coeff_type(FermionicAlgebra) == Float64
+    @test default_coeff_type(BosonicAlgebra) == Float64
+    @test default_coeff_type(ProjectorAlgebra) == Float64
+    @test default_coeff_type(UnipotentAlgebra) == Float64
+end
+
 @testset "AlgebraType Show Methods" begin
     @testset "NonCommutativeAlgebra show" begin
         alg = NonCommutativeAlgebra()

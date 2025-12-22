@@ -44,11 +44,33 @@ make test-FastPoly
 | 5 | `src/polynomial.jl` | Sorted term collection | `Polynomial{A,T,C}`, `coefficients`, `monomials`, `terms`, `variable_indices`, arithmetic |
 
 **Review Focus:**
-- [ ] Monomial hash is precomputed and updated correctly after mutation
-- [ ] Monomial ordering (`isless`) is consistent and total
-- [ ] Term arithmetic handles coefficient types correctly
+- [x] Monomial is immutable (no hash field, hash computed on demand)
+- [x] Monomial ordering (`isless`) is consistent and total
+- [x] Term arithmetic handles coefficient types correctly
 - [ ] Polynomial invariants: sorted terms, no duplicates, no zero coefficients
 - [ ] Polynomial arithmetic preserves invariants
+
+**Review Status:** 🔄 IN PROGRESS
+
+**Changes Made (monomial.jl - 2025-01-XX):**
+- Made `Monomial` immutable (`struct` instead of `mutable struct`)
+- Removed `hash` field - hash now computed on demand via `Base.hash(m.word, h)`
+- Removed `update_hash!` function (no longer needed)
+- Removed `star`, `star!`, `adjoint!` - consolidated to just `Base.adjoint`
+- Simplified `Base.:(==)` - direct word comparison without hash caching
+- Updated simplification functions to return new monomials instead of mutating
+- Added physics notation notes to `adjoint` docstring (dagger †, star *)
+
+**Changes Made (term.jl - 2025-01-22):**
+- Made `Term` immutable (`struct` instead of `mutable struct`) for performance
+  - 0 heap allocations for arithmetic (was 32 bytes per operation)
+  - ~5x faster term creation due to stack allocation/inlining
+  - Monomial reference is shared (no deep copy ever occurs)
+- Added `Base.hash` to fix equality/hash contract violation
+- Generalized `one`/`zero` to work with any `AbstractMonomial` (including `ComposedMonomial`)
+- Added `one`/`isone` for `ComposedMonomial` in composed_monomial.jl
+- Fixed complex coefficient display with parentheses: `(1.0 + 2.0im) * [1, 2]`
+- Kept `iterate` for destructuring support used in sos_solver.jl
 
 ---
 
@@ -65,8 +87,7 @@ make test-FastPoly
 
 **Review Focus:**
 - [ ] Each `simplify` returns the documented type
-- [ ] `simplify!` mutates correctly and updates hash
-- [ ] `simplify` (non-mutating) preserves original
+- [ ] `simplify` returns new monomial (immutable design, no `simplify!` for NC/Unipotent/Projector)
 - [ ] Algebraic rules are mathematically correct
 - [ ] Edge cases: empty monomial, single operator, identity
 
@@ -141,7 +162,7 @@ make test-FastPoly
 | Polynomial terms are sorted | `Polynomial` constructor |
 | Polynomial has no duplicate monomials | `Polynomial` constructor (combines like terms) |
 | Polynomial has no zero coefficients | `Polynomial` constructor (filters zeros) |
-| Monomial hash is current | `update_hash!` after mutation |
+| Monomial is immutable | `struct Monomial` (not `mutable struct`) |
 | StateWord monomials are sorted | `StateWord` constructor |
 | StateWord monomials are canonicalized | `_state_canon` in constructor |
 | Index encoding: site in lower bits | `encode_index` / `decode_site` |

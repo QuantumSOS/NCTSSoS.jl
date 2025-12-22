@@ -90,13 +90,12 @@ end
 """
     _compute_composed_hash(components::Tuple) -> UInt64
 
-Compute hash from component hashes.
-Uses the precomputed hash from each monomial for efficiency.
+Compute hash from component monomials.
 """
 function _compute_composed_hash(components::Tuple)
     h = hash(length(components))
     for mono in components
-        h = hash(mono.hash, h)
+        h = hash(mono, h)
     end
     return h
 end
@@ -197,6 +196,34 @@ julia> degree(cm)
 ```
 """
 degree(cm::ComposedMonomial) = mapreduce(degree, +, cm.components)
+
+"""
+    Base.isone(cm::ComposedMonomial) -> Bool
+
+Check if a ComposedMonomial is the identity (all components are identity monomials).
+"""
+function Base.isone(cm::ComposedMonomial)
+    return all(isone, cm.components)
+end
+
+"""
+    Base.one(::Type{ComposedMonomial{Ts}}) where {Ts<:Tuple}
+
+Create the identity ComposedMonomial (all components are identity monomials).
+"""
+function Base.one(::Type{ComposedMonomial{Ts}}) where {Ts<:Tuple}
+    identity_components = ntuple(i -> one(fieldtype(Ts, i)), fieldcount(Ts))
+    return ComposedMonomial(identity_components)
+end
+
+"""
+    Base.one(cm::ComposedMonomial{Ts}) where {Ts}
+
+Create the identity ComposedMonomial for the same type as `cm`.
+"""
+function Base.one(cm::ComposedMonomial{Ts}) where {Ts}
+    return one(ComposedMonomial{Ts})
+end
 
 """
     Base.isone(t::Term{ComposedMonomial{Ts},C}) where {Ts,C} -> Bool

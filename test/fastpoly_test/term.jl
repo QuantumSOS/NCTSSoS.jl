@@ -58,7 +58,7 @@ using Test, NCTSSoS.FastPolynomials
         @test iszero(t_zero_c)
     end
 
-    @testset "Equality" begin
+    @testset "Equality and Hash" begin
         m1 = Monomial{NonCommutativeAlgebra}([1, 2])
         m2 = Monomial{NonCommutativeAlgebra}([1, 2])
         m3 = Monomial{NonCommutativeAlgebra}([2, 1])
@@ -85,6 +85,22 @@ using Test, NCTSSoS.FastPolynomials
         # Different coefficient types but same values
         t_int = Term(2, Monomial{NonCommutativeAlgebra}([1, 2]))
         @test t1 == t_int  # 2.0 == 2
+
+        # Hash contract: equal terms must have equal hashes
+        @test hash(t1) == hash(t2)
+
+        # Hash works in collections
+        d = Dict{typeof(t1),Int}()
+        d[t1] = 1
+        @test d[t2] == 1  # t2 == t1, so should find it
+
+        # Set deduplication
+        s = Set([t1, t2])
+        @test length(s) == 1
+
+        # Different terms have different hashes (with high probability)
+        @test hash(t1) != hash(t3)
+        @test hash(t1) != hash(t4)
     end
 
     @testset "one(Type)" begin
@@ -123,6 +139,30 @@ using Test, NCTSSoS.FastPolynomials
 
         # Verify isone(zero(T)) is false
         @test !isone(zero(T))
+    end
+
+    @testset "one/zero for ComposedMonomial" begin
+        # Create a ComposedMonomial type
+        m_pauli = Monomial{PauliAlgebra,UInt16}(UInt16[1, 2])
+        m_fermi = Monomial{FermionicAlgebra,Int32}(Int32[1])
+        cm = ComposedMonomial((m_pauli, m_fermi))
+
+        # Test one for ComposedMonomial
+        cm_one = one(cm)
+        @test isone(cm_one)
+        @test all(isone, cm_one.components)
+
+        # Test one for Term with ComposedMonomial
+        CMType = typeof(cm)
+        T_composed = Term{CMType,ComplexF64}
+        t_one = one(T_composed)
+        @test isone(t_one)
+        @test t_one.coefficient == (1.0 + 0.0im)
+
+        # Test zero for Term with ComposedMonomial
+        t_zero = zero(T_composed)
+        @test iszero(t_zero)
+        @test t_zero.coefficient == (0.0 + 0.0im)
     end
 
     @testset "Scalar Multiplication" begin
@@ -211,6 +251,10 @@ using Test, NCTSSoS.FastPolynomials
         # Negative coefficient (not -1)
         t_neg = Term(-2.5, m)
         @test sprint(show, t_neg) == "-2.5 * [1, 2]"
+
+        # Complex coefficient (parenthesized)
+        t_complex = Term(1.0 + 2.0im, m)
+        @test sprint(show, t_complex) == "(1.0 + 2.0im) * [1, 2]"
     end
 
     @testset "Iteration Protocol" begin
@@ -244,16 +288,17 @@ using Test, NCTSSoS.FastPolynomials
         @test iter3 === nothing
     end
 
-    @testset "Mutability" begin
-        # Term is mutable - coefficient can be changed
+    @testset "Immutability" begin
+        # Term is immutable - monomial reference is shared
         m = Monomial{NonCommutativeAlgebra}([1, 2])
-        t = Term(2.0, m)
+        t1 = Term(2.0, m)
+        t2 = Term(3.0, m)
 
-        # Modify coefficient in place
-        t.coefficient = 5.0
-        @test t.coefficient == 5.0
+        # Both terms share the same monomial
+        @test t1.monomial === t2.monomial
 
-        # Original monomial reference is preserved
-        @test t.monomial === m
+        # Creating a new term via multiplication shares the monomial
+        t3 = 2.0 * t1
+        @test t3.monomial === t1.monomial
     end
 end

@@ -17,7 +17,8 @@ returns a Term with an appropriate coefficient type:
 - Pauli: `ComplexF64` (due to i phases from cyclic products)
 - Fermionic/Bosonic/Projector/Unipotent: `Float64` (real coefficients only)
 
-Term is mutable to allow coefficient modification during polynomial accumulation.
+Term is immutable for performance (enables stack allocation and inlining).
+The monomial field stores a reference, so no deep copying occurs.
 
 # Examples
 ```jldoctest
@@ -50,7 +51,7 @@ julia> t.coefficient
 1.0
 ```
 """
-mutable struct Term{M<:AbstractMonomial,C<:Number}
+struct Term{M<:AbstractMonomial,C<:Number}
     coefficient::C
     monomial::M
 end
@@ -78,7 +79,7 @@ false
 ```
 """
 function Base.isone(t::Term{M,C}) where {M<:AbstractMonomial,C}
-    isone(t.coefficient) && isone(t.monomial)
+    return isone(t.coefficient) && isone(t.monomial)
 end
 
 """
@@ -111,7 +112,20 @@ coefficient and monomial.
 """
 function Base.:(==)(t1::Term{M1,C1}, t2::Term{M2,C2}) where {M1,M2,C1,C2}
     M1 !== M2 && return false
-    t1.coefficient == t2.coefficient && t1.monomial == t2.monomial
+    return t1.coefficient == t2.coefficient && t1.monomial == t2.monomial
+end
+
+"""
+    Base.hash(t::Term, h::UInt) -> UInt
+
+Hash function for Term. Combines hashes of coefficient and monomial.
+
+This ensures the hash/equality contract: if `t1 == t2`, then `hash(t1) == hash(t2)`.
+"""
+function Base.hash(t::Term, h::UInt)
+    h = hash(t.coefficient, h)
+    h = hash(t.monomial, h)
+    return h
 end
 
 # Show method for clean output
@@ -129,15 +143,22 @@ function Base.show(io::IO, t::Term{M,C}) where {M<:Monomial,C}
         print(io, "-")
         show(io, t.monomial)
     else
-        print(io, t.coefficient, " * ")
+        if !isreal(t.coefficient)
+            print(io, "(" * string(t.coefficient) * ") * ")
+        else
+            print(io, t.coefficient, " * ")
+        end
         show(io, t.monomial)
     end
 end
 
 """
-    Base.one(::Type{Term{Monomial{A,T},C}}) where {A<:AlgebraType, T<:Integer, C<:Number}
+    Base.one(::Type{Term{M,C}}) where {M<:AbstractMonomial, C<:Number}
 
-Create an identity term (coefficient 1 with empty monomial).
+Create an identity term (coefficient 1 with identity monomial).
+
+Works for any `AbstractMonomial` subtype (`Monomial` or `ComposedMonomial`)
+as long as the monomial type implements `one(::Type{M})`.
 
 # Examples
 ```jldoctest
@@ -150,15 +171,17 @@ julia> one(Term{Monomial{PauliAlgebra,UInt16},ComplexF64})
 1
 ```
 """
-# TODO: shouldn't need to implement this for every specific `AbstractTerm` subtype
-function Base.one(::Type{Term{Monomial{A,T},C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    Term{Monomial{A,T},C}(one(C), Monomial{A}(T[]))
+function Base.one(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number}
+    return Term{M,C}(one(C), one(M))
 end
 
 """
-    Base.zero(::Type{Term{Monomial{A,T},C}}) where {A<:AlgebraType, T<:Integer, C<:Number}
+    Base.zero(::Type{Term{M,C}}) where {M<:AbstractMonomial, C<:Number}
 
-Create a zero term (coefficient 0 with empty monomial).
+Create a zero term (coefficient 0 with identity monomial).
+
+Works for any `AbstractMonomial` subtype (`Monomial` or `ComposedMonomial`)
+as long as the monomial type implements `one(::Type{M})`.
 
 # Examples
 ```jldoctest
@@ -171,31 +194,41 @@ julia> iszero(zero(Term{Monomial{FermionicAlgebra,Int32},Float64}))
 true
 ```
 """
-# TODO: shouldn't need to implement this for every specific `AbstractTerm` subtype
-function Base.zero(::Type{Term{Monomial{A,T},C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    Term{Monomial{A,T},C}(zero(C), Monomial{A}(T[]))
+function Base.zero(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number}
+    return Term{M,C}(zero(C), one(M))
 end
 
-# Scalar multiplication
+# =============================================================================
+# Scalar Multiplication
+# =============================================================================
+
 """
     Base.:*(c::Number, t::Term) -> Term
     Base.:*(t::Term, c::Number) -> Term
 
-Scalar multiplication of a term. Creates a new Term.
+Scalar multiplication of a term. Returns a new Term with promoted coefficient type.
 """
 function Base.:*(c::Number, t::Term{M,C}) where {M,C}
     NC = promote_type(typeof(c), C)
-    Term{M,NC}(NC(c * t.coefficient), t.monomial)
+    return Term{M,NC}(NC(c * t.coefficient), t.monomial)
 end
 
 Base.:*(t::Term, c::Number) = c * t
 
+# =============================================================================
+# Negation
+# =============================================================================
+
 """
     Base.:-(t::Term) -> Term
 
-Negation of a term.
+Negation of a term. Returns a new Term.
 """
 Base.:-(t::Term{M,C}) where {M,C} = Term{M,C}(-t.coefficient, t.monomial)
+
+# =============================================================================
+# Iteration Protocol
+# =============================================================================
 
 """
     Base.iterate(t::Term) -> Tuple
@@ -224,7 +257,7 @@ julia> mono.word
 ```
 """
 function Base.iterate(t::Term)
-    (t.coefficient, 1)
+    return (t.coefficient, 1)
 end
 
 function Base.iterate(t::Term, state::Int)
@@ -235,5 +268,4 @@ function Base.iterate(t::Term, state::Int)
     end
 end
 
-# Also define length for completeness
 Base.length(::Term) = 2

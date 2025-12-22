@@ -42,7 +42,6 @@ export AbstractPolynomial, Polynomial
 export degree, maxdegree
 export coefficients, monomials, terms, variables
 export simplify, simplify!
-export star, star!, adjoint!
 export symmetric_canon, cyclic_canon, cyclic_symmetric_canon, canonicalize
 
 # Basis generation

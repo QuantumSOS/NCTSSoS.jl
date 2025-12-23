@@ -25,8 +25,8 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 4. Evaluate signs using permutation parity
 """
 
-# Helper functions (use shared _is_creation from utils.jl)
-@inline _fermi_mode(op::Integer) = _operator_mode(op)
+# Note: Helper functions (_is_creation, _operator_mode, normal_order_key,
+# combine_like_terms) are in utils.jl
 
 """
     has_even_parity(m::Monomial{FermionicAlgebra,T}) where T -> Bool
@@ -103,13 +103,13 @@ function Base.iszero(m::Monomial{FermionicAlgebra,T}) where {T}
     isempty(word) && return false
 
     # Find max mode to size the tracking array
-    max_mode = maximum(_fermi_mode, word)
+    max_mode = maximum(_operator_mode, word)
 
     # Track last seen operator type: 0 = unseen, 1 = annihilation, -1 = creation
     last_seen = zeros(Int8, max_mode)
 
     for op in word
-        mode = _fermi_mode(op)
+        mode = _operator_mode(op)
         op_type = _is_creation(op) ? Int8(-1) : Int8(1)
 
         if last_seen[mode] == op_type
@@ -178,7 +178,7 @@ function _find_valid_contractions(word::Vector{T}) where {T}
             op_j = word[j]
 
             # Non-zero contraction: annihilation at i, creation at j, same mode
-            if !_is_creation(op_i) && _is_creation(op_j) && _fermi_mode(op_i) == _fermi_mode(op_j)
+            if !_is_creation(op_i) && _is_creation(op_j) && _operator_mode(op_i) == _operator_mode(op_j)
                 push!(contractions, (i, j))
             end
         end
@@ -307,7 +307,7 @@ function _compute_normal_ordered_term(word::Vector{T}, contraction::Vector{Tuple
     end
 
     # Sort to normal order: creators (negative) first by mode, then annihilators (positive) by mode
-    sorted_remaining = sort(remaining, by=x -> (_is_creation(x[1]) ? 0 : 1, _fermi_mode(x[1])))
+    sorted_remaining = sort(remaining, by=x -> normal_order_key(x[1]))
 
     # Extract the normal-ordered operators
     normal_word = T[op for (op, _) in sorted_remaining]
@@ -333,40 +333,14 @@ function _compute_normal_ordered_term(word::Vector{T}, contraction::Vector{Tuple
     return (Float64(total_sign), normal_word)
 end
 
-"""
-    _combine_like_terms_fermi(terms::Vector{Term}) -> Vector{Term}
-
-Combine terms with identical monomials by summing coefficients.
-"""
-function _combine_like_terms_fermi(terms::Vector{Term{Monomial{FermionicAlgebra,T},Float64}}) where {T}
-    isempty(terms) && return [Term(0.0, Monomial{FermionicAlgebra}(T[]))]
-
-    grouped = Dict{Vector{T},Float64}()
-    for t in terms
-        key = t.monomial.word
-        grouped[key] = get(grouped, key, 0.0) + t.coefficient
-    end
-
-    result = Term{Monomial{FermionicAlgebra,T},Float64}[]
-    for (word, coef) in grouped
-        if coef != 0.0
-            push!(result, Term(coef, Monomial{FermionicAlgebra}(word)))
-        end
-    end
-
-    if isempty(result)
-        push!(result, Term(0.0, Monomial{FermionicAlgebra}(T[])))
-    end
-
-    return result
-end
+# Note: combine_like_terms is now in utils.jl as a shared helper
 
 """
     simplify(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
 
 Simplify and normal-order a fermionic algebra monomial using Generalized Wick's Theorem.
 
-Returns a Polynomial representing the normal-ordered expansion (potentially with multiple 
+Returns a Polynomial representing the normal-ordered expansion (potentially with multiple
 terms due to anticommutation). The original monomial is unchanged.
 
 # Algorithm
@@ -428,7 +402,7 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     end
 
     # Combine like terms
-    result_terms = _combine_like_terms_fermi(result_terms)
+    result_terms = combine_like_terms(result_terms)
 
     return Polynomial(result_terms)
 end

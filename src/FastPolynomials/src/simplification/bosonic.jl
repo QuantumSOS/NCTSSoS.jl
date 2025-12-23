@@ -68,63 +68,8 @@ julia> length(terms(poly))  # Two terms: c₁† c₁ and identity
 ```
 """
 
-# Encoding helper functions (exported for testing)
-
-"""
-    bosonic_mode(op::T) where T<:Integer -> T
-
-Extract the mode (site) index from a bosonic operator.
-Returns the absolute value, preserving the input integer type.
-"""
-@inline bosonic_mode(op::Integer) = _operator_mode(op)
-
-"""
-    bosonic_sort_key(op::T) where T
-
-Compute sort key for bosonic operators.
-Creations (negative) come first, then annihilations (positive).
-Within each type, sort by mode in ascending order.
-"""
-@inline function bosonic_sort_key(op)
-    is_cr = _is_creation(op)
-    mode = bosonic_mode(op)
-    return (is_cr ? 0 : 1, mode)
-end
-
-"""
-    is_normal_ordered(word::Vector{T}) where T -> Bool
-
-Check if a bosonic word is already in normal order.
-"""
-function is_normal_ordered(word::Vector{T}) where {T}
-    length(word) <= 1 && return true
-
-    for i in 1:length(word)-1
-        key_i = bosonic_sort_key(word[i])
-        key_i1 = bosonic_sort_key(word[i+1])
-        if key_i > key_i1
-            return false
-        end
-    end
-    return true
-end
-
-"""
-    find_first_out_of_order_bosonic(word::Vector{T}) where T -> Int
-
-Find the first position where operators are out of normal order.
-Returns the index, or 0 if already in normal order (type-stable).
-"""
-function find_first_out_of_order_bosonic(word::Vector{T}) where {T}
-    for i in 1:length(word)-1
-        key_i = bosonic_sort_key(word[i])
-        key_i1 = bosonic_sort_key(word[i+1])
-        if key_i > key_i1
-            return i
-        end
-    end
-    return 0  # Type-stable: returns Int, not Nothing
-end
+# Note: Helper functions (_is_creation, _operator_mode, normal_order_key,
+# find_first_out_of_order, is_normal_ordered) are in utils.jl
 
 """
     simplify(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}
@@ -200,13 +145,13 @@ function group_by_mode!(word::Vector{T})::Vector{Int} where {T}
     isempty(word) && return [0]
 
     # Stable sort by mode - groups operators while preserving relative order
-    sort!(word; by=bosonic_mode, alg=Base.InsertionSort)
+    sort!(word; by=_operator_mode, alg=Base.InsertionSort)
 
     # Single sweep to find partition boundaries
     sep = [0]
-    current_mode = bosonic_mode(word[1])
+    current_mode = _operator_mode(word[1])
     for i in 2:length(word)
-        m = bosonic_mode(word[i])
+        m = _operator_mode(word[i])
         if m != current_mode
             push!(sep, i - 1)
             current_mode = m
@@ -452,7 +397,7 @@ function simplify_bosonic_grouped!(
     modes = Vector{Int}(undef, n_modes)
     mode_results = Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}}(undef, n_modes)
     for i in 1:n_modes
-        modes[i] = bosonic_mode(word[sep[i]+1])
+        modes[i] = _operator_mode(word[sep[i]+1])
         ops = @view word[sep[i]+1:sep[i+1]]
         mode_results[i] = (i, single_mode_normal_form(ops))
     end

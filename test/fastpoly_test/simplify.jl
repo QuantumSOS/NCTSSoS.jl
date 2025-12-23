@@ -14,9 +14,11 @@ using NCTSSoS.FastPolynomials:
     decode_site,
     # Fermionic helper
     has_even_parity,
-    # Bosonic helpers
+    # Shared normal ordering helpers (utils.jl)
+    normal_order_key,
     is_normal_ordered,
-    find_first_out_of_order_bosonic
+    find_first_out_of_order,
+    combine_like_terms
 
 # Note: The new API uses AlgebraType dispatch for simplification instead of SimplifyAlgorithm
 # Each algebra type (NonCommutativeAlgebra, PauliAlgebra, UnipotentAlgebra, etc.) has its own simplification rules
@@ -515,28 +517,28 @@ end
         @test is_normal_ordered(Int32[-1, 1, -2, 2]) == false
     end
 
-    @testset "find_first_out_of_order_bosonic helper" begin
+    @testset "find_first_out_of_order helper" begin
         # Empty word → already normal (returns 0)
-        @test find_first_out_of_order_bosonic(Int32[]) == 0
+        @test find_first_out_of_order(Int32[]) == 0
 
         # Single operator → already normal (returns 0)
-        @test find_first_out_of_order_bosonic(Int32[1]) == 0
+        @test find_first_out_of_order(Int32[1]) == 0
 
         # Normal order → returns 0
-        @test find_first_out_of_order_bosonic(Int32[-1, 1]) == 0
-        @test find_first_out_of_order_bosonic(Int32[-1, -2, 1, 2]) == 0
+        @test find_first_out_of_order(Int32[-1, 1]) == 0
+        @test find_first_out_of_order(Int32[-1, -2, 1, 2]) == 0
 
         # c₁ c₁† → position 1 is out of order (annihilator followed by creator)
-        @test find_first_out_of_order_bosonic(Int32[1, -1]) == 1
+        @test find_first_out_of_order(Int32[1, -1]) == 1
 
         # c₂† c₁† → position 1 is out of order (creator with higher mode before lower)
-        @test find_first_out_of_order_bosonic(Int32[-2, -1]) == 1
+        @test find_first_out_of_order(Int32[-2, -1]) == 1
 
         # c₁† c₂ c₁ → position 2 is out of order (annihilator c₂ before c₁)
-        @test find_first_out_of_order_bosonic(Int32[-1, 2, 1]) == 2
+        @test find_first_out_of_order(Int32[-1, 2, 1]) == 2
 
         # c₁† c₁ c₂† c₂ → position 2 is out of order (annihilator before creator)
-        @test find_first_out_of_order_bosonic(Int32[-1, 1, -2, 2]) == 2
+        @test find_first_out_of_order(Int32[-1, 1, -2, 2]) == 2
     end
 end
 
@@ -784,5 +786,61 @@ end
         @test result6 === m6
         @test length(m5.word) == 2  # Original unchanged
         @test isempty(m6.word)  # Original mutated
+    end
+end
+
+@testset "Shared Normal Ordering Helpers (utils.jl)" begin
+    @testset "normal_order_key" begin
+        # Creation operators (negative) have key starting with 0
+        @test normal_order_key(Int32(-1))[1] == 0  # c₁†
+        @test normal_order_key(Int32(-3))[1] == 0  # c₃†
+
+        # Annihilation operators (positive) have key starting with 1
+        @test normal_order_key(Int32(1))[1] == 1   # c₁
+        @test normal_order_key(Int32(2))[1] == 1   # c₂
+
+        # Mode is the second element
+        @test normal_order_key(Int32(-3))[2] == 3  # c₃† has mode 3
+        @test normal_order_key(Int32(2))[2] == 2   # c₂ has mode 2
+
+        # Sorting by normal_order_key gives normal order
+        ops = Int32[2, -1, 1, -2]  # c₂ c₁† c₁ c₂†
+        sorted_ops = sort(ops, by=normal_order_key)
+        @test sorted_ops == Int32[-1, -2, 1, 2]  # c₁† c₂† c₁ c₂
+    end
+
+    @testset "combine_like_terms" begin
+        # Test with FermionicAlgebra
+        t1 = Term(1.0, Monomial{FermionicAlgebra}(Int32[-1, 1]))
+        t2 = Term(2.0, Monomial{FermionicAlgebra}(Int32[-1, 1]))
+        t3 = Term(1.0, Monomial{FermionicAlgebra}(Int32[]))
+
+        result = combine_like_terms([t1, t2, t3])
+        @test length(result) == 2
+
+        # Find the combined term
+        combined_term = findfirst(t -> t.monomial.word == Int32[-1, 1], result)
+        @test !isnothing(combined_term)
+        @test result[combined_term].coefficient == 3.0  # 1.0 + 2.0
+
+        # Test cancellation
+        t4 = Term(1.0, Monomial{FermionicAlgebra}(Int32[1]))
+        t5 = Term(-1.0, Monomial{FermionicAlgebra}(Int32[1]))
+        result_cancel = combine_like_terms([t4, t5])
+        # Should return zero term when everything cancels
+        @test length(result_cancel) == 1
+        @test result_cancel[1].coefficient == 0.0
+
+        # Test with BosonicAlgebra
+        b1 = Term(2.0, Monomial{BosonicAlgebra}(Int32[-1, 1]))
+        b2 = Term(3.0, Monomial{BosonicAlgebra}(Int32[-1, 1]))
+        result_bos = combine_like_terms([b1, b2])
+        @test length(result_bos) == 1
+        @test result_bos[1].coefficient == 5.0
+
+        # Test empty input
+        empty_result = combine_like_terms(Term{Monomial{FermionicAlgebra,Int32},Float64}[])
+        @test length(empty_result) == 1
+        @test empty_result[1].coefficient == 0.0
     end
 end

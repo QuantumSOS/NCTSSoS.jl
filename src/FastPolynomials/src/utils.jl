@@ -221,3 +221,122 @@ julia> _operator_mode(2)   # a₂ → mode 2
 ```
 """
 @inline _operator_mode(op::T) where {T<:Integer} = abs(op)
+
+"""
+    normal_order_key(op::T) where T<:Integer -> Tuple{Int, T}
+
+Compute the sort key for normal ordering of fermionic/bosonic operators.
+Creation operators (negative) come first, then annihilation operators (positive).
+Within each group, operators are sorted by mode in ascending order.
+
+This establishes a canonical normal order used by both fermionic and bosonic algebras.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials: normal_order_key
+
+julia> normal_order_key(-3)  # a₃† (creation)
+(0, 3)
+
+julia> normal_order_key(2)   # a₂ (annihilation)
+(1, 2)
+```
+"""
+@inline function normal_order_key(op::T) where {T<:Integer}
+    return (_is_creation(op) ? 0 : 1, _operator_mode(op))
+end
+
+"""
+    find_first_out_of_order(word::AbstractVector{T}) where T<:Integer -> Int
+
+Find the first position where operators are out of normal order.
+Returns the index `i` where `word[i]` and `word[i+1]` are out of order,
+or 0 if the word is already in normal order.
+
+Normal order means: all creators (negative) before annihilators (positive),
+sorted by mode within each group.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials: find_first_out_of_order
+
+julia> find_first_out_of_order(Int32[-1, 1])  # c₁† c₁ (normal order)
+0
+
+julia> find_first_out_of_order(Int32[1, -1])  # c₁ c₁† (out of order at position 1)
+1
+
+julia> find_first_out_of_order(Int32[-2, -1]) # c₂† c₁† (out of order at position 1)
+1
+```
+"""
+function find_first_out_of_order(word::AbstractVector{T}) where {T<:Integer}
+    @inbounds for i in 1:length(word)-1
+        key_i = normal_order_key(word[i])
+        key_i1 = normal_order_key(word[i+1])
+        key_i > key_i1 && return i
+    end
+    return 0
+end
+
+"""
+    is_normal_ordered(word::AbstractVector{T}) where T<:Integer -> Bool
+
+Check if a word of fermionic/bosonic operators is in normal order.
+Normal order means: all creators (negative) before annihilators (positive),
+sorted by mode within each group.
+
+Implemented in terms of `find_first_out_of_order` for DRY.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials: is_normal_ordered
+
+julia> is_normal_ordered(Int32[-1, -2, 1, 2])  # c₁† c₂† c₁ c₂ (normal)
+true
+
+julia> is_normal_ordered(Int32[1, -1])  # c₁ c₁† (not normal)
+false
+```
+"""
+is_normal_ordered(word::AbstractVector{T}) where {T<:Integer} = find_first_out_of_order(word) == 0
+
+"""
+    combine_like_terms(terms::Vector{Term{M,C}}) where {M,C} -> Vector{Term{M,C}}
+
+Combine terms with identical monomials by summing their coefficients.
+Filters out terms with zero coefficients.
+
+This is a generic utility used by both fermionic and bosonic simplification.
+
+# Arguments
+- `terms`: Vector of Terms to combine
+
+# Returns
+A new vector with like terms combined. If all terms cancel to zero,
+returns a vector with a single zero term.
+"""
+function combine_like_terms(
+    terms::Vector{Term{Monomial{A,T},C}}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    isempty(terms) && return [Term(zero(C), Monomial{A}(T[]))]
+
+    grouped = Dict{Vector{T},C}()
+    for t in terms
+        key = t.monomial.word
+        grouped[key] = get(grouped, key, zero(C)) + t.coefficient
+    end
+
+    result = Term{Monomial{A,T},C}[]
+    for (word, coef) in grouped
+        if !iszero(coef)
+            push!(result, Term(coef, Monomial{A}(word)))
+        end
+    end
+
+    if isempty(result)
+        push!(result, Term(zero(C), Monomial{A}(T[])))
+    end
+
+    return result
+end

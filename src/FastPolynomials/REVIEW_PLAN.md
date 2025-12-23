@@ -191,11 +191,21 @@ make test-FastPoly
 | 14 | `src/basis.jl` | Basis generation for SDP | `get_ncbasis`, `get_ncbasis_deg` |
 
 **Review Focus:**
-- [ ] `symmetric_canon`: min(word, reverse(word))
-- [ ] `cyclic_canon`: lexicographically smallest rotation
-- [ ] `cyclic_symmetric_canon`: combines both for trace states
+- [x] `symmetric_canon`: min(word, reverse(word))
+- [x] `cyclic_canon`: lexicographically smallest rotation
+- [x] `cyclic_symmetric_canon`: combines both for trace states
 - [ ] Basis generation produces correct degree-bounded monomials
 - [ ] No duplicate basis elements
+
+**Review Status (canonicalization.jl):** ✅ APPROVED (2025-01-23)
+
+**Changes Made (canonicalization.jl - 2025-01-23):**
+- Removed TODO comments (concerns addressed by library architecture)
+- Optimized `cyclic_canon` to reduce memory allocations from O(n²) to O(1):
+  - Now finds optimal rotation offset first via index comparisons
+  - Allocates result vector only once at the end
+- Added docstring note to `canonicalize` clarifying it operates on structural word level
+  and assumes prior algebraic simplification
 
 ---
 

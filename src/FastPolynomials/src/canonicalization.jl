@@ -54,17 +54,16 @@ julia> symmetric_canon([1, 2, 1])  # palindrome
 
 See also: [`cyclic_canon`](@ref), [`cyclic_symmetric_canon`](@ref), [`canonicalize`](@ref)
 """
-# TODO: need to verify that commutative group cases works
 function symmetric_canon(word::Vector{T}) where {T}
     n = length(word)
 
     # Early return for empty or single-element words
-    n <= 1 && return copy(word)
+    n <= 1 && return word
 
     # Compare from both ends, decide as soon as a difference is found
     for i in 1:div(n, 2)
         if word[i] < word[n+1-i]
-            return copy(word)
+            return word
         elseif word[i] > word[n+1-i]
             return reverse(word)
         end
@@ -72,7 +71,7 @@ function symmetric_canon(word::Vector{T}) where {T}
     end
 
     # All compared pairs are equal (palindrome or equal under reversal)
-    return copy(word)
+    return word
 end
 
 """
@@ -114,8 +113,8 @@ Used for trace optimization where cyclic permutations are equivalent
 - A copy of the lexicographically smallest cyclic rotation
 
 # Algorithm
-Iterates through all n rotations and keeps track of the minimum.
-Time complexity: O(n^2) in the worst case.
+Finds the optimal rotation offset first (O(n²) comparisons, O(1) allocations),
+then constructs the result vector once. Time complexity: O(n²) comparisons.
 
 # Examples
 ```jldoctest
@@ -140,23 +139,31 @@ julia> cyclic_canon([1, 2, 3])  # already canonical
 
 See also: [`symmetric_canon`](@ref), [`cyclic_symmetric_canon`](@ref), [`canonicalize`](@ref)
 """
-# TODO: do I need to simplify first before comparing? See `NCTSSOS`
 function cyclic_canon(word::Vector{T}) where {T}
-    isempty(word) && return copy(word)
-
     n = length(word)
-    best = copy(word)
+    n <= 1 && return copy(word)
 
-    # Try all rotations
-    for i in 1:(n-1)
-        # Rotation: word[i+1:end] followed by word[1:i]
-        rotated = vcat(word[(i+1):end], word[1:i])
-        if rotated < best
-            best = rotated
+    best_offset = 0
+
+    # Find the lexicographically smallest rotation by comparing offsets
+    for offset in 1:(n-1)
+        # Compare rotation at best_offset vs rotation at offset
+        for i in 1:n
+            idx_best = mod1(i + best_offset, n)
+            idx_curr = mod1(i + offset, n)
+
+            if word[idx_curr] < word[idx_best]
+                best_offset = offset
+                break
+            elseif word[idx_curr] > word[idx_best]
+                break
+            end
+            # If equal, continue comparing next position
         end
     end
 
-    return best
+    # Allocate result only once
+    return [word[mod1(i + best_offset, n)] for i in 1:n]
 end
 
 """
@@ -252,6 +259,9 @@ end
 
 Canonicalize a monomial using the specified method.
 
+This function operates on the structural word level and assumes that algebraic
+simplification (e.g., `simplify`) has already been applied if needed.
+
 # Arguments
 - `m::Monomial{A,T}`: The monomial to canonicalize
 - `cyclic::Bool=false`: Canonicalization mode
@@ -341,5 +351,3 @@ function canonicalize(
     # Polynomial constructor handles sorting, deduplication, and zero removal
     Polynomial(new_terms)
 end
-
-

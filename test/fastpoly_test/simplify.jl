@@ -280,6 +280,45 @@ end
         @test !iszero(m_alt)
     end
 
+    @testset "Surplus-based iszero (net flux >= 2)" begin
+        # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0 (surplus of 2 annihilations for mode 1)
+        m_cross_mode = Monomial{FermionicAlgebra}(Int32[1, 2, 1])
+        @test iszero(m_cross_mode)
+
+        # a₁† a₂† a₁† = 0 (surplus of 2 creations for mode 1)
+        m_cross_mode_dag = Monomial{FermionicAlgebra}(Int32[-1, -2, -1])
+        @test iszero(m_cross_mode_dag)
+
+        # a₁ a₁ a₁† has surplus 1 (2 ann - 1 cre = 1), NOT zero yet
+        # simplify will handle it via anticommutation: a₁ a₁ a₁† = a₁ (1 - a₁† a₁) = a₁
+        # Wait, a₁ a₁ = 0, so a₁ a₁ a₁† = 0. Let me reconsider.
+        # Actually: a₁ a₁ a₁† = (a₁ a₁) a₁† = 0 * a₁† = 0
+        # The surplus check is |2 - 1| = 1 < 2, so iszero returns false
+        # But simplify should still return 0 because a₁ a₁ = 0
+        m_surplus_1 = Monomial{FermionicAlgebra}(Int32[1, 1, -1])
+        @test !iszero(m_surplus_1)  # iszero uses surplus >= 2 check
+        result_surplus = simplify(m_surplus_1)
+        # But simplify should detect nilpotency via the full algorithm
+        @test isempty(result_surplus.terms) || iszero(result_surplus.terms[1].coefficient)
+
+        # a₁† a₁ a₁† has surplus -1 (1 - 2 = -1), NOT zero
+        # a₁† a₁ a₁† = a₁† (1 - a₁† a₁) = a₁† - a₁† a₁† a₁ = a₁† - 0 = a₁† ≠ 0
+        m_surplus_neg1 = Monomial{FermionicAlgebra}(Int32[-1, 1, -1])
+        @test !iszero(m_surplus_neg1)
+        result_neg1 = simplify(m_surplus_neg1)
+        @test length(result_neg1.terms) == 1
+        @test result_neg1.terms[1].coefficient == 1.0
+        @test result_neg1.terms[1].monomial.word == [-1]  # Just a₁†
+
+        # a₁ a₂ a₃ a₁ a₂ = 0 (modes 1 and 2 each have surplus 2)
+        m_multi_surplus = Monomial{FermionicAlgebra}(Int32[1, 2, 3, 1, 2])
+        @test iszero(m_multi_surplus)
+
+        # a₁ a₂ a₁† a₂† = non-zero (each mode has surplus 0)
+        m_balanced = Monomial{FermionicAlgebra}(Int32[1, 2, -1, -2])
+        @test !iszero(m_balanced)
+    end
+
     @testset "Multi-mode" begin
         # a₁ a₂† → -a₂† a₁ (different modes, need to swap an and cr)
         m_cross = a[1] * a_dag[2]

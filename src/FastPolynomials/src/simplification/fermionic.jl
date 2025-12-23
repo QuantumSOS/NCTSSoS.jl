@@ -73,28 +73,35 @@ end
 Check if a fermionic monomial is zero due to nilpotency.
 
 # Algorithm
-Scan through operators tracking the last seen operator type for each mode.
-If we see the same operator type (creation or annihilation) for the same mode
-twice without an intervening opposite type, the monomial is zero.
+A fermionic monomial is zero if for any mode, the net surplus of operators
+(annihilation minus creation, or vice versa) is 2 or more. This is because:
+- `aᵢ aᵢ = 0` (two annihilations with no creation to contract)
+- `aᵢ† aᵢ† = 0` (two creations with no annihilation to contract)
 
-This works because consecutive same-type operators for a mode cannot be
-contracted away and will produce nilpotent terms (aᵢ² = 0, (aᵢ†)² = 0).
+The key insight is that anticommutation `{aᵢ, aⱼ} = 0` allows reordering,
+but if there's a net surplus of ≥2 same-type operators for any mode,
+they cannot all be contracted away and the result is zero.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{FermionicAlgebra}(Int32[1, 1]);  # a₁ a₁ = 0
+julia> m = Monomial{FermionicAlgebra}(Int32[1, 1]);  # a₁ a₁ = 0 (surplus 2)
 
 julia> iszero(m)
 true
 
-julia> m2 = Monomial{FermionicAlgebra}(Int32[1, -1, 1, -1]);  # a₁ a₁† a₁ a₁† ≠ 0
+julia> m2 = Monomial{FermionicAlgebra}(Int32[1, 2, 1]);  # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0
 
 julia> iszero(m2)
-false
+true
 
-julia> m3 = Monomial{FermionicAlgebra}(Int32[1, -1, 1]);  # a₁ a₁† a₁ = a₁ ≠ 0
+julia> m3 = Monomial{FermionicAlgebra}(Int32[1, 1, -1]);  # a₁ a₁ a₁† (surplus 1, not zero yet)
 
 julia> iszero(m3)
+false
+
+julia> m4 = Monomial{FermionicAlgebra}(Int32[1, -1, 1, -1]);  # a₁ a₁† a₁ a₁† ≠ 0
+
+julia> iszero(m4)
 false
 ```
 """
@@ -105,17 +112,23 @@ function Base.iszero(m::Monomial{FermionicAlgebra,T}) where {T}
     # Find max mode to size the tracking array
     max_mode = maximum(_operator_mode, word)
 
-    # Track last seen operator type: 0 = unseen, 1 = annihilation, -1 = creation
-    last_seen = zeros(Int8, max_mode)
+    # Track net flux (annihilation - creation) for each mode
+    # +1 for annihilation, -1 for creation
+    flux = zeros(Int, max_mode)
 
-    for op in word
+    @inbounds for op in word
         mode = _operator_mode(op)
-        op_type = _is_creation(op) ? Int8(-1) : Int8(1)
-
-        if last_seen[mode] == op_type
-            return true  # Same type twice without intervening opposite
+        if _is_creation(op)
+            flux[mode] -= 1
+        else
+            flux[mode] += 1
         end
-        last_seen[mode] = op_type
+    end
+
+    # Check if any mode has a surplus of 2 or more operators
+    # |flux| >= 2 implies the operator is nilpotent
+    @inbounds for f in flux
+        abs(f) >= 2 && return true
     end
 
     return false

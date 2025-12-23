@@ -100,10 +100,58 @@ make test-FastPoly
 | 11 | `src/simplification/bosonic.jl` | `BosonicAlgebra` | [cᵢ, cⱼ†] = δᵢⱼ | `Polynomial` |
 
 **Review Focus:**
-- [ ] Each `simplify` returns the documented type
-- [ ] `simplify` returns new monomial (immutable design, no `simplify!` for NC/Unipotent/Projector)
-- [ ] Algebraic rules are mathematically correct
-- [ ] Edge cases: empty monomial, single operator, identity
+- [x] Each `simplify` returns the documented type
+- [x] `simplify` returns new monomial (immutable design)
+- [x] `simplify!` only available when return type matches input (NC, Projector, Unipotent)
+- [x] No `simplify!` for Pauli (returns Term), Fermionic/Bosonic (returns Polynomial)
+- [x] Algebraic rules are mathematically correct
+- [x] Edge cases: empty monomial, single operator, identity
+
+**Review Status:** ✅ APPROVED (2025-01-23)
+
+**Changes Made (simplification - 2025-01-22/23):**
+
+*noncommutative.jl, projector.jl, unipotent.jl:*
+- Added docstrings for `simplify!` functions
+- Reordered functions to standard pattern: internal → `simplify!` → `simplify`
+- Optimized `unipotent.jl`: use single `deleteat!(word, i:i+1)` instead of two calls
+
+*pauli.jl:*
+- Removed misleading `simplify!` (returns `Term`, not `Monomial`)
+- Kept only `simplify` with clear docstring explaining return type
+
+*fermionic.jl:*
+- Removed `simplify!` (returns `Polynomial`)
+- Removed `_fermi_mode` wrapper, use `_operator_mode` directly
+- Use shared `normal_order_key` for sorting
+- Use shared `combine_like_terms` (was `_combine_like_terms_fermi`)
+- **Fixed `iszero` bug**: Changed from sequential duplicate check to net flux algorithm
+  - Old: checked consecutive same-type operators (missed `a₁ a₂ a₁ = 0`)
+  - New: `|annihilations - creations| >= 2` per mode → nilpotent
+
+*bosonic.jl:*
+- Removed `simplify!` (returns `Polynomial`)
+- Removed `bosonic_mode` and `bosonic_sort_key` wrappers
+- Use `_operator_mode` and shared helpers from utils.jl
+
+*utils.jl - New shared helpers:*
+- `normal_order_key(op)` - sort key for normal ordering (creation < annihilation, then by mode)
+- `find_first_out_of_order(word)` - find first position out of normal order
+- `is_normal_ordered(word)` - check if word is in normal order (uses `find_first_out_of_order`)
+- `combine_like_terms(terms)` - generic term combining for any algebra
+
+**Simplify API Pattern:**
+
+| Algebra | `simplify` | `simplify!` | Returns | Reason |
+|---------|------------|-------------|---------|--------|
+| NonCommutative | ✅ | ✅ | Monomial | No type change |
+| Projector | ✅ | ✅ | Monomial | No type change |
+| Unipotent | ✅ | ✅ | Monomial | No type change |
+| Pauli | ✅ | ❌ | Term | Complex phase |
+| Fermionic | ✅ | ❌ | Polynomial | Wick contractions |
+| Bosonic | ✅ | ❌ | Polynomial | Rook numbers |
+
+**Layer 3 Complete** ✅
 
 ---
 

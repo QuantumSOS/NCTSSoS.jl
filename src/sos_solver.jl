@@ -68,7 +68,8 @@ function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) whe
     n_basis = length(unsymmetrized_basis)
 
     for ci in cis
-        for (coeff, alpha) in terms(localizing_mtx[ci])
+        for t in terms(localizing_mtx[ci])
+            coeff, alpha = t.coefficient, t.monomial
             idx = searchsortedfirst(unsymmetrized_basis, alpha)
             # Skip monomials not in basis (e.g., odd-parity fermionic monomials)
             # These have expectation value 0 and don't contribute

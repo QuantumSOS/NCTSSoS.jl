@@ -190,6 +190,44 @@ Base.show(io::IO, ::ProjectorAlgebra) = print(io, "ProjectorAlgebra()")
 Base.show(io::IO, ::UnipotentAlgebra) = print(io, "UnipotentAlgebra()")
 
 # =============================================================================
+# Coefficient Type Introspection
+# =============================================================================
+
+"""
+    coeff_type(::Type{T}) -> Type{<:Number}
+    coeff_type(x) -> Type{<:Number}
+
+Return the coefficient type for a simplify result type.
+
+This enables compile-time determination of coefficient types for type-stable
+processing of simplification results. Used by `ComposedMonomial` simplification
+to determine appropriate coefficient types for the Cartesian product of terms.
+
+For `Monomial{A,T}`, returns `default_coeff_type(A)` (the algebra's default).
+For `Term{M,C}` and `Polynomial{A,T,C}`, returns `C` (the explicit coefficient type).
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> coeff_type(Monomial{PauliAlgebra,Int64})
+ComplexF64
+
+julia> coeff_type(Monomial{FermionicAlgebra,Int32})
+Float64
+
+julia> coeff_type(Term{Monomial{PauliAlgebra,Int64},ComplexF64})
+ComplexF64
+
+julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64})
+Float64
+```
+"""
+# Instance method: delegate to type method
+# Note: coeff_type methods for specific types (Monomial, Term, Polynomial)
+# are defined in their respective source files.
+
+# =============================================================================
 # Site-Based Index Encoding
 # =============================================================================
 #

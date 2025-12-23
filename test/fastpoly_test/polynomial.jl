@@ -636,6 +636,49 @@ using NCTSSoS.FastPolynomials: variable_indices
         @test degree(p_prod) == 2
     end
 
+    @testset "Iteration Protocol" begin
+        # Multi-term polynomial iteration
+        m1 = Monomial{PauliAlgebra}([1])
+        m2 = Monomial{PauliAlgebra}([2])
+        p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)])
+
+        pairs = collect(p)
+        @test length(pairs) == 2
+        @test pairs[1] == (1.0+0im, m1)
+        @test pairs[2] == (2.0+0im, m2)
+
+        # Iteration with for loop
+        coeffs = Float64[]
+        monos = Monomial[]
+        for (coef, mono) in p
+            push!(coeffs, real(coef))
+            push!(monos, mono)
+        end
+        @test coeffs == [1.0, 2.0]
+        @test monos == [m1, m2]
+
+        # Empty polynomial
+        p_empty = zero(Polynomial{PauliAlgebra,Int64,ComplexF64})
+        @test isempty(collect(p_empty))
+        @test iterate(p_empty) === nothing
+
+        # Single-term polynomial
+        p_single = Polynomial([Term(3.5+0im, m1)])
+        pairs_single = collect(p_single)
+        @test length(pairs_single) == 1
+        @test pairs_single[1] == (3.5+0im, m1)
+
+        # eltype
+        @test eltype(typeof(p)) == Tuple{ComplexF64,Monomial{PauliAlgebra,Int64}}
+
+        # NonCommutative algebra (Float64 coefficients)
+        m_nc = Monomial{NonCommutativeAlgebra}([1])
+        p_nc = Polynomial([Term(5.0, m_nc)])
+        pairs_nc = collect(p_nc)
+        @test pairs_nc[1][1] isa Float64
+        @test eltype(typeof(p_nc)) == Tuple{Float64,Monomial{NonCommutativeAlgebra,Int64}}
+    end
+
     @testset "Polynomial - Monomial subtraction" begin
         m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
         m2 = Monomial{NonCommutativeAlgebra}(UInt8[2])

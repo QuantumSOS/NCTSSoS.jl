@@ -261,31 +261,33 @@ using Test, NCTSSoS.FastPolynomials
         m = Monomial{NonCommutativeAlgebra}([1, 2])
         t = Term(2.5, m)
 
-        # length
-        @test length(t) == 2
+        # length (now 1, yields single (coef, mono) tuple)
+        @test length(t) == 1
 
-        # Destructuring
-        coef, mono = t
+        # New destructuring: yields single tuple
+        (coef, mono), = t
         @test coef == 2.5
         @test mono == m
 
-        # collect
-        parts = collect(t)
-        @test length(parts) == 2
-        @test parts[1] == 2.5
-        @test parts[2] == m
+        # Direct field access (alternative to destructuring)
+        @test t.coefficient == 2.5
+        @test t.monomial == m
 
-        # Manual iteration
+        # collect yields vector of tuples
+        pairs = collect(t)
+        @test length(pairs) == 1
+        @test pairs[1] == (2.5, m)
+
+        # Manual iteration: yields (coef, mono) tuple, then nothing
         iter = iterate(t)
         @test iter !== nothing
-        @test iter[1] == 2.5
+        @test iter[1] == (2.5, m)
 
         iter2 = iterate(t, iter[2])
-        @test iter2 !== nothing
-        @test iter2[1] == m
+        @test iter2 === nothing
 
-        iter3 = iterate(t, iter2[2])
-        @test iter3 === nothing
+        # eltype
+        @test eltype(typeof(t)) == Tuple{Float64,Monomial{NonCommutativeAlgebra,Int64}}
     end
 
     @testset "Immutability" begin

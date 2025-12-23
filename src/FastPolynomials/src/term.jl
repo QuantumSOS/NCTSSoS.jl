@@ -231,11 +231,19 @@ Base.:-(t::Term{M,C}) where {M,C} = Term{M,C}(-t.coefficient, t.monomial)
 # =============================================================================
 
 """
-    Base.iterate(t::Term) -> Tuple
-    Base.iterate(t::Term, state) -> Tuple or nothing
+    Base.iterate(t::Term{M,C}) -> Tuple{Tuple{C, M}, Nothing}
+    Base.iterate(::Term, ::Nothing) -> Nothing
 
-Enable tuple-like iteration over a Term, yielding (coefficient, monomial).
-This allows destructuring syntax like `(coef, mono) = term`.
+Iterate a Term as a single `(coefficient, monomial)` pair.
+
+This enables uniform processing of simplify results across all algebra types.
+A Term yields exactly one `(coefficient, monomial)` tuple when iterated.
+
+!!! warning "Breaking Change"
+    Previous versions yielded coefficient then monomial separately for destructuring
+    (`coef, mono = term`). Now yields a single (coef, mono) tuple. Update code like:
+    - Old: `coef, mono = term`
+    - New: `(coef, mono), = term` or `coef, mono = term.coefficient, term.monomial`
 
 # Examples
 ```jldoctest
@@ -245,7 +253,11 @@ julia> m = Monomial{PauliAlgebra}([1, 2]);
 
 julia> t = Term(2.5 + 0.0im, m);
 
-julia> coef, mono = t;
+julia> collect(t)
+1-element Vector{Tuple{ComplexF64, Monomial{PauliAlgebra, Int64}}}:
+ (2.5 + 0.0im, Monomial{PauliAlgebra, Int64}([1, 2]))
+
+julia> (coef, mono), = t;
 
 julia> coef
 2.5 + 0.0im
@@ -256,16 +268,22 @@ julia> mono.word
  2
 ```
 """
-function Base.iterate(t::Term)
-    return (t.coefficient, 1)
+function Base.iterate(t::Term{M,C}) where {M<:AbstractMonomial,C<:Number}
+    return ((t.coefficient, t.monomial), nothing)
 end
 
-function Base.iterate(t::Term, state::Int)
-    if state == 1
-        (t.monomial, 2)
-    else
-        nothing
-    end
-end
+Base.iterate(::Term, ::Nothing) = nothing
 
-Base.length(::Term) = 2
+Base.length(::Term) = 1
+
+Base.eltype(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number} = Tuple{C,M}
+
+"""
+    coeff_type(::Type{Term{M,C}}) where {M,C} -> Type{<:Number}
+
+Return the coefficient type C for a Term type.
+"""
+coeff_type(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number} = C
+
+# Instance method
+coeff_type(t::Term{M,C}) where {M<:AbstractMonomial,C<:Number} = C

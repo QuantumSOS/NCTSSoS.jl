@@ -1219,3 +1219,72 @@ function _collect_simplified_terms!(
         end
     end
 end
+
+# =============================================================================
+# Iteration Protocol (for unified simplify result processing)
+# =============================================================================
+
+"""
+    Base.iterate(p::Polynomial{A,T,C}) -> Union{Tuple{Tuple{C, Monomial{A,T}}, Int}, Nothing}
+    Base.iterate(p::Polynomial{A,T,C}, state::Int) -> Union{Tuple{Tuple{C, Monomial{A,T}}, Int}, Nothing}
+
+Iterate a Polynomial, yielding `(coefficient, monomial)` pairs for each term.
+
+This enables uniform processing of simplify results across all algebra types:
+- `Monomial` (NonCommutative, Projector, Unipotent algebras) - yields 1 pair
+- `Term` (Pauli algebra) - yields 1 pair
+- `Polynomial` (Fermionic, Bosonic algebras) - yields N pairs
+
+All three types can be iterated with the same `for (coef, mono) in result` pattern.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m1 = Monomial{PauliAlgebra}([1]);
+
+julia> m2 = Monomial{PauliAlgebra}([2]);
+
+julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
+
+julia> collect(p)
+2-element Vector{Tuple{ComplexF64, Monomial{PauliAlgebra, Int64}}}:
+ (1.0 + 0.0im, Monomial{PauliAlgebra, Int64}([1]))
+ (2.0 + 0.0im, Monomial{PauliAlgebra, Int64}([2]))
+
+julia> for (coef, mono) in p
+           println("Coefficient: \$coef, Degree: \$(degree(mono))")
+       end
+Coefficient: 1.0 + 0.0im, Degree: 1
+Coefficient: 2.0 + 0.0im, Degree: 1
+```
+"""
+function Base.iterate(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    isempty(p.terms) && return nothing
+    t = p.terms[1]
+    return ((t.coefficient, t.monomial), 2)
+end
+
+function Base.iterate(
+    p::Polynomial{A,T,C}, state::Int
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    state > length(p.terms) && return nothing
+    t = p.terms[state]
+    return ((t.coefficient, t.monomial), state + 1)
+end
+
+Base.eltype(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number} =
+    Tuple{C,Monomial{A,T}}
+
+# Length for iteration (number of terms)
+Base.length(p::Polynomial) = length(p.terms)
+
+"""
+    coeff_type(::Type{Polynomial{A,T,C}}) where {A,T,C} -> Type{<:Number}
+
+Return the coefficient type C for a Polynomial type.
+"""
+coeff_type(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number} = C
+
+# Instance method
+coeff_type(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number} = C

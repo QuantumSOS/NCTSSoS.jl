@@ -3,8 +3,7 @@ using Test, NCTSSoS.FastPolynomials
 using NCTSSoS.FastPolynomials: encode_index
 
 # Import internal functions for testing
-import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_components,
-    _infer_coef_type, _to_term_vector
+import NCTSSoS.FastPolynomials: _expand_simplified_components, _infer_coef_type_from_types
 
 @testset "ComposedMonomial" begin
     @testset "Construction" begin
@@ -18,7 +17,6 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
         @test length(cm.components) == 2
         @test cm.components[1] === m_pauli
         @test cm.components[2] === m_fermi
-        @test cm.hash isa UInt64
 
         # Construction with three algebras
         m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])
@@ -30,27 +28,6 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
         # Single component
         cm_single = ComposedMonomial((m_pauli,))
         @test length(cm_single.components) == 1
-    end
-
-    @testset "_compute_composed_hash" begin
-        m1 = Monomial{PauliAlgebra}(UInt16[1, 2])
-        m2 = Monomial{FermionicAlgebra}(Int32[1, 2])
-
-        # Hash depends on component count and component hashes
-        h1 = _compute_composed_hash((m1,))
-        h2 = _compute_composed_hash((m1, m2))
-        h3 = _compute_composed_hash((m2, m1))  # Different order
-
-        @test h1 != h2  # Different number of components
-        # Note: h2 and h3 might collide due to hash function structure,
-        # but they should ideally differ - we test that hash is computed
-        @test h2 isa UInt64
-        @test h3 isa UInt64
-
-        # Same components same order -> same hash
-        m1_copy = Monomial{PauliAlgebra}(UInt16[1, 2])
-        h4 = _compute_composed_hash((m1_copy, m2))
-        @test h2 == h4
     end
 
     @testset "Equality" begin
@@ -201,25 +178,26 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
 
     @testset "Simplification - Single-term algebras (Pauli)" begin
         # Pauli: [1, 1] -> [] with coefficient 1 (σ_x^2 = I)
-        # ComposedMonomial with Pauli returns Term (since Pauli returns Term)
+        # ComposedMonomial always returns Vector{Term}
         m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])
         m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])
         cm = ComposedMonomial((m_pauli, m_unip))
 
         result = simplify(cm)
 
-        # Result is a Term (Pauli is the most complex component returning Term)
-        @test result isa Term
-        @test result.coefficient ≈ 1.0 + 0.0im
-        @test isempty(result.monomial[1].word)  # Pauli simplified
-        @test result.monomial[2].word == [encode_index(UInt16, 1, 1)]
+        # Result is always Vector{Term}
+        @test result isa Vector{<:Term}
+        @test length(result) == 1
+        @test result[1].coefficient ≈ 1.0 + 0.0im
+        @test isempty(result[1].monomial[1].word)  # Pauli simplified
+        @test result[1].monomial[2].word == [encode_index(UInt16, 1, 1)]
     end
 
     @testset "Simplification - Single-term algebras (UnipotentAlgebra)" begin
         # Unipotent: U² = I (consecutive pairs cancel)
         # [u, u] -> [] (pair cancels)
         # [u1, u1, u2] -> [u2] (u1 pair cancels, u2 remains)
-        # ComposedMonomial with Pauli returns Term (since Pauli returns Term)
+        # ComposedMonomial always returns Vector{Term}
         u1 = encode_index(UInt16, 1, 1)
         u2 = encode_index(UInt16, 2, 1)
 
@@ -229,15 +207,16 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
 
         result = simplify(cm)
 
-        # Result is a Term (Pauli is the most complex component returning Term)
-        @test result isa Term
+        # Result is always Vector{Term}
+        @test result isa Vector{<:Term}
+        @test length(result) == 1
         # Unipotent [u1, u1, u2] -> [u2] (u1 pair cancels via U²=I)
-        @test result.monomial[2].word == [u2]
+        @test result[1].monomial[2].word == [u2]
     end
 
     @testset "Simplification - Single-term algebras (ProjectorAlgebra)" begin
         # Projector: [e_ii, e_ii] -> [e_ii] (idempotent)
-        # ComposedMonomial with Pauli returns Term (since Pauli returns Term)
+        # ComposedMonomial always returns Vector{Term}
         p1 = encode_index(UInt16, 1, 1)
 
         m_proj = Monomial{ProjectorAlgebra}(UInt16[p1, p1])
@@ -246,9 +225,10 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
 
         result = simplify(cm)
 
-        # Result is a Term (Pauli is the most complex component returning Term)
-        @test result isa Term
-        @test result.monomial[1].word == [p1]  # Projector simplified
+        # Result is always Vector{Term}
+        @test result isa Vector{<:Term}
+        @test length(result) == 1
+        @test result[1].monomial[1].word == [p1]  # Projector simplified
     end
 
     @testset "Simplification - Multi-term algebras (FermionicAlgebra)" begin
@@ -306,16 +286,17 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
 
     @testset "Simplification - Type promotion" begin
         # Test _infer_coef_type: Float64 + ComplexF64 -> ComplexF64
-        # Pauli returns Term, so ComposedMonomial returns Term
+        # ComposedMonomial always returns Vector{Term}
         m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])  # Returns ComplexF64
         m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])  # Returns Float64
 
         cm = ComposedMonomial((m_pauli, m_unip))
         result = simplify(cm)
 
-        # Result should have ComplexF64 coefficient (returns Term for Pauli+Unipotent)
-        @test result isa Term
-        @test result.coefficient isa ComplexF64
+        # Result should have ComplexF64 coefficient
+        @test result isa Vector{<:Term}
+        @test length(result) == 1
+        @test result[1].coefficient isa ComplexF64
     end
 
     @testset "Simplification - Zero result handling" begin
@@ -337,63 +318,58 @@ import NCTSSoS.FastPolynomials: _compute_composed_hash, _expand_simplified_compo
         end
     end
 
-    @testset "_expand_simplified_components helpers" begin
-        # Test _to_term_vector with single Term
-        m = Monomial{PauliAlgebra}(UInt16[1])
-        t = Term(2.0, m)
-        vec = _to_term_vector(t)
-        @test vec == [(2.0, m)]
+    @testset "_infer_coef_type_from_types" begin
+        # Test compile-time coefficient type inference using coeff_type
+        m_pauli = Monomial{PauliAlgebra}(UInt16[1])
+        m_fermi = Monomial{FermionicAlgebra}(Int32[1])
+        t_pauli = Term(1.0 + 0.0im, m_pauli)
+        t_fermi = Term(2.0, m_fermi)
 
-        # Test _to_term_vector with Vector{Term}
-        m2 = Monomial{PauliAlgebra}(UInt16[2])
-        terms_vec = [Term(1.0, m), Term(3.0, m2)]
-        vec2 = _to_term_vector(terms_vec)
-        @test length(vec2) == 2
-        @test vec2[1] == (1.0, m)
-        @test vec2[2] == (3.0, m2)
-    end
+        # Monomial + Monomial: Pauli (ComplexF64) + Fermionic (Float64) -> ComplexF64
+        T1 = _infer_coef_type_from_types((m_pauli, m_fermi))
+        @test T1 == ComplexF64
 
-    @testset "_infer_coef_type" begin
-        m1 = Monomial{PauliAlgebra}(UInt16[1])
-        m2 = Monomial{FermionicAlgebra}(Int32[1])
-
-        # Float64 only
-        component_terms1 = ([(1.0, m1)], [(2.0, m2)])
-        T1 = _infer_coef_type(component_terms1)
-        @test T1 == Float64
-
-        # Float64 + ComplexF64 -> ComplexF64
-        component_terms2 = ([(1.0 + 0.0im, m1)], [(2.0, m2)])
-        T2 = _infer_coef_type(component_terms2)
+        # Term + Term: ComplexF64 + Float64 -> ComplexF64
+        T2 = _infer_coef_type_from_types((t_pauli, t_fermi))
         @test T2 == ComplexF64
 
-        # Int + Float64 -> Float64
-        component_terms3 = ([(1, m1)], [(2.0, m2)])
-        T3 = _infer_coef_type(component_terms3)
+        # All Float64 monomials
+        m_nc = Monomial{NonCommutativeAlgebra}([1])
+        T3 = _infer_coef_type_from_types((m_fermi, m_nc))
         @test T3 == Float64
+
+        # Polynomial (ComplexF64) + Monomial (Float64) -> ComplexF64
+        p_pauli = Polynomial([t_pauli])
+        T4 = _infer_coef_type_from_types((p_pauli, m_fermi))
+        @test T4 == ComplexF64
     end
 
-    @testset "_cartesian_product! (via _expand_simplified_components)" begin
-        # Test _cartesian_product! indirectly through _expand_simplified_components
+    @testset "_cartesian_product_iter! (via _expand_simplified_components)" begin
+        # Test _cartesian_product_iter! indirectly through _expand_simplified_components
+        # The function now uses iteration protocol directly, so we pass Monomials/Terms/Polynomials
         m1a = Monomial{PauliAlgebra}(UInt16[1])
         m1b = Monomial{PauliAlgebra}(UInt16[2])
         m2a = Monomial{FermionicAlgebra}(Int32[1])
 
-        t1a = Term(1.0, m1a)
-        t1b = Term(2.0, m1b)
+        # Create a Polynomial with two terms (simulates multi-term simplify result)
+        t1a = Term(1.0 + 0.0im, m1a)
+        t1b = Term(2.0 + 0.0im, m1b)
+        p_pauli = Polynomial([t1a, t1b])
+
+        # Single term (use Term for single-element simplify result)
         t2a = Term(3.0, m2a)
 
-        # Create simplified components tuple - Pauli and Fermionic
-        # Pauli might return single term, Fermionic returns vector
-        simplified = ([t1a, t1b], [t2a])
+        # Create simplified components tuple - Polynomial and Term
+        # The iteration protocol will yield (coef, mono) pairs from each
+        simplified = (p_pauli, t2a)
 
         result = _expand_simplified_components(simplified)
 
         # Should produce 2 * 1 = 2 terms (Cartesian product)
         @test length(result) == 2
 
-        # Check coefficients are products
-        coeffs = Set([t.coefficient for t in result])
+        # Check coefficients are products (ComplexF64 due to Pauli)
+        coeffs = Set([real(t.coefficient) for t in result])
         @test 1.0 * 3.0 in coeffs
         @test 2.0 * 3.0 in coeffs
 

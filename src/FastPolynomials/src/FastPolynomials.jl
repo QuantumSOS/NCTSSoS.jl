@@ -51,7 +51,7 @@ export get_ncbasis, get_ncbasis_deg, get_state_basis
 export AlgebraType
 export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra, BosonicAlgebra
 export ProjectorAlgebra, UnipotentAlgebra
-export default_coeff_type
+export default_coeff_type, coeff_type
 
 # Fermionic algebra helpers
 export has_even_parity

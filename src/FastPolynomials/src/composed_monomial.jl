@@ -8,7 +8,6 @@ This enables tensor products of operators from different algebraic structures.
 
 # Fields
 - `components::Ts`: Tuple of monomials, e.g., `(Monomial{PauliAlgebra}, Monomial{FermionicAlgebra})`
-- `hash::UInt64`: Precomputed hash for fast equality checks
 
 # Type Parameters
 - `Ts<:Tuple`: Tuple type of the component monomials
@@ -62,64 +61,33 @@ true
 """
 struct ComposedMonomial{Ts<:Tuple} <: AbstractMonomial
     components::Ts
-    hash::UInt64
 end
 
-"""
-    ComposedMonomial(components::Tuple)
-
-Construct a ComposedMonomial from a tuple of monomials.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1, 2]);
-
-julia> m2 = Monomial{FermionicAlgebra}(Int32[-1, 2]);
-
-julia> cm = ComposedMonomial((m1, m2));
-
-julia> length(cm)
-2
-```
-"""
-function ComposedMonomial(components::Ts) where {Ts<:Tuple}
-    h = _compute_composed_hash(components)
-    return ComposedMonomial{Ts}(components, h)
-end
-
-"""
-    _compute_composed_hash(components::Tuple) -> UInt64
-
-Compute hash from component monomials.
-"""
-function _compute_composed_hash(components::Tuple)
-    h = hash(length(components))
-    for mono in components
-        h = hash(mono, h)
-    end
-    return h
-end
+# Note: Default constructor ComposedMonomial(components::Tuple) is provided by Julia
+# since the struct only has one field.
 
 """
     Base.:(==)(cm1::ComposedMonomial, cm2::ComposedMonomial) -> Bool
 
-Equality check using precomputed hash for fast inequality detection.
+Equality check via component-wise comparison.
 """
 function Base.:(==)(cm1::ComposedMonomial{T1}, cm2::ComposedMonomial{T2}) where {T1,T2}
-    # Different tuple types means different structure
     T1 !== T2 && return false
-    # Fast path: hash mismatch
-    cm1.hash == cm2.hash || return false
-    # Slow path: component-wise comparison
     return cm1.components == cm2.components
 end
 
 """
     Base.hash(cm::ComposedMonomial, h::UInt) -> UInt
 
-Hash function using precomputed hash.
+Hash function computed from components.
 """
-Base.hash(cm::ComposedMonomial, h::UInt) = hash(cm.hash, h)
+function Base.hash(cm::ComposedMonomial, h::UInt)
+    h = hash(length(cm.components), h)
+    for mono in cm.components
+        h = hash(mono, h)
+    end
+    return h
+end
 
 """
     Base.isless(cm1::ComposedMonomial{Ts}, cm2::ComposedMonomial{Ts}) where {Ts<:Tuple}
@@ -239,21 +207,18 @@ function Base.isone(t::Term{ComposedMonomial{Ts},C}) where {Ts,C}
 end
 
 """
-    simplify(cm::ComposedMonomial) -> Union{ComposedMonomial, Term, Polynomial}
+    simplify(cm::ComposedMonomial) -> Vector{Term{<:ComposedMonomial}}
 
 Simplify each component according to its algebra type.
 
-The return type depends on the component simplification results:
-- If any component returns `Polynomial` (Bosonic, Fermionic) → returns `Polynomial`
-- Else if any component returns `Term` (Pauli) → returns `Term`
-- Else (all components return `Monomial`: NC, Projector, Unipotent) → returns `ComposedMonomial`
-
-This type hierarchy ensures that more complex return types propagate upward.
+Always returns `Vector{Term{ComposedMonomial}}` for consistent API. Each term
+contains a ComposedMonomial with the simplified component monomials.
 
 # Algorithm
 1. Simplify each component using its algebra's simplify function
-2. Determine return type based on component results
-3. For multi-term algebras (Bosonic, Fermionic), compute Cartesian product
+2. Convert all results to (coefficient, monomial) pairs
+3. Compute Cartesian product across all components
+4. Filter zero terms
 
 # Examples
 ```jldoctest
@@ -269,136 +234,102 @@ julia> m_unip = Monomial{UnipotentAlgebra}([u2, u2]);
 
 julia> cm = ComposedMonomial((m_pauli, m_unip));
 
-julia> result = simplify(cm);  # Pauli returns Term, so result is Term
+julia> result = simplify(cm);
 
-julia> result isa Term
+julia> result isa Vector{<:Term}
 true
 
-julia> result.coefficient
+julia> result[1].coefficient
 1.0 + 0.0im
 
-julia> isempty(result.monomial[1].word)  # Pauli [1,1] -> [] (sigma_x squared = I)
+julia> isempty(result[1].monomial[1].word)  # Pauli [1,1] -> [] (sigma_x squared = I)
 true
 
-julia> isempty(result.monomial[2].word)  # Unipotent [2,2] -> []
+julia> isempty(result[1].monomial[2].word)  # Unipotent [2,2] -> []
 true
 ```
 """
 function simplify(cm::ComposedMonomial)
-    # Simplify each component - collect results
     simplified_components = map(simplify, cm.components)
-
-    # Determine return type based on component types:
-    # - If any component is Polynomial -> return Polynomial
-    # - Else if any component is Term -> return Term
-    # - Else (all Monomial) -> return Monomial
-    has_polynomial = any(x -> x isa Polynomial, simplified_components)
-    has_term = any(x -> x isa Term, simplified_components)
-
-    if has_polynomial
-        # Return Vector{Term} for ComposedMonomial (Polynomial type doesn't support ComposedMonomial)
-        term_vec = _expand_simplified_components(simplified_components)
-        return term_vec
-    elseif has_term
-        # Return Term (single term from Cartesian product)
-        term_vec = _expand_simplified_components(simplified_components)
-        # Should always be single term when no Polynomial components
-        return length(term_vec) == 1 ? term_vec[1] : term_vec
-    else
-        # All Monomials - return composed Monomial
-        # Combine coefficients (should all be 1.0 for Monomials)
-        coef = 1.0
-        return ComposedMonomial(simplified_components)
-    end
+    return _expand_simplified_components(simplified_components)
 end
 
 # Helper to expand Cartesian product of simplified components
 function _expand_simplified_components(simplified::Tuple)
-    # Convert each component to a vector of (coef, monomial) pairs
-    component_terms = map(_to_term_vector, simplified)
+    # Infer coefficient type from tuple element types at compile time
+    CoefType = _infer_coef_type_from_types(simplified)
 
-    # Infer coefficient type from components (promotes Float64 + ComplexF64 -> ComplexF64)
-    CoefType = _infer_coef_type(component_terms)
-
-    # Compute Cartesian product
+    # Compute Cartesian product using iteration protocol
     result = Term[]
 
-    _cartesian_product!(result, component_terms, 1, (), one(CoefType))
+    _cartesian_product_iter!(result, simplified, 1, (), one(CoefType))
 
     # Filter zeros and return
     filter!(!iszero, result)
 
     if isempty(result)
         # Return zero term with identity monomials
-        one_components = map(simplified) do x
-            if x isa Polynomial
-                isempty(x.terms) ? one(Monomial{typeof(x).parameters[1],typeof(x).parameters[2]}) : one(x.terms[1].monomial)
-            elseif x isa Term
-                one(x.monomial)
-            elseif x isa Monomial
-                one(x)
-            else
-                # Vector{Term}
-                one(x[1].monomial)
-            end
-        end
+        one_components = map(_get_identity_monomial, simplified)
         return [Term(zero(CoefType), ComposedMonomial(one_components))]
     end
 
     return result
 end
 
-# Infer the coefficient type from component terms
-function _infer_coef_type(component_terms::Tuple)
-    T = Float64
-    for terms in component_terms
-        for (coef, _) in terms
-            T = promote_type(T, typeof(coef))
-        end
+# Get identity monomial from a simplified component (avoids brittle type reflection)
+function _get_identity_monomial(x::Monomial)
+    return one(x)
+end
+
+function _get_identity_monomial(x::Term)
+    return one(x.monomial)
+end
+
+function _get_identity_monomial(x::Polynomial)
+    if isempty(x.terms)
+        # Empty polynomial - create identity from the Polynomial's type
+        # Use the concrete monomial type from the polynomial
+        return one(eltype(x.terms).parameters[1])
+    else
+        return one(x.terms[1].monomial)
     end
-    return T
 end
 
-# Convert a Monomial to vector format (coefficient 1.0)
-function _to_term_vector(m::Monomial)
-    return [(1.0, m)]
+function _get_identity_monomial(x::Vector{<:Term})
+    return one(x[1].monomial)
 end
 
-# Convert a single Term to vector format
-function _to_term_vector(t::Term)
-    return [(t.coefficient, t.monomial)]
+# Compile-time coefficient type inference using coeff_type
+@generated function _infer_coef_type_from_types(::T) where {T<:Tuple}
+    types = T.parameters
+    result_type = Float64
+    for t in types
+        ct = coeff_type(t)
+        result_type = promote_type(result_type, ct)
+    end
+    return :($result_type)
 end
 
-# Convert Vector{Term} to vector format (already in right form)
-function _to_term_vector(ts::Vector{<:Term})
-    return [(t.coefficient, t.monomial) for t in ts]
-end
-
-# Convert a Polynomial to vector format
-function _to_term_vector(p::Polynomial)
-    return [(t.coefficient, t.monomial) for t in p.terms]
-end
-
-# Recursive Cartesian product builder
-function _cartesian_product!(
+# New helper using iteration protocol
+function _cartesian_product_iter!(
     result::Vector{Term},
-    component_terms::Tuple,
+    components::Tuple,
     idx::Int,
     current_monomials::Tuple,
     current_coef::Number,
 )
-    if idx > length(component_terms)
+    if idx > length(components)
         # Base case: all components processed
         cm = ComposedMonomial(current_monomials)
         push!(result, Term(current_coef, cm))
         return nothing
     end
 
-    # Recursive case: iterate over all terms in current component
-    for (coef, mono) in component_terms[idx]
+    # Iterate over simplified component using new iteration protocol
+    for (coef, mono) in components[idx]
         new_coef = current_coef * coef
         new_monomials = (current_monomials..., mono)
-        _cartesian_product!(result, component_terms, idx + 1, new_monomials, new_coef)
+        _cartesian_product_iter!(result, components, idx + 1, new_monomials, new_coef)
     end
 end
 

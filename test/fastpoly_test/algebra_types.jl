@@ -58,6 +58,36 @@ end
     @test default_coeff_type(UnipotentAlgebra) == Float64
 end
 
+@testset "coeff_type trait" begin
+    # Monomial: returns default_coeff_type(A)
+    @test coeff_type(Monomial{PauliAlgebra,Int64}) == ComplexF64
+    @test coeff_type(Monomial{NonCommutativeAlgebra,Int64}) == Float64
+    @test coeff_type(Monomial{FermionicAlgebra,Int32}) == Float64
+    @test coeff_type(Monomial{BosonicAlgebra,Int32}) == Float64
+    @test coeff_type(Monomial{ProjectorAlgebra,UInt16}) == Float64
+    @test coeff_type(Monomial{UnipotentAlgebra,UInt16}) == Float64
+
+    # Term: returns C (the coefficient type)
+    @test coeff_type(Term{Monomial{PauliAlgebra,Int64},ComplexF64}) == ComplexF64
+    @test coeff_type(Term{Monomial{NonCommutativeAlgebra,Int64},Float64}) == Float64
+    @test coeff_type(Term{Monomial{FermionicAlgebra,Int32},Float32}) == Float32
+
+    # Polynomial: returns C (the coefficient type)
+    @test coeff_type(Polynomial{PauliAlgebra,Int64,ComplexF64}) == ComplexF64
+    @test coeff_type(Polynomial{NonCommutativeAlgebra,Int64,Float64}) == Float64
+    @test coeff_type(Polynomial{BosonicAlgebra,Int32,Float64}) == Float64
+
+    # Instance methods (delegates to type)
+    m = Monomial{PauliAlgebra}([1, 2])
+    @test coeff_type(m) == ComplexF64
+
+    t = Term(2.5, Monomial{NonCommutativeAlgebra}([1]))
+    @test coeff_type(t) == Float64
+
+    p = Polynomial([Term(1.0+0im, Monomial{PauliAlgebra}([1]))])
+    @test coeff_type(p) == ComplexF64
+end
+
 @testset "AlgebraType Show Methods" begin
     @testset "NonCommutativeAlgebra show" begin
         alg = NonCommutativeAlgebra()

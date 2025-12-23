@@ -638,3 +638,67 @@ true
 ```
 """
 expval(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = m
+
+# =============================================================================
+# Iteration Protocol (for unified simplify result processing)
+# =============================================================================
+
+"""
+    Base.iterate(m::Monomial{A,T}) -> Tuple{Tuple{C, Monomial{A,T}}, Nothing}
+    Base.iterate(::Monomial, ::Nothing) -> Nothing
+
+Iterate a Monomial as a single-term simplify result, yielding one `(coefficient, monomial)` pair.
+The coefficient is `one(default_coeff_type(A))`.
+
+This enables uniform processing of simplify results across all algebra types:
+- `Monomial` (NonCommutative, Projector, Unipotent algebras)
+- `Term` (Pauli algebra)
+- `Polynomial` (Fermionic, Bosonic algebras)
+
+All three types can be iterated with the same `for (coef, mono) in result` pattern.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> collect(m)
+1-element Vector{Tuple{ComplexF64, Monomial{PauliAlgebra, Int64}}}:
+ (1.0 + 0.0im, Monomial{PauliAlgebra, Int64}([1, 2]))
+
+julia> m_nc = Monomial{NonCommutativeAlgebra}([1, 2]);
+
+julia> (coef, mono), = m_nc;
+
+julia> coef
+1.0
+
+julia> mono == m_nc
+true
+```
+"""
+function Base.iterate(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    C = default_coeff_type(A)
+    return ((one(C), m), nothing)
+end
+
+Base.iterate(::Monomial, ::Nothing) = nothing
+
+Base.eltype(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} =
+    Tuple{default_coeff_type(A),Monomial{A,T}}
+
+# Use HasLength with explicit length of 1 for single-element iteration.
+# We define a separate function to avoid confusion with degree().
+Base.IteratorSize(::Type{<:Monomial}) = Base.HasLength()
+Base.length(::Monomial) = 1  # Single (coefficient, monomial) pair when iterated
+
+"""
+    coeff_type(::Type{Monomial{A,T}}) where {A,T} -> Type{<:Number}
+
+Return the default coefficient type for a Monomial of algebra type A.
+"""
+coeff_type(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} = default_coeff_type(A)
+
+# Instance method
+coeff_type(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = coeff_type(Monomial{A,T})

@@ -371,6 +371,50 @@ using Test, NCTSSoS.FastPolynomials
         @test length(terms(p7)) == 2
     end
 
+    @testset "Iteration Protocol" begin
+        # Monomial iteration yields single (coefficient, monomial) pair
+        m = Monomial{PauliAlgebra}([1, 2])
+        pairs = collect(m)
+        @test length(pairs) == 1
+        @test pairs[1] == (1.0 + 0.0im, m)  # ComplexF64 for Pauli
+
+        # Float64 coefficient for non-Pauli algebras
+        m_nc = Monomial{NonCommutativeAlgebra}([1, 2])
+        pairs_nc = collect(m_nc)
+        @test length(pairs_nc) == 1
+        @test pairs_nc[1][1] isa Float64
+        @test pairs_nc[1][1] == 1.0
+        @test pairs_nc[1][2] == m_nc
+
+        # Fermionic algebra also uses Float64
+        m_fermi = Monomial{FermionicAlgebra}(Int32[1, 2])
+        pairs_fermi = collect(m_fermi)
+        @test pairs_fermi[1][1] isa Float64
+        @test pairs_fermi[1][1] == 1.0
+
+        # Destructuring pattern
+        (coef, mono), = m_nc
+        @test coef == 1.0
+        @test mono == m_nc
+
+        # eltype
+        @test eltype(typeof(m)) == Tuple{ComplexF64,Monomial{PauliAlgebra,Int64}}
+        @test eltype(typeof(m_nc)) == Tuple{Float64,Monomial{NonCommutativeAlgebra,Int64}}
+
+        # Manual iteration
+        iter = iterate(m)
+        @test iter !== nothing
+        @test iter[1] == (1.0 + 0.0im, m)
+        @test iterate(m, iter[2]) === nothing
+
+        # Identity monomial
+        m_id = one(Monomial{PauliAlgebra,Int64})
+        pairs_id = collect(m_id)
+        @test length(pairs_id) == 1
+        @test pairs_id[1][1] == 1.0 + 0.0im
+        @test isone(pairs_id[1][2])
+    end
+
     @testset "Display with Registry and Exponents" begin
         # Create a simple test registry
         struct TestRegistry

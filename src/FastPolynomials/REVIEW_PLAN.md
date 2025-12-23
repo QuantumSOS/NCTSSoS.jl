@@ -162,9 +162,24 @@ make test-FastPoly
 | 12 | `src/composed_monomial.jl` | Tensor products across algebras | `ComposedMonomial{Ts}`, `simplify` → `Vector{Term}` |
 
 **Review Focus:**
-- [ ] ComposedMonomial correctly handles mixed algebra types
-- [ ] Simplification dispatches to each component's algebra
-- [ ] Cartesian product expansion is correct for multi-term algebras
+- [x] ComposedMonomial correctly handles mixed algebra types
+- [x] Simplification dispatches to each component's algebra
+- [x] Cartesian product expansion is correct for multi-term algebras
+
+**Review Status:** ✅ APPROVED (2025-01-23)
+
+**Changes Made (composed_monomial.jl - 2025-01-23):**
+- Removed precomputed `hash` field - hash now computed on demand
+- Removed `_compute_composed_hash` helper function
+- Added unified iteration protocol for `Monomial`, `Term`, `Polynomial` yielding `(coefficient, monomial)` pairs
+- Added `coeff_type` trait for compile-time coefficient type inference
+- Removed dead legacy code:
+  - `_infer_coef_type(component_terms::Tuple)` - replaced by `_infer_coef_type_from_types`
+  - `_to_term_vector(::Monomial)`, `_to_term_vector(::Term)`, `_to_term_vector(::Vector{<:Term})`, `_to_term_vector(::Polynomial)` - iteration protocol eliminates need for conversion
+- Simplified `_expand_simplified_components` to use iteration protocol directly via `_cartesian_product_iter!`
+- Updated `simplify` to always return `Vector{Term}` for consistent API
+
+**Layer 4 Complete** ✅
 
 ---
 

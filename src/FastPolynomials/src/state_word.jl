@@ -8,7 +8,6 @@ All monomials share the same algebra type A.
 
 # Fields
 - `state_monos::Vector{Monomial{A,T}}`: Sorted, canonicalized monomials (expectations)
-- `hash::UInt64`: Precomputed hash for fast equality checks
 
 # Type Parameters
 - `ST`: State type (Arbitrary or MaxEntangled)
@@ -19,7 +18,18 @@ All monomials share the same algebra type A.
 1. **Involution**: Each monomial is canonicalized to min(m, adjoint(m))
 2. **Commutativity**: state_monos is sorted by the monomial ordering
 3. Identity monomials are filtered out (unless all are identity)
-4. Hash is precomputed for fast equality checks
+
+!!! warning "Real expectation values"
+    The involution canonicalization enforces ⟨M⟩ = ⟨M†⟩, which means all expectation
+    values are treated as real variables. This is appropriate for Hermitian moment
+    optimization but restricts the variable space to real-valued expectations.
+
+!!! warning "MaxEntangled with PauliAlgebra"
+    The `MaxEntangled` (trace) state type uses cyclic-symmetric canonicalization,
+    which assumes tr(M) = tr(reverse(M)). This is NOT valid for PauliAlgebra where
+    transposition can introduce signs (e.g., tr(XYZ) ≠ tr(ZYX) for Pauli matrices).
+    Use `MaxEntangled` only with algebras where trace is symmetric under reversal
+    (e.g., NonCommutativeAlgebra, ProjectorAlgebra, UnipotentAlgebra).
 
 # Examples
 ```jldoctest
@@ -42,7 +52,6 @@ See also: [`NCStateWord`](@ref), [`StatePolynomial`](@ref)
 """
 struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial
     state_monos::Vector{Monomial{A,T}}
-    hash::UInt64
 
     function StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
         # Apply canonicalization based on state type:
@@ -53,8 +62,7 @@ struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial
         # Filter out identity monomials (unless all are identity)
         filtered = filter(m -> !isone(m), canonicalized)
         sorted_monos = isempty(filtered) ? [one(Monomial{A,T})] : sort(filtered)
-        h = hash(sorted_monos)
-        new{ST,A,T}(sorted_monos, h)
+        new{ST,A,T}(sorted_monos)
     end
 end
 
@@ -275,9 +283,9 @@ end
 """
     Base.hash(sw::StateWord, h::UInt) -> UInt
 
-Hash function for StateWord. Uses precomputed hash.
+Hash function for StateWord. Computed from state_monos.
 """
-Base.hash(sw::StateWord, h::UInt) = hash(sw.hash, h)
+Base.hash(sw::StateWord, h::UInt) = hash(sw.state_monos, h)
 
 """
     Base.isless(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST,A,T} -> Bool
@@ -418,7 +426,6 @@ Combines a commutative StateWord (expectations) with a non-commutative monomial 
 # Fields
 - `sw::StateWord{ST,A,T}`: Commutative state word part
 - `nc_word::Monomial{A,T}`: Non-commutative operator part
-- `hash::UInt64`: Precomputed hash
 
 # Examples
 ```jldoctest
@@ -441,11 +448,9 @@ See also: [`StateWord`](@ref), [`NCStatePolynomial`](@ref), [`expval`](@ref)
 struct NCStateWord{ST<:StateType,A<:AlgebraType,T<:Integer}
     sw::StateWord{ST,A,T}
     nc_word::Monomial{A,T}
-    hash::UInt64
 
     function NCStateWord(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-        h = hash((sw.hash, hash(nc_word)))
-        new{ST,A,T}(sw, nc_word, h)
+        new{ST,A,T}(sw, nc_word)
     end
 end
 
@@ -517,9 +522,9 @@ end
 """
     Base.hash(ncsw::NCStateWord, h::UInt) -> UInt
 
-Hash function for NCStateWord.
+Hash function for NCStateWord. Computed from sw and nc_word.
 """
-Base.hash(ncsw::NCStateWord, h::UInt) = hash(ncsw.hash, h)
+Base.hash(ncsw::NCStateWord, h::UInt) = hash((ncsw.sw, ncsw.nc_word), h)
 
 """
     Base.isless(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST,A,T} -> Bool

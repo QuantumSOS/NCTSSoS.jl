@@ -194,10 +194,21 @@ make test-FastPoly
 - [x] `symmetric_canon`: min(word, reverse(word))
 - [x] `cyclic_canon`: lexicographically smallest rotation
 - [x] `cyclic_symmetric_canon`: combines both for trace states
-- [ ] Basis generation produces correct degree-bounded monomials
-- [ ] No duplicate basis elements
+- [x] Basis generation produces correct degree-bounded monomials
+- [x] No duplicate basis elements (by design: 1-to-1 word→polynomial mapping)
 
 **Review Status (canonicalization.jl):** ✅ APPROVED (2025-01-23)
+
+**Review Status (basis.jl):** ✅ APPROVED (2025-01-23)
+
+**Review Notes (basis.jl):**
+- Code is correct and well-tested (234 lines of tests in `test/fastpoly_test/basis.jl`)
+- All 6 algebra types covered: NC, Pauli, Projector, Unipotent, Fermionic, Bosonic
+- Edge cases tested: negative degree, degree 0, empty indices, large degree
+- Design decision: returns simplified words (1-to-1 mapping), not deduplicated basis
+  - Duplicates (e.g., U²=1 in UnipotentAlgebra) are intentional for downstream use
+- Performance: recursive `_generate_all_words` with `vcat` is fine for typical d≤4
+  - Optimization deferred (iterative approach could reduce allocations)
 
 **Changes Made (canonicalization.jl - 2025-01-23):**
 - Removed TODO comments (concerns addressed by library architecture)
@@ -218,12 +229,54 @@ make test-FastPoly
 | 17 | `src/state_polynomial.jl` | Polynomials over state words | `StatePolynomial`, `NCStatePolynomial`, `expval`, arithmetic |
 
 **Review Focus:**
-- [ ] StateWord invariants: sorted, involution-canonicalized
-- [ ] MaxEntangled uses cyclic-symmetric canonicalization
-- [ ] Arbitrary uses symmetric (involution) canonicalization
-- [ ] NCStateWord correctly separates state part from operator part
-- [ ] `expval` collapses NCStateWord to StateWord correctly
-- [ ] State polynomial arithmetic preserves invariants
+- [x] StateWord invariants: sorted, involution-canonicalized
+- [x] MaxEntangled uses cyclic-symmetric canonicalization
+- [x] Arbitrary uses symmetric (involution) canonicalization
+- [x] NCStateWord correctly separates state part from operator part
+- [x] `expval` collapses NCStateWord to StateWord correctly
+- [x] State polynomial arithmetic preserves invariants
+
+**Review Status (state_types.jl):** ✅ APPROVED (2025-01-23)
+
+**Review Notes (state_types.jl):**
+- Minimal, correct type hierarchy (66 lines)
+- Clean singleton pattern for type parameters
+- Well-documented with working doctests
+- Semantic note: "Arbitrary" implies involution symmetry (⟨M⟩ = ⟨M†⟩) enforced in state_word.jl
+
+**Review Status (state_word.jl):** ✅ APPROVED (2025-01-23)
+
+**Changes Made (state_word.jl - 2025-01-23):**
+- Removed precomputed `hash` field from `StateWord` - now computed on demand via `hash(state_monos, h)`
+- Removed precomputed `hash` field from `NCStateWord` - now computed on demand
+- Added documentation warnings:
+  - "Real expectation values": involution canonicalization enforces ⟨M⟩ = ⟨M†⟩
+  - "MaxEntangled with PauliAlgebra": cyclic-symmetric canonicalization is NOT valid for Pauli
+    (tr(XYZ) ≠ tr(ZYX) due to transpose introducing signs)
+- Design decision: No `simplify(StateWord)` needed - monomials should be pre-simplified
+
+**Review Notes (state_word.jl):**
+- 1074 lines implementing StateWord and NCStateWord
+- All tests pass (state_word.jl, state_basis.jl)
+- Limitation: MaxEntangled (trace) should NOT be used with PauliAlgebra
+- Limitation: All expectation values treated as real (Hermitian moments)
+
+**Review Status (state_polynomial.jl):** ✅ APPROVED (2025-01-23)
+
+**Review Notes (state_polynomial.jl):**
+- 979 lines implementing StatePolynomial and NCStatePolynomial
+- Core logic correct: sort, combine duplicates, filter zeros
+- Type safety: `promote_type` used correctly for coefficient promotion
+- `expval(NCStatePolynomial)` correctly collapses to StatePolynomial
+- API gaps (intentionally not addressed):
+  - No `StatePolynomial + NCStatePolynomial` (different semantic domains)
+  - No `NCStatePolynomial * Monomial` (use NCStateWord constructor instead)
+- Performance note: constructors use standard Julia idiom (sortperm + indexing)
+
+**Layer 6 Complete** ✅
+- `state_types.jl`: APPROVED
+- `state_word.jl`: APPROVED
+- `state_polynomial.jl`: APPROVED
 
 ---
 

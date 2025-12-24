@@ -31,12 +31,16 @@ Systematic review of the NCTSSoS.jl optimization framework (excluding the `FastP
 
 ### Phase 3: Core Solver Logic
 **Focus**: SDP construction, solver interaction, and numerical correctness.
-*   **`src/sos_solver.jl`**
-    *   [ ] Audit SDP relaxation construction (Hierarchy levels).
-    *   [ ] Review interaction with JuMP or low-level solver interfaces.
-*   **`src/moment_solver.jl`**
-    *   [ ] Analyze moment matrix construction.
-    *   [ ] Check dual variable handling and extraction.
+*   **`src/sos_solver.jl`** *(Reviewed - Complete)*
+    *   [x] Audit SDP relaxation construction (Hierarchy levels).
+    *   [x] Review interaction with JuMP or low-level solver interfaces.
+    *   **Fixes Applied**:
+        *   [x] **Critical**: Fixed repeated sorting in `_sos_dualize_real` - sort basis once before loop (lines 200-211)
+*   **`src/moment_solver.jl`** *(Reviewed - Complete)*
+    *   [x] Analyze moment matrix construction.
+    *   [x] Check dual variable handling and extraction.
+    *   **Fixes Applied**:
+        *   [x] **Warning**: Fixed typo `rol_idx` -> `row_idx` (lines 145, 645)
 
 ### Phase 4: Optimization & Sparsity
 **Focus**: Algorithmic efficiency, graph theory implementations, and linear algebra.
@@ -62,6 +66,6 @@ Systematic review of the NCTSSoS.jl optimization framework (excluding the `FastP
 ## Progress Tracking
 - [x] Phase 1 Complete
 - [x] Phase 2 Complete
-- [ ] Phase 3 Complete
+- [x] Phase 3 Complete
 - [ ] Phase 4 Complete
 - [ ] Phase 5 Complete

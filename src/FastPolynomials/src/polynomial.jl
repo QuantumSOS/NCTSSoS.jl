@@ -254,6 +254,41 @@ function Polynomial{A,T,C}(c::Number) where {A<:AlgebraType,T<:Integer,C<:Number
 end
 
 # =============================================================================
+# Type Conversion
+# =============================================================================
+
+"""
+    Base.convert(::Type{Polynomial{A,T,C2}}, p::Polynomial{A,T,C1}) where {A,T,C1,C2}
+
+Convert a polynomial to a different coefficient type.
+
+This is needed for operations like `power_by_squaring` which may require
+converting between different coefficient types during computation.
+
+# Examples
+```jldoctest
+julia> using FastPolynomials
+
+julia> m = Monomial{NonCommutativeAlgebra}(UInt8[1]);
+
+julia> p_int = Polynomial([Term(2, m)]);  # Int64 coefficients
+
+julia> p_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_int);
+
+julia> coefficients(p_float)[1]
+2.0
+```
+"""
+function Base.convert(::Type{Polynomial{A,T,C2}}, p::Polynomial{A,T,C1}) where {A<:AlgebraType,T<:Integer,C1<:Number,C2<:Number}
+    C1 === C2 && return p
+    new_terms = [Term(C2(t.coefficient), t.monomial) for t in p.terms]
+    return Polynomial{A,T,C2}(new_terms)
+end
+
+# Identity conversion (no-op)
+Base.convert(::Type{Polynomial{A,T,C}}, p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number} = p
+
+# =============================================================================
 # zero and one
 # =============================================================================
 

@@ -27,6 +27,17 @@ function clique_decomp(G::SimpleGraph, ::MaximalElimination)
     return connected_components(G)
 end
 
+"""
+    clique_decomp(G::SimpleGraph, ::AsIsElimination)
+
+Returns maximal cliques of the graph without triangulation.
+
+!!! warning
+    This method assumes the graph is already chordal. If the graph is not chordal,
+    the resulting cliques may not satisfy the Running Intersection Property (RIP),
+    which could lead to invalid SOS relaxation bounds. Use `MF()` or `MMD()` for
+    automatic chordal completion on non-chordal graphs.
+"""
 function clique_decomp(G::SimpleGraph, ::AsIsElimination)
     return maximal_cliques(G)
 end

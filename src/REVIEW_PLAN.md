@@ -44,12 +44,17 @@ Systematic review of the NCTSSoS.jl optimization framework (excluding the `FastP
 
 ### Phase 4: Optimization & Sparsity
 **Focus**: Algorithmic efficiency, graph theory implementations, and linear algebra.
-*   **`src/sparse.jl`**
-    *   [ ] Review Correlative Sparsity and Term Sparsity algorithms.
-    *   [ ] Check clique decomposition efficiency.
-*   **`src/elimination.jl`**
-    *   [ ] Verify variable elimination/reduction logic.
-    *   [ ] Check for potential bottlenecks in symbolic manipulation.
+*   **`src/sparse.jl`** *(Reviewed - Complete)*
+    *   [x] Review Correlative Sparsity and Term Sparsity algorithms.
+    *   [x] Check clique decomposition efficiency.
+    *   **Notes**:
+        *   Performance bottleneck identified in `get_term_sparsity_graph` (O(N²) with heavy symbolic ops) - optimization opportunity for large problems
+        *   Potential splatting issue in `assign_constraint` - recommend `reduce(union, ...)` pattern
+*   **`src/elimination.jl`** *(Reviewed - Complete)*
+    *   [x] Verify variable elimination/reduction logic.
+    *   [x] Check for potential bottlenecks in symbolic manipulation.
+    *   **Fixes Applied**:
+        *   [x] Added docstring warning for `AsIsElimination` on non-chordal graphs (RIP violation risk)
 
 ### Phase 5: Specialized Features
 **Focus**: Quantum state features and GNS construction.
@@ -67,5 +72,5 @@ Systematic review of the NCTSSoS.jl optimization framework (excluding the `FastP
 - [x] Phase 1 Complete
 - [x] Phase 2 Complete
 - [x] Phase 3 Complete
-- [ ] Phase 4 Complete
+- [x] Phase 4 Complete
 - [ ] Phase 5 Complete

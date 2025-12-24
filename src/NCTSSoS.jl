@@ -6,7 +6,6 @@ using CliqueTrees: EliminationAlgorithm, SupernodeType
 import CliqueTrees.cliquetree
 
 include("FastPolynomials/src/FastPolynomials.jl")
-using .FastPolynomials
 
 # Import types (core types for internal use)
 using .FastPolynomials: Monomial, Polynomial
@@ -43,6 +42,7 @@ export ς, tr
 # or using NCTSSoS.FastPolynomials: Monomial, Polynomial, ...
 
 export polyopt
+export PolyOptResult
 export SolverConfig
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 export cs_nctssos, cs_nctssos_higher

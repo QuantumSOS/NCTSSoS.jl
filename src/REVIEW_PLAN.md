@@ -21,15 +21,13 @@ Systematic review of the NCTSSoS.jl optimization framework (excluding the `FastP
 
 ### Phase 2: User Interface & API
 **Focus**: Usability, multiple dispatch, and input validation.
-*   **`src/interface.jl`** *(Reviewed - Changes Requested)*
+*   **`src/interface.jl`** *(Reviewed - Complete)*
     *   [x] Evaluate public API surface.
     *   [x] Check keyword argument handling and defaults.
     *   [x] Specific review of error messages and validation logic.
-    *   **Pending Fixes**:
-        *   [ ] **High**: Refactor lines 99-105 - inefficient partial objective calculation (allocates zero terms)
-        *   [ ] **Medium**: Optimize order calculation (lines 93, 246) - use `Iterators.flatten` instead of array concatenation
-        *   [ ] **Low**: Add solver status checking before accessing `objective_value` (line 123)
-        *   [ ] **Low**: Consider typing `optimizer` field in `SolverConfig` (line 61)
+    *   **Fixes Applied**:
+        *   [x] **Critical**: Fixed runtime crash on empty objective - added `init=zero(pop.objective)` to `reduce` (lines 99-106)
+        *   [x] **Warning**: Replaced splat with `reduce(sorted_union, ...)` to avoid stack issues (line 158)
 
 ### Phase 3: Core Solver Logic
 **Focus**: SDP construction, solver interaction, and numerical correctness.
@@ -63,7 +61,7 @@ Systematic review of the NCTSSoS.jl optimization framework (excluding the `FastP
 
 ## Progress Tracking
 - [x] Phase 1 Complete
-- [ ] Phase 2 Complete
+- [x] Phase 2 Complete
 - [ ] Phase 3 Complete
 - [ ] Phase 4 Complete
 - [ ] Phase 5 Complete

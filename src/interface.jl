@@ -98,10 +98,11 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     # cliques are now Vector{T} (indices), use variable_indices() for comparison
     cliques_objective = map(corr_sparsity.cliques) do clique_indices
         clique_set = Set(clique_indices)
-        reduce(+, [
-            issubset(variable_indices(mono), clique_set) ? coef * mono : zero(coef) * one(mono)
-            for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective))
-        ])
+        reduce(+,
+            (issubset(variable_indices(mono), clique_set) ? coef * mono : zero(coef) * one(mono)
+             for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective)));
+            init=zero(pop.objective)
+        )
     end
 
     initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
@@ -154,7 +155,7 @@ This function performs a higher-order iteration of the CS-NCTSSOS method by:
 This is typically used when the previous relaxation was not tight enough and a higher-order relaxation is needed.
 """
 function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
-    initial_activated_supps = [sorted_union([poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec]...)
+    initial_activated_supps = [reduce(sorted_union, [poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec])
                                for term_sparsities_vec in prev_res.cliques_term_sparsities]
 
     prev_corr_sparsity = prev_res.corr_sparsity

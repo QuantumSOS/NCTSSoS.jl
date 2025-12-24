@@ -50,11 +50,11 @@ pop = polyopt(ham, reg)
 
 See also: [`polyopt`](@ref), [`VariableRegistry`](@ref), [`AlgebraType`](@ref)
 """
-struct PolyOpt{A<:AlgebraType, P<:Polynomial{A}} <: OptimizationProblem{A, P}
+struct PolyOpt{A<:AlgebraType,T<:Integer,P<:Polynomial{A,T}} <: OptimizationProblem{A,P}
     objective::P
     eq_constraints::Vector{P}
     ineq_constraints::Vector{P}
-    registry::VariableRegistry{A}
+    registry::VariableRegistry{A,T}
 end
 
 
@@ -120,7 +120,7 @@ function polyopt(
     ineq_cons = unique!(copy(ineq_constraints))
 
     P = Polynomial{A,T,C}
-    return PolyOpt{A, P}(objective, eq_cons, ineq_cons, registry)
+    return PolyOpt{A,T,P}(objective, eq_cons, ineq_cons, registry)
 end
 
 
@@ -240,11 +240,11 @@ spop = polyopt(sp * one(Monomial), reg)
 
 See also: [`polyopt`](@ref), [`NCStatePolynomial`](@ref), [`ς`](@ref)
 """
-struct StatePolyOpt{A<:AlgebraType, ST<:StateType, P<:NCStatePolynomial{<:Number,ST,A}} <: OptimizationProblem{A, P}
+struct StatePolyOpt{A<:AlgebraType,T<:Integer,ST<:StateType,P<:NCStatePolynomial{<:Number,ST,A,T}} <: OptimizationProblem{A,P}
     objective::P
     eq_constraints::Vector{P}
     ineq_constraints::Vector{P}
-    registry::VariableRegistry{A}
+    registry::VariableRegistry{A,T}
 end
 
 """
@@ -288,15 +288,15 @@ function polyopt(
     ineq_cons = unique!(copy(ineq_constraints))
 
     P = NCStatePolynomial{C,ST,A,T}
-    return StatePolyOpt{A, ST, P}(objective, eq_cons, ineq_cons, registry)
+    return StatePolyOpt{A,T,ST,P}(objective, eq_cons, ineq_cons, registry)
 end
 
 """
-    Base.show(io::IO, spop::StatePolyOpt{A,ST,P})
+    Base.show(io::IO, spop::StatePolyOpt{A,T,ST,P})
 
 Display a state polynomial optimization problem.
 """
-function Base.show(io::IO, spop::StatePolyOpt{A,ST,P}) where {A,ST,P}
+function Base.show(io::IO, spop::StatePolyOpt{A,T,ST,P}) where {A,T,ST,P}
     println(io, "State Polynomial Optimization Problem ($(nameof(A)), $(nameof(ST)))")
     println(io, "────────────────────────────────────────────────")
 

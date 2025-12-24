@@ -220,12 +220,12 @@ end
 # =============================================================================
 
 """
-    cs_nctssos(pop::StatePolyOpt{A,ST,P}, solver_config::SolverConfig; dualize::Bool=true)
+    cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; dualize::Bool=true)
 
 Solve a state polynomial optimization problem using the CS-NCTSSOS method.
 
 # Arguments
-- `pop::StatePolyOpt{A,ST,P}`: The state polynomial optimization problem to solve
+- `pop::StatePolyOpt{A,T,ST,P}`: The state polynomial optimization problem to solve
 - `solver_config::SolverConfig`: Configuration containing optimizer, moment order, and sparsity algorithms
 
 # Keyword Arguments
@@ -241,7 +241,7 @@ This function solves a state polynomial optimization problem by:
 3. Formulating and solving the SOS dual of the moment relaxation
 4. Returning the optimal objective value and sparsity information
 """
-function cs_nctssos(pop::StatePolyOpt{A,ST,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, ST<:StateType, C<:Number, T<:Integer, P<:NCStatePolynomial{C,ST,A,T}}
+function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
 
     order = iszero(solver_config.order) ? maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
 

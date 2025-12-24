@@ -98,12 +98,12 @@ end
 # =============================================================================
 
 """
-    moment_relax(pop::PolyOpt{A,P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}})
+    moment_relax(pop::PolyOpt{A,TI,P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}})
 
 Construct a symbolic moment relaxation of a polynomial optimization problem.
 
 # Arguments
-- `pop::PolyOpt{A,P}`: The polynomial optimization problem
+- `pop::PolyOpt{A,TI,P}`: The polynomial optimization problem
 - `corr_sparsity::CorrelativeSparsity`: Correlative sparsity structure with cliques
 - `cliques_term_sparsities`: Term sparsity for each clique
 
@@ -132,10 +132,10 @@ sos = sos_dualize(mp)
 See also: [`MomentProblem`](@ref), [`sos_dualize`](@ref)
 """
 function moment_relax(
-    pop::PolyOpt{A,P},
+    pop::PolyOpt{A,TI,P},
     corr_sparsity::CorrelativeSparsity{A,TI,P,M},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
-) where {A<:AlgebraType, TI<:Integer, C<:Number, P<:Polynomial{A,TI,C}, M<:Monomial{A,TI}}
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:Monomial{A,TI}}
 
     # Compute total basis: union of all moment matrix entry monomials
     # _neat_dot3 returns Monomial, simplify then extract monomials
@@ -622,7 +622,7 @@ end
 Construct a symbolic moment relaxation of a state polynomial optimization problem.
 
 # Arguments
-- `pop::StatePolyOpt{A,ST,P}`: The state polynomial optimization problem
+- `pop::StatePolyOpt{A,TI,ST,P}`: The state polynomial optimization problem
 - `corr_sparsity::StateCorrelativeSparsity`: Correlative sparsity structure
 - `cliques_term_sparsities`: Term sparsity for each clique
 
@@ -630,10 +630,10 @@ Construct a symbolic moment relaxation of a state polynomial optimization proble
 - `StateMomentProblem{A,ST,T,M,P}`: Symbolic state moment problem
 """
 function moment_relax(
-    pop::StatePolyOpt{A,ST,P},
+    pop::StatePolyOpt{A,TI,ST,P},
     corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
-) where {A<:AlgebraType, ST<:StateType, TI<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,TI}, M<:NCStateWord{ST,A,TI}}
+) where {A<:AlgebraType,TI<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,TI},M<:NCStateWord{ST,A,TI}}
 
     # Compute total basis: union of all moment matrix entry NCStateWords
     # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial

@@ -696,7 +696,7 @@ end
 Decomposes a state polynomial optimization problem into a correlative sparsity pattern.
 
 # Arguments
-- `pop::StatePolyOpt{A,ST,P}`: State polynomial optimization problem
+- `pop::StatePolyOpt{A,T,ST,P}`: State polynomial optimization problem
 - `order::Int`: Order of the moment relaxation
 - `elim_algo::EliminationAlgorithm`: Algorithm for clique tree elimination
 
@@ -704,10 +704,10 @@ Decomposes a state polynomial optimization problem into a correlative sparsity p
 - `StateCorrelativeSparsity{A,ST,T,P,M}`: State correlative sparsity structure
 """
 function correlative_sparsity(
-    pop::StatePolyOpt{A,ST,P},
+    pop::StatePolyOpt{A,T,ST,P},
     order::Int,
     elim_algo::EliminationAlgorithm
-) where {A<:AlgebraType, ST<:StateType, C<:Number, T<:Integer, P<:NCStatePolynomial{C,ST,A,T}}
+) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
     registry = pop.registry
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 

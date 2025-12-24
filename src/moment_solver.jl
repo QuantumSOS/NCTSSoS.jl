@@ -142,10 +142,10 @@ function moment_relax(
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
             # _neat_dot3 returns Monomial; simplify then extract monomials (may be multiple for Bosonic)
-            [mono for m in monomials(poly) for mono in monomials(Polynomial(simplify(_neat_dot3(rol_idx, m, col_idx))))]
+            [mono for m in monomials(poly) for mono in monomials(Polynomial(simplify(_neat_dot3(row_idx, m, col_idx))))]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
             for basis in term_sparsity.block_bases
-            for rol_idx in basis
+            for row_idx in basis
             for col_idx in basis
         ])
     end...)
@@ -642,9 +642,9 @@ function moment_relax(
             [ncsw_result
              for ncsw in monomials(poly)
              for basis in term_sparsity.block_bases
-             for rol_idx in basis
+             for row_idx in basis
              for col_idx in basis
-             for ncsw_result in monomials(simplify(_neat_dot3(rol_idx, ncsw, col_idx)))]
+             for ncsw_result in monomials(simplify(_neat_dot3(row_idx, ncsw, col_idx)))]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
         ])
     end...)

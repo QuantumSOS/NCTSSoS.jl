@@ -197,13 +197,14 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     add_to_expression!(fα_constraints[1], -one(C), b)
 
     # Process each constraint matrix
+    sorted_basis = sort(mp.total_basis)
     for (i, (_, mat)) in enumerate(mp.constraints)
-        Cαjs = get_Cαj(sort(mp.total_basis), mat)
+        Cαjs = get_Cαj(sorted_basis, mat)
         for (ky, coef) in Cαjs
             basis_idx, row, col = ky
             # Map unsymmetrized basis index to symmetric index
-            if basis_idx <= length(mp.total_basis)
-                unsym_mono = sort(mp.total_basis)[basis_idx]
+            if basis_idx <= length(sorted_basis)
+                unsym_mono = sorted_basis[basis_idx]
                 sym_idx = basis_to_sym_idx[unsym_mono]
                 add_to_expression!(fα_constraints[sym_idx], -coef, dual_variables[i][row, col])
             end

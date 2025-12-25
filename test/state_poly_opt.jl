@@ -1,6 +1,14 @@
 # State Polynomial Optimization Tests
 
 using Test, NCTSSoS, NCTSSoS.FastPolynomials
+using COSMO
+const QUICK_SOLVER = COSMO.Optimizer
+using JuMP
+using NCTSSoS:
+    neat_dot,
+    NoElimination
+
+using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStateWord, ς, Monomial
 
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools
@@ -13,14 +21,6 @@ else
     const SOLVER = Clarabel.Optimizer
 end
 
-using COSMO
-const QUICK_SOLVER = COSMO.Optimizer
-using JuMP
-using NCTSSoS:
-    neat_dot,
-    NoElimination
-
-using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStateWord, ς, Monomial
 
 @testset "State Polynomial Opt 7.2.0" begin
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])

@@ -1,6 +1,5 @@
 using Test, NCTSSoS, NCTSSoS.FastPolynomials, JuMP
 
-using Clarabel
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools
     const SOLVER = optimizer_with_attributes(

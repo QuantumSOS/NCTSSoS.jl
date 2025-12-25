@@ -1,4 +1,6 @@
-using Test, NCTSSoS, NCTSSoS.FastPolynomials
+using Test, NCTSSoS, NCTSSoS.FastPolynomials, JuMP
+using SparseArrays, Graphs, CliqueTrees
+using NCTSSoS: get_Cαj
 
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools
@@ -10,9 +12,7 @@ else
     using Clarabel
     const SOLVER = Clarabel.Optimizer
 end
-using SparseArrays, JuMP, Graphs, CliqueTrees
 
-using NCTSSoS: get_Cαj
 
 if haskey(ENV, "LOCAL_TESTING")
     @testset "I_3322 inequality" begin

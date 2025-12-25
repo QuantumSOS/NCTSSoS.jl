@@ -1,4 +1,4 @@
-using NCTSSoS, Test, MosekTools
+using NCTSSoS, Test, MosekTools, JuMP
 
 # Create variables at module level so eval(Meta.parse(...)) can find them
 # Uses ProjectorAlgebra since Bell inequalities involve projective measurements (P² = P)
@@ -62,7 +62,7 @@ const BELL_REGISTRY, (X, Y) = create_projector_variables([("X", 1:5), ("Y", 1:5)
         idx = findfirst(x -> x == instance[i] * ".txt", github_filenames)
         p = 1.0 * eval(Meta.parse(equations[idx]))
         pop = polyopt(p, BELL_REGISTRY)
-        solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=d[i])
+        solver_config = SolverConfig(optimizer=optimizer_with_attributes(Mosek.Optimizer, "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2))), order=d[i])
         res = cs_nctssos(pop, solver_config)
         return res.objective
     end

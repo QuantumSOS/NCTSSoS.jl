@@ -29,7 +29,7 @@ using NCTSSoS, Test
     # NOTE: Doctest.jl disabled - FastPolynomials doctests use "using FastPolynomials"
     # but FastPolynomials is a submodule, not a registered package.
     # TODO: Fix FastPolynomials doctests to use correct import path
-    # include("Doctest.jl")
+    include("Doctest.jl")
     include("ExplicitImports.jl")
 
     # Solver integration tests

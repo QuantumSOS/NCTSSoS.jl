@@ -18,8 +18,8 @@ LOCAL_TESTING=true make test
 # Run tests without extended tests (faster, CI mode)
 make test
 
-# Run only FastPolynomials tests
-make test-FastPoly
+# Run only polynomial algebra tests
+julia --project -e 'using Pkg; Pkg.test()' -- test/polynomials/runtests.jl
 
 # Run a single test file
 julia --project -e 'using Pkg; Pkg.test()' -- test/pop.jl
@@ -36,19 +36,49 @@ make bench TARGET=main
 
 ## Architecture
 
-### Two-Layer Design
+### Source Structure
 
-1. **FastPolynomials** (`src/FastPolynomials/`): High-performance polynomial library
-   - Type-parameterized algebra system with compile-time dispatch
-   - Six algebra types: `NonCommutativeAlgebra`, `PauliAlgebra`, `FermionicAlgebra`, `BosonicAlgebra`, `ProjectorAlgebra`, `UnipotentAlgebra`
-   - Core types: `Monomial{A,T}` → `Term{M,C}` → `Polynomial{A,T,C}`
-   - `VariableRegistry` maps symbols ↔ integer indices with algebra-specific encoding
+```
+src/
+├── NCTSSoS.jl              # Module entry point
+├── types/                  # Core data structures
+│   ├── algebra.jl          # AlgebraType hierarchy (6 concrete types)
+│   ├── registry.jl         # VariableRegistry: symbols ↔ indices
+│   ├── monomial.jl         # Monomial{A,T}
+│   ├── term.jl             # Term{M,C}
+│   ├── polynomial.jl       # Polynomial{A,T,C}
+│   └── composed.jl         # ComposedMonomial for tensor products
+├── simplification/         # Algebra-specific simplification rules
+│   ├── pauli.jl            # σᵢ² = I, anticommutation
+│   ├── fermionic.jl        # {aᵢ, aⱼ†} = δᵢⱼ, normal ordering
+│   ├── bosonic.jl          # [cᵢ, cⱼ†] = δᵢⱼ, normal ordering
+│   ├── projector.jl        # Pᵢ² = Pᵢ idempotency
+│   ├── unipotent.jl        # U² = I involutory
+│   └── noncommutative.jl   # No simplification (generic)
+├── algorithms/             # Pure algorithms
+│   ├── canonicalization.jl # symmetric_canon, cyclic_canon
+│   └── basis.jl            # get_ncbasis, get_state_basis
+├── states/                 # State polynomial layer
+│   ├── types.jl            # StateWord, StatePolynomial types
+│   ├── word.jl             # StateWord algebra
+│   └── polynomial.jl       # StatePolynomial operations
+├── optimization/           # SDP framework
+│   ├── problem.jl          # PolyOpt definition
+│   ├── sparsity.jl         # CorrelativeSparsity, TermSparsity
+│   ├── moment.jl           # Moment relaxation
+│   ├── sos.jl              # SOS relaxation
+│   ├── gns.jl              # GNS construction
+│   ├── elimination.jl      # Elimination strategies
+│   └── interface.jl        # Public solver API (cs_nctssos)
+└── util/
+    └── helpers.jl          # Utility functions
+```
 
-2. **NCTSSoS** (root `src/`): Optimization framework
-   - `PolyOpt`/`ComplexPolyOpt`: Problem definitions with constraints
-   - `CorrelativeSparsity`: Clique decomposition for block-structured SDP
-   - `TermSparsity`: Further sparsity exploitation within cliques
-   - `cs_nctssos()`: Main solver entry point
+### Type Hierarchy
+
+- **AlgebraType**: `NonCommutativeAlgebra`, `PauliAlgebra`, `FermionicAlgebra`, `BosonicAlgebra`, `ProjectorAlgebra`, `UnipotentAlgebra`
+- **Core Types**: `Monomial{A,T}` → `Term{M,C}` → `Polynomial{A,T,C}`
+- **Optimization**: `PolyOpt` → `CorrelativeSparsity` → `TermSparsity` → SDP
 
 ### Key Data Flow
 
@@ -61,15 +91,6 @@ PolyOpt → correlative_sparsity() → CorrelativeSparsity
                                               ↓
          moment_relax() → SDP → JuMP model → solve
 ```
-
-### Simplification System
-
-Each algebra type has its own simplification rules in `src/FastPolynomials/src/simplification/`:
-- Pauli: `σᵢ² = I`, anticommutation, cyclic products → complex phases
-- Fermionic: `{aᵢ, aⱼ†} = δᵢⱼ` anticommutation → normal ordering
-- Bosonic: `[cᵢ, cⱼ†] = δᵢⱼ` commutation → normal ordering with corrections
-- Projector: `Pᵢ² = Pᵢ` idempotency
-- Unipotent: `U² = I` involutory
 
 ## Code Conventions
 
@@ -87,6 +108,7 @@ Each algebra type has its own simplification rules in `src/FastPolynomials/src/s
 
 ## Test Structure
 
-- `test/fastpoly_test/`: FastPolynomials unit tests
+- `test/polynomials/`: Polynomial algebra unit tests (types, simplification, arithmetic)
 - `test/*.jl`: Integration tests (moment solver, SOS solver, interface)
-- Tests under `LOCAL_TESTING` env var take longer (moment problems)
+- Physics model tests: `heisenberg.jl`, `xy_model.jl`, `bose_hubbard.jl` (run with `LOCAL_TESTING=true`)
+- Quality checks: `Aqua.jl`, `ExplicitImports.jl`

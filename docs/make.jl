@@ -20,7 +20,7 @@ makedocs(;
         "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "SDP Relaxation" => "apis/relaxations.md"]
     ],
     plugins=[bib],
-    # modules=[NCTSSoS, NCTSSoS.FastPolynomials],
+    # modules=[NCTSSoS],
     format=Documenter.HTML(; prettyurls=get(ENV, "CI", nothing) == "true", assets=String["assets/citations.css"], size_threshold=10^6),
 )
 

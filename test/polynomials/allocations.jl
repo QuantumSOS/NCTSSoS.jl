@@ -1,11 +1,5 @@
-# Note: FastPolynomials is loaded by setup.jl
-using NCTSSoS.FastPolynomials:
-    simplify,
-    create_noncommutative_variables,
-    get_ncbasis,
-    coefficients,
-    monomials,
-    indices
+# NCTSSoS is loaded by parent runtests.jl
+# Exported: simplify, create_noncommutative_variables, get_ncbasis, coefficients, monomials, indices
 
 # Note: Allocation tests for the new API
 # The new implementation uses AlgebraType dispatch instead of SimplifyAlgorithm

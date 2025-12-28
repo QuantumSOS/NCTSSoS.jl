@@ -1,20 +1,9 @@
-# Note: FastPolynomials is loaded by setup.jl
-using NCTSSoS.FastPolynomials:
-    simplify,
-    create_noncommutative_variables,
-    create_pauli_variables,
-    create_projector_variables,
-    create_unipotent_variables,
-    create_fermionic_variables,
-    create_bosonic_variables,
-    get_ncbasis,
-    terms,
-    monomials,
+# NCTSSoS is loaded by parent runtests.jl
+# Exported: simplify, create_*_variables, get_ncbasis, terms, monomials, has_even_parity
+# Internal (not exported): encode_index, decode_site, normal_order_key, is_normal_ordered, find_first_out_of_order, combine_like_terms
+using NCTSSoS:
     encode_index,
     decode_site,
-    # Fermionic helper
-    has_even_parity,
-    # Shared normal ordering helpers (utils.jl)
     normal_order_key,
     is_normal_ordered,
     find_first_out_of_order,
@@ -602,7 +591,7 @@ end
 end
 
 @testset "Immutable Monomial Simplification" begin
-    using NCTSSoS.FastPolynomials: encode_index
+    # encode_index is imported at the top of this file
 
     @testset "NonCommutative simplification returns new monomial" begin
         # Create monomial with indices out of order by site
@@ -750,7 +739,7 @@ end
 end
 
 @testset "Mutable simplify! functions" begin
-    using NCTSSoS.FastPolynomials: simplify!, encode_index
+    # simplify! is exported; encode_index is imported at the top of this file
 
     @testset "NonCommutativeAlgebra simplify!" begin
         idx1_s1 = encode_index(UInt16, 1, 1)

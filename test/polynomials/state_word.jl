@@ -1,14 +1,7 @@
-# Note: FastPolynomials is loaded by setup.jl
-using NCTSSoS.FastPolynomials:
-    StateWord,
-    NCStateWord,
-    StatePolynomial,
-    Arbitrary,
-    MaxEntangled,
-    expval,
-    neat_dot,
-    ς,
-    tr
+# NCTSSoS is loaded by parent runtests.jl
+# Exported: StateWord, StatePolynomial, ς, tr
+# Internal (not exported): NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
+using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
 
 @testset "StateWord{MaxEntangled} (Tracial)" begin
     @testset "Creation and Equality" begin

@@ -1,9 +1,5 @@
 using LinearAlgebra
-# Registry-based imports from FastPolynomials for GNS reconstruction
-using ..FastPolynomials:
-    Monomial, Polynomial, VariableRegistry, AlgebraType,
-    get_ncbasis, neat_dot, monomials, NonCommutativeAlgebra,
-    indices, subregistry
+# Types from NCTSSoS main module (no submodule needed)
 
 """
     extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}

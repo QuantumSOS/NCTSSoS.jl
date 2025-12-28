@@ -1,24 +1,24 @@
 using NCTSSoS, Test
 
 # =============================================================================
-# FastPolynomials Integration - Test Status (2025-12-21)
+# NCTSSoS Test Suite - All Polynomial Types Embedded (2025-12-28)
 # =============================================================================
-# Migration status:
-#   ✓ FastPolynomials tests - using new API, all pass
-#   ✓ pop.jl, sparse.jl - migrated, all pass
-#   ✓ moment_solver.jl, sos_solver.jl, interface.jl - migrated, all pass
-#   ✓ Aqua.jl, ExplicitImports.jl - pass
-#   ✓ heisenberg.jl, xy_model.jl, bose_hubbard.jl - pass (LOCAL_TESTING only)
-#   ✓ bell_ineq.jl - migrated to ProjectorAlgebra API (LOCAL_TESTING only)
-#   ✓ state_poly_opt.jl, trace_poly_opt.jl - migrated (uses ς, tr)
+# All polynomial types are now exported directly from NCTSSoS.
+# The FastPolynomials submodule has been embedded into the main package.
 #
-# Remaining:
-#   - Doctest.jl disabled (FastPolynomials doctests need import path fix)
+# Test categories:
+#   - polynomials/: Core polynomial algebra tests
+#   - pop.jl, sparse.jl: Correlative/term sparsity tests
+#   - moment_solver.jl, sos_solver.jl: SDP solver tests
+#   - interface.jl: High-level API tests
+#   - heisenberg.jl, xy_model.jl, bose_hubbard.jl: Physics model tests (LOCAL_TESTING)
+#   - state_poly_opt.jl, trace_poly_opt.jl: State/trace polynomial optimization
+#   - fermionic_parity_test.jl: Fermionic parity superselection tests
 # =============================================================================
 
 @testset "NCTSSoS.jl" begin
-    # FastPolynomials - uses new API, all tests pass
-    include("fastpoly_test/runtests.jl")
+    # Polynomials - uses new API, all tests pass
+    include("polynomials/runtests.jl")
 
     # Core optimization tests - migrated to new API
     include("pop.jl")
@@ -26,9 +26,7 @@ using NCTSSoS, Test
 
     # Quality checks
     include("Aqua.jl")
-    # NOTE: Doctest.jl disabled - FastPolynomials doctests use "using FastPolynomials"
-    # but FastPolynomials is a submodule, not a registered package.
-    # TODO: Fix FastPolynomials doctests to use correct import path
+    # NOTE: Doctest.jl disabled - doctests need review after embedding
     # include("Doctest.jl")
     include("ExplicitImports.jl")
 

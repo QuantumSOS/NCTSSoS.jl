@@ -1,7 +1,7 @@
 # State Moment Solver Tests
 # Tests for both direct moment solving (dualize=false) and SOS dualization (dualize=true)
 
-using Test, NCTSSoS, NCTSSoS.FastPolynomials
+using Test, NCTSSoS
 if haskey(ENV, "LOCAL_TESTING") 
     using MosekTools
     const SOLVER = optimizer_with_attributes(

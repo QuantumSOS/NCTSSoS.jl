@@ -275,7 +275,7 @@ function correlative_sparsity(
     end
 
     # Compute degrees for localizing matrix basis truncation
-    cliques_moment_matrix_bases_dg = [NCTSSoS.FastPolynomials.degree.(bs) for bs in cliques_moment_matrix_bases]
+    cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]
 
     # Generate localizing matrix bases (truncated based on constraint degree)
     cliques_localizing_bases = map(zip(eachindex(cliques), cliques_cons)) do (clique_idx, clique_cons_indices)
@@ -742,7 +742,7 @@ function correlative_sparsity(
     end
 
     # Compute degrees for localizing matrix basis truncation
-    cliques_moment_matrix_bases_dg = [NCTSSoS.FastPolynomials.degree.(bs) for bs in cliques_moment_matrix_bases]
+    cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]
 
     # Generate localizing matrix bases (truncated based on constraint degree)
     cliques_localizing_bases = map(zip(eachindex(cliques), cliques_cons)) do (clique_idx, clique_cons_indices)

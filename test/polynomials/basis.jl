@@ -1,5 +1,6 @@
-using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: get_ncbasis, get_ncbasis_deg, _generate_all_words
+using Test, NCTSSoS
+# get_ncbasis is exported from NCTSSoS; get_ncbasis_deg, _generate_all_words are internal
+using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
 @testset "Basis Generation" begin
 

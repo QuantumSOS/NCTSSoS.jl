@@ -1,8 +1,8 @@
 using Test
-# Use FastPolynomials from NCTSSoS (loaded by runtests.jl via `using NCTSSoS`)
-using NCTSSoS.FastPolynomials
+# NCTSSoS is already loaded by parent runtests.jl via `using NCTSSoS`
+# All polynomial types are exported directly from NCTSSoS
 
-@testset "FastPolynomials" begin
+@testset "Polynomials" begin
     include("algebra_types.jl")
     include("variables.jl")
     include("monomials.jl")

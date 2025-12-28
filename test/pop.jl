@@ -1,4 +1,4 @@
-using Test, NCTSSoS, NCTSSoS.FastPolynomials
+using Test, NCTSSoS
 
 @testset "PolyOpt Constructor" begin
     @testset "Pauli Algebra Example" begin

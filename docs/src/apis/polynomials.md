@@ -3,41 +3,41 @@
 ## Variables
 
 ```@autodocs
-Modules = [NCTSSoS.FastPolynomials]
-Pages = ["FastPolynomials/src/variables.jl"]
+Modules = [NCTSSoS]
+Pages = ["types/registry.jl"]
 ```
 
 ## Monomials
 
 ```@autodocs
-Modules = [NCTSSoS.FastPolynomials]
-Pages = ["FastPolynomials/src/monomials.jl"]
+Modules = [NCTSSoS]
+Pages = ["types/monomial.jl"]
 ```
 
 ## Polynomials
 
 ```@autodocs
-Modules = [NCTSSoS.FastPolynomials]
-Pages = ["FastPolynomials/src/polynomials.jl"]
+Modules = [NCTSSoS]
+Pages = ["types/polynomial.jl"]
 ```
 
 ## State Polynomial
 
 ```@autodocs
-Modules = [NCTSSoS.FastPolynomials]
-Pages = ["FastPolynomials/src/state_polynomial.jl", "FastPolynomials/src/state_word.jl"]
+Modules = [NCTSSoS]
+Pages = ["states/polynomial.jl", "states/word.jl"]
 ```
 
 ## Simplification Interface
 
 ```@autodocs
-Modules = [NCTSSoS.FastPolynomials]
-Pages = ["FastPolynomials/src/simplification.jl"]
+Modules = [NCTSSoS]
+Pages = ["simplification/pauli.jl", "simplification/fermionic.jl", "simplification/bosonic.jl", "simplification/projector.jl", "simplification/unipotent.jl", "simplification/noncommutative.jl"]
 ```
 
 ## Utilities
 
 ```@autodocs
-Modules = [NCTSSoS.FastPolynomials]
-Pages = ["FastPolynomials/src/utils.jl"]
+Modules = [NCTSSoS]
+Pages = ["utils.jl"]
 ```

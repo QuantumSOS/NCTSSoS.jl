@@ -1,6 +1,6 @@
-using Test, NCTSSoS.FastPolynomials
+using Test, NCTSSoS
 # Import internal functions for testing
-using NCTSSoS.FastPolynomials:
+using NCTSSoS:
     _subscript_string,
     _select_pauli_type,
     _select_signed_index_type,

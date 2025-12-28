@@ -4,11 +4,11 @@
 # Let's learn how to do [tracial polynomial optimization](@ref
 # tracial-polynomial) from a toy example.
 #
-# We use [`NCTSSoS.FastPolynomials.tr`](@ref) to declare a part of a term in
+# We use [`NCTSSoS.tr`](@ref) to declare a part of a term in
 # tracial polynomial.
 
 using NCTSSoS, MosekTools
-using NCTSSoS.FastPolynomials: tr, Monomial
+using NCTSSoS: tr, Monomial
 
 # Create projector variables using the typed algebra system
 registry, (x,) = create_projector_variables([("x", 1:3)])
@@ -50,7 +50,7 @@ result = cs_nctssos(spop, solver_config)
 # extent to which quantum mechanics transcends classical limitations.
 
 using NCTSSoS, MosekTools
-using NCTSSoS.FastPolynomials: tr, Monomial
+using NCTSSoS: tr, Monomial
 
 # Create unipotent variables (operators that square to identity)
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
@@ -75,7 +75,7 @@ result = cs_nctssos(tpop, solver_config)
 # maximally entangled bipartite state.
 
 using NCTSSoS, MosekTools
-using NCTSSoS.FastPolynomials: tr, Monomial
+using NCTSSoS: tr, Monomial
 
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 

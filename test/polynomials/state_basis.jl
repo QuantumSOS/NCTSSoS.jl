@@ -4,18 +4,10 @@
 # produces the correct number and uniqueness of basis elements.
 
 using Test
-using NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials:
-    StateWord,
-    NCStateWord,
-    MaxEntangled,
-    Arbitrary,
-    get_state_basis,
-    get_ncbasis,
-    cyclic_symmetric_canon,
-    _state_canon,
-    degree,
-    tr
+using NCTSSoS
+# Exported: StateWord, get_state_basis, get_ncbasis, degree, tr
+# Internal (not exported): NCStateWord, MaxEntangled, Arbitrary, cyclic_symmetric_canon, _state_canon
+using NCTSSoS: NCStateWord, MaxEntangled, Arbitrary, cyclic_symmetric_canon, _state_canon
 
 @testset "StateWord hash consistency" begin
     reg, (x,) = create_unipotent_variables([("x", 1:2)])
@@ -146,8 +138,8 @@ end
     end
     
     @testset "Cross-site monomials become equal after simplify (site commutation)" begin
-        using NCTSSoS.FastPolynomials: simplify
-        
+        # simplify is exported from NCTSSoS
+
         # After simplification, operators on different sites commute
         # so y[1]*x[1] and x[1]*y[1] should become the same (sorted by site)
         m_yx = y[1] * x[1]

@@ -1,9 +1,9 @@
-# Note: FastPolynomials is loaded by setup.jl
-using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: encode_index
+# NCTSSoS is loaded by parent runtests.jl
+using Test, NCTSSoS
+using NCTSSoS: encode_index, ComposedMonomial
 
 # Import internal functions for testing
-import NCTSSoS.FastPolynomials: _expand_simplified_components, _infer_coef_type_from_types
+import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
 
 @testset "ComposedMonomial" begin
     @testset "Construction" begin

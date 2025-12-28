@@ -1,8 +1,6 @@
 using Test, NCTSSoS
-using NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: neat_dot, get_ncbasis
 using LinearAlgebra
-using NCTSSoS: get_basis, neat_dot
+using NCTSSoS: get_basis, neat_dot, get_ncbasis
 
 @testset "GNS Construction" begin
     @testset "Hankel dictionary utilities" begin

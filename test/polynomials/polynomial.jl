@@ -1,6 +1,6 @@
-# Note: FastPolynomials is loaded by setup.jl
-using Test, NCTSSoS.FastPolynomials
-using NCTSSoS.FastPolynomials: variable_indices
+# NCTSSoS is loaded by parent runtests.jl
+using Test, NCTSSoS
+using NCTSSoS: variable_indices
 
 @testset "Polynomial" begin
     @testset "Creation from Terms" begin

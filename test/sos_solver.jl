@@ -1,4 +1,4 @@
-using Test, NCTSSoS, NCTSSoS.FastPolynomials, JuMP
+using Test, NCTSSoS, JuMP
 using SparseArrays, Graphs, CliqueTrees
 using NCTSSoS: get_Cαj
 

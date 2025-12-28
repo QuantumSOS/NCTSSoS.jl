@@ -1,4 +1,4 @@
-using Test, NCTSSoS, NCTSSoS.FastPolynomials
+using Test, NCTSSoS
 using Graphs, CliqueTrees
 
 using NCTSSoS:
@@ -8,13 +8,9 @@ using NCTSSoS:
     get_term_sparsity_graph,
     term_sparsity_graph_supp,
     correlative_sparsity,
-    init_activated_supp
-
-using NCTSSoS.FastPolynomials:
-    Monomial, Polynomial, Term,
-    NonCommutativeAlgebra, VariableRegistry,
-    create_noncommutative_variables, variable_indices,
-    monomials, neat_dot
+    init_activated_supp,
+    variable_indices,
+    neat_dot
 
 # Helper to create NC polynomials from registry variables
 function nc_poly(registry::VariableRegistry{NonCommutativeAlgebra,T}, indices::Vector{T}) where T

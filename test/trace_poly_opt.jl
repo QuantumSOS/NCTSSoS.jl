@@ -1,7 +1,6 @@
 # Trace Polynomial Optimization Tests
 
 using Test, NCTSSoS, JuMP
-using NCTSSoS.FastPolynomials: tr, Monomial
 
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools

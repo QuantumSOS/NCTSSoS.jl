@@ -1,19 +1,7 @@
-# Note: FastPolynomials is loaded by setup.jl
-using NCTSSoS.FastPolynomials:
-    encode_index,
-    decode_operator_id,
-    decode_site,
-    get_ncbasis,
-    get_ncbasis_deg,
-    create_noncommutative_variables,
-    create_pauli_variables,
-    create_unipotent_variables,
-    indices,
-    degree,
-    Term,
-    Polynomial,
-    Monomial,
-    NonCommutativeAlgebra
+# NCTSSoS is loaded by parent runtests.jl
+# Exported: get_ncbasis, create_noncommutative_variables, create_pauli_variables, create_unipotent_variables, indices, degree, Term, Polynomial, Monomial, NonCommutativeAlgebra
+# Internal (not exported): encode_index, decode_operator_id, decode_site, get_ncbasis_deg
+using NCTSSoS: encode_index, decode_operator_id, decode_site, get_ncbasis_deg
 
 @testset "Utilities" begin
     @testset "Index Encoding/Decoding" begin

@@ -1,4 +1,4 @@
-using NCTSSoS, NCTSSoS.FastPolynomials, Test
+using NCTSSoS, Test
 using JuMP
 
 if haskey(ENV, "LOCAL_TESTING")

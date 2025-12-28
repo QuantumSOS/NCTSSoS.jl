@@ -1,4 +1,4 @@
-using Test, NCTSSoS, NCTSSoS.FastPolynomials, JuMP
+using Test, NCTSSoS, JuMP
 
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools

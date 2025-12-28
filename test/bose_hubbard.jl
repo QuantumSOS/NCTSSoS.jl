@@ -1,6 +1,6 @@
-using NCTSSoS, NCTSSoS.FastPolynomials, Test
-using NCTSSoS.FastPolynomials: simplify
+using NCTSSoS, Test
 using JuMP
+using NCTSSoS: simplify, degree  # Disambiguate from JuMP/Graphs
 
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools

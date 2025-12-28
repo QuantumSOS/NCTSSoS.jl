@@ -1,5 +1,6 @@
-using NCTSSoS, NCTSSoS.FastPolynomials, Test
+using NCTSSoS, Test
 using JuMP
+using NCTSSoS: variable_indices, simplify  # Disambiguate simplify from JuMP
 
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools
@@ -58,14 +59,14 @@ end
         registry, (a, a_dag) = create_fermionic_variables(1:2)
 
         # Simplified even-parity polynomial: a_dag[1] * a[1] after normal ordering
-        even_poly = FastPolynomials.simplify(a_dag[1] * a[1])
+        even_poly = simplify(a_dag[1] * a[1])
         for t in terms(even_poly)
             @test has_even_parity(t.monomial) == true
         end
 
         # Simplified polynomial: a[1] * a_dag[1] = delta - a_dag[1]*a[1]
         # Both identity (from delta) and number operator have even parity
-        anticomm_poly = FastPolynomials.simplify(a[1] * a_dag[1])
+        anticomm_poly = simplify(a[1] * a_dag[1])
         for t in terms(anticomm_poly)
             @test has_even_parity(t.monomial) == true
         end

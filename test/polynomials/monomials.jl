@@ -1,5 +1,5 @@
-# Note: FastPolynomials is loaded by setup.jl
-using Test, NCTSSoS.FastPolynomials
+# NCTSSoS is loaded by parent runtests.jl
+using Test, NCTSSoS
 
 @testset "Monomials" begin
     @testset "Creation" begin

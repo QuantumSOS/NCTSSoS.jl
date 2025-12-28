@@ -11,12 +11,12 @@ NCTSSoS.cpolyopt
 ## Variable Creation
 
 ```@docs
-NCTSSoS.FastPolynomials.create_pauli_variables
-NCTSSoS.FastPolynomials.create_fermionic_variables
-NCTSSoS.FastPolynomials.create_bosonic_variables
-NCTSSoS.FastPolynomials.create_projector_variables
-NCTSSoS.FastPolynomials.create_unipotent_variables
-NCTSSoS.FastPolynomials.create_noncommutative_variables
+NCTSSoS.create_pauli_variables
+NCTSSoS.create_fermionic_variables
+NCTSSoS.create_bosonic_variables
+NCTSSoS.create_projector_variables
+NCTSSoS.create_unipotent_variables
+NCTSSoS.create_noncommutative_variables
 ```
 
 ## Solver Interface

@@ -5,71 +5,121 @@ using CliqueTrees, ChordalGraph, Graphs
 using CliqueTrees: EliminationAlgorithm, SupernodeType
 import CliqueTrees.cliquetree
 
-include("FastPolynomials/src/FastPolynomials.jl")
+# ============================================================================
+# Core Types (formerly FastPolynomials)
+# ============================================================================
 
-# Import types (core types for internal use)
-using .FastPolynomials: Monomial, Polynomial
-using .FastPolynomials: AlgebraType, NonCommutativeAlgebra, PauliAlgebra
-using .FastPolynomials: UnipotentAlgebra, ProjectorAlgebra, FermionicAlgebra, BosonicAlgebra
-using .FastPolynomials: VariableRegistry, symbols, indices, subregistry
-using .FastPolynomials: variable_indices
-using .FastPolynomials: create_pauli_variables, create_fermionic_variables, create_bosonic_variables
-using .FastPolynomials: create_projector_variables, create_unipotent_variables, create_noncommutative_variables
-using .FastPolynomials: has_even_parity
+# Algebra types must come first (defines AlgebraType hierarchy)
+include("types/algebra.jl")
 
-# Import internal type alias (not exported, for internal use)
-using .FastPolynomials: AbstractPolynomial
+# Variable registry (depends on algebra types)
+include("types/registry.jl")
 
-# Import functions (only those actually used in NCTSSoS)
-using .FastPolynomials: sorted_union, sorted_unique
-using .FastPolynomials: monomials, coefficients, terms, degree
-using .FastPolynomials: get_ncbasis, get_state_basis
-using .FastPolynomials: symmetric_canon
-using .FastPolynomials: neat_dot, _neat_dot3, expval
-using .FastPolynomials: simplify
-using .FastPolynomials: variables
+# Monomial type (depends on algebra types and registry)
+include("types/monomial.jl")
 
-# State polynomial types
-using .FastPolynomials: StateType
-using .FastPolynomials: StateWord, NCStateWord, NCStatePolynomial
-using .FastPolynomials: ς, tr
+# Term type (depends on monomial)
+include("types/term.jl")
 
-# Re-export key types and functions for downstream users
-export ς, tr
+# Polynomial type (depends on term)
+include("types/polynomial.jl")
 
-# Note: Core types (Monomial, Polynomial, Term)
-# are NOT exported from NCTSSoS to avoid ambiguity when FastPolynomials
-# is also loaded. Access them via NCTSSoS.FastPolynomials.Monomial etc.
-# or using NCTSSoS.FastPolynomials: Monomial, Polynomial, ...
+# ============================================================================
+# Simplification Algorithms (algebra-specific)
+# ============================================================================
 
-export polyopt
-export PolyOptResult
-export SolverConfig
+include("simplification/projector.jl")
+include("simplification/unipotent.jl")
+include("simplification/noncommutative.jl")
+include("simplification/pauli.jl")
+include("simplification/fermionic.jl")
+include("simplification/bosonic.jl")
+
+# ============================================================================
+# Composed Types (depends on Polynomial for type checking in simplify)
+# ============================================================================
+
+include("types/composed.jl")
+
+# ============================================================================
+# Algorithms (canonicalization, basis generation)
+# ============================================================================
+
+include("algorithms/canonicalization.jl")
+include("algorithms/basis.jl")
+
+# ============================================================================
+# State Polynomial Types
+# ============================================================================
+
+include("states/types.jl")
+include("states/word.jl")
+include("states/polynomial.jl")
+
+# ============================================================================
+# Utility Functions
+# ============================================================================
+
+include("util/helpers.jl")
+
+# ============================================================================
+# Optimization Framework
+# ============================================================================
+
+include("optimization/problem.jl")
+include("optimization/elimination.jl")
+include("optimization/sparsity.jl")
+include("optimization/moment.jl")
+include("optimization/sos.jl")
+include("optimization/gns.jl")
+include("optimization/interface.jl")
+
+# ============================================================================
+# Exports - User-Facing API Only
+# ============================================================================
+
+# Problem Definition
+export PolyOpt, polyopt, PolyOptResult, SolverConfig
+
+# Solver Interface
+export cs_nctssos, cs_nctssos_higher, reconstruct
+
+# Elimination Strategies
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
-export cs_nctssos, cs_nctssos_higher
-export reconstruct
 
-# Variable creation functions (public API)
+# Variable Creation (primary user entry point)
 export create_pauli_variables, create_fermionic_variables, create_bosonic_variables
 export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
 
-# Fermionic algebra helpers (public API)
+# Core Types (users need these for type annotations and construction)
+export Monomial, Polynomial, Term, VariableRegistry
+
+# Algebra Types (users need for dispatch)
+export AlgebraType
+export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra
+export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
+
+# State Polynomial Operations
+export ς, tr
+export StateWord, StatePolynomial
+
+# Polynomial Operations (commonly used)
+export degree, monomials, coefficients, terms, variables
+export simplify, simplify!
+
+# Canonicalization (user-facing)
+export symmetric_canon, cyclic_canon, canonicalize
+
+# Basis Generation
+export get_ncbasis, get_state_basis
+
+# Registry Helpers
+export symbols, indices, subregistry
+
+# Fermionic Helper
 export has_even_parity
 
-include("pop.jl")
-
-include("elimination.jl")
-
-include("sparse.jl")
-
-include("moment_solver.jl")
-
-# NOTE: The unified MomentProblem{A,T,M,P} handles both real and complex algebras.
-
-include("sos_solver.jl")
-
-include("gns.jl")
-
-include("interface.jl")
+# Coefficient Type
+export default_coeff_type
 
 end

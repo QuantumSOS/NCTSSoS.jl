@@ -152,7 +152,8 @@ result.objective
 #
 # An *open question* is: what is the maximal quantum violation that the covariance Bell inequality can attain in spatial quantum models. We can tackle this question using state polynomial optimization [klep2024State](@cite).
 
-using NCTSSoS, MosekTools, NCTSSoS.FastPolynomials
+using NCTSSoS, MosekTools
+using NCTSSoS: Monomial
 
 # Create unipotent variables for Alice's and Bob's observables
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
@@ -185,7 +186,8 @@ result.objective
 
 # We can use sparsity to further improve the bound.
 
-using NCTSSoS, MosekTools, NCTSSoS.FastPolynomials
+using NCTSSoS, MosekTools
+using NCTSSoS: Monomial
 
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 

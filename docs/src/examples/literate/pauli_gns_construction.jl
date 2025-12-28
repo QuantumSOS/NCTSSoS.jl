@@ -40,7 +40,6 @@
 # ## Step 1: Define Non-commuting Variables
 
 using NCTSSoS
-using NCTSSoS.FastPolynomials
 using LinearAlgebra
 using LinearAlgebra: tr
 

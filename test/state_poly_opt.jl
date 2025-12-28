@@ -1,14 +1,15 @@
 # State Polynomial Optimization Tests
 
-using Test, NCTSSoS, NCTSSoS.FastPolynomials
+using Test, NCTSSoS
 using COSMO
 const QUICK_SOLVER = COSMO.Optimizer
 using JuMP
 using NCTSSoS:
     neat_dot,
-    NoElimination
-
-using NCTSSoS.FastPolynomials: expval, terms, Arbitrary, get_state_basis, NCStateWord, ς, Monomial
+    NoElimination,
+    expval,
+    Arbitrary,
+    NCStateWord
 
 if haskey(ENV, "LOCAL_TESTING")
     using MosekTools

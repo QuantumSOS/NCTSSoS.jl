@@ -64,11 +64,11 @@ end
 # as a polynomial optimization problem and solves its semidefinite
 # programming relaxation, providing certified lower bounds.
 #
-# The new FastPolynomials API provides type-safe Pauli algebra with automatic
+# The NCTSSoS API provides type-safe Pauli algebra with automatic
 # simplification. No explicit commutation constraints are needed - the
-# `PauliAlgebra` type handles σ² = I and the cyclic product rules automatically.
+# `PauliAlgebra` type handles the Pauli operator relations automatically.
 
-using NCTSSoS, NCTSSoS.FastPolynomials
+using NCTSSoS
 using MosekTools
 using JuMP
 
@@ -89,7 +89,7 @@ J = 1.0                  # Coupling strength
 
 ## Loop over the same magnetic field values as before
 for (i, h) in enumerate(0.1:0.2:2.0)
-    ## Create Pauli algebra variables using the new FastPolynomials API
+    ## Create Pauli algebra variables
     ## PauliAlgebra automatically handles:
     ##   - σ² = I (unipotent property)
     ##   - Cyclic product rules: σx·σy = iσz, σy·σz = iσx, σz·σx = iσy
@@ -287,9 +287,9 @@ f
 # 4. **Physical constraints**: Energy bounds ensure physically meaningful
 #    correlation function bounds, preventing unphysical results.
 #
-# 5. **Type-safe algebra**: The new FastPolynomials API with `PauliAlgebra`
-#    automatically handles Pauli operator relations (σ² = I, commutation rules)
-#    without requiring explicit constraints.
+# 5. **Type-safe algebra**: The `PauliAlgebra` type automatically handles
+#    Pauli operator relations (σ² = I, commutation rules) without requiring
+#    explicit constraints.
 #
 # This certification methodology is particularly valuable for quantum many-body
 # systems where exact solutions are unavailable, providing guaranteed error

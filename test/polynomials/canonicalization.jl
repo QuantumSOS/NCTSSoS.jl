@@ -1,5 +1,6 @@
-# Note: FastPolynomials is loaded by setup.jl
-using Test, NCTSSoS.FastPolynomials
+# NCTSSoS is loaded by parent runtests.jl
+using Test, NCTSSoS
+using NCTSSoS: cyclic_symmetric_canon
 
 @testset "Canonicalization" begin
     @testset "symmetric_canon(Vector)" begin

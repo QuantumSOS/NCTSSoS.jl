@@ -1,4 +1,4 @@
-using NCTSSoS, NCTSSoS.FastPolynomials
+using NCTSSoS
 using MosekTools
 using JuMP
 

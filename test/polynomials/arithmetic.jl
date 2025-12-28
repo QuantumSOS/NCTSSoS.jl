@@ -1,6 +1,5 @@
-# Note: FastPolynomials is loaded by setup.jl
-using NCTSSoS.FastPolynomials:
-    coefficients, monomials, create_noncommutative_variables
+# NCTSSoS is loaded by parent runtests.jl
+# coefficients, monomials, create_noncommutative_variables are exported from NCTSSoS
 
 @testset "Arithmetic" begin
     @testset "Monomial Multiplication" begin

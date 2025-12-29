@@ -1,3 +1,9 @@
+# Sparsity Tests
+# ===============
+# Includes:
+#   - Correlative sparsity component tests (formerly sparse.jl)
+#   - Sparsity verification tests (dense vs sparse comparison)
+
 using Test, NCTSSoS
 using Graphs, CliqueTrees
 
@@ -11,6 +17,10 @@ using NCTSSoS:
     init_activated_supp,
     variable_indices,
     neat_dot
+
+# =============================================================================
+# Correlative Sparsity Component Tests (merged from sparse.jl)
+# =============================================================================
 
 # Helper to create NC polynomials from registry variables
 function nc_poly(registry::VariableRegistry{NonCommutativeAlgebra,T}, indices::Vector{T}) where T
@@ -286,19 +296,7 @@ end
         G = loadgraph("example3.lgz")
         @test sort.(clique_decomp(G, NoElimination())) == [collect(1:10)]
         @test sort(sort.(clique_decomp(G, AsIsElimination()))) ==  [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
-        # [
-        #     [1, 3, 4, 5, 6, 7, 8],
-        #     [2, 5, 6, 7, 8, 9, 10],
-        #     [3, 4, 5, 6, 7, 8, 9],
-        #     [4, 5, 6, 7, 8, 9, 10]
-        # ]
         @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
-        # [
-        #     [1, 3, 4, 5, 6, 7, 8],
-        #     [2, 5, 6, 7, 8, 9, 10],
-        #     [3, 4, 5, 6, 7, 8, 9],
-        #     [4, 5, 6, 7, 8, 9, 10]
-        # ]
         rm("example3.lgz")
 
         G = loadgraph("example4.lgz")
@@ -310,9 +308,6 @@ end
         G = loadgraph("example5.lgz")
         @test sort.(clique_decomp(G, NoElimination())) == [collect(1:6)]
         @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [2, 6], [3, 4], [3, 5]]
-        # [
-        #     [1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [3, 4], [3, 5], [3, 6]
-        # ]
         @test sort(sort.(clique_decomp(G, MF()))) == [
             [1, 2, 4, 5], [1, 2, 6], [3, 4, 5]
         ]
@@ -356,11 +351,6 @@ end
 end
 
 @testset "Term Sparsity" begin
-    # NOTE: get_term_sparsity_graph is designed for state polynomial optimization
-    # (uses expval which is only defined for NCStateWord). Testing with regular
-    # Monomials would fail. These tests verify init_activated_supp which works
-    # with regular polynomials.
-
     @testset "Init Activated Support" begin
         registry, (x,) = create_noncommutative_variables([("x", 1:2)])
         T = eltype(indices(registry))
@@ -383,97 +373,285 @@ end
         # Should contain monomials from objective and diagonal entries
         @test length(supp) >= 2  # At least identity + objective monomials
     end
+end
 
-    # TODO: Migrate to new FastPolynomials API
-    # These tests use the legacy @ncpolyvar macro and SimplifyAlgorithm
-    #
-    # @testset "Term Sparsity Graph Poly Opt" begin
-    #     # Example 10.2
-    #     @ncpolyvar x y
-    #     activated_support = [
-    #         one(x),
-    #         x^2,
-    #         x * y^2 * x,
-    #         y^2,
-    #         x * y * x * y,
-    #         y * x * y * x,
-    #         x^3 * y,
-    #         y * x^3,
-    #         x * y^3,
-    #         y^3 * x,
-    #     ]
-    #
-    #     mtx_basis = [one(x), x, y, x^2, y^2, x * y, y * x]
-    #
-    #     sa = SimplifyAlgorithm(comm_gps=[[x, y]], is_unipotent=false, is_projective=false)
-    #
-    #     G_tsp = get_term_sparsity_graph([one(x)], activated_support, mtx_basis, sa)
-    #     @test G_tsp.fadjlist == [[4, 5], Int[], Int[], [1, 6], [1, 7], [4, 7], [5, 6]]
-    #     @test sort(term_sparsity_graph_supp(G_tsp, mtx_basis, one(1.0 * x * y), sa)) == sort([
-    #         one(x * y),
-    #         x^2,
-    #         y^2,
-    #         x^4,
-    #         y^4,
-    #         y * x^2 * y,
-    #         x * y^2 * x,
-    #         x^3 * y,
-    #         y^3 * x,
-    #         y * x * y * x,
-    #     ])
-    #     @test sort(term_sparsity_graph_supp(G_tsp, mtx_basis, 1.0 - x^2, sa)) == sort([
-    #         one(x * y),
-    #         x^2,
-    #         y^2,
-    #         y * x * y * x,
-    #         y * x^2 * y,
-    #         y^3 * x,
-    #         y^4,
-    #         x * y^2 * x,
-    #         x^2 * y^2,
-    #         x^3 * y,
-    #         x^4,
-    #         y * x^3 * y * x,
-    #         y * x^4 * y,
-    #         y^2 * x^2 * y * x,
-    #         y^2 * x^2 * y^2,
-    #         x * y * x^2 * y * x,
-    #         x^5 * y,
-    #         x^6,
-    #     ])
-    # end
+# =============================================================================
+# Sparsity Verification Tests
+# =============================================================================
 
-    # TODO: Migrate to new FastPolynomials API
-    # These tests use NCStateWord, ς (state operator), and SimplifyAlgorithm
-    #
-    # @testset "Test Case 7.2.0" begin
-    #     @ncpolyvar x[1:2] y[1:2]
-    #     sp =
-    #         (-1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) - 1.0 * ς(x[2] * y[1]) +
-    #          1.0 * ς(x[2] * y[2])) * one(Monomial)
-    #
-    #     d = 1
-    #
-    #     sa = SimplifyAlgorithm(comm_gps=[x, y], is_unipotent=true, is_projective=false)
-    #     basis = get_state_basis(Arbitrary, [x; y], d, sa)
-    #
-    #     init_act_supp = [one(NCStateWord{Arbitrary}), ς(x[1]) * ς(x[1]) * one(Monomial), ς(x[2]) * ς(x[2]) * one(Monomial), ς(y[1]) * ς(y[1]) * one(Monomial), ς(y[2]) * ς(y[2]) * one(Monomial), ς(x[1] * y[1]) * one(Monomial), ς(x[1] * y[2]) * one(Monomial), ς(x[2] * y[1]) * one(Monomial), ς(x[2] * y[2]) * one(Monomial)]
-    #
-    #     @testset "Initial Activated Support" begin
-    #         @test init_activated_supp(sp, typeof(sp)[], basis, sa) == init_act_supp
-    #     end
-    #
-    #     @testset "Get Term Sparsity Graph" begin
-    #         using NCTSSoS: get_term_sparsity_graph
-    #
-    #         G = get_term_sparsity_graph([one(NCStateWord{Arbitrary})], init_act_supp, basis, sa)
-    #
-    #         @test G.fadjlist == [[], [6], [7], [8], [9], [2, 8, 9], [3, 8, 9], [4, 6, 7], [5, 6, 7]]
-    #     end
-    #
-    #     @testset "Iterate Term Sparse Supp" begin
-    #         using NCTSSoS: iterate_term_sparse_supp
-    #         ts = iterate_term_sparse_supp(init_act_supp, 1.0 * one(NCStateWord{Arbitrary}), basis, MMD(), sa)
-    #     end
-    # end
+@testset "Bell Inequalities with Sparsity" begin
+    @testset "CHSH - Dense vs Sparse" begin
+        reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+        
+        f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
+        pop = polyopt(-f, reg)
+        
+        # Dense (no sparsity)
+        config_dense = SolverConfig(optimizer=SOLVER, order=1, 
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(pop, config_dense)
+        
+        # Correlative sparsity only (MF)
+        config_cs = SolverConfig(optimizer=SOLVER, order=1,
+                                 cs_algo=MF(), ts_algo=NoElimination())
+        result_cs = cs_nctssos(pop, config_cs)
+        
+        # Term sparsity only (MMD)
+        config_ts = SolverConfig(optimizer=SOLVER, order=1,
+                                 cs_algo=NoElimination(), ts_algo=MMD())
+        result_ts = cs_nctssos(pop, config_ts)
+        
+        expected = -2.8284
+        
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_cs.objective ≈ expected atol=1e-4
+        @test result_ts.objective ≈ expected atol=1e-4
+        
+        @test result_dense.objective ≈ result_cs.objective atol=1e-5
+        @test result_dense.objective ≈ result_ts.objective atol=1e-5
+    end
+    
+    @testset "I_3322 - Dense vs Sparse" begin
+        reg, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
+        
+        f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + 
+            x[2] * (y[1] + y[2] - y[3]) + 
+            x[3] * (y[1] - y[2]) - 
+            x[1] - 2.0 * y[1] - y[2]
+        
+        pop = polyopt(-f, reg)
+        
+        # Dense
+        config_dense = SolverConfig(optimizer=SOLVER, order=2,
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(pop, config_dense)
+        
+        # With MF correlative sparsity
+        config_mf = SolverConfig(optimizer=SOLVER, order=2,
+                                 cs_algo=MF(), ts_algo=NoElimination())
+        result_mf = cs_nctssos(pop, config_mf)
+        
+        expected = -0.25
+        
+        @test result_dense.objective ≈ expected atol=1e-2
+        @test result_mf.objective ≈ expected atol=1e-2
+        @test result_mf.objective <= result_dense.objective + 1e-2
+    end
+end
+
+@testset "Trace Polynomials with Sparsity" begin
+    @testset "CHSH Trace - Dense vs Sparse" begin
+        reg, (vars,) = create_unipotent_variables([("v", 1:4)])
+        x = vars[1:2]
+        y = vars[3:4]
+        
+        p = -1.0 * tr(x[1] * y[1]) - tr(x[1] * y[2]) - tr(x[2] * y[1]) + tr(x[2] * y[2])
+        tpop = polyopt(p * one(typeof(x[1])), reg)
+        
+        # Dense
+        config_dense = SolverConfig(optimizer=SOLVER, order=1,
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(tpop, config_dense)
+        
+        # With MaximalElimination term sparsity
+        config_ts = SolverConfig(optimizer=SOLVER, order=1,
+                                 cs_algo=NoElimination(), ts_algo=MaximalElimination())
+        result_ts = cs_nctssos(tpop, config_ts)
+        
+        expected = -2.8284
+        
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_ts.objective ≈ expected atol=1e-4
+        @test result_dense.objective ≈ result_ts.objective atol=1e-5
+    end
+    
+    @testset "Covariance Trace - Dense vs Sparse" begin
+        reg, (vars,) = create_unipotent_variables([("v", 1:6)])
+        x = vars[1:3]
+        y = vars[4:6]
+        
+        cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
+        p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
+        tpop = polyopt(p * one(typeof(x[1])), reg)
+        
+        # Dense
+        config_dense = SolverConfig(optimizer=SOLVER, order=2,
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(tpop, config_dense)
+        
+        # With MF + MMD
+        config_sparse = SolverConfig(optimizer=SOLVER, order=2,
+                                     cs_algo=MF(), ts_algo=MMD())
+        result_sparse = cs_nctssos(tpop, config_sparse)
+        
+        expected = -5.0
+        
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_sparse.objective ≈ expected atol=1e-4
+        @test result_dense.objective ≈ result_sparse.objective atol=1e-4
+    end
+end
+
+@testset "State Polynomials with Sparsity" begin
+    @testset "CHSH State - Dense vs Sparse" begin
+        reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+        
+        sp = -ς(x[1] * y[1]) - ς(x[1] * y[2]) - ς(x[2] * y[1]) + ς(x[2] * y[2])
+        spop = polyopt(sp * one(typeof(x[1])), reg)
+        
+        # Dense
+        config_dense = SolverConfig(optimizer=SOLVER, order=1,
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(spop, config_dense)
+        
+        # With MMD term sparsity
+        config_ts = SolverConfig(optimizer=SOLVER, order=1,
+                                 cs_algo=NoElimination(), ts_algo=MMD())
+        result_ts = cs_nctssos(spop, config_ts)
+        
+        expected = -2.8284
+        
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_ts.objective ≈ expected atol=1e-4
+        @test result_dense.objective ≈ result_ts.objective atol=1e-5
+    end
+    
+    @testset "Covariance State - Dense vs Sparse" begin
+        reg, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+        
+        cov(a, b) = 1.0 * ς(x[a] * y[b]) - ς(x[a]) * ς(y[b])
+        sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
+        spop = polyopt(sp * one(typeof(x[1])), reg)
+        
+        # Dense
+        config_dense = SolverConfig(optimizer=SOLVER, order=2,
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(spop, config_dense)
+        
+        # With MF + MMD
+        config_sparse = SolverConfig(optimizer=SOLVER, order=2,
+                                     cs_algo=MF(), ts_algo=MMD())
+        result_sparse = cs_nctssos(spop, config_sparse)
+        
+        expected = -5.0
+        
+        @test result_dense.objective ≈ expected atol=1e-2
+        @test result_sparse.objective ≈ expected atol=1e-2
+        @test result_dense.objective ≈ result_sparse.objective atol=1e-2
+    end
+end
+
+@testset "Constrained POP with Sparsity" begin
+    @testset "Ball Constraint - Dense vs Sparse" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        
+        f = 2.0 - x[1]^2 + x[1]*x[2]^2*x[1] - x[2]^2 + x[1]*x[2]*x[1]*x[2] + x[2]*x[1]*x[2]*x[1] +
+            x[1]^3*x[2] + x[2]*x[1]^3 + x[1]*x[2]^3 + x[2]^3*x[1]
+        
+        g1 = 1.0 - x[1]^2
+        g2 = 1.0 - x[2]^2
+        
+        pop = polyopt(f, reg; ineq_constraints=[g1, g2])
+        
+        # Dense
+        config_dense = SolverConfig(optimizer=SOLVER, order=2,
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(pop, config_dense)
+        
+        # With MMD term sparsity
+        config_ts = SolverConfig(optimizer=SOLVER, order=2,
+                                 cs_algo=NoElimination(), ts_algo=MMD())
+        result_ts = cs_nctssos(pop, config_ts)
+        
+        # Both should produce negative lower bounds for this minimization problem
+        @test result_dense.objective < 0
+        @test result_ts.objective < 0
+        @test result_dense.objective < 5.0
+        @test result_ts.objective < 5.0
+    end
+    
+    @testset "Rosenbrock - Dense vs Sparse" begin
+        n = 6
+        reg, (x,) = create_noncommutative_variables([("x", 1:n)])
+        
+        f = Float64(n) * one(typeof(x[1]))
+        for i = 2:n
+            f = f + 100.0 * x[i-1]^4 - 200.0 * x[i-1]^2 * x[i] - 2.0 * x[i] + 101.0 * x[i]^2
+        end
+        
+        pop = polyopt(f, reg)
+        
+        # Dense
+        config_dense = SolverConfig(optimizer=SOLVER, order=2,
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(pop, config_dense)
+        
+        # With MF correlative sparsity
+        config_cs = SolverConfig(optimizer=SOLVER, order=2,
+                                 cs_algo=MF(), ts_algo=NoElimination())
+        result_cs = cs_nctssos(pop, config_cs)
+        
+        # With both sparsities
+        config_both = SolverConfig(optimizer=SOLVER, order=2,
+                                   cs_algo=MF(), ts_algo=MMD())
+        result_both = cs_nctssos(pop, config_both)
+        
+        # All should give similar results (lower bounds)
+        @test result_cs.objective <= result_dense.objective + 1e-2
+        @test result_both.objective <= result_dense.objective + 1e-2
+    end
+end
+
+@testset "Sparsity Algorithm Variants" begin
+    @testset "Correlative Sparsity Algorithms" begin
+        reg, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
+        
+        f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + 
+            x[2] * (y[1] + y[2] - y[3]) + 
+            x[3] * (y[1] - y[2]) - 
+            x[1] - 2.0 * y[1] - y[2]
+        
+        pop = polyopt(-f, reg)
+        
+        expected = -0.25
+        
+        # NoElimination (dense) - should give correct result
+        config_dense = SolverConfig(optimizer=SOLVER, order=2, 
+                                    cs_algo=NoElimination(), ts_algo=NoElimination())
+        result_dense = cs_nctssos(pop, config_dense)
+        @test result_dense.objective ≈ expected atol=1e-2
+        
+        # MF - should give correct result (good clique tree)
+        config_mf = SolverConfig(optimizer=SOLVER, order=2, 
+                                 cs_algo=MF(), ts_algo=NoElimination())
+        result_mf = cs_nctssos(pop, config_mf)
+        @test result_mf.objective ≈ expected atol=1e-2
+        
+        # AsIsElimination can give looser bounds
+        config_asis = SolverConfig(optimizer=SOLVER, order=2, 
+                                   cs_algo=AsIsElimination(), ts_algo=NoElimination())
+        result_asis = cs_nctssos(pop, config_asis)
+        @test result_asis.objective < 0
+    end
+    
+    @testset "Term Sparsity Algorithms" begin
+        reg, (vars,) = create_unipotent_variables([("v", 1:4)])
+        x = vars[1:2]
+        y = vars[3:4]
+        
+        p = -1.0 * tr(x[1] * y[1]) - tr(x[1] * y[2]) - tr(x[2] * y[1]) + tr(x[2] * y[2])
+        tpop = polyopt(p * one(typeof(x[1])), reg)
+        
+        expected = -2.8284
+        
+        for (name, algo) in [
+            ("NoElimination", NoElimination()),
+            ("MMD", MMD()),
+            ("MaximalElimination", MaximalElimination())
+        ]
+            config = SolverConfig(optimizer=SOLVER, order=1, cs_algo=NoElimination(), ts_algo=algo)
+            result = cs_nctssos(tpop, config)
+            @test result.objective ≈ expected atol=1e-4
+        end
+    end
 end

@@ -1,10 +1,10 @@
 JL = julia --project
 
-ifndef TARGET
-override TARGET = main
-endif
-
 default: init test
+
+# =============================================================================
+# Setup
+# =============================================================================
 
 init:
 	$(JL) -e 'using Pkg; Pkg.precompile()'
@@ -18,35 +18,50 @@ update:
 update-docs:
 	$(JL) -e 'using Pkg; Pkg.activate("docs"); Pkg.update(); Pkg.precompile()'
 
+# =============================================================================
+# Testing
+# =============================================================================
+# Test structure:
+#   polynomials/  - Core algebra (no solver)
+#   quality/      - Code quality checks
+#   solvers/      - SDP solver integration
+#   physics/      - Physics models (LOCAL_TESTING only)
+#
+# Solver config:
+#   Default: COSMO (open-source)
+#   LOCAL_TESTING=true: Mosek (required for physics tests)
+#
+# Run single file: julia --project -e 'include("test/solvers/moment.jl")'
+# =============================================================================
+
+# Full test suite with Mosek
 test:
 	LOCAL_TESTING=true $(JL) -e 'using Pkg; Pkg.test()'
 
-servedocs:
-	$(JL) -e 'using Pkg; Pkg.activate("docs"); using LiveServer; servedocs(;skip_dirs = ["docs/src/assets", "docs/src/generated"])'
+# Quick test with COSMO (CI-compatible, skips physics tests)
+test-quick:
+	$(JL) -e 'using Pkg; Pkg.test()'
 
-# Generate markdown files from Literate.jl examples
+# Polynomial tests only (fast, no solver needed)
+test-polynomials:
+	$(JL) -e 'using NCTSSoS, Test; include("test/polynomials/runtests.jl")'
+
+# =============================================================================
+# Documentation
+# =============================================================================
+
+servedocs:
+	$(JL) -e 'using Pkg; Pkg.activate("docs"); using LiveServer; servedocs(;skip_dirs=["docs/src/assets","docs/src/generated"])'
+
 examples:
-	@echo "Generating markdown files from Literate.jl examples..."
 	$(JL) docs/generate_examples.jl
+
+# =============================================================================
+# Cleanup
+# =============================================================================
 
 clean:
 	rm -rf docs/build
-	find . -name "*.cov" -type f -print0 | xargs -0 /bin/rm -f
+	find . -name "*.cov" -delete
 
-test-FastPoly:
-	$(JL) -e 'using Pkg; Pkg.status(); include("test/fastpoly_test/runtests.jl")'
-
-init-bench:
-	$(JL) -e 'using Pkg; Pkg.activate(temp=true); Pkg.add("AirspeedVelocity"); Pkg.build("AirspeedVelocity")'
-
-bench: 
-	benchpkg \
-	--rev $(TARGET),dirty \
-	--script "benchmark/benchmarks.jl"
-
-benchtable:
-	benchpkgtable \
-	--rev $(TARGET),dirty \
-	--ratio true
-
-.PHONY: init test examples clean
+.PHONY: init init-docs update update-docs test test-quick test-polynomials servedocs examples clean

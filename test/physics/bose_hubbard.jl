@@ -1,21 +1,10 @@
-using NCTSSoS, Test
-using JuMP
-using NCTSSoS: simplify, degree  # Disambiguate from JuMP/Graphs
-
-if haskey(ENV, "LOCAL_TESTING")
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2))
-    )
-else
-    using Clarabel
-    const SOLVER = Clarabel.Optimizer
-end
-
-# Bose-Hubbard Model on a Chain Lattice
+# =============================================================================
+# Bose-Hubbard Model Tests
+# =============================================================================
+# Tests for the Bose-Hubbard model on chain lattices.
 #
-# H = -t Σ_{<i,j>} (b†_i b_j + b†_j b_i) + (U/2) Σ_i n̂_i(n̂_i - 1) - μ Σ_i n̂_i
+# The Bose-Hubbard Hamiltonian is:
+#   H = -t Σ_{<i,j>} (b†_i b_j + b†_j b_i) + (U/2) Σ_i n̂_i(n̂_i - 1) - μ Σ_i n̂_i
 #
 # where:
 #   <i,j> denotes neighboring sites on the lattice
@@ -29,9 +18,14 @@ end
 #   [b_i, b†_j] = δ_{ij}
 #   [b_i, b_j] = 0
 #   [b†_i, b†_j] = 0
-#
-# On a chain lattice with open boundary conditions (OBC),
-# neighbors are: (1,2), (2,3), ..., (N-1, N)
+# =============================================================================
+
+using NCTSSoS, Test
+using JuMP
+using NCTSSoS: simplify, degree  # Disambiguate from JuMP/Graphs
+
+# Load shared solver configuration
+include("../setup.jl")
 
 @testset "Bose-Hubbard Hamiltonian Construction" begin
     N = 4  # Number of sites

@@ -65,5 +65,5 @@ end
     println("Ground state energy lower bound: ", res.objective)
     println("Exact ground state energy: ", E0_exact)
 
-    @test res.objective ≈ E0_exact atol = 1e-4
+    @test res.objective ≈ E0_exact atol = 1e-5
 end

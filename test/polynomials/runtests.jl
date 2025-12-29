@@ -1,6 +1,4 @@
-using Test
-# NCTSSoS is already loaded by parent runtests.jl via `using NCTSSoS`
-# All polynomial types are exported directly from NCTSSoS
+using Test, NCTSSoS
 
 @testset "Polynomials" begin
     include("algebra_types.jl")

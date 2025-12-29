@@ -1,20 +1,10 @@
 # Trace Polynomial Optimization Tests
+# ====================================
+# Tests optimization over trace polynomials using the tr() operator.
 
-using Test, NCTSSoS, JuMP
+using Test, NCTSSoS
 
-if haskey(ENV, "LOCAL_TESTING")
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2))
-    )
-else
-    using Clarabel
-    const SOLVER = Clarabel.Optimizer
-end
-
-# Example 6.1 with ProjectorAlgebra: Uses specialized symmetric_canon for ProjectorAlgebra
-# that applies idempotency simplification (P² = P) to StateWords before canonicalization.
+# Example 6.1 with ProjectorAlgebra
 @testset "Example 6.1" begin
     reg, (x,) = create_projector_variables([("x", 1:3)])
 
@@ -28,7 +18,7 @@ end
 
     @test result.objective ≈ -0.046717378455438933 atol = 1e-6
 
-    if haskey(ENV, "LOCAL_TESTING")
+    if LOCAL_TESTING
         solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 
         result = cs_nctssos(tpop, solver_config)
@@ -37,9 +27,8 @@ end
     end
 end
 
-# Note: Term sparsity (MaximalElimination) doesn't work correctly with state polynomial optimization
-# Using NoElimination for ts_algo instead
-@testset "Example 6.2.0" begin
+# CHSH in trace form
+@testset "Example 6.2.0 - CHSH Trace" begin
     reg, (vars,) = create_unipotent_variables([("v", 1:4)])
     x = vars[1:2]
     y = vars[3:4]
@@ -55,11 +44,7 @@ end
     @test result.objective ≈ -2.8284271157283083 atol = 1e-5
 end
 
-# Example 6.2.1 involves squared trace expressions (tr(xy) * tr(xy))
-# Known issue: The new StatePolyOpt solver gives -8.0 at order=2, unlike the main branch which gives -4.0.
-# This is due to a difference in how the SOS dualization handles objective polynomial coefficients.
-# At order=3, the relaxation correctly gives the tight bound of -4.0.
-# TODO: Investigate SOS dualization difference between main branch and StatePolyOpt.
+# Squared trace expressions
 @testset "Example 6.2.1" begin
     reg, (vars, ) = create_unipotent_variables([("v", 1:4)])
     x = vars[1:2]
@@ -69,17 +54,18 @@ end
 
     tpop = polyopt((-1.0 * p) * one(typeof(x[1])), reg)
 
-    # Order=3 gives the correct tight bound of -4.0
-    if haskey(ENV, "LOCAL_TESTING")
+    # Order=2 gives the correct tight bound of -4.0 (requires Mosek)
+    if LOCAL_TESTING
         solver_config = SolverConfig(; optimizer=SOLVER, order=2)
 
         result = cs_nctssos(tpop, solver_config)
 
-        @test result.objective ≈ -4.0 atol = 1e-4
+        @test result.objective ≈ -4.0 atol = 1e-5
     end
 end
 
-@testset "Example 6.2.2" begin
+# Covariance Bell inequality
+@testset "Example 6.2.2 - Covariance" begin
     reg, (vars,) = create_unipotent_variables([("v", 1:6)])
     x = vars[1:3]
     y = vars[4:6]

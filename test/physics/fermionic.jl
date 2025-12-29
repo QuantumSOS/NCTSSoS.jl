@@ -1,24 +1,25 @@
-using NCTSSoS, Test
-using JuMP
-using NCTSSoS: variable_indices, simplify  # Disambiguate simplify from JuMP
-
-if haskey(ENV, "LOCAL_TESTING")
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2))
-    )
-else
-    using Clarabel
-    const SOLVER = Clarabel.Optimizer
-end
-
+# =============================================================================
 # Fermionic Parity Superselection Rule Tests
+# =============================================================================
+# Tests for the fermionic parity superselection rule.
 #
 # Physical basis: In fermionic systems, parity superselection forbids observables
 # with odd fermion number from having non-zero expectation values.
 # Only operators with even parity (even number of creation/annihilation operators)
 # can have non-zero physical expectation values.
+#
+# The fermionic operators satisfy the canonical anti-commutation relations (CAR):
+#   {a_i, a†_j} = δ_{ij}
+#   {a_i, a_j} = 0
+#   {a†_i, a†_j} = 0
+# =============================================================================
+
+using NCTSSoS, Test
+using JuMP
+using NCTSSoS: variable_indices, simplify  # Disambiguate simplify from JuMP
+
+# Load shared solver configuration
+include("../setup.jl")
 
 @testset "Fermionic Parity Superselection" begin
 

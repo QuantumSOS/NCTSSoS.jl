@@ -51,119 +51,83 @@ For each case, record the **actual objective value** with Mosek:
 
 | Case | Test | Expected Value | Mosek Result | Error | Can Use Main Branch Tolerance? |
 |------|------|----------------|--------------|-------|-------------------------------|
-| 1 | CS TS Example | `3.011288` | ___ | ___ | `1e-4`? |
-| 2 | Example 1 Dense | `0.0` | ___ | ___ | `1e-6`? |
-| 3 | Example 1 Sparse | `-0.0035512` | ___ | ___ | `1e-7`? |
-| 4 | SOS Term Sparsity | `0.9975306427277915` | ___ | ___ | `1e-5`? |
+| 1 | CS TS Example | `3.011288` | `3.0112938825722892` | `5.88e-6` | ✅ YES (`1e-4`) |
+| 2 | Example 1 Dense | `0.0` | `-3.23e-8` | `3.23e-8` | ✅ YES (`1e-6`) |
+| 3 | Example 1 Sparse | `-0.0035512` | `-0.0035512666506813` | `6.67e-8` | ✅ YES (`1e-7`) |
+| 4 | SOS Term Sparsity | `0.9975306427277915` | `0.997530500521655` | `1.42e-7` | ✅ YES (`1e-5`) |
+
+**Tested on**: 2024-12-29, a800 server with Mosek 10.x
 
 ---
 
 ## Step 2: Decision Tree Based on Mosek Results
 
-### If Mosek achieves main branch tolerances:
+### ✅ RESULT: Mosek achieves ALL main branch tolerances
 
-**Cases 1 & 2**: These are pure COSMO solver precision issues.
-- Keep current looser tolerances for COSMO (CI)
-- Optionally add `if LOCAL_TESTING` blocks with tighter tolerances for Mosek
+**All 4 Cases**: Pure COSMO solver precision issue.
+- **Action**: Keep current looser tolerances for COSMO (CI)
+- **Reason**: COSMO is a free, open-source solver with lower precision than commercial Mosek
+- **No algorithm bugs detected** - the implementation is correct
 
-**Cases 3 & 4**: If Mosek achieves `1e-7` and `1e-5` respectively:
-- COSMO is the bottleneck, not the algorithm
-- Same solution as Cases 1 & 2
-
-### If Mosek STILL fails to achieve main branch tolerances:
-
-This indicates a **potential bug** in the term sparsity implementation. Proceed to Step 3.
+The precision gap is expected:
+- Mosek achieves `1e-6` to `1e-8` precision
+- COSMO achieves `1e-3` to `1e-5` precision
 
 ---
 
-## Step 3: Investigate Term Sparsity (Only if Mosek fails)
+## Step 3: ~~Investigate Term Sparsity~~ (NOT NEEDED)
 
-### Key Files
-- `src/optimization/sparsity.jl` - term sparsity implementation
-- `src/optimization/moment.jl` - moment matrix construction
-
-### Likely Suspects
-
-#### Suspect A: Canonicalization Mismatch in `init_activated_supp`
-
-```julia
-function init_activated_supp(partial_obj, cons, mom_mtx_bases)
-    return sorted_union(
-        symmetric_canon.(monomials(partial_obj)),  # ← only objective is canonicalized
-        mapreduce(monomials, vcat, cons; init=M[]),  # ← NOT canonicalized
-        [neat_dot(b, b) for b in mom_mtx_bases]      # ← NOT canonicalized
-    )
-end
-```
-
-**Fix**: Apply `symmetric_canon` consistently to all components.
-
-#### Suspect B: Missing Iteration Loop
-
-Current implementation does only **one round** of term sparsity. Reference may iterate to fixed point:
-
-```julia
-activated = init_activated_supp(...)
-while true
-    ts = iterate_term_sparse_supp(activated, ...)
-    new_activated = union(activated, ts.term_sparse_graph_supp)
-    if new_activated == activated
-        break
-    end
-    activated = new_activated
-end
-```
-
-### Validation: Compare with Reference NCTSSOS
-
-```bash
-ssh a800 "cd /home/yushengzhao/NCTSSOS && julia --project -e 'include(\"test/moment_solver.jl\")'"
-```
+**SKIPPED** - Mosek achieved all main branch tolerances, confirming no algorithm bugs.
 
 ---
 
-## Step 4: Update Tolerances
+## Step 4: Update Tolerances ✅ COMPLETED
 
-Based on Mosek test results, update the test files:
+Based on Mosek test results, using **Option A**: Keep looser tolerances for COSMO (CI).
 
-### Option A: Mosek achieves all tolerances (solver precision issue)
+### Final Tolerance Strategy
 
-Keep looser tolerances for COSMO, add comments:
+| Test | COSMO (CI) | Mosek (LOCAL_TESTING) | Reason |
+|------|------------|----------------------|--------|
+| CS TS Example | `1e-3` | `1e-4` achievable | Large sparse problem |
+| Example 1 Dense | `1e-5` | `1e-6` achievable | Good precision |
+| Example 1 Sparse | `1e-4` | `1e-7` achievable | Term sparsity relaxes bound |
+| SOS Term Sparsity | `1e-4` | `1e-5` achievable | Term sparsity relaxes bound |
 
-```julia
-# COSMO achieves ~1e-5, Mosek achieves 1e-7
-@test isapprox(result.objective, expected, atol=1e-5)
-```
-
-### Option B: Mosek fails some tolerances (algorithm issue)
-
-1. Fix the bug (canonicalization or iteration)
-2. Re-run tests
-3. Tighten tolerances to match main branch
+Tests are wrapped in `if LOCAL_TESTING` blocks where Mosek is required for precision.
 
 ---
 
 ## Checklist
 
-- [ ] Sync current branch to a800
-- [ ] Run `test/solvers/moment.jl` with Mosek on a800
-- [ ] Run `test/solvers/sos.jl` with Mosek on a800
-- [ ] Record actual objective values for all 4 cases
-- [ ] Determine if main branch tolerances are achievable
-- [ ] If NOT achievable with Mosek: investigate term sparsity implementation
-- [ ] Update tolerances accordingly
-- [ ] Document findings
+- [x] Sync current branch to a800 (2024-12-29)
+- [x] Run `test/solvers/moment.jl` with Mosek on a800 (ALL PASS)
+- [x] Run `test/solvers/sos.jl` with Mosek on a800 (ALL PASS)
+- [x] Record actual objective values for all 4 cases (see table above)
+- [x] Determine if main branch tolerances are achievable (YES, all 4 cases)
+- [x] ~~If NOT achievable with Mosek: investigate term sparsity implementation~~ (NOT NEEDED)
+- [x] Update tolerances accordingly (keep current looser tolerances for COSMO)
+- [x] Document findings (this document)
 
 ---
 
 ## Summary Table: Main Branch vs Current Tolerances
 
-| File | Test | Main Branch | Current | Action Needed |
-|------|------|-------------|---------|---------------|
-| `moment.jl` | CHSH Inequality | `1e-6` | `1e-6` | None |
-| `moment.jl` | CS TS Example | `1e-4` | `1e-3` | Test with Mosek |
-| `moment.jl` | Example 1 Dense | `1e-6` | `1e-5` | Test with Mosek |
-| `moment.jl` | Example 1 Sparse | `1e-7` | `1e-4` | Test with Mosek |
-| `sos.jl` | I_3322 | `1e-6` | `1e-6` | None |
-| `sos.jl` | CS TS Example | `1e-4` | `1e-3` | Test with Mosek |
-| `sos.jl` | SOS Term Sparsity | `1e-5` | `1e-4` | Test with Mosek |
+| File | Test | Main Branch | Current (COSMO) | Mosek Error | Status |
+|------|------|-------------|-----------------|-------------|--------|
+| `moment.jl` | CHSH Inequality | `1e-6` | `1e-6` | N/A | ✅ OK |
+| `moment.jl` | CS TS Example | `1e-4` | `1e-3` | `5.88e-6` | ✅ COSMO limitation |
+| `moment.jl` | Example 1 Dense | `1e-6` | `1e-5` | `3.23e-8` | ✅ COSMO limitation |
+| `moment.jl` | Example 1 Sparse | `1e-7` | `1e-4` | `6.67e-8` | ✅ COSMO limitation |
+| `sos.jl` | I_3322 | `1e-6` | `1e-6` | N/A | ✅ OK |
+| `sos.jl` | CS TS Example | `1e-4` | `1e-3` | `5.88e-6` | ✅ COSMO limitation |
+| `sos.jl` | SOS Term Sparsity | `1e-5` | `1e-4` | `1.42e-7` | ✅ COSMO limitation |
+
+## Conclusion
+
+**No algorithm bugs detected.** The tolerance differences between main branch and current implementation are entirely due to solver precision:
+
+- **Mosek** (commercial): Achieves `1e-6` to `1e-8` precision
+- **COSMO** (open-source): Achieves `1e-3` to `1e-5` precision
+
+The current test tolerances are appropriate for CI (using COSMO/Clarabel) while still validating correctness. Users running with Mosek in LOCAL_TESTING mode will see tighter bounds.

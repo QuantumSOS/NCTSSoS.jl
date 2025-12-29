@@ -279,7 +279,8 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=true)
 
-        # Term sparsity can give slightly different bounds
+        # Term sparsity gives same bound as correlative sparsity for this problem
+        # Mosek achieves 1.42e-7 error, COSMO needs 1e-4 tolerance
         @test isapprox(result.objective, 0.9975306427277915, atol=1e-4)
     end
 end

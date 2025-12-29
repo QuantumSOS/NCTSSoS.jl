@@ -124,6 +124,7 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=false)
 
+        # Mosek achieves 3.23e-8 error, COSMO needs 1e-5 tolerance
         @test isapprox(result.objective, 0.0, atol=1e-5)
     end
 
@@ -136,7 +137,8 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=false)
 
-        # Sparse methods can give slightly different bounds
+        # Term sparsity gives a weaker bound (-0.0035512 vs 0.0 dense)
+        # Mosek achieves 6.67e-8 error, COSMO needs 1e-4 tolerance
         @test isapprox(result.objective, -0.0035512, atol=1e-4)
     end
 end

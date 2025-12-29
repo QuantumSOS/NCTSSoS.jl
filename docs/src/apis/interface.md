@@ -5,7 +5,6 @@
 ```@docs
 NCTSSoS.PolyOpt
 NCTSSoS.polyopt
-NCTSSoS.cpolyopt
 ```
 
 ## Variable Creation

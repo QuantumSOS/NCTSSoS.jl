@@ -6,6 +6,7 @@ bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style=:authory
 
 makedocs(;
     sitename="NCTSSoS.jl",
+    doctest=false,
     pages=Any[
         "Home"=>"index.md",
         "Quick Start"=>"quick_start.md",

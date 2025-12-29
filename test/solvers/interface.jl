@@ -220,8 +220,8 @@ end
     res_mom = cs_nctssos(pop, solver_config; dualize=false)
     res_sos = cs_nctssos(pop, solver_config; dualize=true)
     # Both should give the same result
-    @test res_mom.objective ≈ res_sos.objective atol = 1e-4
-    @test res_sos.objective ≈ -0.8660254037844387 atol = 1e-4
+    @test res_mom.objective ≈ res_sos.objective atol = 1e-6
+    @test res_sos.objective ≈ -0.8660254037844387 atol = 1e-6
 end
 
 if LOCAL_TESTING
@@ -239,7 +239,7 @@ if LOCAL_TESTING
             solver_config = SolverConfig(optimizer=SOLVER, order=2)
 
             res = cs_nctssos(pop, solver_config)
-            @test res.objective / N ≈ true_ans atol = 1e-5
+            @test res.objective / N ≈ true_ans atol = 1e-6
         end
     end
 
@@ -255,7 +255,7 @@ if LOCAL_TESTING
 
         res = cs_nctssos(pop, solver_config)
 
-        @test res.objective / N ≈ -0.467129 atol = 1e-5
+        @test res.objective / N ≈ -0.467129 atol = 1e-6
     end
 
     @testset "I_3322 Example with Sparsity" begin
@@ -271,7 +271,7 @@ if LOCAL_TESTING
             [-0.2508755573198166, -0.9999999892255513, -0.3507010331201541])
             solver_config = SolverConfig(optimizer=SOLVER; order=3, cs_algo=cs_algo, ts_algo=ts_algo)
             result = cs_nctssos(pop, solver_config)
-            @test isapprox(result.objective, ans; atol=1e-4)
+            @test isapprox(result.objective, ans; atol=1e-5)
         end
     end
 end
@@ -323,7 +323,7 @@ end
 
     result = cs_nctssos(pop, solver_config)
 
-    @test isapprox(result.objective, true_ans; atol=1e-3)
+    @test isapprox(result.objective, true_ans; atol=1e-4)
 end
 
 @testset "Problem Creation Interface" begin
@@ -342,10 +342,10 @@ end
     )
 
     result = cs_nctssos(pop, solver_config)
-    @test isapprox(result.objective, -1.0; atol=1e-3)
+    @test isapprox(result.objective, -1.0; atol=1e-4)
 
     result_higher = cs_nctssos_higher(pop, result, solver_config)
-    @test isapprox(result.objective, result_higher.objective; atol=1e-3)
+    @test isapprox(result.objective, result_higher.objective; atol=1e-4)
 end
 
 @testset "README Example Unconstrained" begin
@@ -369,14 +369,14 @@ end
     result_cs =
         cs_nctssos(pop, SolverConfig(optimizer=SOLVER; cs_algo=MF()))
 
-    @test isapprox(result_dense.objective, result_cs.objective, atol=1e-3)
+    @test isapprox(result_dense.objective, result_cs.objective, atol=1e-4)
 
     result_cs_ts = cs_nctssos(
         pop,
         SolverConfig(optimizer=SOLVER; cs_algo=MF(), ts_algo=MMD()),
     )
 
-    @test isapprox(result_cs.objective, result_cs_ts.objective, atol=1e-3)
+    @test isapprox(result_cs.objective, result_cs_ts.objective, atol=1e-4)
 end
 
 @testset "README Example Constrained" begin
@@ -392,14 +392,14 @@ end
     result_cs =
         cs_nctssos(pop, SolverConfig(optimizer=SOLVER; cs_algo=MF()))
 
-    @test isapprox(result_dense.objective, result_cs.objective, atol=1e-3)
+    @test isapprox(result_dense.objective, result_cs.objective, atol=1e-4)
 
     result_cs_ts = cs_nctssos(
         pop,
         SolverConfig(optimizer=SOLVER; cs_algo=MF(), ts_algo=MMD()),
     )
 
-    @test isapprox(result_cs.objective, result_cs_ts.objective, atol=1e-3)
+    @test isapprox(result_cs.objective, result_cs_ts.objective, atol=1e-4)
 
     result_cs_ts_higher = cs_nctssos_higher(
         pop,
@@ -407,5 +407,5 @@ end
         SolverConfig(optimizer=SOLVER; cs_algo=MF(), ts_algo=MMD()),
     )
 
-    @test isapprox(result_dense.objective, result_cs_ts_higher.objective, atol=1e-3)
+    @test isapprox(result_dense.objective, result_cs_ts_higher.objective, atol=1e-4)
 end

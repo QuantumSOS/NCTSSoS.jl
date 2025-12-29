@@ -85,7 +85,7 @@ const BELL_REGISTRY, (X, Y) = create_projector_variables([("X", 1:5), ("Y", 1:5)
     for i in 1:length(instance)
         @testset "$(instance[i])" begin
             obj = tester(i)
-            @test obj ≈ λd[i] atol = 1e-5
+            @test obj ≈ λd[i] atol = 1e-6
         end
     end
 end

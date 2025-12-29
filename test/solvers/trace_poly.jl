@@ -16,14 +16,14 @@ using Test, NCTSSoS
 
     result = cs_nctssos(tpop, solver_config)
 
-    @test result.objective ≈ -0.046717378455438933 atol = 1e-5
+    @test result.objective ≈ -0.046717378455438933 atol = 1e-6
 
     if LOCAL_TESTING
         solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 
         result = cs_nctssos(tpop, solver_config)
 
-        @test result.objective ≈ -0.03124998978001017 atol = 1e-5
+        @test result.objective ≈ -0.03124998978001017 atol = 1e-6
     end
 end
 
@@ -41,7 +41,7 @@ end
 
     result = cs_nctssos(tpop, solver_config)
 
-    @test result.objective ≈ -2.8284271157283083 atol = 1e-4
+    @test result.objective ≈ -2.8284271157283083 atol = 1e-5
 end
 
 # Squared trace expressions
@@ -60,7 +60,7 @@ end
 
         result = cs_nctssos(tpop, solver_config)
 
-        @test result.objective ≈ -4.0 atol = 1e-3
+        @test result.objective ≈ -4.0 atol = 1e-5
     end
 end
 
@@ -74,5 +74,5 @@ end
     tpop = polyopt(p * one(typeof(x[1])), reg)
     solver_config = SolverConfig(; optimizer=SOLVER, order=2)
     result = cs_nctssos(tpop, solver_config)
-    @test result.objective ≈ -5.0 atol = 1e-4
+    @test result.objective ≈ -5.0 atol = 1e-5
 end

@@ -19,7 +19,7 @@ using Test, NCTSSoS
 
     res = cs_nctssos(pop, solver_config)
 
-    @test res.objective / N ≈ -0.467129 atol = 1e-5
+    @test res.objective / N ≈ -0.467129 atol = 1e-6
 end
 
 @testset "J1 J2 Model (N=4)" begin
@@ -67,7 +67,7 @@ end
 
     res = cs_nctssos_higher(pop, res, solver_config)
 
-    @test res.objective / N ≈ -0.4270083225302217 atol = 1e-5
+    @test res.objective / N ≈ -0.4270083225302217 atol = 1e-6
 end
 
 @testset "2D Model (3x3)" begin
@@ -95,5 +95,5 @@ end
     res = cs_nctssos_higher(pop, res, solver_config)
     res = cs_nctssos_higher(pop, res, solver_config)
 
-    @test res.objective / N ≈ -0.5 atol = 1e-5
+    @test res.objective / N ≈ -0.5 atol = 1e-6
 end

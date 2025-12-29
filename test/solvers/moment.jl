@@ -19,7 +19,7 @@ using Test, NCTSSoS, Graphs
 
     result = cs_nctssos(pop, solver_config; dualize=false)
 
-    @test isapprox(result.objective, -2.8284271321623193, atol=1e-5)
+    @test isapprox(result.objective, -2.8284271321623193, atol=1e-6)
 end
 
 # This test requires high solver precision - only run with LOCAL_TESTING
@@ -98,7 +98,7 @@ end
     )
 
     result = cs_nctssos(pop, solver_config; dualize=false)
-    @test isapprox(result.objective, true_ans, atol=1e-5)
+    @test isapprox(result.objective, true_ans, atol=1e-6)
 end
 
 @testset "Example 1" begin
@@ -136,7 +136,7 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=false)
 
-        # Relaxed tolerance for COSMO compatibility
+        # Sparse methods can give slightly different bounds
         @test isapprox(result.objective, -0.0035512, atol=1e-4)
     end
 end
@@ -158,7 +158,7 @@ end
             order=order)
 
         result = cs_nctssos(pop, solver_config; dualize=false)
-        @test isapprox(result.objective, -1.0, atol=1e-5)
+        @test isapprox(result.objective, -1.0, atol=1e-6)
     end
 
     @testset "Term Sparse" begin
@@ -171,7 +171,7 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=false)
 
-        @test isapprox(result.objective, -1.0, atol=1e-5)
+        @test isapprox(result.objective, -1.0, atol=1e-6)
     end
 end
 
@@ -199,7 +199,7 @@ end
         )
         result = cs_nctssos(pop, solver_config; dualize=false)
 
-        @test isapprox(result.objective, 0.9975306427277915, atol=1e-4)
+        @test isapprox(result.objective, 0.9975306427277915, atol=1e-5)
     end
 
     @testset "Term Sparse" begin
@@ -213,6 +213,6 @@ end
 
         result = cs_nctssos_higher(pop, result, solver_config; dualize=false)
 
-        @test isapprox(result.objective, 0.9975306427277915, atol=1e-4)
+        @test isapprox(result.objective, 0.9975306427277915, atol=1e-5)
     end
 end

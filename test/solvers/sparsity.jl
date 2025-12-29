@@ -403,12 +403,12 @@ end
         
         expected = -2.8284
         
-        @test result_dense.objective ≈ expected atol=1e-3
-        @test result_cs.objective ≈ expected atol=1e-3
-        @test result_ts.objective ≈ expected atol=1e-3
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_cs.objective ≈ expected atol=1e-4
+        @test result_ts.objective ≈ expected atol=1e-4
         
-        @test result_dense.objective ≈ result_cs.objective atol=1e-4
-        @test result_dense.objective ≈ result_ts.objective atol=1e-4
+        @test result_dense.objective ≈ result_cs.objective atol=1e-5
+        @test result_dense.objective ≈ result_ts.objective atol=1e-5
     end
     
     @testset "I_3322 - Dense vs Sparse" begin
@@ -460,9 +460,9 @@ end
         
         expected = -2.8284
         
-        @test result_dense.objective ≈ expected atol=1e-3
-        @test result_ts.objective ≈ expected atol=1e-3
-        @test result_dense.objective ≈ result_ts.objective atol=1e-4
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_ts.objective ≈ expected atol=1e-4
+        @test result_dense.objective ≈ result_ts.objective atol=1e-5
     end
     
     @testset "Covariance Trace - Dense vs Sparse" begin
@@ -486,9 +486,9 @@ end
         
         expected = -5.0
         
-        @test result_dense.objective ≈ expected atol=1e-3
-        @test result_sparse.objective ≈ expected atol=1e-3
-        @test result_dense.objective ≈ result_sparse.objective atol=1e-3
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_sparse.objective ≈ expected atol=1e-4
+        @test result_dense.objective ≈ result_sparse.objective atol=1e-4
     end
 end
 
@@ -511,9 +511,9 @@ end
         
         expected = -2.8284
         
-        @test result_dense.objective ≈ expected atol=1e-3
-        @test result_ts.objective ≈ expected atol=1e-3
-        @test result_dense.objective ≈ result_ts.objective atol=1e-4
+        @test result_dense.objective ≈ expected atol=1e-4
+        @test result_ts.objective ≈ expected atol=1e-4
+        @test result_dense.objective ≈ result_ts.objective atol=1e-5
     end
     
     @testset "Covariance State - Dense vs Sparse" begin
@@ -651,7 +651,7 @@ end
         ]
             config = SolverConfig(optimizer=SOLVER, order=1, cs_algo=NoElimination(), ts_algo=algo)
             result = cs_nctssos(tpop, config)
-            @test result.objective ≈ expected atol=1e-3
+            @test result.objective ≈ expected atol=1e-4
         end
     end
 end

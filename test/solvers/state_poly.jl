@@ -36,7 +36,7 @@ const QUICK_SOLVER = SOLVER
     solver_config = SolverConfig(; optimizer=SOLVER, order=d)
 
     result_sos = cs_nctssos(spop, solver_config)
-    @test isapprox(result_sos.objective, -2.8284271321623202, atol=1e-4)
+    @test isapprox(result_sos.objective, -2.8284271321623202, atol=1e-5)
 
 
     # Term sparsity (MMD) now works correctly for state polynomial optimization
@@ -46,7 +46,7 @@ const QUICK_SOLVER = SOLVER
 
         result = cs_nctssos(spop, solver_config)
 
-        @test result.objective ≈ -2.8284271321623202 atol = 1e-4
+        @test result.objective ≈ -2.8284271321623202 atol = 1e-5
     end
 end
 
@@ -65,7 +65,7 @@ end
     solver_config = SolverConfig(; optimizer=SOLVER, order=d)
 
     result_sos = cs_nctssos(spop, solver_config)
-    @test isapprox(result_sos.objective, -4.0, atol=1e-2)
+    @test isapprox(result_sos.objective, -4.0, atol=1e-4)
 end
 
 @testset "State Polynomial Opt 7.2.2" begin
@@ -125,10 +125,10 @@ end
     result_mom = cs_nctssos(spop, solver_config; dualize=false)
     result_sos = cs_nctssos(spop, solver_config; dualize=true)
 
-    @test isapprox(result_mom.objective, -2.8284271321623202, atol=1e-4)
-    @test isapprox(result_sos.objective, -2.8284271321623202, atol=1e-4)
+    @test isapprox(result_mom.objective, -2.8284271321623202, atol=1e-5)
+    @test isapprox(result_sos.objective, -2.8284271321623202, atol=1e-5)
     # Both methods should give similar results
-    @test isapprox(result_mom.objective, result_sos.objective, atol=1e-3)
+    @test isapprox(result_mom.objective, result_sos.objective, atol=1e-5)
 end
 
 # Test 7.2.1: Objectives with squared expectations <A><A>
@@ -147,7 +147,7 @@ end
 
     # This test now passes with the complete basis generation
     result_sos = cs_nctssos(spop, solver_config)
-    @test isapprox(result_sos.objective, -4.0, atol = 1e-4)
+    @test isapprox(result_sos.objective, -4.0, atol=1e-5)
 end
 
 # Test 7.2.2 with covariance expression: cov(a,b) = <xy> - <x><y>
@@ -203,7 +203,7 @@ end
     result_mom = cs_nctssos(spop, solver_config; dualize=false)
     result_sos = cs_nctssos(spop, solver_config; dualize=true)
 
-    @test isapprox(result_mom.objective, -2.8284271321623202, atol=1e-4)
-    @test isapprox(result_sos.objective, -2.8284271321623202, atol=1e-4)
-    @test isapprox(result_mom.objective, result_sos.objective, atol=1e-3)
+    @test isapprox(result_mom.objective, -2.8284271321623202, atol=1e-5)
+    @test isapprox(result_sos.objective, -2.8284271321623202, atol=1e-5)
+    @test isapprox(result_mom.objective, result_sos.objective, atol=1e-5)
 end

@@ -20,7 +20,7 @@ if LOCAL_TESTING
 
         result = cs_nctssos(pop, solver_config)
 
-        @test isapprox(result.objective, -0.2508753049688358, atol=1e-5)
+        @test isapprox(result.objective, -0.2508753049688358, atol=1e-6)
     end
 end
 
@@ -115,7 +115,7 @@ end
 
     result = cs_nctssos(pop, solver_config; dualize=true)
 
-    @test isapprox(result.objective, true_min, atol=1e-5)
+    @test isapprox(result.objective, true_min, atol=1e-6)
 end
 
 # This test requires high precision solver - COSMO gives Inf for one method
@@ -168,7 +168,7 @@ end
 
     result = cs_nctssos(pop, solver_config; dualize=true)
 
-    @test isapprox(result.objective, 0.0, atol=1e-5)
+    @test isapprox(result.objective, 0.0, atol=1e-6)
 end
 
 @testset "Dualization Example 2" begin
@@ -188,7 +188,7 @@ end
         )
 
         result = cs_nctssos(pop, solver_config; dualize=true)
-        @test isapprox(result.objective, -1, atol=1e-5)
+        @test isapprox(result.objective, -1, atol=1e-6)
     end
 
     @testset "Term Sparse" begin
@@ -200,7 +200,7 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=true)
 
-        @test isapprox(result.objective, -1.0, atol=1e-5)
+        @test isapprox(result.objective, -1.0, atol=1e-6)
     end
 end
 
@@ -240,7 +240,7 @@ end
 
     result = cs_nctssos(pop, solver_config; dualize=true)
 
-    @test isapprox(result.objective, true_ans, atol=1e-5)
+    @test isapprox(result.objective, true_ans, atol=1e-6)
 end
 
 @testset "SOS Method Correlative Sparsity" begin
@@ -267,7 +267,7 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=true)
 
-        @test isapprox(result.objective, 0.9975306427277915, atol=1e-4)
+        @test isapprox(result.objective, 0.9975306427277915, atol=1e-5)
     end
 
     @testset "Term Sparsity" begin
@@ -279,6 +279,7 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=true)
 
+        # Term sparsity can give slightly different bounds
         @test isapprox(result.objective, 0.9975306427277915, atol=1e-4)
     end
 end

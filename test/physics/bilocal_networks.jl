@@ -113,6 +113,6 @@ include("../setup.jl")
         result = cs_nctssos(spop, solver_config)
 
         # Expected quantum bound is -4
-        @test result.objective ≈ -4.0 atol = 1e-2
+        @test result.objective ≈ -4.0 atol = 1e-4
     end
 end

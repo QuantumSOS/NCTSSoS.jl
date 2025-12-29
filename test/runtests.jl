@@ -2,12 +2,19 @@
 # NCTSSoS.jl Test Suite
 # =============================================================================
 #
-# Test Categories:
-# ----------------
-# 1. polynomials/     - Core polynomial algebra (types, arithmetic, simplification)
-# 2. quality/         - Code quality checks (Aqua, ExplicitImports)
-# 3. solvers/         - SDP solver integration (moment, SOS, sparsity)
-# 4. physics/         - Physics models (Heisenberg, XY, etc.) [LOCAL_TESTING only]
+# Test Structure:
+# ---------------
+# test/
+# ├── polynomials/     - Core polynomial algebra (types, arithmetic, simplification)
+# │   └── runtests.jl
+# ├── quality/         - Code quality checks (Aqua, ExplicitImports, Doctest)
+# │   └── runtests.jl
+# ├── solvers/         - SDP solver integration (moment, SOS, sparsity, GNS)
+# │   └── runtests.jl
+# ├── physics/         - Physics models (Heisenberg, XY, etc.) [LOCAL_TESTING only]
+# │   └── runtests.jl
+# ├── setup.jl         - Shared solver configuration
+# └── runtests.jl      - This file (main entry point)
 #
 # Solver Configuration:
 # ---------------------
@@ -19,6 +26,7 @@
 # Full suite:    julia --project -e 'using Pkg; Pkg.test()'
 # Local suite:   LOCAL_TESTING=true julia --project -e 'using Pkg; Pkg.test()'
 # Single file:   julia --project -e 'include("test/solvers/moment.jl")'
+# Single folder: julia --project -e 'include("test/solvers/runtests.jl")'
 # =============================================================================
 
 using NCTSSoS, Test
@@ -32,10 +40,11 @@ using NCTSSoS, Test
     end
 
     # =========================================================================
-    # 2. Code Quality Checks (each defines its own testset)
+    # 2. Code Quality Checks
     # =========================================================================
-    include("quality/Aqua.jl")
-    include("quality/ExplicitImports.jl")
+    @testset "Quality" begin
+        include("quality/runtests.jl")
+    end
 
     # =========================================================================
     # Load solver configuration AFTER polynomial tests to avoid JuMP's 
@@ -44,35 +53,18 @@ using NCTSSoS, Test
     include("setup.jl")
 
     # =========================================================================
-    # 3. Sparsity Algorithm Tests (unit tests, no solver needed)
+    # 3. Solver Integration Tests
     # =========================================================================
-    @testset "Sparsity Algorithms" begin
-        include("pop.jl")
-        include("sparse.jl")
+    @testset "Solvers" begin
+        include("solvers/runtests.jl")
     end
 
     # =========================================================================
-    # 4. SDP Solver Integration Tests
-    # =========================================================================
-    @testset "Solver Integration" begin
-        include("solvers/moment.jl")
-        include("solvers/sos.jl")
-        include("solvers/interface.jl")
-        include("solvers/sparsity.jl")
-        include("solvers/state_poly.jl")
-        include("solvers/trace_poly.jl")
-    end
-
-    # =========================================================================
-    # 5. Physics Model Tests (LOCAL_TESTING only - require Mosek)
+    # 4. Physics Model Tests (LOCAL_TESTING only - require Mosek)
     # =========================================================================
     if LOCAL_TESTING
-        @testset "Physics Models" begin
-            include("physics/heisenberg.jl")
-            include("physics/xy_model.jl")
-            include("physics/bose_hubbard.jl")
-            include("physics/bell_inequalities.jl")
-            include("physics/fermionic.jl")
+        @testset "Physics" begin
+            include("physics/runtests.jl")
         end
     end
 end

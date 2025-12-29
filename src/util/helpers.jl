@@ -137,6 +137,8 @@ where we need adjoint(row_index) * constraint_monomial * column_index.
 ```jldoctest
 julia> using NCTSSoS
 
+julia> using NCTSSoS: _neat_dot3
+
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
 julia> m2 = Monomial{PauliAlgebra}([3]);

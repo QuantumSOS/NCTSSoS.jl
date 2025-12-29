@@ -18,6 +18,8 @@ so ComposedMonomial has zero runtime overhead for algebra type storage.
 
 # Examples
 ```jldoctest
+julia> using NCTSSoS
+
 julia> m_pauli = Monomial{PauliAlgebra}([1, 2, 3]);
 
 julia> m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 2]);

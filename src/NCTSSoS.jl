@@ -93,6 +93,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 
 # Core Types (users need these for type annotations and construction)
 export Monomial, Polynomial, Term, VariableRegistry
+export ComposedMonomial
 
 # Algebra Types (users need for dispatch)
 export AlgebraType
@@ -102,10 +103,12 @@ export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
 # State Polynomial Operations
 export ς, tr
 export StateWord, StatePolynomial
+export NCStateWord, MaxEntangled, Arbitrary
 
 # Polynomial Operations (commonly used)
 export degree, monomials, coefficients, terms, variables
 export simplify, simplify!
+export variable_indices
 
 # Canonicalization (user-facing)
 export symmetric_canon, cyclic_canon, canonicalize

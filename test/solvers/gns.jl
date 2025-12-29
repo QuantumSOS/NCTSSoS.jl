@@ -1,6 +1,6 @@
 using Test, NCTSSoS
 using LinearAlgebra
-using NCTSSoS: neat_dot, get_ncbasis, _gns_extract_monomials_from_basis
+using NCTSSoS: neat_dot, get_ncbasis, _gns_extract_monomials_from_basis, degree
 
 @testset "GNS Construction" begin
     @testset "Hankel dictionary utilities" begin

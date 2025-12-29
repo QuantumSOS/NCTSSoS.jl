@@ -2,9 +2,9 @@ using LinearAlgebra
 # Types from NCTSSoS main module (no submodule needed)
 
 """
-    extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
+    _gns_extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
 
-Extract monomials from a vector of single-term polynomials.
+Extract monomials from a vector of single-term polynomials for GNS reconstruction.
 
 For NonCommutativeAlgebra, Pauli, Projector, and Unipotent algebras, each basis polynomial
 has exactly one term. This function extracts the monomial from each polynomial.
@@ -12,10 +12,12 @@ has exactly one term. This function extracts the monomial from each polynomial.
 For Fermionic/Bosonic algebras, basis polynomials may have multiple terms due to
 normal ordering corrections. In these cases, we extract the leading monomial.
 
+This is a GNS-internal function distinct from `extract_monomials_from_basis` in sparsity.jl.
+
 # Returns
 Vector of monomials in the same order as the input polynomials.
 """
-function extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
+function _gns_extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
     result = Monomial{A,T}[]
     for poly in basis_polys
         poly_monomials = monomials(poly)
@@ -98,8 +100,8 @@ function reconstruct(
     hankel_basis_polys = get_ncbasis(registry, hankel_deg)
 
     # Extract monomials from polynomials for indexing
-    H_basis = extract_monomials_from_basis(H_basis_polys)
-    hankel_basis = extract_monomials_from_basis(hankel_basis_polys)
+    H_basis = _gns_extract_monomials_from_basis(H_basis_polys)
+    hankel_basis = _gns_extract_monomials_from_basis(hankel_basis_polys)
 
     len_H = length(H_basis)
     len_hankel = length(hankel_basis)

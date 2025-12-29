@@ -24,7 +24,7 @@ Vector of all possible words of length d using the given indices.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials: _generate_all_words
+julia> using NCTSSoS: _generate_all_words
 
 julia> words = _generate_all_words([1, 3, 5], 2);
 
@@ -40,7 +40,7 @@ true
 
 Edge cases:
 ```jldoctest
-julia> using FastPolynomials: _generate_all_words
+julia> using NCTSSoS: _generate_all_words
 
 julia> _generate_all_words([1, 2], 0)  # degree 0
 1-element Vector{Vector{Int64}}:
@@ -84,7 +84,7 @@ This preserves the 1-to-1 mapping between input words and output polynomials:
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> reg, (x,) = create_noncommutative_variables([("x", 1:2)]);
 
@@ -99,7 +99,7 @@ true
 
 Degree 0 returns identity polynomial:
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> reg, (x,) = create_noncommutative_variables([("x", 1:3)]);
 
@@ -173,7 +173,7 @@ Returns `Vector{Polynomial}` where each element is the simplified form of one in
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> reg, (x,) = create_noncommutative_variables([("x", 1:2)]);
 
@@ -188,7 +188,7 @@ true
 
 With unipotent algebra (U^2 = I simplification):
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> reg, (U,) = create_unipotent_variables([("U", 1:2)]);
 

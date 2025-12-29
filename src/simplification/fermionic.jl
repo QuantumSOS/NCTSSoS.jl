@@ -47,7 +47,7 @@ expectation values.
 
 # Examples
 ```jldoctest
-julia> using NCTSSoS.FastPolynomials
+julia> using NCTSSoS
 
 julia> registry, (a, a_dag) = create_fermionic_variables(1:2);
 
@@ -370,7 +370,7 @@ terms due to anticommutation). The original monomial is unchanged.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{FermionicAlgebra}(Int32[1, -1]);  # a₁ a₁†
 

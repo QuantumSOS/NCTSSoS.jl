@@ -38,7 +38,7 @@ julia> t.monomial.word
 
 Identity term (empty monomial with coefficient 1):
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{UnipotentAlgebra}(Int[]);
 
@@ -63,7 +63,7 @@ Check if a term is the multiplicative identity (coefficient 1, empty monomial).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{UnipotentAlgebra}(Int[]);
 
@@ -162,7 +162,7 @@ as long as the monomial type implements `one(::Type{M})`.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> one(Term{Monomial{UnipotentAlgebra,Int},Float64})
 1
@@ -185,7 +185,7 @@ as long as the monomial type implements `one(::Type{M})`.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> zero(Term{Monomial{FermionicAlgebra,Int32},Float64})
 0
@@ -247,7 +247,7 @@ A Term yields exactly one `(coefficient, monomial)` tuple when iterated.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 

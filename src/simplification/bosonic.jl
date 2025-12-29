@@ -57,7 +57,7 @@ naive iterative expansion.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{BosonicAlgebra}(Int32[1, -1]);  # c₁ c₁†
 
@@ -91,7 +91,7 @@ especially for expressions with multiple modes.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{BosonicAlgebra}(Int32[2, -1]);  # c₂ c₁†
 

@@ -321,7 +321,7 @@ This function:
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([3, 2, 1]);
 

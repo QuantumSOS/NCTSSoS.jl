@@ -45,8 +45,8 @@ function Base.show(io::IO, cs::CorrelativeSparsity{A,T,P,M}) where {A,T,P,M}
         println(io, "       Variables: ", clique_syms)
         println(io, "       Bases length: ", length(cs.clq_mom_mtx_bases[clique_i]))
         println(io, "       Constraints: ")
-        for cons_j in eachindex(cs.clq_cons[clique_i])
-            println(io, "           ", cs.cons[cons_j], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][cons_j])) basis monomials")
+        for (local_j, cons_idx) in enumerate(cs.clq_cons[clique_i])
+            println(io, "           ", cs.cons[cons_idx], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][local_j])) basis monomials")
         end
     end
     println(io, "   Global Constraints: ")
@@ -374,8 +374,8 @@ function Base.show(io::IO, cs::StateCorrelativeSparsity{A,ST,T,P,M}) where {A,ST
         println(io, "       Variables: ", clique_syms)
         println(io, "       Bases length: ", length(cs.clq_mom_mtx_bases[clique_i]))
         println(io, "       Constraints: ")
-        for cons_j in eachindex(cs.clq_cons[clique_i])
-            println(io, "           ", cs.cons[cons_j], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][cons_j])) basis NCStateWords")
+        for (local_j, cons_idx) in enumerate(cs.clq_cons[clique_i])
+            println(io, "           ", cs.cons[cons_idx], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][local_j])) basis NCStateWords")
         end
     end
     println(io, "   Global Constraints: ")

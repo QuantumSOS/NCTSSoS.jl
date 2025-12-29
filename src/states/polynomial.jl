@@ -17,7 +17,7 @@ Represents a sum of state words with coefficients: sum_i c_i * sw_i
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -594,7 +594,7 @@ Converts each term's monomial to a StateWord{Arbitrary}.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 
@@ -634,7 +634,7 @@ Same as StatePolynomial: sorted, unique, non-zero coefficients.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 

@@ -169,7 +169,7 @@ the appropriate coefficient type when not explicitly specified.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> default_coeff_type(PauliAlgebra)
 ComplexF64
@@ -208,7 +208,7 @@ For `Term{M,C}` and `Polynomial{A,T,C}`, returns `C` (the explicit coefficient t
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> coeff_type(Monomial{PauliAlgebra,Int64})
 ComplexF64

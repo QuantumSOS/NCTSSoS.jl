@@ -425,6 +425,14 @@ Substitute monomials in a polynomial with separate real/imaginary JuMP variables
 Returns (real_expr, imag_expr) tuple.
 
 Monomials not in basis_to_idx are treated as having expectation value 0.
+
+# Type Suggestions for mat_re/mat_im
+For optimal type stability in complex moment solving, prefer:
+- `Matrix{JuMP.GenericAffExpr{Cr,JuMP.VariableRef}}` over `Matrix{Any}`
+where `Cr = real(eltype(coefficients(poly)))` (typically Float64).
+This ensures type-stable matrix operations during constraint construction.
+Currently Matrix{Any} is used for simplicity, but typed matrices would
+reduce allocation overhead and enable better JIT optimization.
 """
 function _substitute_complex_poly(
     poly::P,
@@ -433,12 +441,18 @@ function _substitute_complex_poly(
     y_im::Vector{V}
 ) where {T, P<:AbstractPolynomial{T}, M, V}
 
+    # For zero polynomial, return correctly typed zero expressions
+    # rather than literal (0.0, 0.0) which causes type instability
     if iszero(poly)
-        return (0.0, 0.0)
+        # Use the JuMP variable type to construct proper zero expressions
+        zero_re = zero(eltype(y_re)) * y_re[1]
+        zero_im = zero(eltype(y_im)) * y_im[1]
+        return (zero_re, zero_im)
     end
 
-    re_expr = zero(eltype(y_re))
-    im_expr = zero(eltype(y_im))
+    # Initialize with properly typed zero expressions
+    re_expr = zero(eltype(y_re)) * y_re[1]
+    im_expr = zero(eltype(y_im)) * y_im[1]
 
     for (coef, mono) in zip(coefficients(poly), monomials(poly))
         canon_mono = symmetric_canon(expval(mono))

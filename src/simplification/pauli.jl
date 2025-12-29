@@ -22,7 +22,7 @@ For index `idx`:
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁ = iσz₁
 
@@ -180,7 +180,7 @@ The original monomial is unchanged.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁
 

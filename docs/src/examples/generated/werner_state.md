@@ -1,3 +1,5 @@
+<!-- nctssos-literate-source: werner_state.jl sha256: 96e8b6fc79b9a5fa39dc4e39811199e53894651e0deeeb924db5f9213fdc80cd -->
+
 ```@meta
 EditURL = "../literate/werner_state.jl"
 ```

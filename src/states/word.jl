@@ -33,7 +33,7 @@ All monomials share the same algebra type A.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);  # XY
 
@@ -120,7 +120,7 @@ Construct a StateWord from a single monomial.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 
@@ -142,7 +142,7 @@ Contains only the identity monomial.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> sw = StateWord{Arbitrary,PauliAlgebra,Int}();
 
@@ -165,7 +165,7 @@ Create the identity StateWord (single identity monomial).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> sw_one = one(StateWord{Arbitrary,PauliAlgebra,Int64});
 
@@ -193,7 +193,7 @@ Check if a StateWord is the identity (single identity monomial).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> sw_one = one(StateWord{Arbitrary,PauliAlgebra,Int64});
 
@@ -221,7 +221,7 @@ Compute the total degree of a StateWord (sum of monomial degrees).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);  # degree 2
 
@@ -242,7 +242,7 @@ Get the set of all variable indices used in the StateWord's monomials.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -294,7 +294,7 @@ Compare two StateWords using degree-first ordering, then lexicographic on state_
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 
@@ -327,7 +327,7 @@ all expectations from both operands.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -366,7 +366,7 @@ Due to the involution invariant, adjoint(sw) == sw for all StateWords.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2, 3]);
 
@@ -429,7 +429,7 @@ Combines a commutative StateWord (expectations) with a non-commutative monomial 
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -582,7 +582,7 @@ Compute adjoint(x) * y. Common operation in quantum optimization.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1]);
 
@@ -607,7 +607,7 @@ Converts `<M1><M2>...<Mk> * Onc` to `<M1><M2>...<Mk><Onc>`.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -690,7 +690,7 @@ produce multiple terms (e.g., Pauli algebra phase factors).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{UnipotentAlgebra}(UInt[1, 1]);  # x₁²
 
@@ -728,7 +728,7 @@ arbitrary state formalism. Equivalent to `StateWord{Arbitrary}(m)`.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 
@@ -755,7 +755,7 @@ maximally entangled state formalism. Equivalent to `StateWord{MaxEntangled}(m)`.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 
@@ -804,7 +804,7 @@ This generates:
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> reg, (x,) = create_unipotent_variables([("x", 1:2)]);
 
@@ -819,7 +819,7 @@ true
 
 For projector algebra:
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> reg, (P,) = create_projector_variables([("P", 1:2)]);
 
@@ -979,7 +979,7 @@ constituent monomial is in its symmetric canonical form.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([3, 2, 1]);
 
@@ -1011,9 +1011,9 @@ before cyclic canonicalization. This ensures that equivalent StateWords like
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
-julia> using FastPolynomials: encode_index
+julia> using NCTSSoS: encode_index
 
 julia> idx1 = encode_index(UInt8, 1, 1);
 
@@ -1049,7 +1049,7 @@ For NCStateWords, this canonicalizes both the StateWord part and the nc_word par
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([3, 2, 1]);
 

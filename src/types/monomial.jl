@@ -659,7 +659,7 @@ All three types can be iterated with the same `for (coef, mono) in result` patte
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 

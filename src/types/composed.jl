@@ -36,9 +36,9 @@ true
 
 Simplification dispatches to each component's algebra and returns `Vector{Term}`:
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
-julia> using FastPolynomials: encode_index
+julia> using NCTSSoS: encode_index
 
 julia> m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1, 2]);
 
@@ -102,7 +102,7 @@ This ordering enables sorting ComposedMonomials for polynomial operations.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}(UInt16[1]);
 
@@ -151,7 +151,7 @@ Total degree across all components.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}(UInt16[1, 2, 3]);
 
@@ -222,9 +222,9 @@ contains a ComposedMonomial with the simplified component monomials.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
-julia> using FastPolynomials: encode_index
+julia> using NCTSSoS: encode_index
 
 julia> m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1]);
 

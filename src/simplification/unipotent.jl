@@ -22,9 +22,9 @@ Use `encode_index(T, operator_id, site)` to create indices.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
-julia> using FastPolynomials: encode_index
+julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
@@ -40,9 +40,9 @@ true
 
 U²=I pair removal:
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
-julia> using FastPolynomials: encode_index
+julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
@@ -117,9 +117,9 @@ The original monomial is unchanged.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
-julia> using FastPolynomials: encode_index
+julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 

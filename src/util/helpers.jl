@@ -2,9 +2,9 @@
 # Utility Functions for NCTSSoS Integration
 # =============================================================================
 #
-# These utility functions are used by NCTSSoS and were part of the old
-# FastPolynomials implementation. They are maintained here for backward
-# compatibility with NCTSSoS source files.
+# These utility functions are used throughout NCTSSoS for polynomial algebra
+# operations. They provide efficient helpers for sorted unions, dot products,
+# and fermionic/bosonic operator handling.
 #
 # =============================================================================
 
@@ -87,7 +87,7 @@ Returns a Monomial with the adjoint of a's word followed by b's word.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -135,7 +135,7 @@ where we need adjoint(row_index) * constraint_monomial * column_index.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -191,7 +191,7 @@ In the fermionic/bosonic encoding, creation operators have negative indices.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials: _is_creation
+julia> using NCTSSoS: _is_creation
 
 julia> _is_creation(-1)  # a₁† (creation)
 true
@@ -211,7 +211,7 @@ Returns the same integer type as the input for type stability.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials: _operator_mode
+julia> using NCTSSoS: _operator_mode
 
 julia> _operator_mode(-3)  # a₃† → mode 3
 3
@@ -233,7 +233,7 @@ This establishes a canonical normal order used by both fermionic and bosonic alg
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials: normal_order_key
+julia> using NCTSSoS: normal_order_key
 
 julia> normal_order_key(-3)  # a₃† (creation)
 (0, 3)
@@ -258,7 +258,7 @@ sorted by mode within each group.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials: find_first_out_of_order
+julia> using NCTSSoS: find_first_out_of_order
 
 julia> find_first_out_of_order(Int32[-1, 1])  # c₁† c₁ (normal order)
 0
@@ -290,7 +290,7 @@ Implemented in terms of `find_first_out_of_order` for DRY.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials: is_normal_ordered
+julia> using NCTSSoS: is_normal_ordered
 
 julia> is_normal_ordered(Int32[-1, -2, 1, 2])  # c₁† c₂† c₁ c₂ (normal)
 true

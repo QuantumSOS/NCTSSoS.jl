@@ -1,7 +1,7 @@
 """
     AbstractPolynomial{C<:Number}
 
-Abstract supertype for all polynomial types in FastPolynomials.
+Abstract supertype for all polynomial types in NCTSSoS.
 
 # Type Parameters
 - `C<:Number`: Coefficient type (Float64, ComplexF64, etc.)
@@ -42,7 +42,7 @@ Maintains sorted, unique monomials with non-zero coefficients.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -63,7 +63,7 @@ julia> degree(p)
 
 Construction with automatic deduplication:
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1]);
 
@@ -153,7 +153,7 @@ Construct a polynomial from a single term.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 
@@ -189,7 +189,7 @@ The coefficient type is determined by `default_coeff_type(A)`:
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 
@@ -213,7 +213,7 @@ Useful for generic code that may receive Monomial, Term, or Polynomial.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p1 = Polynomial([Term(2.0, Monomial{PauliAlgebra}([1]))]);
 
@@ -234,7 +234,7 @@ Construct a constant polynomial (coefficient times identity monomial).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p = Polynomial{PauliAlgebra,Int64,Float64}(5.0);
 
@@ -267,7 +267,7 @@ converting between different coefficient types during computation.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{NonCommutativeAlgebra}(UInt8[1]);
 
@@ -299,7 +299,7 @@ Create the zero polynomial (no terms).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p = zero(Polynomial{PauliAlgebra,Int64,Float64});
 
@@ -330,7 +330,7 @@ Create the multiplicative identity polynomial (1 times identity monomial).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p = one(Polynomial{PauliAlgebra,Int64,Float64});
 
@@ -374,7 +374,7 @@ Check if a polynomial is the zero polynomial (has no terms).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1]);
 
@@ -393,7 +393,7 @@ Check if a polynomial is the multiplicative identity (single term with coefficie
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p = one(Polynomial{PauliAlgebra,Int64,Float64});
 
@@ -422,7 +422,7 @@ Get the terms of the polynomial. Terms are sorted by monomial and have unique mo
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 
@@ -443,7 +443,7 @@ Extract the coefficients of all terms in the polynomial.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 
@@ -466,7 +466,7 @@ Extract the monomials of all terms in the polynomial.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 
@@ -491,7 +491,7 @@ Returns `-Inf` for the zero polynomial to preserve the algebraic identity
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 
@@ -521,7 +521,7 @@ Returns a Set of integer indices.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
@@ -561,7 +561,7 @@ which is the correct behavior for correlative sparsity analysis.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2, 1]);
 
@@ -680,7 +680,7 @@ Add two polynomials. Concatenates terms and processes to combine like terms.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 
@@ -726,7 +726,7 @@ Negate a polynomial (negate all coefficients).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1]);
 
@@ -757,7 +757,7 @@ The multiplication proceeds in three steps:
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{NonCommutativeAlgebra}(UInt16[1]);
 
@@ -807,7 +807,7 @@ Scalar multiplication (scalar on left).
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1]);
 
@@ -845,7 +845,7 @@ This is useful for constructing polynomials from scalar-monomial expressions.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2]);
 
@@ -874,7 +874,7 @@ Divide polynomial by scalar.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1]);
 
@@ -920,7 +920,7 @@ Add a monomial to a polynomial. Converts the monomial to a single-term polynomia
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}([1]))]);
 
@@ -959,7 +959,7 @@ Subtract a monomial from a polynomial or vice versa.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}([1]))]);
 
@@ -1020,7 +1020,7 @@ Multiply a monomial by a polynomial. Returns a Polynomial.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{NonCommutativeAlgebra}([1]);
 
@@ -1046,7 +1046,7 @@ Multiply a polynomial by a monomial. Returns a Polynomial.
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> p = Polynomial([Term(1.0, Monomial{NonCommutativeAlgebra}([1])), Term(2.0, Monomial{NonCommutativeAlgebra}([2]))]);
 
@@ -1072,7 +1072,7 @@ Raise polynomial to integer power using binary exponentiation (power by squaring
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{NonCommutativeAlgebra}(UInt16[1]);
 
@@ -1115,7 +1115,7 @@ This ensures that for polynomial operators, `adjoint(AB) = adjoint(B) * adjoint(
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 2, 3]);
 
@@ -1172,7 +1172,7 @@ This function:
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m = Monomial{PauliAlgebra}([1, 1]);  # σx₁ * σx₁
 
@@ -1274,7 +1274,7 @@ All three types can be iterated with the same `for (coef, mono) in result` patte
 
 # Examples
 ```jldoctest
-julia> using FastPolynomials
+julia> using NCTSSoS
 
 julia> m1 = Monomial{PauliAlgebra}([1]);
 

@@ -46,6 +46,15 @@ test-quick:
 test-polynomials:
 	$(JL) -e 'using NCTSSoS, Test; include("test/polynomials/runtests.jl")'
 
+# Run a specific test file
+# Usage: make test-file FILE=solvers/moment.jl
+#        make test-file FILE=physics/bell_inequalities.jl
+test-file:
+ifndef FILE
+	$(error FILE is not set. Usage: make test-file FILE=solvers/moment.jl)
+endif
+	LOCAL_TESTING=true $(JL) -e 'include("test/$(FILE)")'
+
 # =============================================================================
 # Documentation
 # =============================================================================
@@ -64,4 +73,4 @@ clean:
 	rm -rf docs/build
 	find . -name "*.cov" -delete
 
-.PHONY: init init-docs update update-docs test test-quick test-polynomials servedocs examples clean
+.PHONY: init init-docs update update-docs test test-quick test-polynomials test-file servedocs examples clean

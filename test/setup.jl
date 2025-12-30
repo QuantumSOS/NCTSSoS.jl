@@ -4,21 +4,27 @@
 # This file configures the SDP solver for all tests.
 #
 # Solver priority:
-#   1. LOCAL_TESTING=true → Mosek (commercial, fast, high precision)
-#   2. Default → COSMO (open-source, reasonable performance)
+#   1. --local flag → Mosek (commercial, fast, high precision)
+#   2. Default      → COSMO (open-source, reasonable performance)
 #
-# Usage in test files:
+# Usage:
+#   Pkg.test("NCTSSoS"; test_args=["--local"])  # Use Mosek
+#   Pkg.test("NCTSSoS")                          # Use COSMO
+#
+# In test files:
 #   include("setup.jl")  # or rely on runtests.jl to include it
 #   # SOLVER is now available
 # =============================================================================
 
 using JuMP
 
-# Try to load Mosek if LOCAL_TESTING is set
-const LOCAL_TESTING = haskey(ENV, "LOCAL_TESTING")
+# Check if --local flag was passed (may already be defined by runtests.jl)
+if !@isdefined(USE_LOCAL)
+    const USE_LOCAL = "--local" in ARGS
+end
 
-const SOLVER = if LOCAL_TESTING
-    @info "LOCAL_TESTING enabled, using Mosek"
+const SOLVER = if USE_LOCAL
+    @info "Using Mosek (--local)"
     using MosekTools
     optimizer_with_attributes(
         Mosek.Optimizer,
@@ -35,6 +41,3 @@ else
         "eps_rel" => 1e-7
     )
 end
-
-# Quick solver for less demanding tests (e.g., polynomial algebra tests)
-const QUICK_SOLVER = SOLVER

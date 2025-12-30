@@ -22,7 +22,7 @@
 #
 # Expected result: Quantum bound of -4
 #
-# NOTE: This test requires LOCAL_TESTING=true (Mosek license) and order=3.
+# NOTE: This test requires --local (Mosek license) and order=3.
 # =============================================================================
 
 using NCTSSoS, Test

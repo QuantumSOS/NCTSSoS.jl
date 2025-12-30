@@ -3,26 +3,27 @@
 ## Build & Test Commands
 
 ```bash
-# Local development
+# Setup
 make init                                      # Precompile dependencies
-julia --project -e 'using Pkg; Pkg.test()'     # Run all tests (requires test deps)
 
-# Remote testing (preferred - has Mosek license)
-ssh a800 "cd /home/yushengzhao/NCTSSoS.jl && LOCAL_TESTING=true make test"
+# Run tests via Pkg.test (recommended - loads test dependencies)
+julia --project -e 'using Pkg; Pkg.test()'                              # CI suite (no physics)
+julia --project -e 'using Pkg; Pkg.test(test_args=["--local"])'         # Full suite with Mosek
+julia --project -e 'using Pkg; Pkg.test(test_args=["--polynomials"])'   # Just polynomials
+julia --project -e 'using Pkg; Pkg.test(test_args=["--solvers"])'       # Just solvers
+julia --project -e 'using Pkg; Pkg.test(test_args=["--physics", "--local"])'  # Just physics
 
-# Run single test file
-julia --project -e 'include("test/pop.jl")'                    # Sparsity tests
-julia --project -e 'include("test/heisenberg.jl")'             # Physics model
-julia --project -e 'include("test/polynomials/runtests.jl")'   # All polynomial tests
-julia --project -e 'include("test/polynomials/simplify.jl")'   # Single polynomial test
-
-# Test subsets
-julia --project -e 'include("test/polynomials/runtests.jl")'   # Polynomial algebra only
-LOCAL_TESTING=true julia --project -e 'include("test/sos_solver.jl")'  # SOS solver
+# Makefile shortcuts
+make test              # Full suite with Mosek (--local)
+make test-ci           # CI suite (no physics, uses COSMO)
+make test-polynomials  # Polynomial algebra only
+make test-solvers      # SDP solver tests
+make test-physics      # Physics models (requires Mosek)
+make test-quality      # Code quality checks
 
 # Documentation
-make servedocs                                 # Live preview docs
-make examples                                  # Generate Literate.jl examples
+make servedocs         # Live preview docs
+make examples          # Generate Literate.jl examples
 ```
 
 ## Reference Implementation
@@ -143,16 +144,16 @@ test/
 │   ├── runtests.jl          # Polynomial test suite
 │   ├── simplify.jl          # Algebra simplification
 │   └── canonicalization.jl  # Symmetric/cyclic canon
-├── pop.jl                   # Correlative sparsity
-├── sparse.jl                # Term sparsity  
-├── moment_solver.jl         # Moment SDP
-├── sos_solver.jl            # SOS dualization
-├── heisenberg.jl            # Physics: Heisenberg model (LOCAL_TESTING)
-├── bell_ineq.jl             # Physics: Bell inequalities (LOCAL_TESTING)
-└── fermionic_parity_test.jl # Fermionic superselection
+├── quality/                 # Code quality checks (Aqua, ExplicitImports, Doctest)
+│   └── runtests.jl
+├── solvers/                 # SDP solver integration (moment, SOS, sparsity, GNS)
+│   └── runtests.jl
+├── physics/                 # Physics models (Heisenberg, XY, etc.) [--local only]
+│   └── runtests.jl
+└── setup.jl                 # Shared solver configuration
 ```
 
-Tests requiring Mosek run only with `LOCAL_TESTING=true` environment variable.
+Tests requiring Mosek run only with `--local` flag.
 
 ## Common Pitfalls
 

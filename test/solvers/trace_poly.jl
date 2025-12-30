@@ -21,7 +21,7 @@ using Test, NCTSSoS
 
     @test result.objective ≈ -0.046717378455438933 atol = 1e-6
 
-    if LOCAL_TESTING
+    if USE_LOCAL
         solver_config = SolverConfig(; optimizer=SOLVER, order=3)
 
         result = cs_nctssos(tpop, solver_config)
@@ -58,7 +58,7 @@ end
     tpop = polyopt((-1.0 * p) * one(typeof(x[1])), reg)
 
     # Order=2 gives the correct tight bound of -4.0 (requires Mosek)
-    if LOCAL_TESTING
+    if USE_LOCAL
         solver_config = SolverConfig(; optimizer=SOLVER, order=2)
 
         result = cs_nctssos(tpop, solver_config)

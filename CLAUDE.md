@@ -12,26 +12,28 @@ NCTSSoS.jl is a Julia package for solving sparse noncommutative polynomial optim
 # Initialize project (precompile dependencies)
 make init
 
-# Run all tests (includes extended tests)
-LOCAL_TESTING=true make test
-
-# Run tests without extended tests (faster, CI mode)
+# Run full test suite with Mosek (--local flag)
 make test
 
-# Run only polynomial algebra tests
-julia --project -e 'using Pkg; Pkg.test()' -- test/polynomials/runtests.jl
+# Run CI test suite (no physics, uses COSMO)
+make test-ci
 
-# Run a single test file
-julia --project -e 'using Pkg; Pkg.test()' -- test/pop.jl
+# Run individual test groups
+make test-polynomials   # Just polynomial algebra
+make test-solvers       # SDP solver tests
+make test-physics       # Physics models (requires Mosek)
+make test-quality       # Code quality checks
+
+# Direct Pkg.test usage with test_args
+julia --project -e 'using Pkg; Pkg.test(test_args=["--polynomials"])'
+julia --project -e 'using Pkg; Pkg.test(test_args=["--solvers", "--local"])'
+julia --project -e 'using Pkg; Pkg.test(test_args=["--local"])'  # Full suite with Mosek
 
 # Generate documentation examples
 make examples
 
 # Serve docs locally with live reload
 make servedocs
-
-# Run benchmarks comparing to main branch
-make bench TARGET=main
 ```
 
 ## Architecture
@@ -109,6 +111,6 @@ PolyOpt → correlative_sparsity() → CorrelativeSparsity
 ## Test Structure
 
 - `test/polynomials/`: Polynomial algebra unit tests (types, simplification, arithmetic)
-- `test/*.jl`: Integration tests (moment solver, SOS solver, interface)
-- Physics model tests: `heisenberg.jl`, `xy_model.jl`, `bose_hubbard.jl` (run with `LOCAL_TESTING=true`)
-- Quality checks: `Aqua.jl`, `ExplicitImports.jl`
+- `test/quality/`: Code quality checks (Aqua, ExplicitImports, Doctest)
+- `test/solvers/`: SDP solver integration tests (moment, SOS, sparsity, GNS)
+- `test/physics/`: Physics models (Heisenberg, XY, etc.) - require `--local` flag for Mosek

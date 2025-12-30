@@ -2,7 +2,7 @@
 # ===============================
 # Tests the moment relaxation approach to polynomial optimization.
 #
-# Some tests require high precision (LOCAL_TESTING=true with Mosek).
+# Some tests require high precision (--local with Mosek).
 # COSMO may not achieve the required precision for complex problems.
 
 using Test, NCTSSoS, Graphs
@@ -25,8 +25,8 @@ using Test, NCTSSoS, Graphs
     @test isapprox(result.objective, -2.8284271321623193, atol=1e-6)
 end
 
-# This test requires high solver precision - only run with LOCAL_TESTING
-if LOCAL_TESTING
+# This test requires high solver precision - only run with --local
+if USE_LOCAL
     @testset "CS TS Example" begin
         order = 3
         n = 10

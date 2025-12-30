@@ -10,7 +10,7 @@
 #   - Fermionic systems
 #   - PXP model (Rydberg atoms)
 #
-# NOTE: These tests typically require LOCAL_TESTING=true (Mosek license)
+# NOTE: These tests require --local flag (Mosek license)
 #       as they involve larger SDP problems.
 # =============================================================================
 

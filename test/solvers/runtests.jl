@@ -13,7 +13,7 @@
 #
 # Prerequisites:
 #   - SOLVER must be defined (from test/setup.jl or parent runtests.jl)
-#   - LOCAL_TESTING determines whether Mosek or COSMO is used
+#   - USE_LOCAL determines whether Mosek or COSMO is used
 # =============================================================================
 
 using Test

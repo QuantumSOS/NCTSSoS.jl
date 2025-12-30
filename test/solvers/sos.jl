@@ -9,7 +9,7 @@ using NCTSSoS: get_Cαj
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
 
-if LOCAL_TESTING
+if USE_LOCAL
     @testset "I_3322 inequality" begin
         # Use projector algebra for x and y (projective = P² = P)
         registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
@@ -27,8 +27,8 @@ if LOCAL_TESTING
     end
 end
 
-# This test requires high solver precision - only run with LOCAL_TESTING
-if LOCAL_TESTING
+# This test requires high solver precision - only run with --local
+if USE_LOCAL
     @testset "CS TS Example" begin
         order = 3
         n = 10
@@ -122,7 +122,7 @@ end
 end
 
 # This test requires high precision solver - COSMO gives Inf for one method
-if LOCAL_TESTING
+if USE_LOCAL
     @testset "Dualization Trivial Example 2" begin
         n = 2
         true_min = 3.0

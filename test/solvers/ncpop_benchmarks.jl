@@ -19,7 +19,7 @@ using Test, NCTSSoS
 @isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
 
 # All benchmark tests require Mosek for numerical stability
-if LOCAL_TESTING
+if USE_LOCAL
 
 @testset "NC Polynomial Benchmarks" begin
 
@@ -409,4 +409,4 @@ if LOCAL_TESTING
 
 end  # @testset "NC Polynomial Benchmarks"
 
-end  # LOCAL_TESTING
+end  # USE_LOCAL

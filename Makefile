@@ -25,35 +25,56 @@ update-docs:
 #   polynomials/  - Core algebra (no solver)
 #   quality/      - Code quality checks
 #   solvers/      - SDP solver integration
-#   physics/      - Physics models (LOCAL_TESTING only)
+#   physics/      - Physics models (--local only, requires Mosek)
 #
-# Solver config:
-#   Default: COSMO (open-source)
-#   LOCAL_TESTING=true: Mosek (required for physics tests)
+# Flags:
+#   --local        Use Mosek solver (required for physics tests)
+#   --polynomials  Run polynomial algebra tests
+#   --quality      Run code quality checks
+#   --solvers      Run SDP solver tests
+#   --physics      Run physics model tests
 #
-# Run single file: julia --project -e 'include("test/solvers/moment.jl")'
+# Usage:
+#   make test              - Full suite with Mosek
+#   make test-ci           - CI suite (no physics, uses COSMO)
+#   make test-polynomials  - Just polynomial algebra
+#   make test-solvers      - Just SDP solver tests
+#   make test-physics      - Just physics models (needs Mosek)
+#   make test-quality      - Just code quality checks
+#
+# Direct Pkg.test usage:
+#   Pkg.test("NCTSSoS"; test_args=["--polynomials"])
+#   Pkg.test("NCTSSoS"; test_args=["--solvers", "--local"])
+#   Pkg.test("NCTSSoS"; test_args=["--local"])  # Full suite with Mosek
 # =============================================================================
 
-# Full test suite with Mosek
+# Full test suite with Mosek (includes physics)
 test:
-	LOCAL_TESTING=true $(JL) -e 'using Pkg; Pkg.test()'
+	$(JL) -e 'using Pkg; Pkg.test(test_args=["--local"])'
 
-# Quick test with COSMO (CI-compatible, skips physics tests)
-test-quick:
+# CI test suite (no physics, uses COSMO)
+test-ci:
 	$(JL) -e 'using Pkg; Pkg.test()'
 
-# Polynomial tests only (fast, no solver needed)
+# Individual test groups
 test-polynomials:
-	$(JL) -e 'using NCTSSoS, Test; include("test/polynomials/runtests.jl")'
+	$(JL) -e 'using Pkg; Pkg.test(test_args=["--polynomials"])'
 
-# Run a specific test file
-# Usage: make test-file FILE=solvers/moment.jl
-#        make test-file FILE=physics/bell_inequalities.jl
-test-file:
-ifndef FILE
-	$(error FILE is not set. Usage: make test-file FILE=solvers/moment.jl)
-endif
-	LOCAL_TESTING=true $(JL) -e 'include("test/$(FILE)")'
+test-quality:
+	$(JL) -e 'using Pkg; Pkg.test(test_args=["--quality"])'
+
+test-solvers:
+	$(JL) -e 'using Pkg; Pkg.test(test_args=["--solvers"])'
+
+test-physics:
+	$(JL) -e 'using Pkg; Pkg.test(test_args=["--physics", "--local"])'
+
+# Combination targets
+test-no-physics:
+	$(JL) -e 'using Pkg; Pkg.test(test_args=["--polynomials", "--quality", "--solvers"])'
+
+test-core:
+	$(JL) -e 'using Pkg; Pkg.test(test_args=["--polynomials", "--solvers"])'
 
 # =============================================================================
 # Documentation
@@ -73,4 +94,7 @@ clean:
 	rm -rf docs/build
 	find . -name "*.cov" -delete
 
-.PHONY: init init-docs update update-docs test test-quick test-polynomials test-file servedocs examples clean
+.PHONY: init init-docs update update-docs \
+        test test-ci test-polynomials test-quality test-solvers test-physics \
+        test-no-physics test-core \
+        servedocs examples clean

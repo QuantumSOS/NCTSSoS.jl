@@ -1,6 +1,11 @@
 using Test, NCTSSoS
 using LinearAlgebra
-using NCTSSoS: neat_dot, get_ncbasis, _gns_extract_monomials_from_basis, degree
+using NCTSSoS: neat_dot, get_ncbasis, degree
+
+# Helper to extract monomials from basis polynomials for GNS tests
+function extract_basis_monomials(basis_polys)
+    return [first(monomials(p)) for p in basis_polys]
+end
 
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
@@ -10,18 +15,18 @@ using NCTSSoS: neat_dot, get_ncbasis, _gns_extract_monomials_from_basis, degree
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
 
         basis_polys = get_ncbasis(reg, 2)  # [1, x, x^2]
-        basis = _gns_extract_monomials_from_basis(basis_polys)
+        basis_monomials = extract_basis_monomials(basis_polys)
         H = [
             1.0  0.2  0.7;
             0.2  0.8  0.3;
             0.7  0.3  0.6
         ]
 
-        dict = NCTSSoS.hankel_entries_dict(H, basis)
+        dict = NCTSSoS.hankel_entries_dict(H, basis_monomials)
 
-        key_x = neat_dot(basis[1], basis[2])
-        key_x2_first = neat_dot(basis[1], basis[3])
-        key_x2_second = neat_dot(basis[2], basis[2])
+        key_x = neat_dot(basis_monomials[1], basis_monomials[2])
+        key_x2_first = neat_dot(basis_monomials[1], basis_monomials[3])
+        key_x2_second = neat_dot(basis_monomials[2], basis_monomials[2])
 
         @test dict[key_x] == H[1, 2]
         @test dict[key_x2_first] == H[1, 3]
@@ -29,7 +34,7 @@ using NCTSSoS: neat_dot, get_ncbasis, _gns_extract_monomials_from_basis, degree
 
         # Get the index for variable x (first index in registry)
         x_idx = first(indices(reg))
-        K = NCTSSoS.construct_localizing_matrix(dict, x_idx, basis)
+        K = NCTSSoS.construct_localizing_matrix(dict, x_idx, basis_monomials)
 
         @test size(K) == (3, 3)
         @test K[1, 1] == H[1, 2]
@@ -83,7 +88,7 @@ using NCTSSoS: neat_dot, get_ncbasis, _gns_extract_monomials_from_basis, degree
             reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
 
             basis_polys = get_ncbasis(reg, 2)
-            basis = _gns_extract_monomials_from_basis(basis_polys)
+            basis = extract_basis_monomials(basis_polys)
 
             perm = [1, 2, 3, 5, 4, 6, 7]
 

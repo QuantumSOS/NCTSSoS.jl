@@ -227,7 +227,7 @@ end
     @test res_sos.objective ≈ -0.8660254037844387 atol = 1e-6
 end
 
-if LOCAL_TESTING
+if USE_LOCAL
     @testset "1D Transverse Field Ising Model" begin
         N = 3
         registry, (sx, sy, sz) = create_pauli_variables(1:N)

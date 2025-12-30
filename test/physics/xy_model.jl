@@ -4,6 +4,9 @@
 
 using Test, NCTSSoS
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 @testset "XY Model Ground State (N=4, periodic BC)" begin
     T = ComplexF64
     N = 4

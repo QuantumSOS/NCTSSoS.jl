@@ -16,6 +16,9 @@ using NCTSSoS:
     expval,
     Arbitrary
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 # For quick solver tests that don't need high precision
 # Use the already-configured SOLVER from setup.jl
 const QUICK_SOLVER = SOLVER

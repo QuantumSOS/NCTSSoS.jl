@@ -24,8 +24,8 @@ using NCTSSoS, Test
 using JuMP
 using NCTSSoS: simplify, degree  # Disambiguate from JuMP/Graphs
 
-# Load shared solver configuration
-include("../setup.jl")
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
 
 @testset "Bose-Hubbard Hamiltonian Construction" begin
     N = 4  # Number of sites

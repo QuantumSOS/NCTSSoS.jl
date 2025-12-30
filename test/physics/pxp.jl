@@ -1,6 +1,8 @@
 using NCTSSoS
-using MosekTools
 using JuMP
+
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
 
 # TODO: do 3x3 case with various operators' expectation value
 
@@ -82,9 +84,20 @@ function solve_n1n2_bounds(target_energy, cur_spreading)
 
     pop_lower = polyopt(n1n2, reg)
 
-    SOLVER = optimizer_with_attributes(Mosek.Optimizer, "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8, "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8, "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8, "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)))
+    # Use high-precision Mosek settings for this problem (requires LOCAL_TESTING=true)
+    pxp_solver = if LOCAL_TESTING
+        optimizer_with_attributes(
+            Mosek.Optimizer,
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8,
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8,
+            "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8,
+            "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2))
+        )
+    else
+        SOLVER
+    end
 
-    solver_config = SolverConfig(optimizer=SOLVER, order=2)
+    solver_config = SolverConfig(optimizer=pxp_solver, order=2)
 
     energy_cons = [-(H - target_energy) * (H - target_energy) + cur_spreading]
 

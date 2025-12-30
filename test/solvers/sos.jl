@@ -6,6 +6,9 @@ using Test, NCTSSoS
 using SparseArrays, Graphs, CliqueTrees
 using NCTSSoS: get_Cαj
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 if LOCAL_TESTING
     @testset "I_3322 inequality" begin
         # Use projector algebra for x and y (projective = P² = P)

@@ -7,6 +7,9 @@
 using Test, NCTSSoS
 using Graphs, CliqueTrees
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 using NCTSSoS:
     assign_constraint,
     get_correlative_graph,

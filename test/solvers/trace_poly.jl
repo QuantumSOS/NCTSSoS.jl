@@ -4,6 +4,9 @@
 
 using Test, NCTSSoS
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 # Example 6.1 with ProjectorAlgebra
 @testset "Example 6.1" begin
     reg, (x,) = create_projector_variables([("x", 1:3)])

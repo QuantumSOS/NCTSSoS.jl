@@ -28,8 +28,8 @@
 using NCTSSoS, Test
 using JuMP
 
-# Load shared solver configuration
-include("../setup.jl")
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
 
 @testset "Bilocal Networks" begin
     @testset "Example 8.1.1 - Bilocal Quantum Bound" begin

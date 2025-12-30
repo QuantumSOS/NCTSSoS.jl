@@ -1,16 +1,8 @@
 using NCTSSoS, Test
 using JuMP
 
-if haskey(ENV, "LOCAL_TESTING")
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2))
-    )
-else
-    using Clarabel
-    const SOLVER = Clarabel.Optimizer
-end
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
 
 # Fermionic Chain Hamiltonian Test
 #

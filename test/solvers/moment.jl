@@ -7,6 +7,9 @@
 
 using Test, NCTSSoS, Graphs
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 @testset "CHSH Inequality" begin
     # Use unipotent variables for x^2 = I property
     registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])

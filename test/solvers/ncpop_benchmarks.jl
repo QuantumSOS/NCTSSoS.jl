@@ -15,6 +15,9 @@
 
 using Test, NCTSSoS
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 # All benchmark tests require Mosek for numerical stability
 if LOCAL_TESTING
 

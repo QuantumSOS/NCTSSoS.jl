@@ -2,6 +2,9 @@ using Test, NCTSSoS
 using LinearAlgebra
 using NCTSSoS: neat_dot, get_ncbasis, _gns_extract_monomials_from_basis, degree
 
+# Load solver configuration if running standalone
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+
 @testset "GNS Construction" begin
     @testset "Hankel dictionary utilities" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])

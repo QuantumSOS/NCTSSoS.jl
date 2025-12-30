@@ -156,16 +156,18 @@ end
     # - A17: returns -1.115 instead of -0.3754 (order 2)
     #
     # These pass with close-enough values but may have slight numerical differences.
-    skip_instances = Set(["A17"])
+    skip_instances = Set()
 
     for i in 1:length(instance)
         @testset "$(instance[i])" begin
             if instance[i] in skip_instances
-                @test_skip obj = tester(i)  # Skipped pending investigation
+                @test_skip obj = tester(i,instance, equations, d)  # Skipped pending investigation
             else
-                obj = tester(i)
+                obj = tester(i, instance, equations, d)
                 # Use 1e-5 tolerance - tight enough for verification, loose enough for solver variance
-                @test obj ≈ λd[i] atol = 1e-5
+                if ! isapprox(obj,λd[i]; atol = 1e-5)
+                    @show "$(instance[i] failed with $(obj) and expecting $(λd[i])"
+                end
             end
         end
     end

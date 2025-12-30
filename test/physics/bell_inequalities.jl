@@ -75,7 +75,7 @@ function _parse_var_ref(var_str::AbstractString, X::Vector, Y::Vector)
     return var_name == "X" ? X[var_idx] : Y[var_idx]
 end
 
-function tester(i::Int,instance, equations, d)
+function tester(i::Int,instance, equations, d, github_filenames, ms, ns)
     idx = findfirst(x -> x == instance[i] * ".txt", github_filenames)
     # Uses ProjectorAlgebra since Bell inequalities involve projective measurements (P² = P)
     bell_registry, (X, Y) = create_projector_variables([("X", 1:ms[idx]), ("Y", 1:ns[idx])])
@@ -161,10 +161,10 @@ end
     for i in 1:length(instance)
         @testset "$(instance[i])" begin
             if instance[i] in skip_instances
-                @test_skip obj = tester(i,instance, equations, d)  # Skipped pending investigation
+                @test_skip obj = tester(i,instance, equations, d, github_filenames, ms,ns)  # Skipped pending investigation
             else
-                obj = tester(i, instance, equations, d)
-                # Use 1e-5 tolerance - tight enough for verification, loose enough for solver variance
+                obj = tester(i,instance, equations, d, github_filenames,ms,ns)  # Skipped pending investigation
+                @test isapprox(obj,λd[i]; atol = 1e-5)
                 if ! isapprox(obj,λd[i]; atol = 1e-5)
                     @show "$(instance[i]) failed with $obj, expecting $(λd[i])"
                 end

@@ -166,7 +166,7 @@ end
                 obj = tester(i, instance, equations, d)
                 # Use 1e-5 tolerance - tight enough for verification, loose enough for solver variance
                 if ! isapprox(obj,λd[i]; atol = 1e-5)
-                    @show "$(instance[i] failed with $(obj) and expecting $(λd[i])"
+                    @show "$(instance[i]) failed with $obj, expecting $(λd[i])"
                 end
             end
         end

@@ -205,3 +205,192 @@ function get_ncbasis(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraT
     end
     return result
 end
+
+# =============================================================================
+# Normal-Form Basis Generation for Fermionic/Bosonic Algebras
+# =============================================================================
+#
+# For fermionic and bosonic algebras, we generate bases containing ONLY
+# normal-form monomials. Normal form means:
+#   - All creation operators (negative indices) on the LEFT
+#   - All annihilation operators (positive indices) on the RIGHT
+#   - Within each group: sorted by mode (absolute value) ascending
+#
+# This is more efficient than generating all words and simplifying:
+#   - Fermionic: O(2^n) subsets vs O((2n)^d) all words
+#   - Bosonic: O(multisets) vs O((2n)^d) all words
+#
+# Returns Vector{Monomial} (not Vector{Polynomial}) since normal-form
+# basis elements ARE monomials by definition.
+
+"""
+    _get_modes(registry::VariableRegistry{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra}, T<:Signed}
+
+Extract unique modes from a fermionic/bosonic registry.
+
+In these algebras, indices are signed: positive for annihilation, negative for creation.
+Both ±i refer to the same physical mode i.
+
+# Returns
+Sorted vector of unique mode indices (positive integers).
+"""
+function _get_modes(registry::VariableRegistry{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra}, T<:Signed}
+    return sort!(unique!(abs.(indices(registry))))
+end
+
+"""
+    _combinations(v::Vector{T}, k::Int) where T
+
+Generate all k-combinations (subsets of size k) from vector v.
+
+Returns vector of vectors, each containing k elements from v in order.
+"""
+function _combinations(v::Vector{T}, k::Int) where {T}
+    k == 0 && return [T[]]
+    k > length(v) && return Vector{T}[]
+    k == length(v) && return [copy(v)]
+
+    result = Vector{T}[]
+    for (i, elem) in enumerate(v)
+        for suffix in _combinations(v[i+1:end], k - 1)
+            push!(result, vcat([elem], suffix))
+        end
+    end
+    return result
+end
+
+"""
+    _multisets(v::Vector{T}, k::Int) where T
+
+Generate all k-multisets (combinations with replacement) from vector v.
+
+Returns vector of vectors, each containing k elements from v (may repeat).
+"""
+function _multisets(v::Vector{T}, k::Int) where {T}
+    k == 0 && return [T[]]
+    isempty(v) && return Vector{T}[]
+
+    result = Vector{T}[]
+    for (i, elem) in enumerate(v)
+        for suffix in _multisets(v[i:end], k - 1)
+            push!(result, vcat([elem], suffix))
+        end
+    end
+    return result
+end
+
+"""
+    get_ncbasis_deg(registry::VariableRegistry{FermionicAlgebra,T}, d::Int) where {T<:Signed}
+
+Generate normal-form fermionic monomials of exactly degree d.
+
+Fermionic operators are nilpotent (a²=0, (a†)²=0), so each mode can appear
+at most once as creation AND at most once as annihilation. Normal-form words
+are enumerated as pairs (C, A) where:
+  - C ⊆ modes: creation operators (appear as -c for c ∈ C)
+  - A ⊆ modes: annihilation operators (appear as +a for a ∈ A)
+  - |C| + |A| = d
+
+# Returns
+`Vector{Monomial{FermionicAlgebra,T}}` containing only normal-form monomials.
+"""
+function get_ncbasis_deg(registry::VariableRegistry{FermionicAlgebra,T}, d::Int) where {T<:Signed}
+    d < 0 && return Monomial{FermionicAlgebra,T}[]
+
+    modes = _get_modes(registry)
+    n_modes = length(modes)
+
+    # Degree 0: identity monomial
+    if d == 0
+        return [Monomial{FermionicAlgebra}(T[])]
+    end
+
+    result = Monomial{FermionicAlgebra,T}[]
+
+    # Enumerate all (n_create, n_annihilate) splits where n_create + n_annihilate = d
+    for n_create in 0:min(d, n_modes)
+        n_annihilate = d - n_create
+        n_annihilate > n_modes && continue
+
+        # Enumerate all n_create-subsets of modes for creation
+        for create_modes in _combinations(modes, n_create)
+            # Enumerate all n_annihilate-subsets of modes for annihilation
+            for ann_modes in _combinations(modes, n_annihilate)
+                # Build normal-form word: sorted creators (negative) then sorted annihilators (positive)
+                word = T[]
+                # Creators: negative indices, sorted by mode
+                append!(word, T[-m for m in create_modes])
+                # Annihilators: positive indices, sorted by mode
+                append!(word, T[m for m in ann_modes])
+                push!(result, Monomial{FermionicAlgebra}(word))
+            end
+        end
+    end
+
+    return result
+end
+
+"""
+    get_ncbasis_deg(registry::VariableRegistry{BosonicAlgebra,T}, d::Int) where {T<:Signed}
+
+Generate normal-form bosonic monomials of exactly degree d.
+
+Bosonic operators are NOT nilpotent (b² ≠ 0), so each mode can appear
+multiple times. Normal-form words are enumerated as pairs (C, A) where:
+  - C: multiset of creation operators (modes with repetition)
+  - A: multiset of annihilation operators (modes with repetition)
+  - |C| + |A| = d
+
+# Returns
+`Vector{Monomial{BosonicAlgebra,T}}` containing only normal-form monomials.
+"""
+function get_ncbasis_deg(registry::VariableRegistry{BosonicAlgebra,T}, d::Int) where {T<:Signed}
+    d < 0 && return Monomial{BosonicAlgebra,T}[]
+
+    modes = _get_modes(registry)
+
+    # Degree 0: identity monomial
+    if d == 0
+        return [Monomial{BosonicAlgebra}(T[])]
+    end
+
+    result = Monomial{BosonicAlgebra,T}[]
+
+    # Enumerate all (n_create, n_annihilate) splits where n_create + n_annihilate = d
+    for n_create in 0:d
+        n_annihilate = d - n_create
+
+        # Enumerate all multisets of size n_create from modes (with replacement)
+        for create_multiset in _multisets(modes, n_create)
+            # Enumerate all multisets of size n_annihilate from modes
+            for ann_multiset in _multisets(modes, n_annihilate)
+                # Build normal-form word: sorted creators (negative) then sorted annihilators (positive)
+                word = T[]
+                # Creators: negative indices, already sorted
+                append!(word, T[-m for m in create_multiset])
+                # Annihilators: positive indices, already sorted
+                append!(word, T[m for m in ann_multiset])
+                push!(result, Monomial{BosonicAlgebra}(word))
+            end
+        end
+    end
+
+    return result
+end
+
+# Specialized get_ncbasis for fermionic/bosonic that returns Vector{Monomial}
+function get_ncbasis(registry::VariableRegistry{FermionicAlgebra,T}, d::Int) where {T<:Signed}
+    result = Monomial{FermionicAlgebra,T}[]
+    for deg in 0:d
+        append!(result, get_ncbasis_deg(registry, deg))
+    end
+    return result
+end
+
+function get_ncbasis(registry::VariableRegistry{BosonicAlgebra,T}, d::Int) where {T<:Signed}
+    result = Monomial{BosonicAlgebra,T}[]
+    for deg in 0:d
+        append!(result, get_ncbasis_deg(registry, deg))
+    end
+    return result
+end

@@ -212,6 +212,16 @@ function extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) wh
 end
 
 """
+    extract_monomials_from_basis(basis::Vector{<:Monomial})
+
+Identity method for bases that are already monomials (fermionic/bosonic normal-form bases).
+
+For fermionic and bosonic algebras, `get_ncbasis` returns `Vector{Monomial}` directly
+since normal-form basis elements ARE monomials. This dispatch method handles that case.
+"""
+extract_monomials_from_basis(basis::Vector{<:Monomial}) = basis
+
+"""
     correlative_sparsity(pop::OP, order::Int, elim_algo::EliminationAlgorithm) where {A<:AlgebraType, T, P<:Polynomial{A,T}, OP<:OptimizationProblem{A,P}}
 
 Decomposes a polynomial optimization problem into a correlative sparsity pattern by identifying

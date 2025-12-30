@@ -132,9 +132,17 @@ println("Moment matrix H is Hermitian: ", H ≈ H')
 # ## Step 5: GNS Reconstruction
 
 # Now we use the `reconstruct` function to perform the GNS construction and obtain
-# concrete matrix representations of our abstract operators:
+# concrete matrix representations of our abstract operators.
+#
+# Since Pauli operators satisfy σ² = I (unipotent property), we can use a
+# simplification algorithm to enforce this during reconstruction:
 
-X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree; atol=0.001)
+sa = SimplifyAlgorithm(comm_gps=[vars], is_unipotent=true, is_projective=false)
+X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree, sa; atol=0.001)
+
+# Note: You can also call `reconstruct(H, vars, degree; atol=0.001)` without
+# the simplification algorithm, which uses a default no-op simplification
+# (all variables in one commutative group, no special rules).
 
 #
 println("Reconstructed Pauli operators:")
@@ -223,7 +231,8 @@ for i in 1:n, j in 1:n
     H_random[i, j] = expval_pauli(product, ρ_random)
 end
 
-X_rand, Y_rand, Z_rand = reconstruct(H_random, vars, degree; atol=0.001)
+# Use the same simplification algorithm for consistency
+X_rand, Y_rand, Z_rand = reconstruct(H_random, vars, degree, sa; atol=0.001)
 
 @show rank(H_random, atol=1e-6);
 @show size(X_rand);
@@ -391,7 +400,8 @@ for i in 1:n, j in 1:n
     H_mixed[i, j] = expval_pauli(product, ρ_mixed)
 end
 
-X_mixed, Y_mixed, Z_mixed = reconstruct(H_mixed, vars, degree; atol=0.001)
+# Use the same simplification algorithm for consistency
+X_mixed, Y_mixed, Z_mixed = reconstruct(H_mixed, vars, degree, sa; atol=0.001)
 
 @show rank(H_mixed, atol=1e-6);
 @show size(X_mixed);

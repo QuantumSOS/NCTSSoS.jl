@@ -7,7 +7,7 @@
 </div>
 
 ---
-[![][docs-stable-img]][docs-stable-url]
+[![][docs-dev-img]][docs-dev-url]
 [![CI][main-ci-img]][main-ci-url]
 [![codecov][codecov-img]][codecov-url]
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)

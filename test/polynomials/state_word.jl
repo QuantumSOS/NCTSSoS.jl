@@ -1,5 +1,5 @@
 # NCTSSoS is loaded by parent runtests.jl
-# Exported: StateWord, StatePolynomial, ς, tr
+# Exported: StateSymbol, StateWord, StatePolynomial, ς, tr
 # Internal (not exported): NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
 using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
 
@@ -10,7 +10,7 @@ using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
 
         sw = StateWord{MaxEntangled}([m1, m2])
         @test sw isa StateWord{MaxEntangled}
-        @test length(sw.state_monos) == 2
+        @test length(sw.state_syms) == 2
 
         # StateWords are sorted by monomial ordering
         sw_sorted = StateWord{MaxEntangled}([m2, m1])
@@ -91,7 +91,7 @@ using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
         # Multiplication returns StateWord (commutative, no phase)
         result = sw1 * sw2
         @test result isa StateWord
-        @test length(result.state_monos) == 2
+        @test length(result.state_syms) == 2
     end
 
     @testset "Comparison" begin
@@ -129,7 +129,7 @@ end
 
         sw = ς(m)
         @test sw isa StateWord{Arbitrary}
-        @test length(sw.state_monos) == 1
+        @test length(sw.state_syms) == 1
     end
 
     @testset "Multiplication of Arbitrary StateWords" begin
@@ -142,7 +142,7 @@ end
         # Multiplication returns StateWord (commutative, no phase)
         result = sw1 * sw2
         @test result isa StateWord
-        @test length(result.state_monos) == 2
+        @test length(result.state_syms) == 2
     end
 
     @testset "Involution (not Cyclic) Canonicalization for Arbitrary" begin
@@ -245,7 +245,7 @@ end
 
         ev = expval(ncsw)
         @test ev isa StateWord{MaxEntangled}
-        @test length(ev.state_monos) == 2  # original + nc_word
+        @test length(ev.state_syms) == 2  # original + nc_word
     end
 
     @testset "One and IsOne" begin
@@ -288,5 +288,71 @@ end
 
         @test ncsw1 == ncsw2
         @test hash(ncsw1) == hash(ncsw2)
+    end
+end
+
+@testset "StateSymbol Canonicalization" begin
+    @testset "StateSymbol{Arbitrary} - Involution Canon" begin
+        # For Arbitrary states: <M> = <M†>, so StateSymbol{Arbitrary}(m) == StateSymbol{Arbitrary}(adjoint(m))
+        m = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m_adj = adjoint(m)
+        
+        sym1 = StateSymbol{Arbitrary}(m)
+        sym2 = StateSymbol{Arbitrary}(m_adj)
+        
+        @test sym1 == sym2
+        @test hash(sym1) == hash(sym2)
+        
+        # Both should canonicalize to the same monomial (min of m, adjoint(m))
+        @test sym1.mono == sym2.mono
+    end
+    
+    @testset "StateSymbol{MaxEntangled} - Cyclic Symmetric Canon" begin
+        # For MaxEntangled states: tr(ABC) = tr(BCA) = tr(CAB) = tr(CBA) = ...
+        m_abc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m_bca = Monomial{NonCommutativeAlgebra}([2, 3, 1])
+        m_cab = Monomial{NonCommutativeAlgebra}([3, 1, 2])
+        m_cba = Monomial{NonCommutativeAlgebra}([3, 2, 1])  # reverse (adjoint for NC)
+        
+        sym_abc = StateSymbol{MaxEntangled}(m_abc)
+        sym_bca = StateSymbol{MaxEntangled}(m_bca)
+        sym_cab = StateSymbol{MaxEntangled}(m_cab)
+        sym_cba = StateSymbol{MaxEntangled}(m_cba)
+        
+        # All cyclic rotations and reversal should be equivalent
+        @test sym_abc == sym_bca
+        @test sym_bca == sym_cab
+        @test sym_abc == sym_cba
+        
+        # All should have the same canonical monomial
+        @test sym_abc.mono == sym_bca.mono
+        @test sym_bca.mono == sym_cab.mono
+        @test sym_cab.mono == sym_cba.mono
+    end
+    
+    @testset "StateSymbol - Basic Properties" begin
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        sym = StateSymbol{Arbitrary}(m)
+        
+        # degree
+        @test degree(sym) == 2
+        
+        # variables
+        vars = variables(sym)
+        @test 1 in vars
+        @test 2 in vars
+        
+        # one and isone
+        sym_one = one(StateSymbol{Arbitrary,NonCommutativeAlgebra,Int64})
+        @test isone(sym_one)
+        @test !isone(sym)
+        
+        # adjoint returns self (due to canonicalization)
+        @test adjoint(sym) === sym
+        
+        # isless (degree-first)
+        m_longer = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        sym_longer = StateSymbol{Arbitrary}(m_longer)
+        @test isless(sym, sym_longer)
     end
 end

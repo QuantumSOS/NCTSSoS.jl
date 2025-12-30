@@ -1,13 +1,211 @@
+# =============================================================================
+# StateSymbol - Canonical state expectation atom
+# =============================================================================
+
+"""
+    StateSymbol{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial
+
+A single state expectation symbol wrapping a canonicalized monomial.
+
+StateSymbol is the atomic unit of state expectations. It stores a single monomial
+that has been canonicalized according to the state type:
+- `Arbitrary`: involution canon (min(m, adjoint(m)))
+- `MaxEntangled`: cyclic_symmetric_canon(m)
+
+# Fields
+- `mono::Monomial{A,T}`: The canonicalized monomial
+
+# Type Parameters
+- `ST`: State type (Arbitrary or MaxEntangled)
+- `A`: Algebra type
+- `T`: Integer type for monomial words
+
+# Invariants
+- The monomial is always in canonical form for the given state type
+- Canonicalization happens automatically at construction
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> sym = StateSymbol{Arbitrary}(m);
+
+julia> sym.mono == m  # Already canonical
+true
+
+julia> degree(sym)
+2
+```
+
+See also: [`StateWord`](@ref), [`_state_canon`](@ref)
+"""
+struct StateSymbol{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial
+    mono::Monomial{A,T}
+
+    # Inner constructor: canonicalize on construction
+    function StateSymbol{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+        canon_m = _state_canon(ST, m)
+        new{ST,A,T}(canon_m)
+    end
+end
+
+"""
+    StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A,T}
+
+Construct a StateSymbol with explicit state type.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> sym = StateSymbol(Arbitrary, m);
+
+julia> sym isa StateSymbol{Arbitrary}
+true
+```
+"""
+function StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    StateSymbol{ST}(m)
+end
+
+# =============================================================================
+# StateSymbol - Identity and One
+# =============================================================================
+
+"""
+    Base.one(::Type{StateSymbol{ST,A,T}}) where {ST,A,T}
+
+Create the identity StateSymbol (wrapping identity monomial).
+"""
+function Base.one(::Type{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    StateSymbol{ST}(one(Monomial{A,T}))
+end
+
+"""
+    Base.one(sym::StateSymbol{ST,A,T}) where {ST,A,T}
+
+Create the identity StateSymbol for the same type.
+"""
+function Base.one(::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    one(StateSymbol{ST,A,T})
+end
+
+"""
+    Base.isone(sym::StateSymbol) -> Bool
+
+Check if a StateSymbol wraps the identity monomial.
+"""
+Base.isone(sym::StateSymbol) = isone(sym.mono)
+
+# =============================================================================
+# StateSymbol - Degree and Variables
+# =============================================================================
+
+"""
+    degree(sym::StateSymbol) -> Int
+
+Compute the degree of a StateSymbol (degree of its monomial).
+"""
+degree(sym::StateSymbol) = degree(sym.mono)
+
+"""
+    variables(sym::StateSymbol{ST,A,T}) -> Set{T}
+
+Get the set of variable indices used in the StateSymbol.
+For signed algebras (fermionic/bosonic), returns absolute values.
+"""
+function variables(sym::StateSymbol{ST,A,T}) where {ST,A,T}
+    result = Set{T}()
+    for idx in sym.mono.word
+        push!(result, abs(idx))
+    end
+    result
+end
+
+# =============================================================================
+# StateSymbol - Comparison Operators
+# =============================================================================
+
+"""
+    Base.:(==)(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST,A,T} -> Bool
+
+Check if two StateSymbols are equal (same canonicalized monomial).
+"""
+function Base.:(==)(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    a.mono == b.mono
+end
+
+"""
+    Base.hash(sym::StateSymbol, h::UInt) -> UInt
+
+Hash function for StateSymbol.
+"""
+Base.hash(sym::StateSymbol, h::UInt) = hash(sym.mono, h)
+
+"""
+    Base.isless(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST,A,T} -> Bool
+
+Compare two StateSymbols: degree-first, then by monomial ordering.
+"""
+function Base.isless(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    degree(a) != degree(b) && return degree(a) < degree(b)
+    return isless(a.mono, b.mono)
+end
+
+# =============================================================================
+# StateSymbol - Adjoint
+# =============================================================================
+
+"""
+    Base.adjoint(sym::StateSymbol{ST,A,T}) where {ST,A,T}
+
+Return the StateSymbol itself (due to canonicalization, adjoint equals self).
+"""
+function Base.adjoint(sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    sym
+end
+
+# =============================================================================
+# StateSymbol - Display
+# =============================================================================
+
+"""
+    Base.show(io::IO, sym::StateSymbol{ST,A,T}) where {ST,A,T}
+
+Display a StateSymbol with appropriate brackets based on state type.
+- Arbitrary: ⟨mono⟩
+- MaxEntangled: tr(mono)
+"""
+function Base.show(io::IO, sym::StateSymbol{ST,A,T}) where {ST,A,T}
+    if ST == MaxEntangled
+        prefix = "tr("
+        suffix = ")"
+    else  # Arbitrary
+        prefix = "⟨"
+        suffix = "⟩"
+    end
+    mono_str = sprint(show, sym.mono; context=io)
+    print(io, prefix, mono_str, suffix)
+end
+
+# =============================================================================
+# StateWord - Product of state expectations
+# =============================================================================
+
 """
     StateWord{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial
 
 A product of state expectations <M1><M2>...<Mk>.
 
-The state expectations commute, so StateWord maintains monomials in sorted order.
-All monomials share the same algebra type A.
+The state expectations commute, so StateWord maintains symbols in sorted order.
+All symbols share the same algebra type A.
 
 # Fields
-- `state_monos::Vector{Monomial{A,T}}`: Sorted, canonicalized monomials (expectations)
+- `state_syms::Vector{StateSymbol{ST,A,T}}`: Sorted, canonicalized state symbols
 
 # Type Parameters
 - `ST`: State type (Arbitrary or MaxEntangled)
@@ -15,9 +213,9 @@ All monomials share the same algebra type A.
 - `T`: Integer type for monomial words
 
 # Invariants
-1. **Involution**: Each monomial is canonicalized to min(m, adjoint(m))
-2. **Commutativity**: state_monos is sorted by the monomial ordering
-3. Identity monomials are filtered out (unless all are identity)
+1. **Canonicalization**: Each symbol is canonicalized per state type
+2. **Commutativity**: state_syms is sorted by the symbol ordering
+3. Identity symbols are filtered out (unless all are identity)
 
 !!! warning "Real expectation values"
     The involution canonicalization enforces ⟨M⟩ = ⟨M†⟩, which means all expectation
@@ -41,30 +239,36 @@ julia> m2 = Monomial{PauliAlgebra}([3]);     # Z
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);  # <XY><Z>
 
-julia> length(sw.state_monos)
+julia> length(sw.state_syms)
 2
 
 julia> degree(sw)
 3
 ```
 
-See also: [`NCStateWord`](@ref), [`StatePolynomial`](@ref)
+See also: [`StateSymbol`](@ref), [`NCStateWord`](@ref), [`StatePolynomial`](@ref)
 """
 struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial
-    state_monos::Vector{Monomial{A,T}}
+    state_syms::Vector{StateSymbol{ST,A,T}}
 
-    function StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-        # Apply canonicalization based on state type:
-        # - MaxEntangled (trace): cyclic-symmetric canonicalization since tr(ABC) = tr(BCA) = tr(C†B†A†)
-        # - Arbitrary: involution canonicalization (symmetric only) since <M> = <M†>
-        canonicalized = [_state_canon(ST, m) for m in monos]
-
-        # Filter out identity monomials (unless all are identity)
-        filtered = filter(m -> !isone(m), canonicalized)
-        sorted_monos = isempty(filtered) ? [one(Monomial{A,T})] : sort(filtered)
-        new{ST,A,T}(sorted_monos)
+    # Inner constructor from symbols (already canonicalized)
+    function StateWord{ST,A,T}(syms::Vector{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+        # Filter out identity symbols (unless all are identity)
+        filtered = filter(s -> !isone(s), syms)
+        sorted_syms = isempty(filtered) ? [one(StateSymbol{ST,A,T})] : sort(filtered)
+        new{ST,A,T}(sorted_syms)
     end
 end
+
+# Constructor from monomials (canonical path)
+function StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    syms = StateSymbol{ST,A,T}[StateSymbol{ST}(m) for m in monos]
+    StateWord{ST,A,T}(syms)
+end
+
+# =============================================================================
+# Canonicalization Helpers
+# =============================================================================
 
 """
     _involution_canon(m::Monomial{A,T}) where {A,T}
@@ -103,30 +307,47 @@ function _state_canon(::Type{MaxEntangled}, m::Monomial{A,T}) where {A<:AlgebraT
     cyclic_symmetric_canon(m)
 end
 
-# Convenience constructors
-"""
-    StateWord{ST,A,T}(monos::Vector{Monomial{A,T}}) where {ST,A,T}
+# =============================================================================
+# StateWord - Additional Constructors
+# =============================================================================
 
-Construct a StateWord with explicit type parameters.
-"""
+# Convenience constructors
+
+# Explicit type parameters from monomials
 function StateWord{ST,A,T}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     StateWord{ST}(monos)
 end
 
+# From vector of symbols (alternate path)
+function StateWord{ST}(syms::Vector{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    StateWord{ST,A,T}(syms)
+end
+
 """
     StateWord{ST}(m::Monomial{A,T}) where {ST,A,T}
+    StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST,A,T}
+    StateWord{ST}(sym::StateSymbol{ST,A,T}) where {ST,A,T}
+    StateWord{ST}(syms::Vector{StateSymbol{ST,A,T}}) where {ST,A,T}
 
-Construct a StateWord from a single monomial.
+Construct a StateWord from monomials or StateSymbols.
+Each monomial is lifted to a StateSymbol with canonicalization.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);
+julia> m1 = Monomial{PauliAlgebra}([1, 2]);
 
-julia> sw = StateWord{Arbitrary}(m);
+julia> m2 = Monomial{PauliAlgebra}([3]);
 
-julia> length(sw.state_monos)
+julia> sw = StateWord{Arbitrary}([m1, m2]);
+
+julia> length(sw.state_syms)
+2
+
+julia> sw_single = StateWord{Arbitrary}(m1);
+
+julia> length(sw_single.state_syms)
 1
 ```
 """
@@ -134,11 +355,16 @@ function StateWord{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:
     StateWord{ST}([m])
 end
 
+# From single symbol
+function StateWord{ST}(sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    StateWord{ST,A,T}([sym])
+end
+
 """
     StateWord{ST,A,T}() where {ST,A,T}
 
 Construct the identity StateWord (representing the constant 1).
-Contains only the identity monomial.
+Contains only the identity symbol.
 
 # Examples
 ```jldoctest
@@ -151,17 +377,17 @@ true
 ```
 """
 function StateWord{ST,A,T}() where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    StateWord{ST}([one(Monomial{A,T})])
+    StateWord{ST,A,T}([one(StateSymbol{ST,A,T})])
 end
 
 # =============================================================================
-# Identity and Zero
+# StateWord - Identity and Zero
 # =============================================================================
 
 """
     Base.one(::Type{StateWord{ST,A,T}}) where {ST,A,T}
 
-Create the identity StateWord (single identity monomial).
+Create the identity StateWord (single identity symbol).
 
 # Examples
 ```jldoctest
@@ -174,7 +400,7 @@ true
 ```
 """
 function Base.one(::Type{StateWord{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    StateWord{ST}([one(Monomial{A,T})])
+    StateWord{ST,A,T}([one(StateSymbol{ST,A,T})])
 end
 
 """
@@ -189,7 +415,7 @@ end
 """
     Base.isone(sw::StateWord) -> Bool
 
-Check if a StateWord is the identity (single identity monomial).
+Check if a StateWord is the identity (single identity symbol).
 
 # Examples
 ```jldoctest
@@ -208,16 +434,16 @@ julia> isone(sw)
 false
 ```
 """
-Base.isone(sw::StateWord) = length(sw.state_monos) == 1 && isone(sw.state_monos[1])
+Base.isone(sw::StateWord) = length(sw.state_syms) == 1 && isone(sw.state_syms[1])
 
 # =============================================================================
-# Degree and Variables
+# StateWord - Degree and Variables
 # =============================================================================
 
 """
     degree(sw::StateWord) -> Int
 
-Compute the total degree of a StateWord (sum of monomial degrees).
+Compute the total degree of a StateWord (sum of symbol degrees).
 
 # Examples
 ```jldoctest
@@ -233,12 +459,12 @@ julia> degree(sw)
 3
 ```
 """
-degree(sw::StateWord) = sum(degree, sw.state_monos; init=0)
+degree(sw::StateWord) = sum(degree, sw.state_syms; init=0)
 
 """
     variables(sw::StateWord) -> Set
 
-Get the set of all variable indices used in the StateWord's monomials.
+Get the set of all variable indices used in the StateWord's symbols.
 
 # Examples
 ```jldoctest
@@ -259,38 +485,36 @@ Set{Int64} with 3 elements:
 """
 function variables(sw::StateWord{ST,A,T}) where {ST,A,T}
     result = Set{T}()
-    for m in sw.state_monos
-        for idx in m.word
-            push!(result, abs(idx))  # abs for fermionic/bosonic (negative = creation)
-        end
+    for sym in sw.state_syms
+        union!(result, variables(sym))
     end
     result
 end
 
 # =============================================================================
-# Comparison Operators
+# StateWord - Comparison Operators
 # =============================================================================
 
 """
     Base.:(==)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST,A,T} -> Bool
 
-Check if two StateWords are equal (same state monomials).
+Check if two StateWords are equal (same state symbols).
 """
 function Base.:(==)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    a.state_monos == b.state_monos
+    a.state_syms == b.state_syms
 end
 
 """
     Base.hash(sw::StateWord, h::UInt) -> UInt
 
-Hash function for StateWord. Computed from state_monos.
+Hash function for StateWord. Computed from state_syms.
 """
-Base.hash(sw::StateWord, h::UInt) = hash(sw.state_monos, h)
+Base.hash(sw::StateWord, h::UInt) = hash(sw.state_syms, h)
 
 """
     Base.isless(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST,A,T} -> Bool
 
-Compare two StateWords using degree-first ordering, then lexicographic on state_monos.
+Compare two StateWords using degree-first ordering, then lexicographic on state_syms.
 
 # Examples
 ```jldoctest
@@ -310,17 +534,17 @@ true
 """
 function Base.isless(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
     degree(a) != degree(b) && return degree(a) < degree(b)
-    return a.state_monos < b.state_monos
+    return a.state_syms < b.state_syms
 end
 
 # =============================================================================
-# Multiplication - Returns StateWord (commutative, no phase)
+# StateWord - Multiplication (commutative, no phase)
 # =============================================================================
 
 """
     Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST,A,T}
 
-Multiply two StateWords by concatenating and re-sorting their monomials.
+Multiply two StateWords by concatenating and re-sorting their symbols.
 
 State expectations commute, so the result is a sorted StateWord containing
 all expectations from both operands.
@@ -342,12 +566,12 @@ julia> result = sw1 * sw2;
 julia> result isa StateWord
 true
 
-julia> length(result.state_monos)
+julia> length(result.state_syms)
 2
 ```
 """
 function Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    StateWord{ST}(vcat(a.state_monos, b.state_monos))
+    StateWord{ST,A,T}(vcat(a.state_syms, b.state_syms))
 end
 
 # =============================================================================
@@ -385,7 +609,7 @@ function Base.adjoint(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType
 end
 
 # =============================================================================
-# Display
+# StateWord - Display
 # =============================================================================
 
 """
@@ -395,19 +619,11 @@ Display a StateWord with appropriate brackets based on state type.
 Uses registry from IO context if available for human-readable symbols.
 """
 function Base.show(io::IO, sw::StateWord{ST,A,T}) where {ST,A,T}
-    if ST == MaxEntangled
-        prefix = "tr("
-        suffix = ")"
-    else  # Arbitrary or other
-        prefix = "⟨"
-        suffix = "⟩"
-    end
-
     parts = String[]
-    for m in sw.state_monos
-        # Capture monomial display using the same IO context (with registry)
-        mono_str = sprint(show, m; context=io)
-        push!(parts, prefix * mono_str * suffix)
+    for sym in sw.state_syms
+        # StateSymbol already handles display with proper brackets
+        sym_str = sprint(show, sym; context=io)
+        push!(parts, sym_str)
     end
     print(io, join(parts, ""))
 end
@@ -619,12 +835,14 @@ julia> ncsw = NCStateWord(sw, m2);
 
 julia> ev = expval(ncsw);
 
-julia> length(ev.state_monos)
+julia> length(ev.state_syms)
 2
 ```
 """
 function expval(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    StateWord{ST}(vcat(ncsw.sw.state_monos, [ncsw.nc_word]))
+    # Create a new symbol for the nc_word and concatenate with existing symbols
+    new_sym = StateSymbol{ST}(ncsw.nc_word)
+    StateWord{ST,A,T}(vcat(ncsw.sw.state_syms, [new_sym]))
 end
 
 # =============================================================================
@@ -737,7 +955,7 @@ julia> sw = ς(m);
 julia> sw isa StateWord{Arbitrary}
 true
 
-julia> length(sw.state_monos)
+julia> length(sw.state_syms)
 1
 ```
 
@@ -764,7 +982,7 @@ julia> sw = tr(m);
 julia> sw isa StateWord{MaxEntangled}
 true
 
-julia> length(sw.state_monos)
+julia> length(sw.state_syms)
 1
 ```
 
@@ -939,8 +1157,9 @@ function _generate_statewords_up_to_degree(
             for m in valid_monos
                 new_deg = sw_deg + degree(m)
                 if new_deg <= max_deg
-                    # Create compound StateWord by adding this expectation
-                    new_sw = StateWord{ST}(vcat(sw.state_monos, [m]))
+                    # Create compound StateWord by adding this expectation via symbol
+                    new_sym = StateSymbol{ST}(m)
+                    new_sw = StateWord{ST,A,T}(vcat(sw.state_syms, [new_sym]))
                     if !(new_sw in seen)
                         push!(seen, new_sw)
                         push!(next_level, (new_sw, new_deg))
@@ -970,8 +1189,8 @@ end
 Return a new StateWord with symmetrically canonicalized monomials.
 
 For StateWords, symmetric canonicalization applies `symmetric_canon` to each
-state monomial individually (state monomials are already involution-canonicalized
-during StateWord construction via `_involution_canon`).
+state symbol's monomial individually (symbols are already canonicalized
+during StateSymbol construction).
 
 Since StateWords represent products of expectations which commute, the overall
 StateWord is already in a canonical sorted form. This function ensures each
@@ -987,7 +1206,7 @@ julia> sw = StateWord{Arbitrary}([m]);
 
 julia> sw_canon = symmetric_canon(sw);
 
-julia> sw_canon.state_monos[1].word
+julia> sw_canon.state_syms[1].mono.word
 3-element Vector{Int64}:
  1
  2
@@ -995,8 +1214,8 @@ julia> sw_canon.state_monos[1].word
 ```
 """
 function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # Apply symmetric_canon to each monomial in the state word
-    canon_monos = [symmetric_canon(m) for m in sw.state_monos]
+    # Apply symmetric_canon to each monomial in the state symbols
+    canon_monos = [symmetric_canon(sym.mono) for sym in sw.state_syms]
     StateWord{ST}(canon_monos)
 end
 
@@ -1023,15 +1242,15 @@ julia> sw = StateWord{MaxEntangled}([m]);
 
 julia> sw_canon = symmetric_canon(sw);
 
-julia> length(sw_canon.state_monos[1].word)  # P₁P₁ → P₁
+julia> length(sw_canon.state_syms[1].mono.word)  # P₁P₁ → P₁
 1
 ```
 """
 function symmetric_canon(sw::StateWord{ST,ProjectorAlgebra,T}) where {ST<:StateType,T<:Integer}
     # For projector algebra, apply P²=P simplification before cyclic canonicalization
     canon_monos = Monomial{ProjectorAlgebra,T}[]
-    for m in sw.state_monos
-        simplified = simplify(m)  # Returns Monomial for ProjectorAlgebra
+    for sym in sw.state_syms
+        simplified = simplify(sym.mono)  # Returns Monomial for ProjectorAlgebra
         # Only keep non-identity monomials
         if !isone(simplified)
             push!(canon_monos, symmetric_canon(simplified))
@@ -1061,7 +1280,7 @@ julia> ncsw = NCStateWord(sw, m2);
 
 julia> ncsw_canon = symmetric_canon(ncsw);
 
-julia> ncsw_canon.sw.state_monos[1].word
+julia> ncsw_canon.sw.state_syms[1].mono.word
 3-element Vector{Int64}:
  1
  2

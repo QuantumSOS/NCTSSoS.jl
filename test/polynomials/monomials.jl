@@ -1,5 +1,6 @@
 # NCTSSoS is loaded by parent runtests.jl
 using Test, NCTSSoS
+using NCTSSoS: variable_indices, expval
 
 @testset "Monomials" begin
     @testset "Creation" begin
@@ -479,5 +480,56 @@ using Test, NCTSSoS
         show(IOContext(buf, :registry => reg), m_identity)
         str_identity = String(take!(buf))
         @test contains(str_identity, "𝟙")
+    end
+
+    @testset "variable_indices" begin
+        # Basic case: unique indices
+        m1 = Monomial{PauliAlgebra}([1, 2, 3])
+        @test variable_indices(m1) == Set([1, 2, 3])
+
+        # Repeated indices -> deduplicated in Set
+        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 1, 3, 2])
+        @test variable_indices(m2) == Set([1, 2, 3])
+        @test length(variable_indices(m2)) == 3
+
+        # Identity monomial -> empty set
+        m_id = one(Monomial{PauliAlgebra,Int64})
+        @test isempty(variable_indices(m_id))
+
+        # Single index
+        m_single = Monomial{UnipotentAlgebra}([42])
+        @test variable_indices(m_single) == Set([42])
+
+        # Signed types (Fermionic): abs() normalization
+        # Creation (-1) and annihilation (1) refer to same mode
+        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -2, 3, -1])
+        var_set = variable_indices(m_fermi)
+        @test var_set == Set(Int32[1, 2, 3])
+        @test length(var_set) == 3  # -1 and 1 both map to 1
+
+        # Bosonic also uses signed indices
+        m_bos = Monomial{BosonicAlgebra}(Int32[-1, 1, -2, 2])
+        @test variable_indices(m_bos) == Set(Int32[1, 2])
+
+        # Different integer types preserve type in Set
+        m_uint8 = Monomial{ProjectorAlgebra}(UInt8[1, 2, 3])
+        @test eltype(variable_indices(m_uint8)) == UInt8
+    end
+
+    @testset "expval (identity for Monomial)" begin
+        # expval is identity for regular Monomials
+        # (exists for API compatibility with NCStateWord)
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
+        @test expval(m) === m
+
+        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        @test expval(m_pauli) === m_pauli
+
+        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -2])
+        @test expval(m_fermi) === m_fermi
+
+        # Identity monomial
+        m_id = one(Monomial{PauliAlgebra,Int64})
+        @test expval(m_id) === m_id
     end
 end

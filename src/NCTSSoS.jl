@@ -102,7 +102,7 @@ export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
 
 # State Polynomial Operations
 export ς, tr
-export StateWord, StatePolynomial
+export StateSymbol, StateWord, StatePolynomial
 export NCStateWord, MaxEntangled, Arbitrary
 
 # Polynomial Operations (commonly used)

@@ -281,4 +281,53 @@ using NCTSSoS:
         x0 = one(x[1])
         @test isone(x0)
     end
+
+    @testset "subregistry" begin
+        # Basic functionality: create subset of registry
+        reg, (x,) = create_noncommutative_variables([("x", 1:5)])
+        sorted_idxs = sort(collect(keys(reg.idx_to_variables)))
+
+        sub_reg = subregistry(reg, sorted_idxs[1:3])
+        @test length(sub_reg) == 3
+        @test sub_reg isa VariableRegistry{NonCommutativeAlgebra}
+
+        # Check symbols are preserved
+        for idx in sorted_idxs[1:3]
+            @test reg[idx] == sub_reg[idx]
+        end
+
+        # Check symbols not in subset are missing
+        @test_throws KeyError sub_reg[sorted_idxs[4]]
+        @test_throws KeyError sub_reg[sorted_idxs[5]]
+
+        # Subregistry with Pauli algebra preserves type
+        reg_pauli, _ = create_pauli_variables(1:3)
+        pauli_idxs = sort(collect(keys(reg_pauli.idx_to_variables)))
+        sub_pauli = subregistry(reg_pauli, pauli_idxs[1:4])
+        @test sub_pauli isa VariableRegistry{PauliAlgebra}
+        @test length(sub_pauli) == 4
+
+        # Empty subset yields empty registry
+        empty_sub = subregistry(reg, eltype(sorted_idxs)[])
+        @test length(empty_sub) == 0
+
+        # Indices not in parent are silently ignored
+        fake_idxs = [sorted_idxs[1], eltype(sorted_idxs)(255)]  # 255 unlikely to exist
+        sub_with_fake = subregistry(reg, fake_idxs)
+        @test length(sub_with_fake) == 1
+        @test sub_with_fake[sorted_idxs[1]] == reg[sorted_idxs[1]]
+
+        # Full subset equals original (same content)
+        full_sub = subregistry(reg, sorted_idxs)
+        @test length(full_sub) == length(reg)
+        for idx in sorted_idxs
+            @test full_sub[idx] == reg[idx]
+        end
+
+        # Subregistry is a copy, not a view (implementation detail)
+        # Modification of sub_reg's internal dicts shouldn't affect parent
+        # This test documents the copy semantics mentioned in docstring
+        @test sub_reg.idx_to_variables !== reg.idx_to_variables
+        @test sub_reg.variables_to_idx !== reg.variables_to_idx
+    end
 end

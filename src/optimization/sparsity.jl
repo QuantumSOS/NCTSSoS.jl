@@ -670,9 +670,9 @@ function _extract_compound_state_words(
     # Extract from objective
     for ncsw in monomials(obj)
         sw = ncsw.sw
-        # A compound StateWord has more than one state monomial, OR has a non-identity
-        # state monomial that differs from the identity (meaning it has actual expectations)
-        if length(sw.state_monos) > 1 || (!isone(sw) && !isempty(sw.state_monos))
+        # A compound StateWord has more than one state symbol, OR has a non-identity
+        # state symbol that differs from the identity (meaning it has actual expectations)
+        if length(sw.state_syms) > 1 || (!isone(sw) && !isempty(sw.state_syms))
             push!(result, sw)
         end
     end
@@ -681,7 +681,7 @@ function _extract_compound_state_words(
     for con in cons
         for ncsw in monomials(con)
             sw = ncsw.sw
-            if length(sw.state_monos) > 1 || (!isone(sw) && !isempty(sw.state_monos))
+            if length(sw.state_syms) > 1 || (!isone(sw) && !isempty(sw.state_syms))
                 push!(result, sw)
             end
         end

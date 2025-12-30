@@ -623,12 +623,16 @@ end
 """
     expval(m::Monomial{A,T}) where {A,T} -> Monomial{A,T}
 
-Return the expectation value of a monomial. For regular (non-state) monomials,
-this is an identity operation - the monomial is returned unchanged.
+Return the monomial unchanged (identity operation).
 
-This method exists for API compatibility with `NCStateWord`, where `expval`
-extracts the underlying monomial from a state word. For regular monomials,
-no extraction is needed.
+For regular (non-state) monomials, `expval` is an identity operation.
+This exists for API compatibility with `NCStateWord`, where `expval`
+collapses the state word to a `StateWord`.
+
+!!! note "Design note"
+    A future `StateSymbol` type may wrap monomials in a canonicalized
+    state expectation representation. For now, the regular polynomial
+    optimization path uses `Monomial` directly as dictionary keys.
 
 # Examples
 ```julia

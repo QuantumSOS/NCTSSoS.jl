@@ -144,7 +144,7 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
 
         sp_prod = sp1 * sp2
         @test sp_prod.coeffs == [2.0]
-        @test length(sp_prod.state_words[1].state_monos) == 2
+        @test length(sp_prod.state_words[1].state_syms) == 2
     end
 
     @testset "Equality" begin

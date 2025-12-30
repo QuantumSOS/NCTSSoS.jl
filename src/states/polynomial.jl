@@ -441,7 +441,7 @@ end
 Add a scalar to a StateWord, creating a StatePolynomial with identity StateWord for the constant.
 """
 function Base.:(+)(c::Number, sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
-    # Create identity StateWord (empty state_monos)
+    # Create identity StateWord (contains identity symbol)
     id_sw = StateWord{ST,A,T}()
     C = promote_type(typeof(c), Float64)
     StatePolynomial(C[C(c), one(C)], [id_sw, sw])

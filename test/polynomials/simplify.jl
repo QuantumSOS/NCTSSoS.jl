@@ -72,22 +72,12 @@ using NCTSSoS:
         @test rhs isa Monomial
         @test lhs == rhs
 
-        # Basis simplification test: verify unique monomials after simplifying basis
-        # For 3 projector variables up to degree 3, P_i^2 = P_i reduces consecutive duplicates
-        reg3, ((x,), (y, z)) = create_projector_variables([("V", 1:1), ("W", 1:2)])
-        basis = get_ncbasis(reg3, 3)
-
-        # Extract unique monomials from the simplified basis
+        # Basis count test: NCTSSOS oracle verified
+        # For 3 projector variables (single-site) up to degree 3:
+        # NCTSSOS get_ncbasis(3,3) + constraint_reduce!(projector) gives 22 unique words
+        basis = get_ncbasis(reg, 3)
         basis_monos = Set(m for p in basis for m in monomials(p))
-
-        # Expected unique monomials (identity + 3 degree-1 + 6 degree-2 + 2 valid degree-3 combos = 12 total)
-        expected = Set([
-            one(x),  # identity monomial
-            x, y, z,
-            x * y, x * z, y * z, z * y,
-            x * y * z, x * z * y, y * z * y, z * y * z
-        ])
-        @test basis_monos == expected
+        @test length(basis_monos) == 22  # NCTSSOS oracle: 22 unique words
     end
 
     @testset "Unipotent Simplification" begin
@@ -109,33 +99,12 @@ using NCTSSoS:
         @test m isa Monomial
         @test isempty(m.word)  # Identity monomial has empty word
 
-        # Basis simplification test: verify unique monomials after simplifying basis
-        # For 3 unipotent variables up to degree 3, U_i^2 = I reduces many words
-        reg3, ((x,), (y, z)) = create_unipotent_variables([("V", 1:1), ("W", 1:2)])
-        basis = get_ncbasis(reg3, 3)
-
-        # Extract unique monomials from the simplified basis
+        # Basis count test: NCTSSOS oracle verified
+        # For 3 unipotent variables (single-site) up to degree 3:
+        # NCTSSOS get_ncbasis(3,3) + constraint_reduce!(unipotent) gives 22 unique words
+        basis = get_ncbasis(reg, 3)
         basis_monos = Set(m for p in basis for m in monomials(p))
-
-        # Expected unique monomials for unipotent algebra with site-based commutation:
-        # - Operators on different sites commute (sorted by site)
-        # - Within each site, U^2 = I applies, but order is preserved
-        # - Variables: x on site 1, y and z on site 2
-        # - 1 identity
-        # - 3 degree-1: x, y, z
-        # - 4 degree-2: xy, xz (cross-site), yz, zy (within-site, order preserved)
-        # - 4 degree-3: xyz, xzy, yzy, zyz, plus alternating patterns
-        # Total = 12 unique monomials
-        expected = Set([
-            one(x),  # identity monomial
-            x, y, z,
-            # Degree 2: x*y, x*z site-sorted; y*z, z*y within-site (order preserved)
-            x * y, x * z, y * z, z * y,
-            # Degree 3: site-sorted with within-site order preserved
-            x * y * z, x * z * y,  # x first (site 1), then y,z or z,y (site 2)
-            y * z * y, z * y * z   # within-site alternating patterns
-        ])
-        @test basis_monos == expected
+        @test length(basis_monos) == 22  # NCTSSOS oracle: 22 unique words
     end
 
 
@@ -1361,3 +1330,163 @@ end
 # '
 # ```
 # =============================================================================
+
+# =============================================================================
+# NCTSSOS Oracle: Basis Generation with Constraint Reduction
+# =============================================================================
+#
+# Oracle generation script for basis counts with constraint reduction:
+#
+# ```julia
+# cd /Users/yushengzhao/projects/NCTSSOS && julia --project -e '
+# function get_ncbasis(n, d; ind=Vector{UInt16}(1:n))
+#     basis = [UInt16[]]
+#     for i = 1:d
+#         append!(basis, _get_ncbasis_deg(n, i, ind=ind))
+#     end
+#     return basis
+# end
+# function _get_ncbasis_deg(n, d; ind=Vector{UInt16}(1:n))
+#     if d > 0
+#         basis = Vector{UInt16}[]
+#         for i = 1:n
+#             temp = _get_ncbasis_deg(n, d-1, ind=ind)
+#             push!.(temp, ind[i])
+#             append!(basis, temp)
+#         end
+#         return basis
+#     else
+#         return [UInt16[]]
+#     end
+# end
+# function constraint_reduce_projector!(word)
+#     i = 1
+#     while i < length(word)
+#         if word[i] == word[i+1]; deleteat!(word, i)
+#         else i += 1; end
+#     end
+#     return word
+# end
+# function constraint_reduce_unipotent!(word)
+#     i = 1
+#     while i < length(word)
+#         if word[i] == word[i+1]
+#             deleteat!(word, i); deleteat!(word, i)
+#             i > 1 && (i -= 1)
+#         else i += 1; end
+#     end
+#     return word
+# end
+# for n in 1:4, d in 0:3
+#     basis = get_ncbasis(n, d)
+#     proj = Set(constraint_reduce_projector!(copy(w)) for w in basis)
+#     unip = Set(constraint_reduce_unipotent!(copy(w)) for w in basis)
+#     println("(n=$n, d=$d): projector=$(length(proj)), unipotent=$(length(unip))")
+# end
+# '
+# ```
+#
+# Output:
+# (n=1, d=0): proj=1, unip=1
+# (n=1, d=1): proj=2, unip=2
+# (n=1, d=2): proj=2, unip=2
+# (n=1, d=3): proj=2, unip=2
+# (n=2, d=0): proj=1, unip=1
+# (n=2, d=1): proj=3, unip=3
+# (n=2, d=2): proj=5, unip=5
+# (n=2, d=3): proj=7, unip=7
+# (n=3, d=0): proj=1, unip=1
+# (n=3, d=1): proj=4, unip=4
+# (n=3, d=2): proj=10, unip=10
+# (n=3, d=3): proj=22, unip=22
+# (n=4, d=0): proj=1, unip=1
+# (n=4, d=1): proj=5, unip=5
+# (n=4, d=2): proj=17, unip=17
+# (n=4, d=3): proj=53, unip=53
+# =============================================================================
+
+# NCTSSOS Oracle: unique word counts after constraint reduction
+# (n, d, projector_count, unipotent_count)
+# Generated from NCTSSOS oracle script (see above)
+const CONSTRAINT_BASIS_COUNTS_ORACLE = [
+    (1, 0, 1, 1), (1, 1, 2, 2), (1, 2, 2, 2), (1, 3, 2, 2),
+    (2, 0, 1, 1), (2, 1, 3, 3), (2, 2, 5, 5), (2, 3, 7, 7),
+    (3, 0, 1, 1), (3, 1, 4, 4), (3, 2, 10, 10), (3, 3, 22, 22),
+    (4, 0, 1, 1), (4, 1, 5, 5), (4, 2, 17, 17), (4, 3, 53, 53),
+]
+
+@testset "NCTSSOS Oracle: Basis with constraint reduction (single-site)" begin
+    using NCTSSoS: decode_operator_id
+    
+    @testset "ProjectorAlgebra (P²=P)" begin
+        for (n, d, expected_proj, _) in CONSTRAINT_BASIS_COUNTS_ORACLE
+            reg, _ = create_projector_variables([("P", 1:n)])
+            basis = get_ncbasis(reg, d)
+            # Extract unique operator-id words (ignore encoded site)
+            words = Set([decode_operator_id.(m.word) for p in basis for m in monomials(p)])
+            @test length(words) == expected_proj
+        end
+    end
+    
+    @testset "UnipotentAlgebra (U²=I)" begin
+        for (n, d, _, expected_unip) in CONSTRAINT_BASIS_COUNTS_ORACLE
+            reg, _ = create_unipotent_variables([("U", 1:n)])
+            basis = get_ncbasis(reg, d)
+            # Extract unique operator-id words (ignore encoded site)
+            words = Set([decode_operator_id.(m.word) for p in basis for m in monomials(p)])
+            @test length(words) == expected_unip
+        end
+    end
+end
+
+@testset "NCTSSOS Oracle: Multi-site commutation (NCTSSoS extension)" begin
+    # NCTSSoS adds site-based commutation: operators on different sites commute.
+    # This is NOT in NCTSSOS. Tests verify this NCTSSoS-specific behavior.
+    
+    using NCTSSoS: decode_site
+    
+    @testset "ProjectorAlgebra multi-site reduces basis size" begin
+        # Single-site: 3 vars, degree 3 → 22 unique words (NCTSSOS oracle)
+        reg_single, _ = create_projector_variables([("P", 1:3)])
+        basis_single = get_ncbasis(reg_single, 3)
+        monos_single = Set(m for p in basis_single for m in monomials(p))
+        @test length(monos_single) == 22
+        
+        # Multi-site: V on site 1, W₁,W₂ on site 2 → 12 unique (site commutation)
+        reg_multi, ((x,), (y, z)) = create_projector_variables([("V", 1:1), ("W", 1:2)])
+        basis_multi = get_ncbasis(reg_multi, 3)
+        monos_multi = Set(m for p in basis_multi for m in monomials(p))
+        @test length(monos_multi) == 12  # Reduced by site-based commutation
+        
+        # Verify site-sorting: site 1 always before site 2
+        for m in monos_multi
+            if length(m.word) >= 2
+                sites = decode_site.(m.word)
+                # Check that site sequence is non-decreasing
+                @test issorted(sites)
+            end
+        end
+    end
+    
+    @testset "UnipotentAlgebra multi-site reduces basis size" begin
+        # Single-site: 3 vars, degree 3 → 22 unique words (NCTSSOS oracle)
+        reg_single, _ = create_unipotent_variables([("U", 1:3)])
+        basis_single = get_ncbasis(reg_single, 3)
+        monos_single = Set(m for p in basis_single for m in monomials(p))
+        @test length(monos_single) == 22
+        
+        # Multi-site: V on site 1, W₁,W₂ on site 2 → 12 unique (site commutation)
+        reg_multi, ((x,), (y, z)) = create_unipotent_variables([("V", 1:1), ("W", 1:2)])
+        basis_multi = get_ncbasis(reg_multi, 3)
+        monos_multi = Set(m for p in basis_multi for m in monomials(p))
+        @test length(monos_multi) == 12  # Reduced by site-based commutation
+        
+        # Verify site-sorting: site 1 always before site 2
+        for m in monos_multi
+            if length(m.word) >= 2
+                sites = decode_site.(m.word)
+                @test issorted(sites)
+            end
+        end
+    end
+end

@@ -9,7 +9,7 @@ should produce the same structural outcomes as an equivalent construction in
 `NCTSSOS` (used only as an oracle for the *free noncommutative* word algebra and
 for simple rewrite-style constraints like `"unipotent"`).
 
-### What counts as “the same”
+### What counts as "the same"
 - **Primary comparison object**: expanded *word of variable indices* (tuple/vector
   of generator IDs), plus scalar coefficient when relevant.
 - **Do not compare pretty-printing** (`show`/`string`) except as a debugging aid.
@@ -40,11 +40,11 @@ for simple rewrite-style constraints like `"unipotent"`).
 
 #### Constraint-like simplification (word-level oracle)
 - `NCTSSOS/src/utils.jl:constraint_reduce!` supports `"unipotent"` (removes
-  adjacent equal pairs) and “projector-like” idempotency behavior for other
+  adjacent equal pairs) and "projector-like" idempotency behavior for other
   values (removes adjacent duplicates).
 
 ### Caveat: site-based commutation in NCTSSoS
-`NCTSSoS` encodes “site” inside unsigned indices and uses site-aware sorting in:
+`NCTSSoS` encodes "site" inside unsigned indices and uses site-aware sorting in:
 - `simplify(::Monomial{NonCommutativeAlgebra,<:Unsigned})`
 - `symmetric_canon(::Vector{<:Unsigned})` and `cyclic_symmetric_canon(::Vector{<:Unsigned})`
 
@@ -109,7 +109,7 @@ for simple rewrite-style constraints like `"unipotent"`).
 
 **Purpose**: Word representation of non-commutative operator product
 
-**Review reminder**: In `NCTSSoS`, “variables” are degree-1 monomials produced by
+**Review reminder**: In `NCTSSoS`, "variables" are degree-1 monomials produced by
 `create_*_variables` (so variable-level behavior is monomial behavior).
 
 ### Arithmetic
@@ -272,38 +272,38 @@ for simple rewrite-style constraints like `"unipotent"`).
 ### NonCommutativeAlgebra
 **File**: `src/simplification/noncommutative.jl`
 
-- [ ] `simplify(m::Monomial{NonCommutativeAlgebra}) → Monomial` — Sort by site
-- [ ] `simplify!(m) → Monomial` — In-place version
-- [ ] `_simplify_nc_word!(word) → Vector` — In-place word simplification
+- [x] `simplify(m::Monomial{NonCommutativeAlgebra}) → Monomial` — Sort by site
+- [x] `simplify!(m) → Monomial` — In-place version
+- [x] `_simplify_nc_word!(word) → Vector` — In-place word simplification
 
 ### PauliAlgebra
 **File**: `src/simplification/pauli.jl`
 
-- [ ] `simplify(m::Monomial{PauliAlgebra}) → Term` — Apply σ²=I, cyclic products
-- [ ] `_pauli_site(idx) → Int` — Extract site from index
-- [ ] `_pauli_type(idx) → Int` — Extract Pauli type (0=X, 1=Y, 2=Z)
-- [ ] `_pauli_index(site, type) → Int` — Create index from site+type
-- [ ] `_pauli_product(type1, type2) → (phase, result_type)` — Cyclic product table
+- [x] `simplify(m::Monomial{PauliAlgebra}) → Term` — Apply σ²=I, cyclic products
+- [x] `_pauli_site(idx) → Int` — Extract site from index
+- [x] `_pauli_type(idx) → Int` — Extract Pauli type (0=X, 1=Y, 2=Z)
+- [x] `_pauli_index(site, type) → Int` — Create index from site+type
+- [x] `_pauli_product(type1, type2) → (phase, result_type)` — Cyclic product table
 
 ### FermionicAlgebra
 **File**: `src/simplification/fermionic.jl`
 
-- [ ] `simplify(m::Monomial{FermionicAlgebra}) → Polynomial` — Normal order with anticommutation
+- [x] `simplify(m::Monomial{FermionicAlgebra}) → Polynomial` — Normal order with anticommutation
 
 ### BosonicAlgebra
 **File**: `src/simplification/bosonic.jl`
 
-- [ ] `simplify(m::Monomial{BosonicAlgebra}) → Polynomial` — Normal order with commutation
+- [x] `simplify(m::Monomial{BosonicAlgebra}) → Polynomial` — Normal order with commutation
 
 ### ProjectorAlgebra
 **File**: `src/simplification/projector.jl`
 
-- [ ] `simplify(m::Monomial{ProjectorAlgebra}) → Monomial` — Remove consecutive duplicates (P²=P)
+- [x] `simplify(m::Monomial{ProjectorAlgebra}) → Monomial` — Remove consecutive duplicates (P²=P)
 
 ### UnipotentAlgebra
 **File**: `src/simplification/unipotent.jl`
 
-- [ ] `simplify(m::Monomial{UnipotentAlgebra}) → Monomial` — Remove pairs (U²=I)
+- [x] `simplify(m::Monomial{UnipotentAlgebra}) → Monomial` — Remove pairs (U²=I)
 
 ---
 
@@ -329,47 +329,55 @@ for simple rewrite-style constraints like `"unipotent"`).
 **File**: `src/algorithms/basis.jl`
 
 #### What NCTSSoS implements
-- [ ] `_generate_all_words(indices, d)` — All words of *exact* length `d`
-- [ ] `get_ncbasis_deg(reg, d)` — For each word, build `Monomial` then `simplify`
+- [x] `_generate_all_words(indices, d)` — All words of *exact* length `d`
+- [x] `get_ncbasis_deg(reg, d)` — For each word, build `Monomial` then `simplify`
   it, and return a `Polynomial` (one polynomial per input word)
-- [ ] `get_ncbasis(reg, d)` — Concatenate degrees `0:d`
+- [x] `get_ncbasis(reg, d)` — Concatenate degrees `0:d`
 
 #### NCTSSOS oracle
-- [ ] `NCTSSOS.get_ncbasis(n, d; ind=..., binary=false)` in
+- [x] `NCTSSOS.get_ncbasis(n, d; ind=..., binary=false)` in
   `NCTSSOS/src/utils.jl` (returns `Vector{Vector{UInt16}}` words)
 
 #### Review checks
-- [ ] Enumeration matches for free NC, single-site variables
+- [x] Enumeration matches for free NC, single-site variables
   (`binary=false`, degree-by-degree counts `n^d`)
-- [ ] Degree-0 basis contains identity word / identity polynomial
-- [ ] If comparing multi-site `NCTSSoS` bases, document the mapping decision:
+  - Verified in `test/polynomials/simplify.jl` "NCTSSOS Oracle: get_ncbasis counts"
+- [x] Degree-0 basis contains identity word / identity polynomial
+  - Verified in `test/polynomials/basis.jl` and oracle tests
+- [x] If comparing multi-site `NCTSSoS` bases, document the mapping decision:
   compare encoded indices directly vs compare by `decode_operator_id`
+  - Oracle tests use `decode_operator_id` for word extraction
 
 ### Canonicalization
 **File**: `src/algorithms/canonicalization.jl`
 
 #### What NCTSSoS implements (word-level)
-- [ ] `symmetric_canon(word)` — `min(word, reverse(word))`
-- [ ] `cyclic_canon(word)` — Lexicographically minimal cyclic rotation
-- [ ] `cyclic_symmetric_canon(word)` — `min(cyclic_canon(word), cyclic_canon(reverse(word)))`
+- [x] `symmetric_canon(word)` — `min(word, reverse(word))`
+- [x] `cyclic_canon(word)` — Lexicographically minimal cyclic rotation
+- [x] `cyclic_symmetric_canon(word)` — `min(cyclic_canon(word), cyclic_canon(reverse(word)))`
 
 #### Monomial + Polynomial interfaces
-- [ ] `canonicalize(m; cyclic=false|true)` — symmetric vs cyclic+symmetric
-- [ ] `canonicalize(p; cyclic=false|true)` — canonicalize monomials, then merge
+- [x] `canonicalize(m; cyclic=false|true)` — symmetric vs cyclic+symmetric
+- [x] `canonicalize(p; cyclic=false|true)` — canonicalize monomials, then merge
   like terms via polynomial constructor
 
 #### NCTSSOS oracle
-- [ ] `_sym_canon(word)` in `NCTSSOS/src/utils.jl`
-- [ ] `_cyclic_canon(word)` in `NCTSSOS/src/utils.jl`
-- [ ] `min(_cyclic_canon(word), _cyclic_canon(reverse(word)))` corresponds to
+- [x] `_sym_canon(word)` in `NCTSSOS/src/utils.jl`
+  - Verified in `test/polynomials/simplify.jl` "NCTSSOS Oracle: symmetric_canon (word-level)"
+- [x] `_cyclic_canon(word)` in `NCTSSOS/src/utils.jl`
+  - Verified in `test/polynomials/simplify.jl` "NCTSSOS Oracle: cyclic_canon (word-level)"
+- [x] `min(_cyclic_canon(word), _cyclic_canon(reverse(word)))` corresponds to
   cyclic+symmetric mode
+  - Verified in `test/polynomials/simplify.jl` "NCTSSOS Oracle: cyclic_symmetric_canon (word-level)"
 
 #### Caveat: site-aware specializations in NCTSSoS
-- [ ] `symmetric_canon(::Vector{<:Unsigned})` and
+- [x] `symmetric_canon(::Vector{<:Unsigned})` and
   `cyclic_symmetric_canon(::Vector{<:Unsigned})` sort by `decode_site` before
   comparing; `NCTSSOS` does not model this.
-- [ ] For oracle comparisons, prefer single-site words or explicitly state how
-  you “forget the site” (e.g., map indices to `decode_operator_id` first).
+  - Implementation in `src/algorithms/canonicalization.jl` lines 127-142 and 328-340
+- [x] For oracle comparisons, prefer single-site words or explicitly state how
+  you "forget the site" (e.g., map indices to `decode_operator_id` first).
+  - Oracle tests use signed Int16 to avoid site-aware dispatch
 
 ---
 

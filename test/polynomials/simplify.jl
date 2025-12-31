@@ -872,3 +872,492 @@ end
         @test empty_result[1].coefficient == 0.0
     end
 end
+
+# =============================================================================
+# NCTSSOS Oracle Comparison Tests
+# These tests verify NCTSSoS simplification matches NCTSSOS behavior.
+# Oracle reference: /Users/yushengzhao/projects/NCTSSOS/src/utils.jl
+# =============================================================================
+
+@testset "NCTSSOS Oracle: constraint_reduce! equivalence" begin
+    @testset "UnipotentAlgebra matches NCTSSOS constraint_reduce!(unipotent)" begin
+        # NCTSSOS constraint_reduce! with constraint="unipotent" removes consecutive
+        # identical pairs with backtracking. NCTSSoS UnipotentAlgebra should match.
+        
+        # Reference: constraint_reduce!([1,1], constraint="unipotent") → []
+        reg, (U,) = create_unipotent_variables([("U", 1:3)])
+        
+        # Case 1: Simple pair cancellation
+        m1 = U[1] * U[1]
+        s1 = simplify(m1)
+        @test isempty(s1.word)  # [1,1] → []
+        
+        # Case 2: Multiple consecutive pairs
+        m2 = U[1] * U[1] * U[2] * U[2]
+        s2 = simplify(m2)
+        @test isempty(s2.word)  # [1,1,2,2] → []
+        
+        # Case 3: Cascading cancellation
+        m3 = U[1] * U[2] * U[2] * U[1]
+        s3 = simplify(m3)
+        @test isempty(s3.word)  # [1,2,2,1] → []
+        
+        # Case 4: Non-consecutive (no cancellation)
+        m4 = U[1] * U[2] * U[1] * U[2]
+        s4 = simplify(m4)
+        @test length(s4.word) == 4  # [1,2,1,2] → [1,2,1,2]
+        
+        # Case 5: Mixed
+        m5 = U[1] * U[1] * U[2] * U[3] * U[3] * U[2]
+        s5 = simplify(m5)
+        @test isempty(s5.word)  # [1,1,2,3,3,2] → [] (cascading)
+    end
+    
+    @testset "ProjectorAlgebra matches NCTSSOS constraint_reduce!(projector)" begin
+        # NCTSSOS constraint_reduce! with constraint≠"unipotent" removes consecutive
+        # duplicates (P²=P idempotency).
+        
+        reg, (P,) = create_projector_variables([("P", 1:3)])
+        
+        # Case 1: Simple idempotency
+        m1 = P[1] * P[1]
+        s1 = simplify(m1)
+        @test length(s1.word) == 1  # [1,1] → [1]
+        @test s1.word == P[1].word
+        
+        # Case 2: Triple idempotency
+        m2 = P[1] * P[1] * P[1]
+        s2 = simplify(m2)
+        @test length(s2.word) == 1  # [1,1,1] → [1]
+        
+        # Case 3: Mixed with idempotency
+        m3 = P[1] * P[1] * P[2] * P[2] * P[1]
+        s3 = simplify(m3)
+        @test length(s3.word) == 3  # [1,1,2,2,1] → [1,2,1]
+        
+        # Case 4: Non-consecutive (no collapse)
+        m4 = P[1] * P[2] * P[1]
+        s4 = simplify(m4)
+        @test length(s4.word) == 3  # [1,2,1] → [1,2,1]
+    end
+end
+
+@testset "PauliAlgebra Algebraic Identities" begin
+    reg, (σx, σy, σz) = create_pauli_variables(1:2)
+    
+    @testset "Involution: σᵢ² = I" begin
+        for σ in [σx[1], σy[1], σz[1], σx[2], σy[2], σz[2]]
+            t = simplify(σ * σ)
+            @test isempty(t.monomial.word)
+            @test t.coefficient ≈ 1.0 + 0.0im
+        end
+    end
+    
+    @testset "Cyclic products: σₓσᵧ = iσz (same site)" begin
+        # XY → iZ
+        t_xy = simplify(σx[1] * σy[1])
+        @test t_xy.coefficient ≈ im
+        @test t_xy.monomial.word == σz[1].word
+        
+        # YZ → iX
+        t_yz = simplify(σy[1] * σz[1])
+        @test t_yz.coefficient ≈ im
+        @test t_yz.monomial.word == σx[1].word
+        
+        # ZX → iY
+        t_zx = simplify(σz[1] * σx[1])
+        @test t_zx.coefficient ≈ im
+        @test t_zx.monomial.word == σy[1].word
+    end
+    
+    @testset "Anti-cyclic products: σᵧσₓ = -iσz (same site)" begin
+        # YX → -iZ
+        t_yx = simplify(σy[1] * σx[1])
+        @test t_yx.coefficient ≈ -im
+        @test t_yx.monomial.word == σz[1].word
+        
+        # ZY → -iX
+        t_zy = simplify(σz[1] * σy[1])
+        @test t_zy.coefficient ≈ -im
+        @test t_zy.monomial.word == σx[1].word
+        
+        # XZ → -iY
+        t_xz = simplify(σx[1] * σz[1])
+        @test t_xz.coefficient ≈ -im
+        @test t_xz.monomial.word == σy[1].word
+    end
+    
+    @testset "Triple product: σₓσᵧσz = i·I" begin
+        t = simplify(σx[1] * σy[1] * σz[1])
+        @test isempty(t.monomial.word)
+        @test t.coefficient ≈ im
+    end
+    
+    @testset "Different sites commute" begin
+        # σx₁ σy₂ should just be sorted by site
+        t = simplify(σx[2] * σy[1])
+        @test t.coefficient ≈ 1.0 + 0.0im
+        @test length(t.monomial.word) == 2
+    end
+end
+
+@testset "FermionicAlgebra CAR Identities" begin
+    reg, (a, a_dag) = create_fermionic_variables(1:3)
+    
+    @testset "Nilpotency: aᵢ² = 0, (aᵢ†)² = 0" begin
+        for i in 1:3
+            @test iszero(a[i] * a[i])
+            @test iszero(a_dag[i] * a_dag[i])
+        end
+    end
+    
+    @testset "Anticommutation: {aᵢ, aⱼ†} = δᵢⱼ" begin
+        # Same mode: a₁ a₁† = 1 - a₁† a₁
+        p = simplify(a[1] * a_dag[1])
+        @test length(p.terms) == 2
+        
+        identity_term = findfirst(t -> isempty(t.monomial.word), p.terms)
+        @test !isnothing(identity_term)
+        @test p.terms[identity_term].coefficient == 1.0
+        
+        # Different modes: a₁ a₂† = -a₂† a₁ (no delta)
+        p_cross = simplify(a[1] * a_dag[2])
+        @test length(p_cross.terms) == 1
+        @test p_cross.terms[1].coefficient == -1.0  # Sign from anticommutation
+    end
+    
+    @testset "Parity check" begin
+        @test has_even_parity(Monomial{FermionicAlgebra}(Int32[]))  # Identity
+        @test !has_even_parity(a[1])  # Single operator
+        @test has_even_parity(a_dag[1] * a[1])  # Number operator
+    end
+end
+
+@testset "BosonicAlgebra CCR Identities" begin
+    reg, (c, c_dag) = create_bosonic_variables(1:3)
+    
+    @testset "Commutation: [cᵢ, cⱼ†] = δᵢⱼ" begin
+        # Same mode: c₁ c₁† = c₁† c₁ + 1
+        p = simplify(c[1] * c_dag[1])
+        @test length(p.terms) == 2
+        
+        identity_term = findfirst(t -> isempty(t.monomial.word), p.terms)
+        @test !isnothing(identity_term)
+        @test p.terms[identity_term].coefficient == 1.0
+        
+        normal_term = findfirst(t -> !isempty(t.monomial.word), p.terms)
+        @test !isnothing(normal_term)
+        @test p.terms[normal_term].coefficient == 1.0  # No sign for bosons
+        
+        # Different modes: c₁ c₂† = c₂† c₁ (no delta)
+        p_cross = simplify(c[1] * c_dag[2])
+        @test length(p_cross.terms) == 1
+        @test p_cross.terms[1].coefficient == 1.0  # No sign for bosons
+    end
+    
+    @testset "NOT nilpotent: cᵢ² ≠ 0" begin
+        p = simplify(c[1] * c[1])
+        @test length(p.terms) == 1
+        @test p.terms[1].monomial.word == Int8[1, 1]
+    end
+    
+    @testset "Rook number identity: c c c† c† = 2 + 4c†c + c†²c²" begin
+        p = simplify(c[1] * c[1] * c_dag[1] * c_dag[1])
+        @test length(p.terms) == 3
+        
+        # Find terms by degree
+        identity = findfirst(t -> isempty(t.monomial.word), p.terms)
+        @test !isnothing(identity)
+        @test p.terms[identity].coefficient == 2.0
+        
+        deg2 = findfirst(t -> length(t.monomial.word) == 2, p.terms)
+        @test !isnothing(deg2)
+        @test p.terms[deg2].coefficient == 4.0
+        
+        deg4 = findfirst(t -> length(t.monomial.word) == 4, p.terms)
+        @test !isnothing(deg4)
+        @test p.terms[deg4].coefficient == 1.0
+    end
+end
+
+@testset "Multi-site Commutation (Site-Based Simplification)" begin
+    @testset "NonCommutativeAlgebra: different sites commute" begin
+        reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 3:4)])
+        
+        # y₁ x₁ should become x₁ y₁ (site 1 before site 2)
+        m = y[1] * x[1]
+        s = simplify(m)
+        @test decode_site(s.word[1]) == 1
+        @test decode_site(s.word[2]) == 2
+    end
+    
+    @testset "UnipotentAlgebra: different sites commute, then U²=I" begin
+        reg, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 3:4)])
+        
+        # V₁ U₁ V₁ U₁ should sort by site, then U pairs and V pairs cancel
+        m = V[1] * U[1] * V[1] * U[1]
+        s = simplify(m)
+        @test isempty(s.word)  # After site sort: U₁U₁V₁V₁ → cancels
+    end
+    
+    @testset "ProjectorAlgebra: different sites commute, then P²=P" begin
+        reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 3:4)])
+        
+        # Q₁ P₁ Q₁ P₁ should sort by site: P₁P₁Q₁Q₁ → P₁Q₁
+        m = Q[1] * P[1] * Q[1] * P[1]
+        s = simplify(m)
+        @test length(s.word) == 2  # P₁ Q₁
+        @test decode_site(s.word[1]) == 1
+        @test decode_site(s.word[2]) == 2
+    end
+end
+
+# =============================================================================
+# NCTSSOS Oracle: Word-Level Canonicalization
+# =============================================================================
+#
+# Expected values generated from NCTSSOS oracle script (see end of file).
+# Use signed Int16 to test generic algorithms without site-aware specializations.
+#
+# =============================================================================
+
+# NCTSSOS _sym_canon: min(word, reverse(word))
+const SYM_CANON_ORACLE = [
+    (Int16[1, 2, 3], Int16[1, 2, 3]),
+    (Int16[3, 2, 1], Int16[1, 2, 3]),
+    (Int16[1, 2, 1], Int16[1, 2, 1]),
+    (Int16[2, 1, 2], Int16[2, 1, 2]),
+    (Int16[1, 3, 2], Int16[1, 3, 2]),
+    (Int16[2, 3, 1], Int16[1, 3, 2]),
+    (Int16[], Int16[]),
+    (Int16[5], Int16[5]),
+    (Int16[1, 2], Int16[1, 2]),
+    (Int16[2, 1], Int16[1, 2]),
+]
+
+# NCTSSOS _cyclic_canon: lexicographically minimal rotation
+const CYCLIC_CANON_ORACLE = [
+    (Int16[1, 2, 3], Int16[1, 2, 3]),
+    (Int16[2, 3, 1], Int16[1, 2, 3]),
+    (Int16[3, 1, 2], Int16[1, 2, 3]),
+    (Int16[3, 2, 1], Int16[1, 3, 2]),
+    (Int16[2, 1, 3], Int16[1, 3, 2]),
+    (Int16[1, 1, 2], Int16[1, 1, 2]),
+    (Int16[2, 1, 1], Int16[1, 1, 2]),
+    (Int16[], Int16[]),
+    (Int16[5], Int16[5]),
+    (Int16[1, 2], Int16[1, 2]),
+    (Int16[2, 1], Int16[1, 2]),
+]
+
+# NCTSSOS min(_cyclic_canon(w), _cyclic_canon(reverse(w)))
+const CYCLIC_SYM_CANON_ORACLE = [
+    (Int16[1, 2, 3], Int16[1, 2, 3]),
+    (Int16[3, 2, 1], Int16[1, 2, 3]),
+    (Int16[2, 1, 3], Int16[1, 2, 3]),
+    (Int16[1, 3, 2], Int16[1, 2, 3]),
+    (Int16[1, 2, 1], Int16[1, 1, 2]),
+    (Int16[2, 1, 2], Int16[1, 2, 2]),
+    (Int16[1, 2, 3, 4], Int16[1, 2, 3, 4]),
+    (Int16[4, 3, 2, 1], Int16[1, 2, 3, 4]),
+]
+
+# NCTSSOS constraint_reduce!(unipotent): consecutive pair removal with backtracking
+const UNIPOTENT_REDUCE_ORACLE = [
+    (Int16[1, 1], Int16[]),
+    (Int16[1, 1, 2, 2], Int16[]),
+    (Int16[1, 2, 2, 1], Int16[]),
+    (Int16[1, 2, 1, 2], Int16[1, 2, 1, 2]),
+    (Int16[1, 1, 2], Int16[2]),
+    (Int16[1, 2, 2], Int16[1]),
+    (Int16[1, 1, 1], Int16[1]),
+    (Int16[1, 2, 3, 3, 2, 1], Int16[]),
+    (Int16[], Int16[]),
+    (Int16[1], Int16[1]),
+    (Int16[1, 2, 3], Int16[1, 2, 3]),
+]
+
+# NCTSSOS constraint_reduce!(projector): consecutive duplicate removal (P²=P)
+const PROJECTOR_REDUCE_ORACLE = [
+    (Int16[1, 1], Int16[1]),
+    (Int16[1, 1, 1], Int16[1]),
+    (Int16[1, 2, 1], Int16[1, 2, 1]),
+    (Int16[1, 1, 2, 2], Int16[1, 2]),
+    (Int16[1, 1, 2, 2, 1], Int16[1, 2, 1]),
+    (Int16[], Int16[]),
+    (Int16[1], Int16[1]),
+    (Int16[1, 2, 3], Int16[1, 2, 3]),
+]
+
+# NCTSSOS get_ncbasis counts: (n, d, count) where count = Σ_{k=0}^{d} n^k
+const BASIS_COUNTS_ORACLE = [
+    (1, 0, 1), (1, 1, 2), (1, 2, 3), (1, 3, 4),
+    (2, 0, 1), (2, 1, 3), (2, 2, 7), (2, 3, 15),
+    (3, 0, 1), (3, 1, 4), (3, 2, 13), (3, 3, 40),
+    (4, 0, 1), (4, 1, 5), (4, 2, 21), (4, 3, 85),
+]
+
+@testset "NCTSSOS Oracle: symmetric_canon (word-level)" begin
+    for (input, expected) in SYM_CANON_ORACLE
+        @test symmetric_canon(copy(input)) == expected
+    end
+end
+
+@testset "NCTSSOS Oracle: cyclic_canon (word-level)" begin
+    for (input, expected) in CYCLIC_CANON_ORACLE
+        @test cyclic_canon(copy(input)) == expected
+    end
+end
+
+@testset "NCTSSOS Oracle: cyclic_symmetric_canon (word-level)" begin
+    for (input, expected) in CYCLIC_SYM_CANON_ORACLE
+        @test cyclic_symmetric_canon(copy(input)) == expected
+    end
+end
+
+@testset "NCTSSOS Oracle: constraint_reduce! algorithm (word-level)" begin
+    @testset "Unipotent reduction" begin
+        for (input, expected) in UNIPOTENT_REDUCE_ORACLE
+            # Apply NCTSSOS algorithm directly on word
+            word = copy(input)
+            i = 1
+            while i < length(word)
+                if word[i] == word[i+1]
+                    deleteat!(word, i)
+                    deleteat!(word, i)
+                    i > 1 && (i -= 1)
+                else
+                    i += 1
+                end
+            end
+            @test word == expected
+        end
+    end
+    
+    @testset "Projector reduction" begin
+        for (input, expected) in PROJECTOR_REDUCE_ORACLE
+            word = copy(input)
+            i = 1
+            while i < length(word)
+                if word[i] == word[i+1]
+                    deleteat!(word, i)
+                else
+                    i += 1
+                end
+            end
+            @test word == expected
+        end
+    end
+end
+
+@testset "NCTSSOS Oracle: get_ncbasis counts" begin
+    using NCTSSoS: decode_operator_id, get_ncbasis_deg
+    
+    for (n, d, expected_count) in BASIS_COUNTS_ORACLE
+        reg, _ = create_noncommutative_variables([("x", 1:n)])
+        basis = get_ncbasis(reg, d)
+        @test length(basis) == expected_count
+    end
+    
+    # Verify degree 0 returns identity
+    reg, _ = create_noncommutative_variables([("x", 1:3)])
+    basis = get_ncbasis(reg, 0)
+    @test length(basis) == 1
+    @test isone(basis[1])
+    
+    # Verify n=2, d=2 enumerates all 4 words
+    reg2, _ = create_noncommutative_variables([("x", 1:2)])
+    basis2 = get_ncbasis_deg(reg2, 2)
+    @test length(basis2) == 4
+    result_words = Set{Vector{UInt16}}()
+    for poly in basis2
+        for (_, mono) in poly
+            push!(result_words, UInt16[decode_operator_id(idx) for idx in mono.word])
+        end
+    end
+    @test result_words == Set([UInt16[1,1], UInt16[1,2], UInt16[2,1], UInt16[2,2]])
+end
+
+@testset "NCTSSOS Oracle: Site-aware simplification (two-site)" begin
+    @testset "UnipotentAlgebra" begin
+        reg, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 1:2)])
+        
+        # Same site, same var → cancels
+        @test isempty(simplify(U[1] * U[1]).word)
+        
+        # Same site, different vars → preserved
+        @test length(simplify(U[2] * U[1]).word) == 2
+        
+        # Cross-site pairs cancel after site-sorting
+        @test isempty(simplify(V[1] * U[1] * V[1] * U[1]).word)
+    end
+    
+    @testset "ProjectorAlgebra" begin
+        reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
+        
+        # Same site, same var → collapses
+        @test length(simplify(P[1] * P[1]).word) == 1
+        
+        # Cross-site with idempotency
+        s = simplify(Q[1] * P[1] * Q[1] * P[1])
+        @test length(s.word) == 2
+        @test decode_site(s.word[1]) == 1
+        @test decode_site(s.word[2]) == 2
+    end
+end
+
+# =============================================================================
+# NCTSSOS Oracle Generation Script
+# =============================================================================
+#
+# Run this in NCTSSOS to regenerate expected values:
+#
+# ```julia
+# cd /Users/yushengzhao/projects/NCTSSOS && julia --project -e '
+# function _sym_canon(a::Vector{UInt16})
+#     i = 1
+#     while i <= Int(ceil((length(a)-1)/2))
+#         if a[i] < a[end+1-i]; return a
+#         elseif a[i] > a[end+1-i]; return reverse(a)
+#         else i += 1; end
+#     end
+#     return a
+# end
+# 
+# function _cyclic_canon(a::Vector{UInt16})
+#     isempty(a) && return a
+#     minimum([[a[i+1:end]; a[1:i]] for i=0:length(a)-1])
+# end
+# 
+# function constraint_reduce!(word; constraint="unipotent")
+#     i = 1
+#     while i < length(word)
+#         if word[i] == word[i+1]
+#             deleteat!(word, i)
+#             if constraint == "unipotent"
+#                 deleteat!(word, i)
+#                 i > 1 && (i -= 1)
+#             end
+#         else i += 1; end
+#     end
+#     return word
+# end
+# 
+# function get_ncbasis(n, d)
+#     basis = [UInt16[]]
+#     for i = 1:d
+#         for word in get_ncbasis(n, i-1)[2:end], idx in 1:n
+#             push!(basis, [word; idx])
+#         end
+#         for idx in 1:n; push!(basis, UInt16[idx]); end
+#     end
+#     return basis
+# end
+# 
+# # Generate test data
+# for w in [UInt16[1,2,3], UInt16[3,2,1], ...]
+#     println("(Int16\$w, Int16\$(_sym_canon(copy(w)))),")
+# end
+# '
+# ```
+# =============================================================================

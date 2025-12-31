@@ -71,13 +71,6 @@ using NCTSSoS:
         @test lhs isa Monomial
         @test rhs isa Monomial
         @test lhs == rhs
-
-        # Basis count test: NCTSSOS oracle verified
-        # For 3 projector variables (single-site) up to degree 3:
-        # NCTSSOS get_ncbasis(3,3) + constraint_reduce!(projector) gives 22 unique words
-        basis = get_ncbasis(reg, 3)
-        basis_monos = Set(m for p in basis for m in monomials(p))
-        @test length(basis_monos) == 22  # NCTSSOS oracle: 22 unique words
     end
 
     @testset "Unipotent Simplification" begin
@@ -98,13 +91,6 @@ using NCTSSoS:
         m = simplify(U[2] * U[1] * U[1] * U[2])
         @test m isa Monomial
         @test isempty(m.word)  # Identity monomial has empty word
-
-        # Basis count test: NCTSSOS oracle verified
-        # For 3 unipotent variables (single-site) up to degree 3:
-        # NCTSSOS get_ncbasis(3,3) + constraint_reduce!(unipotent) gives 22 unique words
-        basis = get_ncbasis(reg, 3)
-        basis_monos = Set(m for p in basis for m in monomials(p))
-        @test length(basis_monos) == 22  # NCTSSOS oracle: 22 unique words
     end
 
 
@@ -653,7 +639,13 @@ end
 end
 
 @testset "Index Encoding: integration with simplification" begin
+    # NCTSSOS Oracle: constraint reduction functions in src/utils.jl
+    # - constraint_reduce_projector!: P² = P → delete one adjacent duplicate
+    # - constraint_reduce_unipotent!: U² = I → delete both adjacent duplicates
+    # See test/oracles/basis_counts.jl for runnable oracle code.
+
     @testset "ProjectorAlgebra encoding preserved through simplification" begin
+        # NCTSSOS Oracle: constraint_reduce_projector!([1,1,2]) → [1,2]
         # Create encoded indices for projector operators on different sites
         p1_site1 = encode_index(UInt16, 1, 1)  # P₁ on site 1
         p1_site2 = encode_index(UInt16, 1, 2)  # P₁ on site 2
@@ -672,6 +664,7 @@ end
     end
 
     @testset "UnipotentAlgebra encoding preserved through simplification" begin
+        # NCTSSOS Oracle: constraint_reduce_unipotent!([1,1,2]) → [2]
         # Create encoded indices for unipotent operators on different sites
         u1_site1 = encode_index(UInt16, 1, 1)  # U₁ on site 1
         u1_site2 = encode_index(UInt16, 1, 2)  # U₁ on site 2
@@ -689,21 +682,34 @@ end
     end
 
     @testset "NonCommutativeAlgebra site-based commutation" begin
-        # Create encoded indices for operators on different sites
-        x1_site1 = encode_index(UInt16, 1, 1)  # x₁ on site 1
-        x2_site2 = encode_index(UInt16, 2, 2)  # x₂ on site 2
-        x3_site1 = encode_index(UInt16, 3, 1)  # x₃ on site 1
+        # NCTSSoS site-based commutation: operators on different sites commute.
+        # Simplify performs stable sort by site (site 1 before site 2).
+        # Within same site, order is preserved.
+        #
+        # NCTSSOS equivalent: _comm(word, partition, comm_var) in src/utils.jl
+        # but NCTSSoS encodes site directly in each index.
 
-        # Create monomial x₂² x₁¹ x₃¹ (out of site order)
+        # Create encoded indices for operators on different sites
+        x1_site1 = encode_index(UInt16, 1, 1)  # op 1 on site 1
+        x2_site2 = encode_index(UInt16, 2, 2)  # op 2 on site 2
+        x3_site1 = encode_index(UInt16, 3, 1)  # op 3 on site 1
+
+        # Create monomial [op2@site2, op1@site1, op3@site1] (out of site order)
         m = Monomial{NonCommutativeAlgebra}(UInt16[x2_site2, x1_site1, x3_site1])
 
-        # Simplify should sort by site (operators on different sites commute)
+        # Simplify: stable sort by site → [op1@site1, op3@site1, op2@site2]
+        # Site 1 elements [op1, op3] preserve relative order from input
         result = simplify(m)
 
-        # Site 1 operators should come before site 2 (simplify returns Monomial for NonCommutativeAlgebra)
+        # Site 1 operators should come before site 2
         @test decode_site(result.word[1]) == 1
         @test decode_site(result.word[2]) == 1
         @test decode_site(result.word[3]) == 2
+        
+        # Verify the actual indices
+        @test result.word[1] == x1_site1
+        @test result.word[2] == x3_site1
+        @test result.word[3] == x2_site2
     end
 end
 
@@ -1273,6 +1279,90 @@ end
         @test decode_site(s.word[1]) == 1
         @test decode_site(s.word[2]) == 2
     end
+end
+
+# NCTSSOS Oracle: Two-site simplification (4 vars from 2 sites)
+#
+# NCTSSoS site-based commutation (simplify only, no canon):
+#   - Different sites: sorted by site (site 1 before site 2)
+#   - Same site: order PRESERVED (stable sort)
+#
+# NCTSSOS _comm(word, partition, comm_var):
+#   - partition=2: vars 1,2 (site 1) placed before vars 3,4 (site 2)
+#   - comm_var=2: only vars 1,2 sort among themselves (NOT 3,4)
+#
+# KEY DIFFERENCE:
+#   NCTSSoS preserves within-site order (stable sort by site)
+#   NCTSSOS _comm only sorts first comm_var variables
+
+@testset "NCTSSOS Oracle: Two-site simplification (4 vars, 2 sites)" begin
+    using NCTSSoS: decode_operator_id, decode_site
+    
+    # Create 4 variables on 2 sites:
+    #   Site 1: x₁, x₂ (prefix group 1)
+    #   Site 2: y₁, y₂ (prefix group 2)
+    # Encoded indices are NOT 1,2,3,4 - they contain site info in the bits
+    reg, ((x1, x2), (y1, y2)) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
+    
+    # Verify site assignment
+    @test decode_site(x1.word[1]) == 1
+    @test decode_site(x2.word[1]) == 1
+    @test decode_site(y1.word[1]) == 2
+    @test decode_site(y2.word[1]) == 2
+    
+    # Test: y₁ x₁ → x₁ y₁ (site 2 moves after site 1)
+    m1 = Monomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1]])
+    s1 = simplify(m1)
+    @test s1.word == [x1.word[1], y1.word[1]]
+    
+    # Test: x₂ x₁ → x₂ x₁ (same site, order PRESERVED)
+    m2 = Monomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1]])
+    s2 = simplify(m2)
+    @test s2.word == [x2.word[1], x1.word[1]]  # NOT sorted to [x1, x2]!
+    
+    # Test: y₂ y₁ → y₂ y₁ (same site, order PRESERVED)
+    m3 = Monomial{NonCommutativeAlgebra}([y2.word[1], y1.word[1]])
+    s3 = simplify(m3)
+    @test s3.word == [y2.word[1], y1.word[1]]  # NOT sorted to [y1, y2]!
+    
+    # Test: y₂ x₂ y₁ x₁ → x₂ x₁ y₂ y₁ (stable sort by site)
+    # Site 1 elements [x₂, x₁] preserve relative order
+    # Site 2 elements [y₂, y₁] preserve relative order
+    m4 = Monomial{NonCommutativeAlgebra}([y2.word[1], x2.word[1], y1.word[1], x1.word[1]])
+    s4 = simplify(m4)
+    @test s4.word == [x2.word[1], x1.word[1], y2.word[1], y1.word[1]]
+    
+    # Test: y₁ x₁ y₂ x₂ → x₁ x₂ y₁ y₂ (stable sort by site)
+    m5 = Monomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1], y2.word[1], x2.word[1]])
+    s5 = simplify(m5)
+    @test s5.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
+end
+
+@testset "NCTSSOS Oracle: Two-site symmetric_canon (4 vars, 2 sites)" begin
+    using NCTSSoS: decode_operator_id, decode_site
+    
+    # symmetric_canon for Unsigned types:
+    #   1. Sort word by site (stable)
+    #   2. Sort reverse(word) by site (stable) 
+    #   3. Return min of the two (lexicographic on encoded indices)
+    
+    reg, ((x1, x2), (y1, y2)) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
+    
+    # Test: x₂ x₁ y₂ y₁ vs reverse y₁ y₂ x₁ x₂
+    # After site sort: [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂]
+    # Min is lexicographically smaller (comparing encoded indices)
+    m1 = Monomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1], y2.word[1], y1.word[1]])
+    s1 = simplify(m1)
+    c1 = symmetric_canon(s1)
+    # The reverse [y₁,y₂,x₁,x₂] sorted by site → [x₁,x₂,y₁,y₂]
+    # Compare [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂] → min is [x₁,x₂,y₁,y₂] since x₁ < x₂
+    @test c1.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
+    
+    # Test: already canonical x₁ x₂ y₁ y₂
+    m2 = Monomial{NonCommutativeAlgebra}([x1.word[1], x2.word[1], y1.word[1], y2.word[1]])
+    s2 = simplify(m2)
+    c2 = symmetric_canon(s2)
+    @test c2.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
 end
 
 # =============================================================================

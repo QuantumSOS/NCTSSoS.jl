@@ -702,4 +702,149 @@ using NCTSSoS: variable_indices
         @test coeffs2[m1_idx] == -3.0
         @test coeffs2[m2_idx2] == 1.0
     end
+
+    @testset "isless(Polynomial, Polynomial) - Graded Lex Ordering" begin
+        # isless compares polynomials for sorting:
+        # 1. Fewer terms comes first
+        # 2. For same number of terms, compare term-by-term by monomial
+
+        # Test 1: Different number of terms - fewer terms first
+        m1 = Monomial{NonCommutativeAlgebra}([1])
+        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m3 = Monomial{NonCommutativeAlgebra}([3])
+
+        p_one_term = Polynomial([Term(1.0, m1)])
+        p_two_terms = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p_three_terms = Polynomial([Term(1.0, m1), Term(2.0, m2), Term(3.0, m3)])
+
+        @test isless(p_one_term, p_two_terms)
+        @test isless(p_two_terms, p_three_terms)
+        @test isless(p_one_term, p_three_terms)
+
+        # Test 2: Same number of terms - compare by monomial (lexicographic)
+        # Monomials: [1] < [2] < [3] (by lexicographic order)
+        p_m1 = Polynomial([Term(1.0, m1)])
+        p_m2 = Polynomial([Term(1.0, m2)])
+        p_m3 = Polynomial([Term(1.0, m3)])
+
+        @test isless(p_m1, p_m2)
+        @test isless(p_m2, p_m3)
+        @test isless(p_m1, p_m3)
+
+        # Test 3: Same first term, different second term
+        p_12 = Polynomial([Term(1.0, m1), Term(1.0, m2)])
+        p_13 = Polynomial([Term(1.0, m1), Term(1.0, m3)])
+        @test isless(p_12, p_13)  # [1,2] < [1,3] because m2 < m3
+
+        # Test 4: Equal polynomials - isless returns false
+        p_same1 = Polynomial([Term(2.0, m1)])
+        p_same2 = Polynomial([Term(2.0, m1)])
+        @test !isless(p_same1, p_same2)
+        @test !isless(p_same2, p_same1)
+
+        # Test 5: Zero polynomial (no terms) should come first
+        p_zero = zero(Polynomial{NonCommutativeAlgebra,Int64,Float64})
+        @test isless(p_zero, p_one_term)
+        @test !isless(p_one_term, p_zero)
+
+        # Test 6: Graded ordering - degree-first for monomials affects polynomial ordering
+        m_deg1 = Monomial{NonCommutativeAlgebra}([1])       # degree 1
+        m_deg2 = Monomial{NonCommutativeAlgebra}([1, 2])    # degree 2
+        p_deg1 = Polynomial([Term(1.0, m_deg1)])
+        p_deg2 = Polynomial([Term(1.0, m_deg2)])
+        @test isless(p_deg1, p_deg2)  # Monomial with lower degree < higher degree
+
+        # Test 7: Sorting a vector of polynomials
+        polynomials = [p_three_terms, p_one_term, p_two_terms]
+        sorted_polys = sort(polynomials)
+        @test sorted_polys[1] == p_one_term
+        @test sorted_polys[2] == p_two_terms
+        @test sorted_polys[3] == p_three_terms
+    end
+
+    @testset "convert(Polynomial{A,T,C2}, p) - Coefficient Type Conversion" begin
+        # Test 1: Int to Float64
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        p_int = Polynomial([Term{Monomial{NonCommutativeAlgebra,UInt8},Int}(2, m)])
+        p_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_int)
+
+        @test p_float isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
+        @test coefficients(p_float)[1] === 2.0
+        @test monomials(p_float)[1] == m
+
+        # Test 2: Float64 to ComplexF64
+        p_real = Polynomial([Term(3.0, m)])
+        p_complex = convert(Polynomial{NonCommutativeAlgebra,UInt8,ComplexF64}, p_real)
+
+        @test p_complex isa Polynomial{NonCommutativeAlgebra,UInt8,ComplexF64}
+        @test coefficients(p_complex)[1] === 3.0 + 0.0im
+
+        # Test 3: Identity conversion (no-op)
+        p_float64 = Polynomial([Term(5.0, m)])
+        p_same = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_float64)
+        @test p_same === p_float64  # Should return the same object
+
+        # Test 4: Multiple terms conversion
+        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        m2 = Monomial{NonCommutativeAlgebra}(UInt8[2])
+        p_multi_int = Polynomial([
+            Term{Monomial{NonCommutativeAlgebra,UInt8},Int}(2, m1),
+            Term{Monomial{NonCommutativeAlgebra,UInt8},Int}(3, m2)
+        ])
+        p_multi_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_multi_int)
+
+        @test length(terms(p_multi_float)) == 2
+        @test all(c isa Float64 for c in coefficients(p_multi_float))
+        @test coefficients(p_multi_float) == [2.0, 3.0]
+
+        # Test 5: Zero polynomial conversion
+        p_zero_int = Polynomial{NonCommutativeAlgebra,UInt8,Int}(Term{Monomial{NonCommutativeAlgebra,UInt8},Int}[])
+        p_zero_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_zero_int)
+        @test iszero(p_zero_float)
+        @test p_zero_float isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
+
+        # Test 6: Pauli algebra conversion (ComplexF64 to other complex types)
+        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        p_pauli = Polynomial([Term(1.0 + 2.0im, m_pauli)])
+        # Convert to ComplexF32 (narrower precision)
+        p_pauli_f32 = convert(Polynomial{PauliAlgebra,Int64,ComplexF32}, p_pauli)
+        @test p_pauli_f32 isa Polynomial{PauliAlgebra,Int64,ComplexF32}
+        @test coefficients(p_pauli_f32)[1] ≈ ComplexF32(1.0 + 2.0im)
+    end
+
+    @testset "coeff_type - Coefficient Type Accessor" begin
+        # Test 1: From type
+        @test NCTSSoS.coeff_type(Polynomial{NonCommutativeAlgebra,Int64,Float64}) == Float64
+        @test NCTSSoS.coeff_type(Polynomial{PauliAlgebra,Int64,ComplexF64}) == ComplexF64
+        @test NCTSSoS.coeff_type(Polynomial{FermionicAlgebra,Int32,Float32}) == Float32
+
+        # Test 2: From instance
+        m = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        p_float = Polynomial([Term(2.0, m)])
+        @test NCTSSoS.coeff_type(p_float) == Float64
+
+        m_pauli = Monomial{PauliAlgebra}([1])
+        p_complex = Polynomial([Term(1.0 + 0.0im, m_pauli)])
+        @test NCTSSoS.coeff_type(p_complex) == ComplexF64
+
+        # Test 3: Zero polynomial preserves type
+        p_zero = zero(Polynomial{NonCommutativeAlgebra,Int64,Float64})
+        @test NCTSSoS.coeff_type(p_zero) == Float64
+
+        # Test 4: Integer coefficients
+        m_int = Monomial{NonCommutativeAlgebra}(UInt8[1])
+        p_int = Polynomial([Term{Monomial{NonCommutativeAlgebra,UInt8},Int}(5, m_int)])
+        @test NCTSSoS.coeff_type(p_int) == Int
+
+        # Test 5: Type consistency through operations
+        p1 = Polynomial([Term(1.0, m)])
+        p2 = Polynomial([Term(2.0, m)])
+        p_sum = p1 + p2
+        @test NCTSSoS.coeff_type(p_sum) == Float64
+
+        # Test 6: Type promotion through operations
+        p_int2 = Polynomial([Term{Monomial{NonCommutativeAlgebra,UInt8},Int}(3, m)])
+        p_promoted = p_float + p_int2
+        @test NCTSSoS.coeff_type(p_promoted) == Float64  # Int + Float64 → Float64
+    end
 end

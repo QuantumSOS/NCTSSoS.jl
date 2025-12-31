@@ -304,4 +304,42 @@ using NCTSSoS: ComposedMonomial
         t3 = 2.0 * t1
         @test t3.monomial === t1.monomial
     end
+
+    @testset "coeff_type" begin
+        using NCTSSoS: coeff_type
+
+        # Type-level dispatch (primary usage)
+        T_float = Term{Monomial{NonCommutativeAlgebra,Int},Float64}
+        @test coeff_type(T_float) === Float64
+
+        T_complex = Term{Monomial{PauliAlgebra,UInt16},ComplexF64}
+        @test coeff_type(T_complex) === ComplexF64
+
+        T_int = Term{Monomial{UnipotentAlgebra,Int32},Int}
+        @test coeff_type(T_int) === Int
+
+        # Instance-level dispatch
+        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        t_float = Term(2.5, m)
+        @test coeff_type(t_float) === Float64
+
+        t_complex = Term(1.0 + 2.0im, Monomial{PauliAlgebra}([1]))
+        @test coeff_type(t_complex) === ComplexF64
+
+        # After scalar multiplication (type promotion)
+        t_promoted = (1.0 + 0.0im) * t_float
+        @test coeff_type(t_promoted) === ComplexF64
+
+        # ComposedMonomial support
+        m_pauli = Monomial{PauliAlgebra,UInt16}(UInt16[1, 2])
+        m_fermi = Monomial{FermionicAlgebra,Int32}(Int32[1])
+        cm = ComposedMonomial((m_pauli, m_fermi))
+        CMType = typeof(cm)
+        T_composed = Term{CMType,ComplexF64}
+        @test coeff_type(T_composed) === ComplexF64
+
+        # Instance with ComposedMonomial
+        t_composed = Term(3.0 + 1.0im, cm)
+        @test coeff_type(t_composed) === ComplexF64
+    end
 end

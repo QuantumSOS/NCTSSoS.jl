@@ -119,8 +119,8 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
 
         # Objective is -4.0, NOT -2.828 (this is expected!)
         @test result.objective ≈ oracle.opt atol = 1e-6
-        # Structure may differ: check total number of blocks matches
-        @test length(flatten_sizes(result.moment_matrix_sizes)) == length(oracle.sides)
+        # Block order may differ: compare sorted block sizes
+        @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
         @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 

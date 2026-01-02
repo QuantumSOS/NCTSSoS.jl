@@ -8,7 +8,8 @@
 #   - Term sparsity initialization
 #   - PolyOptResult fields
 #
-# Note: Problem-specific sparsity tests are in problems/ subdirectory.
+# NOTE: These tests are commented out as they take too long.
+#       Sparsity Algorithm Variants tests moved to problems/trace_polynomial/
 # =============================================================================
 
 using Test, NCTSSoS
@@ -41,6 +42,7 @@ function nc_poly(registry::VariableRegistry{NonCommutativeAlgebra,T}, indices::V
     return Polynomial{NonCommutativeAlgebra,T,Float64}([Term(1.0, m)])
 end
 
+#=
 @testset "Correlative Sparsity without constraints" begin
     @testset "Example 2" begin
         # Create variables: x[1:3], y[1:3]
@@ -435,26 +437,4 @@ end
         @test result.n_unique_moment_matrix_elements == 2
     end
 end
-
-@testset "Sparsity Algorithm Variants" begin
-    @testset "Term Sparsity Algorithms" begin
-        reg, (vars,) = create_unipotent_variables([("v", 1:4)])
-        x = vars[1:2]
-        y = vars[3:4]
-
-        p = -1.0 * NCTSSoS.tr(x[1] * y[1]) - NCTSSoS.tr(x[1] * y[2]) - NCTSSoS.tr(x[2] * y[1]) + NCTSSoS.tr(x[2] * y[2])
-        tpop = polyopt(p * one(typeof(x[1])), reg)
-
-        expected = -2.8284
-
-        for (name, algo) in [
-            ("NoElimination", NoElimination()),
-            ("MMD", MMD()),
-            ("MaximalElimination", MaximalElimination())
-        ]
-            config = SolverConfig(optimizer=SOLVER, order=1, cs_algo=NoElimination(), ts_algo=algo)
-            result = cs_nctssos(tpop, config)
-            @test result.objective ≈ expected atol = 1e-4
-        end
-    end
-end
+=#

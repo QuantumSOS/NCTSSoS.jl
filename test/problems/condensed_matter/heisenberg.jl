@@ -5,7 +5,7 @@
 using Test, NCTSSoS
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "setup.jl"))
 
 @testset "XXX Model (N=6)" begin
     T = ComplexF64

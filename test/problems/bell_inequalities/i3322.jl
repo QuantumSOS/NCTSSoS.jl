@@ -56,6 +56,7 @@ const I3322_EXPECTED = -0.2508753049688358
         pop, _ = create_i3322_problem()
 
         @testset "Dense (No Sparsity)" begin
+            oracle = I3322_ORACLES["I3322_Dense_d2"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -63,10 +64,13 @@ const I3322_EXPECTED = -0.2508753049688358
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ -0.25 atol = 1e-2
+            @test result.objective ≈ oracle.opt atol = 1e-2
+            @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+            @test result.n_unique_moment_matrix_elements == oracle.nuniq
         end
 
         @testset "Correlative Sparsity (MF)" begin
+            oracle = I3322_ORACLES["I3322_CS_d2"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -74,9 +78,9 @@ const I3322_EXPECTED = -0.2508753049688358
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ -0.25 atol = 1e-2
-            # MF should give valid lower bound
-            @test result.objective < 0
+            @test result.objective ≈ oracle.opt atol = 1e-2
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
+            @test result.n_unique_moment_matrix_elements == oracle.nuniq
         end
     end
 
@@ -86,38 +90,46 @@ const I3322_EXPECTED = -0.2508753049688358
     @testset "Correlative Sparsity Algorithms" begin
         pop, _ = create_i3322_problem()
 
+        oracle_dense = I3322_ORACLES["I3322_Dense_d2"]
+        oracle_cs = I3322_ORACLES["I3322_CS_d2"]
+
+        dense_config = SolverConfig(
+            optimizer=SOLVER,
+            order=2,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
+        )
+        dense_result = cs_nctssos(pop, dense_config)
+
         @testset "NoElimination (dense)" begin
-            config = SolverConfig(
-                optimizer=SOLVER,
-                order=2,
-                cs_algo=NoElimination(),
-                ts_algo=NoElimination()
-            )
-            result = cs_nctssos(pop, config)
-            @test result.objective ≈ -0.25 atol = 1e-2
+            @test dense_result.objective ≈ oracle_dense.opt atol = 1e-2
+            @test flatten_sizes(dense_result.moment_matrix_sizes) == oracle_dense.sides
+            @test dense_result.n_unique_moment_matrix_elements == oracle_dense.nuniq
         end
 
         @testset "MF" begin
-            config = SolverConfig(
+            mf_config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
                 cs_algo=MF(),
                 ts_algo=NoElimination()
             )
-            result = cs_nctssos(pop, config)
-            @test result.objective ≈ -0.25 atol = 1e-2
+            mf_result = cs_nctssos(pop, mf_config)
+            @test mf_result.objective ≈ oracle_cs.opt atol = 1e-2
+            @test sort(flatten_sizes(mf_result.moment_matrix_sizes)) == sort(oracle_cs.sides)
+            @test mf_result.n_unique_moment_matrix_elements == oracle_cs.nuniq
         end
 
         @testset "AsIsElimination" begin
-            config = SolverConfig(
+            asis_config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
                 cs_algo=AsIsElimination(),
                 ts_algo=NoElimination()
             )
-            result = cs_nctssos(pop, config)
-            # AsIsElimination can give looser bounds
-            @test result.objective < 0
+            asis_result = cs_nctssos(pop, asis_config)
+            # AsIsElimination can give looser (more negative) bounds than dense
+            @test asis_result.objective <= dense_result.objective + 1e-6
         end
     end
 

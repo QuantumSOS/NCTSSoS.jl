@@ -13,7 +13,7 @@ using NCTSSoS, Test
 using JuMP
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "setup.jl"))
 
 """
     parse_bell_equation(eq_str::String, X::Vector, Y::Vector) -> Polynomial

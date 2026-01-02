@@ -5,7 +5,7 @@
 # Includes:
 #   - PolyOpt constructor tests
 #   - StatePolyOpt constructor tests
-#   - Basic solver integration tests
+#   - Basic dualization tests
 #
 # Note: Problem-specific optimization tests are in problems/ subdirectory.
 # =============================================================================
@@ -210,97 +210,36 @@ end
 end
 
 # =============================================================================
-# Basic Solver Integration Tests
+# Basic Dualization Tests
 # =============================================================================
 
-@testset "Naive Example" begin
-    N = 1
-    registry, (sx, sy, sz) = create_pauli_variables(1:N)
-
-    ham = sum(ComplexF64(1 / 2) * op[1] for op in [sx, sy, sz])
-
-    pop = polyopt(ham, registry)
-
-    solver_config = SolverConfig(optimizer=SOLVER, order=1)
-
-    # Both dualize=true and dualize=false now work for complex (Pauli) algebra
-    res_mom = cs_nctssos(pop, solver_config; dualize=false)
-    res_sos = cs_nctssos(pop, solver_config; dualize=true)
-    # Both should give the same result
-    @test res_mom.objective ≈ res_sos.objective atol = 1e-6
-    @test res_sos.objective ≈ -0.8660254037844387 atol = 1e-6
-end
-
-if USE_LOCAL
-    @testset "1D Transverse Field Ising Model" begin
-        N = 3
+@testset "Dualization" begin
+    @testset "Naive Example" begin
+        N = 1
         registry, (sx, sy, sz) = create_pauli_variables(1:N)
 
-        J = 1.0
-        h = 2.0
-        for (periodic, true_ans) in zip((true, false), (-1.0175918, -1.0104160))
-            ham = sum(-complex(J / 4) * sz[i] * sz[mod1(i + 1, N)] for i in 1:(periodic ? N : N - 1)) + sum(-h / 2 * sx[i] for i in 1:N)
-
-            pop = polyopt(ham, registry)
-
-            solver_config = SolverConfig(optimizer=SOLVER, order=2)
-
-            res = cs_nctssos(pop, solver_config)
-            @test res.objective / N ≈ true_ans atol = 1e-6
-        end
-    end
-
-    @testset "1D Heisenberg Chain" begin
-        N = 6
-        registry, (sx, sy, sz) = create_pauli_variables(1:N)
-
-        ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [sx, sy, sz] for i in 1:N)
+        ham = sum(ComplexF64(1 / 2) * op[1] for op in [sx, sy, sz])
 
         pop = polyopt(ham, registry)
 
-        solver_config = SolverConfig(optimizer=SOLVER, order=2)
+        solver_config = SolverConfig(optimizer=SOLVER, order=1)
 
-        res = cs_nctssos(pop, solver_config)
-
-        @test res.objective / N ≈ -0.467129 atol = 1e-6
+        # Both dualize=true and dualize=false now work for complex (Pauli) algebra
+        res_mom = cs_nctssos(pop, solver_config; dualize=false)
+        res_sos = cs_nctssos(pop, solver_config; dualize=true)
+        # Both should give the same result
+        @test res_mom.objective ≈ res_sos.objective atol = 1e-6
+        @test res_sos.objective ≈ -0.8660254037844387 atol = 1e-6
     end
-end
 
-@testset "Dualization Trivial Example" begin
-    n = 2
-    true_min = 3.0
-    registry, (x,) = create_noncommutative_variables([("x", 1:n)])
-
-    f = x[1]^2 + x[1] * x[2] + x[2] * x[1] + x[2]^2 + true_min
-
-    pop = polyopt(f, registry)
-    order = 2
-
-    solver_config = SolverConfig(
-        optimizer=SOLVER,
-        order=order
-    )
-
-    result = cs_nctssos(pop, solver_config; dualize=true)
-
-    @test isapprox(result.objective, true_min, atol=1e-6)
-end
-
-# This test requires high precision solver - COSMO gives Inf for one method
-if USE_LOCAL
-    @testset "Dualization Trivial Example 2" begin
+    @testset "Trivial Example" begin
         n = 2
         true_min = 3.0
         registry, (x,) = create_noncommutative_variables([("x", 1:n)])
 
         f = x[1]^2 + x[1] * x[2] + x[2] * x[1] + x[2]^2 + true_min
-        r = -10.0
-        g1 = r - x[1]
-        g2 = r - x[2]
-        g3 = x[1] - r
-        g4 = x[2] - r
 
-        pop = polyopt(f, registry; ineq_constraints=[g1, g2, g3, g4])
+        pop = polyopt(f, registry)
         order = 2
 
         solver_config = SolverConfig(
@@ -308,9 +247,37 @@ if USE_LOCAL
             order=order
         )
 
-        result_mom = cs_nctssos(pop, solver_config; dualize=false)
-        result_sos = cs_nctssos(pop, solver_config; dualize=true)
+        result = cs_nctssos(pop, solver_config; dualize=true)
 
-        @test isapprox(result_mom.objective, result_sos.objective, atol=1e-3)
+        @test isapprox(result.objective, true_min, atol=1e-6)
+    end
+
+    # This test requires high precision solver - COSMO gives Inf for one method
+    if USE_LOCAL
+        @testset "With Constraints" begin
+            n = 2
+            true_min = 3.0
+            registry, (x,) = create_noncommutative_variables([("x", 1:n)])
+
+            f = x[1]^2 + x[1] * x[2] + x[2] * x[1] + x[2]^2 + true_min
+            r = -10.0
+            g1 = r - x[1]
+            g2 = r - x[2]
+            g3 = x[1] - r
+            g4 = x[2] - r
+
+            pop = polyopt(f, registry; ineq_constraints=[g1, g2, g3, g4])
+            order = 2
+
+            solver_config = SolverConfig(
+                optimizer=SOLVER,
+                order=order
+            )
+
+            result_mom = cs_nctssos(pop, solver_config; dualize=false)
+            result_sos = cs_nctssos(pop, solver_config; dualize=true)
+
+            @test isapprox(result_mom.objective, result_sos.objective, atol=1e-3)
+        end
     end
 end

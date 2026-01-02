@@ -164,8 +164,8 @@ end
                 @test_skip obj = tester(i,instance, equations, d, github_filenames, ms,ns)  # Skipped pending investigation
             else
                 obj = tester(i,instance, equations, d, github_filenames,ms,ns)  # Skipped pending investigation
-                @test isapprox(obj,λd[i]; atol = 1e-5)
-                if ! isapprox(obj,λd[i]; atol = 1e-5)
+                @test isapprox(obj,λd[i]; atol = 1e-6)
+                if ! isapprox(obj,λd[i]; atol = 1e-6)
                     @show "$(instance[i]) failed with $obj, expecting $(λd[i])"
                 end
             end

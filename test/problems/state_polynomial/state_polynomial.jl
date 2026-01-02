@@ -67,7 +67,7 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracle_ts.opt atol = 1e-2
+            @test result.objective ≈ oracle_ts.opt atol = 1e-6
         end
     end
 

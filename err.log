@@ -1,5 +1,0 @@
-INFO  2025-12-29T14:02:29 +793ms service=default version=1.0.207 args=["--log-level","INFO","--print-logs"] opencode
-INFO  2025-12-29T14:02:29 +1ms service=config path=/Users/yushengzhao/.config/opencode/config.json loading
-INFO  2025-12-29T14:02:29 +1ms service=config path=/Users/yushengzhao/.config/opencode/opencode.json loading
-INFO  2025-12-29T14:02:29 +13ms service=config path=/Users/yushengzhao/.config/opencode/opencode.jsonc loading
-INFO  2025-12-29T15:02:29 +3599430ms service=models.dev file={} refreshing

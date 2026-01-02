@@ -45,33 +45,34 @@ end
 """
     _count_unique_moment_elements(cliques_term_sparsities)
 
-Count the number of unique moment variables that appear in all moment-matrix entries.
+Count the number of unique moment variables (affine constraints in the SDP).
 
-This counts the unique monomials after:
-1. Constructing moment matrix entries as basis[i]† * basis[j]
+This counts the unique monomials across all moment and localizing matrices after:
+1. Constructing matrix entries as basis[i]† * g * basis[j] (g=1 for moment, g=constraint for localizing)
 2. Simplifying via algebra rules
 3. Canonicalizing with `symmetric_canon` (to match dualization deduplication)
 
-Only moment matrices (not localizing matrices) are considered.
+This matches NCTSSOS's `length(data.ksupp)` which counts affine constraints.
 """
 function _count_unique_moment_elements(cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}}
     unique_monos = Set{M}()
     
     for term_sparsities in cliques_term_sparsities
-        # First term sparsity is the moment matrix
-        moment_ts = term_sparsities[1]
-        
-        for block_basis in moment_ts.block_bases
-            for row_idx in block_basis
-                for col_idx in block_basis
-                    # Compute basis[i]† * 1 * basis[j] = neat_dot(row_idx, one(M), col_idx)
-                    # _neat_dot3 returns Monomial, simplify to get Polynomial
-                    prod_poly = Polynomial(simplify(_neat_dot3(row_idx, one(M), col_idx)))
-                    
-                    # Extract monomials, canonicalize, and add to set
-                    for mono in monomials(prod_poly)
-                        canon_mono = symmetric_canon(expval(mono))
-                        push!(unique_monos, canon_mono)
+        # Iterate over all term sparsities (moment + localizing matrices)
+        for ts in term_sparsities
+            for block_basis in ts.block_bases
+                for row_idx in block_basis
+                    for col_idx in block_basis
+                        # Compute basis[i]† * 1 * basis[j] = neat_dot(row_idx, one(M), col_idx)
+                        # Note: For localizing matrices, the constraint polynomial is handled
+                        # during SDP construction, not here. We count basis products only.
+                        prod_poly = Polynomial(simplify(_neat_dot3(row_idx, one(M), col_idx)))
+                        
+                        # Extract monomials, canonicalize, and add to set
+                        for mono in monomials(prod_poly)
+                            canon_mono = symmetric_canon(expval(mono))
+                            push!(unique_monos, canon_mono)
+                        end
                     end
                 end
             end

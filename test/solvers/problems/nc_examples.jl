@@ -17,6 +17,8 @@ using Test, NCTSSoS
 @isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
 
 # Load oracle values
+include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "example1_oracles.jl"))
+include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "corr_sparsity_oracles.jl"))
 include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "cs_ts_n10_oracles.jl"))
 
 # Helper: flatten moment_matrix_sizes for comparison with oracle
@@ -26,6 +28,8 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
 
     # =========================================================================
     # Example 1: Unconstrained NC polynomial
+    # =========================================================================
+    # Validated against NCTSSOS oracles: Example1_Dense_d2, Example1_TS_d2
     # =========================================================================
     @testset "Example 1 (unconstrained)" begin
         n = 3
@@ -39,15 +43,19 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
 
         pop = polyopt(f, reg)
 
-        @testset "Dense (Moment)" begin
+        @testset "Dense (order=2)" begin
+            oracle = EXAMPLE1_ORACLES["Example1_Dense_d2"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
-                cs_algo=NoElimination()
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config; dualize=false)
             # Mosek achieves 3.23e-8 error, COSMO needs 1e-5 tolerance
-            @test result.objective ≈ 0.0 atol = 1e-5
+            @test result.objective ≈ oracle.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+            @test result.n_unique_moment_matrix_elements == oracle.nuniq
         end
 
         @testset "Dense (SOS)" begin
@@ -59,15 +67,18 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             @test result.objective ≈ 0.0 atol = 1e-6
         end
 
-        @testset "Term Sparsity (MMD)" begin
+        @testset "Term Sparsity MMD (order=2)" begin
+            oracle = EXAMPLE1_ORACLES["Example1_TS_d2"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
+                cs_algo=NoElimination(),
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config; dualize=false)
-            # Term sparsity gives a weaker bound (-0.0035512 vs 0.0 dense)
-            @test result.objective ≈ -0.0035512 atol = 1e-4
+            @test result.objective ≈ oracle.opt atol = 1e-4
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
+            @test result.n_unique_moment_matrix_elements == oracle.nuniq
         end
     end
 
@@ -133,6 +144,8 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
     # =========================================================================
     # Correlative Sparsity Example (n=3 with constraints)
     # =========================================================================
+    # Validated against NCTSSOS oracles: CorrSparsity_CS_d3, CorrSparsity_TS_d3
+    # =========================================================================
     @testset "Correlative Sparsity" begin
         n = 3
         reg, (x,) = create_noncommutative_variables([("x", 1:n)])
@@ -146,47 +159,56 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         cons = vcat([1.0 - x[i]^2 for i = 1:n], [x[i] - 1.0 / 3 for i = 1:n])
         pop = polyopt(f, reg; ineq_constraints=cons)
 
-        expected = 0.9975306427277915
-
-        @testset "Correlative Sparsity (Moment)" begin
+        @testset "CS MF (order=3)" begin
+            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_CS_d3"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
-                cs_algo=MF()
+                cs_algo=MF(),
+                ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config; dualize=false)
-            @test result.objective ≈ expected atol = 1e-5
+            @test result.objective ≈ oracle.opt atol = 1e-5
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
+            @test result.n_unique_moment_matrix_elements == oracle.nuniq
         end
 
-        @testset "Correlative Sparsity (SOS)" begin
+        @testset "CS MF (SOS)" begin
+            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_CS_d3"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
                 cs_algo=MF()
             )
             result = cs_nctssos(pop, config; dualize=true)
-            @test result.objective ≈ expected atol = 1e-5
+            @test result.objective ≈ oracle.opt atol = 1e-5
         end
 
-        @testset "Term Sparsity (Moment)" begin
+        @testset "TS MMD (order=3)" begin
+            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_TS_d3"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
+                cs_algo=NoElimination(),
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config; dualize=false)
             result = cs_nctssos_higher(pop, result, config; dualize=false)
-            @test result.objective ≈ expected atol = 1e-5
+            @test result.objective ≈ oracle.opt atol = 1e-5
+            # Block structure validated after higher iteration
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
+            @test result.n_unique_moment_matrix_elements == oracle.nuniq
         end
 
-        @testset "Term Sparsity (SOS)" begin
+        @testset "TS MMD (SOS)" begin
+            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_TS_d3"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config; dualize=true)
-            @test result.objective ≈ expected atol = 1e-4
+            @test result.objective ≈ oracle.opt atol = 1e-4
         end
     end
 

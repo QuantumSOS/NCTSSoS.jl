@@ -605,6 +605,53 @@ end
     end
 end
 
+@testset "PolyOptResult Fields" begin
+    @testset "moment_matrix_sizes and n_unique_moment_matrix_elements" begin
+        # Tiny unipotent problem with fully connected moment graph
+        # Use objective that includes both u[1] and u[2] to ensure full basis
+        reg, (u,) = create_unipotent_variables([("u", 1:2)])
+        
+        # Objective includes both u[1] and u[2] to ensure full basis is used
+        f = 1.0 * u[1] * u[2]
+        pop = polyopt(f, reg)
+        
+        # Use order=1 with no sparsity exploitation for predictable structure
+        config = SolverConfig(optimizer=SOLVER, order=1, 
+                             cs_algo=NoElimination(), ts_algo=NoElimination())
+        result = cs_nctssos(pop, config)
+        
+        # With 2 variables at order=1:
+        # Basis is {1, u[1], u[2]} (3 elements)
+        # Moment matrix is 3x3, so sizes should be [[3]]
+        @test result.moment_matrix_sizes == [[3]]
+        
+        # Unique moment elements: from basis[i]† * basis[j]
+        # After symmetric_canon, we get unique monomials:
+        # 1*1=1, 1*u[1]=u[1], 1*u[2]=u[2], u[1]*1=u[1], u[1]*u[1]=1 (u[1]^2=1), 
+        # u[1]*u[2]=u[1]u[2], u[2]*1=u[2], u[2]*u[1]=u[2]u[1]->u[1]u[2] (symmetric), u[2]*u[2]=1
+        # Unique after canon: 1, u[1], u[2], u[1]u[2]
+        @test result.n_unique_moment_matrix_elements == 4
+    end
+    
+    @testset "minimal single variable" begin
+        # Even simpler: single variable
+        reg, (u,) = create_unipotent_variables([("u", 1:1)])
+        f = 1.0 * u[1]
+        pop = polyopt(f, reg)
+        
+        config = SolverConfig(optimizer=SOLVER, order=1,
+                             cs_algo=NoElimination(), ts_algo=NoElimination())
+        result = cs_nctssos(pop, config)
+        
+        # With 1 variable at order=1: basis = {1, u[1]}, size = 2
+        @test result.moment_matrix_sizes == [[2]]
+        
+        # Moment entries: 1*1=1, 1*u[1]=u[1], u[1]*1=u[1], u[1]*u[1]=1
+        # Unique after canon: {1, u[1]}
+        @test result.n_unique_moment_matrix_elements == 2
+    end
+end
+
 @testset "Sparsity Algorithm Variants" begin
     @testset "Correlative Sparsity Algorithms" begin
         reg, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])

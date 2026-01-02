@@ -15,12 +15,95 @@ Result of a polynomial optimization problem solution.
 - `corr_sparsity::CorrelativeSparsity{A,TI,P,M}`: Correlative sparsity structure
 - `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity for each clique
 - `model::GenericModel{T}`: JuMP model used for solving
+- `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix
+- `n_unique_moment_matrix_elements::Int`: Number of unique moment variables in all moment matrices (after canonicalization)
 """
 struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
     objective::T
     corr_sparsity::CorrelativeSparsity{A,TI,P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
+    moment_matrix_sizes::Vector{Vector{Int}}
+    n_unique_moment_matrix_elements::Int
+end
+
+"""
+    _compute_moment_matrix_sizes(cliques_term_sparsities)
+
+Compute the block sizes of the moment matrix for each clique.
+
+Returns a `Vector{Vector{Int}}` where each element is the vector of block sizes
+for a clique's moment matrix (from `term_sparsity.block_bases` for the first
+term sparsity, which corresponds to the moment matrix).
+"""
+function _compute_moment_matrix_sizes(cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {M}
+    map(cliques_term_sparsities) do ts
+        length.(ts[1].block_bases)
+    end
+end
+
+"""
+    _count_unique_moment_elements(cliques_term_sparsities)
+
+Count the number of unique moment variables that appear in all moment-matrix entries.
+
+This counts the unique monomials after:
+1. Constructing moment matrix entries as basis[i]† * basis[j]
+2. Simplifying via algebra rules
+3. Canonicalizing with `symmetric_canon` (to match dualization deduplication)
+
+Only moment matrices (not localizing matrices) are considered.
+"""
+function _count_unique_moment_elements(cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}}
+    unique_monos = Set{M}()
+    
+    for term_sparsities in cliques_term_sparsities
+        # First term sparsity is the moment matrix
+        moment_ts = term_sparsities[1]
+        
+        for block_basis in moment_ts.block_bases
+            for row_idx in block_basis
+                for col_idx in block_basis
+                    # Compute basis[i]† * 1 * basis[j] = neat_dot(row_idx, one(M), col_idx)
+                    # _neat_dot3 returns Monomial, simplify to get Polynomial
+                    prod_poly = Polynomial(simplify(_neat_dot3(row_idx, one(M), col_idx)))
+                    
+                    # Extract monomials, canonicalize, and add to set
+                    for mono in monomials(prod_poly)
+                        canon_mono = symmetric_canon(expval(mono))
+                        push!(unique_monos, canon_mono)
+                    end
+                end
+            end
+        end
+    end
+    
+    return length(unique_monos)
+end
+
+"""
+    PolyOptResult(objective, corr_sparsity, cliques_term_sparsities, model)
+
+Backwards-compatible constructor that computes the additional fields
+`moment_matrix_sizes` and `n_unique_moment_matrix_elements` automatically.
+"""
+function PolyOptResult(
+    objective::T,
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+    model::GenericModel{T}
+) where {T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+    moment_matrix_sizes = _compute_moment_matrix_sizes(cliques_term_sparsities)
+    n_unique = _count_unique_moment_elements(cliques_term_sparsities)
+    
+    return PolyOptResult{T,A,TI,P,M}(
+        objective,
+        corr_sparsity,
+        cliques_term_sparsities,
+        model,
+        moment_matrix_sizes,
+        n_unique
+    )
 end
 
 function Base.show(io::IO, result::PolyOptResult)
@@ -29,6 +112,7 @@ function Base.show(io::IO, result::PolyOptResult)
     println(io, "Term Sparsity:")
     for (i, sparsities) in enumerate(result.cliques_term_sparsities)
         println(io, "Clique $i:")
+        println(io, "   Moment Matrix Block Sizes: ", result.moment_matrix_sizes[i])
         println(io, "   Moment Matrix:")
         println(io, sparsities[1])
         println(io, "   Localizing Matrix:")
@@ -36,6 +120,7 @@ function Base.show(io::IO, result::PolyOptResult)
             show(io, sparsity)
         end
     end
+    println(io, "Unique Moment Matrix Elements: ", result.n_unique_moment_matrix_elements)
 end
 
 """

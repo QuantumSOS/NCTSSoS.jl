@@ -8,6 +8,7 @@
 #
 # The Heisenberg model on a star graph with singlet projection constraints.
 # Expected optimal value: -1.0 (ground state energy per edge)
+# Results verified against NCTSSOS oracles.
 # =============================================================================
 
 using Test, NCTSSoS
@@ -15,6 +16,12 @@ using Graphs
 
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
+
+# Load oracle values
+include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "heisenberg_star_oracles.jl"))
+
+# Helper: flatten moment_matrix_sizes for comparison with oracle
+flatten_sizes(sizes) = reduce(vcat, sizes)
 
 const HEISENBERG_STAR_EXPECTED = -1.0
 
@@ -50,19 +57,67 @@ const HEISENBERG_STAR_EXPECTED = -1.0
     end
 
     # =========================================================================
-    # Moment Method (n=10)
+    # Dense (No Sparsity, n=10) - HeisenbergStar_Dense_n10_d1
     # =========================================================================
-    @testset "Moment Method (n=10)" begin
+    @testset "Dense (n=10, order=1)" begin
         pop, _ = create_heisenberg_star_problem(10)
+        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_Dense_n10_d1"]
 
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,
-            cs_algo=MF()
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
         )
 
         result = cs_nctssos(pop, config; dualize=false)
-        @test result.objective ≈ HEISENBERG_STAR_EXPECTED atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+    end
+
+    # =========================================================================
+    # Correlative Sparsity MF (n=10) - HeisenbergStar_CS_n10_d1
+    # =========================================================================
+    # NOTE: Block order may differ from NCTSSOS due to clique ordering.
+    # We compare sorted block sizes instead of exact order.
+    # =========================================================================
+    @testset "Correlative Sparsity MF (n=10, order=1)" begin
+        pop, _ = create_heisenberg_star_problem(10)
+        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_CS_n10_d1"]
+
+        config = SolverConfig(
+            optimizer=SOLVER,
+            order=1,
+            cs_algo=MF(),
+            ts_algo=NoElimination()
+        )
+
+        result = cs_nctssos(pop, config; dualize=false)
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        # Block sizes match (order may differ due to clique enumeration)
+        @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+    end
+
+    # =========================================================================
+    # Dense (n=8) - HeisenbergStar_Dense_n8_n8_d1
+    # =========================================================================
+    @testset "Dense (n=8, order=1)" begin
+        pop, _ = create_heisenberg_star_problem(8)
+        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_Dense_n8_n8_d1"]
+
+        config = SolverConfig(
+            optimizer=SOLVER,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
+        )
+
+        result = cs_nctssos(pop, config; dualize=false)
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     # =========================================================================
@@ -70,14 +125,17 @@ const HEISENBERG_STAR_EXPECTED = -1.0
     # =========================================================================
     @testset "SOS Dualization (n=8)" begin
         pop, _ = create_heisenberg_star_problem(8)
+        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_Dense_n8_n8_d1"]
 
         config = SolverConfig(
             optimizer=SOLVER,
-            order=1
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
         )
 
         result = cs_nctssos(pop, config; dualize=true)
-        @test result.objective ≈ HEISENBERG_STAR_EXPECTED atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 1e-6
     end
 
     # =========================================================================

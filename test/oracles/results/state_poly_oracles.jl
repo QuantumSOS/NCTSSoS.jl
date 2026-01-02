@@ -13,19 +13,13 @@
 # Note: State polynomial optimization uses stateopt_first in NCTSSOS
 # which handles the state expectation structure (ς operator).
 
-# TODO: Run nctssos_state_poly.jl on a800 to generate actual values
+# Generated 2026-01-02 from NCTSSOS on a800 with MosekTools
+# Note: Only pure state expectation problems can use pstateopt_first.
+# Problems 7.2.1, 7.2.2, 7.2.3 require mixword API for product terms and are not tested.
 const STATE_POLY_ORACLES = Dict(
     # 7.2.0: CHSH State Polynomial (expected: -2√2 ≈ -2.8284)
-    "State_7_2_0_Dense_d1" => (opt=-2.8284271321623202, sides=Int[], nuniq=0),
-    "State_7_2_0_TS_d1" => (opt=-2.8284271321623202, sides=Int[], nuniq=0),
+    "State_7_2_0_Dense_d1" => (opt=-2.828427124746231, sides=[11], nuniq=34),
+    "State_7_2_0_TS_d1" => (opt=-2.828427124732117, sides=[3, 3, 1, 1, 1, 1, 1, 1, 1], nuniq=12),
     
-    # 7.2.1: Squared Expectations (expected: -4.0 at order=3)
-    "State_7_2_1_Dense_d3" => (opt=-4.0, sides=Int[], nuniq=0),
-    
-    # 7.2.2: Covariance Expression (expected: -5.0)
-    "State_7_2_2_Dense_d2" => (opt=-5.0, sides=Int[], nuniq=0),
-    
-    # 7.2.3: Mixed State Polynomial (expected: -3.5114802)
-    "State_7_2_3_Dense_d2" => (opt=-3.5114802, sides=Int[], nuniq=0),
-    "State_7_2_3_TS_d2" => (opt=-3.5114802, sides=Int[], nuniq=0),
+    # 7.2.1, 7.2.2, 7.2.3: Require mixword API - not testable with current script
 )

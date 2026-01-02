@@ -12,9 +12,9 @@
 #
 # NOTE: Expected optimal is -1.0 for star graph at any size (tight bound)
 
-# TODO: Run nctssos_heisenberg_star.jl on a800 to generate actual values
+# Generated 2026-01-02 from NCTSSOS on a800 with MosekTools
 const HEISENBERG_STAR_ORACLES = Dict(
-    "HeisenbergStar_Dense_n10_d1" => (opt=-1.0, sides=Int[], nuniq=0),
-    "HeisenbergStar_CS_n10_d1" => (opt=-1.0, sides=Int[], nuniq=0),
-    "HeisenbergStar_Dense_n8_d1" => (opt=-1.0, sides=Int[], nuniq=0),
+    "HeisenbergStar_Dense_n10_d1" => (opt=-0.9999999999683749, sides=[46], nuniq=1036),
+    "HeisenbergStar_CS_n10_d1" => (opt=-0.999999999385143, sides=[33, 29, 29, 18, 18, 18, 18, 18], nuniq=826),
+    "HeisenbergStar_Dense_n8_n8_d1" => (opt=-0.9999999963007001, sides=[29], nuniq=407),
 )

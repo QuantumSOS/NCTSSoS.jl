@@ -90,16 +90,23 @@ nuniq = length(data.ksupp)
 ### Oracle Infrastructure
 ```
 test/oracles/
-├── problems/                      # Problem definitions (shared by NCTSSOS & NCTSSoS)
-│   ├── chsh.jl                    # CHSH Bell inequality
-│   └── i3322.jl                   # I_3322 Bell inequality
 ├── scripts/                       # NCTSSOS oracle generation scripts (run on a800)
+│   ├── oracle_utils.jl            # Shared helpers for oracle extraction
 │   ├── nctssos_chsh.jl            # CHSH with all sparsity variants
-│   ├── basis_counts.jl            # Moment basis size validation
-│   └── ...                        # Other problem scripts
+│   ├── nctssos_i3322.jl           # I_3322 Bell inequality
+│   ├── nctssos_heisenberg_star.jl # Heisenberg star graph
+│   ├── nctssos_cs_ts_n10.jl       # Large CS+TS example
+│   ├── nctssos_example1.jl        # Unconstrained 3-var NC
+│   ├── nctssos_example2.jl        # Constrained 2-var NC
+│   ├── nctssos_corr_sparsity.jl   # Correlative sparsity example
+│   ├── nctssos_rosenbrock.jl      # Generalized Rosenbrock
+│   └── nctssos_state_poly.jl      # State polynomial (7.2.x)
 └── results/                       # Generated oracle values
     ├── chsh_oracles.jl            # CHSH ground truth (opt, sides, nuniq)
-    └── nctssos_oracles.jl         # Legacy combined oracles
+    ├── i3322_oracles.jl           # I3322 oracles
+    ├── heisenberg_star_oracles.jl # Heisenberg star oracles
+    ├── cs_ts_n10_oracles.jl       # CS+TS n=10 oracles
+    └── ...                        # Other oracle results
 ```
 
 ### Oracle Entry Format
@@ -273,6 +280,25 @@ test/oracles/
 | I_3322 (MF) | - | MF | - |
 | I_3322 (AsIsElimination) | AsIs | - | - |
 | CHSH trace term-sparsity loop | Various | - | Various |
+
+---
+
+## Oracle Problem Consolidation Status
+
+Tracking migration of oracle problems to `test/oracles/problems/` and solver tests to `test/solvers/problems/`.
+
+| Problem | Oracle Definition | Solver Tests | Status |
+|---------|-------------------|--------------|--------|
+| CHSH | `oracles/problems/chsh.jl` | `solvers/problems/chsh.jl` | ✅ Verified |
+| I3322 | `oracles/problems/i3322.jl` | `solvers/problems/i3322.jl` | ✅ Verified |
+| Heisenberg Star | `oracles/problems/heisenberg_star.jl` | `solvers/problems/heisenberg_star.jl` | ✅ Verified |
+| CS/TS n=10 | `oracles/problems/cs_ts_n10.jl` | `solvers/problems/nc_examples.jl` | ✅ Verified |
+| Example 1 | `oracles/problems/example1.jl` | `solvers/problems/nc_examples.jl` | ⬜ Pending |
+| Example 2 | `oracles/problems/example2.jl` | `solvers/problems/nc_examples.jl` | ⬜ Pending |
+| Correlative Sparsity | `oracles/problems/corr_sparsity.jl` | - | ⬜ Pending |
+| Rosenbrock | `oracles/problems/rosenbrock.jl` | - | ⬜ Pending |
+| State Polynomial | `oracles/problems/state_poly.jl` | `solvers/problems/state_polynomial.jl` | ⬜ Pending |
+| Trace Polynomial | - | `solvers/problems/trace_polynomial.jl` | ⬜ Pending |
 
 ---
 

@@ -1,169 +1,144 @@
-# AGENTS.md - NCTSSoS.jl Agentic Coding Guide
+# AGENTS.md - NCTSSoS.jl
 
-## Build & Test Commands
+Julia package for non-commutative polynomial optimization via SDP relaxations with sparsity exploitation.
+
+## Build/Test Commands
 
 ```bash
-# Setup
-make init                                      # Precompile dependencies
+make init                    # Precompile package
+make test                    # Full suite with Mosek (--local)
+make test-ci                 # CI suite (COSMO, no physics)
+make test-polynomials        # Polynomial algebra only
+make test-solvers            # SDP solver tests
+make test-quality            # Code quality checks
 
-# Run tests via Pkg.test (recommended - loads test dependencies)
-julia --project -e 'using Pkg; Pkg.test()'                              # CI suite (no physics)
-julia --project -e 'using Pkg; Pkg.test(test_args=["--local"])'         # Full suite with Mosek
-julia --project -e 'using Pkg; Pkg.test(test_args=["--polynomials"])'   # Just polynomials
-julia --project -e 'using Pkg; Pkg.test(test_args=["--solvers"])'       # Just solvers
-julia --project -e 'using Pkg; Pkg.test(test_args=["--physics", "--local"])'  # Just physics
+# Single test file (REPL workflow)
+julia --project -e 'using Pkg; Pkg.instantiate(); include("test/polynomials/monomials.jl")'
 
-# Makefile shortcuts
-make test              # Full suite with Mosek (--local)
-make test-ci           # CI suite (no physics, uses COSMO)
-make test-polynomials  # Polynomial algebra only
-make test-solvers      # SDP solver tests
-make test-physics      # Physics models (requires Mosek)
-make test-quality      # Code quality checks
-
-# Documentation
-make servedocs         # Live preview docs
-make examples          # Generate Literate.jl examples
+# Multiple test groups
+julia --project -e 'using Pkg; Pkg.test(test_args=["--polynomials", "--solvers"])'
 ```
 
-## Reference Implementation
-
-The original NCTSSOS package is at `/home/yushengzhao/NCTSSOS` on a800.
-Use it to verify results:
-
-```julia
-# Original API (NCTSSOS)
-using NCTSSOS, DynamicPolynomials
-@ncpolyvar x[1:2] y[1:2]
-f = x[1]*y[1] + x[1]*y[2] + x[2]*y[1] - x[2]*y[2]  # CHSH
-opt, data = nctssos_first([-f], [x;y], 1, TS=false, partition=2, constraint="unipotent")
-# Expected: opt ≈ -2.8284 (quantum bound = 2√2)
-
-# New API (NCTSSoS.jl) - MINIMIZES by default
-using NCTSSoS, Clarabel
-reg, (U,) = create_unipotent_variables([("U", 1:4)])
-CHSH = Polynomial(U[1])*Polynomial(U[3]) + Polynomial(U[1])*Polynomial(U[4]) + 
-       Polynomial(U[2])*Polynomial(U[3]) - Polynomial(U[2])*Polynomial(U[4])
-prob = polyopt(-CHSH, reg)  # Negate for maximization
-result = cs_nctssos(prob, SolverConfig(optimizer=Clarabel.Optimizer, order=1))
-# result.objective ≈ -2.8284, so max(CHSH) = -result.objective ≈ 2.8284
+### Test Structure
+```
+test/
+├── polynomials/     # Core algebra (no solver)
+├── quality/         # Aqua, ExplicitImports, Doctest
+├── solvers/problems/  # Problem-based tests (CHSH, I3322, Heisenberg)
+├── physics/         # Physics models (--local only, requires Mosek)
+├── oracles/         # NCTSSOS reference values
+│   ├── problems/    # Problem definitions
+│   ├── scripts/     # Oracle generation scripts (run with NCTSSOS + Mosek)
+│   └── results/     # Oracle values for comparison
+└── setup.jl         # Solver config (Mosek vs COSMO)
 ```
 
-## Code Style Guidelines
+### Oracle Testing Workflow
+1. Define problem in `test/oracles/problems/{problem}.jl`
+2. Run `test/oracles/scripts/nctssos_{problem}.jl` (server with NCTSSOS + Mosek)
+3. Record results in `test/oracles/results/{problem}_oracles.jl`
+4. Write comparison test in `test/solvers/problems/{problem}.jl`
 
-### Formatting
-- Use `JuliaFormatter` with `style = "blue"`
-- 4-space indentation, no tabs
-- Max line length: 92 characters
+## Code Style
+
+### Naming
+- Types: `PascalCase` - `Polynomial`, `PolyOptResult`
+- Functions: `snake_case` - `variable_indices`, `correlative_sparsity`
+- Constants: `SCREAMING_SNAKE` - `CHSH_ORACLES`
+- Private helpers: `_` prefix - `_process_terms`
+- Mutating functions: `!` suffix - `simplify!`
+
+### Type Parameters
+- `A<:AlgebraType`: Algebra type for dispatch
+- `T<:Integer`: Index type (UInt16 self-adjoint, Int32 creation/annihilation)
+- `C<:Number`: Coefficient type (Float64 or ComplexF64)
+- Use `where` clauses: `function foo(p::Polynomial{A,T,C}) where {A,T,C}`
 
 ### Imports
 ```julia
-# Order: stdlib → external packages → local modules
-using LinearAlgebra, SparseArrays          # stdlib
-using JuMP, CliqueTrees, Graphs            # external
-using NCTSSoS: Monomial, Polynomial        # selective imports preferred
-
-# Avoid: using NCTSSoS (pulls everything into namespace)
+using SparseArrays, LinearAlgebra, JuMP  # Module imports
+import CliqueTrees.cliquetree             # Extend specific functions
+using NCTSSoS: variable_indices, expval   # Internal access in tests
 ```
 
-### Types
-- Parametric types for flexibility: `Polynomial{A<:AlgebraType, T<:Integer, C<:Number}`
-- Type annotations in function signatures: `function foo(x::Vector{T}) where {T<:Number}`
-- Singleton types for zero-cost dispatch: `struct PauliAlgebra <: AlgebraType end`
+### Type Stability
+```julia
+# Typed allocations, avoid Any
+terms = Term{Monomial{A,T},C}[]  # GOOD
+terms = []                       # BAD
 
-### Naming Conventions
-| Element | Convention | Example |
-|---------|------------|---------|
-| Functions | `snake_case` | `symmetric_canon`, `get_ncbasis` |
-| Types | `PascalCase` | `Polynomial`, `VariableRegistry` |
-| Constants | `SCREAMING_SNAKE` | `SUBSCRIPT_DIGITS` |
-| Internal helpers | `_prefix` | `_process_terms`, `_simplify_pauli` |
-| Type parameters | Single uppercase | `A`, `T`, `C` |
-
-### Functions
-- Keep under 20 lines; extract helpers
-- Single responsibility
-- Use multiple dispatch over conditionals on types
-- Document with docstrings (triple quotes)
+# @inline for small hot functions
+@inline site_bits(::Type{T}) where {T<:Unsigned} = sizeof(T) * 2
+```
 
 ### Error Handling
 ```julia
-@assert length(word) > 0 "Empty word not allowed"           # Invariants
-error("Fermionic objective must have even parity")          # User errors
-throw(ArgumentError("Invalid algebra type: $A"))            # Specific exceptions
+throw(ArgumentError("Cannot compare monomials of different algebras: $A1 vs $A2"))
+throw(DomainError(n, "Polynomial exponent must be non-negative"))
+@assert site >= 1 && site <= ms "Site $site out of range"
 ```
 
-## Architecture
-
-### Two-Layer Design
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Optimization Layer (src/optimization/)                      │
-│  - moment.jl, sos.jl: SDP relaxation                        │
-│  - sparsity.jl: Correlative/term sparsity                   │
-│  - interface.jl: cs_nctssos, polyopt                        │
-├─────────────────────────────────────────────────────────────┤
-│  Polynomial Core (src/types/, src/simplification/)          │
-│  - Monomial, Term, Polynomial types                         │
-│  - Algebra-specific simplification rules                    │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Six Algebra Types
-| Type | Rules | Index Type |
-|------|-------|------------|
-| `PauliAlgebra` | σ²=I, σxσy=iσz | `UInt8+` |
-| `FermionicAlgebra` | {a,a†}=1, a²=0 | `Int8+` (signed) |
-| `BosonicAlgebra` | [b,b†]=1 | `Int8+` (signed) |
-| `ProjectorAlgebra` | P²=P | `UInt8+` |
-| `UnipotentAlgebra` | U²=I | `UInt8+` |
-| `NonCommutativeAlgebra` | None | `UInt8+` |
-
-### Key APIs
+### Core Types
 ```julia
-# Variable creation (returns registry + monomials)
-reg, (σx, σy, σz) = create_pauli_variables(1:N)
-reg, (a, a†) = create_fermionic_variables(1:N)
-
-# Polynomial construction (auto-simplifies)
-H = Polynomial(σx[1]) * Polynomial(σx[2]) + ...
-
-# Optimization (MINIMIZES objective)
-prob = polyopt(objective, registry; eq_constraints=[], ineq_constraints=[])
-config = SolverConfig(optimizer=Clarabel.Optimizer, order=1)
-result = cs_nctssos(prob, config)
-# result.objective is the minimum value
+Monomial{A<:AlgebraType, T<:Integer}  # Word representation
+Term{M<:AbstractMonomial, C<:Number}   # Coefficient + monomial
+Polynomial{A,T,C}                       # Sum of terms (sorted, deduplicated)
 ```
 
-## Test Structure
+**Algebra Types** (singleton structs for dispatch)
+- `NonCommutativeAlgebra`: Generic NC, no simplification
+- `PauliAlgebra`: σ²=I, cyclic products (ComplexF64)
+- `FermionicAlgebra`: Anticommutation, normal ordering (signed indices)
+- `BosonicAlgebra`: Commutation, normal ordering (signed indices)
+- `ProjectorAlgebra`: P²=P idempotent
+- `UnipotentAlgebra`: U²=I involution
 
+**Invariants**: Polynomial terms sorted by monomial, unique, non-zero coefficients
+
+### Testing Patterns
+```julia
+@testset "Feature" begin
+    reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+    oracle = CHSH_ORACLES["CHSH_Dense_d1"]
+    
+    config = SolverConfig(optimizer=SOLVER, order=1)
+    result = cs_nctssos(pop, config)
+    
+    @test result.objective ≈ oracle.opt atol=1e-6
+    @test_throws DomainError m^(-1)
+end
 ```
-test/
-├── runtests.jl              # Main entry, runs all tests
-├── polynomials/             # Core polynomial tests
-│   ├── runtests.jl          # Polynomial test suite
-│   ├── simplify.jl          # Algebra simplification
-│   └── canonicalization.jl  # Symmetric/cyclic canon
-├── quality/                 # Code quality checks (Aqua, ExplicitImports, Doctest)
-│   └── runtests.jl
-├── solvers/                 # SDP solver integration (moment, SOS, sparsity, GNS)
-│   └── runtests.jl
-├── physics/                 # Physics models (Heisenberg, XY, etc.) [--local only]
-│   └── runtests.jl
-└── setup.jl                 # Shared solver configuration
+
+### Solver Config
+```julia
+# CI (COSMO)
+config = SolverConfig(optimizer=COSMO.Optimizer, order=1)
+
+# Local (Mosek)
+config = SolverConfig(optimizer=Mosek.Optimizer, order=2, cs_algo=MF(), ts_algo=MMD())
 ```
 
-Tests requiring Mosek run only with `--local` flag.
+### Quality Checks
+- **Aqua.jl**: Ambiguities, unbound args, piracy
+- **ExplicitImports.jl**: Import hygiene
+- **Doctest**: Docstring examples
 
-## Common Pitfalls
+```julia
+# Ignored non-public accesses
+check_all_qualified_accesses_are_public(NCTSSoS, 
+    ignore=(:Zeros, :PositiveSemidefiniteConeSquare, :power_by_squaring, :show_default, :HasLength))
+```
 
-1. **Monomial vs Polynomial simplification**: `Monomial` multiplication doesn't auto-simplify.
-   Use `Polynomial(m1) * Polynomial(m2)` or `simplify(m)`.
+## Key Files
 
-2. **Variable creation syntax**: `create_pauli_variables(1:N)` not `create_pauli_variables(N)`.
+- `src/NCTSSoS.jl`: Module definition, exports
+- `src/types/`: Core types (algebra, monomial, term, polynomial)
+- `src/simplification/`: Algebra-specific simplification
+- `src/optimization/`: SDP relaxation, sparsity exploitation
+- `test/setup.jl`: Solver configuration
 
-3. **Optimization direction**: `cs_nctssos` MINIMIZES. For max(f): use `-cs_nctssos(polyopt(-f, reg), config).objective`.
+## Dependencies
 
-4. **Registry required**: `polyopt(obj, registry)` - registry is mandatory.
-
-5. **Coefficient types**: JuMP requires `Float64` or `ComplexF64`, not integers.
+Core: `JuMP`, `LinearAlgebra`, `SparseArrays`, `CliqueTrees`, `ChordalGraph`, `Graphs`
+Test: `Clarabel` (default), `COSMO` (CI), `MosekTools` (local)
+Quality: `Aqua`, `ExplicitImports`

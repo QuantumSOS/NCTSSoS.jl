@@ -17,8 +17,8 @@
 #       moment constraints are missing. This is a structural limitation for CHSH.
 
 const CHSH_ORACLES = Dict(
-    "CHSH_Dense_d1" => (opt=-2.8284271321623193, sides=[5], nuniq=11),
-    "CHSH_CS_d1" => (opt=-2.8284271247170496, sides=[4, 4], nuniq=10),
-    "CHSH_TS_d1" => (opt=-2.8284271247321175, sides=[3, 3, 1], nuniq=6),
-    "CHSH_CS_TS_d2" => (opt=-3.999999999803662, sides=[3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2], nuniq=5),
+    "CHSH_Dense_d1" => (opt=-2.828427132162319, sides=[5], nuniq=11),
+    "CHSH_CS_d1" => (opt=-2.8284271247170487, sides=[4, 4], nuniq=10),
+    "CHSH_TS_d1" => (opt=-2.828427124732117, sides=[3, 3, 1], nuniq=6),
+    "CHSH_CS_TS_d2" => (opt=-3.999999999803648, sides=[3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2], nuniq=5),
 )

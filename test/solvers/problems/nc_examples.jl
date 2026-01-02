@@ -8,12 +8,19 @@
 #   - CS TS n=10: Large-scale sparsity example
 #
 # These are standard benchmark problems from the NCTSSOS paper.
+# Results verified against NCTSSOS oracles.
 # =============================================================================
 
 using Test, NCTSSoS
 
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
+
+# Load oracle values
+include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "cs_ts_n10_oracles.jl"))
+
+# Helper: flatten moment_matrix_sizes for comparison with oracle
+flatten_sizes(sizes) = reduce(vcat, sizes)
 
 @testset "NC Polynomial Examples" begin
 
@@ -186,6 +193,10 @@ using Test, NCTSSoS
     # =========================================================================
     # CS TS n=10: Large-scale sparsity example (requires Mosek)
     # =========================================================================
+    # Validated against NCTSSOS oracle: CS_TS_N10_CS_TS_d3
+    # NOTE: Block sizes omitted from oracle (2982 blocks too large to store).
+    #       We validate opt, nblocks, and nuniq instead.
+    # =========================================================================
     if USE_LOCAL
         @testset "CS TS (n=10)" begin
             n = 10
@@ -216,9 +227,9 @@ using Test, NCTSSoS
             cons = vcat([(1.0 - x[i]^2) for i = 1:n], [(1.0 * x[i] - 1.0 / 3) for i = 1:n])
             pop = polyopt(f, reg; ineq_constraints=cons)
 
-            expected = 3.011288
+            oracle = CS_TS_N10_ORACLES["CS_TS_N10_CS_TS_d3"]
 
-            @testset "Moment Method" begin
+            @testset "Moment Method (order=3)" begin
                 config = SolverConfig(
                     optimizer=SOLVER,
                     order=3,
@@ -226,10 +237,12 @@ using Test, NCTSSoS
                     ts_algo=MMD()
                 )
                 result = cs_nctssos(pop, config; dualize=false)
-                @test result.objective ≈ expected atol = 1e-3
+                @test result.objective ≈ oracle.opt atol = 1e-3
+                @test length(flatten_sizes(result.moment_matrix_sizes)) == oracle.nblocks
+                @test result.n_unique_moment_matrix_elements == oracle.nuniq
             end
 
-            @testset "SOS Dualization" begin
+            @testset "SOS Dualization (order=3)" begin
                 config = SolverConfig(
                     optimizer=SOLVER,
                     order=3,
@@ -237,7 +250,7 @@ using Test, NCTSSoS
                     ts_algo=MMD()
                 )
                 result = cs_nctssos(pop, config; dualize=true)
-                @test result.objective ≈ expected atol = 1e-3
+                @test result.objective ≈ oracle.opt atol = 1e-3
             end
         end
     end

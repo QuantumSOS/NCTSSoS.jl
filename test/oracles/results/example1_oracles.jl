@@ -5,8 +5,8 @@
 #
 # Format: (opt, sides, nuniq)
 
-# TODO: Run nctssos_example1.jl on a800 to generate actual values
+# Generated 2026-01-02 from NCTSSOS on a800 with MosekTools
 const EXAMPLE1_ORACLES = Dict(
-    "Example1_Dense_d2" => (opt=0.0, sides=Int[], nuniq=0),
-    "Example1_TS_d2" => (opt=-0.0036, sides=Int[], nuniq=0),
+    "Example1_Dense_d2" => (opt=-3.936210849199504e-10, sides=[13], nuniq=73),
+    "Example1_TS_d2" => (opt=-0.0035512846020968616, sides=[4, 3, 3, 3, 2, 2, 2, 2, 1, 1], nuniq=21),
 )

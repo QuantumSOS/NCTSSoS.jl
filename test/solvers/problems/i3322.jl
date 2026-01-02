@@ -14,6 +14,12 @@ using Test, NCTSSoS
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
 
+# Load oracle values
+include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "i3322_oracles.jl"))
+
+# Helper: flatten moment_matrix_sizes for comparison with oracle
+flatten_sizes(sizes) = reduce(vcat, sizes)
+
 const I3322_EXPECTED = -0.2508753049688358
 
 @testset "I_3322 Bell Inequality" begin
@@ -140,6 +146,31 @@ const I3322_EXPECTED = -0.2508753049688358
                     @test result.objective ≈ expected atol = 1e-5
                 end
             end
+        end
+
+        # =========================================================================
+        # Combined CS+TS (order=4) - Verified against NCTSSOS oracle
+        # =========================================================================
+        # NOTE: CS+TS does NOT converge to the optimal -0.2509 even at high order.
+        # This is similar to CHSH - combined sparsity loses cross-clique constraints.
+        # 
+        # We only verify the objective value matches NCTSSOS. Block structure differs
+        # due to internal representation choices (NCTSSoS.jl uses different indexing).
+        # =========================================================================
+        @testset "CS+TS (order=4) - KNOWN LOOSE BOUND" begin
+            pop, _ = create_i3322_problem()
+            oracle = I3322_ORACLES["I3322_CS_TS_d4"]
+
+            config = SolverConfig(
+                optimizer=SOLVER,
+                order=4,
+                cs_algo=MF(),
+                ts_algo=MMD()
+            )
+            result = cs_nctssos(pop, config)
+
+            # Objective is ≈-1.0, NOT -0.2509 (this is expected due to CS+TS limitation)
+            @test result.objective ≈ oracle.opt atol = 1e-5
         end
     end
 end

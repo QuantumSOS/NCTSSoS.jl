@@ -1,54 +1,39 @@
 # NCTSSOS Oracle Script: Heisenberg Star Graph
 # =============================================
-# Run on a800 with MosekTools:
-#   cd /home/yushengzhao/NCTSSOS && julia --project path/to/nctssos_heisenberg_star.jl
+# Run on server with NCTSSOS + MosekTools:
+#   cd ~/NCTSSOS && julia --project path/to/nctssos_heisenberg_star.jl
 #
-# Output: Oracle values for Heisenberg star graph problem
+# Problem: Heisenberg model on star graph with unipotent constraint (U²=I)
+# Variables: pij for each edge (i,j) in the star graph
+# Objective: sum of pij over star edges (center=1)
+# Constraints: Jordan-Wigner type triangle consistency relations
 #
-# API:
-#   CS=false → nctssos_first (dense or TS only)
-#   CS="MF"  → cs_nctssos_first (CS or CS+TS)
+# The star graph has n sites with site 1 at center.
+# Edges: (1,2), (1,3), ..., (1,n)
 
-using NCTSSOS, DynamicPolynomials
-using MosekTools
+include("oracle_utils.jl")
 
-# Variant definitions
-const VARIANTS = [
+# Sparsity variants
+const HEISENBERG_STAR_VARIANTS = [
     (name="Dense", cs=false, ts=false, order=1, num_sites=10),
     (name="CS", cs="MF", ts=false, order=1, num_sites=10),
     (name="Dense_n8", cs=false, ts=false, order=1, num_sites=8),
 ]
 
-println("=" ^ 70)
-println("NCTSSOS Oracle: Heisenberg Star Graph")
-println("=" ^ 70)
+# NCTSSOS parameters
+const HEISENBERG_STAR_NCTSSOS_PARAMS = (
+    constraint = "unipotent",
+)
+
+print_header("Heisenberg Star Graph")
+
+println("Constraint: $(HEISENBERG_STAR_NCTSSOS_PARAMS.constraint)")
 println()
 
-# Store results
-results = Dict{String, NamedTuple}()
-
-# Helper to extract oracle info from nctssos_first (CS=false)
-function extract_nctssos(name, opt, data)
-    sides = [size(M, 1) for M in data.moment]
-    nuniq = length(data.ksupp)
-    results[name] = (opt=opt, sides=sides, nuniq=nuniq)
-    println("\"$name\" => (opt=$opt, sides=$sides, nuniq=$nuniq),")
-end
-
-# Helper to extract oracle info from cs_nctssos_first (CS="MF")
-function extract_cs_nctssos(name, opt, data)
-    sides = [size(M, 1) for clique in data.moment for M in clique]
-    nuniq = length(data.ksupp)
-    results[name] = (opt=opt, sides=sides, nuniq=nuniq)
-    println("\"$name\" => (opt=$opt, sides=$sides, nuniq=$nuniq),")
-end
-
-# Run each variant
-for v in VARIANTS
+results = map(HEISENBERG_STAR_VARIANTS) do v
     num_sites = v.num_sites
     vec_idx2ij = [(i, j) for i = 1:num_sites for j = (i+1):num_sites]
     n_vars = length(vec_idx2ij)
-    
     findvaridx(i, j) = findfirst(x -> x == (i, j), vec_idx2ij)
     
     # Define variables
@@ -57,7 +42,7 @@ for v in VARIANTS
     # Objective: sum over star graph edges (center=1)
     obj = sum(p[findvaridx(1, k)] for k in 2:num_sites)
     
-    # Triangle consistency constraints (equality constraints)
+    # Triangle consistency constraints (equality)
     gs = unique!([
         (
             p[findvaridx(sort([i, j])...)] * p[findvaridx(sort([j, k])...)] +
@@ -77,25 +62,18 @@ for v in VARIANTS
     
     if v.cs == false
         opt, data = nctssos_first(pop, p, v.order;
-                                  TS=v.ts, numeq=numeq, constraint="unipotent")
-        extract_nctssos(key, opt, data)
+            TS=v.ts, numeq=numeq,
+            constraint=HEISENBERG_STAR_NCTSSOS_PARAMS.constraint)
+        result = extract_oracle(key, opt, data; use_cs=false)
     else
         opt, data = cs_nctssos_first(pop, p, v.order;
-                                     TS=v.ts, CS=v.cs, numeq=numeq, constraint="unipotent")
-        extract_cs_nctssos(key, opt, data)
+            TS=v.ts, CS=v.cs, numeq=numeq,
+            constraint=HEISENBERG_STAR_NCTSSOS_PARAMS.constraint)
+        result = extract_oracle(key, opt, data; use_cs=true)
     end
+    print_oracle(result)
     println()
+    result
 end
 
-# =============================================================================
-# Summary
-# =============================================================================
-println("=" ^ 70)
-println("HEISENBERG_STAR ORACLE SUMMARY")
-println("=" ^ 70)
-println()
-println("const HEISENBERG_STAR_ORACLES = Dict(")
-for (name, res) in sort(collect(results), by=first)
-    println("    \"$name\" => (opt=$(res.opt), sides=$(res.sides), nuniq=$(res.nuniq)),")
-end
-println(")")
+print_summary("HEISENBERG_STAR", results)

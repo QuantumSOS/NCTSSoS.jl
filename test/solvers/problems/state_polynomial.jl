@@ -7,12 +7,16 @@
 #   - 7.2.3: Mixed state polynomial with squared expectations
 #
 # Note: Basic CHSH state polynomial tests are in chsh.jl
+# Results verified against NCTSSOS oracles (state_poly_extended_oracles.jl)
 # =============================================================================
 
 using Test, NCTSSoS
 
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
+
+# Load oracle values
+include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_extended_oracles.jl"))
 
 @testset "State Polynomial Examples (7.2.x)" begin
 
@@ -28,11 +32,12 @@ using Test, NCTSSoS
         sp = -1.0 * sp1 * sp1 - 1.0 * sp2 * sp2
 
         spop = polyopt(sp * one(typeof(x[1])), reg)
+        oracle = STATE_POLY_EXTENDED_ORACLES["State_7_2_1_Dense_d3"]
 
         @testset "Order 3 (tight bound)" begin
             config = SolverConfig(optimizer=SOLVER, order=3)
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ -4.0 atol = 1e-4
+            @test result.objective ≈ oracle.opt atol = 1e-4
         end
     end
 
@@ -45,12 +50,13 @@ using Test, NCTSSoS
         sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
         spop = polyopt(sp * one(typeof(x[1])), reg)
-        expected = -5.0
+        oracle_dense = STATE_POLY_EXTENDED_ORACLES["State_7_2_2_Dense_d2"]
+        oracle_ts = STATE_POLY_EXTENDED_ORACLES["State_7_2_2_TS_d2"]
 
         @testset "Dense" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ oracle_dense.opt atol = 1e-2
         end
 
         @testset "Sparse (MF + MMD)" begin
@@ -61,7 +67,7 @@ using Test, NCTSSoS
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ oracle_ts.opt atol = 1e-2
         end
     end
 
@@ -81,18 +87,19 @@ using Test, NCTSSoS
              1.0 * ς(x[1]) * ς(x[1]) + 1.0 * ς(y[2]) * ς(y[2])    # squared expectations
 
         spop = polyopt(sp * one(typeof(x[1])), reg)
-        expected = -3.5114802
+        oracle_dense = STATE_POLY_EXTENDED_ORACLES["State_7_2_3_Dense_d2"]
+        oracle_ts = STATE_POLY_EXTENDED_ORACLES["State_7_2_3_TS_d2"]
 
         @testset "Dense (Moment)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=false)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ oracle_dense.opt atol = 1e-2
         end
 
         @testset "Dense (SOS)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=true)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ oracle_dense.opt atol = 1e-2
         end
 
         @testset "Sparse (MMD)" begin
@@ -103,7 +110,7 @@ using Test, NCTSSoS
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ oracle_ts.opt atol = 1e-2
         end
 
         @testset "Moment vs SOS Consistency" begin

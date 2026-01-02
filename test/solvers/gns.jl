@@ -1,3 +1,9 @@
+# =============================================================================
+# GNS Construction Tests
+# =============================================================================
+# Tests for GNS reconstruction from moment matrices.
+# =============================================================================
+
 using Test, NCTSSoS
 using LinearAlgebra
 using NCTSSoS: neat_dot, get_ncbasis, degree

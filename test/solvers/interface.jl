@@ -1,10 +1,14 @@
+# =============================================================================
 # High-Level API Interface Tests
-# ===============================
+# =============================================================================
 # Tests the user-facing API: polyopt, cs_nctssos, cs_nctssos_higher
 # Includes:
-#   - PolyOpt constructor tests (formerly pop.jl)
+#   - PolyOpt constructor tests
 #   - StatePolyOpt constructor tests
-#   - Solver integration tests
+#   - Basic solver integration tests
+#
+# Note: Problem-specific optimization tests are in problems/ subdirectory.
+# =============================================================================
 
 using Test, NCTSSoS
 
@@ -12,7 +16,7 @@ using Test, NCTSSoS
 @isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
 
 # =============================================================================
-# PolyOpt Constructor Tests (merged from pop.jl)
+# PolyOpt Constructor Tests
 # =============================================================================
 
 @testset "PolyOpt Constructor" begin
@@ -206,7 +210,7 @@ end
 end
 
 # =============================================================================
-# Solver Integration Tests
+# Basic Solver Integration Tests
 # =============================================================================
 
 @testset "Naive Example" begin
@@ -260,155 +264,53 @@ if USE_LOCAL
 
         @test res.objective / N ≈ -0.467129 atol = 1e-6
     end
-
-    @testset "I_3322 Example with Sparsity" begin
-        # Use projector algebra (P² = P)
-        registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
-        f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
-            x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
-
-        pop = polyopt(-f, registry)
-
-        for (cs_algo, ts_algo, ans) in zip([NoElimination(), MF(), MF()],
-            [NoElimination(), MMD(), MaximalElimination()],
-            [-0.2508755573198166, -0.9999999892255513, -0.3507010331201541])
-            solver_config = SolverConfig(optimizer=SOLVER; order=3, cs_algo=cs_algo, ts_algo=ts_algo)
-            result = cs_nctssos(pop, solver_config)
-            @test isapprox(result.objective, ans; atol=1e-5)
-        end
-    end
 end
 
-@testset "Majumdar Gosh Model" begin
-    num_sites = 6
-    J1_interactions =
-        unique!([tuple(sort([i, mod1(i + 1, num_sites)])...) for i = 1:num_sites])
-    J2_interactions =
-        unique!([tuple(sort([i, mod1(i + 2, num_sites)])...) for i = 1:num_sites])
-
-    J1 = 2.0
-    J2 = 1.0
-
-    true_ans = -num_sites / 4 * 6
-
-    ij2idx_dict = Dict(
-        zip(
-            [(i, j) for i in 1:num_sites, j in 1:num_sites if j > i],
-            1:(num_sites*(num_sites-1)÷2),
-        ),
-    )
-
-    # Use projector algebra (P² = P)
-    registry, (hij,) = create_projector_variables([("h", 1:(num_sites*(num_sites-1)÷2))])
-
-    objective = (
-        sum([J1 * hij[ij2idx_dict[(i, j)]] for (i, j) in J1_interactions]) + sum([J2 * hij[ij2idx_dict[(i, j)]] for (i, j) in J2_interactions])
-    )
-
-    gs = unique!([
-        (
-            hij[ij2idx_dict[tuple(sort([i, j])...)]] *
-            hij[ij2idx_dict[tuple(sort([j, k])...)]] +
-            hij[ij2idx_dict[tuple(sort([j, k])...)]] *
-            hij[ij2idx_dict[tuple(sort([i, j])...)]] -
-            0.5 * (
-                hij[ij2idx_dict[tuple(sort([i, j])...)]] +
-                hij[ij2idx_dict[tuple(sort([j, k])...)]] -
-                hij[ij2idx_dict[tuple(sort([i, k])...)]]
-            )
-        ) for i in 1:num_sites, j in 1:num_sites, k in 1:num_sites if
-        (i != j && j != k && i != k)
-    ])
-
-    pop = polyopt(-objective, registry; eq_constraints=gs)
-
-    solver_config = SolverConfig(optimizer=SOLVER; order=1)
-
-    result = cs_nctssos(pop, solver_config)
-
-    @test isapprox(result.objective, true_ans; atol=1e-4)
-end
-
-@testset "Problem Creation Interface" begin
+@testset "Dualization Trivial Example" begin
     n = 2
+    true_min = 3.0
     registry, (x,) = create_noncommutative_variables([("x", 1:n)])
-    f = 2.0 - x[1]^2 + x[1] * x[2]^2 * x[1] - x[2]^2
-    g = 4.0 - x[1]^2 - x[2]^2
-    h1 = x[1] * x[2] + x[2] * x[1] - 2.0
-    pop = polyopt(f, registry; ineq_constraints=[g], eq_constraints=[h1])
 
-    solver_config = SolverConfig(
-        optimizer=SOLVER;
-        order=2,
-        cs_algo=MF(),
-        ts_algo=MMD(),
-    )
-
-    result = cs_nctssos(pop, solver_config)
-    @test isapprox(result.objective, -1.0; atol=1e-4)
-
-    result_higher = cs_nctssos_higher(pop, result, solver_config)
-    @test isapprox(result.objective, result_higher.objective; atol=1e-4)
-end
-
-@testset "README Example Unconstrained" begin
-    registry, (x,) = create_noncommutative_variables([("x", 1:3)])
-    f =
-        1.0 +
-        x[1]^4 +
-        x[2]^4 +
-        x[3]^4 +
-        x[1] * x[2] +
-        x[2] * x[1] +
-        x[2] * x[3] +
-        x[3] * x[2]
+    f = x[1]^2 + x[1] * x[2] + x[2] * x[1] + x[2]^2 + true_min
 
     pop = polyopt(f, registry)
+    order = 2
 
-    solver_config_dense = SolverConfig(optimizer=SOLVER)
-
-    result_dense = cs_nctssos(pop, solver_config_dense)
-
-    result_cs =
-        cs_nctssos(pop, SolverConfig(optimizer=SOLVER; cs_algo=MF()))
-
-    @test isapprox(result_dense.objective, result_cs.objective, atol=1e-4)
-
-    result_cs_ts = cs_nctssos(
-        pop,
-        SolverConfig(optimizer=SOLVER; cs_algo=MF(), ts_algo=MMD()),
+    solver_config = SolverConfig(
+        optimizer=SOLVER,
+        order=order
     )
 
-    @test isapprox(result_cs.objective, result_cs_ts.objective, atol=1e-4)
+    result = cs_nctssos(pop, solver_config; dualize=true)
+
+    @test isapprox(result.objective, true_min, atol=1e-6)
 end
 
-@testset "README Example Constrained" begin
-    registry, (x,) = create_noncommutative_variables([("x", 1:2)])
-    f = 2.0 - x[1]^2 + x[1] * x[2]^2 * x[1] - x[2]^2
-    g = 4.0 - x[1]^2 - x[2]^2
-    h1 = x[1] * x[2] + x[2] * x[1] - 2.0
+# This test requires high precision solver - COSMO gives Inf for one method
+if USE_LOCAL
+    @testset "Dualization Trivial Example 2" begin
+        n = 2
+        true_min = 3.0
+        registry, (x,) = create_noncommutative_variables([("x", 1:n)])
 
-    pop = polyopt(f, registry; ineq_constraints=[g], eq_constraints=[h1])
+        f = x[1]^2 + x[1] * x[2] + x[2] * x[1] + x[2]^2 + true_min
+        r = -10.0
+        g1 = r - x[1]
+        g2 = r - x[2]
+        g3 = x[1] - r
+        g4 = x[2] - r
 
-    result_dense = cs_nctssos(pop, SolverConfig(optimizer=SOLVER))
+        pop = polyopt(f, registry; ineq_constraints=[g1, g2, g3, g4])
+        order = 2
 
-    result_cs =
-        cs_nctssos(pop, SolverConfig(optimizer=SOLVER; cs_algo=MF()))
+        solver_config = SolverConfig(
+            optimizer=SOLVER,
+            order=order
+        )
 
-    @test isapprox(result_dense.objective, result_cs.objective, atol=1e-4)
+        result_mom = cs_nctssos(pop, solver_config; dualize=false)
+        result_sos = cs_nctssos(pop, solver_config; dualize=true)
 
-    result_cs_ts = cs_nctssos(
-        pop,
-        SolverConfig(optimizer=SOLVER; cs_algo=MF(), ts_algo=MMD()),
-    )
-
-    @test isapprox(result_cs.objective, result_cs_ts.objective, atol=1e-4)
-
-    result_cs_ts_higher = cs_nctssos_higher(
-        pop,
-        result_cs_ts,
-        SolverConfig(optimizer=SOLVER; cs_algo=MF(), ts_algo=MMD()),
-    )
-
-    @test isapprox(result_dense.objective, result_cs_ts_higher.objective, atol=1e-4)
+        @test isapprox(result_mom.objective, result_sos.objective, atol=1e-3)
+    end
 end

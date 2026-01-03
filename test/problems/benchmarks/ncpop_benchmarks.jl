@@ -6,7 +6,7 @@
 # Reference: NCTSSOS paper benchmark problems
 # All problems are unconstrained NC polynomial minimization.
 #
-# NOTE: No oracle values available - using theoretical global minima as reference.
+# Oracle values available for Rosenbrock; others use theoretical global minima.
 # Tolerances set to 1e-2 or 1e-3 to account for SDP relaxation approximation error.
 #
 # Benchmarks included:
@@ -20,6 +20,13 @@ using Test, NCTSSoS
 
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
+
+# Load oracle values
+include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "rosenbrock_oracles.jl"))
+include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "benchmarks_oracles.jl"))
+
+# Helper: flatten moment_matrix_sizes for comparison with oracle
+flatten_sizes(sizes) = reduce(vcat, sizes)
 
 # All benchmark tests require Mosek for numerical stability
 if USE_LOCAL

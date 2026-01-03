@@ -31,6 +31,9 @@ using JuMP
 # Load solver configuration if running standalone
 @isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
 
+# Load oracle values
+include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "bilocal_oracles.jl"))
+
 @testset "Bilocal Networks" begin
     @testset "Example 8.1.1 - Bilocal Quantum Bound" begin
         # Create unipotent variables for three parties

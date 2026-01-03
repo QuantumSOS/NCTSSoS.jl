@@ -22,24 +22,22 @@ const CHSH_ORACLES = Dict(
     # =========================================================================
     # NC Polynomial Formulation (nctssos_first / cs_nctssos_first)
     # =========================================================================
-    "CHSH_Dense_d1" => (opt=-2.828427132162319, sides=[5], nuniq=11),
-    "CHSH_CS_d1" => (opt=-2.8284271247170487, sides=[4, 4], nuniq=10),
-    "CHSH_TS_d1" => (opt=-2.828427124732117, sides=[3, 3, 1], nuniq=6),
-    "CHSH_CS_TS_d2" => (opt=-3.999999999803648, sides=[3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2], nuniq=5),
+    "CHSH_Dense_d1" => (opt=-2.8284271321623193, sides=[5], nuniq=11),
+    "CHSH_CS_d1" => (opt=-2.8284271247170496, sides=[4, 4], nuniq=10),
+    "CHSH_TS_d1" => (opt=-2.8284271247321175, sides=[3, 3, 1], nuniq=6),
+    "CHSH_CS_TS_d2" => (opt=-3.999999999803662, sides=[3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2], nuniq=5),
 
     # =========================================================================
     # State Polynomial Formulation (pstateopt_first)
     # Objective: -ς(x₁y₁) - ς(x₁y₂) - ς(x₂y₁) + ς(x₂y₂)
     # =========================================================================
-    # PLACEHOLDER - Run nctssos_chsh.jl on server to generate actual values
-    "CHSH_State_Dense_d1" => (opt=-2.828427124746231, sides=[11], nuniq=34),
-    "CHSH_State_TS_d1" => (opt=-2.828427124732117, sides=[3, 3, 1, 1, 1, 1, 1, 1, 1], nuniq=12),
+    "CHSH_State_Dense_d1" => (opt=-2.8284271247462325, sides=[11], nuniq=34),
+    "CHSH_State_TS_d1" => (opt=-2.8284271247321175, sides=[3, 3, 1, 1, 1, 1, 1, 1, 1], nuniq=12),
 
     # =========================================================================
     # Trace Polynomial Formulation (ptraceopt_first)
     # Objective: -tr(x₁y₁) - tr(x₁y₂) - tr(x₂y₁) + tr(x₂y₂)
     # =========================================================================
-    # PLACEHOLDER - Run nctssos_chsh.jl on server to generate actual values
-    "CHSH_Trace_Dense_d1" => (opt=-2.8284271247461903, sides=[5], nuniq=11),
-    "CHSH_Trace_TS_d1" => (opt=-2.8284271247461903, sides=[3, 3, 1], nuniq=6),
+    "CHSH_Trace_Dense_d1" => (opt=-2.8284271247462307, sides=[9], nuniq=21),
+    "CHSH_Trace_TS_d1" => (opt=-2.8284271247321175, sides=[3, 3, 1, 1, 1, 1, 1], nuniq=10),
 )

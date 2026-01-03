@@ -76,6 +76,37 @@ test-no-physics:
 test-core:
 	$(JL) -e 'using Pkg; Pkg.test(test_args=["--polynomials", "--solvers"])'
 
+# Run a single test file with Mosek
+# Usage: make test-file FILE=test/relaxations/sparsity.jl
+test-file:
+ifndef FILE
+	$(error FILE is required. Usage: make test-file FILE=test/relaxations/sparsity.jl)
+endif
+	$(JL) -e 'include("$(FILE)")'
+
+# =============================================================================
+# Oracles (requires external NCTSSOS repo)
+# =============================================================================
+# Regenerate oracle values from NCTSSOS reference implementation.
+# Set NCTSSOS_PATH env var or use default locations.
+#
+# Usage: make oracle-chsh
+#        make oracle-i3322
+#        NCTSSOS_PATH=/custom/path make oracle-chsh
+oracle-%:
+	@if [ -z "$$NCTSSOS_PATH" ]; then \
+		if [ -d "/Users/yushengzhao/projects/NCTSSOS" ]; then \
+			NCTSSOS_PATH="/Users/yushengzhao/projects/NCTSSOS"; \
+		elif [ -d "/home/yushengzhao/NCTSSOS" ]; then \
+			NCTSSOS_PATH="/home/yushengzhao/NCTSSOS"; \
+		else \
+			echo "Error: NCTSSOS not found. Set NCTSSOS_PATH environment variable."; \
+			exit 1; \
+		fi; \
+	fi && \
+	echo "Using NCTSSOS at: $$NCTSSOS_PATH" && \
+	cd "$$NCTSSOS_PATH" && julia --project "$(CURDIR)/test/oracles/scripts/nctssos_$*.jl"
+
 # =============================================================================
 # Documentation
 # =============================================================================
@@ -96,5 +127,5 @@ clean:
 
 .PHONY: init init-docs update update-docs \
         test test-ci test-polynomials test-quality test-solvers test-physics \
-        test-no-physics test-core \
+        test-no-physics test-core test-file \
         servedocs examples clean

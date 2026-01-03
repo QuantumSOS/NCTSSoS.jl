@@ -13,7 +13,7 @@
 using Test, NCTSSoS
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
 
 # Load oracle values
 include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_extended_oracles.jl"))
@@ -37,6 +37,8 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
         @testset "Order 3 (tight bound)" begin
             config = SolverConfig(optimizer=SOLVER, order=3)
             result = cs_nctssos(spop, config)
+            # Tolerance relaxed to 1e-4 due to squared expectations in objective
+            # Higher-order relaxation with COSMO needs slightly looser tolerance than standard
             @test result.objective ≈ oracle.opt atol = 1e-4
         end
     end
@@ -56,6 +58,8 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
         @testset "Dense" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config)
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision on state polynomials
+            # with covariance terms - Mosek achieves 1e-5 but COSMO needs looser tolerance
             @test result.objective ≈ oracle_dense.opt atol = 1e-2
         end
 
@@ -93,12 +97,16 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
         @testset "Dense (Moment)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=false)
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision on mixed state polynomials
+            # with squared expectations - Mosek achieves 1e-5 but COSMO needs looser tolerance
             @test result.objective ≈ oracle_dense.opt atol = 1e-2
         end
 
         @testset "Dense (SOS)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=true)
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision on mixed state polynomials
+            # with squared expectations - Mosek achieves 1e-5 but COSMO needs looser tolerance
             @test result.objective ≈ oracle_dense.opt atol = 1e-2
         end
 
@@ -110,6 +118,8 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision on mixed state polynomials
+            # with term sparsity - Mosek achieves 1e-5 but COSMO needs looser tolerance
             @test result.objective ≈ oracle_ts.opt atol = 1e-2
         end
 

@@ -1,18 +1,49 @@
+# =============================================================================
 # NCTSSOS Oracle Utilities
-# ========================
+# =============================================================================
 # Shared helpers for oracle generation scripts.
-# Run scripts on server with NCTSSOS + MosekTools.
 #
-# Usage in scripts:
+# ENVIRONMENT SETUP:
+#   These scripts must be run from the NCTSSOS repository (not NCTSSoS.jl).
+#   Set NCTSSOS_PATH environment variable or use default locations:
+#     - Local (macOS): /Users/yushengzhao/projects/NCTSSOS
+#     - a800 server:   /home/yushengzhao/NCTSSOS
+#
+# RUNNING ORACLE SCRIPTS:
+#   Option 1: Using make (from NCTSSoS.jl repo)
+#     make oracle-chsh
+#     make oracle-i3322
+#     NCTSSOS_PATH=/custom/path make oracle-chsh
+#
+#   Option 2: Manual (from NCTSSOS repo)
+#     cd /path/to/NCTSSOS
+#     julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
+#
+# ORACLE FORMAT:
+#   (opt, sides, nuniq) where:
+#     opt   = optimal objective value (minimization)
+#     sides = vector of moment matrix block sizes
+#     nuniq = unique moment indices (affine constraints count)
+#
+# USAGE IN SCRIPTS:
 #   include("oracle_utils.jl")
-#   include(joinpath(@__DIR__, "..", "problems", "my_problem.jl"))  # get VARIANTS
 #   ... define problem-specific obj, vars, constraints ...
-#   for v in MY_PROBLEM_VARIANTS
+#   for v in VARIANTS
 #       result = run_oracle(...)
 #   end
+# =============================================================================
+
+# Detect NCTSSOS path for informational purposes
+const NCTSSOS_PATH = get(ENV, "NCTSSOS_PATH",
+    isdir("/Users/yushengzhao/projects/NCTSSOS") ? "/Users/yushengzhao/projects/NCTSSOS" :
+    isdir("/home/yushengzhao/NCTSSOS") ? "/home/yushengzhao/NCTSSOS" :
+    "(not detected - set NCTSSOS_PATH)"
+)
 
 using NCTSSOS, DynamicPolynomials
 using MosekTools
+
+@info "Oracle utilities loaded" NCTSSOS_PATH
 
 # Extract oracle info from NCTSSOS result
 function extract_oracle(name, opt, data; use_cs=false)

@@ -6,6 +6,9 @@
 # Reference: NCTSSOS paper benchmark problems
 # All problems are unconstrained NC polynomial minimization.
 #
+# NOTE: No oracle values available - using theoretical global minima as reference.
+# Tolerances set to 1e-2 or 1e-3 to account for SDP relaxation approximation error.
+#
 # Benchmarks included:
 #   1. Generalized Rosenbrock (n=6)  - Degree 4, Global min = 1
 #   2. Broyden Banded (n=4)          - Degree 6, Global min = 0
@@ -16,7 +19,7 @@
 using Test, NCTSSoS
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
 
 # All benchmark tests require Mosek for numerical stability
 if USE_LOCAL

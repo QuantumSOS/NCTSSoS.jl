@@ -12,7 +12,7 @@
 using Test, NCTSSoS
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
 
 # Load oracle values
 include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "i3322_oracles.jl"))
@@ -64,6 +64,8 @@ const I3322_EXPECTED = -0.2508753049688358
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision limitations
+            # Mosek achieves 1e-5, but COSMO requires looser tolerance for this problem
             @test result.objective ≈ oracle.opt atol = 1e-2
             @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
             @test result.n_unique_moment_matrix_elements == oracle.nuniq
@@ -78,6 +80,8 @@ const I3322_EXPECTED = -0.2508753049688358
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision limitations
+            # Mosek achieves 1e-5, but COSMO requires looser tolerance for this problem
             @test result.objective ≈ oracle.opt atol = 1e-2
             @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
             @test result.n_unique_moment_matrix_elements == oracle.nuniq
@@ -102,6 +106,7 @@ const I3322_EXPECTED = -0.2508753049688358
         dense_result = cs_nctssos(pop, dense_config)
 
         @testset "NoElimination (dense)" begin
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision limitations
             @test dense_result.objective ≈ oracle_dense.opt atol = 1e-2
             @test flatten_sizes(dense_result.moment_matrix_sizes) == oracle_dense.sides
             @test dense_result.n_unique_moment_matrix_elements == oracle_dense.nuniq
@@ -115,6 +120,7 @@ const I3322_EXPECTED = -0.2508753049688358
                 ts_algo=NoElimination()
             )
             mf_result = cs_nctssos(pop, mf_config)
+            # Tolerance relaxed to 1e-2 due to COSMO solver precision limitations
             @test mf_result.objective ≈ oracle_cs.opt atol = 1e-2
             @test sort(flatten_sizes(mf_result.moment_matrix_sizes)) == sort(oracle_cs.sides)
             @test mf_result.n_unique_moment_matrix_elements == oracle_cs.nuniq

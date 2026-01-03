@@ -288,18 +288,92 @@ Result of a state polynomial optimization problem solution.
 - `corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M}`: State correlative sparsity structure
 - `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity for each clique
 - `model::GenericModel{T}`: JuMP model used for solving
+- `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix
+- `n_unique_moment_matrix_elements::Int`: Number of unique moment variables in all moment matrices (after canonicalization)
 """
 struct StatePolyOptResult{T, A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
     objective::T
     corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
     model::GenericModel{T}
+    moment_matrix_sizes::Vector{Vector{Int}}
+    n_unique_moment_matrix_elements::Int
+end
+
+function _count_unique_state_moment_elements(
+    corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+) where {A<:AlgebraType, ST<:StateType, TI<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,TI}, M<:NCStateWord{ST,A,TI}}
+    unique_sws = Set{StateWord{ST,A,TI}}()
+
+    one_poly = one(P)
+
+    for (term_sparsities, cons_idx) in zip(cliques_term_sparsities, corr_sparsity.clq_cons)
+        polys = [one_poly; corr_sparsity.cons[cons_idx]...]
+
+        for (term_sparsity, poly) in zip(term_sparsities, polys)
+            for ts_sub_basis in term_sparsity.block_bases
+                for row_idx in ts_sub_basis
+                    for col_idx in ts_sub_basis
+                        for ncsw in monomials(poly)
+                            prod_poly = simplify(_neat_dot3(row_idx, ncsw, col_idx))
+                            for ncsw_res in monomials(prod_poly)
+                                push!(unique_sws, symmetric_canon(expval(ncsw_res)))
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    for global_con in corr_sparsity.global_cons
+        poly = corr_sparsity.cons[global_con]
+        for ncsw in monomials(poly)
+            prod_poly = simplify(_neat_dot3(one(M), ncsw, one(M)))
+            for ncsw_res in monomials(prod_poly)
+                push!(unique_sws, symmetric_canon(expval(ncsw_res)))
+            end
+        end
+    end
+
+    return length(unique_sws)
+end
+
+function StatePolyOptResult(
+    objective::T,
+    corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+    model::GenericModel{T}
+) where {T, A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
+    moment_matrix_sizes = _compute_moment_matrix_sizes(cliques_term_sparsities)
+    n_unique = _count_unique_state_moment_elements(corr_sparsity, cliques_term_sparsities)
+    return StatePolyOptResult{T,A,ST,TI,P,M}(
+        objective,
+        corr_sparsity,
+        cliques_term_sparsities,
+        model,
+        moment_matrix_sizes,
+        n_unique
+    )
 end
 
 function Base.show(io::IO, result::StatePolyOptResult)
     println(io, "State Optimization Result")
     println(io, "Objective: ", result.objective)
     show(io, result.corr_sparsity)
+    println(io, "Term Sparsity:")
+    for (i, sparsities) in enumerate(result.cliques_term_sparsities)
+        println(io, "Clique $i:")
+        println(io, "   Moment Matrix Block Sizes: ", result.moment_matrix_sizes[i])
+        println(io, "   Moment Matrix:")
+        println(io, sparsities[1])
+        println(io, "   Localizing Matrix:")
+        for sparsity in sparsities[2:end]
+            show(io, sparsity)
+        end
+    end
+    println(io, "Unique Moment Matrix Elements: ", result.n_unique_moment_matrix_elements)
 end
 
 # =============================================================================
@@ -327,6 +401,12 @@ This function solves a state polynomial optimization problem by:
 2. Computing term sparsity for each clique to further reduce problem size
 3. Formulating and solving the SOS dual of the moment relaxation
 4. Returning the optimal objective value and sparsity information
+
+# Note on order selection
+The relaxation order should be at least `ceil(max_objective_degree / 2)` to properly
+capture the objective. For state polynomials with degree-2 terms like ⟨x₁y₁⟩,
+use `order >= 1`. If `order=0` is specified, it will be automatically computed
+from the maximum polynomial degree.
 """
 function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
 
@@ -367,10 +447,10 @@ function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; du
         sos_problem = sos_dualize(moment_problem)
         set_optimizer(sos_problem.model, solver_config.optimizer)
         optimize!(sos_problem.model)
-        return StatePolyOptResult{C,A,ST,T,P,M}(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model)
+        return StatePolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model)
     else
         # Solve moment problem directly
         result = solve_moment_problem(moment_problem, solver_config.optimizer)
-        return StatePolyOptResult{C,A,ST,T,P,M}(result.objective, corr_sparsity, cliques_term_sparsities, result.model)
+        return StatePolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model)
     end
 end

@@ -1,7 +1,7 @@
 using NCTSSoS, Test
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
 
 # Fermionic Chain Hamiltonian Test
 #

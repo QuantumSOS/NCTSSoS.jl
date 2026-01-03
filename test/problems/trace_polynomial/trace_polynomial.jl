@@ -13,7 +13,7 @@
 using Test, NCTSSoS
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
 
 # Load oracle values
 include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "trace_poly_oracles.jl"))

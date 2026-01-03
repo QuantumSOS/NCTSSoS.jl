@@ -12,7 +12,7 @@ using SparseArrays
 using NCTSSoS: get_Cαj
 
 # Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "setup.jl"))
+@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "standalone_setup.jl"))
 
 @testset "SOS Components" begin
     @testset "Cαj" begin

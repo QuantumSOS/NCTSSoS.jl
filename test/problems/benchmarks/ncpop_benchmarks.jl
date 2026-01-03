@@ -1,13 +1,9 @@
+# =============================================================================
 # NC Polynomial Optimization Benchmark Tests
-# ==========================================
+# =============================================================================
 # Classical optimization benchmarks adapted for noncommutative polynomials.
-# These test sparsity algorithms on structured problems.
-#
-# Reference: NCTSSOS paper benchmark problems
-# All problems are unconstrained NC polynomial minimization.
-#
-# Oracle values available for Rosenbrock; others use theoretical global minima.
-# Tolerances set to 1e-2 or 1e-3 to account for SDP relaxation approximation error.
+# Tests sparsity algorithms on structured problems.
+# Results verified against NCTSSOS.
 #
 # Benchmarks included:
 #   1. Generalized Rosenbrock (n=6)  - Degree 4, Global min = 1
@@ -15,21 +11,75 @@
 #   3. Broyden Tridiagonal (n=6)     - Degree 4, Global min = 0
 #   4. Chained Singular (n=8)        - Degree 4, Global min = 0
 #   5. Chained Wood (n=8)            - Degree 4, Global min ≈ 1
+# =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
+# Solver: use Mosek if available, otherwise error
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
-# Load oracle values
-include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "rosenbrock_oracles.jl"))
-include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "benchmarks_oracles.jl"))
+# =============================================================================
+# Expected values from NCTSSOS
+# Format: (opt, sides, nuniq)
+#   opt   = optimal value (minimization)
+#   sides = moment matrix block sizes
+#   nuniq = unique moment indices (affine constraints)
+# =============================================================================
 
-# Helper: flatten moment_matrix_sizes for comparison with oracle
+# Generalized Rosenbrock (n=6, degree=4, order=2)
+# Global minimum: 1.0 at xᵢ = 0 for all i
+const EXPECTED_ROSENBROCK = (
+    Dense    = (opt=0.999999995930163, sides=[43], nuniq=820),
+    CS       = (opt=0.999999973478842, sides=[7, 7, 7, 7, 7], nuniq=90),
+    CS_TS    = (opt=0.9999997821660428, sides=[3, 2, 2, 2, 1, 3, 2, 2, 2, 1, 3, 2, 2, 2, 1, 3, 2, 2, 2, 1, 3, 2, 2, 1], nuniq=33),
+)
+
+# Broyden Banded (n=4, degree=6, order=3)
+# Global minimum: 0.0 at origin
+const EXPECTED_BROYDEN_BANDED = (
+    Dense    = (opt=-2.0628417282628906e-8, sides=[85], nuniq=2815),
+    CS       = (opt=-2.0628417282628906e-8, sides=[85], nuniq=2815),
+    CS_TS    = (opt=-1.7480268537791176e-9, sides=[9, 9, 7, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], nuniq=134),
+)
+
+# Broyden Tridiagonal (n=6, degree=4, order=2)
+# Global minimum: 0.0 at origin
+const EXPECTED_BROYDEN_TRIDIAGONAL = (
+    Dense    = (opt=6.580588236100922e-11, sides=[43], nuniq=820),
+    CS       = (opt=-7.683336739295744e-9, sides=[13, 13, 13, 13], nuniq=226),
+    CS_TS    = (opt=-1.3851129121677345e-7, sides=[5, 4, 4, 3, 3, 3, 3, 2, 2, 5, 4, 4, 3, 3, 3, 3, 2, 2, 5, 4, 4, 3, 3, 3, 3, 2, 2, 5, 4, 4, 3, 3, 3, 3, 2, 2], nuniq=62),
+)
+
+# Chained Singular (n=8, degree=4, order=2)
+# Global minimum: 0.0 at origin
+const EXPECTED_CHAINED_SINGULAR = (
+    Dense    = (opt=-6.428097254420157e-8, sides=[73], nuniq=2413),
+    CS       = (opt=-1.2251940085171628e-7, sides=[13, 13, 13, 13, 13, 13], nuniq=328),
+    CS_TS    = (opt=-2.4177846987055753e-7, sides=[4, 3, 2, 2, 2, 2, 1, 1, 1, 4, 3, 2, 2, 2, 2, 1, 1, 1, 4, 3, 2, 2, 2, 2, 1, 1, 1, 4, 3, 2, 2, 2, 2, 1, 1, 1, 4, 3, 2, 2, 2, 2, 1, 1, 1, 4, 3, 2, 2, 2, 2, 1, 1, 1], nuniq=83),
+)
+
+# Chained Wood (n=8, degree=4, order=2)
+# Global minimum: ≈1.0
+const EXPECTED_CHAINED_WOOD = (
+    Dense    = (opt=0.9999998013387236, sides=[73], nuniq=2413),
+    CS       = (opt=0.9999998300594172, sides=[7, 7, 7, 7, 7, 7, 7], nuniq=124),
+    CS_TS    = (opt=0.9999998815901131, sides=[3, 2, 2, 2, 1, 3, 2, 2, 2, 2, 3, 2, 2, 2, 1, 3, 2, 2, 2, 2, 3, 2, 2, 2, 1, 3, 2, 2, 2, 2, 3, 2, 2, 2, 1], nuniq=46),
+)
+
+# Helper: flatten moment_matrix_sizes for comparison
 flatten_sizes(sizes) = reduce(vcat, sizes)
 
-# All benchmark tests require Mosek for numerical stability
-if USE_LOCAL
+# Note: For CS+TS tests, block ordering may differ between NCTSSoS.jl and NCTSSOS
+# due to internal graph traversal order. The mathematical content is identical
+# when the sorted block sizes match. Dense and CS-only tests use exact comparison
+# since their block ordering is deterministic.
 
 @testset "NC Polynomial Benchmarks" begin
 
@@ -51,9 +101,8 @@ if USE_LOCAL
         end
 
         pop = polyopt(f, reg)
-        expected = 1.0
 
-        @testset "NoElimination" begin
+        @testset "Dense (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -61,10 +110,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ EXPECTED_ROSENBROCK.Dense.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_ROSENBROCK.Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_ROSENBROCK.Dense.nuniq
         end
 
-        @testset "MF Correlative Sparsity" begin
+        @testset "Correlative Sparsity MF (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -72,10 +123,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ EXPECTED_ROSENBROCK.CS.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_ROSENBROCK.CS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_ROSENBROCK.CS.nuniq
         end
 
-        @testset "MF + MMD Sparsity" begin
+        @testset "CS + TS (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -83,7 +136,9 @@ if USE_LOCAL
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ EXPECTED_ROSENBROCK.CS_TS.opt atol = 1e-6
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_ROSENBROCK.CS_TS.sides)
+            @test result.n_unique_moment_matrix_elements == EXPECTED_ROSENBROCK.CS_TS.nuniq
         end
     end
 
@@ -125,9 +180,8 @@ if USE_LOCAL
         end
 
         pop = polyopt(f, reg)
-        expected = 0.0
 
-        @testset "NoElimination" begin
+        @testset "Dense (order=3)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
@@ -135,10 +189,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_BROYDEN_BANDED.Dense.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BROYDEN_BANDED.Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_BROYDEN_BANDED.Dense.nuniq
         end
 
-        @testset "MF Correlative Sparsity" begin
+        @testset "Correlative Sparsity MF (order=3)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
@@ -146,10 +202,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_BROYDEN_BANDED.CS.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BROYDEN_BANDED.CS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_BROYDEN_BANDED.CS.nuniq
         end
 
-        @testset "MF + MMD Sparsity" begin
+        @testset "CS + TS (order=3)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
@@ -157,7 +215,9 @@ if USE_LOCAL
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_BROYDEN_BANDED.CS_TS.opt atol = 1e-6
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_BROYDEN_BANDED.CS_TS.sides)
+            @test result.n_unique_moment_matrix_elements == EXPECTED_BROYDEN_BANDED.CS_TS.nuniq
         end
     end
 
@@ -196,9 +256,8 @@ if USE_LOCAL
             6.0 * x[n-1] * x[n] + 6.0 * x[n] + 4.0 * x[n-1] * x[n]^2 - 2.0 * x[n-1]
 
         pop = polyopt(f, reg)
-        expected = 0.0
 
-        @testset "NoElimination" begin
+        @testset "Dense (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -206,10 +265,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_BROYDEN_TRIDIAGONAL.Dense.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BROYDEN_TRIDIAGONAL.Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_BROYDEN_TRIDIAGONAL.Dense.nuniq
         end
 
-        @testset "MF Correlative Sparsity" begin
+        @testset "Correlative Sparsity MF (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -217,10 +278,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_BROYDEN_TRIDIAGONAL.CS.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BROYDEN_TRIDIAGONAL.CS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_BROYDEN_TRIDIAGONAL.CS.nuniq
         end
 
-        @testset "MF + MMD Sparsity" begin
+        @testset "CS + TS (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -228,7 +291,9 @@ if USE_LOCAL
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_BROYDEN_TRIDIAGONAL.CS_TS.opt atol = 1e-6
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_BROYDEN_TRIDIAGONAL.CS_TS.sides)
+            @test result.n_unique_moment_matrix_elements == EXPECTED_BROYDEN_TRIDIAGONAL.CS_TS.nuniq
         end
     end
 
@@ -251,9 +316,6 @@ if USE_LOCAL
         nc_square(a, b) = a^2 + a * b + b * a + b^2
 
         # Helper for NC fourth power: (a + b)⁴ expanded
-        # (a+b)⁴ = ((a+b)²)² but we need to be careful with NC
-        # For simplicity, use: (a+b)^4 = a^4 + a^3*b + a^2*b*a + a^2*b^2 + a*b*a^2 + ...
-        # Actually, let's directly expand using polynomial arithmetic
         function nc_fourth_power(a, b)
             ab = a + b
             ab2 = ab * ab  # (a+b)²
@@ -275,9 +337,8 @@ if USE_LOCAL
         end
 
         pop = polyopt(f, reg)
-        expected = 0.0
 
-        @testset "NoElimination" begin
+        @testset "Dense (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -285,10 +346,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_CHAINED_SINGULAR.Dense.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHAINED_SINGULAR.Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHAINED_SINGULAR.Dense.nuniq
         end
 
-        @testset "MF Correlative Sparsity" begin
+        @testset "Correlative Sparsity MF (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -296,10 +359,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_CHAINED_SINGULAR.CS.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHAINED_SINGULAR.CS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHAINED_SINGULAR.CS.nuniq
         end
 
-        @testset "MF + MMD Sparsity" begin
+        @testset "CS + TS (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -307,7 +372,9 @@ if USE_LOCAL
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-3
+            @test result.objective ≈ EXPECTED_CHAINED_SINGULAR.CS_TS.opt atol = 1e-6
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_CHAINED_SINGULAR.CS_TS.sides)
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHAINED_SINGULAR.CS_TS.nuniq
         end
     end
 
@@ -335,9 +402,8 @@ if USE_LOCAL
         end
 
         pop = polyopt(f, reg)
-        expected = 1.0
 
-        @testset "NoElimination" begin
+        @testset "Dense (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -345,10 +411,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ EXPECTED_CHAINED_WOOD.Dense.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHAINED_WOOD.Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHAINED_WOOD.Dense.nuniq
         end
 
-        @testset "MF Correlative Sparsity" begin
+        @testset "Correlative Sparsity MF (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -356,10 +424,12 @@ if USE_LOCAL
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ EXPECTED_CHAINED_WOOD.CS.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHAINED_WOOD.CS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHAINED_WOOD.CS.nuniq
         end
 
-        @testset "MF + MMD Sparsity" begin
+        @testset "CS + TS (order=2)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -367,56 +437,10 @@ if USE_LOCAL
                 ts_algo=MMD()
             )
             result = cs_nctssos(pop, config)
-            @test result.objective ≈ expected atol = 1e-2
+            @test result.objective ≈ EXPECTED_CHAINED_WOOD.CS_TS.opt atol = 1e-6
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_CHAINED_WOOD.CS_TS.sides)
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHAINED_WOOD.CS_TS.nuniq
         end
     end
 
-    # =========================================================================
-    # Sparsity Comparison Test
-    # =========================================================================
-    # Verifies that sparsity methods produce consistent results
-    @testset "Sparsity Method Consistency" begin
-        # Use Rosenbrock as a representative test case
-        n = 4
-        reg, (x,) = create_noncommutative_variables([("x", 1:n)])
-
-        f = Float64(n) * one(typeof(x[1]))
-        for i in 2:n
-            f = f + 100.0 * x[i-1]^4 - 200.0 * x[i-1]^2 * x[i] - 2.0 * x[i] + 101.0 * x[i]^2
-        end
-
-        pop = polyopt(f, reg)
-
-        # Collect results from different configurations
-        configs = [
-            ("Dense", NoElimination(), NoElimination()),
-            ("CS only", MF(), NoElimination()),
-            ("TS only", NoElimination(), MMD()),
-            ("CS + TS", MF(), MMD()),
-        ]
-
-        results = Dict{String,Float64}()
-        for (name, cs_algo, ts_algo) in configs
-            config = SolverConfig(
-                optimizer=SOLVER,
-                order=2,
-                cs_algo=cs_algo,
-                ts_algo=ts_algo
-            )
-            result = cs_nctssos(pop, config)
-            results[name] = result.objective
-        end
-
-        # All methods should give similar results (within tolerance)
-        baseline = results["Dense"]
-        for (name, val) in results
-            @test isapprox(val, baseline; atol=0.1)
-        end
-
-        # All should be close to the expected minimum
-        @test baseline ≈ 1.0 atol = 1e-2
-    end
-
-end  # @testset "NC Polynomial Benchmarks"
-
-end  # USE_LOCAL
+end

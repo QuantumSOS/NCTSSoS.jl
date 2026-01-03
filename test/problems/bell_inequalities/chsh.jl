@@ -2,20 +2,45 @@
 # CHSH Bell Inequality Tests
 # =============================================================================
 # Tests CHSH Bell inequality optimization with various sparsity configurations.
-# Results verified against NCTSSOS oracles.
+# Results verified against NCTSSOS.
 #
 # Expected optimal value: -2sqrt(2) ≈ -2.8284 (quantum bound)
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
+# Solver: use Mosek if available, otherwise error
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
-# Load oracle values
-include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "chsh_oracles.jl"))
+# =============================================================================
+# Expected values from NCTSSOS
+# Format: (opt, sides, nuniq)
+#   opt   = optimal value (minimization → opt ≈ -2√2)
+#   sides = moment matrix block sizes
+#   nuniq = unique moment indices (affine constraints)
+# =============================================================================
+const EXPECTED = (
+    # NC Polynomial Formulation
+    Dense_d1    = (opt=-2.8284271321623193, sides=[5], nuniq=11),
+    CS_d1       = (opt=-2.8284271247170496, sides=[4, 4], nuniq=10),
+    TS_d1       = (opt=-2.8284271247321175, sides=[3, 3, 1], nuniq=6),
+    CS_TS_d2    = (opt=-3.999999999803662, sides=[3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2], nuniq=5),
+    # State Polynomial Formulation
+    State_Dense = (opt=-2.828427124746234, sides=[9], nuniq=21),
+    State_TS    = (opt=-2.828427124746232, sides=[9], nuniq=21),
+    # Trace Polynomial Formulation
+    Trace_Dense = (opt=-2.828427124746234, sides=[9], nuniq=21),
+    Trace_TS    = (opt=-2.828427124746232, sides=[9], nuniq=21),
+)
 
-# Helper: flatten moment_matrix_sizes for comparison with oracle
+# Helper: flatten moment_matrix_sizes for comparison
 flatten_sizes(sizes) = reduce(vcat, sizes)
 
 @testset "CHSH Bell Inequality" begin
@@ -33,12 +58,10 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
     end
 
     # =========================================================================
-    # Dense (No Sparsity) - CHSH_Dense_d1
+    # Dense (No Sparsity)
     # =========================================================================
     @testset "Dense (order=1)" begin
         pop, _ = create_chsh_problem()
-        oracle = CHSH_ORACLES["CHSH_Dense_d1"]
-
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,
@@ -47,18 +70,16 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ oracle.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+        @test result.objective ≈ EXPECTED.Dense_d1.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.Dense_d1.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED.Dense_d1.nuniq
     end
 
     # =========================================================================
-    # Correlative Sparsity (MF) - CHSH_CS_d1
+    # Correlative Sparsity (MF)
     # =========================================================================
     @testset "Correlative Sparsity MF (order=1)" begin
         pop, _ = create_chsh_problem()
-        oracle = CHSH_ORACLES["CHSH_CS_d1"]
-
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,
@@ -67,18 +88,16 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ oracle.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+        @test result.objective ≈ EXPECTED.CS_d1.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.CS_d1.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED.CS_d1.nuniq
     end
 
     # =========================================================================
-    # Term Sparsity (MMD) - CHSH_TS_d1
+    # Term Sparsity (MMD)
     # =========================================================================
     @testset "Term Sparsity MMD (order=1)" begin
         pop, _ = create_chsh_problem()
-        oracle = CHSH_ORACLES["CHSH_TS_d1"]
-
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,
@@ -87,32 +106,19 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ oracle.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+        @test result.objective ≈ EXPECTED.TS_d1.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.TS_d1.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED.TS_d1.nuniq
     end
 
     # =========================================================================
-    # Combined CS + TS (order=2) - CHSH_CS_TS_d2
-    # =========================================================================
+    # Combined CS + TS (order=2)
     # WARNING: Combined CS+TS does NOT converge to -2√2 for CHSH!
     # This gives opt=-4.0, a much looser bound than the quantum value -2.828.
-    #
-    # Root cause: The cliques share only the identity element, so cross-clique
-    # moment constraints are missing. This is a structural limitation of the
-    # combined sparsity approach for problems with this specific structure.
-    #
-    # This is consistent with NCTSSOS behavior and is NOT a bug - it's an
-    # inherent limitation of the CS+TS relaxation for certain problem types.
-    #
-    # NOTE: Block sizes differ between NCTSSOS and NCTSSoS implementations
-    # (NCTSSOS: [3,3,3,3,2,2,3,3,3,3,2,2], NCTSSoS: [2,2,2,2,2,2,2,2,2,2,2,2])
-    # but both achieve the same objective (-4.0) and nuniq (5).
+    # This is consistent with NCTSSOS behavior - it's an inherent limitation.
     # =========================================================================
     @testset "Combined CS+TS (order=2) - KNOWN LOOSE BOUND" begin
         pop, _ = create_chsh_problem()
-        oracle = CHSH_ORACLES["CHSH_CS_TS_d2"]
-
         config = SolverConfig(
             optimizer=SOLVER,
             order=2,
@@ -121,11 +127,10 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        # Objective is -4.0, NOT -2.828 (this is expected!)
-        @test result.objective ≈ oracle.opt atol = 1e-6
-        # Block sizes differ between implementations but total count matches
-        @test length(flatten_sizes(result.moment_matrix_sizes)) == length(oracle.sides)
-        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+        @test result.objective ≈ EXPECTED.CS_TS_d2.opt atol = 1e-6
+        # Block sizes may differ but total count matches
+        @test length(flatten_sizes(result.moment_matrix_sizes)) == length(EXPECTED.CS_TS_d2.sides)
+        @test result.n_unique_moment_matrix_elements == EXPECTED.CS_TS_d2.nuniq
     end
 
     # =========================================================================
@@ -137,7 +142,6 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         spop = polyopt(sp * one(typeof(x[1])), reg)
 
         @testset "Dense" begin
-            oracle = CHSH_ORACLES["CHSH_State_Dense_d1"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=1,
@@ -145,13 +149,12 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracle.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-            @test result.n_unique_moment_matrix_elements == oracle.nuniq
+            @test result.objective ≈ EXPECTED.State_Dense.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.State_Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED.State_Dense.nuniq
         end
 
         @testset "Term Sparsity MMD" begin
-            oracle = CHSH_ORACLES["CHSH_State_TS_d1"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=1,
@@ -159,21 +162,20 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracle.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-            @test result.n_unique_moment_matrix_elements == oracle.nuniq
+            @test result.objective ≈ EXPECTED.State_TS.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.State_TS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED.State_TS.nuniq
         end
 
         @testset "Direct Moment vs SOS" begin
-            oracle = CHSH_ORACLES["CHSH_State_Dense_d1"]
             config = SolverConfig(optimizer=SOLVER, order=1)
             result_mom = cs_nctssos(spop, config; dualize=false)
             result_sos = cs_nctssos(spop, config; dualize=true)
             @test result_mom.objective ≈ result_sos.objective atol = 1e-5
-            @test flatten_sizes(result_mom.moment_matrix_sizes) == oracle.sides
-            @test flatten_sizes(result_sos.moment_matrix_sizes) == oracle.sides
-            @test result_mom.n_unique_moment_matrix_elements == oracle.nuniq
-            @test result_sos.n_unique_moment_matrix_elements == oracle.nuniq
+            @test flatten_sizes(result_mom.moment_matrix_sizes) == EXPECTED.State_Dense.sides
+            @test flatten_sizes(result_sos.moment_matrix_sizes) == EXPECTED.State_Dense.sides
+            @test result_mom.n_unique_moment_matrix_elements == EXPECTED.State_Dense.nuniq
+            @test result_sos.n_unique_moment_matrix_elements == EXPECTED.State_Dense.nuniq
         end
     end
 
@@ -190,7 +192,6 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         tpop = polyopt(p * one(typeof(x[1])), reg)
 
         @testset "Dense" begin
-            oracle = CHSH_ORACLES["CHSH_Trace_Dense_d1"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=1,
@@ -198,14 +199,12 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(tpop, config)
-            # Standard tolerance for trace polynomials: 1e-5
-            @test result.objective ≈ oracle.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-            @test result.n_unique_moment_matrix_elements == oracle.nuniq
+            @test result.objective ≈ EXPECTED.Trace_Dense.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.Trace_Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED.Trace_Dense.nuniq
         end
 
         @testset "Term Sparsity MMD" begin
-            oracle = CHSH_ORACLES["CHSH_Trace_TS_d1"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=1,
@@ -213,9 +212,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=MMD()
             )
             result = cs_nctssos(tpop, config)
-            @test result.objective ≈ oracle.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-            @test result.n_unique_moment_matrix_elements == oracle.nuniq
+            @test result.objective ≈ EXPECTED.Trace_TS.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.Trace_TS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED.Trace_TS.nuniq
         end
     end
 end

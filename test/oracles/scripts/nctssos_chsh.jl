@@ -84,7 +84,7 @@ supp_state = [[[1,3]], [[1,4]], [[2,3]], [[2,4]]]
 coe_state = [-1.0, -1.0, -1.0, 1.0]
 
 println("Objective: -ς(x₁y₁) - ς(x₁y₂) - ς(x₂y₁) + ς(x₂y₂)")
-println("Variables: n=4, vargroup=[2,2] (Alice: 1-2, Bob: 3-4)")
+println("Variables: n=4, vargroup=[2;2] (group sizes: Alice=2, Bob=2)")
 println("Constraint: unipotent")
 println("Expected: -2√2 ≈ -2.8284")
 println()
@@ -94,7 +94,7 @@ results_state = map(CHSH_STATE_VARIANTS) do v
     println("# $(v.name) (order=$(v.order), TS=$(v.ts))")
 
     opt, data = pstateopt_first(supp_state, coe_state, 4, v.order;
-        vargroup=[2, 4],
+        vargroup=[2, 2],  # Group sizes: 2 vars in party 1, 2 vars in party 2
         TS=v.ts == false ? false : v.ts,
         constraint="unipotent")
     result = extract_oracle(key, opt, data; use_cs=false)

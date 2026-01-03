@@ -794,37 +794,43 @@ end
 
 Initialize the activated support for state polynomial term sparsity iteration.
 
+This follows the NCTSSOS algorithm where the initial support includes:
+1. Canonicalized objective monomials (symmetric_canon applied)
+2. Constraint monomials
+3. Diagonal entries bi†*I*bi (monosquare terms) to ensure proper diagonal support
+
+Note: We do NOT include all pairwise products - that would destroy sparsity by
+making the term sparsity graph fully connected. The sparsity comes from the fact
+that most off-diagonal products bi†*I*bj are NOT in the initial support.
+
 # Arguments
 - `partial_obj::NCStatePolynomial`: Partial objective for this clique
 - `cons::Vector{NCStatePolynomial}`: Constraint state polynomials
 - `mom_mtx_bases::Vector{NCStateWord}`: Moment matrix basis NCStateWords
 
 # Returns
-- `Vector{NCStateWord}`: Sorted union of canonicalized objective and constraint monomials
+- `Vector{NCStateWord}`: Sorted union of canonicalized objective monomials,
+  constraint monomials, and diagonal moment entries
 """
 function init_activated_supp(
     partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
-    # For NCStateWord, we need to include all pairwise products _neat_dot3(bi, I, bj)
-    # in the activated support. This is because:
-    # 1. The term sparsity graph checks if _neat_dot3(bi, I, bj) is in activated_supp
-    # 2. Unlike Monomials where objective terms directly match basis elements,
-    #    NCStateWord objectives may have compound expectations that don't directly
-    #    appear as _neat_dot3 products of degree-1 basis elements
-    # 3. Including all pairwise products ensures proper connectivity in the graph
-    pairwise_entries = M[]
+    # Compute diagonal entries bi†*I*bi (monosquare terms)
+    # These are the "squared" basis elements that should be in the initial support
+    diagonal_entries = M[]
     identity = one(M)
-    for i in eachindex(mom_mtx_bases)
-        for j in i:length(mom_mtx_bases)
-            # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
-            poly = simplify(_neat_dot3(mom_mtx_bases[i], identity, mom_mtx_bases[j]))
-            append!(pairwise_entries, monomials(poly))
+    for b in mom_mtx_bases
+        # _neat_dot3(b, I, b) computes b† * I * b
+        poly = simplify(_neat_dot3(b, identity, b))
+        # Store canonicalized forms for consistent lookup
+        for ncsw in monomials(poly)
+            push!(diagonal_entries, symmetric_canon(ncsw))
         end
     end
     return sorted_union(
         symmetric_canon.(monomials(partial_obj)),
-        mapreduce(monomials, vcat, cons; init=M[]),
-        pairwise_entries
+        symmetric_canon.(mapreduce(monomials, vcat, cons; init=M[])),
+        diagonal_entries
     )
 end
 
@@ -862,6 +868,10 @@ end
     get_term_sparsity_graph(cons_support, activated_supp, bases) for NCStateWord
 
 Constructs a term sparsity graph for state polynomial constraints.
+
+An edge is added between basis elements i and j if the canonicalized product
+bi† * supp * bj (for any supp in cons_support) is present in the activated support.
+The canonicalization uses `symmetric_canon` to match how elements are stored.
 """
 function get_term_sparsity_graph(
     cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}
@@ -875,17 +885,19 @@ function get_term_sparsity_graph(
             # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
             connected_lr = simplify(_neat_dot3(bases[i], supp, bases[j]))
             connected_rl = simplify(_neat_dot3(bases[j], supp, bases[i]))
-            # Check if any resulting NCStateWord is in activated support
+            # Check if any canonicalized NCStateWord is in activated support
             found = false
             for ncsw in monomials(connected_lr)
-                if ncsw in sorted_activated_supp
+                canon_ncsw = symmetric_canon(ncsw)
+                if canon_ncsw in sorted_activated_supp
                     found = true
                     break
                 end
             end
             if !found
                 for ncsw in monomials(connected_rl)
-                    if ncsw in sorted_activated_supp
+                    canon_ncsw = symmetric_canon(ncsw)
+                    if canon_ncsw in sorted_activated_supp
                         found = true
                         break
                     end

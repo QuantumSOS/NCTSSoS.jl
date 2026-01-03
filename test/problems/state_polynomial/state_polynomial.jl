@@ -7,23 +7,44 @@
 #   - 7.2.3: Mixed state polynomial with squared expectations
 #
 # Note: Basic CHSH state polynomial tests are in chsh.jl
-# Results verified against NCTSSOS oracles (state_poly_extended_oracles.jl)
+# Results verified against NCTSSOS.
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
+# Solver: use Mosek if available, otherwise error
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
-# Load oracle values
-include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_extended_oracles.jl"))
+# =============================================================================
+# Expected values from NCTSSOS
+# Format: (opt, sides, nuniq)
+#   opt   = optimal value (minimization)
+#   sides = moment matrix block sizes
+#   nuniq = unique moment indices (affine constraints)
+# =============================================================================
+const EXPECTED_STATE_POLY = (
+    # 7.2.1: Squared Expectations (expected: -4.0)
+    Ex_7_2_1_Dense_d3 = (opt=-3.9999999914666895, sides=[209], nuniq=1887),
+    # 7.2.2: Covariance (expected: -5.0)
+    Ex_7_2_2_Dense_d2 = (opt=-4.999999999824081, sides=[106], nuniq=1098),
+    Ex_7_2_2_TS_d2 = (opt=-4.99999999745226, nuniq=93),
+    # 7.2.3: Mixed State Polynomial (expected: -3.5114802)
+    Ex_7_2_3_Dense_d2 = (opt=-3.511480225797076, sides=[49], nuniq=233),
+    Ex_7_2_3_TS_d2 = (opt=-3.582132180463948, nuniq=41),
+)
 
 @testset "State Polynomial Examples (7.2.x)" begin
 
     # =========================================================================
     # Example 7.2.1: Squared Expectations
     # =========================================================================
-    # Known limitation - objectives with squared expectations <A><A>
     # At order=3, the relaxation correctly gives the tight bound of -4.0.
     @testset "Example 7.2.1 (Squared Expectations)" begin
         reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
@@ -32,14 +53,11 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
         sp = -1.0 * sp1 * sp1 - 1.0 * sp2 * sp2
 
         spop = polyopt(sp * one(typeof(x[1])), reg)
-        oracle = STATE_POLY_EXTENDED_ORACLES["State_7_2_1_Dense_d3"]
 
         @testset "Order 3 (tight bound)" begin
             config = SolverConfig(optimizer=SOLVER, order=3)
             result = cs_nctssos(spop, config)
-            # Tolerance relaxed to 1e-4 due to squared expectations in objective
-            # Higher-order relaxation with COSMO needs slightly looser tolerance than standard
-            @test result.objective ≈ oracle.opt atol = 1e-4
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_1_Dense_d3.opt atol = 1e-4
         end
     end
 
@@ -52,15 +70,11 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
         sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
         spop = polyopt(sp * one(typeof(x[1])), reg)
-        oracle_dense = STATE_POLY_EXTENDED_ORACLES["State_7_2_2_Dense_d2"]
-        oracle_ts = STATE_POLY_EXTENDED_ORACLES["State_7_2_2_TS_d2"]
 
         @testset "Dense" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config)
-            # Tolerance relaxed to 1e-2 due to COSMO solver precision on state polynomials
-            # with covariance terms - Mosek achieves 1e-5 but COSMO needs looser tolerance
-            @test result.objective ≈ oracle_dense.opt atol = 1e-2
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_2_Dense_d2.opt atol = 1e-6
         end
 
         @testset "Sparse (MF + MMD)" begin
@@ -71,43 +85,34 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracle_ts.opt atol = 1e-6
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_2_TS_d2.opt atol = 1e-6
         end
     end
 
     # =========================================================================
     # Example 7.2.3: Mixed State Polynomial
     # =========================================================================
-    # Mixed state polynomial with products of expectations ς(a)*ς(b) and ς(a)²
-    # From NCTSSOS example with n=4 variables
     @testset "Example 7.2.3 (Mixed)" begin
         reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-        # Coefficients from NCTSSOS
-        sp = -1.0 * ς(x[2]) - 1.0 * ς(y[1]) - 1.0 * ς(y[2]) +    # linear terms
-             1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[2] * y[1]) -        # mixed monomial terms
-             1.0 * ς(x[1] * y[2]) - 1.0 * ς(x[2] * y[2]) +        # more mixed
-             1.0 * ς(x[1]) * ς(y[1]) + 1.0 * ς(x[2]) * ς(y[1]) +  # products of expectations
-             1.0 * ς(x[2]) * ς(y[2]) +                             # more products
-             1.0 * ς(x[1]) * ς(x[1]) + 1.0 * ς(y[2]) * ς(y[2])    # squared expectations
+        sp = -1.0 * ς(x[2]) - 1.0 * ς(y[1]) - 1.0 * ς(y[2]) +
+             1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[2] * y[1]) -
+             1.0 * ς(x[1] * y[2]) - 1.0 * ς(x[2] * y[2]) +
+             1.0 * ς(x[1]) * ς(y[1]) + 1.0 * ς(x[2]) * ς(y[1]) +
+             1.0 * ς(x[2]) * ς(y[2]) +
+             1.0 * ς(x[1]) * ς(x[1]) + 1.0 * ς(y[2]) * ς(y[2])
 
         spop = polyopt(sp * one(typeof(x[1])), reg)
-        oracle_dense = STATE_POLY_EXTENDED_ORACLES["State_7_2_3_Dense_d2"]
-        oracle_ts = STATE_POLY_EXTENDED_ORACLES["State_7_2_3_TS_d2"]
 
         @testset "Dense (Moment)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=false)
-            # Tolerance relaxed to 1e-2 due to COSMO solver precision on mixed state polynomials
-            # with squared expectations - Mosek achieves 1e-5 but COSMO needs looser tolerance
-            @test result.objective ≈ oracle_dense.opt atol = 1e-2
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.opt atol = 1e-5
         end
 
         @testset "Dense (SOS)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=true)
-            # Tolerance relaxed to 1e-2 due to COSMO solver precision on mixed state polynomials
-            # with squared expectations - Mosek achieves 1e-5 but COSMO needs looser tolerance
-            @test result.objective ≈ oracle_dense.opt atol = 1e-2
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.opt atol = 1e-5
         end
 
         @testset "Sparse (MMD)" begin
@@ -118,9 +123,7 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "state_poly_exte
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            # Tolerance relaxed to 1e-2 due to COSMO solver precision on mixed state polynomials
-            # with term sparsity - Mosek achieves 1e-5 but COSMO needs looser tolerance
-            @test result.objective ≈ oracle_ts.opt atol = 1e-2
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_TS_d2.opt atol = 1e-5
         end
 
         @testset "Moment vs SOS Consistency" begin

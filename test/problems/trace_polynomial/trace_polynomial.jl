@@ -7,16 +7,38 @@
 #   - Example 6.2.2: Covariance trace inequality
 #
 # Note: Basic CHSH trace polynomial tests are in chsh.jl
-# Results verified against NCTSSOS oracles (trace_poly_oracles.jl)
+# Results verified against NCTSSOS.
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
+# Solver: use Mosek if available, otherwise error
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
-# Load oracle values
-include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "trace_poly_oracles.jl"))
+# =============================================================================
+# Expected values from NCTSSOS
+# Format: (opt, sides, nuniq)
+#   opt   = optimal value (minimization)
+#   sides = moment matrix block sizes
+#   nuniq = unique moment indices (affine constraints)
+# =============================================================================
+const EXPECTED_TRACE_POLY = (
+    # 6.1: Projector Algebra
+    Ex_6_1_Dense_d2 = (opt=-0.04671737845552321, sides=[31], nuniq=81),
+    Ex_6_1_Dense_d3 = (opt=-0.031249989780027937, sides=[108], nuniq=395),
+    # 6.2.1: Squared Trace Expressions (expected: -4.0)
+    Ex_6_2_1_Dense_d2 = (opt=-4.000000007251562, sides=[53], nuniq=222),
+    # 6.2.2: Covariance Trace Polynomial (expected: -5.0)
+    Ex_6_2_2_Dense_d2 = (opt=-4.999999997079296, sides=[115], nuniq=1010),
+    Ex_6_2_2_TS_d2 = (opt=-4.999999995608242, nuniq=199),
+)
 
 @testset "Trace Polynomial Examples (6.x)" begin
 
@@ -29,21 +51,16 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "trace_poly_orac
         p = (NCTSSoS.tr(x[1] * x[2] * x[3]) + NCTSSoS.tr(x[1] * x[2]) * NCTSSoS.tr(x[3])) * one(typeof(x[1]))
         tpop = polyopt(p, reg)
 
-        oracle_d2 = TRACE_POLY_ORACLES["Trace_6_1_Dense_d2"]
-        oracle_d3 = TRACE_POLY_ORACLES["Trace_6_1_Dense_d3"]
-
         @testset "Order 2" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(tpop, config)
-            @test result.objective ≈ oracle_d2.opt atol = 1e-6
+            @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_1_Dense_d2.opt atol = 1e-6
         end
 
-        if USE_LOCAL
-            @testset "Order 3" begin
-                config = SolverConfig(optimizer=SOLVER, order=3)
-                result = cs_nctssos(tpop, config)
-                @test result.objective ≈ oracle_d3.opt atol = 1e-6
-            end
+        @testset "Order 3" begin
+            config = SolverConfig(optimizer=SOLVER, order=3)
+            result = cs_nctssos(tpop, config)
+            @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_1_Dense_d3.opt atol = 1e-6
         end
     end
 
@@ -61,15 +78,11 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "trace_poly_orac
             (1.0 * NCTSSoS.tr(x[1] * y[1]) - NCTSSoS.tr(x[2] * y[2]))
 
         tpop = polyopt((-1.0 * p) * one(typeof(x[1])), reg)
-        oracle = TRACE_POLY_ORACLES["Trace_6_2_1_Dense_d2"]
 
-        # Order=2 gives the correct tight bound of -4.0 (requires Mosek)
-        if USE_LOCAL
-            @testset "Order 2 (tight bound)" begin
-                config = SolverConfig(optimizer=SOLVER, order=2)
-                result = cs_nctssos(tpop, config)
-                @test result.objective ≈ oracle.opt atol = 1e-5
-            end
+        @testset "Order 2 (tight bound)" begin
+            config = SolverConfig(optimizer=SOLVER, order=2)
+            result = cs_nctssos(tpop, config)
+            @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_2_1_Dense_d2.opt atol = 1e-5
         end
     end
 
@@ -87,13 +100,11 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "trace_poly_orac
                    cov(3, 1) - cov(3, 2))
 
         tpop = polyopt(p * one(typeof(x[1])), reg)
-        oracle_dense = TRACE_POLY_ORACLES["Trace_6_2_2_Dense_d2"]
-        oracle_ts = TRACE_POLY_ORACLES["Trace_6_2_2_TS_d2"]
 
         @testset "Dense" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(tpop, config)
-            @test result.objective ≈ oracle_dense.opt atol = 1e-5
+            @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_2_2_Dense_d2.opt atol = 1e-5
         end
 
         @testset "Sparse (MF + MMD)" begin
@@ -104,7 +115,7 @@ include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "trace_poly_orac
                 ts_algo=MMD()
             )
             result = cs_nctssos(tpop, config)
-            @test result.objective ≈ oracle_ts.opt atol = 1e-4
+            @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_2_2_TS_d2.opt atol = 1e-4
         end
     end
 end

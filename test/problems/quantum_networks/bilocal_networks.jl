@@ -28,23 +28,44 @@
 using NCTSSoS, Test
 using JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
+# Solver: use Mosek if available, otherwise error
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
-# Load oracle values
-include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "bilocal_oracles.jl"))
+# =============================================================================
+# Expected values from NCTSSOS
+# Format: (opt, sides, nuniq)
+#   opt   = optimal value (minimization → -4.0 quantum bound)
+#   sides = moment matrix block sizes
+#   nuniq = unique moment indices (affine constraints)
+# =============================================================================
+const EXPECTED_BILOCAL = (
+    # Dense: single block of size 637, 15867 constraints
+    Dense_d3 = (opt=-3.9999999896685883, sides=[637], nuniq=15867),
+    # TS: blocks [16×2, 5×12, 3×24, 1×572], 263 constraints
+    TS_d3 = (opt=-3.9999999994438804, sides=[fill(16, 2); fill(5, 12); fill(3, 24); fill(1, 572)], nuniq=263),
+)
+
+# Helper: flatten moment_matrix_sizes for comparison
+flatten_sizes(sizes) = reduce(vcat, sizes)
 
 @testset "Bilocal Networks" begin
-    @testset "Example 8.1.1 - Bilocal Quantum Bound" begin
+
+    # =========================================================================
+    # Problem Setup Helper
+    # =========================================================================
+    function create_bilocal_problem()
         # Create unipotent variables for three parties
-        # Index mapping:
-        #   1,2 → x[1], x[2] (Alice)
-        #   3,4 → y[1], y[2] (Bob)
-        #   5,6 → z[1], z[2] (Charlie)
+        # Index mapping: 1,2 → x; 3,4 → y; 5,6 → z
         reg, (x, y, z) = create_unipotent_variables([("x", 1:2), ("y", 1:2), ("z", 1:2)])
 
         # Helper to create state expectation from indices
-        # Maps: 1,2 → x[1],x[2]; 3,4 → y[1],y[2]; 5,6 → z[1],z[2]
         vars = [x[1], x[2], y[1], y[2], z[1], z[2]]
         function make_expectation(indices)
             m = one(typeof(x[1]))
@@ -55,9 +76,6 @@ include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "bilocal_
         end
 
         # Support structure from Example 8.1.1
-        # Each element is either:
-        #   - [[a;b;c]] → single expectation ς(xyz)
-        #   - [[a;b;c], [d;e;f]] → product of expectations ς(xyz) * ς(xyz')
         supp = [
             # Squared terms ς(·)ς(·) with same argument (8 terms)
             [[1, 3, 5], [1, 3, 5]], [[1, 3, 6], [1, 3, 6]], [[2, 3, 5], [2, 3, 5]],
@@ -80,7 +98,6 @@ include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "bilocal_
         ]
 
         # Coefficients from the paper
-        # Quadratic terms: 1/8 * [1, 1, ..., -2] (36 terms)
         coe_quad = (1 / 8) .* [
             1, 1, 1, 1, 1, 1, 1, 1,           # Squared terms (8)
             2, 2, 2, -2, 2, 2, -2,             # Cross terms row 1 (7)
@@ -89,33 +106,56 @@ include(joinpath(dirname(@__FILE__), "..", "..", "oracles", "results", "bilocal_
             -2, 2, 2, -2,                      # Cross terms row 4 (4)
             -2, -2, 2, 2, -2, -2               # Cross terms row 5 (6)
         ]
-        # Linear terms: -[1, 1, 1, 1, 1, -1, -1, 1] (8 terms)
         coe_linear = Float64[-1, -1, -1, -1, -1, 1, 1, -1]
 
-        # Build the state polynomial by accumulation
-        # Start with the first quadratic term
+        # Build state polynomial
         sp = coe_quad[1] * make_expectation(supp[1][1]) * make_expectation(supp[1][2])
-
-        # Add remaining quadratic terms (products of state expectations)
         for i in 2:36
             term = supp[i]
             sp = sp + coe_quad[i] * make_expectation(term[1]) * make_expectation(term[2])
         end
-
-        # Add linear terms (single state expectations)
         for i in 1:8
             term = supp[36+i]
             sp = sp + coe_linear[i] * make_expectation(term[1])
         end
 
-        # Convert to NCStatePolynomial for optimization
         spop = polyopt(sp * one(typeof(x[1])), reg)
+        return spop, reg
+    end
 
-        # Solve with order=3 relaxation
-        solver_config = SolverConfig(optimizer=SOLVER, order=3)
-        result = cs_nctssos(spop, solver_config)
+    # =========================================================================
+    # Dense (No Sparsity)
+    # =========================================================================
+    @testset "Dense (order=3)" begin
+        spop, _ = create_bilocal_problem()
+        config = SolverConfig(
+            optimizer=SOLVER,
+            order=3,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
+        )
+        result = cs_nctssos(spop, config)
 
-        # Expected quantum bound is -4
-        @test result.objective ≈ -4.0 atol = 1e-4
+        @test result.objective ≈ EXPECTED_BILOCAL.Dense_d3.opt atol = 1e-6
+        @test_broken flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BILOCAL.Dense_d3.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED_BILOCAL.Dense_d3.nuniq
+    end
+
+    # =========================================================================
+    # Term Sparsity (MMD)
+    # =========================================================================
+    @testset "Term Sparsity MMD (order=3)" begin
+        spop, _ = create_bilocal_problem()
+        config = SolverConfig(
+            optimizer=SOLVER,
+            order=3,
+            cs_algo=NoElimination(),
+            ts_algo=MMD()
+        )
+        result = cs_nctssos(spop, config)
+
+        @test result.objective ≈ EXPECTED_BILOCAL.TS_d3.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BILOCAL.TS_d3.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED_BILOCAL.TS_d3.nuniq
     end
 end

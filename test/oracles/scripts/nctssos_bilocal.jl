@@ -13,12 +13,10 @@
 
 include("oracle_utils.jl")
 
-# Sparsity variants
+# Sparsity variants (CS not supported for state polynomials)
 const BILOCAL_VARIANTS = [
-    (name="Dense", cs=false, ts=false, order=3),
-    (name="CS", cs="MF", ts=false, order=3),
-    (name="TS", ts="MD", cs=false, order=3),
-    (name="CS_TS", cs="MF", ts="MD", order=3),
+    (name="Dense", ts=false, order=3),
+    (name="TS", ts="MD", order=3),
 ]
 
 print_header("Bilocal Network (Example 8.1.1)")
@@ -75,15 +73,15 @@ coe = vcat(coe_quad, coe_linear)
 
 results = map(BILOCAL_VARIANTS) do v
     key = "Bilocal_8_1_1_$(v.name)_d$(v.order)"
-    println("# $(v.name) (order=$(v.order), CS=$(v.cs), TS=$(v.ts))")
+    println("# $(v.name) (order=$(v.order), TS=$(v.ts))")
 
     # pstateopt_first(supp, coe, n, d; vargroup, TS, constraint)
     # n=6 total variables, vargroup=[2,2,2] for Alice, Bob, Charlie
     opt, data = pstateopt_first(supp, coe, 6, v.order;
         vargroup=[2, 2, 2],
-        TS=v.ts == false ? false : v.ts,
+        TS=v.ts,
         constraint="unipotent")
-    result = extract_oracle(key, opt, data; use_cs=v.cs != false)
+    result = extract_oracle(key, opt, data; use_cs=false)
     print_oracle(result)
     println()
     result

@@ -2,13 +2,23 @@
 # Sparsity Algorithm Variants Tests
 # =============================================================================
 # Tests different term sparsity algorithms on trace polynomial optimization.
-# Moved from relaxations/sparsity.jl as this tests actual problem solving.
+# Uses CHSH trace polynomial (expected: -2√2 ≈ -2.8284).
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
+# Solver: use Mosek if available, otherwise error
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
+
+# Expected: -2√2 ≈ -2.8284271247462307
+const EXPECTED_CHSH_TRACE = -2.8284271247462307
 
 @testset "Sparsity Algorithm Variants" begin
     @testset "Term Sparsity Algorithms" begin
@@ -19,16 +29,16 @@ using Test, NCTSSoS
         p = -1.0 * NCTSSoS.tr(x[1] * y[1]) - NCTSSoS.tr(x[1] * y[2]) - NCTSSoS.tr(x[2] * y[1]) + NCTSSoS.tr(x[2] * y[2])
         tpop = polyopt(p * one(typeof(x[1])), reg)
 
-        expected = -2.8284
-
         for (name, algo) in [
             ("NoElimination", NoElimination()),
             ("MMD", MMD()),
             ("MaximalElimination", MaximalElimination())
         ]
-            config = SolverConfig(optimizer=SOLVER, order=1, cs_algo=NoElimination(), ts_algo=algo)
-            result = cs_nctssos(tpop, config)
-            @test result.objective ≈ expected atol = 1e-4
+            @testset "$name" begin
+                config = SolverConfig(optimizer=SOLVER, order=1, cs_algo=NoElimination(), ts_algo=algo)
+                result = cs_nctssos(tpop, config)
+                @test result.objective ≈ EXPECTED_CHSH_TRACE atol = 1e-6
+            end
         end
     end
 end

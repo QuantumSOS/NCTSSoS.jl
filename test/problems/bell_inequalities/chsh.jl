@@ -26,7 +26,7 @@ end
 #   sides = moment matrix block sizes
 #   nuniq = unique moment indices (affine constraints)
 # =============================================================================
-const EXPECTED = (
+const EXPECTED_CHSH = (
     # NC Polynomial Formulation
     Dense_d1    = (opt=-2.8284271321623193, sides=[5], nuniq=11),
     CS_d1       = (opt=-2.8284271247170496, sides=[4, 4], nuniq=10),
@@ -70,9 +70,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ EXPECTED.Dense_d1.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.Dense_d1.sides
-        @test result.n_unique_moment_matrix_elements == EXPECTED.Dense_d1.nuniq
+        @test result.objective ≈ EXPECTED_CHSH.Dense_d1.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHSH.Dense_d1.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.Dense_d1.nuniq
     end
 
     # =========================================================================
@@ -88,9 +88,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ EXPECTED.CS_d1.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.CS_d1.sides
-        @test result.n_unique_moment_matrix_elements == EXPECTED.CS_d1.nuniq
+        @test result.objective ≈ EXPECTED_CHSH.CS_d1.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHSH.CS_d1.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.CS_d1.nuniq
     end
 
     # =========================================================================
@@ -106,9 +106,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ EXPECTED.TS_d1.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.TS_d1.sides
-        @test result.n_unique_moment_matrix_elements == EXPECTED.TS_d1.nuniq
+        @test result.objective ≈ EXPECTED_CHSH.TS_d1.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHSH.TS_d1.sides
+        @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.TS_d1.nuniq
     end
 
     # =========================================================================
@@ -127,10 +127,10 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ EXPECTED.CS_TS_d2.opt atol = 1e-6
+        @test result.objective ≈ EXPECTED_CHSH.CS_TS_d2.opt atol = 1e-6
         # Block sizes may differ but total count matches
-        @test length(flatten_sizes(result.moment_matrix_sizes)) == length(EXPECTED.CS_TS_d2.sides)
-        @test result.n_unique_moment_matrix_elements == EXPECTED.CS_TS_d2.nuniq
+        @test length(flatten_sizes(result.moment_matrix_sizes)) == length(EXPECTED_CHSH.CS_TS_d2.sides)
+        @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.CS_TS_d2.nuniq
     end
 
     # =========================================================================
@@ -149,9 +149,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ EXPECTED.State_Dense.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.State_Dense.sides
-            @test result.n_unique_moment_matrix_elements == EXPECTED.State_Dense.nuniq
+            @test result.objective ≈ EXPECTED_CHSH.State_Dense.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHSH.State_Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.State_Dense.nuniq
         end
 
         @testset "Term Sparsity MMD" begin
@@ -162,9 +162,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ EXPECTED.State_TS.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.State_TS.sides
-            @test result.n_unique_moment_matrix_elements == EXPECTED.State_TS.nuniq
+            @test result.objective ≈ EXPECTED_CHSH.State_TS.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHSH.State_TS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.State_TS.nuniq
         end
 
         @testset "Direct Moment vs SOS" begin
@@ -172,10 +172,10 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             result_mom = cs_nctssos(spop, config; dualize=false)
             result_sos = cs_nctssos(spop, config; dualize=true)
             @test result_mom.objective ≈ result_sos.objective atol = 1e-5
-            @test flatten_sizes(result_mom.moment_matrix_sizes) == EXPECTED.State_Dense.sides
-            @test flatten_sizes(result_sos.moment_matrix_sizes) == EXPECTED.State_Dense.sides
-            @test result_mom.n_unique_moment_matrix_elements == EXPECTED.State_Dense.nuniq
-            @test result_sos.n_unique_moment_matrix_elements == EXPECTED.State_Dense.nuniq
+            @test flatten_sizes(result_mom.moment_matrix_sizes) == EXPECTED_CHSH.State_Dense.sides
+            @test flatten_sizes(result_sos.moment_matrix_sizes) == EXPECTED_CHSH.State_Dense.sides
+            @test result_mom.n_unique_moment_matrix_elements == EXPECTED_CHSH.State_Dense.nuniq
+            @test result_sos.n_unique_moment_matrix_elements == EXPECTED_CHSH.State_Dense.nuniq
         end
     end
 
@@ -199,9 +199,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=NoElimination()
             )
             result = cs_nctssos(tpop, config)
-            @test result.objective ≈ EXPECTED.Trace_Dense.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.Trace_Dense.sides
-            @test result.n_unique_moment_matrix_elements == EXPECTED.Trace_Dense.nuniq
+            @test result.objective ≈ EXPECTED_CHSH.Trace_Dense.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHSH.Trace_Dense.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.Trace_Dense.nuniq
         end
 
         @testset "Term Sparsity MMD" begin
@@ -212,9 +212,9 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                 ts_algo=MMD()
             )
             result = cs_nctssos(tpop, config)
-            @test result.objective ≈ EXPECTED.Trace_TS.opt atol = 1e-5
-            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED.Trace_TS.sides
-            @test result.n_unique_moment_matrix_elements == EXPECTED.Trace_TS.nuniq
+            @test result.objective ≈ EXPECTED_CHSH.Trace_TS.opt atol = 1e-5
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_CHSH.Trace_TS.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_CHSH.Trace_TS.nuniq
         end
     end
 end

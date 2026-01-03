@@ -37,8 +37,8 @@ println()
 results = map(EXAMPLE1_VARIANTS) do v
     key = "Example1_$(v.name)_d$(v.order)"
     println("# $(v.name) (order=$(v.order), TS=$(v.ts))")
-    
-    opt, data = nctssos_first([obj], vars, v.order; TS=v.ts)
+
+    opt, data = nctssos_first(obj, vars; order=v.order, TS=v.ts)
     result = extract_oracle(key, opt, data; use_cs=false)
     print_oracle(result)
     println()

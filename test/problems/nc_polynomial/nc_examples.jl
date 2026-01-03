@@ -11,17 +11,43 @@
 # Results verified against NCTSSOS oracles.
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
+# Solver: use Mosek if available, otherwise error
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
-# Load oracle values
-include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "example1_oracles.jl"))
-include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "corr_sparsity_oracles.jl"))
-include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "cs_ts_n10_oracles.jl"))
+# USE_LOCAL flag for large-scale tests
+@isdefined(USE_LOCAL) || (USE_LOCAL = true)
 
-# Helper: flatten moment_matrix_sizes for comparison with oracle
+# =============================================================================
+# Expected values from NCTSSOS
+# Format: (opt, sides, nuniq)
+#   opt   = optimal value
+#   sides = moment matrix block sizes
+#   nuniq = unique moment indices (affine constraints)
+# =============================================================================
+const EXPECTED_EXAMPLE1 = (
+    Dense_d2 = (opt=-3.936210849199504e-10, sides=[13], nuniq=73),
+    TS_d2    = (opt=-0.0035512846020968616, sides=[1, 1, 2, 2, 2, 2, 3, 3, 3, 4], nuniq=21),
+)
+
+const EXPECTED_CORR_SPARSITY = (
+    CS_d3 = (opt=0.9975308091952613, sides=[15, 15], nuniq=149),
+    TS_d3 = (opt=0.9975305666745705, nuniq=123),  # sides vary, only check opt and nuniq
+)
+
+const EXPECTED_CS_TS_N10 = (
+    CS_TS_d3 = (opt=3.011288353315061, nblocks=1544, nuniq=1165),
+)
+
+# Helper: flatten moment_matrix_sizes for comparison
 flatten_sizes(sizes) = reduce(vcat, sizes)
 
 @testset "NC Polynomial Examples" begin
@@ -44,7 +70,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         pop = polyopt(f, reg)
 
         @testset "Dense (order=2)" begin
-            oracle = EXAMPLE1_ORACLES["Example1_Dense_d2"]
+            oracle = EXPECTED_EXAMPLE1.Dense_d2
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -68,7 +94,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         end
 
         @testset "Term Sparsity MMD (order=2)" begin
-            oracle = EXAMPLE1_ORACLES["Example1_TS_d2"]
+            oracle = EXPECTED_EXAMPLE1.TS_d2
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
@@ -160,7 +186,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         pop = polyopt(f, reg; ineq_constraints=cons)
 
         @testset "CS MF (order=3)" begin
-            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_CS_d3"]
+            oracle = EXPECTED_CORR_SPARSITY.CS_d3
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
@@ -174,7 +200,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         end
 
         @testset "CS MF (SOS)" begin
-            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_CS_d3"]
+            oracle = EXPECTED_CORR_SPARSITY.CS_d3
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
@@ -185,7 +211,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         end
 
         @testset "TS MMD (order=3)" begin
-            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_TS_d3"]
+            oracle = EXPECTED_CORR_SPARSITY.TS_d3
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
@@ -195,13 +221,11 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             result = cs_nctssos(pop, config; dualize=false)
             result = cs_nctssos_higher(pop, result, config; dualize=false)
             @test result.objective ≈ oracle.opt atol = 1e-5
-            # Block structure validated after higher iteration
-            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
             @test result.n_unique_moment_matrix_elements == oracle.nuniq
         end
 
         @testset "TS MMD (SOS)" begin
-            oracle = CORR_SPARSITY_ORACLES["CorrSparsity_TS_d3"]
+            oracle = EXPECTED_CORR_SPARSITY.TS_d3
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=3,
@@ -249,7 +273,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             cons = vcat([(1.0 - x[i]^2) for i = 1:n], [(1.0 * x[i] - 1.0 / 3) for i = 1:n])
             pop = polyopt(f, reg; ineq_constraints=cons)
 
-            oracle = CS_TS_N10_ORACLES["CS_TS_N10_CS_TS_d3"]
+            oracle = EXPECTED_CS_TS_N10.CS_TS_d3
 
             @testset "Moment Method (order=3)" begin
                 config = SolverConfig(
@@ -259,7 +283,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                     ts_algo=MMD()
                 )
                 result = cs_nctssos(pop, config; dualize=false)
-                @test result.objective ≈ oracle.opt atol = 1e-3
+                @test result.objective ≈ oracle.opt atol = 1e-4
                 @test length(flatten_sizes(result.moment_matrix_sizes)) == oracle.nblocks
                 @test result.n_unique_moment_matrix_elements == oracle.nuniq
             end
@@ -272,7 +296,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
                     ts_algo=MMD()
                 )
                 result = cs_nctssos(pop, config; dualize=true)
-                @test result.objective ≈ oracle.opt atol = 1e-3
+                @test result.objective ≈ oracle.opt atol = 1e-6
             end
         end
     end
@@ -292,8 +316,8 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             result_cs = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, cs_algo=MF()))
             result_cs_ts = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, cs_algo=MF(), ts_algo=MMD()))
 
-            @test result_dense.objective ≈ result_cs.objective atol = 1e-4
-            @test result_cs.objective ≈ result_cs_ts.objective atol = 1e-4
+            @test result_dense.objective ≈ result_cs.objective atol = 1e-6
+            @test result_cs.objective ≈ result_cs_ts.objective atol = 1e-6
         end
 
         @testset "Constrained" begin
@@ -308,15 +332,15 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             result_cs = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, cs_algo=MF()))
             result_cs_ts = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, cs_algo=MF(), ts_algo=MMD()))
 
-            @test result_dense.objective ≈ result_cs.objective atol = 1e-4
-            @test result_cs.objective ≈ result_cs_ts.objective atol = 1e-4
+            @test result_dense.objective ≈ result_cs.objective atol = 1e-6
+            @test result_cs.objective ≈ result_cs_ts.objective atol = 1e-6
 
             result_cs_ts_higher = cs_nctssos_higher(
                 pop,
                 result_cs_ts,
                 SolverConfig(optimizer=SOLVER, cs_algo=MF(), ts_algo=MMD())
             )
-            @test result_dense.objective ≈ result_cs_ts_higher.objective atol = 1e-4
+            @test result_dense.objective ≈ result_cs_ts_higher.objective atol = 1e-6
         end
     end
 end

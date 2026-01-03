@@ -132,16 +132,15 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         sp = -ς(x[1] * y[1]) - ς(x[1] * y[2]) - ς(x[2] * y[1]) + ς(x[2] * y[2])
         spop = polyopt(sp * one(typeof(x[1])), reg)
 
-        # Use Dense oracle for expected value
-        oracle = CHSH_ORACLES["CHSH_Dense_d1"]
-
         @testset "Dense" begin
+            oracle = CHSH_ORACLES["CHSH_State_Dense_d1"]
             config = SolverConfig(optimizer=SOLVER, order=1)
             result = cs_nctssos(spop, config)
             @test result.objective ≈ oracle.opt atol = 1e-5
         end
 
         @testset "Direct Moment vs SOS" begin
+            oracle = CHSH_ORACLES["CHSH_State_Dense_d1"]
             config = SolverConfig(optimizer=SOLVER, order=1)
             result_mom = cs_nctssos(spop, config; dualize=false)
             result_sos = cs_nctssos(spop, config; dualize=true)
@@ -161,10 +160,8 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             NCTSSoS.tr(x[2] * y[1]) + NCTSSoS.tr(x[2] * y[2])
         tpop = polyopt(p * one(typeof(x[1])), reg)
 
-        # Use Dense oracle for expected value
-        oracle = CHSH_ORACLES["CHSH_Dense_d1"]
-
         @testset "Dense" begin
+            oracle = CHSH_ORACLES["CHSH_Trace_Dense_d1"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=1,
@@ -176,6 +173,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
         end
 
         @testset "Term Sparsity (MaximalElimination)" begin
+            oracle = CHSH_ORACLES["CHSH_Trace_TS_d1"]
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=1,

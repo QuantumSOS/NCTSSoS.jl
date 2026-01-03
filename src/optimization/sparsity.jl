@@ -411,10 +411,19 @@ Initialize the activated support for term sparsity iteration.
 function init_activated_supp(
     partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+    # Compute diagonal entries b†b and simplify them using algebra-specific rules
+    # (e.g., for ProjectorAlgebra, x†x = x*x simplifies to x)
+    diagonal_entries = M[]
+    for b in mom_mtx_bases
+        diag_mono = neat_dot(b, b)
+        # Simplify and extract monomials (may produce multiple terms)
+        simplified_poly = Polynomial(simplify(diag_mono))
+        append!(diagonal_entries, monomials(simplified_poly))
+    end
     return sorted_union(
         symmetric_canon.(monomials(partial_obj)),
         mapreduce(monomials, vcat, cons; init=M[]),
-        [neat_dot(b, b) for b in mom_mtx_bases]
+        diagonal_entries
     )
 end
 

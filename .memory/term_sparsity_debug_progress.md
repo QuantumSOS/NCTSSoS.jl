@@ -82,7 +82,45 @@ Possible causes:
 2. Incorrect basis indexing when mapping NCStateWords to StateWords
 3. Double-counting or missing constraints in the assembly
 
-## Next Steps
-1. Add debug output to `_sos_dualize_state` to trace coefficient extraction
-2. Compare the final JuMP model between Dense and TS cases
-3. Check if all StateWords in the objective are correctly matched to constraint coefficients
+## Iteration 2 - Core Issue Identified
+
+### Debug Results
+Running the full bilocal test:
+- Dense objective: -4.0 (correct)
+- TS objective: -1.76 million (WRONG!)
+
+### Root Cause
+For the same StateWord (e.g., linear term ⟨xyz⟩):
+- Dense: constraint coefficient = 10.0 (5 different (row, col) positions contribute)
+- TS: constraint coefficient = 2.0 (only 1 position contributes)
+
+This happens because:
+1. TS has smaller, disjoint blocks
+2. Each block's constraint matrix only contains products within that block
+3. Different (row, col) positions that produce the same StateWord are in different blocks
+4. These contributions don't accumulate properly
+
+### NCTSSOS Approach (Correct)
+NCTSSOS builds constraints on-the-fly:
+1. Loop over ALL blocks
+2. For each (row, col) pair within a block, compute the StateWord directly
+3. Add contribution to `cons[StateWord_index]`
+4. Same StateWord receives contributions from ALL blocks
+
+### NCTSSoS Approach (Current - Problematic)
+NCTSSoS uses symbolic matrices:
+1. Pre-compute constraint matrix entries as NCStatePolynomials
+2. Extract NCStateWords from these polynomials
+3. Map to StateWord indices
+4. Only NCStateWords in `total_basis` get mapped
+
+The issue: `total_basis` for TS is much smaller (34 vs 999 elements), so many StateWord contributions are lost.
+
+### Proposed Fix
+Refactor `_sos_dualize_state` to:
+1. For each block, loop over (row, col) pairs directly
+2. Compute the StateWord for each pair (using `_neat_dot3` + `simplify` + `expval` + `symmetric_canon`)
+3. Add contribution to `fα_constraints[StateWord_index]`
+4. Accumulate across all blocks
+
+This matches NCTSSOS's approach and ensures all contributions are counted.

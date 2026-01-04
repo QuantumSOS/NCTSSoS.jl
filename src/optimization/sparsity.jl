@@ -871,33 +871,35 @@ Constructs a term sparsity graph for state polynomial constraints.
 
 An edge is added between basis elements i and j if the canonicalized product
 bi† * supp * bj (for any supp in cons_support) is present in the activated support.
-The canonicalization uses `symmetric_canon` to match how elements are stored.
+The comparison uses `expval` to convert NCStateWords to StateWords, ensuring that
+structurally different NCStateWords with the same expectation value are treated as equal.
 """
 function get_term_sparsity_graph(
     cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, M<:NCStateWord{ST,A,T}}
     nterms = length(bases)
     G = SimpleGraph(nterms)
-    sorted_activated_supp = sort(activated_supp)
+    # Convert activated support to StateWords via expval for proper comparison
+    sorted_activated_supp = sort([symmetric_canon(expval(ncsw)) for ncsw in activated_supp])
 
     for i in 1:nterms, j in i+1:nterms
         for supp in cons_support
             # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
             connected_lr = simplify(_neat_dot3(bases[i], supp, bases[j]))
             connected_rl = simplify(_neat_dot3(bases[j], supp, bases[i]))
-            # Check if any canonicalized NCStateWord is in activated support
+            # Check if any canonicalized StateWord is in activated support
             found = false
             for ncsw in monomials(connected_lr)
-                canon_ncsw = symmetric_canon(ncsw)
-                if canon_ncsw in sorted_activated_supp
+                canon_sw = symmetric_canon(expval(ncsw))
+                if canon_sw in sorted_activated_supp
                     found = true
                     break
                 end
             end
             if !found
                 for ncsw in monomials(connected_rl)
-                    canon_ncsw = symmetric_canon(ncsw)
-                    if canon_ncsw in sorted_activated_supp
+                    canon_sw = symmetric_canon(expval(ncsw))
+                    if canon_sw in sorted_activated_supp
                         found = true
                         break
                     end

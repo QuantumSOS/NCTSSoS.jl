@@ -67,7 +67,7 @@ Maps source files to their corresponding test files.
 | I3322 Bell | `problems/bell_inequalities/i3322.jl` | `i3322_oracles.jl` | Both |
 | General Bell | `problems/bell_inequalities/bell_inequalities.jl` | - | Both |
 | NC Examples | `problems/nc_polynomial/nc_examples.jl` | `example1_oracles.jl`, `corr_sparsity_oracles.jl` | Both |
-| State Poly | `problems/state_polynomial/state_polynomial.jl` | `state_poly_extended_oracles.jl` | Both |
+| State Poly | `problems/state_polynomial/state_polynomial.jl` | `state_poly_oracles.jl` | Both |
 | Trace Poly | `problems/trace_polynomial/trace_polynomial.jl` | `trace_poly_oracles.jl` | Both |
 | Heisenberg Star | `problems/condensed_matter/heisenberg_star.jl` | `heisenberg_star_oracles.jl` | Mosek |
 | Heisenberg Chain | `problems/condensed_matter/heisenberg_chain.jl` | - | Mosek |

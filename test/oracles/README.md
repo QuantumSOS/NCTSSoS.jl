@@ -16,8 +16,7 @@ test/oracles/
 │   ├── nctssos_corr_sparsity.jl
 │   ├── nctssos_cs_ts_n10.jl
 │   ├── nctssos_heisenberg_star.jl
-│   ├── nctssos_state_poly.jl
-│   ├── nctssos_state_poly_extended.jl
+│   ├── nctssos_state_poly.jl  # State polynomial 7.2.0-7.2.3
 │   └── nctssos_trace_poly.jl
 └── results/           # Generated oracle dictionaries
     ├── chsh_oracles.jl
@@ -28,9 +27,8 @@ test/oracles/
     ├── corr_sparsity_oracles.jl
     ├── cs_ts_n10_oracles.jl
     ├── heisenberg_star_oracles.jl
-    ├── state_poly_oracles.jl
-    ├── state_poly_extended_oracles.jl  # Has placeholders
-    └── trace_poly_oracles.jl           # Has placeholders
+    ├── state_poly_oracles.jl          # Has placeholders for 7.2.1-7.2.3
+    └── trace_poly_oracles.jl          # Has placeholders
 ```
 
 ## Oracle Format
@@ -100,7 +98,7 @@ julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
 
 The following files contain placeholder values (marked with `# PLACEHOLDER`):
 
-### `state_poly_extended_oracles.jl`
+### `state_poly_oracles.jl`
 - `State_7_2_1_Dense_d3`, `State_7_2_1_TS_d3`
 - `State_7_2_2_Dense_d2`, `State_7_2_2_TS_d2`
 - `State_7_2_3_Dense_d2`, `State_7_2_3_TS_d2`
@@ -127,6 +125,5 @@ Run the corresponding oracle scripts to generate actual values.
 | `nctssos_corr_sparsity.jl` | Correlative sparsity | CS, TS |
 | `nctssos_cs_ts_n10.jl` | Large-scale n=10 | Multiple combinations |
 | `nctssos_heisenberg_star.jl` | Condensed matter | Multiple sizes |
-| `nctssos_state_poly.jl` | State polynomial 7.2.0 | Pure state expectations |
-| `nctssos_state_poly_extended.jl` | State polynomial 7.2.1-7.2.3 | Products |
+| `nctssos_state_poly.jl` | State polynomial 7.2.0-7.2.3 | All state poly examples |
 | `nctssos_trace_poly.jl` | Trace polynomial 6.x | Examples 6.1, 6.2.0-6.2.2 |

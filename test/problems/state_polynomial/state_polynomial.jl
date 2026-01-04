@@ -12,6 +12,9 @@
 
 using Test, NCTSSoS, JuMP
 
+# Helper: flatten moment_matrix_sizes for comparison
+flatten_sizes(sizes) = reduce(vcat, sizes)
+
 # Solver: use Mosek if available, otherwise error
 if !@isdefined(SOLVER)
     using MosekTools
@@ -34,10 +37,10 @@ const EXPECTED_STATE_POLY = (
     Ex_7_2_1_Dense_d3 = (opt=-3.9999999914666895, sides=[209], nuniq=1887),
     # 7.2.2: Covariance (expected: -5.0)
     Ex_7_2_2_Dense_d2 = (opt=-4.999999999824081, sides=[106], nuniq=1098),
-    Ex_7_2_2_TS_d2 = (opt=-4.99999999745226, nuniq=93),
+    Ex_7_2_2_TS_d2 = (opt=-4.99999999745226, sides=[9, 9, 9, 9, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], nuniq=93),
     # 7.2.3: Mixed State Polynomial (expected: -3.5114802)
     Ex_7_2_3_Dense_d2 = (opt=-3.511480225797076, sides=[49], nuniq=233),
-    Ex_7_2_3_TS_d2 = (opt=-3.582132180463948, nuniq=41),
+    Ex_7_2_3_TS_d2 = (opt=-3.582132180463948, sides=[7, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1], nuniq=41),
 )
 
 @testset "State Polynomial Examples (7.2.x)" begin
@@ -57,7 +60,9 @@ const EXPECTED_STATE_POLY = (
         @testset "Order 3 (tight bound)" begin
             config = SolverConfig(optimizer=SOLVER, order=3)
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_1_Dense_d3.opt atol = 1e-4
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_1_Dense_d3.opt atol = 1e-6
+            @test_broken flatten_sizes(result.moment_matrix_sizes) == EXPECTED_STATE_POLY.Ex_7_2_1_Dense_d3.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_STATE_POLY.Ex_7_2_1_Dense_d3.nuniq
         end
     end
 
@@ -75,17 +80,21 @@ const EXPECTED_STATE_POLY = (
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config)
             @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_2_Dense_d2.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_STATE_POLY.Ex_7_2_2_Dense_d2.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_STATE_POLY.Ex_7_2_2_Dense_d2.nuniq
         end
 
         @testset "Sparse (MF + MMD)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
-                cs_algo=MF(),
+                cs_algo=NoElimination(),
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
             @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_2_TS_d2.opt atol = 1e-6
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_STATE_POLY.Ex_7_2_2_TS_d2.sides)
+            @test result.n_unique_moment_matrix_elements == EXPECTED_STATE_POLY.Ex_7_2_2_TS_d2.nuniq
         end
     end
 
@@ -106,13 +115,17 @@ const EXPECTED_STATE_POLY = (
         @testset "Dense (Moment)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=false)
-            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.opt atol = 1e-5
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.nuniq
         end
 
         @testset "Dense (SOS)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config; dualize=true)
-            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.opt atol = 1e-5
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.opt atol = 1e-6
+            @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.sides
+            @test result.n_unique_moment_matrix_elements == EXPECTED_STATE_POLY.Ex_7_2_3_Dense_d2.nuniq
         end
 
         @testset "Sparse (MMD)" begin
@@ -123,14 +136,16 @@ const EXPECTED_STATE_POLY = (
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_TS_d2.opt atol = 1e-5
+            @test result.objective ≈ EXPECTED_STATE_POLY.Ex_7_2_3_TS_d2.opt atol = 1e-6
+            @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_STATE_POLY.Ex_7_2_3_TS_d2.sides)
+            @test result.n_unique_moment_matrix_elements == EXPECTED_STATE_POLY.Ex_7_2_3_TS_d2.nuniq
         end
 
         @testset "Moment vs SOS Consistency" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result_mom = cs_nctssos(spop, config; dualize=false)
             result_sos = cs_nctssos(spop, config; dualize=true)
-            @test result_mom.objective ≈ result_sos.objective atol = 1e-3
+            @test result_mom.objective ≈ result_sos.objective atol = 1e-6
         end
     end
 end

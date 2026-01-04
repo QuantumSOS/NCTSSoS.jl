@@ -546,7 +546,7 @@ using NCTSSoS: variable_indices
         @test isempty(terms(p))
     end
 
-    @testset "Polynomial(m::Monomial) uses default_coeff_type" begin
+    @testset "Polynomial(m::Monomial) uses coeff_type" begin
         # PauliAlgebra should create ComplexF64 coefficients
         m_pauli = Monomial{PauliAlgebra}([1, 2])
         p_pauli = Polynomial(m_pauli)

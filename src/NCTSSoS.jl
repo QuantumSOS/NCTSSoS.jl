@@ -123,6 +123,6 @@ export symbols, indices, subregistry
 export has_even_parity
 
 # Coefficient Type
-export default_coeff_type
+export coeff_type
 
 end

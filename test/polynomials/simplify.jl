@@ -705,7 +705,7 @@ end
         @test decode_site(result.word[1]) == 1
         @test decode_site(result.word[2]) == 1
         @test decode_site(result.word[3]) == 2
-        
+
         # Verify the actual indices
         @test result.word[1] == x1_site1
         @test result.word[2] == x3_site1
@@ -858,58 +858,58 @@ end
     @testset "UnipotentAlgebra matches NCTSSOS constraint_reduce!(unipotent)" begin
         # NCTSSOS constraint_reduce! with constraint="unipotent" removes consecutive
         # identical pairs with backtracking. NCTSSoS UnipotentAlgebra should match.
-        
+
         # Reference: constraint_reduce!([1,1], constraint="unipotent") → []
         reg, (U,) = create_unipotent_variables([("U", 1:3)])
-        
+
         # Case 1: Simple pair cancellation
         m1 = U[1] * U[1]
         s1 = simplify(m1)
         @test isempty(s1.word)  # [1,1] → []
-        
+
         # Case 2: Multiple consecutive pairs
         m2 = U[1] * U[1] * U[2] * U[2]
         s2 = simplify(m2)
         @test isempty(s2.word)  # [1,1,2,2] → []
-        
+
         # Case 3: Cascading cancellation
         m3 = U[1] * U[2] * U[2] * U[1]
         s3 = simplify(m3)
         @test isempty(s3.word)  # [1,2,2,1] → []
-        
+
         # Case 4: Non-consecutive (no cancellation)
         m4 = U[1] * U[2] * U[1] * U[2]
         s4 = simplify(m4)
         @test length(s4.word) == 4  # [1,2,1,2] → [1,2,1,2]
-        
+
         # Case 5: Mixed
         m5 = U[1] * U[1] * U[2] * U[3] * U[3] * U[2]
         s5 = simplify(m5)
         @test isempty(s5.word)  # [1,1,2,3,3,2] → [] (cascading)
     end
-    
+
     @testset "ProjectorAlgebra matches NCTSSOS constraint_reduce!(projector)" begin
         # NCTSSOS constraint_reduce! with constraint≠"unipotent" removes consecutive
         # duplicates (P²=P idempotency).
-        
+
         reg, (P,) = create_projector_variables([("P", 1:3)])
-        
+
         # Case 1: Simple idempotency
         m1 = P[1] * P[1]
         s1 = simplify(m1)
         @test length(s1.word) == 1  # [1,1] → [1]
         @test s1.word == P[1].word
-        
+
         # Case 2: Triple idempotency
         m2 = P[1] * P[1] * P[1]
         s2 = simplify(m2)
         @test length(s2.word) == 1  # [1,1,1] → [1]
-        
+
         # Case 3: Mixed with idempotency
         m3 = P[1] * P[1] * P[2] * P[2] * P[1]
         s3 = simplify(m3)
         @test length(s3.word) == 3  # [1,1,2,2,1] → [1,2,1]
-        
+
         # Case 4: Non-consecutive (no collapse)
         m4 = P[1] * P[2] * P[1]
         s4 = simplify(m4)
@@ -919,7 +919,7 @@ end
 
 @testset "PauliAlgebra Algebraic Identities" begin
     reg, (σx, σy, σz) = create_pauli_variables(1:2)
-    
+
     @testset "Involution: σᵢ² = I" begin
         for σ in [σx[1], σy[1], σz[1], σx[2], σy[2], σz[2]]
             t = simplify(σ * σ)
@@ -927,47 +927,47 @@ end
             @test t.coefficient ≈ 1.0 + 0.0im
         end
     end
-    
+
     @testset "Cyclic products: σₓσᵧ = iσz (same site)" begin
         # XY → iZ
         t_xy = simplify(σx[1] * σy[1])
         @test t_xy.coefficient ≈ im
         @test t_xy.monomial.word == σz[1].word
-        
+
         # YZ → iX
         t_yz = simplify(σy[1] * σz[1])
         @test t_yz.coefficient ≈ im
         @test t_yz.monomial.word == σx[1].word
-        
+
         # ZX → iY
         t_zx = simplify(σz[1] * σx[1])
         @test t_zx.coefficient ≈ im
         @test t_zx.monomial.word == σy[1].word
     end
-    
+
     @testset "Anti-cyclic products: σᵧσₓ = -iσz (same site)" begin
         # YX → -iZ
         t_yx = simplify(σy[1] * σx[1])
         @test t_yx.coefficient ≈ -im
         @test t_yx.monomial.word == σz[1].word
-        
+
         # ZY → -iX
         t_zy = simplify(σz[1] * σy[1])
         @test t_zy.coefficient ≈ -im
         @test t_zy.monomial.word == σx[1].word
-        
+
         # XZ → -iY
         t_xz = simplify(σx[1] * σz[1])
         @test t_xz.coefficient ≈ -im
         @test t_xz.monomial.word == σy[1].word
     end
-    
+
     @testset "Triple product: σₓσᵧσz = i·I" begin
         t = simplify(σx[1] * σy[1] * σz[1])
         @test isempty(t.monomial.word)
         @test t.coefficient ≈ im
     end
-    
+
     @testset "Different sites commute" begin
         # σx₁ σy₂ should just be sorted by site
         t = simplify(σx[2] * σy[1])
@@ -978,29 +978,29 @@ end
 
 @testset "FermionicAlgebra CAR Identities" begin
     reg, (a, a_dag) = create_fermionic_variables(1:3)
-    
+
     @testset "Nilpotency: aᵢ² = 0, (aᵢ†)² = 0" begin
         for i in 1:3
             @test iszero(a[i] * a[i])
             @test iszero(a_dag[i] * a_dag[i])
         end
     end
-    
+
     @testset "Anticommutation: {aᵢ, aⱼ†} = δᵢⱼ" begin
         # Same mode: a₁ a₁† = 1 - a₁† a₁
         p = simplify(a[1] * a_dag[1])
         @test length(p.terms) == 2
-        
+
         identity_term = findfirst(t -> isempty(t.monomial.word), p.terms)
         @test !isnothing(identity_term)
         @test p.terms[identity_term].coefficient == 1.0
-        
+
         # Different modes: a₁ a₂† = -a₂† a₁ (no delta)
         p_cross = simplify(a[1] * a_dag[2])
         @test length(p_cross.terms) == 1
         @test p_cross.terms[1].coefficient == -1.0  # Sign from anticommutation
     end
-    
+
     @testset "Parity check" begin
         @test has_even_parity(Monomial{FermionicAlgebra}(Int32[]))  # Identity
         @test !has_even_parity(a[1])  # Single operator
@@ -1010,45 +1010,45 @@ end
 
 @testset "BosonicAlgebra CCR Identities" begin
     reg, (c, c_dag) = create_bosonic_variables(1:3)
-    
+
     @testset "Commutation: [cᵢ, cⱼ†] = δᵢⱼ" begin
         # Same mode: c₁ c₁† = c₁† c₁ + 1
         p = simplify(c[1] * c_dag[1])
         @test length(p.terms) == 2
-        
+
         identity_term = findfirst(t -> isempty(t.monomial.word), p.terms)
         @test !isnothing(identity_term)
         @test p.terms[identity_term].coefficient == 1.0
-        
+
         normal_term = findfirst(t -> !isempty(t.monomial.word), p.terms)
         @test !isnothing(normal_term)
         @test p.terms[normal_term].coefficient == 1.0  # No sign for bosons
-        
+
         # Different modes: c₁ c₂† = c₂† c₁ (no delta)
         p_cross = simplify(c[1] * c_dag[2])
         @test length(p_cross.terms) == 1
         @test p_cross.terms[1].coefficient == 1.0  # No sign for bosons
     end
-    
+
     @testset "NOT nilpotent: cᵢ² ≠ 0" begin
         p = simplify(c[1] * c[1])
         @test length(p.terms) == 1
         @test p.terms[1].monomial.word == Int8[1, 1]
     end
-    
+
     @testset "Rook number identity: c c c† c† = 2 + 4c†c + c†²c²" begin
         p = simplify(c[1] * c[1] * c_dag[1] * c_dag[1])
         @test length(p.terms) == 3
-        
+
         # Find terms by degree
         identity = findfirst(t -> isempty(t.monomial.word), p.terms)
         @test !isnothing(identity)
         @test p.terms[identity].coefficient == 2.0
-        
+
         deg2 = findfirst(t -> length(t.monomial.word) == 2, p.terms)
         @test !isnothing(deg2)
         @test p.terms[deg2].coefficient == 4.0
-        
+
         deg4 = findfirst(t -> length(t.monomial.word) == 4, p.terms)
         @test !isnothing(deg4)
         @test p.terms[deg4].coefficient == 1.0
@@ -1058,26 +1058,26 @@ end
 @testset "Multi-site Commutation (Site-Based Simplification)" begin
     @testset "NonCommutativeAlgebra: different sites commute" begin
         reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 3:4)])
-        
+
         # y₁ x₁ should become x₁ y₁ (site 1 before site 2)
         m = y[1] * x[1]
         s = simplify(m)
         @test decode_site(s.word[1]) == 1
         @test decode_site(s.word[2]) == 2
     end
-    
+
     @testset "UnipotentAlgebra: different sites commute, then U²=I" begin
         reg, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 3:4)])
-        
+
         # V₁ U₁ V₁ U₁ should sort by site, then U pairs and V pairs cancel
         m = V[1] * U[1] * V[1] * U[1]
         s = simplify(m)
         @test isempty(s.word)  # After site sort: U₁U₁V₁V₁ → cancels
     end
-    
+
     @testset "ProjectorAlgebra: different sites commute, then P²=P" begin
         reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 3:4)])
-        
+
         # Q₁ P₁ Q₁ P₁ should sort by site: P₁P₁Q₁Q₁ → P₁Q₁
         m = Q[1] * P[1] * Q[1] * P[1]
         s = simplify(m)
@@ -1208,7 +1208,7 @@ end
             @test word == expected
         end
     end
-    
+
     @testset "Projector reduction" begin
         for (input, expected) in PROJECTOR_REDUCE_ORACLE
             word = copy(input)
@@ -1227,19 +1227,19 @@ end
 
 @testset "NCTSSOS Oracle: get_ncbasis counts" begin
     using NCTSSoS: decode_operator_id, get_ncbasis_deg
-    
+
     for (n, d, expected_count) in BASIS_COUNTS_ORACLE
         reg, _ = create_noncommutative_variables([("x", 1:n)])
         basis = get_ncbasis(reg, d)
         @test length(basis) == expected_count
     end
-    
+
     # Verify degree 0 returns identity
     reg, _ = create_noncommutative_variables([("x", 1:3)])
     basis = get_ncbasis(reg, 0)
     @test length(basis) == 1
     @test isone(basis[1])
-    
+
     # Verify n=2, d=2 enumerates all 4 words
     reg2, _ = create_noncommutative_variables([("x", 1:2)])
     basis2 = get_ncbasis_deg(reg2, 2)
@@ -1256,23 +1256,23 @@ end
 @testset "NCTSSOS Oracle: Site-aware simplification (two-site)" begin
     @testset "UnipotentAlgebra" begin
         reg, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 1:2)])
-        
+
         # Same site, same var → cancels
         @test isempty(simplify(U[1] * U[1]).word)
-        
+
         # Same site, different vars → preserved
         @test length(simplify(U[2] * U[1]).word) == 2
-        
+
         # Cross-site pairs cancel after site-sorting
         @test isempty(simplify(V[1] * U[1] * V[1] * U[1]).word)
     end
-    
+
     @testset "ProjectorAlgebra" begin
         reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
-        
+
         # Same site, same var → collapses
         @test length(simplify(P[1] * P[1]).word) == 1
-        
+
         # Cross-site with idempotency
         s = simplify(Q[1] * P[1] * Q[1] * P[1])
         @test length(s.word) == 2
@@ -1297,41 +1297,41 @@ end
 
 @testset "NCTSSOS Oracle: Two-site simplification (4 vars, 2 sites)" begin
     using NCTSSoS: decode_operator_id, decode_site
-    
+
     # Create 4 variables on 2 sites:
     #   Site 1: x₁, x₂ (prefix group 1)
     #   Site 2: y₁, y₂ (prefix group 2)
     # Encoded indices are NOT 1,2,3,4 - they contain site info in the bits
     reg, ((x1, x2), (y1, y2)) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
-    
+
     # Verify site assignment
     @test decode_site(x1.word[1]) == 1
     @test decode_site(x2.word[1]) == 1
     @test decode_site(y1.word[1]) == 2
     @test decode_site(y2.word[1]) == 2
-    
+
     # Test: y₁ x₁ → x₁ y₁ (site 2 moves after site 1)
     m1 = Monomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1]])
     s1 = simplify(m1)
     @test s1.word == [x1.word[1], y1.word[1]]
-    
+
     # Test: x₂ x₁ → x₂ x₁ (same site, order PRESERVED)
     m2 = Monomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1]])
     s2 = simplify(m2)
     @test s2.word == [x2.word[1], x1.word[1]]  # NOT sorted to [x1, x2]!
-    
+
     # Test: y₂ y₁ → y₂ y₁ (same site, order PRESERVED)
     m3 = Monomial{NonCommutativeAlgebra}([y2.word[1], y1.word[1]])
     s3 = simplify(m3)
     @test s3.word == [y2.word[1], y1.word[1]]  # NOT sorted to [y1, y2]!
-    
+
     # Test: y₂ x₂ y₁ x₁ → x₂ x₁ y₂ y₁ (stable sort by site)
     # Site 1 elements [x₂, x₁] preserve relative order
     # Site 2 elements [y₂, y₁] preserve relative order
     m4 = Monomial{NonCommutativeAlgebra}([y2.word[1], x2.word[1], y1.word[1], x1.word[1]])
     s4 = simplify(m4)
     @test s4.word == [x2.word[1], x1.word[1], y2.word[1], y1.word[1]]
-    
+
     # Test: y₁ x₁ y₂ x₂ → x₁ x₂ y₁ y₂ (stable sort by site)
     m5 = Monomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1], y2.word[1], x2.word[1]])
     s5 = simplify(m5)
@@ -1340,14 +1340,14 @@ end
 
 @testset "NCTSSOS Oracle: Two-site symmetric_canon (4 vars, 2 sites)" begin
     using NCTSSoS: decode_operator_id, decode_site
-    
+
     # symmetric_canon for Unsigned types:
     #   1. Sort word by site (stable)
-    #   2. Sort reverse(word) by site (stable) 
+    #   2. Sort reverse(word) by site (stable)
     #   3. Return min of the two (lexicographic on encoded indices)
-    
+
     reg, ((x1, x2), (y1, y2)) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
-    
+
     # Test: x₂ x₁ y₂ y₁ vs reverse y₁ y₂ x₁ x₂
     # After site sort: [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂]
     # Min is lexicographically smaller (comparing encoded indices)
@@ -1357,7 +1357,7 @@ end
     # The reverse [y₁,y₂,x₁,x₂] sorted by site → [x₁,x₂,y₁,y₂]
     # Compare [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂] → min is [x₁,x₂,y₁,y₂] since x₁ < x₂
     @test c1.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
-    
+
     # Test: already canonical x₁ x₂ y₁ y₂
     m2 = Monomial{NonCommutativeAlgebra}([x1.word[1], x2.word[1], y1.word[1], y2.word[1]])
     s2 = simplify(m2)
@@ -1382,12 +1382,12 @@ end
 #     end
 #     return a
 # end
-# 
+#
 # function _cyclic_canon(a::Vector{UInt16})
 #     isempty(a) && return a
 #     minimum([[a[i+1:end]; a[1:i]] for i=0:length(a)-1])
 # end
-# 
+#
 # function constraint_reduce!(word; constraint="unipotent")
 #     i = 1
 #     while i < length(word)
@@ -1401,7 +1401,7 @@ end
 #     end
 #     return word
 # end
-# 
+#
 # function get_ncbasis(n, d)
 #     basis = [UInt16[]]
 #     for i = 1:d
@@ -1412,7 +1412,7 @@ end
 #     end
 #     return basis
 # end
-# 
+#
 # # Generate test data
 # for w in [UInt16[1,2,3], UInt16[3,2,1], ...]
 #     println("(Int16\$w, Int16\$(_sym_canon(copy(w)))),")
@@ -1507,7 +1507,7 @@ const CONSTRAINT_BASIS_COUNTS_ORACLE = [
 
 @testset "NCTSSOS Oracle: Basis with constraint reduction (single-site)" begin
     using NCTSSoS: decode_operator_id
-    
+
     @testset "ProjectorAlgebra (P²=P)" begin
         for (n, d, expected_proj, _) in CONSTRAINT_BASIS_COUNTS_ORACLE
             reg, _ = create_projector_variables([("P", 1:n)])
@@ -1517,7 +1517,7 @@ const CONSTRAINT_BASIS_COUNTS_ORACLE = [
             @test length(words) == expected_proj
         end
     end
-    
+
     @testset "UnipotentAlgebra (U²=I)" begin
         for (n, d, _, expected_unip) in CONSTRAINT_BASIS_COUNTS_ORACLE
             reg, _ = create_unipotent_variables([("U", 1:n)])
@@ -1532,22 +1532,22 @@ end
 @testset "NCTSSOS Oracle: Multi-site commutation (NCTSSoS extension)" begin
     # NCTSSoS adds site-based commutation: operators on different sites commute.
     # This is NOT in NCTSSOS. Tests verify this NCTSSoS-specific behavior.
-    
+
     using NCTSSoS: decode_site
-    
+
     @testset "ProjectorAlgebra multi-site reduces basis size" begin
         # Single-site: 3 vars, degree 3 → 22 unique words (NCTSSOS oracle)
         reg_single, _ = create_projector_variables([("P", 1:3)])
         basis_single = get_ncbasis(reg_single, 3)
         monos_single = Set(m for p in basis_single for m in monomials(p))
         @test length(monos_single) == 22
-        
+
         # Multi-site: V on site 1, W₁,W₂ on site 2 → 12 unique (site commutation)
         reg_multi, ((x,), (y, z)) = create_projector_variables([("V", 1:1), ("W", 1:2)])
         basis_multi = get_ncbasis(reg_multi, 3)
         monos_multi = Set(m for p in basis_multi for m in monomials(p))
         @test length(monos_multi) == 12  # Reduced by site-based commutation
-        
+
         # Verify site-sorting: site 1 always before site 2
         for m in monos_multi
             if length(m.word) >= 2
@@ -1557,20 +1557,20 @@ end
             end
         end
     end
-    
+
     @testset "UnipotentAlgebra multi-site reduces basis size" begin
         # Single-site: 3 vars, degree 3 → 22 unique words (NCTSSOS oracle)
         reg_single, _ = create_unipotent_variables([("U", 1:3)])
         basis_single = get_ncbasis(reg_single, 3)
         monos_single = Set(m for p in basis_single for m in monomials(p))
         @test length(monos_single) == 22
-        
+
         # Multi-site: V on site 1, W₁,W₂ on site 2 → 12 unique (site commutation)
         reg_multi, ((x,), (y, z)) = create_unipotent_variables([("V", 1:1), ("W", 1:2)])
         basis_multi = get_ncbasis(reg_multi, 3)
         monos_multi = Set(m for p in basis_multi for m in monomials(p))
         @test length(monos_multi) == 12  # Reduced by site-based commutation
-        
+
         # Verify site-sorting: site 1 always before site 2
         for m in monos_multi
             if length(m.word) >= 2
@@ -1580,3 +1580,5 @@ end
         end
     end
 end
+
+# TODO: simplify test cases needs to verify with variables from different physical sites, they also work

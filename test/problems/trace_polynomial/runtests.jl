@@ -8,5 +8,4 @@ using Test
 
 @testset "Trace Polynomial" begin
     include("trace_polynomial.jl")
-    include("sparsity_variants.jl")
 end

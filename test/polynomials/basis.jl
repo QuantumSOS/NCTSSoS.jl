@@ -232,3 +232,6 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
         @test length(basis_d3) == 8  # 2^3 = 8
     end
 end
+
+
+# TODO: it does not test for different physical group

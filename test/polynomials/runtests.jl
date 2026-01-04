@@ -11,6 +11,7 @@ using Test, NCTSSoS
     include("compare.jl")
     include("canonicalization.jl")
     include("simplify.jl")
+    include("matrix_oracles.jl")
     include("basis.jl")
     include("state_word.jl")
     include("statepolynomial.jl")

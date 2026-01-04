@@ -45,7 +45,7 @@ Maps source files to their corresponding test files.
 |-------------|--------------|-------|
 | `problem.jl` | `relaxations/interface.jl` | PolyOpt, StatePolyOpt construction |
 | `interface.jl` | `relaxations/interface.jl` | cs_nctssos, SolverConfig |
-| `sparsity.jl` | `relaxations/sparsity.jl`, `problems/trace_polynomial/sparsity_variants.jl` | CS/TS algorithms |
+| `sparsity.jl` | `relaxations/sparsity.jl`, `problems/trace_polynomial/trace_polynomial.jl` | CS/TS algorithms |
 | `elimination.jl` | `relaxations/sparsity.jl` | MF, MMD, NoElimination |
 | `sos.jl` | `relaxations/sos.jl` | SOS dualization, Cαj |
 | `moment.jl` | `relaxations/interface.jl` | Moment formulation |

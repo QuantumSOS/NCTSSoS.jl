@@ -47,20 +47,20 @@ using NCTSSoS: coeff_type
     end
 end
 
-@testset "default_coeff_type trait" begin
+@testset "coeff_type trait" begin
     # PauliAlgebra uses ComplexF64 (Pauli products generate complex phases)
-    @test default_coeff_type(PauliAlgebra) == ComplexF64
+    @test coeff_type(PauliAlgebra) == ComplexF64
 
     # All other algebras use Float64
-    @test default_coeff_type(NonCommutativeAlgebra) == Float64
-    @test default_coeff_type(FermionicAlgebra) == Float64
-    @test default_coeff_type(BosonicAlgebra) == Float64
-    @test default_coeff_type(ProjectorAlgebra) == Float64
-    @test default_coeff_type(UnipotentAlgebra) == Float64
+    @test coeff_type(NonCommutativeAlgebra) == Float64
+    @test coeff_type(FermionicAlgebra) == Float64
+    @test coeff_type(BosonicAlgebra) == Float64
+    @test coeff_type(ProjectorAlgebra) == Float64
+    @test coeff_type(UnipotentAlgebra) == Float64
 end
 
 @testset "coeff_type trait" begin
-    # Monomial: returns default_coeff_type(A)
+    # Monomial: returns coeff_type(A)
     @test coeff_type(Monomial{PauliAlgebra,Int64}) == ComplexF64
     @test coeff_type(Monomial{NonCommutativeAlgebra,Int64}) == Float64
     @test coeff_type(Monomial{FermionicAlgebra,Int32}) == Float64

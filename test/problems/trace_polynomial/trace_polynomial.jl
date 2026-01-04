@@ -3,10 +3,10 @@
 # =============================================================================
 # Consolidates trace polynomial tests using the tr() operator:
 #   - Example 6.1: Projector algebra with product of traces
+#   - Example 6.2.0: CHSH trace polynomial with term sparsity variants
 #   - Example 6.2.1: Squared trace expressions
 #   - Example 6.2.2: Covariance trace inequality
 #
-# Note: Basic CHSH trace polynomial tests are in chsh.jl
 # Results verified against NCTSSOS.
 # =============================================================================
 
@@ -33,6 +33,8 @@ const EXPECTED_TRACE_POLY = (
     # 6.1: Projector Algebra
     Ex_6_1_Dense_d2 = (opt=-0.04671737845552321, sides=[31], nuniq=81),
     Ex_6_1_Dense_d3 = (opt=-0.031249989780027937, sides=[108], nuniq=395),
+    # 6.2.0: CHSH Trace Polynomial (expected: -2√2 ≈ -2.8284)
+    Ex_6_2_0_Dense_d1 = (opt=-2.8284271247462307,),  # trailing comma for single-element NamedTuple
     # 6.2.1: Squared Trace Expressions (expected: -4.0)
     Ex_6_2_1_Dense_d2 = (opt=-4.000000007251562, sides=[53], nuniq=222),
     # 6.2.2: Covariance Trace Polynomial (expected: -5.0)
@@ -61,6 +63,42 @@ const EXPECTED_TRACE_POLY = (
             config = SolverConfig(optimizer=SOLVER, order=3)
             result = cs_nctssos(tpop, config)
             @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_1_Dense_d3.opt atol = 1e-6
+        end
+    end
+
+    # =========================================================================
+    # Example 6.2.0: CHSH Trace Polynomial
+    # =========================================================================
+    @testset "Example 6.2.0 (CHSH)" begin
+        reg, (vars,) = create_unipotent_variables([("v", 1:4)])
+        x = vars[1:2]
+        y = vars[3:4]
+
+        p = -1.0 * NCTSSoS.tr(x[1] * y[1]) - NCTSSoS.tr(x[1] * y[2]) -
+            NCTSSoS.tr(x[2] * y[1]) + NCTSSoS.tr(x[2] * y[2])
+        tpop = polyopt(p * one(typeof(x[1])), reg)
+
+        @testset "Dense" begin
+            config = SolverConfig(optimizer=SOLVER, order=1)
+            result = cs_nctssos(tpop, config)
+            @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_2_0_Dense_d1.opt atol = 1e-6
+        end
+
+        @testset "Term Sparsity Algorithms" begin
+            for (name, algo) in [
+                ("NoElimination", NoElimination()),
+                ("MMD", MMD()),
+                ("MaximalElimination", MaximalElimination())
+            ]
+                @testset "$name" begin
+                    config = SolverConfig(
+                        optimizer=SOLVER, order=1,
+                        cs_algo=NoElimination(), ts_algo=algo
+                    )
+                    result = cs_nctssos(tpop, config)
+                    @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_2_0_Dense_d1.opt atol = 1e-6
+                end
+            end
         end
     end
 
@@ -107,11 +145,13 @@ const EXPECTED_TRACE_POLY = (
             @test result.objective ≈ EXPECTED_TRACE_POLY.Ex_6_2_2_Dense_d2.opt atol = 1e-5
         end
 
-        @testset "Sparse (MF + MMD)" begin
+        # Note: Use TS only (no CS) as NCTSSOS doesn't support correlative sparsity for trace polynomials.
+        # Combining MF + MMD produces looser bounds due to smaller per-clique bases.
+        @testset "Sparse (TS only)" begin
             config = SolverConfig(
                 optimizer=SOLVER,
                 order=2,
-                cs_algo=MF(),
+                cs_algo=NoElimination(),
                 ts_algo=MMD()
             )
             result = cs_nctssos(tpop, config)

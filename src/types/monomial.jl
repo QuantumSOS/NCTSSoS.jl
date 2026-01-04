@@ -629,10 +629,13 @@ For regular (non-state) monomials, `expval` is an identity operation.
 This exists for API compatibility with `NCStateWord`, where `expval`
 collapses the state word to a `StateWord`.
 
-!!! note "Design note"
-    A future `StateSymbol` type may wrap monomials in a canonicalized
-    state expectation representation. For now, the regular polynomial
-    optimization path uses `Monomial` directly as dictionary keys.
+!!! todo "Refactor to return StateSymbol"
+    This should return `StateSymbol{ST}(m)` instead of `m` for consistency
+    with `expval(::NCStateWord)` which returns `StateWord`. Key decisions:
+    - Which `StateType` to use: `Arbitrary` (involution canon) or `MaxEntangled` (cyclic symmetric canon)
+    - Add `symmetric_canon(::StateSymbol)` method
+    - Update optimization code: `monomap` dict keys from `Monomial` to `StateSymbol`
+    See also: `StateSymbol` in `src/states/word.jl`
 
 # Examples
 ```julia
@@ -652,7 +655,7 @@ expval(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = m
     Base.iterate(::Monomial, ::Nothing) -> Nothing
 
 Iterate a Monomial as a single-term simplify result, yielding one `(coefficient, monomial)` pair.
-The coefficient is `one(default_coeff_type(A))`.
+The coefficient is `one(coeff_type(A))`.
 
 This enables uniform processing of simplify results across all algebra types:
 - `Monomial` (NonCommutative, Projector, Unipotent algebras)
@@ -683,14 +686,14 @@ true
 ```
 """
 function Base.iterate(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    C = default_coeff_type(A)
+    C = coeff_type(A)
     return ((one(C), m), nothing)
 end
 
 Base.iterate(::Monomial, ::Nothing) = nothing
 
 Base.eltype(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} =
-    Tuple{default_coeff_type(A),Monomial{A,T}}
+    Tuple{coeff_type(A),Monomial{A,T}}
 
 # Use HasLength with explicit length of 1 for single-element iteration.
 # We define a separate function to avoid confusion with degree().
@@ -702,7 +705,7 @@ Base.length(::Monomial) = 1  # Single (coefficient, monomial) pair when iterated
 
 Return the default coefficient type for a Monomial of algebra type A.
 """
-coeff_type(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} = default_coeff_type(A)
+coeff_type(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} = coeff_type(A)
 
 # Instance method
 coeff_type(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = coeff_type(Monomial{A,T})

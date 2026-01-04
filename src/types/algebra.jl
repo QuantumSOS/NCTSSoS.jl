@@ -156,7 +156,7 @@ struct UnipotentAlgebra <: AlgebraType end
 # =============================================================================
 
 """
-    default_coeff_type(::Type{A}) where {A<:AlgebraType} -> Type{<:Number}
+    coeff_type(::Type{A}) where {A<:AlgebraType} -> Type{<:Number}
 
 Return the default coefficient type for a given algebra type.
 
@@ -171,15 +171,15 @@ the appropriate coefficient type when not explicitly specified.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> default_coeff_type(PauliAlgebra)
+julia> coeff_type(PauliAlgebra)
 ComplexF64
 
-julia> default_coeff_type(NonCommutativeAlgebra)
+julia> coeff_type(NonCommutativeAlgebra)
 Float64
 ```
 """
-default_coeff_type(::Type{<:AlgebraType}) = Float64
-default_coeff_type(::Type{PauliAlgebra}) = ComplexF64
+coeff_type(::Type{<:AlgebraType}) = Float64
+coeff_type(::Type{PauliAlgebra}) = ComplexF64
 
 # Show methods for clean output
 Base.show(io::IO, ::NonCommutativeAlgebra) = print(io, "NonCommutativeAlgebra()")
@@ -203,7 +203,7 @@ This enables compile-time determination of coefficient types for type-stable
 processing of simplification results. Used by `ComposedMonomial` simplification
 to determine appropriate coefficient types for the Cartesian product of terms.
 
-For `Monomial{A,T}`, returns `default_coeff_type(A)` (the algebra's default).
+For `Monomial{A,T}`, returns `coeff_type(A)` (the algebra's default).
 For `Term{M,C}` and `Polynomial{A,T,C}`, returns `C` (the explicit coefficient type).
 
 # Examples
@@ -287,7 +287,7 @@ max_operators(UInt32)  # 16777215
     encode_index(::Type{T}, operator_id::Int, site::Int) where {T<:Unsigned} -> T
 
 Encode operator_id and site into a single index of type T.
-Site is 1-indexed externally, stored 0-indexed in the lower bits.
+Site is 1-indexed and stored directly in the lower bits.
 
 # Arguments
 - `T`: The unsigned integer type to use for encoding
@@ -347,7 +347,7 @@ the encoding.
 
 # Examples
 ```julia
-select_uint_type(10, 4)    # UInt8
+select_uint_type(10, 4)    # UInt16
 select_uint_type(100, 10)  # UInt16
 select_uint_type(1000, 100) # UInt32
 ```

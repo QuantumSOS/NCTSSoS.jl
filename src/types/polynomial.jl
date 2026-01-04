@@ -177,7 +177,7 @@ end
 
 Construct a polynomial from a monomial with coefficient 1.
 
-The coefficient type is determined by `default_coeff_type(A)`:
+The coefficient type is determined by `coeff_type(A)`:
 - `PauliAlgebra`: uses `ComplexF64` (Pauli products generate complex phases)
 - All others: uses `Float64`
 
@@ -201,7 +201,7 @@ julia> coefficients(p)
 ```
 """
 function Polynomial(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    C = default_coeff_type(A)
+    C = coeff_type(A)
     return Polynomial(Term(one(C), m))
 end
 
@@ -1198,7 +1198,7 @@ function simplify(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Numb
     # Collect all simplified terms
     # Use the wider of C and the algebra's default coefficient type
     # (e.g., ComplexF64 for Pauli even if input was Float64)
-    DC = default_coeff_type(A)
+    DC = coeff_type(A)
     NC = promote_type(C, DC)
     result_terms = Term{Monomial{A,T},NC}[]
 

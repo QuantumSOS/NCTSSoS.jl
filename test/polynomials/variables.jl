@@ -120,6 +120,20 @@ using NCTSSoS:
         @test _select_unsigned_type(4095, 15) == UInt16
         @test _select_unsigned_type(4096, 1) == UInt32  # operators exceed UInt16
         @test _select_unsigned_type(100, 16) == UInt32  # sites exceed UInt16
+
+        # Error path: cannot fit in any UInt type (even UInt64)
+        @test_throws ErrorException _select_unsigned_type(100, 65536)  # sites exceed UInt64
+        @test_throws ErrorException _select_unsigned_type(281474976710656, 1)  # operators exceed UInt64
+
+        # Error message includes offending dimensions
+        try
+            _select_unsigned_type(100, 65536)
+            @test false
+        catch e
+            @test e isa ErrorException
+            @test occursin("Cannot fit", e.msg)
+            @test occursin("65536", e.msg)
+        end
     end
 
     @testset "symbols() and indices() Ordering" begin

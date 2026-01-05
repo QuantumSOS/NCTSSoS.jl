@@ -1,14 +1,25 @@
 """
-    Term{M<:AbstractMonomial, C<:Number}
+    AnyMonomial
+
+Type union for all monomial types that can appear in Terms.
+
+Includes:
+- `AbstractMonomial{A,T}`: Single-algebra monomials (Monomial, PauliMonomial, PhysicsMonomial)
+- `AbstractMonomialUntyped`: Multi-algebra monomials (ComposedMonomial)
+"""
+const AnyMonomial = Union{AbstractMonomial, AbstractMonomialUntyped}
+
+"""
+    Term{M<:AnyMonomial, C<:Number}
 
 Represents a coefficient paired with a monomial, the result of algebraic simplification.
 
 # Fields
 - `coefficient::C`: Numeric coefficient (Float64 or ComplexF64)
-- `monomial::M`: The simplified monomial (Monomial or ComposedMonomial)
+- `monomial::M`: The simplified monomial (Monomial, PauliMonomial, PhysicsMonomial, or ComposedMonomial)
 
 # Type Parameters
-- `M<:AbstractMonomial`: Monomial type (Monomial{A,T} or ComposedMonomial{Ts})
+- `M<:AnyMonomial`: Monomial type (Monomial{A,T}, wrapper types, or ComposedMonomial{Ts})
 - `C<:Number`: Coefficient type (Float64, ComplexF64, etc.)
 
 # Design
@@ -51,7 +62,7 @@ julia> t.coefficient
 1.0
 ```
 """
-struct Term{M<:AbstractMonomial,C<:Number}
+struct Term{M<:AnyMonomial,C<:Number}
     coefficient::C
     monomial::M
 end
@@ -78,7 +89,7 @@ julia> isone(t2)
 false
 ```
 """
-function Base.isone(t::Term{M,C}) where {M<:AbstractMonomial,C}
+function Base.isone(t::Term{M,C}) where {M<:AnyMonomial,C}
     return isone(t.coefficient) && isone(t.monomial)
 end
 
@@ -171,7 +182,7 @@ julia> one(Term{Monomial{PauliAlgebra,UInt16},ComplexF64})
 1
 ```
 """
-function Base.one(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number}
+function Base.one(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number}
     return Term{M,C}(one(C), one(M))
 end
 
@@ -194,7 +205,7 @@ julia> iszero(zero(Term{Monomial{FermionicAlgebra,Int32},Float64}))
 true
 ```
 """
-function Base.zero(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number}
+function Base.zero(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number}
     return Term{M,C}(zero(C), one(M))
 end
 
@@ -268,7 +279,7 @@ julia> mono.word
  2
 ```
 """
-function Base.iterate(t::Term{M,C}) where {M<:AbstractMonomial,C<:Number}
+function Base.iterate(t::Term{M,C}) where {M<:AnyMonomial,C<:Number}
     return ((t.coefficient, t.monomial), nothing)
 end
 
@@ -276,14 +287,14 @@ Base.iterate(::Term, ::Nothing) = nothing
 
 Base.length(::Term) = 1
 
-Base.eltype(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number} = Tuple{C,M}
+Base.eltype(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number} = Tuple{C,M}
 
 """
     coeff_type(::Type{Term{M,C}}) where {M,C} -> Type{<:Number}
 
 Return the coefficient type C for a Term type.
 """
-coeff_type(::Type{Term{M,C}}) where {M<:AbstractMonomial,C<:Number} = C
+coeff_type(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number} = C
 
 # Instance method
-coeff_type(t::Term{M,C}) where {M<:AbstractMonomial,C<:Number} = C
+coeff_type(t::Term{M,C}) where {M<:AnyMonomial,C<:Number} = C

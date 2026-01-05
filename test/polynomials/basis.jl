@@ -57,15 +57,15 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
     @testset "get_ncbasis_deg (NonCommutativeAlgebra)" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Degree 2: returns Vector{Polynomial}
+        # Degree 2: returns Vector{Monomial} for simple algebras
         basis = get_ncbasis_deg(reg, 2)
-        @test basis isa Vector{<:Polynomial}
+        @test basis isa Vector{<:Monomial}
         @test length(basis) == 9  # 3^2 = 9
 
-        # All polynomials should have single degree-2 monomial (NonCommutativeAlgebra doesn't simplify)
-        @test all(p -> length(terms(p)) == 1 && degree(monomials(p)[1]) == 2, basis)
+        # All monomials should have degree 2 (NonCommutativeAlgebra doesn't simplify)
+        @test all(m -> degree(m) == 2, basis)
 
-        # Degree 0: identity polynomial
+        # Degree 0: identity monomial
         basis_d0 = get_ncbasis_deg(reg, 0)
         @test length(basis_d0) == 1
         @test isone(basis_d0[1])
@@ -73,7 +73,7 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
         # Degree 1
         basis_d1 = get_ncbasis_deg(reg, 1)
         @test length(basis_d1) == 3
-        @test all(p -> length(terms(p)) == 1 && degree(monomials(p)[1]) == 1, basis_d1)
+        @test all(m -> degree(m) == 1, basis_d1)
 
         # Negative degree
         basis_neg = get_ncbasis_deg(reg, -1)
@@ -83,21 +83,21 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
     @testset "get_ncbasis_deg (PauliAlgebra)" begin
         reg, (σx, σy, σz) = create_pauli_variables(1:2)
 
-        # Degree 1: 6 Pauli operators
+        # Degree 1: 6 Pauli operators - returns Vector{PauliMonomial}
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Polynomial}
+        @test basis_d1 isa Vector{<:PauliMonomial}
         @test length(basis_d1) == 6
 
-        # Each polynomial should be a single term with degree 1 monomial
-        @test all(p -> length(terms(p)) == 1 && degree(monomials(p)[1]) == 1, basis_d1)
+        # Each PauliMonomial should have degree 1
+        @test all(pm -> degree(pm) == 1, basis_d1)
     end
 
     @testset "get_ncbasis_deg (ProjectorAlgebra)" begin
         reg, (P,) = create_projector_variables([("P", 1:3)])
 
-        # Degree 1: 3 projectors
+        # Degree 1: 3 projectors - returns Vector{Monomial}
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Polynomial}
+        @test basis_d1 isa Vector{<:Monomial}
         @test length(basis_d1) == 3
     end
 
@@ -107,32 +107,32 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Degree 2: generates 4 words, but U_i * U_i simplifies
         basis = get_ncbasis_deg(reg, 2)
-        @test basis isa Vector{<:Polynomial}
+        @test basis isa Vector{<:Monomial}
 
-        # Should have 4 polynomials (one per input word)
+        # Should have 4 monomials (one per input word)
         @test length(basis) == 4
     end
 
     @testset "get_ncbasis_deg (FermionicAlgebra)" begin
         reg, (a, a_dag) = create_fermionic_variables(1:2)
 
-        # Degree 1: 4 operators (a1, a1†, a2, a2†)
+        # Degree 1: 4 operators (a1, a1†, a2, a2†) - returns Vector{PhysicsMonomial}
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Polynomial}
+        @test basis_d1 isa Vector{<:PhysicsMonomial}
         @test length(basis_d1) == 4
 
-        # Degree 2: 16 words, some may produce multi-term polynomials
+        # Degree 2: 16 words, some may produce multi-term PhysicsMonomials
         basis_d2 = get_ncbasis_deg(reg, 2)
-        @test basis_d2 isa Vector{<:Polynomial}
-        @test length(basis_d2) == 16  # One polynomial per input word
+        @test basis_d2 isa Vector{<:PhysicsMonomial}
+        @test length(basis_d2) == 16  # One PhysicsMonomial per input word
     end
 
     @testset "get_ncbasis_deg (BosonicAlgebra)" begin
         reg, (c, c_dag) = create_bosonic_variables(1:2)
 
-        # Degree 1: 4 operators
+        # Degree 1: 4 operators - returns Vector{PhysicsMonomial}
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:Polynomial}
+        @test basis_d1 isa Vector{<:PhysicsMonomial}
         @test length(basis_d1) == 4
     end
 
@@ -143,27 +143,27 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
     @testset "get_ncbasis (NonCommutativeAlgebra)" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])
 
-        # Up to degree 2: 1 + 2 + 4 = 7 polynomials
+        # Up to degree 2: 1 + 2 + 4 = 7 monomials
         basis = get_ncbasis(reg, 2)
-        @test basis isa Vector{<:Polynomial}
+        @test basis isa Vector{<:Monomial}
         @test length(basis) == 7
 
-        # Contains identity polynomial
+        # Contains identity monomial
         @test any(isone, basis)
 
-        # Contains degree 1 and 2 polynomials
-        @test any(p -> degree(p) == 1, basis)
-        @test any(p -> degree(p) == 2, basis)
+        # Contains degree 1 and 2 monomials
+        @test any(m -> degree(m) == 1, basis)
+        @test any(m -> degree(m) == 2, basis)
     end
 
     @testset "get_ncbasis (PauliAlgebra)" begin
         reg, (σx, σy, σz) = create_pauli_variables(1:2)
 
-        # Up to degree 2
+        # Up to degree 2 - returns Vector{PauliMonomial}
         basis = get_ncbasis(reg, 2)
-        @test basis isa Vector{<:Polynomial}
+        @test basis isa Vector{<:PauliMonomial}
 
-        # Contains identity polynomial
+        # Contains identity PauliMonomial
         @test any(isone, basis)
     end
 
@@ -174,13 +174,13 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
         # Should have 4 total variables
         @test length(reg) == 4
 
-        # Degree 1 basis should have 4 polynomials
+        # Degree 1 basis should have 4 monomials
         basis_d1 = get_ncbasis_deg(reg, 1)
         @test length(basis_d1) == 4
 
-        # Degree 2: 4^2 = 16 polynomials (one per input word)
+        # Degree 2: 4^2 = 16 monomials (one per input word)
         basis_d2 = get_ncbasis_deg(reg, 2)
-        @test basis_d2 isa Vector{<:Polynomial}
+        @test basis_d2 isa Vector{<:Monomial}
         @test length(basis_d2) == 16
     end
 

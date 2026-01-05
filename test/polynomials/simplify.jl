@@ -138,13 +138,13 @@ end
     reg, (a, a_dag) = create_fermionic_variables(1:3)
 
     @testset "Basic Operations" begin
-        # Empty word → identity term
+        # Empty word → identity PhysicsMonomial
         m_empty = Monomial{FermionicAlgebra}(Int32[])
         result = simplify(m_empty)
-        @test result isa Polynomial
-        @test length(result.terms) == 1
-        @test result.terms[1].coefficient == 1.0
-        @test isempty(result.terms[1].monomial.word)
+        @test result isa PhysicsMonomial
+        @test length(result.coeffs) == 1
+        @test result.coeffs[1] == 1
+        @test isempty(result.monos[1].word)
 
         # Single annihilation a₁ → unchanged
         m_a1 = a[1]
@@ -337,20 +337,20 @@ end
     reg, (c, c_dag) = create_bosonic_variables(1:3)
 
     @testset "Basic Operations" begin
-        # Empty word → identity term
+        # Empty word → identity PhysicsMonomial
         m_empty = Monomial{BosonicAlgebra}(Int32[])
         result = simplify(m_empty)
-        @test result isa Polynomial
-        @test length(result.terms) == 1
-        @test result.terms[1].coefficient == 1.0
-        @test isempty(result.terms[1].monomial.word)
+        @test result isa PhysicsMonomial
+        @test length(result.coeffs) == 1
+        @test result.coeffs[1] == 1
+        @test isempty(result.monos[1].word)
 
         # Single annihilation c₁ → unchanged
         m_c1 = c[1]
         result_c1 = simplify(m_c1)
-        @test length(result_c1.terms) == 1
-        @test result_c1.terms[1].coefficient == 1.0
-        @test result_c1.terms[1].monomial.word == [1]
+        @test length(result_c1.coeffs) == 1
+        @test result_c1.coeffs[1] == 1
+        @test result_c1.monos[1].word == [1]
 
         # Single creation c₁† → unchanged
         m_c1_dag = c_dag[1]

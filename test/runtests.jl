@@ -82,65 +82,52 @@ const SHOULD_RUN_PROBLEMS = RUN_ALL || RUN_PROBLEMS
 # =============================================================================
 @testset "NCTSSoS.jl" begin
     # =========================================================================
-    # TYPE SYSTEM REVAMP - ALL TESTS DISABLED
+    # TYPE SYSTEM REVAMP - Re-enabling tests incrementally
     # =========================================================================
-    # Tests disabled during type system revamp (v2.0.0).
-    # Will be re-enabled phase by phase as implementation proceeds.
     # See: .memory/tasks/type-system-revamp/plan.md
     # =========================================================================
 
-    @testset "DISABLED - Type System Revamp in Progress" begin
-        @test_skip "Polynomials tests - pending type revamp"
-        @test_skip "Quality tests - pending type revamp"
-        @test_skip "Relaxations tests - pending type revamp"
-        @test_skip "Problems tests - pending type revamp"
+    # =========================================================================
+    # 1. Polynomial Algebra Tests (no solver needed, no JuMP imports)
+    # =========================================================================
+    if SHOULD_RUN_POLYNOMIALS
+        @testset "Polynomials" begin
+            include("polynomials/runtests.jl")
+        end
     end
 
     # =========================================================================
-    # ORIGINAL TESTS (commented out - to be re-enabled incrementally)
+    # 2. Code Quality Checks
     # =========================================================================
+    if SHOULD_RUN_QUALITY
+        @testset "Quality" begin
+            include("quality/runtests.jl")
+        end
+    end
 
-    # # =========================================================================
-    # # 1. Polynomial Algebra Tests (no solver needed, no JuMP imports)
-    # # =========================================================================
-    # if SHOULD_RUN_POLYNOMIALS
-    #     @testset "Polynomials" begin
-    #         include("polynomials/runtests.jl")
-    #     end
-    # end
+    # =========================================================================
+    # Load solver configuration BEFORE relaxation/problem tests
+    # (after polynomial tests to avoid JuMP's simplify shadowing NCTSSoS.simplify)
+    # =========================================================================
+    if SHOULD_RUN_RELAXATIONS || SHOULD_RUN_PROBLEMS
+        include("setup.jl")
+    end
 
-    # # =========================================================================
-    # # 2. Code Quality Checks
-    # # =========================================================================
-    # if SHOULD_RUN_QUALITY
-    #     @testset "Quality" begin
-    #         include("quality/runtests.jl")
-    #     end
-    # end
+    # =========================================================================
+    # 3. Relaxation Component Tests
+    # =========================================================================
+    if SHOULD_RUN_RELAXATIONS
+        @testset "Relaxations" begin
+            include("relaxations/runtests.jl")
+        end
+    end
 
-    # # =========================================================================
-    # # Load solver configuration BEFORE relaxation/problem tests
-    # # (after polynomial tests to avoid JuMP's simplify shadowing NCTSSoS.simplify)
-    # # =========================================================================
-    # if SHOULD_RUN_RELAXATIONS || SHOULD_RUN_PROBLEMS
-    #     include("setup.jl")
-    # end
-
-    # # =========================================================================
-    # # 3. Relaxation Component Tests
-    # # =========================================================================
-    # if SHOULD_RUN_RELAXATIONS
-    #     @testset "Relaxations" begin
-    #         include("relaxations/runtests.jl")
-    #     end
-    # end
-
-    # # =========================================================================
-    # # 4. Problem-Based Tests (--local recommended for full suite)
-    # # =========================================================================
-    # if SHOULD_RUN_PROBLEMS
-    #     @testset "Problems" begin
-    #         include("problems/runtests.jl")
-    #     end
-    # end
+    # =========================================================================
+    # 4. Problem-Based Tests (--local recommended for full suite)
+    # =========================================================================
+    if SHOULD_RUN_PROBLEMS
+        @testset "Problems" begin
+            include("problems/runtests.jl")
+        end
+    end
 end

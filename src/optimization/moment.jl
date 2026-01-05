@@ -584,12 +584,12 @@ Similar to `MomentProblem` but for state polynomial optimization.
 
 # Fields
 - `objective::P`: The state polynomial objective function
-- `constraints::Vector{Tuple{Symbol, Matrix{P}}}`: Constraint matrices with cone types
+- `constraints::Vector{Tuple{Symbol, Matrix{P}, Vector{M}}}`: Constraint matrices with cone types and block bases
 - `total_basis::Vector{M}`: Union of all basis NCStateWords
 """
 struct StateMomentProblem{A<:AlgebraType, ST<:StateType, T<:Integer, M<:NCStateWord{ST,A,T}, P<:NCStatePolynomial}
     objective::P
-    constraints::Vector{Tuple{Symbol, Matrix{P}}}
+    constraints::Vector{Tuple{Symbol, Matrix{P}, Vector{M}}}  # (cone, matrix, block_basis)
     total_basis::Vector{M}
 end
 
@@ -667,8 +667,8 @@ function moment_relax(
     # These are "real" algebras that don't produce complex phases
     psd_cone = :PSD
 
-    # Build constraint matrices symbolically
-    constraints = Vector{Tuple{Symbol, Matrix{P}}}()
+    # Build constraint matrices symbolically, storing block basis with each constraint
+    constraints = Vector{Tuple{Symbol, Matrix{P}, Vector{M}}}()
 
     # Process clique constraints
     for (term_sparsities, cons_idx) in zip(cliques_term_sparsities, corr_sparsity.clq_cons)
@@ -678,8 +678,9 @@ function moment_relax(
             for ts_sub_basis in term_sparsity.block_bases
                 # Determine cone: Zero for equality constraints, PSD otherwise
                 cone = poly in pop.eq_constraints ? :Zero : psd_cone
-                constraint = _build_state_constraint_matrix(poly, ts_sub_basis, cone)
-                push!(constraints, constraint)
+                (cone_type, mat) = _build_state_constraint_matrix(poly, ts_sub_basis, cone)
+                # Store block basis with constraint for correct coefficient extraction in SOS dualization
+                push!(constraints, (cone_type, mat, ts_sub_basis))
             end
         end
     end
@@ -689,8 +690,9 @@ function moment_relax(
         poly = corr_sparsity.cons[global_con]
         cone = poly in pop.eq_constraints ? :Zero : psd_cone
         # Global constraints use identity basis (scalar moment)
-        constraint = _build_state_constraint_matrix(poly, [one(M)], cone)
-        push!(constraints, constraint)
+        global_basis = [one(M)]
+        (cone_type, mat) = _build_state_constraint_matrix(poly, global_basis, cone)
+        push!(constraints, (cone_type, mat, global_basis))
     end
 
     return StateMomentProblem{A, ST, TI, M, P}(pop.objective, constraints, total_basis)

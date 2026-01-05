@@ -255,8 +255,8 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
 
     dual_model = GenericModel{C}()
 
-    # Create matrix variables for each constraint
-    dual_variables = map(mp.constraints) do (cone, mat)
+    # Create matrix variables for each constraint (now includes block_basis in tuple)
+    dual_variables = map(mp.constraints) do (cone, mat, _block_basis)
         G_dim = size(mat, 1)
         if cone == :Zero
             @variable(dual_model, [1:G_dim, 1:G_dim] in SymmetricMatrixSpace())
@@ -279,16 +279,6 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     state_basis = sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in mp.total_basis])
     n_basis = length(state_basis)
 
-    # Create mapping from NCStateWord to canonical StateWord basis position
-    ncsw_to_sw_idx = Dict{M, Int}()
-    for ncsw in mp.total_basis
-        sw = symmetric_canon(expval(ncsw))
-        idx = searchsortedfirst(state_basis, sw)
-        if idx <= n_basis && state_basis[idx] == sw
-            ncsw_to_sw_idx[ncsw] = idx
-        end
-    end
-
     # Initialize constraint expressions
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in 1:n_basis]
 
@@ -305,19 +295,24 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     # Subtract b from the constant term (identity StateWord)
     add_to_expression!(fα_constraints[1], -one(C), b)
 
-    # Process each constraint matrix
-    # The constraint matrix entries are NCStatePolynomials with NCStateWords of form <I>*xy
-    sorted_unsym_basis = sort(mp.total_basis)
-    for (i, (_, mat)) in enumerate(mp.constraints)
-        Cαjs = _get_state_Cαj(sorted_unsym_basis, mat)
-        for (ky, coef) in Cαjs
-            basis_idx, row, col = ky
-            # Map unsymmetrized NCStateWord to StateWord index
-            if basis_idx <= length(sorted_unsym_basis)
-                unsym_ncsw = sorted_unsym_basis[basis_idx]
-                if haskey(ncsw_to_sw_idx, unsym_ncsw)
-                    sw_idx = ncsw_to_sw_idx[unsym_ncsw]
-                    add_to_expression!(fα_constraints[sw_idx], -coef, dual_variables[i][row, col])
+    # Process each constraint matrix by iterating directly over block (row, col) pairs
+    # This ensures all StateWord contributions are accumulated correctly across blocks
+    # (matching NCTSSOS's on-the-fly loop approach)
+    for (i, (_, mat, _block_basis)) in enumerate(mp.constraints)
+        dim = size(mat, 1)
+        # Iterate over upper triangle to avoid double-counting
+        for row in 1:dim
+            for col in row:dim
+                poly = mat[row, col]
+                for (coeff, ncsw) in zip(coefficients(poly), monomials(poly))
+                    # Convert NCStateWord to canonical StateWord
+                    sw = symmetric_canon(expval(ncsw))
+                    sw_idx = searchsortedfirst(state_basis, sw)
+                    if sw_idx <= n_basis && state_basis[sw_idx] == sw
+                        # Multiply off-diagonal entries by 2 for symmetric matrix contribution
+                        effective_coeff = (row == col) ? coeff : 2 * coeff
+                        add_to_expression!(fα_constraints[sw_idx], -effective_coeff, dual_variables[i][row, col])
+                    end
                 end
             end
         end
@@ -327,42 +322,6 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     @constraint(dual_model, fα_constraints .== 0)
 
     return SOSProblem(dual_model)
-end
-
-"""
-    _get_state_Cαj(unsymmetrized_basis, localizing_mtx)
-
-Extract coefficient matrix for state polynomial dualization.
-
-Only iterates over upper triangle (row <= col) to avoid double-counting
-off-diagonal entries. Off-diagonal contributions are multiplied by 2
-to account for symmetry, matching the standard SDP formulation.
-"""
-function _get_state_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, M<:NCStateWord{ST,A,T}, P<:NCStatePolynomial{C,ST,A,T}}
-    dim = size(localizing_mtx, 1)
-
-    # basis idx, row, col -> coefficient
-    dictionary_of_keys = Dict{Tuple{Int,Int,Int},C}()
-
-    n_basis = length(unsymmetrized_basis)
-
-    # Only iterate over upper triangle to avoid double-counting
-    for row in 1:dim
-        for col in row:dim
-            poly = localizing_mtx[row, col]
-            for (coeff, ncsw) in zip(coefficients(poly), monomials(poly))
-                idx = searchsortedfirst(unsymmetrized_basis, ncsw)
-                # Skip NCStateWords not in basis
-                if idx <= n_basis && unsymmetrized_basis[idx] == ncsw
-                    # Multiply off-diagonal entries by 2 for symmetric matrix contribution
-                    effective_coeff = (row == col) ? coeff : 2 * coeff
-                    dictionary_of_keys[(idx, row, col)] = effective_coeff
-                end
-            end
-        end
-    end
-
-    return dictionary_of_keys
 end
 
 """

@@ -367,6 +367,80 @@ function expand_and_construct(
 end
 
 """
+    _simplify_bosonic_word!(word::Vector{T}) where {T<:Integer} -> Vector{Tuple{Int,Vector{T}}}
+
+Normal-order a bosonic word using the group-based algorithm with rook numbers.
+
+Returns a vector of (coefficient, normal_ordered_word) pairs representing the sum:
+  Σ coeffs[i] * word[i]
+
+This is the low-level function used by PhysicsMonomial constructor.
+Integer coefficients are exact (from commutation relations).
+
+# Algorithm
+1. Group operators by mode (preserving relative order within each mode)
+2. For each mode, compute normal form using rook number formula
+3. Expand product across all modes
+4. Construct final (coef, word) pairs
+"""
+function _simplify_bosonic_word!(word::Vector{T}) where {T<:Integer}
+    # Handle empty word
+    if isempty(word)
+        return Tuple{Int,Vector{T}}[(1, T[])]
+    end
+
+    # Make a copy since group_by_mode! modifies in place
+    word_copy = copy(word)
+
+    # Step 1: Group by mode (stable sort)
+    sep = group_by_mode!(word_copy)
+    n_modes = length(sep) - 1
+
+    # Step 2: Compute single-mode normal forms
+    modes = Vector{Int}(undef, n_modes)
+    mode_results = Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}}(undef, n_modes)
+    for i in 1:n_modes
+        modes[i] = _operator_mode(word_copy[sep[i]+1])
+        ops = @view word_copy[sep[i]+1:sep[i+1]]
+        mode_results[i] = (i, single_mode_normal_form(ops))
+    end
+
+    # Step 3: Expand product - but return (Int, Vector{T}) pairs instead of Terms
+    term_lists = [terms for (_, terms) in mode_results]
+
+    # Cartesian product of all mode terms, combine like terms
+    combined = Dict{Tuple{Vector{Int},Vector{Int}},Int}()
+    for combo in Iterators.product(term_lists...)
+        coef = prod(t[1] for t in combo)
+        coef == 0 && continue
+        cre = [combo[i][2] for i in 1:n_modes]
+        ann = [combo[i][3] for i in 1:n_modes]
+        key = (cre, ann)
+        combined[key] = get(combined, key, 0) + coef
+    end
+
+    # Construct final (coef, word) pairs
+    result = Tuple{Int,Vector{T}}[]
+    for ((cre, ann), coef) in combined
+        coef == 0 && continue
+        new_word = T[]
+        for (i, m) in enumerate(modes)
+            append!(new_word, fill(T(-m), cre[i]))
+        end
+        for (i, m) in enumerate(modes)
+            append!(new_word, fill(T(m), ann[i]))
+        end
+        push!(result, (coef, new_word))
+    end
+
+    if isempty(result)
+        push!(result, (0, T[]))
+    end
+
+    return result
+end
+
+"""
     simplify_bosonic_grouped!(m::Monomial{BosonicAlgebra,T}) -> Vector{Term}
 
 Simplify a bosonic monomial using the group-based algorithm with rook numbers.

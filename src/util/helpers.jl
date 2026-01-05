@@ -182,6 +182,70 @@ function _neat_dot3(
 end
 
 # =============================================================================
+# Validation Functions for Monomial Constructors
+# =============================================================================
+
+"""
+    _validate_fermionic_word!(word::Vector{T}) where {T<:Integer}
+
+Check that a fermionic word is in canonical (normal-ordered) form.
+Throws `ArgumentError` if invalid.
+
+Canonical form requirements:
+- Normal-ordered: all creators (negative) before annihilators (positive)
+- Within creators: sorted by mode ascending
+- Within annihilators: sorted by mode ascending
+
+This is used by `Monomial{FermionicAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_fermionic_word!(word::Vector{T}) where {T<:Integer}
+    length(word) <= 1 && return nothing
+
+    for i in 1:length(word)-1
+        key_i = normal_order_key(word[i])
+        key_i1 = normal_order_key(word[i+1])
+        if key_i > key_i1
+            throw(ArgumentError(
+                "Fermionic word not in normal order at index $i: " *
+                "operator $(word[i]) should come after $(word[i+1]). " *
+                "Use PhysicsMonomial for raw words."
+            ))
+        end
+    end
+    return nothing
+end
+
+"""
+    _validate_bosonic_word!(word::Vector{T}) where {T<:Integer}
+
+Check that a bosonic word is in canonical (normal-ordered) form.
+Throws `ArgumentError` if invalid.
+
+Canonical form requirements:
+- Normal-ordered: all creators (negative) before annihilators (positive)
+- Within creators: sorted by mode ascending
+- Within annihilators: sorted by mode ascending
+
+This is used by `Monomial{BosonicAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_bosonic_word!(word::Vector{T}) where {T<:Integer}
+    length(word) <= 1 && return nothing
+
+    for i in 1:length(word)-1
+        key_i = normal_order_key(word[i])
+        key_i1 = normal_order_key(word[i+1])
+        if key_i > key_i1
+            throw(ArgumentError(
+                "Bosonic word not in normal order at index $i: " *
+                "operator $(word[i]) should come after $(word[i+1]). " *
+                "Use PhysicsMonomial for raw words."
+            ))
+        end
+    end
+    return nothing
+end
+
+# =============================================================================
 # Shared Helper Functions for Fermionic/Bosonic Algebras
 # =============================================================================
 

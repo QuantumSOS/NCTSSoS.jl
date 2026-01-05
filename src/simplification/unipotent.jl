@@ -55,6 +55,51 @@ true
 ```
 """
 
+# =============================================================================
+# Validation (for Monomial constructor)
+# =============================================================================
+
+"""
+    _validate_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
+
+Check that a unipotent word is in canonical form. Throws `ArgumentError` if invalid.
+
+Canonical form requirements:
+- Sites sorted in ascending order
+- No consecutive identical operators (no U² terms - they should cancel to I)
+
+This is used by `Monomial{UnipotentAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
+    length(word) <= 1 && return nothing
+
+    prev_site = decode_site(word[1])
+    prev_idx = word[1]
+    for i in 2:length(word)
+        curr_site = decode_site(word[i])
+        curr_idx = word[i]
+
+        if curr_site < prev_site
+            throw(ArgumentError(
+                "Unipotent word not sorted by site: site $curr_site at index $i " *
+                "comes after site $prev_site"
+            ))
+        elseif curr_idx == prev_idx
+            throw(ArgumentError(
+                "Unipotent word has consecutive identical operators (U² term) " *
+                "at indices $(i-1) and $i. Use simplify for raw words."
+            ))
+        end
+        prev_site = curr_site
+        prev_idx = curr_idx
+    end
+    return nothing
+end
+
+# =============================================================================
+# Simplification
+# =============================================================================
+
 """
     _simplify_unipotent_word!(word::Vector{T}) where {T<:Unsigned} -> Vector{T}
 

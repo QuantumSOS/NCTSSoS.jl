@@ -63,6 +63,46 @@ Index = (site - 1) * 3 + type + 1
 """
 @inline _pauli_index(site::Integer, type::Integer) = (site - 1) * 3 + type + 1
 
+# =============================================================================
+# Validation (for Monomial constructor)
+# =============================================================================
+
+"""
+    _validate_pauli_word!(word::Vector{T}) where {T<:Integer}
+
+Check that a Pauli word is in canonical form. Throws `ArgumentError` if invalid.
+
+Canonical form requirements:
+- ≤1 operator per site (no σ² terms)
+- Sites sorted in ascending order
+
+This is used by `Monomial{PauliAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_pauli_word!(word::Vector{T}) where {T<:Integer}
+    length(word) <= 1 && return nothing
+
+    prev_site = _pauli_site(word[1])
+    for i in 2:length(word)
+        curr_site = _pauli_site(word[i])
+        if curr_site < prev_site
+            throw(ArgumentError(
+                "Pauli word not sorted by site: site $curr_site at index $i " *
+                "comes after site $prev_site"
+            ))
+        elseif curr_site == prev_site
+            throw(ArgumentError(
+                "Pauli word has multiple operators on site $curr_site " *
+                "(indices $(i-1) and $i). Use PauliMonomial for raw words."
+            ))
+        end
+        prev_site = curr_site
+    end
+    return nothing
+end
+
+# =============================================================================
+# Cyclic product table
+# =============================================================================
 # Cyclic product table:
 # σₐσᵦ = i * ε(a,b) * σ_c where c = (a+b) mod 3 if a≠b (sort of)
 # More precisely:
@@ -70,58 +110,64 @@ Index = (site - 1) * 3 + type + 1
 #   YX = -iZ, ZY = -iX, XZ = -iY (anti-cyclic: phase = -i)
 
 """
-    _pauli_product(type1::Int, type2::Int) -> Tuple{ComplexF64, Int}
+    _pauli_product(type1::Int, type2::Int) -> Tuple{UInt8, Int}
 
 Compute the product of two Pauli operators on the SAME site.
-Returns (phase, result_type) where result_type is 0, 1, or 2.
+Returns (phase_k_delta, result_type) where:
+- phase_k_delta ∈ 0:3 encodes phase contribution as (im)^phase_k_delta
+- result_type is 0, 1, or 2 (or -1 for identity)
 
-If type1 == type2, returns (1.0, -1) to indicate identity (σᵢ² = I).
+If type1 == type2, returns (0, -1) to indicate identity (σᵢ² = I).
+
+Phase encoding: 0 → 1, 1 → i, 2 → -1, 3 → -i
 """
 @inline function _pauli_product(type1::Int, type2::Int)
-    # Same type: σᵢ² = I
-    type1 == type2 && return (ComplexF64(1.0), -1)
+    # Same type: σᵢ² = I (phase = 1 = (im)^0)
+    type1 == type2 && return (UInt8(0), -1)
 
     # Different types: cyclic or anti-cyclic product
-    # XY→Z, YZ→X, ZX→Y (cyclic, +i)
-    # YX→Z, ZY→X, XZ→Y (anti-cyclic, -i)
+    # XY→Z, YZ→X, ZX→Y (cyclic, +i = (im)^1)
+    # YX→Z, ZY→X, XZ→Y (anti-cyclic, -i = (im)^3)
 
     # Result type: the one that's neither type1 nor type2
     # For {0,1,2}, the third one is 3 - type1 - type2
     result_type = 3 - type1 - type2
 
-    # Determine phase: +i for cyclic order, -i for anti-cyclic
+    # Determine phase_k: 1 for cyclic (+i), 3 for anti-cyclic (-i)
     # Cyclic order: 0→1→2→0 (X→Y→Z→X)
     # (type2 - type1 + 3) % 3 == 1 means cyclic
-    phase = if (type2 - type1 + 3) % 3 == 1
-        ComplexF64(0.0, 1.0)   # +i
+    phase_k = if (type2 - type1 + 3) % 3 == 1
+        UInt8(1)   # +i = (im)^1
     else
-        ComplexF64(0.0, -1.0)  # -i
+        UInt8(3)   # -i = (im)^3
     end
 
-    return (phase, result_type)
+    return (phase_k, result_type)
 end
 
 """
-    _simplify_pauli_word!(word::Vector{T}) where {T<:Integer} -> Tuple{Vector{T}, ComplexF64}
+    _simplify_pauli_word!(word::Vector{T}) where {T<:Integer} -> Tuple{Vector{T}, UInt8}
 
 In-place site-aware simplification for Pauli algebra word vectors.
 
 Operators on different sites commute and are sorted by site (ascending).
 Within each site, Pauli product rules apply: σₓσᵧ = iσz, σᵢ² = I, etc.
 
-Returns a tuple of (simplified_word, coefficient) where:
+Returns a tuple of (simplified_word, phase_k) where:
 - simplified_word is a new vector with the reduced operators
-- coefficient is the accumulated complex phase
+- phase_k ∈ 0:3 encodes the accumulated phase as (im)^phase_k
+
+Phase encoding: 0 → 1, 1 → i, 2 → -1, 3 → -i
 
 # Algorithm
 1. Stable sort by site (using `_pauli_site`)
-2. Reduce each site group to at most one operator, tracking phase
+2. Reduce each site group to at most one operator, tracking phase_k
 """
 function _simplify_pauli_word!(word::Vector{T}) where {T<:Integer}
-    coef = ComplexF64(1.0)
+    phase_k = UInt8(0)  # Start with phase = 1 = (im)^0
 
     # Empty or single: nothing to simplify
-    length(word) <= 1 && return (word, coef)
+    length(word) <= 1 && return (word, phase_k)
 
     # Stage 1: Sort by site (stable sort preserves within-site order for determinism)
     sort!(word, alg=InsertionSort, by=_pauli_site)
@@ -148,8 +194,8 @@ function _simplify_pauli_word!(word::Vector{T}) where {T<:Integer}
                 # Identity * next = next (no phase change)
                 current_type = next_type
             else
-                phase, result_type = _pauli_product(current_type, next_type)
-                coef *= phase
+                delta_k, result_type = _pauli_product(current_type, next_type)
+                phase_k = (phase_k + delta_k) % UInt8(4)  # Accumulate phase mod 4
                 current_type = result_type  # Could be -1 (identity)
             end
         end
@@ -162,7 +208,20 @@ function _simplify_pauli_word!(word::Vector{T}) where {T<:Integer}
         i = j  # Move to next site group
     end
 
-    return (result, coef)
+    return (result, phase_k)
+end
+
+"""
+    _phase_k_to_complex(phase_k::UInt8) -> ComplexF64
+
+Convert phase_k encoding to complex number.
+phase_k ∈ 0:3 maps to (im)^phase_k: 0→1, 1→i, 2→-1, 3→-i
+"""
+@inline function _phase_k_to_complex(phase_k::UInt8)
+    phase_k == 0 && return ComplexF64(1.0, 0.0)
+    phase_k == 1 && return ComplexF64(0.0, 1.0)
+    phase_k == 2 && return ComplexF64(-1.0, 0.0)
+    return ComplexF64(0.0, -1.0)  # phase_k == 3
 end
 
 """
@@ -201,6 +260,7 @@ julia> m.word  # Original unchanged
 """
 function simplify(m::Monomial{PauliAlgebra,T}) where {T}
     word_copy = copy(m.word)
-    result, coef = _simplify_pauli_word!(word_copy)
+    result, phase_k = _simplify_pauli_word!(word_copy)
+    coef = _phase_k_to_complex(phase_k)
     Term(coef, Monomial{PauliAlgebra}(result))
 end

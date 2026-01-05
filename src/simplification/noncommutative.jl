@@ -37,6 +37,41 @@ true
 ```
 """
 
+# =============================================================================
+# Validation (for Monomial constructor)
+# =============================================================================
+
+"""
+    _validate_nc_word!(word::Vector{T}) where {T<:Unsigned}
+
+Check that a noncommutative word is in canonical form. Throws `ArgumentError` if invalid.
+
+Canonical form requirements:
+- Sites sorted in ascending order (operators on different sites commute)
+
+This is used by `Monomial{NonCommutativeAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_nc_word!(word::Vector{T}) where {T<:Unsigned}
+    length(word) <= 1 && return nothing
+
+    prev_site = decode_site(word[1])
+    for i in 2:length(word)
+        curr_site = decode_site(word[i])
+        if curr_site < prev_site
+            throw(ArgumentError(
+                "NonCommutative word not sorted by site: site $curr_site at index $i " *
+                "comes after site $prev_site. Use simplify for raw words."
+            ))
+        end
+        prev_site = curr_site
+    end
+    return nothing
+end
+
+# =============================================================================
+# Simplification
+# =============================================================================
+
 """
     _simplify_nc_word!(word::Vector{T}) where {T<:Unsigned} -> Vector{T}
 

@@ -349,6 +349,72 @@ end
 # Note: combine_like_terms is now in utils.jl as a shared helper
 
 """
+    _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer} -> Vector{Tuple{Int,Vector{T}}}
+
+Normal-order a fermionic word using Generalized Wick's Theorem.
+
+Returns a vector of (coefficient, normal_ordered_word) pairs representing the sum:
+  Σ coeffs[i] * word[i]
+
+This is the low-level function used by PhysicsMonomial constructor.
+Integer coefficients are exact (from anticommutation signs).
+
+# Algorithm
+1. Find all valid contractions (aᵢ...aᵢ† pairs with same mode)
+2. Generate all non-overlapping contraction combinations
+3. For each combination, compute the normal-ordered term with sign
+4. Combine like terms
+"""
+function _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer}
+    # Handle empty word
+    if isempty(word)
+        return Tuple{Int,Vector{T}}[(1, T[])]
+    end
+
+    # Check for nilpotency (aᵢ² = 0) - create temp monomial for iszero check
+    m_temp = Monomial{FermionicAlgebra}(word)
+    if iszero(m_temp)
+        return Tuple{Int,Vector{T}}[(0, T[])]
+    end
+
+    # Step 1: Find valid contractions
+    contractions = _find_valid_contractions(word)
+
+    # Step 2: Generate non-overlapping combinations
+    combinations = _generate_nonoverlapping_combinations(contractions)
+
+    # Steps 3-4: Compute each term
+    result_pairs = Tuple{Int,Vector{T}}[]
+
+    for combo in combinations
+        (coef, normal_word) = _compute_normal_ordered_term(word, combo)
+        coef_int = Int(coef)
+        if coef_int != 0
+            push!(result_pairs, (coef_int, normal_word))
+        end
+    end
+
+    # Combine like terms
+    grouped = Dict{Vector{T},Int}()
+    for (coef, w) in result_pairs
+        grouped[w] = get(grouped, w, 0) + coef
+    end
+
+    result = Tuple{Int,Vector{T}}[]
+    for (w, coef) in grouped
+        if coef != 0
+            push!(result, (coef, w))
+        end
+    end
+
+    if isempty(result)
+        push!(result, (0, T[]))
+    end
+
+    return result
+end
+
+"""
     simplify(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
 
 Simplify and normal-order a fermionic algebra monomial using Generalized Wick's Theorem.

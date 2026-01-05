@@ -54,7 +54,7 @@ Algebra            Algebra            Algebra      Unipotent/NC
     └─────────────────────┘         └─────────────────────┘
 
 
-    Example: Pauli
+    Example: Pauli (σx₁ σy₁ σx₁ σz₁ = i·σy₁σz₁)
 
     [1,2,1,3]  ─────────────────────────────────────┐
         │                                           │
@@ -72,6 +72,99 @@ Algebra            Algebra            Algebra      Unipotent/NC
                                               mono=Monomial{Pauli}([2,3]),
                                               phase=im
                                             )
+
+
+    Example: Fermionic (a₁ a₂† a₁† = -a₁†a₂† + a₂†)
+
+    Signed indices: positive = annihilation (a), negative = creation (a†)
+    Word [1, -2, -1] means a₁ a₂† a₁†
+
+    [1, -2, -1]  ───────────────────────────────────┐
+        │                                           │
+        ▼                                           ▼
+    Monomial{Fermi}([1,-2,-1])            PhysicsMonomial([1,-2,-1])
+        │                                           │
+        ▼                                           ▼
+    _validate_fermionic_word!              _simplify_fermionic_word!
+        │                                           │
+        ▼                                           ▼
+    ERROR! (not normal-ordered:            Normal ordering with anticommutation:
+            creation after annihil.)        a₁ a₂† a₁†
+                                           = -a₂† a₁ a₁† + δ₁₂ a₁†  (anticommute a₁,a₂†)
+                                           = -a₂† (1 - a₁† a₁) + 0   ({a,a†}=1, δ₁₂=0)
+                                           = -a₂† + a₂† a₁† a₁
+                                           = -a₁† a₂† + a₂†          (sort creators)
+                                                    │
+                                                    ▼
+                                            PhysicsMonomial{Fermi,T}(
+                                              coeffs = [-1, 1],
+                                              monos  = [Monomial{Fermi}([-1,-2]),
+                                                        Monomial{Fermi}([-2])]
+                                            )
+                                            represents: -a₁†a₂† + a₂†
+
+
+    Example: Bosonic (b₁ b₂† b₁† = b₁†b₂† + b₂†)
+
+    Same signed index convention as Fermionic
+
+    [1, -2, -1]  ───────────────────────────────────┐
+        │                                           │
+        ▼                                           ▼
+    Monomial{Boson}([1,-2,-1])            PhysicsMonomial([1,-2,-1])
+        │                                           │
+        ▼                                           ▼
+    _validate_bosonic_word!                _simplify_bosonic_word!
+        │                                           │
+        ▼                                           ▼
+    ERROR! (not normal-ordered)            Normal ordering with commutation:
+                                           b₁ b₂† b₁†
+                                           = b₂† b₁ b₁† + 0           ([b,b†]=1, [b₁,b₂†]=0)
+                                           = b₂† (b₁† b₁ + 1)         ([b,b†]=1)
+                                           = b₂† b₁† b₁ + b₂†
+                                           = b₁† b₂† b₁ + b₂†         (creators commute)
+                                                    │
+                                                    ▼
+                                            PhysicsMonomial{Boson,T}(
+                                              coeffs = [1, 1],
+                                              monos  = [Monomial{Boson}([-1,-2,1]),
+                                                        Monomial{Boson}([-2])]
+                                            )
+                                            represents: b₁†b₂†b₁ + b₂†
+
+
+    Example: Projector (P₁ P₁ P₂ = P₁ P₂)
+
+    [1, 1, 2]  ─────────────────────────────────────┐
+        │                                           │
+        ▼                                           ▼
+    Monomial{Proj}([1,1,2])          (No wrapper needed - use simplify)
+        │                                           │
+        ▼                                           ▼
+    _validate_projector_word!              _simplify_projector_word!
+        │                                           │
+        ▼                                           ▼
+    ERROR! (P² term found)                  [1, 2]  (P²=P applied, sorted)
+                                                    │
+                                                    ▼
+                                            Monomial{Proj,T}([1,2])
+
+
+    Example: Unipotent (U₁ U₁ U₂ = U₂)
+
+    [1, 1, 2]  ─────────────────────────────────────┐
+        │                                           │
+        ▼                                           ▼
+    Monomial{Unip}([1,1,2])          (No wrapper needed - use simplify)
+        │                                           │
+        ▼                                           ▼
+    _validate_unipotent_word!              _simplify_unipotent_word!
+        │                                           │
+        ▼                                           ▼
+    ERROR! (U² term found)                  [2]  (U²=I applied, sorted)
+                                                    │
+                                                    ▼
+                                            Monomial{Unip,T}([2])
 ```
 
 ## 3. Multiplication Return Types
@@ -107,6 +200,64 @@ Algebra            Algebra            Algebra      Unipotent/NC
     distribute over sums,
     normal-order each product,
     collect like terms
+
+
+    Detailed: PhysicsMonomial × PhysicsMonomial (Fermionic)
+
+    pm1 = PhysicsMonomial(coeffs=[1], monos=[a₁†])        # just a₁†
+    pm2 = PhysicsMonomial(coeffs=[1,-1], monos=[a₂†, a₁]) # a₂† - a₁
+
+    pm1 × pm2:
+    ┌─────────────────────────────────────────────────────────────┐
+    │  Distribute: (a₁†) × (a₂† - a₁)                             │
+    │            = a₁† × a₂†  +  a₁† × (-a₁)                      │
+    │                                                              │
+    │  Term 1: a₁† a₂†                                            │
+    │    → already normal-ordered (creators sorted by mode)       │
+    │    → PhysicsMonomial(coeffs=[1], monos=[[-1,-2]])           │
+    │                                                              │
+    │  Term 2: -a₁† a₁                                            │
+    │    → already normal-ordered (creator before annihilator)    │
+    │    → PhysicsMonomial(coeffs=[-1], monos=[[-1,1]])           │
+    │                                                              │
+    │  Combine: coeffs=[1,-1], monos=[[-1,-2], [-1,1]]            │
+    └─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                PhysicsMonomial{Fermi,T}(
+                  coeffs = [1, -1],
+                  monos  = [Monomial{Fermi}([-1,-2]),   # a₁†a₂†
+                            Monomial{Fermi}([-1,1])]    # a₁†a₁
+                )
+                represents: a₁†a₂† - a₁†a₁
+
+
+    Detailed: PauliMonomial × PauliMonomial
+
+    pm1 = PauliMonomial(mono=[1], phase=1)      # σx₁
+    pm2 = PauliMonomial(mono=[2], phase=i)      # i·σy₁
+
+    pm1 × pm2:
+    ┌─────────────────────────────────────────────────────────────┐
+    │  Multiply phases: 1 × i = i                                 │
+    │  Multiply monos:  σx₁ × σy₁                                 │
+    │                                                              │
+    │  σx σy = i σz (Pauli product rule)                          │
+    │                                                              │
+    │  Raw word after concat: [1, 2] (indices for σx₁, σy₁)       │
+    │  After _simplify_pauli_word!:                               │
+    │    canonical_word = [3]  (σz₁)                              │
+    │    simplify_phase = i                                       │
+    │                                                              │
+    │  Total phase: i × i = -1                                    │
+    └─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                PauliMonomial{T}(
+                  mono  = Monomial{Pauli}([3]),  # σz₁
+                  phase = -1
+                )
+                represents: -σz₁
 ```
 
 ## 4. Polynomial Integration

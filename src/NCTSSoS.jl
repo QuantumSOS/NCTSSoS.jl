@@ -40,6 +40,7 @@ include("simplification/bosonic.jl")
 # ============================================================================
 
 include("types/pauli_monomial.jl")
+include("types/physics_monomial.jl")
 
 # ============================================================================
 # Composed Types (depends on Polynomial for type checking in simplify)
@@ -100,7 +101,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 # Core Types (users need these for type annotations and construction)
 export Monomial, Polynomial, Term, VariableRegistry
 export ComposedMonomial
-export PauliMonomial, AbstractMonomial
+export PauliMonomial, PhysicsMonomial, AbstractMonomial
 
 # Algebra Types (users need for dispatch)
 export AlgebraType

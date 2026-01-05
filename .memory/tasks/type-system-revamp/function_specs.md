@@ -10,7 +10,7 @@ This document records the input/output type specifications for all functions in 
 - **File:** `src/types/registry.jl`
 - **Input:** `subscripts::AbstractVector`
 - **Output:** `(VariableRegistry{PauliAlgebra,T}, (Vector{PauliMonomial{T}}, Vector{PauliMonomial{T}}, Vector{PauliMonomial{T}}))`
-- **Notes:** Returns `PauliMonomial{T}` wrapper. Phase always `ComplexF64` (not parameterized).
+- **Notes:** Returns `PauliMonomial{T}` wrapper. Phase stored as `phase_k::UInt8` (encoding `(im)^phase_k`); converted to `ComplexF64` only when forming `Polynomial`/JuMP expressions.
 
 ### `create_fermionic_variables`
 - **File:** `src/types/registry.jl`
@@ -57,15 +57,15 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 ### `Monomial{A,T}` (MODIFIED - constructor validates)
 - **File:** `src/types/monomial.jl`
 - **Type parameters:** `A<:AlgebraType`, `T<:Integer`
-- **Fields:** `word::Vector{T}`
+- **Fields:** `word::Vector{T}` (internal; do not mutate)
 - **Invariants:** **Enforced by constructor** (algebra-dependent):
   - `PauliAlgebra`: ≤1 op/site, sites sorted, no σ² terms
-  - `FermionicAlgebra`: normal-ordered (creation before annihilation)
-  - `BosonicAlgebra`: normal-ordered
+  - `FermionicAlgebra`: normal-ordered; creators sorted asc; annihilators sorted desc (adjoint-closed)
+  - `BosonicAlgebra`: normal-ordered; creators sorted asc; annihilators sorted desc
   - `ProjectorAlgebra`: no P² terms, sites sorted
   - `UnipotentAlgebra`: no U² terms, sites sorted
   - `NonCommutativeAlgebra`: sites sorted (commutative per site)
-- **Constructor:** Throws error if invariant violated. Use wrapper types for raw input.
+- **Constructor:** Throws error if invariant violated; stores `copy(word)`; word treated immutable by API.
 
 ### `Term{M,C}` (existing - unchanged)
 - **File:** `src/types/term.jl`
@@ -84,7 +84,7 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 - **Type parameters:** `T<:Integer`
 - **Fields:**
   - `mono::Monomial{PauliAlgebra,T}` - canonical form (≤1 op/site, sorted)
-  - `phase::ComplexF64` - accumulated phase from σ² = I, cyclic products
+  - `phase_k::UInt8` - accumulated algebraic phase, encoding `(im)^phase_k` with `phase_k ∈ 0:3`
 - **Invariants:** Always in canonical form (enforced by constructor)
 - **Constructor:** `PauliMonomial(word::Vector{T})` - auto-canonicalizes raw word
 
@@ -94,7 +94,7 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 - **Fields:**
   - `coeffs::Vector{Int}` - integer coefficients (from commutation relations)
   - `monos::Vector{Monomial{A,T}}` - normal-ordered monomials (NOT raw indices!)
-- **Invariants:** Each `monos[i]::Monomial{A,T}` is normal-ordered; represents sum Σ coeffs[i] * monos[i]
+- **Invariants:** Each `monos[i]::Monomial{A,T}` is normal-ordered; represents sum Σ coeffs[i] * monos[i]; result is never zero (no full cancellation expected in valid use)
 - **Constructor:** `PhysicsMonomial(word::Vector{T})` - normal-orders and collects terms into `Monomial{A,T}` objects
 
 ---
@@ -133,7 +133,7 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 ### `Base.adjoint(::Monomial)`
 - **Input:** `m::Monomial{A,T}`
 - **Output:** `Monomial{A,T}` (reversed word, sign-adjusted for signed algebras)
-- **Notes:** Result is canonical if input was canonical.
+- **Notes:** For `FermionicAlgebra`, canonical ordering is chosen to make `adjoint(::Monomial)` return canonical `Monomial` without extra sign/term.
 
 ### `Base.adjoint(::PauliMonomial)`
 - **Input:** `pm::PauliMonomial{T}`
@@ -157,7 +157,7 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 ### `Base.:(+)` (Polynomial + PauliMonomial)
 - **Input:** `p::Polynomial{PauliAlgebra,T,C}`, `pm::PauliMonomial{T}`
 - **Output:** `Polynomial{PauliAlgebra,T,C}`
-- **Notes:** Converts `PauliMonomial` to `Term` (phase becomes coefficient) and adds.
+- **Notes:** Converts `PauliMonomial` to `Term` (`(im)^phase_k` becomes coefficient) and adds.
 
 ### `Base.:(+)` (Polynomial + PhysicsMonomial)
 - **Input:** `p::Polynomial{A,T,C}`, `pm::PhysicsMonomial{A,T}`
@@ -227,7 +227,7 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 ### `moment_relax`
 - **Input:** `pop::PolyOpt`, `corr_sparsity`, `term_sparsities`
 - **Output:** `MomentProblem{A,T,M,P}` where M = basis element type
-- **Notes:** Moment matrix keys match basis element type (PauliMonomial for Pauli, Monomial for simple algebras).
+- **Notes:** Moment matrix keys match basis element type (`PauliMonomial`/`PhysicsMonomial`/`Monomial`). JuMP moment variable deduplication: maintain `Dict{Monomial{A,T}, JuMP.VariableRef}` mapping canonical monomials to JuMP variables; when building moment matrix entries, convert wrapper keys to affine expressions over these base variables (e.g., `PauliMonomial` with phase_k=2 maps to `-1 * base_var`).
 
 ### `sos_dualize`
 - **Input:** `mp::MomentProblem{A,T,M,P}`
@@ -268,6 +268,7 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 
 **Supported algebras:** ProjectorAlgebra, UnipotentAlgebra, NonCommutativeAlgebra only.
 **NOT supported:** PauliAlgebra, FermionicAlgebra, BosonicAlgebra (complex phases/expansion).
+**Enforcement:** Type parameter constraint `A <: Union{ProjectorAlgebra, UnipotentAlgebra, NonCommutativeAlgebra}` on state types.
 
 ### `StateSymbol{ST,A,T}`
 - **Fields:** `mono::Monomial{A,T}` (canonicalized)
@@ -304,7 +305,7 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 
 | Function | Purpose | Returns |
 |----------|---------|---------|
-| `_simplify_pauli_word!(word)` | Canonicalize Pauli word | `(canonical_word, phase::ComplexF64)` |
+| `_simplify_pauli_word!(word)` | Canonicalize Pauli word | `(canonical_word, phase_k::UInt8)` |
 | `_simplify_fermionic_word!(word)` | Normal-order fermionic | `Vector{Tuple{Int, Vector{T}}}` (coef, mono pairs) |
 | `_simplify_bosonic_word!(word)` | Normal-order bosonic | `Vector{Tuple{Int, Vector{T}}}` (coef, mono pairs) |
 | `_simplify_projector_word!(word)` | Apply P²=P, sort | `Vector{T}` (canonical word) |
@@ -317,14 +318,14 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 # Monomial{Pauli} constructor
 function Monomial{PauliAlgebra,T}(word::Vector{T}) where T
     _validate_pauli_word!(word)  # throws if invalid
-    new{PauliAlgebra,T}(word)
+    new{PauliAlgebra,T}(copy(word))
 end
 
 # PauliMonomial constructor
 function PauliMonomial(word::Vector{T}) where T
-    canonical_word, phase = _simplify_pauli_word!(copy(word))
+    canonical_word, phase_k = _simplify_pauli_word!(copy(word))
     mono = Monomial{PauliAlgebra,T}(canonical_word)  # validated by simplify
-    PauliMonomial{T}(mono, phase)
+    PauliMonomial{T}(mono, phase_k)
 end
 ```
 
@@ -349,7 +350,7 @@ end
 | Date | Function | Decision |
 |------|----------|----------|
 | 2026-01-05 | create_pauli_variables | Returns PauliMonomial{T}, subscripts::AbstractVector |
-| 2026-01-05 | PauliMonomial | phase always ComplexF64, algebraic phases only (i, -1, -i, 1) |
+| 2026-01-05 | PauliMonomial | `phase_k::UInt8` encoding algebraic phases only (i, -1, -i, 1) |
 | 2026-01-05 | PhysicsMonomial | coeffs::Vector{Int}, monos::Vector{Monomial} for sum of normal-ordered terms |
 | 2026-01-05 | Monomial{A,T} | Constructor validates canonical form (throws if invalid) |
 | 2026-01-05 | simplify(Monomial) | Identity - monomials always canonical |
@@ -363,6 +364,6 @@ end
 | 2026-01-05 | PhysicsMonomial → Poly | Promote Int coeffs to ComplexF64 |
 | 2026-01-05 | State polynomials | Only support Projector, Unipotent, NC algebras (drop Pauli, Fermi, Boson) |
 | 2026-01-05 | StateSymbol | Stores Monomial{A,T} (not wrappers) |
-| 2026-01-05 | NCStateWord.nc_word | Uses wrapper types where applicable |
+| 2026-01-05 | NCStateWord.nc_word | Uses `Monomial{A,T}` only (simple algebras only) |
 | 2026-01-05 | Sparsity bases | Match get_ncbasis return type (wrapper types) |
 | 2026-01-05 | _simplify vs _validate | Separate: _validate checks only (for Monomial), _simplify modifies (for wrappers) |

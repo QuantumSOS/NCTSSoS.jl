@@ -12,12 +12,15 @@
 | Decision | Choice |
 |----------|--------|
 | New types | `PauliMonomial{T}` + `PhysicsMonomial{A,T}` |
-| `PauliMonomial` structure | `mono::Monomial{Pauli,T}` + `phase::ComplexF64` |
+| `PauliMonomial` structure | `mono::Monomial{Pauli,T}` + `phase_k::UInt8` |
 | `PhysicsMonomial` structure | `coeffs::Vector{Int}` + `monos::Vector{Monomial{A,T}}` |
 | Constructor validation | Yes - `Monomial{A,T}` rejects invalid words |
 | Multiplication returns | Algebra-dependent (see below) |
-| Moment keys for Pauli | `PauliMonomial{T}` (includes phase) |
+| Moment keys for Pauli | `PauliMonomial{T}` (includes `phase_k`) |
+| JuMP moment variables | Dedup by underlying `Monomial{A,T}` |
 | State polynomial support | Projector/Unipotent/NC only (drop Pauli/Fermi/Boson) |
+| `Monomial.word` | Internal; copied on construction; treat immutable |
+| Pauli phase storage | `phase_k ∈ 0:3` encoding `(im)^phase_k` |
 | Type hierarchy | Flat `AbstractMonomial{A,T}` supertype |
 | Migration | Clean break (v2) |
 
@@ -28,7 +31,7 @@
 ```
 AbstractMonomial{A<:AlgebraType, T<:Integer}
 ├── Monomial{A,T}           # Bare word, constructor validates
-├── PauliMonomial{T}        # Canonical mono + phase ∈ {1,-1,i,-i}
+├── PauliMonomial{T}        # Canonical mono + phase_k ∈ 0:3
 └── PhysicsMonomial{A,T}    # Sum of int×mono (A ∈ {Fermi,Boson})
 ```
 
@@ -41,20 +44,20 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 ```julia
 struct PauliMonomial{T<:Integer} <: AbstractMonomial{PauliAlgebra,T}
     mono::Monomial{PauliAlgebra,T}  # canonical form
-    phase::ComplexF64               # algebraic phase only: {1, -1, i, -i}
+    phase_k::UInt8                  # encodes phase = (im)^phase_k, phase_k ∈ 0:3
 end
 ```
 
 **Invariants:**
 - `mono` has ≤1 operator per site, sites sorted
-- `phase` is algebraic (from σ² = I, cyclic products)
+- `phase_k` encodes algebraic phase from σ² = I, cyclic products
 
 **Constructor:**
 ```julia
 function PauliMonomial(word::Vector{T}) where T
-    canonical_word, phase = _simplify_pauli_word!(copy(word))
+    canonical_word, phase_k = _simplify_pauli_word!(copy(word))
     mono = Monomial{PauliAlgebra,T}(canonical_word)
-    PauliMonomial{T}(mono, phase)
+    PauliMonomial{T}(mono, phase_k)
 end
 ```
 
@@ -89,8 +92,8 @@ Constructor validates canonical form per algebra:
 | Algebra | Validation |
 |---------|------------|
 | `PauliAlgebra` | ≤1 op/site, sites sorted |
-| `FermionicAlgebra` | normal-ordered |
-| `BosonicAlgebra` | normal-ordered |
+| `FermionicAlgebra` | normal-ordered; creators sorted asc; annihilators sorted desc |
+| `BosonicAlgebra` | normal-ordered; creators sorted asc; annihilators sorted desc |
 | `ProjectorAlgebra` | no P² terms, sites sorted |
 | `UnipotentAlgebra` | no U² terms, sites sorted |
 | `NonCommutativeAlgebra` | sites sorted |
@@ -98,7 +101,7 @@ Constructor validates canonical form per algebra:
 ```julia
 function Monomial{A,T}(word::Vector{T}) where {A,T}
     _validate_word!(A, word)  # throws if invalid
-    new{A,T}(word)
+    new{A,T}(copy(word))      # internal storage; do not mutate
 end
 ```
 
@@ -137,7 +140,7 @@ end
 - [ ] `_validate_projector_word!(word)` - check no P², sorted; throw if invalid
 - [ ] `_validate_unipotent_word!(word)` - check no U², sorted; throw if invalid
 - [ ] `_validate_nc_word!(word)` - check sorted; throw if invalid
-- [ ] Update `_simplify_pauli_word!` to return `(canonical_word, phase)`
+- [ ] Update `_simplify_pauli_word!` to return `(canonical_word, phase_k::UInt8)`
 - [ ] Update `_simplify_fermionic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
 - [ ] Update `_simplify_bosonic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
 
@@ -148,12 +151,12 @@ end
 
 ### Phase 3: Add `PauliMonomial{T}`
 - [ ] Create `src/types/pauli_monomial.jl`
-- [ ] Define struct with `mono::Monomial{Pauli,T}` + `phase::ComplexF64`
+- [ ] Define struct with `mono::Monomial{Pauli,T}` + `phase_k::UInt8`
 - [ ] Implement constructor calling `_simplify_pauli_word!`
-- [ ] Implement `==`, `hash`, `isless` (include phase)
+- [ ] Implement `==`, `hash`, `isless` (include phase_k)
 - [ ] Implement `*` returning `PauliMonomial`
-- [ ] Implement `adjoint` (conjugate phase)
-- [ ] Implement `symmetric_canon` (identity on mono, conjugate phase)
+- [ ] Implement `adjoint` (conjugate phase_k)
+- [ ] Implement `symmetric_canon` (identity on mono, conjugate phase_k)
 - [ ] Add display methods
 - [ ] Export from module
 
@@ -169,7 +172,6 @@ end
 
 ### Phase 5: Update `Monomial{A,T}` constructor (BREAKING)
 - [ ] Add validation dispatch in inner constructor
-- [ ] Create `Monomial_unchecked` for internal use
 - [ ] Update tests that create invalid monomials
 
 ### Phase 6: Update multiplication dispatch (BREAKING)
@@ -186,11 +188,12 @@ end
 
 ### Phase 8: Update moment matrix integration
 - [ ] `MomentProblem` key type uses wrapper types
+- [ ] Dedup JuMP moment vars by underlying `Monomial{A,T}` (wrapper keys map to scalar/sum of base moments)
 - [ ] Update SOS dualization for new key types
 - [ ] Verify Hermitian embedding still works
 
 ### Phase 9: Restrict state polynomial support
-- [ ] Add compile-time check: state polys only for Proj/Unip/NC
+- [ ] Add type parameter constraint: `A <: Union{ProjectorAlgebra, UnipotentAlgebra, NonCommutativeAlgebra}`
 - [ ] Remove/deprecate state poly code for Pauli/Fermi/Boson
 - [ ] Update tests
 
@@ -218,9 +221,9 @@ end
 
 ## Design Rationale
 
-### Why separate `mono` + `phase` in `PauliMonomial`?
+### Why separate `mono` + `phase_k` in `PauliMonomial`?
 - Phase is algebraic only {1,-1,i,-i} from simplification
-- Scalar coefficients go to `Polynomial`, not absorbed into phase
+- Scalar coefficients go to `Polynomial`, not absorbed into phase_k
 - Clear separation: algebra structure vs. user coefficients
 
 ### Why `PhysicsMonomial` stores sum of monomials?

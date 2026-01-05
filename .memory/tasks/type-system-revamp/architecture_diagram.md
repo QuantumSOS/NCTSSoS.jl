@@ -13,8 +13,8 @@
          │word::    │        │mono::       │     │coeffs::Vector{Int} │
          │Vector{T} │        │Monomial{    │     │monos::Vector{      │
          └──────────┘        │ Pauli,T}    │     │ Monomial{A,T}}     │
-              │              │phase::      │     └────────────────────┘
-              │              │ComplexF64   │              │
+              │              │phase_k::    │     └────────────────────┘
+              │              │UInt8 (0:3)  │              │
               │              └─────────────┘              │
               │                    │                      │
               │              A = PauliAlgebra       A ∈ {Fermionic,
@@ -65,12 +65,12 @@ Algebra            Algebra            Algebra      Unipotent/NC
     _validate_pauli_word!                   _simplify_pauli_word!
         │                                           │
         ▼                                           ▼
-    ERROR! (σx appears twice)               ([2,3], phase=i)
+    ERROR! (σx appears twice)               ([2,3], phase_k=1)   # im
                                                     │
                                                     ▼
                                             PauliMonomial{T}(
                                               mono=Monomial{Pauli}([2,3]),
-                                              phase=im
+                                              phase_k=1
                                             )
 
 
@@ -124,7 +124,7 @@ Algebra            Algebra            Algebra      Unipotent/NC
                                            = b₂† b₁ b₁† + 0           ([b,b†]=1, [b₁,b₂†]=0)
                                            = b₂† (b₁† b₁ + 1)         ([b,b†]=1)
                                            = b₂† b₁† b₁ + b₂†
-                                           = b₁† b₂† b₁ + b₂†         (creators commute)
+                                           = b₁† b₂† b₁ + b₂†         (creators sorted asc)
                                                     │
                                                     ▼
                                             PhysicsMonomial{BosonicAlgebra,T}(
@@ -240,12 +240,12 @@ Algebra            Algebra            Algebra      Unipotent/NC
 
     Detailed: PauliMonomial × PauliMonomial
 
-    pm1 = PauliMonomial(mono=[1], phase=1)      # σx₁
-    pm2 = PauliMonomial(mono=[2], phase=i)      # i·σy₁
+    pm1 = PauliMonomial(mono=[1], phase_k=0)      # σx₁
+    pm2 = PauliMonomial(mono=[2], phase_k=1)      # i·σy₁
 
     pm1 × pm2:
     ┌─────────────────────────────────────────────────────────────┐
-    │  Multiply phases: 1 × i = i                                 │
+    │  Multiply phases: 0 + 1 = 1 (mod 4)                         │
     │  Multiply monos:  σx₁ × σy₁                                 │
     │                                                              │
     │  σx σy = i σz (Pauli product rule)                          │
@@ -253,15 +253,15 @@ Algebra            Algebra            Algebra      Unipotent/NC
     │  Raw word after concat: [1, 2] (indices for σx₁, σy₁)       │
     │  After _simplify_pauli_word!:                               │
     │    canonical_word = [3]  (σz₁)                              │
-    │    simplify_phase = i                                       │
+    │    simplify_phase_k = 1                                     │
     │                                                              │
-    │  Total phase: i × i = -1                                    │
+    │  Total phase_k: 1 + 1 = 2  (mod 4)  => -1                   │
     └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
                 PauliMonomial{T}(
                   mono  = Monomial{Pauli}([3]),  # σz₁
-                  phase = -1
+                  phase_k = 2                    # -1
                 )
                 represents: -σz₁
 ```
@@ -353,7 +353,8 @@ Algebra            Algebra            Algebra      Unipotent/NC
 │                              ▼                                       │
 │        MomentProblem{Pauli,T,PauliMonomial{T},Polynomial}           │
 │                                                                      │
-│   Moment matrix keys: PauliMonomial{T} (includes phase!)            │
+│   Moment keys: PauliMonomial{T} (includes phase_k)                  │
+│   JuMP vars: dedup by underlying Monomial{Pauli,T}                  │
 └─────────────────────────────────────────────────────────────────────┘
                                           │
                                           ▼
@@ -374,14 +375,14 @@ Algebra            Algebra            Algebra      Unipotent/NC
 ## 6. State Polynomial Types (Restricted)
 
 ```
-    Supported Algebras Only:
+    Supported Algebras Only (enforced via type constraint):
     ┌─────────────────────────────────────────┐
-    │  ProjectorAlgebra                       │
-    │  UnipotentAlgebra                       │
-    │  NonCommutativeAlgebra                  │
+    │  A <: Union{ProjectorAlgebra,           │
+    │             UnipotentAlgebra,           │
+    │             NonCommutativeAlgebra}      │
     └─────────────────────────────────────────┘
 
-    NOT Supported (dropped):
+    NOT Supported (compile-time error):
     ┌─────────────────────────────────────────┐
     │  PauliAlgebra      (complex phases)     │
     │  FermionicAlgebra  (expansion)          │
@@ -432,7 +433,7 @@ Algebra            Algebra            Algebra      Unipotent/NC
     │  Called by: PauliMonomial, PhysicsMonomial constructors     │
     │  Behavior: Modify word in-place, return canonical form      │
     │                                                              │
-    │  _simplify_pauli_word!(word)     → (canonical, phase)       │
+    │  _simplify_pauli_word!(word)     → (canonical, phase_k)     │
     │  _simplify_fermionic_word!(word) → [(coef, mono), ...]      │
     │  _simplify_bosonic_word!(word)   → [(coef, mono), ...]      │
     │  _simplify_projector_word!(word) → canonical_word           │
@@ -461,9 +462,9 @@ Algebra            Algebra            Algebra      Unipotent/NC
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │  3. PHASE SEMANTICS                                                  │
-│     • PauliMonomial.phase: algebraic only {1, -1, i, -i}            │
+│     • PauliMonomial.phase_k: encodes {1, i, -1, -i} via k∈0:3       │
 │     • Scalar multiplication → Polynomial (not absorbed)             │
-│     • Equality includes phase (pm1 == pm2 iff mono AND phase equal) │
+│     • Equality includes phase_k (pm1 == pm2 iff mono AND phase_k)   │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐

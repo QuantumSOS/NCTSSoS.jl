@@ -462,3 +462,70 @@ Base.eltype(::Type{PhysicsMonomial{A,T}}) where {A,T} = Tuple{Float64,Monomial{A
 
 coeff_type(::Type{PhysicsMonomial{A,T}}) where {A,T} = Float64
 coeff_type(::PhysicsMonomial{A,T}) where {A,T} = Float64
+
+# =============================================================================
+# Multiplication Dispatch: Monomial{Fermionic/Bosonic} -> PhysicsMonomial
+# =============================================================================
+
+"""
+    Base.:*(m1::Monomial{FermionicAlgebra,T}, m2::Monomial{FermionicAlgebra,T}) -> PhysicsMonomial{FermionicAlgebra,T}
+
+Multiply two fermionic monomials. Returns a PhysicsMonomial with the
+normal-ordered expansion.
+
+This overrides the generic Monomial multiplication to return the proper
+wrapper type that handles anticommutation relations.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m1 = Monomial{FermionicAlgebra}(Int32[-1]);  # a₁†
+
+julia> m2 = Monomial{FermionicAlgebra}(Int32[1]);   # a₁
+
+julia> result = m1 * m2;
+
+julia> result isa PhysicsMonomial
+true
+
+julia> result.coeffs  # a₁† a₁ (single term, already normal)
+1-element Vector{Int64}:
+ 1
+```
+"""
+function Base.:*(m1::Monomial{FermionicAlgebra,T}, m2::Monomial{FermionicAlgebra,T}) where {T<:Integer}
+    combined_word = vcat(m1.word, m2.word)
+    PhysicsMonomial{FermionicAlgebra}(combined_word)
+end
+
+"""
+    Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T}) -> PhysicsMonomial{BosonicAlgebra,T}
+
+Multiply two bosonic monomials. Returns a PhysicsMonomial with the
+normal-ordered expansion.
+
+This overrides the generic Monomial multiplication to return the proper
+wrapper type that handles commutation relations.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m1 = Monomial{BosonicAlgebra}(Int32[1]);   # c₁
+
+julia> m2 = Monomial{BosonicAlgebra}(Int32[-1]);  # c₁†
+
+julia> result = m1 * m2;
+
+julia> result isa PhysicsMonomial
+true
+
+julia> length(result.coeffs)  # c₁ c₁† = c₁† c₁ + 1 (two terms)
+2
+```
+"""
+function Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T}) where {T<:Integer}
+    combined_word = vcat(m1.word, m2.word)
+    PhysicsMonomial{BosonicAlgebra}(combined_word)
+end

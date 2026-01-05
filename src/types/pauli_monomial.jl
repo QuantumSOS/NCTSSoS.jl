@@ -378,3 +378,38 @@ coeff_type(::PauliMonomial{T}) where {T} = ComplexF64
 Return the complex phase value `(im)^phase_k`.
 """
 phase_to_complex(pm::PauliMonomial) = _phase_k_to_complex(pm.phase_k)
+
+# =============================================================================
+# Multiplication Dispatch: Monomial{PauliAlgebra} -> PauliMonomial
+# =============================================================================
+
+"""
+    Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) -> PauliMonomial{T}
+
+Multiply two Pauli monomials. Returns a PauliMonomial with the canonicalized
+result and accumulated phase.
+
+This overrides the generic Monomial multiplication to return the proper
+wrapper type that tracks phase information.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m1 = Monomial{PauliAlgebra}([1]);  # σx₁ (assuming canonical)
+
+julia> m2 = Monomial{PauliAlgebra}([2]);  # σy₁
+
+julia> result = m1 * m2;
+
+julia> result isa PauliMonomial
+true
+
+julia> result.phase_k  # i from σx σy = i σz
+0x01
+```
+"""
+function Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) where {T<:Integer}
+    combined_word = vcat(m1.word, m2.word)
+    PauliMonomial(combined_word)
+end

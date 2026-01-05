@@ -85,60 +85,71 @@ function symmetric_canon(word::Vector{T}) where {T}
     return word
 end
 
-"""
-    symmetric_canon(word::Vector{T}) where {T<:Unsigned}
+# =============================================================================
+# Site-Awareness Trait System
+# =============================================================================
+#
+# Uses Julian two-level dispatch pattern:
+# 1. _site_trait(A, T) determines IF site-aware canonicalization applies
+# 2. _site_extractor(A) determines HOW to compute site for sorting
+# =============================================================================
 
-Site-aware symmetric canonicalization for words with encoded site information.
+"""Site-aware canonicalization trait - operators on different sites commute."""
+struct SiteAware end
 
-For algebras with site-based commutation (ProjectorAlgebra, UnipotentAlgebra,
-NonCommutativeAlgebra), operators on different sites commute. This means:
-- `x₁ * y₁` is equivalent to `y₁ * x₁` (different sites commute)
-- The adjoint of `x₁ * y₁` is `y₁† * x₁†`, but since sites commute, this equals `x₁† * y₁†`
+"""No site-aware canonicalization - use raw word algorithms."""
+struct NoSiteAware end
 
-To correctly identify symmetric equivalence, we must:
-1. Sort both the word and its reverse by site (to account for commutation)
-2. Then compare the sorted versions
+# Trait dispatch: which algebra+index combinations support site-based commutation
+@inline _site_trait(::Type{PauliAlgebra}, ::Type{<:Integer}) = SiteAware()
+@inline _site_trait(::Type{NonCommutativeAlgebra}, ::Type{<:Unsigned}) = SiteAware()
+@inline _site_trait(::Type{ProjectorAlgebra}, ::Type{<:Unsigned}) = SiteAware()
+@inline _site_trait(::Type{UnipotentAlgebra}, ::Type{<:Unsigned}) = SiteAware()
+@inline _site_trait(::Type{<:AlgebraType}, ::Type) = NoSiteAware()
 
-This matches NCTSSOS's `reduce!` function which applies `_comm` to both
-`word` and `reverse(word)` before taking the minimum.
+# Site extractor: returns function to extract site from index
+@inline _site_extractor(::Type{PauliAlgebra}) = idx -> (Int(idx) - 1) ÷ 3 + 1
+@inline _site_extractor(::Type{<:AlgebraType}) = decode_site
 
-# Algorithm
-1. Sort `word` by site using `decode_site` (stable sort preserves within-site order)
-2. Sort `reverse(word)` by site
-3. Return the lexicographically smaller of the two sorted words
+# =============================================================================
+# Site-Sorted Helpers
+# =============================================================================
 
-# Examples
-```jldoctest
-julia> using NCTSSoS: encode_index, symmetric_canon
+"""In-place sort word by site using stable InsertionSort."""
+@inline function _sort_by_site!(word::Vector{T}, ::Type{A}) where {T,A<:AlgebraType}
+    return sort!(word; by=_site_extractor(A), alg=InsertionSort)
+end
 
-julia> # Create indices: x1 at site 1, y1 at site 2
-julia> x1 = encode_index(UInt16, 1, 1);
-
-julia> y1 = encode_index(UInt16, 1, 2);
-
-julia> word = [y1, x1];  # y1 * x1
-
-julia> result = symmetric_canon(word);
-
-julia> result == [x1, y1]  # Sorted by site, then compared with reverse
-true
-```
-"""
-function symmetric_canon(word::Vector{T}) where {T<:Unsigned}
-    n = length(word)
-
-    # Early return for empty or single-element words
-    n <= 1 && return word
-
-    # Sort word by site (operators on different sites commute)
-    sorted_word = sort(word; by=decode_site, alg=InsertionSort)
-
-    # Sort reverse(word) by site - this is the key fix!
-    # The adjoint/reverse also needs site-based sorting before comparison
-    sorted_rev = sort(reverse(word); by=decode_site, alg=InsertionSort)
-
-    # Compare the two sorted words lexicographically
+"""Symmetric canon with site sorting: min(sorted_word, sorted_reverse)."""
+function _symmetric_canon_site_sorted(word::Vector{T}, ::Type{A}) where {T,A<:AlgebraType}
+    sorted_word = _sort_by_site!(copy(word), A)
+    sorted_rev = _sort_by_site!(reverse(word), A)  # reverse already copies
     return min(sorted_word, sorted_rev)
+end
+
+"""
+Cyclic canon with site sorting: for each rotation, sort by site, return smallest.
+
+Algorithm: O(n) rotations × O(n log n) sort = O(n² log n)
+"""
+function _cyclic_canon_site_sorted(word::Vector{T}, ::Type{A}) where {T,A<:AlgebraType}
+    n = length(word)
+    n <= 1 && return _sort_by_site!(copy(word), A)
+
+    best = _sort_by_site!(copy(word), A)
+    for offset in 1:(n-1)
+        rotation = [word[mod1(i + offset, n)] for i in 1:n]
+        _sort_by_site!(rotation, A)
+        if rotation < best
+            best = rotation
+        end
+    end
+    return best
+end
+
+"""Cyclic-symmetric canon with site sorting."""
+function _cyclic_symmetric_canon_site_sorted(word::Vector{T}, ::Type{A}) where {T,A<:AlgebraType}
+    return min(_cyclic_canon_site_sorted(word, A), _cyclic_canon_site_sorted(reverse(word), A))
 end
 
 """
@@ -158,9 +169,17 @@ julia> symmetric_canon(m).word
  3
 ```
 """
-function symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+# Two-level dispatch: entry point dispatches on trait
+symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
+    _symmetric_canon(_site_trait(A, T), m)
+
+# NoSiteAware: use raw word algorithm
+_symmetric_canon(::NoSiteAware, m::Monomial{A}) where {A} =
     Monomial{A}(symmetric_canon(m.word))
-end
+
+# SiteAware: use site-sorted algorithm
+_symmetric_canon(::SiteAware, m::Monomial{A}) where {A} =
+    Monomial{A}(_symmetric_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Cyclic Canonicalization
@@ -250,9 +269,17 @@ julia> cyclic_canon(m).word
  3
 ```
 """
-function cyclic_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+# Two-level dispatch: entry point dispatches on trait
+cyclic_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
+    _cyclic_canon(_site_trait(A, T), m)
+
+# NoSiteAware: use raw word algorithm
+_cyclic_canon(::NoSiteAware, m::Monomial{A}) where {A} =
     Monomial{A}(cyclic_canon(m.word))
-end
+
+# SiteAware: use site-sorted algorithm
+_cyclic_canon(::SiteAware, m::Monomial{A}) where {A} =
+    Monomial{A}(_cyclic_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Combined Cyclic-Symmetric Canonicalization
@@ -297,49 +324,6 @@ function cyclic_symmetric_canon(word::Vector{T}) where {T}
 end
 
 """
-    cyclic_symmetric_canon(word::Vector{T}) where {T<:Unsigned}
-
-Site-aware cyclic-symmetric canonicalization for words with encoded site information.
-
-For algebras with site-based commutation, this function:
-1. Sorts both word and reverse(word) by site
-2. Finds the cyclic canonical form of each
-3. Returns the lexicographically smaller result
-
-This ensures correct identification of equivalent monomials under both
-cyclic permutation (trace invariance) and site-based commutation.
-
-# Examples
-```jldoctest
-julia> using NCTSSoS: encode_index, cyclic_symmetric_canon
-
-julia> x1 = encode_index(UInt16, 1, 1);
-
-julia> y1 = encode_index(UInt16, 1, 2);
-
-julia> word = [y1, x1];
-
-julia> result = cyclic_symmetric_canon(word);
-
-julia> result == [x1, y1]
-true
-```
-"""
-function cyclic_symmetric_canon(word::Vector{T}) where {T<:Unsigned}
-    n = length(word)
-    n <= 1 && return copy(word)
-
-    # Sort word by site (operators on different sites commute)
-    sorted_word = sort(word; by=decode_site, alg=InsertionSort)
-
-    # Sort reverse(word) by site
-    sorted_rev = sort(reverse(word); by=decode_site, alg=InsertionSort)
-
-    # Find cyclic canonical form of each and return the minimum
-    return min(cyclic_canon(sorted_word), cyclic_canon(sorted_rev))
-end
-
-"""
     cyclic_symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
 
 Return a new monomial with the cyclic-symmetrically canonical word.
@@ -356,9 +340,17 @@ julia> cyclic_symmetric_canon(m).word
  3
 ```
 """
-function cyclic_symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+# Two-level dispatch: entry point dispatches on trait
+cyclic_symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
+    _cyclic_symmetric_canon(_site_trait(A, T), m)
+
+# NoSiteAware: use raw word algorithm
+_cyclic_symmetric_canon(::NoSiteAware, m::Monomial{A}) where {A} =
     Monomial{A}(cyclic_symmetric_canon(m.word))
-end
+
+# SiteAware: use site-sorted algorithm
+_cyclic_symmetric_canon(::SiteAware, m::Monomial{A}) where {A} =
+    Monomial{A}(_cyclic_symmetric_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Unified Canonicalize Interface

@@ -117,6 +117,7 @@ export NCStateWord, MaxEntangled, Arbitrary
 export degree, monomials, coefficients, terms, variables
 export simplify, simplify!
 export variable_indices
+export validate
 
 # Canonicalization (user-facing)
 export symmetric_canon, cyclic_canon, canonicalize

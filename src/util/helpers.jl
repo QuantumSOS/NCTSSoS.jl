@@ -182,7 +182,58 @@ function _neat_dot3(
 end
 
 # =============================================================================
-# Validation Functions for Monomial Constructors
+# Monomial Validation
+# =============================================================================
+
+"""
+    validate(m::Monomial{A,T}) where {A,T}
+
+Validate that a Monomial is in canonical form for its algebra type.
+Throws `ArgumentError` if invalid.
+
+# Canonical Forms by Algebra
+- `PauliAlgebra`: ≤1 operator per site, sorted by site
+- `FermionicAlgebra`: normal-ordered (creators left, sorted by mode)
+- `BosonicAlgebra`: normal-ordered (creators left, sorted by mode)
+- `ProjectorAlgebra`: sorted by site, no consecutive identical (no P²)
+- `UnipotentAlgebra`: sorted by site, no consecutive identical (no U²)
+- `NonCommutativeAlgebra`: sorted by site
+
+For raw (non-canonical) input, use:
+- `PauliMonomial` for Pauli algebra
+- `PhysicsMonomial` for Fermionic/Bosonic algebras
+
+# Examples
+```julia
+julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ and σy₁ on same site!
+
+julia> validate(m)  # throws ArgumentError
+ERROR: ArgumentError: Pauli word has multiple operators on site 1
+```
+"""
+function validate(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    _validate_monomial_word(A, m.word)
+    return m
+end
+
+# Dispatch to algebra-specific validation
+_validate_monomial_word(::Type{PauliAlgebra}, word::Vector{T}) where {T} =
+    _validate_pauli_word!(word)
+_validate_monomial_word(::Type{FermionicAlgebra}, word::Vector{T}) where {T} =
+    _validate_fermionic_word!(word)
+_validate_monomial_word(::Type{BosonicAlgebra}, word::Vector{T}) where {T} =
+    _validate_bosonic_word!(word)
+_validate_monomial_word(::Type{ProjectorAlgebra}, word::Vector{T}) where {T<:Unsigned} =
+    _validate_projector_word!(word)
+_validate_monomial_word(::Type{UnipotentAlgebra}, word::Vector{T}) where {T<:Unsigned} =
+    _validate_unipotent_word!(word)
+_validate_monomial_word(::Type{NonCommutativeAlgebra}, word::Vector{T}) where {T<:Unsigned} =
+    _validate_nc_word!(word)
+# Fallback: no validation for unrecognized combinations
+_validate_monomial_word(::Type{<:AlgebraType}, word::Vector) = nothing
+
+# =============================================================================
+# Internal Validation Functions
 # =============================================================================
 
 """

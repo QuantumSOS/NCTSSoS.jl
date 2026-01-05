@@ -113,18 +113,22 @@ true
 """
 struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     word::Vector{T}
+
+    # Inner constructor: no validation (validation is done in outer constructors after simplification is loaded)
+    function Monomial{A,T}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
+        word_filtered = filter(!iszero, word)
+        new{A,T}(word_filtered)
+    end
 end
 
 # Outer constructor: infer integer type from vector
 function Monomial{A}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
-    word_filtered = filter(!iszero, word)
-    return Monomial{A,T}(word_filtered)
+    return Monomial{A,T}(word)
 end
 
 # Convenience constructor: defaults to NonCommutativeAlgebra
 function Monomial(word::Vector{T}) where {T<:Integer}
-    word_filtered = filter(!iszero, word)
-    return Monomial{NonCommutativeAlgebra,T}(word_filtered)
+    return Monomial{NonCommutativeAlgebra,T}(word)
 end
 
 """

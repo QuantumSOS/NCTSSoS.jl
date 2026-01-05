@@ -393,4 +393,124 @@ using NCTSSoS: cyclic_symmetric_canon
         @test cyclic_symmetric_canon(m_nc) isa Monomial{NonCommutativeAlgebra}
         @test canonicalize(m_nc) isa Monomial{NonCommutativeAlgebra}
     end
+
+    # =========================================================================
+    # Multi-Site Interleaved Tests (degree 4+)
+    # These tests verify site-based commutation produces different results
+    # than raw lexicographic comparison
+    # =========================================================================
+
+    @testset "symmetric_canon PauliAlgebra multi-site interleaved" begin
+        # Pauli indices: site1 = {1,2,3} (σx,σy,σz), site2 = {4,5,6}
+        # Word: [σx@site2, σx@site1, σy@site2, σy@site1] = [4, 1, 5, 2]
+        # Sites interleaved: [2, 1, 2, 1]
+        #
+        # Raw: min([4,1,5,2], [2,5,1,4]) = [2,5,1,4] (2 < 4)
+        # Site-sorted: min([1,2,4,5], [2,1,5,4]) = [1,2,4,5] (1 < 2)
+        m = Monomial{PauliAlgebra}([4, 1, 5, 2])
+        canon = symmetric_canon(m)
+        @test canon.word == [1, 2, 4, 5]
+
+        # Verify differs from raw
+        @test symmetric_canon([4, 1, 5, 2]) == [2, 5, 1, 4]
+    end
+
+    @testset "symmetric_canon NonCommutativeAlgebra multi-site interleaved" begin
+        # encode_index(UInt16, op_id, site): op_id << 4 | site
+        a_s2 = NCTSSoS.encode_index(UInt16, 1, 2)  # op1 @ site2 = 18
+        b_s1 = NCTSSoS.encode_index(UInt16, 1, 1)  # op1 @ site1 = 17
+        c_s2 = NCTSSoS.encode_index(UInt16, 2, 2)  # op2 @ site2 = 34
+        d_s1 = NCTSSoS.encode_index(UInt16, 2, 1)  # op2 @ site1 = 33
+
+        # Word: [a_s2, b_s1, c_s2, d_s1] = [18, 17, 34, 33]
+        # Sites interleaved: [2, 1, 2, 1]
+        #
+        # Site-sorted word: [17, 33, 18, 34] (site1: 17,33; site2: 18,34)
+        # Reverse: [33, 34, 17, 18], sites: [1, 2, 1, 2]
+        # Site-sorted reverse: [33, 17, 34, 18]
+        #
+        # Compare [17, 33, 18, 34] vs [33, 17, 34, 18]
+        # 17 < 33, so [17, 33, 18, 34] wins
+
+        word = [a_s2, b_s1, c_s2, d_s1]
+        m = Monomial{NonCommutativeAlgebra}(word)
+        canon = symmetric_canon(m)
+        @test canon.word == [b_s1, d_s1, a_s2, c_s2]  # [17, 33, 18, 34]
+
+        # Verify differs from raw (raw picks [18,17,34,33] since 18 < 33)
+        raw_canon = symmetric_canon(collect(UInt16, word))
+        @test raw_canon != canon.word
+        @test raw_canon == UInt16[18, 17, 34, 33]
+    end
+
+    @testset "symmetric_canon ProjectorAlgebra multi-site interleaved" begin
+        p1_s2 = NCTSSoS.encode_index(UInt16, 1, 2)  # 18
+        p1_s1 = NCTSSoS.encode_index(UInt16, 1, 1)  # 17
+        p2_s2 = NCTSSoS.encode_index(UInt16, 2, 2)  # 34
+        p2_s1 = NCTSSoS.encode_index(UInt16, 2, 1)  # 33
+
+        # Word: [p1_s2, p1_s1, p2_s2, p2_s1] - interleaved sites
+        word = [p1_s2, p1_s1, p2_s2, p2_s1]
+        m = Monomial{ProjectorAlgebra}(word)
+        canon = symmetric_canon(m)
+
+        # Site-sorted word: [17, 33, 18, 34]
+        @test canon.word == [p1_s1, p2_s1, p1_s2, p2_s2]
+
+        # Verify differs from raw
+        raw_canon = symmetric_canon(collect(UInt16, word))
+        @test raw_canon != canon.word
+    end
+
+    @testset "symmetric_canon UnipotentAlgebra multi-site interleaved" begin
+        u1_s2 = NCTSSoS.encode_index(UInt16, 1, 2)  # 18
+        u1_s1 = NCTSSoS.encode_index(UInt16, 1, 1)  # 17
+        u2_s2 = NCTSSoS.encode_index(UInt16, 2, 2)  # 34
+        u2_s1 = NCTSSoS.encode_index(UInt16, 2, 1)  # 33
+
+        # Word: [u1_s2, u1_s1, u2_s2, u2_s1] - interleaved sites
+        word = [u1_s2, u1_s1, u2_s2, u2_s1]
+        m = Monomial{UnipotentAlgebra}(word)
+        canon = symmetric_canon(m)
+
+        # Site-sorted word: [17, 33, 18, 34]
+        @test canon.word == [u1_s1, u2_s1, u1_s2, u2_s2]
+
+        # Verify differs from raw
+        raw_canon = symmetric_canon(collect(UInt16, word))
+        @test raw_canon != canon.word
+    end
+
+    @testset "cyclic_canon PauliAlgebra multi-site interleaved" begin
+        # [σx@site2, σx@site1, σy@site2, σy@site1] = [4, 1, 5, 2]
+        m = Monomial{PauliAlgebra}([4, 1, 5, 2])
+        canon = cyclic_canon(m)
+        # Each rotation gets site-sorted, pick minimum
+        # Rotations: [4,1,5,2], [1,5,2,4], [5,2,4,1], [2,4,1,5]
+        # Site-sorted: [1,2,4,5], [1,2,4,5], [2,1,4,5], [2,4,1,5]
+        # min = [1,2,4,5]
+        @test canon.word == [1, 2, 4, 5]
+
+        # Verify differs from raw cyclic
+        raw_cyclic = cyclic_canon([4, 1, 5, 2])
+        @test raw_cyclic != canon.word
+    end
+
+    @testset "cyclic_symmetric_canon PauliAlgebra multi-site interleaved" begin
+        m = Monomial{PauliAlgebra}([4, 1, 5, 2])
+        canon = cyclic_symmetric_canon(m)
+        @test canon.word == [1, 2, 4, 5]
+    end
+
+    @testset "site-aware vs raw comparison degree-4" begin
+        # PauliAlgebra: demonstrate the difference with interleaved sites
+        word = [4, 1, 5, 2]  # [σx@s2, σx@s1, σy@s2, σy@s1]
+        raw_result = symmetric_canon(word)  # NoSiteAware path
+        m = Monomial{PauliAlgebra}(word)
+        site_result = symmetric_canon(m).word  # SiteAware path
+
+        @test raw_result != site_result
+        @test raw_result == [2, 5, 1, 4]    # raw picks reverse (2 < 4)
+        @test site_result == [1, 2, 4, 5]   # site-sorted picks original sorted
+    end
 end

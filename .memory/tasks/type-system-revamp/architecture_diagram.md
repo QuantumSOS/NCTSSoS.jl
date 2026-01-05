@@ -96,10 +96,12 @@ Algebra            Algebra            Algebra      Unipotent/NC
                                            = -a₁† a₂† + a₂†          (sort creators)
                                                     │
                                                     ▼
-                                            PhysicsMonomial{Fermi,T}(
-                                              coeffs = [-1, 1],
-                                              monos  = [Monomial{Fermi}([-1,-2]),
-                                                        Monomial{Fermi}([-2])]
+                                            PhysicsMonomial{FermionicAlgebra,T}(
+                                              coeffs::Vector{Int} = [-1, 1],
+                                              monos::Vector{Monomial{FermionicAlgebra,T}} = [
+                                                Monomial{FermionicAlgebra,T}([-1,-2]),  # a₁†a₂†
+                                                Monomial{FermionicAlgebra,T}([-2])      # a₂†
+                                              ]
                                             )
                                             represents: -a₁†a₂† + a₂†
 
@@ -125,10 +127,12 @@ Algebra            Algebra            Algebra      Unipotent/NC
                                            = b₁† b₂† b₁ + b₂†         (creators commute)
                                                     │
                                                     ▼
-                                            PhysicsMonomial{Boson,T}(
-                                              coeffs = [1, 1],
-                                              monos  = [Monomial{Boson}([-1,-2,1]),
-                                                        Monomial{Boson}([-2])]
+                                            PhysicsMonomial{BosonicAlgebra,T}(
+                                              coeffs::Vector{Int} = [1, 1],
+                                              monos::Vector{Monomial{BosonicAlgebra,T}} = [
+                                                Monomial{BosonicAlgebra,T}([-1,-2,1]),  # b₁†b₂†b₁
+                                                Monomial{BosonicAlgebra,T}([-2])        # b₂†
+                                              ]
                                             )
                                             represents: b₁†b₂†b₁ + b₂†
 
@@ -214,20 +218,22 @@ Algebra            Algebra            Algebra      Unipotent/NC
     │                                                              │
     │  Term 1: a₁† a₂†                                            │
     │    → already normal-ordered (creators sorted by mode)       │
-    │    → PhysicsMonomial(coeffs=[1], monos=[[-1,-2]])           │
+    │    → Monomial{FermionicAlgebra,T}([-1,-2])                  │
     │                                                              │
     │  Term 2: -a₁† a₁                                            │
     │    → already normal-ordered (creator before annihilator)    │
-    │    → PhysicsMonomial(coeffs=[-1], monos=[[-1,1]])           │
+    │    → Monomial{FermionicAlgebra,T}([-1,1])                   │
     │                                                              │
-    │  Combine: coeffs=[1,-1], monos=[[-1,-2], [-1,1]]            │
+    │  Combine into PhysicsMonomial                               │
     └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
-                PhysicsMonomial{Fermi,T}(
-                  coeffs = [1, -1],
-                  monos  = [Monomial{Fermi}([-1,-2]),   # a₁†a₂†
-                            Monomial{Fermi}([-1,1])]    # a₁†a₁
+                PhysicsMonomial{FermionicAlgebra,T}(
+                  coeffs::Vector{Int} = [1, -1],
+                  monos::Vector{Monomial{FermionicAlgebra,T}} = [
+                    Monomial{FermionicAlgebra,T}([-1,-2]),  # a₁†a₂†
+                    Monomial{FermionicAlgebra,T}([-1,1])    # a₁†a₁
+                  ]
                 )
                 represents: a₁†a₂† - a₁†a₁
 

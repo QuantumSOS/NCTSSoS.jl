@@ -93,9 +93,9 @@ AbstractMonomial{A<:AlgebraType, T<:Integer}
 - **Type parameters:** `A<:Union{FermionicAlgebra,BosonicAlgebra}`, `T<:Integer`
 - **Fields:**
   - `coeffs::Vector{Int}` - integer coefficients (from commutation relations)
-  - `monos::Vector{Monomial{A,T}}` - normal-ordered monomials
-- **Invariants:** Each mono is normal-ordered; represents sum Σ coeffs[i] * monos[i]
-- **Constructor:** `PhysicsMonomial(word::Vector{T})` - normal-orders and collects terms
+  - `monos::Vector{Monomial{A,T}}` - normal-ordered monomials (NOT raw indices!)
+- **Invariants:** Each `monos[i]::Monomial{A,T}` is normal-ordered; represents sum Σ coeffs[i] * monos[i]
+- **Constructor:** `PhysicsMonomial(word::Vector{T})` - normal-orders and collects terms into `Monomial{A,T}` objects
 
 ---
 

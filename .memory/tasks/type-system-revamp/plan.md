@@ -11,109 +11,192 @@
 
 | Decision | Choice |
 |----------|--------|
-| New types | Only `PauliMonomial{T}` (wraps `Term`) |
-| Constructor validation | Yes - reject invalid monomials |
-| Multiplication returns | Algebra-dependent |
-| Keep `Term{M,C}` | Yes - `PauliMonomial` wraps it |
+| New types | `PauliMonomial{T}` + `PhysicsMonomial{A,T}` |
+| `PauliMonomial` structure | `mono::Monomial{Pauli,T}` + `phase::ComplexF64` |
+| `PhysicsMonomial` structure | `coeffs::Vector{Int}` + `monos::Vector{Monomial{A,T}}` |
+| Constructor validation | Yes - `Monomial{A,T}` rejects invalid words |
+| Multiplication returns | Algebra-dependent (see below) |
+| Moment keys for Pauli | `PauliMonomial{T}` (includes phase) |
+| State polynomial support | Projector/Unipotent/NC only (drop Pauli/Fermi/Boson) |
+| Type hierarchy | Flat `AbstractMonomial{A,T}` supertype |
 | Migration | Clean break (v2) |
-| Moment keys for Pauli | `PauliMonomial` (includes phase) |
 
 ---
 
-## Type Changes
+## Type Hierarchy
+
+```
+AbstractMonomial{A<:AlgebraType, T<:Integer}
+├── Monomial{A,T}           # Bare word, constructor validates
+├── PauliMonomial{T}        # Canonical mono + phase ∈ {1,-1,i,-i}
+└── PhysicsMonomial{A,T}    # Sum of int×mono (A ∈ {Fermi,Boson})
+```
+
+---
+
+## New Types
 
 ### 1. `PauliMonomial{T}` (NEW)
 
 ```julia
-struct PauliMonomial{T<:Integer} <: AbstractMonomial
-    term::Term{Monomial{PauliAlgebra,T}, ComplexF64}
+struct PauliMonomial{T<:Integer} <: AbstractMonomial{PauliAlgebra,T}
+    mono::Monomial{PauliAlgebra,T}  # canonical form
+    phase::ComplexF64               # algebraic phase only: {1, -1, i, -i}
 end
 ```
 
 **Invariants:**
-- Underlying monomial has ≤1 operator per site
-- Sites sorted ascending
-- Phase accumulated from cyclic products
+- `mono` has ≤1 operator per site, sites sorted
+- `phase` is algebraic (from σ² = I, cyclic products)
 
 **Constructor:**
 ```julia
 function PauliMonomial(word::Vector{T}) where T
-    simplified_term = _simplify_pauli(word)  # Returns Term
-    _validate_pauli_canonical!(simplified_term.monomial.word)
-    PauliMonomial{T}(simplified_term)
+    canonical_word, phase = _simplify_pauli_word!(copy(word))
+    mono = Monomial{PauliAlgebra,T}(canonical_word)
+    PauliMonomial{T}(mono, phase)
 end
 ```
 
-### 2. `Monomial{A,T}` Constructor Validation
+### 2. `PhysicsMonomial{A,T}` (NEW)
 
-Modify inner constructor to enforce algebra-specific invariants:
+```julia
+struct PhysicsMonomial{A<:Union{FermionicAlgebra,BosonicAlgebra}, T<:Integer} <: AbstractMonomial{A,T}
+    coeffs::Vector{Int}           # integer coefficients
+    monos::Vector{Monomial{A,T}}  # normal-ordered monomials
+end
+```
+
+**Invariants:**
+- Each `monos[i]` is normal-ordered (validated by Monomial constructor)
+- Represents sum: Σ coeffs[i] × monos[i]
+- `coeffs[i]` are integers from (anti)commutation relations
+
+**Constructor:**
+```julia
+function PhysicsMonomial{A}(word::Vector{T}) where {A,T}
+    terms = _simplify_fermionic_word!(copy(word))  # or bosonic
+    coeffs = [t[1] for t in terms]
+    monos = [Monomial{A,T}(t[2]) for t in terms]
+    PhysicsMonomial{A,T}(coeffs, monos)
+end
+```
+
+### 3. `Monomial{A,T}` (MODIFIED)
+
+Constructor validates canonical form per algebra:
 
 | Algebra | Validation |
 |---------|------------|
-| `PauliAlgebra` | **Reject** if >1 op/site |
-| `FermionicAlgebra` | **Reject** if not normal-ordered |
-| `BosonicAlgebra` | **Reject** if not normal-ordered |
-| `NonCommutativeAlgebra` | **Apply** site-sort |
-| `ProjectorAlgebra` | **Apply** P²=P + site-sort |
-| `UnipotentAlgebra` | **Apply** U²=I + site-sort |
+| `PauliAlgebra` | ≤1 op/site, sites sorted |
+| `FermionicAlgebra` | normal-ordered |
+| `BosonicAlgebra` | normal-ordered |
+| `ProjectorAlgebra` | no P² terms, sites sorted |
+| `UnipotentAlgebra` | no U² terms, sites sorted |
+| `NonCommutativeAlgebra` | sites sorted |
 
-### 3. Multiplication Return Types
+```julia
+function Monomial{A,T}(word::Vector{T}) where {A,T}
+    _validate_word!(A, word)  # throws if invalid
+    new{A,T}(word)
+end
+```
 
-| Algebra | `m1 * m2` returns |
-|---------|-------------------|
-| NC/Projector/Unipotent | `Monomial{A,T}` |
-| Pauli | `PauliMonomial{T}` |
-| Fermionic/Bosonic | `Polynomial{A,T,C}` |
+---
 
-### 4. `simplify` Return Types
+## Operation Return Types
+
+### Multiplication
+
+| Operation | Returns |
+|-----------|---------|
+| `Monomial{Pauli} × Monomial{Pauli}` | `PauliMonomial{T}` |
+| `Monomial{Fermi} × Monomial{Fermi}` | `PhysicsMonomial{Fermi,T}` |
+| `Monomial{Boson} × Monomial{Boson}` | `PhysicsMonomial{Boson,T}` |
+| `Monomial{Proj/Unip/NC} × Monomial{...}` | `Monomial{A,T}` |
+| `PauliMonomial × PauliMonomial` | `PauliMonomial{T}` (closed) |
+| `PhysicsMonomial × PhysicsMonomial` | `PhysicsMonomial{A,T}` (closed) |
+| `PauliMonomial × scalar` | `Polynomial{Pauli,T,ComplexF64}` |
+
+### Simplify
 
 | Input | Returns |
 |-------|---------|
-| `Monomial{NC/Proj/Unip}` | `Monomial` (identity - already canonical) |
-| `Monomial{Pauli}` | `PauliMonomial` |
-| `Monomial{Fermi/Boson}` | `Polynomial` |
-| `PauliMonomial` | `PauliMonomial` (identity) |
+| `Monomial{A,T}` | `Monomial{A,T}` (identity - already canonical) |
+| `PauliMonomial{T}` | `PauliMonomial{T}` (identity) |
+| `PhysicsMonomial{A,T}` | `PhysicsMonomial{A,T}` (identity) |
 
 ---
 
 ## Implementation Steps
 
-### Phase 1: Add `PauliMonomial` (non-breaking)
+### Phase 1: Internal Helpers
+- [ ] `_validate_pauli_word!(word)` - check ≤1 op/site, sorted; throw if invalid
+- [ ] `_validate_fermionic_word!(word)` - check normal-ordered; throw if invalid
+- [ ] `_validate_bosonic_word!(word)` - check normal-ordered; throw if invalid
+- [ ] `_validate_projector_word!(word)` - check no P², sorted; throw if invalid
+- [ ] `_validate_unipotent_word!(word)` - check no U², sorted; throw if invalid
+- [ ] `_validate_nc_word!(word)` - check sorted; throw if invalid
+- [ ] Update `_simplify_pauli_word!` to return `(canonical_word, phase)`
+- [ ] Update `_simplify_fermionic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
+- [ ] Update `_simplify_bosonic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
+
+### Phase 2: Add `AbstractMonomial` hierarchy
+- [ ] Define `AbstractMonomial{A,T}` abstract type
+- [ ] Make `Monomial{A,T} <: AbstractMonomial{A,T}`
+- [ ] Implement shared interface: `degree`, `variable_indices`, `isless`
+
+### Phase 3: Add `PauliMonomial{T}`
 - [ ] Create `src/types/pauli_monomial.jl`
-- [ ] Define struct wrapping `Term{Monomial{PauliAlgebra,T}, ComplexF64}`
-- [ ] Implement constructors with validation
-- [ ] Implement `==`, `hash`, `isless`, `degree`
-- [ ] Implement iteration protocol `(coef, mono)` for unified processing
+- [ ] Define struct with `mono::Monomial{Pauli,T}` + `phase::ComplexF64`
+- [ ] Implement constructor calling `_simplify_pauli_word!`
+- [ ] Implement `==`, `hash`, `isless` (include phase)
 - [ ] Implement `*` returning `PauliMonomial`
+- [ ] Implement `adjoint` (conjugate phase)
+- [ ] Implement `symmetric_canon` (identity on mono, conjugate phase)
 - [ ] Add display methods
 - [ ] Export from module
 
-### Phase 2: Add validation helpers
-- [ ] `_validate_pauli_canonical!(word)` - throws if >1 op/site
-- [ ] `is_normal_ordered(word)` for Fermi/Boson
-- [ ] `_validate_fermionic_canonical!(word)`
-- [ ] `_validate_bosonic_canonical!(word)`
+### Phase 4: Add `PhysicsMonomial{A,T}`
+- [ ] Create `src/types/physics_monomial.jl`
+- [ ] Define struct with `coeffs::Vector{Int}` + `monos::Vector{Monomial{A,T}}`
+- [ ] Implement constructor calling `_simplify_*_word!`
+- [ ] Implement `==`, `hash`, `isless`
+- [ ] Implement `*` (distribute, normal-order, collect)
+- [ ] Implement `adjoint`
+- [ ] Add display methods
+- [ ] Export from module
 
-### Phase 3: Update `Monomial` constructor (breaking)
-- [ ] Add `_validate_monomial_word(::Type{A}, word)` dispatch
-- [ ] Modify inner constructor to call validation
-- [ ] Add `Monomial_unchecked` for internal use if needed
+### Phase 5: Update `Monomial{A,T}` constructor (BREAKING)
+- [ ] Add validation dispatch in inner constructor
+- [ ] Create `Monomial_unchecked` for internal use
 - [ ] Update tests that create invalid monomials
 
-### Phase 4: Update `simplify` returns (breaking)
-- [ ] `simplify(::Monomial{PauliAlgebra})` → `PauliMonomial`
-- [ ] `simplify(::Monomial{NC/Proj/Unip})` → identity (already canonical)
-- [ ] Update `_collect_simplified_terms!` in polynomial.jl
-
-### Phase 5: Update multiplication dispatch (breaking)
+### Phase 6: Update multiplication dispatch (BREAKING)
 - [ ] `Monomial{Pauli} * Monomial{Pauli}` → `PauliMonomial`
-- [ ] Keep Fermi/Boson returning `Polynomial`
+- [ ] `Monomial{Fermi} * Monomial{Fermi}` → `PhysicsMonomial`
+- [ ] `Monomial{Boson} * Monomial{Boson}` → `PhysicsMonomial`
 - [ ] Update call sites expecting old return types
 
-### Phase 6: Moment matrix integration
-- [ ] Update `MomentProblem` key type for Pauli → `PauliMonomial`
-- [ ] Update basis construction
-- [ ] Update SOS dualization
+### Phase 7: Update basis construction
+- [ ] `get_ncbasis` returns `Vector{PauliMonomial{T}}` for Pauli
+- [ ] `get_ncbasis` returns `Vector{PhysicsMonomial{A,T}}` for Fermi/Boson
+- [ ] Update `CorrelativeSparsity` type parameter M
+- [ ] Update `TermSparsity` type parameter M
+
+### Phase 8: Update moment matrix integration
+- [ ] `MomentProblem` key type uses wrapper types
+- [ ] Update SOS dualization for new key types
+- [ ] Verify Hermitian embedding still works
+
+### Phase 9: Restrict state polynomial support
+- [ ] Add compile-time check: state polys only for Proj/Unip/NC
+- [ ] Remove/deprecate state poly code for Pauli/Fermi/Boson
+- [ ] Update tests
+
+### Phase 10: Type conversion
+- [ ] `Polynomial(::PauliMonomial)` → `Polynomial{Pauli,T,ComplexF64}`
+- [ ] `Polynomial(::PhysicsMonomial)` → `Polynomial{A,T,ComplexF64}` (promote Int)
 
 ---
 
@@ -121,32 +204,39 @@ Modify inner constructor to enforce algebra-specific invariants:
 
 | File | Changes |
 |------|---------|
-| `src/types/pauli_monomial.jl` | **NEW** - PauliMonomial definition |
-| `src/types/monomial.jl` | Add validation in constructor |
-| `src/simplification/pauli.jl` | Return `PauliMonomial` |
-| `src/types/polynomial.jl` | Update `_collect_simplified_terms!` |
-| `src/optimization/moment.jl` | Key type for Pauli |
-| `test/polynomials/simplify.jl` | Update Pauli tests |
-| `test/polynomials/monomials.jl` | Test constructor validation |
+| `src/types/monomial.jl` | Add `AbstractMonomial`, validation in constructor |
+| `src/types/pauli_monomial.jl` | **NEW** - `PauliMonomial{T}` |
+| `src/types/physics_monomial.jl` | **NEW** - `PhysicsMonomial{A,T}` |
+| `src/simplification/*.jl` | Update return types for `_simplify_*` |
+| `src/algorithms/basis.jl` | Return wrapper types from `get_ncbasis` |
+| `src/optimization/sparsity.jl` | Update type parameters |
+| `src/optimization/moment.jl` | Update key types |
+| `src/states/*.jl` | Restrict to simple algebras |
+| `test/polynomials/*.jl` | Update for new types |
 
 ---
 
 ## Design Rationale
 
-### Why wrap `Term` in `PauliMonomial`?
-- Preserves `Term` allocation semantics for benchmarking
-- Type safety via wrapper without duplicating storage logic
-- Can measure overhead of wrapper vs. bare Term
+### Why separate `mono` + `phase` in `PauliMonomial`?
+- Phase is algebraic only {1,-1,i,-i} from simplification
+- Scalar coefficients go to `Polynomial`, not absorbed into phase
+- Clear separation: algebra structure vs. user coefficients
 
-### Why validate in constructor?
-- Eliminates class of comparison bugs (non-canonical == checks)
-- Type guarantees invariants - no runtime checks needed downstream
-- Follows `StateSymbol` pattern which already works well
+### Why `PhysicsMonomial` stores sum of monomials?
+- Normal-ordering expands: `a₁a₂†a₁† = -a₁†a₂† + a₂†`
+- Cannot represent as single monomial
+- Integer coefficients preserve exactness from (anti)commutation
 
-### Why algebra-dependent `*` return types?
-- Reflects algebraic reality: Pauli closed (single term), Fermi/Boson expand
-- Type system encodes mathematical properties
-- Clearer API than polymorphic `simplify` returns
+### Why validate in `Monomial` constructor?
+- Type guarantees invariants - no runtime checks downstream
+- Invalid states become unrepresentable
+- Follows `StateSymbol` pattern which works well
+
+### Why drop state poly support for Pauli/Fermi/Boson?
+- Pauli: complex phases complicate real expectation values
+- Fermi/Boson: expansion under normal ordering doesn't fit state poly model
+- Simplifies codebase, focuses on working use cases
 
 ---
 
@@ -154,11 +244,6 @@ Modify inner constructor to enforce algebra-specific invariants:
 
 - **Version**: v2.0.0 (breaking)
 - Old code creating raw Pauli monomials will throw
-- Old code expecting `Term` from Pauli simplify needs update
+- Old code expecting `Term` from Pauli operations needs update
+- Old code using state polys with Pauli/Fermi/Boson needs migration
 - Provide clear error messages guiding users to new patterns
-
----
-
-## Open Questions
-
-_Add clarifications here_

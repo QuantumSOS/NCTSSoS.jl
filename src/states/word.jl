@@ -3,7 +3,7 @@
 # =============================================================================
 
 """
-    StateSymbol{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial{A,T}
+    StateSymbol{ST<:StateType, A<:SimpleAlgebra, T<:Integer} <: AbstractMonomial{A,T}
 
 A single state expectation symbol wrapping a canonicalized monomial.
 
@@ -17,50 +17,60 @@ that has been canonicalized according to the state type:
 
 # Type Parameters
 - `ST`: State type (Arbitrary or MaxEntangled)
-- `A`: Algebra type
+- `A`: Algebra type (must be SimpleAlgebra: NC, Projector, or Unipotent)
 - `T`: Integer type for monomial words
 
 # Invariants
 - The monomial is always in canonical form for the given state type
 - Canonicalization happens automatically at construction
 
+# Algebra Restrictions
+State polynomials are only supported for SimpleAlgebra types:
+- `NonCommutativeAlgebra`: Generic NC (no simplification)
+- `ProjectorAlgebra`: P² = P
+- `UnipotentAlgebra`: U² = I
+
+State polynomials are NOT supported for ComplexAlgebra types (Pauli, Fermionic, Bosonic)
+because these algebras produce complex phases or multiple terms during simplification,
+which complicates expectation value semantics.
+
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);
+julia> m = Monomial{ProjectorAlgebra}(UInt8[1, 2]);
 
 julia> sym = StateSymbol{Arbitrary}(m);
-
-julia> sym.mono == m  # Already canonical
-true
 
 julia> degree(sym)
 2
 ```
 
-See also: [`StateWord`](@ref), [`_state_canon`](@ref)
+See also: [`StateWord`](@ref), [`_state_canon`](@ref), [`SimpleAlgebra`](@ref)
 """
-struct StateSymbol{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
+struct StateSymbol{ST<:StateType,A<:SimpleAlgebra,T<:Integer} <: AbstractMonomial{A,T}
     mono::Monomial{A,T}
 
     # Inner constructor: canonicalize on construction
-    function StateSymbol{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    function StateSymbol{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
         canon_m = _state_canon(ST, m)
         new{ST,A,T}(canon_m)
     end
 end
 
 """
-    StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A,T}
+    StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A<:SimpleAlgebra,T}
 
 Construct a StateSymbol with explicit state type.
+
+Only supports SimpleAlgebra types (NC, Projector, Unipotent).
+For Pauli/Fermionic/Bosonic algebras, use standard Polynomial optimization instead.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);
+julia> m = Monomial{ProjectorAlgebra}(UInt8[1, 2]);
 
 julia> sym = StateSymbol(Arbitrary, m);
 
@@ -68,7 +78,7 @@ julia> sym isa StateSymbol{Arbitrary}
 true
 ```
 """
-function StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateSymbol{ST}(m)
 end
 
@@ -81,7 +91,7 @@ end
 
 Create the identity StateSymbol (wrapping identity monomial).
 """
-function Base.one(::Type{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::Type{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateSymbol{ST}(one(Monomial{A,T}))
 end
 
@@ -90,7 +100,7 @@ end
 
 Create the identity StateSymbol for the same type.
 """
-function Base.one(::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::StateSymbol{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     one(StateSymbol{ST,A,T})
 end
 
@@ -135,7 +145,7 @@ end
 
 Check if two StateSymbols are equal (same canonicalized monomial).
 """
-function Base.:(==)(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.:(==)(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     a.mono == b.mono
 end
 
@@ -151,7 +161,7 @@ Base.hash(sym::StateSymbol, h::UInt) = hash(sym.mono, h)
 
 Compare two StateSymbols: degree-first, then by monomial ordering.
 """
-function Base.isless(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.isless(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     degree(a) != degree(b) && return degree(a) < degree(b)
     return isless(a.mono, b.mono)
 end
@@ -165,7 +175,7 @@ end
 
 Return the StateSymbol itself (due to canonicalization, adjoint equals self).
 """
-function Base.adjoint(sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.adjoint(sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     sym
 end
 
@@ -197,7 +207,7 @@ end
 # =============================================================================
 
 """
-    StateWord{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial{A,T}
+    StateWord{ST<:StateType, A<:SimpleAlgebra, T<:Integer} <: AbstractMonomial{A,T}
 
 A product of state expectations <M1><M2>...<Mk>.
 
@@ -248,11 +258,11 @@ julia> degree(sw)
 
 See also: [`StateSymbol`](@ref), [`NCStateWord`](@ref), [`StatePolynomial`](@ref)
 """
-struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
+struct StateWord{ST<:StateType,A<:SimpleAlgebra,T<:Integer} <: AbstractMonomial{A,T}
     state_syms::Vector{StateSymbol{ST,A,T}}
 
     # Inner constructor from symbols (already canonicalized)
-    function StateWord{ST,A,T}(syms::Vector{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    function StateWord{ST,A,T}(syms::Vector{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
         # Filter out identity symbols (unless all are identity)
         filtered = filter(s -> !isone(s), syms)
         sorted_syms = isempty(filtered) ? [one(StateSymbol{ST,A,T})] : sort(filtered)
@@ -261,7 +271,7 @@ struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,
 end
 
 # Constructor from monomials (canonical path)
-function StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     syms = StateSymbol{ST,A,T}[StateSymbol{ST}(m) for m in monos]
     StateWord{ST,A,T}(syms)
 end
@@ -276,7 +286,7 @@ end
 Apply the involution canonicalization: return min(m, adjoint(m)).
 This ensures that m and adjoint(m) are treated as equivalent in state expectations.
 """
-function _involution_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function _involution_canon(m::Monomial{A,T}) where {A<:SimpleAlgebra,T<:Integer}
     m_adj = adjoint(m)
     return isless(m, m_adj) ? m : (m == m_adj ? m : m_adj)
 end
@@ -296,12 +306,12 @@ Apply state-type-specific canonicalization to a monomial.
 # Returns
 A canonicalized monomial.
 """
-function _state_canon(::Type{Arbitrary}, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function _state_canon(::Type{Arbitrary}, m::Monomial{A,T}) where {A<:SimpleAlgebra,T<:Integer}
     # For arbitrary states: <M> = <M†>, so use involution (symmetric) canonicalization
     _involution_canon(m)
 end
 
-function _state_canon(::Type{MaxEntangled}, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function _state_canon(::Type{MaxEntangled}, m::Monomial{A,T}) where {A<:SimpleAlgebra,T<:Integer}
     # For trace states: tr(ABC) = tr(BCA) = tr(CBA)† = tr(A†B†C†)
     # Use cyclic-symmetric canonicalization
     cyclic_symmetric_canon(m)
@@ -314,12 +324,12 @@ end
 # Convenience constructors
 
 # Explicit type parameters from monomials
-function StateWord{ST,A,T}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function StateWord{ST,A,T}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateWord{ST}(monos)
 end
 
 # From vector of symbols (alternate path)
-function StateWord{ST}(syms::Vector{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function StateWord{ST}(syms::Vector{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateWord{ST,A,T}(syms)
 end
 
@@ -351,12 +361,12 @@ julia> length(sw_single.state_syms)
 1
 ```
 """
-function StateWord{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function StateWord{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateWord{ST}([m])
 end
 
 # From single symbol
-function StateWord{ST}(sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function StateWord{ST}(sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateWord{ST,A,T}([sym])
 end
 
@@ -376,7 +386,7 @@ julia> isone(sw)
 true
 ```
 """
-function StateWord{ST,A,T}() where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function StateWord{ST,A,T}() where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateWord{ST,A,T}([one(StateSymbol{ST,A,T})])
 end
 
@@ -399,7 +409,7 @@ julia> isone(sw_one)
 true
 ```
 """
-function Base.one(::Type{StateWord{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::Type{StateWord{ST,A,T}}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateWord{ST,A,T}([one(StateSymbol{ST,A,T})])
 end
 
@@ -408,7 +418,7 @@ end
 
 Create the identity StateWord for the same type as `sw`.
 """
-function Base.one(::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::StateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     one(StateWord{ST,A,T})
 end
 
@@ -500,7 +510,7 @@ end
 
 Check if two StateWords are equal (same state symbols).
 """
-function Base.:(==)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.:(==)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     a.state_syms == b.state_syms
 end
 
@@ -532,7 +542,7 @@ julia> isless(sw1, sw2)  # degree 1 < degree 2
 true
 ```
 """
-function Base.isless(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.isless(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     degree(a) != degree(b) && return degree(a) < degree(b)
     return a.state_syms < b.state_syms
 end
@@ -570,7 +580,7 @@ julia> length(result.state_syms)
 2
 ```
 """
-function Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.:(*)(a::StateWord{ST,A,T}, b::StateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     StateWord{ST,A,T}(vcat(a.state_syms, b.state_syms))
 end
 
@@ -602,7 +612,7 @@ julia> sw == sw_adj  # Due to involution canonicalization
 true
 ```
 """
-function Base.adjoint(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.adjoint(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     # Because of involution canonicalization, adjoint(m) maps to same canonical form as m
     # So adjoint of StateWord is the StateWord itself
     sw
@@ -633,7 +643,7 @@ end
 # =============================================================================
 
 """
-    NCStateWord{ST<:StateType, A<:AlgebraType, T<:Integer}
+    NCStateWord{ST<:StateType, A<:SimpleAlgebra, T<:Integer}
 
 A product of state expectations and a non-commutative operator: <M1><M2>...<Mk> * Onc
 
@@ -661,11 +671,11 @@ julia> degree(ncsw)
 
 See also: [`StateWord`](@ref), [`NCStatePolynomial`](@ref), [`expval`](@ref)
 """
-struct NCStateWord{ST<:StateType,A<:AlgebraType,T<:Integer}
+struct NCStateWord{ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     sw::StateWord{ST,A,T}
     nc_word::Monomial{A,T}
 
-    function NCStateWord(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    function NCStateWord(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
         new{ST,A,T}(sw, nc_word)
     end
 end
@@ -676,7 +686,7 @@ end
 
 Construct an NCStateWord with explicit state type.
 """
-function NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     NCStateWord(sw, nc_word)
 end
 
@@ -685,7 +695,7 @@ end
 
 Construct an NCStateWord from a StateWord with identity nc_word.
 """
-function NCStateWord(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function NCStateWord(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     NCStateWord(sw, one(Monomial{A,T}))
 end
 
@@ -694,7 +704,7 @@ end
 
 Construct an NCStateWord from a monomial with identity StateWord.
 """
-function NCStateWord(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function NCStateWord(m::Monomial{A,T}) where {A<:SimpleAlgebra,T<:Integer}
     NCStateWord(one(StateWord{Arbitrary,A,T}), m)
 end
 
@@ -731,7 +741,7 @@ end
 
 Check if two NCStateWords are equal.
 """
-function Base.:(==)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.:(==)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     a.sw == b.sw && a.nc_word == b.nc_word
 end
 
@@ -747,7 +757,7 @@ Base.hash(ncsw::NCStateWord, h::UInt) = hash((ncsw.sw, ncsw.nc_word), h)
 
 Compare two NCStateWords: degree first, then nc_word, then sw.
 """
-function Base.isless(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.isless(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     degree(a) != degree(b) && return degree(a) < degree(b)
     a.nc_word != b.nc_word && return isless(a.nc_word, b.nc_word)
     return isless(a.sw, b.sw)
@@ -762,7 +772,7 @@ end
 
 Multiply two NCStateWords: multiply sw parts (commutative) and nc_word parts (non-commutative).
 """
-function Base.:(*)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.:(*)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     # nc_word multiplication returns Monomial (word concatenation only)
     nc_prod = a.nc_word * b.nc_word
     # StateWord multiplication returns StateWord (commutative, no phase)
@@ -783,7 +793,7 @@ Compute the adjoint (Hermitian conjugate) of an NCStateWord by adjointing both p
     This is the dagger (†) or star (*) operation in physics notation.
     You can also use the Julia syntax `ncsw'` as shorthand for `adjoint(ncsw)`.
 """
-function Base.adjoint(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.adjoint(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     NCStateWord(adjoint(ncsw.sw), adjoint(ncsw.nc_word))
 end
 
@@ -839,7 +849,7 @@ julia> length(ev.state_syms)
 2
 ```
 """
-function expval(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function expval(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     # Create a new symbol for the nc_word and concatenate with existing symbols
     new_sym = StateSymbol{ST}(ncsw.nc_word)
     StateWord{ST,A,T}(vcat(ncsw.sw.state_syms, [new_sym]))
@@ -875,7 +885,7 @@ end
 
 Create the identity NCStateWord.
 """
-function Base.one(::Type{NCStateWord{ST,A,T}}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::Type{NCStateWord{ST,A,T}}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     NCStateWord(one(StateWord{ST,A,T}), one(Monomial{A,T}))
 end
 
@@ -884,7 +894,7 @@ end
 
 Create the identity NCStateWord for the same type.
 """
-function Base.one(::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     one(NCStateWord{ST,A,T})
 end
 
@@ -922,7 +932,7 @@ julia> result isa NCStatePolynomial
 true
 ```
 """
-function simplify(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function simplify(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     # Simplify the nc_word part (may produce multiple terms with phases)
     nc_poly = Polynomial(simplify(ncsw.nc_word))
 
@@ -961,7 +971,7 @@ julia> length(sw.state_syms)
 
 See also: [`tr`](@ref), [`StateWord`](@ref)
 """
-ς(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateWord{Arbitrary}(m)
+ς(m::Monomial{A,T}) where {A<:SimpleAlgebra,T<:Integer} = StateWord{Arbitrary}(m)
 
 """
     tr(m::Monomial{A,T}) where {A,T}
@@ -988,7 +998,7 @@ julia> length(sw.state_syms)
 
 See also: [`ς`](@ref), [`StateWord`](@ref)
 """
-tr(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateWord{MaxEntangled}(m)
+tr(m::Monomial{A,T}) where {A<:SimpleAlgebra,T<:Integer} = StateWord{MaxEntangled}(m)
 
 # =============================================================================
 # State Basis Generation
@@ -1213,7 +1223,7 @@ julia> sw_canon.state_syms[1].mono.word
  3
 ```
 """
-function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     # Apply symmetric_canon to each monomial in the state symbols
     canon_monos = [symmetric_canon(sym.mono) for sym in sw.state_syms]
     StateWord{ST}(canon_monos)
@@ -1292,6 +1302,6 @@ julia> ncsw_canon.nc_word.word
  2
 ```
 """
-function symmetric_canon(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+function symmetric_canon(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:SimpleAlgebra,T<:Integer}
     NCStateWord(symmetric_canon(ncsw.sw), symmetric_canon(ncsw.nc_word))
 end

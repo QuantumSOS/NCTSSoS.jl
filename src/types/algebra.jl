@@ -152,6 +152,66 @@ Concrete type determined by VariableRegistry.
 struct UnipotentAlgebra <: AlgebraType end
 
 # =============================================================================
+# Algebra Type Categories
+# =============================================================================
+
+"""
+    SimpleAlgebra
+
+Type alias for algebras supported by state polynomial optimization.
+
+These algebras have real-valued expectation values and don't produce
+complex phases during simplification:
+- `NonCommutativeAlgebra`: Generic NC (no simplification rules)
+- `ProjectorAlgebra`: P² = P
+- `UnipotentAlgebra`: U² = I
+
+State polynomial optimization is NOT supported for:
+- `PauliAlgebra`: Complex phases from σₓσᵧ = iσᵤ
+- `FermionicAlgebra`: Anticommutation creates multiple terms
+- `BosonicAlgebra`: Commutation creates multiple terms
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> NonCommutativeAlgebra <: SimpleAlgebra
+true
+
+julia> PauliAlgebra <: SimpleAlgebra
+false
+```
+
+See also: [`StateSymbol`](@ref), [`StateWord`](@ref), [`NCStatePolynomial`](@ref)
+"""
+const SimpleAlgebra = Union{NonCommutativeAlgebra, ProjectorAlgebra, UnipotentAlgebra}
+
+"""
+    ComplexAlgebra
+
+Type alias for algebras that produce complex phases during simplification.
+
+These algebras are NOT supported for state polynomial optimization but are
+fully supported for standard polynomial optimization via the moment-SOS hierarchy.
+
+- `PauliAlgebra`: Pauli products generate phases {1, i, -1, -i}
+- `FermionicAlgebra`: Anticommutation relations (though coefficients are ±1)
+- `BosonicAlgebra`: Commutation relations produce multiple terms
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> PauliAlgebra <: ComplexAlgebra
+true
+
+julia> FermionicAlgebra <: ComplexAlgebra
+true
+```
+"""
+const ComplexAlgebra = Union{PauliAlgebra, FermionicAlgebra, BosonicAlgebra}
+
+# =============================================================================
 # Default Coefficient Types
 # =============================================================================
 

@@ -107,6 +107,7 @@ export PauliMonomial, PhysicsMonomial, AbstractMonomial
 export AlgebraType
 export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra
 export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
+export SimpleAlgebra, ComplexAlgebra  # Type aliases
 
 # State Polynomial Operations
 export ς, tr

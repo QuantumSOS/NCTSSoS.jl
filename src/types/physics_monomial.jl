@@ -529,3 +529,34 @@ function Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T})
     combined_word = vcat(m1.word, m2.word)
     PhysicsMonomial{BosonicAlgebra}(combined_word)
 end
+
+# =============================================================================
+# Term Combination Helper (for simplify functions)
+# =============================================================================
+
+"""
+    _combine_physics_terms(coeffs::Vector{Int}, monos::Vector{Monomial{A,T}}) where {A,T}
+
+Combine like terms in a PhysicsMonomial, returning canonical (coeffs, monos) pair.
+Filters out zero coefficients and sorts by monomial.
+"""
+function _combine_physics_terms(
+    coeffs::Vector{Int},
+    monos::Vector{Monomial{A,T}}
+) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
+    # Group by monomial word
+    grouped = Dict{Vector{T},Int}()
+    for (c, m) in zip(coeffs, monos)
+        grouped[m.word] = get(grouped, m.word, 0) + c
+    end
+
+    # Filter zeros and sort
+    final_pairs = [(c, w) for (w, c) in grouped if c != 0]
+
+    if isempty(final_pairs)
+        return (Int[0], [Monomial{A,T}(T[])])
+    end
+
+    sort!(final_pairs, by=p -> Monomial{A}(p[2]))
+    return ([p[1] for p in final_pairs], [Monomial{A,T}(p[2]) for p in final_pairs])
+end

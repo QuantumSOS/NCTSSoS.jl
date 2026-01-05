@@ -261,6 +261,6 @@ julia> m.word  # Original unchanged
 function simplify(m::Monomial{PauliAlgebra,T}) where {T}
     word_copy = copy(m.word)
     result, phase_k = _simplify_pauli_word!(word_copy)
-    coef = _phase_k_to_complex(phase_k)
-    Term(coef, Monomial{PauliAlgebra}(result))
+    mono = Monomial{PauliAlgebra,T}(result)
+    PauliMonomial{T}(mono, phase_k)
 end

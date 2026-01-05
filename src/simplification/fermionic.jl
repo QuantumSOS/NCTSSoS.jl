@@ -456,12 +456,12 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
 
     # Handle empty word
     if isempty(word)
-        return Polynomial([Term(1.0, Monomial{FermionicAlgebra}(T[]))])
+        return PhysicsMonomial{FermionicAlgebra,T}(Int[1], [Monomial{FermionicAlgebra,T}(T[])])
     end
 
     # Early exit for nilpotent monomials (aᵢ² = 0)
     if iszero(m)
-        return Polynomial([Term(0.0, Monomial{FermionicAlgebra}(T[]))])
+        return PhysicsMonomial{FermionicAlgebra,T}(Int[0], [Monomial{FermionicAlgebra,T}(T[])])
     end
 
     # Step 1: Find valid contractions
@@ -471,17 +471,20 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     combinations = _generate_nonoverlapping_combinations(contractions)
 
     # Steps 3-4: Compute each term
-    result_terms = Term{Monomial{FermionicAlgebra,T},Float64}[]
+    coeffs = Int[]
+    monos = Monomial{FermionicAlgebra,T}[]
 
     for combo in combinations
         (coef, normal_word) = _compute_normal_ordered_term(word, combo)
-        if coef != 0.0
-            push!(result_terms, Term(coef, Monomial{FermionicAlgebra}(normal_word)))
+        int_coef = round(Int, coef)  # fermionic coefficients are always ±1
+        if int_coef != 0
+            push!(coeffs, int_coef)
+            push!(monos, Monomial{FermionicAlgebra,T}(normal_word))
         end
     end
 
     # Combine like terms
-    result_terms = combine_like_terms(result_terms)
+    combined = _combine_physics_terms(coeffs, monos)
 
-    return Polynomial(result_terms)
+    return PhysicsMonomial{FermionicAlgebra,T}(combined[1], combined[2])
 end

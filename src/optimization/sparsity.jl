@@ -181,31 +181,80 @@ function assign_constraint(
 end
 
 """
-    extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
+    extract_monomials_from_basis(basis::Vector{Monomial{A,T}}) where {A,T}
 
-Extract monomials from basis polynomials for use in moment matrix construction.
+Extract underlying monomials from basis elements for use in moment matrix construction.
 
-For "simple" algebras (NonCommutative, Pauli, Projector, Unipotent), each basis polynomial
-is a single-term polynomial, so we extract the monomial directly.
-
-For "multi-term" algebras (Fermionic, Bosonic), basis polynomials may have multiple terms
-due to normal ordering. In this case, we use the leading monomial.
+For simple algebras (NonCommutative, Projector, Unipotent), the basis is already
+`Vector{Monomial{A,T}}`, so this is an identity operation.
 
 # Arguments
-- `basis_polys::Vector{Polynomial{A,T,C}}`: Basis polynomials from `get_ncbasis`
+- `basis::Vector{Monomial{A,T}}`: Basis monomials from `get_ncbasis`
 
 # Returns
-- `Vector{Monomial{A,T}}`: Extracted monomials for moment matrix indexing
+- `Vector{Monomial{A,T}}`: Same monomials for moment matrix indexing
 """
+function extract_monomials_from_basis(
+    basis::Vector{Monomial{A,T}}
+) where {A<:Union{NonCommutativeAlgebra,ProjectorAlgebra,UnipotentAlgebra}, T<:Integer}
+    return basis
+end
+
+"""
+    extract_monomials_from_basis(basis::Vector{PauliMonomial{T}}) where {T}
+
+Extract underlying monomials from PauliMonomial basis elements.
+
+For Pauli algebra, extracts the canonical `Monomial{PauliAlgebra,T}` from each
+`PauliMonomial{T}`, discarding the phase information for moment matrix indexing.
+(Phase is handled separately during constraint construction.)
+
+# Arguments
+- `basis::Vector{PauliMonomial{T}}`: Basis PauliMonomials from `get_ncbasis`
+
+# Returns
+- `Vector{Monomial{PauliAlgebra,T}}`: Underlying canonical monomials
+"""
+function extract_monomials_from_basis(
+    basis::Vector{PauliMonomial{T}}
+) where {T<:Integer}
+    return [pm.mono for pm in basis]
+end
+
+"""
+    extract_monomials_from_basis(basis::Vector{PhysicsMonomial{A,T}}) where {A,T}
+
+Extract underlying monomials from PhysicsMonomial basis elements.
+
+For Fermionic/Bosonic algebras, each PhysicsMonomial may represent multiple terms.
+We extract the leading (first) monomial from each for moment matrix indexing.
+(The full expansion is handled during constraint construction.)
+
+# Arguments
+- `basis::Vector{PhysicsMonomial{A,T}}`: Basis PhysicsMonomials from `get_ncbasis`
+
+# Returns
+- `Vector{Monomial{A,T}}`: Leading monomials from each PhysicsMonomial
+"""
+function extract_monomials_from_basis(
+    basis::Vector{PhysicsMonomial{A,T}}
+) where {A<:Union{FermionicAlgebra,BosonicAlgebra}, T<:Integer}
+    result = Monomial{A,T}[]
+    for pm in basis
+        if !isempty(pm.monos)
+            push!(result, pm.monos[1])
+        end
+    end
+    return result
+end
+
+# Legacy: handle old Polynomial-based basis (for backward compatibility during transition)
 function extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A<:AlgebraType, T<:Integer, C<:Number}
     result = Monomial{A,T}[]
     for p in basis_polys
         if isempty(p.terms)
-            # Zero polynomial - shouldn't happen but handle gracefully
             continue
         end
-        # Use the first (leading) monomial from the polynomial
-        # For simple algebras, this is the only monomial
         push!(result, p.terms[1].monomial)
     end
     return result

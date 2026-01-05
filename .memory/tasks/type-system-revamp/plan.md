@@ -133,52 +133,53 @@ end
 
 ## Implementation Steps
 
-### Phase 1: Internal Helpers
-- [ ] `_validate_pauli_word!(word)` - check ≤1 op/site, sorted; throw if invalid
-- [ ] `_validate_fermionic_word!(word)` - check normal-ordered; throw if invalid
-- [ ] `_validate_bosonic_word!(word)` - check normal-ordered; throw if invalid
-- [ ] `_validate_projector_word!(word)` - check no P², sorted; throw if invalid
-- [ ] `_validate_unipotent_word!(word)` - check no U², sorted; throw if invalid
-- [ ] `_validate_nc_word!(word)` - check sorted; throw if invalid
-- [ ] Update `_simplify_pauli_word!` to return `(canonical_word, phase_k::UInt8)`
-- [ ] Update `_simplify_fermionic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
-- [ ] Update `_simplify_bosonic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
+### Phase 1: Internal Helpers ✅
+- [x] `_validate_pauli_word!(word)` - check ≤1 op/site, sorted; throw if invalid
+- [x] `_validate_fermionic_word!(word)` - check normal-ordered; throw if invalid
+- [x] `_validate_bosonic_word!(word)` - check normal-ordered; throw if invalid
+- [x] `_validate_projector_word!(word)` - check no P², sorted; throw if invalid
+- [x] `_validate_unipotent_word!(word)` - check no U², sorted; throw if invalid
+- [x] `_validate_nc_word!(word)` - check sorted; throw if invalid
+- [x] Update `_simplify_pauli_word!` to return `(canonical_word, phase_k::UInt8)`
+- [x] Update `_simplify_fermionic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
+- [x] Update `_simplify_bosonic_word!` to return `Vector{Tuple{Int,Vector{T}}}`
 
-### Phase 2: Add `AbstractMonomial` hierarchy
-- [ ] Define `AbstractMonomial{A,T}` abstract type
-- [ ] Make `Monomial{A,T} <: AbstractMonomial{A,T}`
-- [ ] Implement shared interface: `degree`, `variable_indices`, `isless`
+### Phase 2: Add `AbstractMonomial` hierarchy ✅
+- [x] Define `AbstractMonomial{A,T}` abstract type
+- [x] Make `Monomial{A,T} <: AbstractMonomial{A,T}`
+- [x] Implement shared interface: `degree`, `variable_indices`, `isless`
 
-### Phase 3: Add `PauliMonomial{T}`
-- [ ] Create `src/types/pauli_monomial.jl`
-- [ ] Define struct with `mono::Monomial{Pauli,T}` + `phase_k::UInt8`
-- [ ] Implement constructor calling `_simplify_pauli_word!`
-- [ ] Implement `==`, `hash`, `isless` (include phase_k)
-- [ ] Implement `*` returning `PauliMonomial`
-- [ ] Implement `adjoint` (conjugate phase_k)
-- [ ] Implement `symmetric_canon` (identity on mono, conjugate phase_k)
-- [ ] Add display methods
-- [ ] Export from module
+### Phase 3: Add `PauliMonomial{T}` ✅
+- [x] Create `src/types/pauli_monomial.jl`
+- [x] Define struct with `mono::Monomial{Pauli,T}` + `phase_k::UInt8`
+- [x] Implement constructor calling `_simplify_pauli_word!`
+- [x] Implement `==`, `hash`, `isless` (include phase_k)
+- [x] Implement `*` returning `PauliMonomial`
+- [x] Implement `adjoint` (conjugate phase_k)
+- [x] Implement `symmetric_canon` (identity on mono, conjugate phase_k)
+- [x] Add display methods
+- [x] Export from module
 
-### Phase 4: Add `PhysicsMonomial{A,T}`
-- [ ] Create `src/types/physics_monomial.jl`
-- [ ] Define struct with `coeffs::Vector{Int}` + `monos::Vector{Monomial{A,T}}`
-- [ ] Implement constructor calling `_simplify_*_word!`
-- [ ] Implement `==`, `hash`, `isless`
-- [ ] Implement `*` (distribute, normal-order, collect)
-- [ ] Implement `adjoint`
-- [ ] Add display methods
-- [ ] Export from module
+### Phase 4: Add `PhysicsMonomial{A,T}` ✅
+- [x] Create `src/types/physics_monomial.jl`
+- [x] Define struct with `coeffs::Vector{Int}` + `monos::Vector{Monomial{A,T}}`
+- [x] Implement constructor calling `_simplify_*_word!`
+- [x] Implement `==`, `hash`, `isless`
+- [x] Implement `*` (distribute, normal-order, collect)
+- [x] Implement `adjoint`
+- [x] Add display methods
+- [x] Export from module
 
-### Phase 5: Update `Monomial{A,T}` constructor (BREAKING)
-- [ ] Add validation dispatch in inner constructor
+### Phase 5: Update `Monomial{A,T}` constructor (PARTIAL)
+- [x] Add `validate()` function for explicit validation
+- [ ] Add validation dispatch in inner constructor (DEFERRED - breaks internal code)
 - [ ] Update tests that create invalid monomials
 
-### Phase 6: Update multiplication dispatch (BREAKING)
-- [ ] `Monomial{Pauli} * Monomial{Pauli}` → `PauliMonomial`
-- [ ] `Monomial{Fermi} * Monomial{Fermi}` → `PhysicsMonomial`
-- [ ] `Monomial{Boson} * Monomial{Boson}` → `PhysicsMonomial`
-- [ ] Update call sites expecting old return types
+### Phase 6: Update multiplication dispatch (BREAKING) ✅
+- [x] `Monomial{Pauli} * Monomial{Pauli}` → `PauliMonomial`
+- [x] `Monomial{Fermi} * Monomial{Fermi}` → `PhysicsMonomial`
+- [x] `Monomial{Boson} * Monomial{Boson}` → `PhysicsMonomial`
+- [ ] Update call sites expecting old return types (DEFERRED to Phase 7-8)
 
 ### Phase 7: Update basis construction
 - [ ] `get_ncbasis` returns `Vector{PauliMonomial{T}}` for Pauli

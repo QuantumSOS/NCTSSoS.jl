@@ -116,7 +116,28 @@ function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
     word_copy = copy(m.word)
     m_copy = Monomial{BosonicAlgebra,T}(word_copy)
     term_vec = simplify_bosonic_grouped!(m_copy)
-    return Polynomial(term_vec)
+
+    # Convert from Vector{Term} to PhysicsMonomial
+    if isempty(term_vec)
+        return PhysicsMonomial{BosonicAlgebra,T}(Int[0], [Monomial{BosonicAlgebra,T}(T[])])
+    end
+
+    coeffs = Int[]
+    monos = Monomial{BosonicAlgebra,T}[]
+    for term in term_vec
+        int_coef = round(Int, term.coefficient)
+        if int_coef != 0
+            push!(coeffs, int_coef)
+            push!(monos, term.monomial)
+        end
+    end
+
+    if isempty(coeffs)
+        return PhysicsMonomial{BosonicAlgebra,T}(Int[0], [Monomial{BosonicAlgebra,T}(T[])])
+    end
+
+    combined = _combine_physics_terms(coeffs, monos)
+    return PhysicsMonomial{BosonicAlgebra,T}(combined[1], combined[2])
 end
 
 # =============================================================================

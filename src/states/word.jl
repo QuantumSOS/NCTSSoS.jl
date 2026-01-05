@@ -3,7 +3,7 @@
 # =============================================================================
 
 """
-    StateSymbol{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial
+    StateSymbol{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial{A,T}
 
 A single state expectation symbol wrapping a canonicalized monomial.
 
@@ -41,7 +41,7 @@ julia> degree(sym)
 
 See also: [`StateWord`](@ref), [`_state_canon`](@ref)
 """
-struct StateSymbol{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial
+struct StateSymbol{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     mono::Monomial{A,T}
 
     # Inner constructor: canonicalize on construction
@@ -197,7 +197,7 @@ end
 # =============================================================================
 
 """
-    StateWord{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial
+    StateWord{ST<:StateType, A<:AlgebraType, T<:Integer} <: AbstractMonomial{A,T}
 
 A product of state expectations <M1><M2>...<Mk>.
 
@@ -248,7 +248,7 @@ julia> degree(sw)
 
 See also: [`StateSymbol`](@ref), [`NCStateWord`](@ref), [`StatePolynomial`](@ref)
 """
-struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial
+struct StateWord{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     state_syms::Vector{StateSymbol{ST,A,T}}
 
     # Inner constructor from symbols (already canonicalized)

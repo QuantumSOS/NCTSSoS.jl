@@ -1,13 +1,36 @@
 """
-    AbstractMonomial
+    AbstractMonomial{A<:AlgebraType, T<:Integer}
 
-Abstract supertype for all monomial types.
+Abstract supertype for all monomial types, parameterized by algebra type and integer type.
 
-Subtypes:
-- `Monomial{A,T}`: Single-algebra monomial
-- `ComposedMonomial{Ts}`: Tensor product of monomials from different algebras
+The type hierarchy is:
+```
+AbstractMonomial{A,T}
+├── Monomial{A,T}           # Bare word (always in canonical form)
+├── PauliMonomial{T}        # <: AbstractMonomial{PauliAlgebra,T} - canonical mono + phase_k
+└── PhysicsMonomial{A,T}    # <: AbstractMonomial{A,T} where A ∈ {Fermi,Boson} - sum of int×mono
+```
+
+# Interface
+All subtypes should implement:
+- `degree(m)`: Return total degree (number of operators)
+- `variable_indices(m)`: Return set of variable indices present
+- `Base.isless(m1, m2)`: Ordering for sorting
+- `Base.:(==)(m1, m2)`: Equality comparison
+- `Base.hash(m, h)`: Hash function
+
+See also: [`Monomial`](@ref), [`PauliMonomial`](@ref), [`PhysicsMonomial`](@ref)
 """
-abstract type AbstractMonomial end
+abstract type AbstractMonomial{A<:AlgebraType,T<:Integer} end
+
+# Backward-compatible non-parameterized alias for ComposedMonomial
+"""
+    AbstractMonomialUntyped
+
+Non-parameterized abstract monomial type for ComposedMonomial compatibility.
+Prefer using `AbstractMonomial{A,T}` for new code.
+"""
+abstract type AbstractMonomialUntyped end
 
 # Module-level constant for superscript display (avoids allocation in show loop)
 const SUPERSCRIPT_EXPONENTS = Dict(
@@ -22,7 +45,7 @@ const SUPERSCRIPT_EXPONENTS = Dict(
 )
 
 """
-    Monomial{A<:AlgebraType, T<:Integer} <: AbstractMonomial
+    Monomial{A<:AlgebraType, T<:Integer} <: AbstractMonomial{A,T}
 
 Represents an immutable monomial in word representation for non-commutative algebras.
 The word vector represents a product of operators (e.g., [1,3,1,3] = xzxz).
@@ -88,7 +111,7 @@ julia> m1 == m3
 true
 ```
 """
-struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial
+struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     word::Vector{T}
 end
 

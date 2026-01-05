@@ -1,5 +1,5 @@
 """
-    ComposedMonomial{Ts<:Tuple} <: AbstractMonomial
+    ComposedMonomial{Ts<:Tuple} <: AbstractMonomialUntyped
 
 Represents a product of monomials from DIFFERENT algebra types.
 
@@ -61,7 +61,7 @@ julia> terms[1].monomial[2].word == [encode_index(UInt16, 2, 1)]  # Unipotent: [
 true
 ```
 """
-struct ComposedMonomial{Ts<:Tuple} <: AbstractMonomial
+struct ComposedMonomial{Ts<:Tuple} <: AbstractMonomialUntyped
     components::Ts
 end
 

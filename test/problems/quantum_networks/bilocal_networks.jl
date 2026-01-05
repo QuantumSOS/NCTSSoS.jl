@@ -156,6 +156,6 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
 
         @test result.objective ≈ EXPECTED_BILOCAL.TS_d3.opt atol = 1e-6
         @test_broken flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BILOCAL.TS_d3.sides
-        @test_broken result.n_unique_moment_matrix_elements == EXPECTED_BILOCAL.TS_d3.nuniq
+        @test result.n_unique_moment_matrix_elements == EXPECTED_BILOCAL.TS_d3.nuniq
     end
 end

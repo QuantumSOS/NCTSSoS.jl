@@ -253,6 +253,10 @@ function Polynomial{A,T,C}(c::Number) where {A<:AlgebraType,T<:Integer,C<:Number
     return Polynomial{A,T,C}([Term(C(c), Monomial{A}(T[]))])
 end
 
+# NOTE: Polynomial constructors from PauliMonomial and PhysicsMonomial are defined
+# in their respective files (pauli_monomial.jl, physics_monomial.jl) since they
+# are loaded after polynomial.jl
+
 # =============================================================================
 # Type Conversion
 # =============================================================================

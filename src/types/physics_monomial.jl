@@ -560,3 +560,34 @@ function _combine_physics_terms(
     sort!(final_pairs, by=p -> Monomial{A}(p[2]))
     return ([p[1] for p in final_pairs], [Monomial{A,T}(p[2]) for p in final_pairs])
 end
+
+# =============================================================================
+# Polynomial Conversion
+# =============================================================================
+
+"""
+    Polynomial(phm::PhysicsMonomial{A,T}) where {A,T}
+
+Convert a PhysicsMonomial to a Polynomial{A,T,Float64}.
+
+The integer coefficients are converted to Float64.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> phm = PhysicsMonomial{FermionicAlgebra}(Int32[1, -1]);  # a₁ a₁† = 1 - a₁† a₁
+
+julia> p = Polynomial(phm);
+
+julia> length(terms(p))
+2
+```
+"""
+function Polynomial(phm::PhysicsMonomial{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
+    if iszero(phm)
+        return Polynomial{A,T,Float64}(Term{Monomial{A,T},Float64}[])
+    end
+    terms_vec = [Term(Float64(c), m) for (c, m) in zip(phm.coeffs, phm.monos) if c != 0]
+    Polynomial(terms_vec)
+end

@@ -413,3 +413,31 @@ function Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) whe
     combined_word = vcat(m1.word, m2.word)
     PauliMonomial(combined_word)
 end
+
+# =============================================================================
+# Polynomial Conversion
+# =============================================================================
+
+"""
+    Polynomial(pm::PauliMonomial{T}) where {T}
+
+Convert a PauliMonomial to a Polynomial{PauliAlgebra,T,ComplexF64}.
+
+The phase is converted to a complex coefficient.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> pm = PauliMonomial([1, 2]);  # σx₁ σy₁ = i σz₁
+
+julia> p = Polynomial(pm);
+
+julia> coefficients(p)[1]
+0.0 + 1.0im
+```
+"""
+function Polynomial(pm::PauliMonomial{T}) where {T<:Integer}
+    coef = _phase_k_to_complex(pm.phase_k)
+    Polynomial(Term(coef, pm.mono))
+end

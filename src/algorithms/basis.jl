@@ -148,8 +148,9 @@ function _get_ncbasis_deg(
     result = PauliMonomial{T}[]
 
     for word in all_words
-        mono = Monomial{PauliAlgebra}(word)
-        simplified = simplify(mono)  # returns PauliMonomial{T}
+        # Use PauliMonomial constructor directly - it handles canonicalization
+        # (Monomial{PauliAlgebra}(word) now validates and rejects non-canonical words)
+        simplified = PauliMonomial(word)
         push!(result, simplified)
     end
 
@@ -167,8 +168,9 @@ function _get_ncbasis_deg(
     result = PhysicsMonomial{A,T}[]
 
     for word in all_words
-        mono = Monomial{A}(word)
-        simplified = simplify(mono)  # returns PhysicsMonomial{A,T}
+        # Use PhysicsMonomial constructor directly - it handles normal-ordering
+        # (Monomial{A}(word) now validates and rejects non-normal-ordered words)
+        simplified = PhysicsMonomial{A}(word)
         push!(result, simplified)
     end
 

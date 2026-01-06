@@ -79,7 +79,8 @@ using NCTSSoS: ComposedMonomial
         @test t1 != t4
 
         # Cross-algebra comparison should return false
-        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        # Use different sites for Pauli: 1,4 = σx on site 1, σx on site 2
+        m_pauli = Monomial{PauliAlgebra}([1, 4])
         t_pauli = Term(2.0, m_pauli)
         @test t1 != t_pauli
 

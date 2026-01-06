@@ -217,9 +217,10 @@ end
         # Zero PhysicsMonomial has no coeffs or all zeros
         @test iszero(result_dag_dag)
 
-        # Direct monomial construction
-        m_nilp = Monomial{FermionicAlgebra}(Int32[1, 1])
-        @test iszero(m_nilp)
+        # Direct construction using PhysicsMonomial (Monomial validates normal-order)
+        # a₁ a₁ = 0 (nilpotent - same mode annihilators)
+        pm_nilp = PhysicsMonomial{FermionicAlgebra}(Int32[1, 1])
+        @test iszero(pm_nilp)
 
         # Non-nilpotent case: a₁ a₁† a₁ a₁† ≠ 0 (alternating)
         m_alt = a[1] * a_dag[1] * a[1] * a_dag[1]
@@ -227,42 +228,37 @@ end
     end
 
     @testset "Surplus-based iszero (net flux >= 2)" begin
+        # Use PhysicsMonomial for non-normal-ordered words (Monomial validates)
         # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0 (surplus of 2 annihilations for mode 1)
-        m_cross_mode = Monomial{FermionicAlgebra}(Int32[1, 2, 1])
-        @test iszero(m_cross_mode)
+        pm_cross_mode = PhysicsMonomial{FermionicAlgebra}(Int32[1, 2, 1])
+        @test iszero(pm_cross_mode)
 
         # a₁† a₂† a₁† = 0 (surplus of 2 creations for mode 1)
-        m_cross_mode_dag = Monomial{FermionicAlgebra}(Int32[-1, -2, -1])
-        @test iszero(m_cross_mode_dag)
+        pm_cross_mode_dag = PhysicsMonomial{FermionicAlgebra}(Int32[-1, -2, -1])
+        @test iszero(pm_cross_mode_dag)
 
-        # a₁ a₁ a₁† has surplus 1 (2 ann - 1 cre = 1), NOT zero yet
-        # simplify will handle it via anticommutation: a₁ a₁ a₁† = a₁ (1 - a₁† a₁) = a₁
-        # Wait, a₁ a₁ = 0, so a₁ a₁ a₁† = 0. Let me reconsider.
-        # Actually: a₁ a₁ a₁† = (a₁ a₁) a₁† = 0 * a₁† = 0
-        # The surplus check is |2 - 1| = 1 < 2, so iszero returns false
-        # But simplify should still return 0 because a₁ a₁ = 0
-        m_surplus_1 = Monomial{FermionicAlgebra}(Int32[1, 1, -1])
-        @test !iszero(m_surplus_1)  # iszero uses surplus >= 2 check
-        result_surplus = simplify(m_surplus_1)
-        # But simplify should detect nilpotency via the full algorithm
-        @test iszero(result_surplus)
+        # a₁ a₁ a₁† has surplus 1 (2 ann - 1 cre = 1)
+        # Actually: a₁ a₁ a₁† = (a₁ a₁) a₁† = 0 * a₁† = 0 due to nilpotency
+        pm_surplus_1 = PhysicsMonomial{FermionicAlgebra}(Int32[1, 1, -1])
+        # PhysicsMonomial auto-simplifies and detects nilpotency
+        @test iszero(pm_surplus_1)
 
         # a₁† a₁ a₁† has surplus -1 (1 - 2 = -1), NOT zero
         # a₁† a₁ a₁† = a₁† (1 - a₁† a₁) = a₁† - a₁† a₁† a₁ = a₁† - 0 = a₁† ≠ 0
-        m_surplus_neg1 = Monomial{FermionicAlgebra}(Int32[-1, 1, -1])
-        @test !iszero(m_surplus_neg1)
-        result_neg1 = simplify(m_surplus_neg1)
-        @test length(result_neg1.coeffs) == 1
-        @test result_neg1.coeffs[1] == 1
-        @test result_neg1.monos[1].word == [-1]  # Just a₁†
+        pm_surplus_neg1 = PhysicsMonomial{FermionicAlgebra}(Int32[-1, 1, -1])
+        @test !iszero(pm_surplus_neg1)
+        # PhysicsMonomial already simplified - just verify it's a₁†
+        @test length(pm_surplus_neg1.coeffs) == 1
+        @test pm_surplus_neg1.coeffs[1] == 1
+        @test pm_surplus_neg1.monos[1].word == [-1]  # Just a₁†
 
         # a₁ a₂ a₃ a₁ a₂ = 0 (modes 1 and 2 each have surplus 2)
-        m_multi_surplus = Monomial{FermionicAlgebra}(Int32[1, 2, 3, 1, 2])
-        @test iszero(m_multi_surplus)
+        pm_multi_surplus = PhysicsMonomial{FermionicAlgebra}(Int32[1, 2, 3, 1, 2])
+        @test iszero(pm_multi_surplus)
 
         # a₁ a₂ a₁† a₂† = non-zero (each mode has surplus 0)
-        m_balanced = Monomial{FermionicAlgebra}(Int32[1, 2, -1, -2])
-        @test !iszero(m_balanced)
+        pm_balanced = PhysicsMonomial{FermionicAlgebra}(Int32[1, 2, -1, -2])
+        @test !iszero(pm_balanced)
     end
 
     @testset "Multi-mode" begin
@@ -551,94 +547,88 @@ end
 
 @testset "Immutable Monomial Simplification" begin
     # encode_index is imported at the top of this file
+    # NOTE: SimpleAlgebra constructors now auto-canonicalize (sort by site, apply simplifications).
+    # So the "original" is already in canonical form after construction.
 
     @testset "NonCommutative simplification returns new monomial" begin
-        # Create monomial with indices out of order by site
+        # Create monomial - constructor auto-sorts by site
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
         m_nc = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
 
         result_nc = simplify(m_nc)
 
-        # Verify different object returned (immutable)
+        # Verify different object returned (immutable - simplify always copies)
         @test result_nc !== m_nc
 
         # Verify result is sorted (site 1 before site 2)
         @test result_nc.word == [idx1_s1, idx1_s2]
 
-        # Original is unchanged
-        @test m_nc.word == [idx1_s2, idx1_s1]
+        # Original is also sorted (constructor auto-canonicalizes)
+        @test m_nc.word == [idx1_s1, idx1_s2]
     end
 
     @testset "Unipotent simplification with pair cancellation" begin
-        # Create monomial that will have pairs cancel: U[1] * U[1] = I
+        # Create monomial - constructor auto-simplifies U² = I
         idx1_s1 = encode_index(UInt16, 1, 1)
         m_uni = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
 
         result_uni = simplify(m_uni)
 
-        # Verify different object returned (immutable)
+        # Verify different object returned (immutable - simplify always copies)
         @test result_uni !== m_uni
 
-        # Verify word is empty (U^2 = I = empty word)
+        # Both are empty (constructor applied U² = I simplification)
         @test isempty(result_uni.word)
-
-        # Original is unchanged
-        @test length(m_uni.word) == 2
+        @test isempty(m_uni.word)
     end
 
     @testset "Unipotent simplification with site-based reordering" begin
-        # UnipotentAlgebra: operators on different sites commute (sorted by site)
+        # UnipotentAlgebra: constructor auto-sorts by site
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
         m_uni2 = Monomial{UnipotentAlgebra}(UInt16[idx1_s2, idx1_s1])
 
         result_uni2 = simplify(m_uni2)
 
-        # Verify different object returned (immutable)
+        # Verify different object returned (immutable - simplify always copies)
         @test result_uni2 !== m_uni2
 
-        # Verify word is site-sorted (site 1 before site 2)
+        # Both are site-sorted (constructor auto-canonicalizes)
         @test result_uni2.word == [idx1_s1, idx1_s2]
-
-        # Original is unchanged
-        @test m_uni2.word == [idx1_s2, idx1_s1]
+        @test m_uni2.word == [idx1_s1, idx1_s2]
     end
 
     @testset "Projector simplification with duplicate removal" begin
-        # Create monomial with consecutive duplicates: P[1] * P[1] * P[1] = P[1]
+        # Create monomial - constructor auto-simplifies P² = P
         idx1_s1 = encode_index(UInt16, 1, 1)
         m_proj = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1, idx1_s1])
 
         result_proj = simplify(m_proj)
 
-        # Verify different object returned (immutable)
+        # Verify different object returned (immutable - simplify always copies)
         @test result_proj !== m_proj
 
-        # Verify word has single element (P^3 = P)
+        # Both have single element (constructor applied P³ = P simplification)
         @test length(result_proj.word) == 1
         @test result_proj.word == [idx1_s1]
-
-        # Original is unchanged
-        @test length(m_proj.word) == 3
+        @test length(m_proj.word) == 1
     end
 
     @testset "Projector simplification with reordering" begin
-        # Create monomial with different sites that will be reordered
+        # Create monomial - constructor auto-sorts by site
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
         m_proj2 = Monomial{ProjectorAlgebra}(UInt16[idx1_s2, idx1_s1])
 
         result_proj2 = simplify(m_proj2)
 
-        # Verify different object returned (immutable)
+        # Verify different object returned (immutable - simplify always copies)
         @test result_proj2 !== m_proj2
 
-        # Verify word was sorted (site 1 before site 2)
+        # Both are sorted (constructor auto-canonicalizes)
         @test result_proj2.word == [idx1_s1, idx1_s2]
-
-        # Original is unchanged
-        @test m_proj2.word == [idx1_s2, idx1_s1]
+        @test m_proj2.word == [idx1_s1, idx1_s2]
     end
 end
 
@@ -758,7 +748,10 @@ end
         idx1_s1 = encode_index(UInt16, 1, 1)
         idx1_s2 = encode_index(UInt16, 1, 2)
 
-        # NonCommutative: simplify creates new, simplify! mutates
+        # NOTE: SimpleAlgebra constructors now auto-canonicalize.
+        # Both simplify and simplify! operate on already-canonical monomials.
+
+        # NonCommutative: constructor auto-sorts, so both start sorted
         m1 = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
         m2 = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
 
@@ -767,10 +760,10 @@ end
 
         @test result1 !== m1  # simplify returns new object
         @test result2 === m2  # simplify! returns same object
-        @test m1.word == [idx1_s2, idx1_s1]  # Original unchanged by simplify
-        @test m2.word == [idx1_s1, idx1_s2]  # Original mutated by simplify!
+        @test m1.word == [idx1_s1, idx1_s2]  # Already sorted by constructor
+        @test m2.word == [idx1_s1, idx1_s2]  # simplify! on already-sorted is no-op
 
-        # Projector: simplify creates new, simplify! mutates
+        # Projector: constructor auto-simplifies P² = P
         m3 = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
         m4 = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
 
@@ -779,10 +772,10 @@ end
 
         @test result3 !== m3
         @test result4 === m4
-        @test length(m3.word) == 2  # Original unchanged
-        @test length(m4.word) == 1  # Original mutated
+        @test length(m3.word) == 1  # Already simplified by constructor
+        @test length(m4.word) == 1  # simplify! on already-simplified is no-op
 
-        # Unipotent: simplify creates new, simplify! mutates
+        # Unipotent: constructor auto-simplifies U² = I
         m5 = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
         m6 = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
 
@@ -791,8 +784,8 @@ end
 
         @test result5 !== m5
         @test result6 === m6
-        @test length(m5.word) == 2  # Original unchanged
-        @test isempty(m6.word)  # Original mutated
+        @test isempty(m5.word)  # Already simplified by constructor
+        @test isempty(m6.word)  # simplify! on already-simplified is no-op
     end
 end
 
@@ -1588,4 +1581,196 @@ end
     end
 end
 
-# TODO: simplify test cases needs to verify with variables from different physical sites, they also work
+# =============================================================================
+# Multi-site simplification tests
+# =============================================================================
+
+@testset "Multi-site simplification" begin
+    # Setup: 2 variables per site, 2 sites
+    # Site 1: a, b (a < b)
+    # Site 2: c, d (c < d)
+    # Raw word: [b, c, a, d] - out of order
+
+    @testset "Pauli multi-site" begin
+        # Create variables on 2 sites with 3 ops each (σx, σy, σz)
+        reg, (σx, σy, σz) = create_pauli_variables(1:2)
+
+        a, b = σx[1].word[1], σy[1].word[1]  # site 1, a < b
+        c, d = σx[2].word[1], σy[2].word[1]  # site 2, c < d
+
+        raw_word = [b, c, a, d]  # out of order across sites
+
+        # Test canonical ordering: stable sort by site
+        pm = PauliMonomial(raw_word)
+
+        # Site 1 ops should come before site 2
+        # Use Pauli site encoding: site = (idx-1) ÷ 3 + 1
+        pauli_site(idx) = (idx - 1) ÷ 3 + 1
+        sites = pauli_site.(pm.mono.word)
+        @test issorted(sites)
+
+        # Within each site, simplification occurs (σy σx = -i σz)
+        # So we should have at most 1 op per site after simplification
+        site_counts = Dict{Int,Int}()
+        for s in sites
+            site_counts[s] = get(site_counts, s, 0) + 1
+        end
+        for (_, count) in site_counts
+            @test count <= 1
+        end
+    end
+
+    @testset "Fermionic multi-mode" begin
+        reg, (a_op,) = create_fermionic_variables(1:4)
+
+        # Get raw indices
+        a1 = a_op[1].word[1]  # mode 1 annihilation
+        a2 = a_op[2].word[1]  # mode 2 annihilation
+
+        # Different modes anticommute: a₁ a₂ = -a₂ a₁
+        # PhysicsMonomial will normal-order these
+        pm12 = PhysicsMonomial{FermionicAlgebra}(Int32[a1, a2])
+        pm21 = PhysicsMonomial{FermionicAlgebra}(Int32[a2, a1])
+
+        # Both should have one term in normal order
+        @test length(pm12.coeffs) == 1
+        @test length(pm21.coeffs) == 1
+
+        # pm21 should have opposite sign from pm12
+        # because swapping annihilation operators gives -1
+        @test pm12.coeffs[1] == -pm21.coeffs[1]
+    end
+
+    @testset "Bosonic multi-mode" begin
+        reg, (c_op,) = create_bosonic_variables(1:4)
+
+        # Get raw indices
+        c1 = c_op[1].word[1]  # mode 1 annihilation
+        c2 = c_op[2].word[1]  # mode 2 annihilation
+
+        # Different modes commute: c₁ c₂ = c₂ c₁
+        pm12 = PhysicsMonomial{BosonicAlgebra}(Int32[c1, c2])
+        pm21 = PhysicsMonomial{BosonicAlgebra}(Int32[c2, c1])
+
+        # Both should be equal (modes commute)
+        @test length(pm12.coeffs) == length(pm21.coeffs)
+        @test length(pm12.coeffs) == 1
+        @test pm12.coeffs[1] == pm21.coeffs[1]
+    end
+
+    @testset "NonCommutative multi-site" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:4)])
+
+        a, b = x[1].word[1], x[2].word[1]  # different indices
+        c, d = x[3].word[1], x[4].word[1]  # different indices
+
+        raw_word = UInt16[b, c, a, d]  # out of order by site
+
+        # Test: stable sort by site in constructor
+        m = Monomial{NonCommutativeAlgebra}(raw_word)
+        @test issorted(decode_site.(m.word))
+    end
+end
+
+# =============================================================================
+# Constructor simplification tests
+# =============================================================================
+
+@testset "Constructor simplification" begin
+    @testset "Unipotent constructor simplification" begin
+        reg, (u,) = create_unipotent_variables([("u", 1:2)])
+        a, b = u[1].word[1], u[2].word[1]
+
+        # u₁ u₁ should simplify to identity (U² = I)
+        m = Monomial{UnipotentAlgebra}(UInt16[a, a])
+        @test isone(m)
+
+        # u₁ u₂ u₁ u₂ should simplify to identity
+        m2 = Monomial{UnipotentAlgebra}(UInt16[a, b, a, b])
+        @test isone(m2)
+
+        # u₁ u₂ u₁ should simplify (cascade)
+        m3 = Monomial{UnipotentAlgebra}(UInt16[a, b, a])
+        @test m3.word == [b]
+    end
+
+    @testset "Projector constructor simplification" begin
+        reg, (p,) = create_projector_variables([("p", 1:2)])
+        a, b = p[1].word[1], p[2].word[1]
+
+        # p₁ p₁ should simplify to p₁ (P² = P)
+        m = Monomial{ProjectorAlgebra}(UInt16[a, a])
+        @test m.word == [a]
+
+        # p₁ p₁ p₁ should simplify to p₁
+        m2 = Monomial{ProjectorAlgebra}(UInt16[a, a, a])
+        @test m2.word == [a]
+
+        # p₁ p₂ p₁ stays as-is after site-sorting (different sites don't simplify directly)
+        # But order should be sorted by site
+        m3 = Monomial{ProjectorAlgebra}(UInt16[a, b, a])
+        @test issorted(decode_site.(m3.word))
+    end
+
+    @testset "Pauli constructor rejects non-canonical" begin
+        reg, (σx, σy, σz) = create_pauli_variables(1:1)
+        x, y = σx[1].word[1], σy[1].word[1]
+
+        # σx₁ σy₁ is NOT canonical (should be iσz₁)
+        @test_throws ArgumentError Monomial{PauliAlgebra}([x, y])
+
+        # σx₁ alone IS canonical
+        m = Monomial{PauliAlgebra}([x])
+        @test m.word == [x]
+
+        # Identity is canonical
+        m_id = Monomial{PauliAlgebra}(Int[])
+        @test isone(m_id)
+    end
+
+    @testset "Fermionic constructor rejects non-normal-ordered" begin
+        reg, (a,) = create_fermionic_variables(1:1)
+        ann = a[1].word[1]      # annihilation (positive)
+        cre = -ann              # creation (negative)
+
+        # a₁ a₁† is NOT normal-ordered (should be 1 - a₁†a₁)
+        @test_throws ArgumentError Monomial{FermionicAlgebra}([ann, cre])
+
+        # a₁†a₁ IS normal-ordered
+        m = Monomial{FermionicAlgebra}([cre, ann])
+        @test m.word == [cre, ann]
+
+        # Identity is normal-ordered
+        m_id = Monomial{FermionicAlgebra}(Int32[])
+        @test isone(m_id)
+    end
+
+    @testset "Bosonic constructor rejects non-normal-ordered" begin
+        reg, (c,) = create_bosonic_variables(1:1)
+        ann = c[1].word[1]
+        cre = -ann
+
+        # c₁ c₁† is NOT normal-ordered
+        @test_throws ArgumentError Monomial{BosonicAlgebra}([ann, cre])
+
+        # c₁†c₁ IS normal-ordered
+        m = Monomial{BosonicAlgebra}([cre, ann])
+        @test m.word == [cre, ann]
+
+        # Identity is normal-ordered
+        m_id = Monomial{BosonicAlgebra}(Int32[])
+        @test isone(m_id)
+    end
+
+    @testset "NonCommutative constructor auto-sorts" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+        a, b, c = x[1].word[1], x[2].word[1], x[3].word[1]
+
+        # Out of order by site
+        raw = UInt16[c, a, b]
+        m = Monomial{NonCommutativeAlgebra}(raw)
+
+        # Should be sorted by site
+        @test issorted(decode_site.(m.word))
+    end
+end

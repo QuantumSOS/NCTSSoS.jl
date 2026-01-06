@@ -371,8 +371,8 @@ function _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer}
         return Tuple{Int,Vector{T}}[(1, T[])]
     end
 
-    # Check for nilpotency (aᵢ² = 0) - create temp monomial for iszero check
-    m_temp = Monomial{FermionicAlgebra}(word)
+    # Check for nilpotency (aᵢ² = 0) - use inner constructor (skips validation)
+    m_temp = Monomial{FermionicAlgebra,T}(word)
     if iszero(m_temp)
         return Tuple{Int,Vector{T}}[(0, T[])]
     end
@@ -461,7 +461,7 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
 
     # Early exit for nilpotent monomials (aᵢ² = 0)
     if iszero(m)
-        return PhysicsMonomial{FermionicAlgebra,T}(Int[0], [Monomial{FermionicAlgebra,T}(T[])])
+        return PhysicsMonomial{FermionicAlgebra,T}(Int[], Monomial{FermionicAlgebra,T}[])
     end
 
     # Step 1: Find valid contractions
@@ -491,3 +491,68 @@ end
 
 # Note: simplify(pm::PhysicsMonomial{FermionicAlgebra}) and has_even_parity(::PhysicsMonomial)
 # are defined in physics_monomial.jl since PhysicsMonomial is loaded after simplification modules
+
+# =============================================================================
+# Validation (for Monomial constructor)
+# =============================================================================
+
+"""
+    _validate_fermionic_word!(word::Vector{T}) where {T<:Signed}
+
+Check that a fermionic word is in normal-ordered form. Throws `ArgumentError` if invalid.
+
+Normal order requirements:
+- Creation operators (negative indices) come before annihilation operators (positive)
+- Within each category, sorted by mode (|index|)
+
+This is used by `Monomial{FermionicAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_fermionic_word!(word::Vector{T}) where {T<:Signed}
+    isempty(word) && return nothing
+
+    if !is_normal_ordered(word)
+        throw(ArgumentError(
+            "Fermionic word is not normal-ordered. " *
+            "Use PhysicsMonomial{FermionicAlgebra}(word) for auto-normal-ordering."
+        ))
+    end
+    return nothing
+end
+
+# =============================================================================
+# Specialized Outer Constructor (validates, rejects non-normal-ordered)
+# =============================================================================
+
+"""
+    Monomial{FermionicAlgebra}(word::Vector{T}) where {T<:Signed}
+
+Construct a Fermionic monomial, validating that the input is in normal-ordered form.
+
+Throws `ArgumentError` if the word is not normal-ordered. For non-normal-ordered words,
+use `PhysicsMonomial{FermionicAlgebra}(word)` which auto-normal-orders and tracks coefficients.
+
+Normal order requirements:
+- Creation operators (negative indices) come before annihilation operators (positive)
+- Within each category, sorted by mode (|index|)
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m = Monomial{FermionicAlgebra}(Int32[-1, 1]);  # a₁† a₁ - normal ordered
+
+julia> m.word
+2-element Vector{Int32}:
+ -1
+  1
+
+julia> Monomial{FermionicAlgebra}(Int32[1, -1])  # a₁ a₁† - NOT normal ordered
+ERROR: ArgumentError: Fermionic word is not normal-ordered. Use PhysicsMonomial{FermionicAlgebra}(word) for auto-normal-ordering.
+```
+"""
+function Monomial{FermionicAlgebra}(word::Vector{T}) where {T<:Signed}
+    word_filtered = filter(!iszero, word)
+    # Validate BEFORE allocation - throws ArgumentError if non-normal-ordered
+    _validate_fermionic_word!(word_filtered)
+    return Monomial{FermionicAlgebra,T}(word_filtered)
+end

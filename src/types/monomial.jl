@@ -197,7 +197,10 @@ function Base.:^(m::Monomial{A,T}, n::Integer) where {A<:AlgebraType,T<:Integer}
     else
         # Repeat the word n times
         repeated_word = repeat(m.word, n)
-        return Monomial{A}(repeated_word)
+        # Use inner constructor to avoid re-validation
+        # The repeated word may not be canonical (e.g., Pauli [1,4,1,4])
+        # but this is intentional for testing word-level operations
+        return Monomial{A,T}(repeated_word)
     end
 end
 
@@ -418,7 +421,9 @@ function Base.adjoint(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     if T <: Signed
         new_word .= .-new_word
     end
-    return Monomial{A}(new_word)
+    # Use inner constructor to avoid re-canonicalization
+    # The input monomial is already canonical, and adjoint should return the exact reversed word
+    return Monomial{A,T}(new_word)
 end
 
 # =============================================================================

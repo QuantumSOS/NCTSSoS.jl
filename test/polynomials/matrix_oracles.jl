@@ -49,8 +49,9 @@ end
             for b in idxs
                 for c in idxs
                     word = [a, b, c]
-                    m = Monomial{PauliAlgebra}(word)
-                    pm = simplify(m)  # Returns PauliMonomial
+                    # Use PauliMonomial directly - it handles canonicalization
+                    # (Monomial{PauliAlgebra} now validates and rejects non-canonical)
+                    pm = PauliMonomial(word)
 
                     lhs = _pauli_word_oracle(word, nsites)
                     # PauliMonomial stores phase_k and mono separately
@@ -122,8 +123,9 @@ end
         nmodes = 3
 
         # Nilpotency: a₁a₁ = 0, a₁†a₁† = 0
+        # Use inner constructor to bypass validation (intentionally non-canonical for testing simplification)
         for word in (Int32[1, 1], Int32[-1, -1])
-            m = Monomial{FermionicAlgebra}(word)
+            m = Monomial{FermionicAlgebra,Int32}(word)
             p = simplify(m)
             lhs = _fermion_word_oracle(word, nmodes)
             rhs = _fermion_poly_oracle(p, nmodes)
@@ -131,14 +133,16 @@ end
         end
 
         # CAR: a₁ a₁† = 1 - a₁† a₁
-        m = Monomial{FermionicAlgebra}(Int32[1, -1])
+        # Use inner constructor to bypass validation (intentionally non-canonical for testing simplification)
+        m = Monomial{FermionicAlgebra,Int32}(Int32[1, -1])
         p = simplify(m)
         lhs = _fermion_word_oracle(m.word, nmodes)
         rhs = _fermion_poly_oracle(p, nmodes)
         @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
 
         # Cross-mode: a₁ a₂† = -a₂† a₁
-        m = Monomial{FermionicAlgebra}(Int32[1, -2])
+        # Use inner constructor to bypass validation (intentionally non-canonical for testing simplification)
+        m = Monomial{FermionicAlgebra,Int32}(Int32[1, -2])
         p = simplify(m)
         lhs = _fermion_word_oracle(m.word, nmodes)
         rhs = _fermion_poly_oracle(p, nmodes)

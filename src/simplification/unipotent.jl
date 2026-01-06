@@ -184,3 +184,37 @@ function simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     _simplify_unipotent_word!(word_copy)
     Monomial{UnipotentAlgebra,T}(word_copy)
 end
+
+# =============================================================================
+# Specialized Outer Constructor (auto-canonicalizes)
+# =============================================================================
+
+"""
+    Monomial{UnipotentAlgebra}(word::Vector{T}) where {T<:Unsigned}
+
+Construct a Unipotent monomial, auto-canonicalizing the input.
+
+Applies unipotent simplification rules:
+- U² = I (adjacent pairs of same operator cancel)
+- Different sites commute (stable sort by site)
+- Cascade elimination until no more reductions
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> using NCTSSoS: encode_index
+
+julia> u1 = encode_index(UInt16, 1, 1);
+
+julia> m = Monomial{UnipotentAlgebra}([u1, u1]);
+
+julia> isone(m)  # u₁ u₁ = I
+true
+```
+"""
+function Monomial{UnipotentAlgebra}(word::Vector{T}) where {T<:Unsigned}
+    word_filtered = filter(!iszero, word)
+    canonical = _simplify_unipotent_word!(copy(word_filtered))
+    return Monomial{UnipotentAlgebra,T}(canonical)
+end

@@ -52,11 +52,25 @@ struct PhysicsMonomial{A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer} <: 
     monos::Vector{Monomial{A,T}}
 
     # Inner constructor from already-canonical data
+    # Filters zero coefficients and uses empty vectors for zero result
     function PhysicsMonomial{A,T}(
         coeffs::Vector{Int},
         monos::Vector{Monomial{A,T}}
     ) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
         @assert length(coeffs) == length(monos) "coeffs and monos must have same length"
+
+        # Filter zero coefficients
+        nonzero_mask = coeffs .!= 0
+        if !all(nonzero_mask)
+            coeffs = coeffs[nonzero_mask]
+            monos = monos[nonzero_mask]
+        end
+
+        # Handle empty (zero) result - use empty vectors (cleaner representation)
+        if isempty(coeffs)
+            return new{A,T}(Int[], Monomial{A,T}[])
+        end
+
         new{A,T}(coeffs, monos)
     end
 end
@@ -102,8 +116,8 @@ function _build_physics_monomial(
     pairs = filter(p -> p[1] != 0, pairs)
 
     if isempty(pairs)
-        # Zero result - return single zero term with identity monomial
-        return PhysicsMonomial{A,T}([0], [Monomial{A}(T[])])
+        # Zero result - return empty PhysicsMonomial
+        return PhysicsMonomial{A,T}(Int[], Monomial{A,T}[])
     end
 
     # Sort by monomial for canonical form
@@ -163,9 +177,11 @@ end
     Base.iszero(pm::PhysicsMonomial) -> Bool
 
 Check if the PhysicsMonomial is zero.
+
+Zero is represented as empty vectors: `coeffs = Int[]`, `monos = Monomial{A,T}[]`.
 """
 function Base.iszero(pm::PhysicsMonomial)
-    all(==(0), pm.coeffs)
+    isempty(pm.coeffs)
 end
 
 """
@@ -182,10 +198,10 @@ Base.one(::PhysicsMonomial{A,T}) where {A,T} = one(PhysicsMonomial{A,T})
 """
     Base.zero(::Type{PhysicsMonomial{A,T}}) where {A,T}
 
-Return the zero PhysicsMonomial.
+Return the zero PhysicsMonomial (empty vectors).
 """
 function Base.zero(::Type{PhysicsMonomial{A,T}}) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
-    PhysicsMonomial{A,T}([0], [one(Monomial{A,T})])
+    PhysicsMonomial{A,T}(Int[], Monomial{A,T}[])
 end
 
 Base.zero(::PhysicsMonomial{A,T}) where {A,T} = zero(PhysicsMonomial{A,T})
@@ -542,13 +558,13 @@ Mixed multiplication between PhysicsMonomial and Monomial.
 """
 function Base.:*(pm::PhysicsMonomial{A,T}, m::Monomial{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
     # Convert monomial to PhysicsMonomial and multiply
-    pm_m = PhysicsMonomial{A,T}(Int[1], [m])
+    pm_m = PhysicsMonomial{A,T}([1], [m])
     pm * pm_m
 end
 
 function Base.:*(m::Monomial{A,T}, pm::PhysicsMonomial{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
     # Convert monomial to PhysicsMonomial and multiply
-    pm_m = PhysicsMonomial{A,T}(Int[1], [m])
+    pm_m = PhysicsMonomial{A,T}([1], [m])
     pm_m * pm
 end
 
@@ -576,7 +592,7 @@ function _combine_physics_terms(
     final_pairs = [(c, w) for (w, c) in grouped if c != 0]
 
     if isempty(final_pairs)
-        return (Int[0], [Monomial{A,T}(T[])])
+        return (Int[], Monomial{A,T}[])
     end
 
     sort!(final_pairs, by=p -> Monomial{A}(p[2]))

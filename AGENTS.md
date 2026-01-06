@@ -4,10 +4,11 @@
 - Dropping `Term` usually recreates it as `PauliMonomial` (scalar × basis word); expect extra allocation unless you keep a 1-term fast path.
 - CCR/CAR (boson/fermion): product of two basis words can expand to a sum; keep moment *labels* as `Monomial{A,T}` basis, and represent matrix entries as linear combinations.
 - If you keep separate `Monomial`/`PauliMonomial`/`PhysicsMonomial`, you still need mixed ops (`Monomial×PhysicsMonomial`, distributive `*`, `+`, `adjoint`, sort/dedup/zero-drop) to stay closed.
+- `Dict` keys: `Vector` uses content `isequal`/`hash` (identity only for `IdDict`), but mutating a vector after insertion breaks the dict; tuple-words give type-instability for variable-length words → keep `Vector{T}` storage and use copy-on-insert / an internal `WordKey{T}` wrapper when you need “frozen” keys.
 
 ## Conversation Transcript
 
-````text
+`````text
 User:
 # AGENTS.md instructions for /Users/exaclior/projects/NCTSSoS.jl-review
 
@@ -277,3 +278,56 @@ Notes now; refactors later.
 User:
 Export our whole conversation history into `AGENTS.md`
 ````
+
+Assistant:
+Combining like terms in fermionic/bosonic normal-ordering now relies on dictionaries keyed by mutable vectors, so identical monomials are not merged and coefficients are wrong in multiply/adjoint/simplify paths. This correctness issue affects core algebra operations.
+
+Full review comments:
+
+- [P1] Duplicate physics monomials not merged after multiplication — src/types/physics_monomial.jl:292-299
+  In `PhysicsMonomial` multiplication the like-term aggregation uses `Dict{Vector{T},Int}` keyed by raw word vectors, but arrays are hashed/compared by object identity, not contents, so identical words produced from different contraction paths end up as separate entries instead of being summed. This yields wrong coefficients whenever simplification generates duplicate words (e.g., distributing `(a₁+a₂)*(a₁+a₂†)` can leave multiple identical normal-ordered words unmerged). Use an immutable, value-compared key such as the `Monomial` itself or `Tuple(word)` to combine terms; the same pattern appears in the adjoint aggregation block nearby.
+
+- [P1] Fermionic/bosonic simplify fails to combine identical terms — src/types/physics_monomial.jl:569-577
+  `_combine_physics_terms` groups results with a `Dict{Vector{T},Int}` keyed by mutable vectors, which are compared by identity rather than contents. If normal-ordering produces the same canonical word more than once (common for fermionic Wick expansions), the duplicates are kept as separate terms instead of summing coefficients, giving incorrect PhysicsMonomial outputs. Switching the key to a content-equal type (e.g., `Monomial{A,T}` or `Tuple{T,...}`) is needed to correctly merge like terms across simplify calls.
+
+User:
+are you sure hashing are different? I had : "ulia> v1 = [1,2,3]
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+
+julia> v2 = [1,2,3]
+3-element Vector{Int64}:
+ 1
+ 2
+ 3
+
+julia> v1h = hash(v1)
+0x902ea5284b019f89
+
+julia> v2h = hash(v2)
+0x902ea5284b019f89"
+
+Assistant:
+Hi.
+Measure twice; patch once.
+
+`Dict` in Julia uses `isequal` + `hash`; for `Vector`, both are content-based, so `Dict{Vector,...}` will merge `v1=[1,2,3]` and `v2=[1,2,3]` (your `hash` check is consistent). Identity-based behavior is `IdDict`, not `Dict`.
+
+Real footgun remains: vector keys are mutable—if any word vector is mutated after it’s used as a key (or reused/aliased scratch vectors get mutated later), the dict can “lose” entries and you can get wrong combining.
+
+Do you ever mutate `m.word` / returned `w` after inserting, or reuse the same `Vector` object across terms?
+
+User:
+I don't mutate `Monomial`'s word and I have thought about making them a tuple, but that would make `Monomial` type unstable right?
+
+Assistant:
+Hi.
+Keep values fixed; proofs easy.
+
+- `Dict` is content-equality (`isequal` + `hash`); your `hash(v1)==hash(v2)` is expected for equal vectors. Identity-equality is `IdDict`.
+- Tuple storage: variable-length tuple ⇒ length in the type. Either (a) param by length → many `Monomial` concrete types / type-unstable containers, or (b) store as `Tuple`/`Tuple{Vararg{T}}` → abstract field. So for variable-length words, `Vector{T}` is the right representation.
+- If you only wanted “immutable key” safety: keep `Vector{T}` words, but key combining dicts by `Monomial{A,T}` (you already define `==/hash`) or `copy(w)` on insert (costly but bulletproof).
+
+`````

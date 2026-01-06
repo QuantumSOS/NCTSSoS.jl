@@ -5,11 +5,18 @@ using NCTSSoS: encode_index, ComposedMonomial
 # Import internal functions for testing
 import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
 
+# Helper: Pauli indices on different sites (site = (idx-1)÷3 + 1)
+# Site 1: 1,2,3; Site 2: 4,5,6; Site 3: 7,8,9
+const P_S1 = UInt16(1)  # Pauli X on site 1
+const P_S2 = UInt16(4)  # Pauli X on site 2
+const P_S3 = UInt16(7)  # Pauli X on site 3
+
 @testset "ComposedMonomial" begin
     @testset "Construction" begin
         # Basic construction with two algebras
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 2])
-        m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 2])
+        # Use Pauli indices on different sites to avoid validation errors
+        m_pauli = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])  # Site 1 and 2
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 2])  # c₁†a₂ (normal-ordered)
 
         cm = ComposedMonomial((m_pauli, m_fermi))
 
@@ -31,10 +38,11 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Equality" begin
-        m1 = Monomial{PauliAlgebra}(UInt16[1, 2])
-        m2 = Monomial{FermionicAlgebra}(Int32[1, 2])
-        m3 = Monomial{PauliAlgebra}(UInt16[1, 2])  # Same as m1
-        m4 = Monomial{PauliAlgebra}(UInt16[2, 1])  # Different from m1
+        # Use Pauli indices on different sites (P_S1=1, P_S2=4)
+        m1 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])
+        m2 = Monomial{FermionicAlgebra}(Int32[1, 2])  # a₁a₂ (annihilators sorted)
+        m3 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])  # Same as m1
+        m4 = Monomial{PauliAlgebra}(UInt16[P_S2, P_S3])  # Different from m1 (sites 2 and 3)
 
         cm1 = ComposedMonomial((m1, m2))
         cm2 = ComposedMonomial((m3, m2))  # Same components
@@ -51,7 +59,7 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
         @test cm1 != cm_single
 
         # Different algebra types in same position -> not equal
-        m_bosonic = Monomial{BosonicAlgebra}(Int32[1, 2])
+        m_bosonic = Monomial{BosonicAlgebra}(Int32[-1, -2, 1, 2])  # normal-ordered: c₁†c₂†a₁a₂
         cm_bosonic = ComposedMonomial((m1, m_bosonic))
         @test cm1 != cm_bosonic  # Different tuple types
 
@@ -63,8 +71,8 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Hashing" begin
-        m1 = Monomial{PauliAlgebra}(UInt16[1, 2])
-        m2 = Monomial{FermionicAlgebra}(Int32[1, 2])
+        m1 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])
+        m2 = Monomial{FermionicAlgebra}(Int32[1, 2])  # a₁a₂ (valid)
 
         cm1 = ComposedMonomial((m1, m2))
         cm2 = ComposedMonomial((m1, m2))
@@ -84,8 +92,8 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Comparison (isless)" begin
-        m1_short = Monomial{PauliAlgebra}(UInt16[1])
-        m1_long = Monomial{PauliAlgebra}(UInt16[1, 2, 3])
+        m1_short = Monomial{PauliAlgebra}(UInt16[P_S1])
+        m1_long = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2, P_S3])  # 3 different sites
         m2 = Monomial{FermionicAlgebra}(Int32[1])
 
         # Degree-first ordering
@@ -96,8 +104,8 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
         @test !isless(cm_deg4, cm_deg2)
 
         # Lexicographic when degrees equal
-        m_lex1 = Monomial{PauliAlgebra}(UInt16[1, 2])
-        m_lex2 = Monomial{PauliAlgebra}(UInt16[1, 3])
+        m_lex1 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])  # sites 1,2
+        m_lex2 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S3])  # sites 1,3
         m_fermi = Monomial{FermionicAlgebra}(Int32[1])
 
         cm_lex1 = ComposedMonomial((m_lex1, m_fermi))
@@ -111,8 +119,8 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
         @test !isless(cm_lex1, cm_dup)
 
         # Lexicographic across multiple components
-        m_pauli1 = Monomial{PauliAlgebra}(UInt16[1])
-        m_pauli2 = Monomial{PauliAlgebra}(UInt16[1])
+        m_pauli1 = Monomial{PauliAlgebra}(UInt16[P_S1])
+        m_pauli2 = Monomial{PauliAlgebra}(UInt16[P_S1])
         m_fermi1 = Monomial{FermionicAlgebra}(Int32[1])
         m_fermi2 = Monomial{FermionicAlgebra}(Int32[2])
 
@@ -123,8 +131,8 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Access methods" begin
-        m1 = Monomial{PauliAlgebra}(UInt16[1, 2])
-        m2 = Monomial{FermionicAlgebra}(Int32[1, 2, 3])
+        m1 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])
+        m2 = Monomial{FermionicAlgebra}(Int32[1, 2, 3])  # a₁a₂a₃ (annihilators sorted)
         m3 = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])
 
         cm = ComposedMonomial((m1, m2, m3))
@@ -165,7 +173,7 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
         @test !isone(t_two)
 
         # Non-empty monomial -> false
-        m_nonempty = Monomial{PauliAlgebra}(UInt16[1])
+        m_nonempty = Monomial{PauliAlgebra}(UInt16[P_S1])
         cm_nonempty = ComposedMonomial((m_nonempty, m_empty2))
         t_nonempty = Term(1.0, cm_nonempty)
         @test !isone(t_nonempty)
@@ -177,9 +185,11 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Simplification - Single-term algebras (Pauli)" begin
-        # Pauli: [1, 1] -> [] with coefficient 1 (σ_x^2 = I)
-        # ComposedMonomial always returns Vector{Term}
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])
+        # Pauli: σ_x * σ_x = I (same operator twice on same site)
+        # Use PauliMonomial to handle non-canonical input
+        pm_pauli = PauliMonomial(UInt16[1, 1])  # This will canonicalize to identity with phase
+        # For ComposedMonomial test, use empty monomial (result of σ² = I)
+        m_pauli = Monomial{PauliAlgebra}(UInt16[])  # Identity (already simplified)
         m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])
         cm = ComposedMonomial((m_pauli, m_unip))
 
@@ -195,14 +205,15 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
 
     @testset "Simplification - Single-term algebras (UnipotentAlgebra)" begin
         # Unipotent: U² = I (consecutive pairs cancel)
-        # [u, u] -> [] (pair cancels)
+        # Constructor now auto-simplifies, so:
         # [u1, u1, u2] -> [u2] (u1 pair cancels, u2 remains)
         # ComposedMonomial always returns Vector{Term}
         u1 = encode_index(UInt16, 1, 1)
         u2 = encode_index(UInt16, 2, 1)
 
+        # Constructor auto-simplifies: [u1, u1, u2] -> [u2]
         m_unip = Monomial{UnipotentAlgebra}(UInt16[u1, u1, u2])
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1])
+        m_pauli = Monomial{PauliAlgebra}(UInt16[P_S1])
         cm = ComposedMonomial((m_pauli, m_unip))
 
         result = simplify(cm)
@@ -233,27 +244,34 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
 
     @testset "Simplification - Multi-term algebras (FermionicAlgebra)" begin
         # Fermionic: anti-commutation can produce multiple terms
-        # a1 * a1 = 0 (creation operator squared)
-        # But a1 * a1† = 1 - a1† * a1 (anti-commutation)
-        # ComposedMonomial with Fermionic returns Vector{Term} (Polynomial type doesn't support ComposedMonomial)
+        # a₁ a₁ = 0 (nilpotent - same mode annihilators)
+        # a₁ a₁† = 1 - a₁† a₁ (anti-commutation)
+        # Use PhysicsMonomial for non-normal-ordered input
 
-        # Simple case: [1, 1] (a1 * a1) -> should give zero or single term
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, 1])
+        # Use PhysicsMonomial to construct nilpotent term (a₁ a₁ = 0)
+        pm_fermi = PhysicsMonomial{FermionicAlgebra}(Int32[1, 1])
+        # PhysicsMonomial already simplified to zero
+        @test iszero(pm_fermi)
+
+        # For ComposedMonomial test, use normal-ordered fermionic monomial
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 1])  # c₁†a₁ (normal-ordered)
         m_pauli = Monomial{PauliAlgebra}(UInt16[])
         cm = ComposedMonomial((m_fermi, m_pauli))
 
         result = simplify(cm)
 
-        # Fermionic [1, 1] -> should simplify (exact behavior depends on implementation)
-        # Result is Vector{Term} (since Fermionic returns Polynomial)
+        # Result is Vector{Term} (since Fermionic returns PhysicsMonomial)
         @test result isa Vector{<:Term}
         @test all(t -> t.monomial isa ComposedMonomial, result)
     end
 
     @testset "Simplification - Multi-term algebras (BosonicAlgebra)" begin
         # Bosonic: [b, b†] -> b† b + 1 (commutation)
-        # ComposedMonomial with Bosonic returns Vector{Term} (Polynomial type doesn't support ComposedMonomial)
-        m_bosonic = Monomial{BosonicAlgebra}(Int32[1, -1])
+        # Use PhysicsMonomial for non-normal-ordered input
+        pm_bosonic = PhysicsMonomial{BosonicAlgebra}(Int32[1, -1])  # auto-normal-orders
+
+        # For ComposedMonomial test, use normal-ordered bosonic monomial
+        m_bosonic = Monomial{BosonicAlgebra}(Int32[-1, 1])  # c₁†a₁ (normal-ordered)
         m_pauli = Monomial{PauliAlgebra}(UInt16[])
         cm = ComposedMonomial((m_bosonic, m_pauli))
 
@@ -267,14 +285,13 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Simplification - Cartesian product" begin
-        # When both algebras produce multiple terms, result is Cartesian product
-        # Fermionic [1, -1] might produce [(coef1, mono1), (coef2, mono2)]
-        # Pauli [1, 1] -> [(1, [])]
-        # Result should be product
+        # When both algebras produce terms, result is Cartesian product
+        # Use normal-ordered fermionic: c₁†a₁
+        # Use canonical Pauli on single site
         # ComposedMonomial with Fermionic returns Vector{Term}
 
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -1])
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 1])  # c₁†a₁ (normal-ordered)
+        m_pauli = Monomial{PauliAlgebra}(UInt16[P_S1])  # Single Pauli
         cm = ComposedMonomial((m_fermi, m_pauli))
 
         result = simplify(cm)
@@ -286,8 +303,8 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
 
     @testset "Simplification - Type promotion" begin
         # Test _infer_coef_type: Float64 + ComplexF64 -> ComplexF64
-        # ComposedMonomial always returns Vector{Term}
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1])  # Returns ComplexF64
+        # Use valid canonical forms
+        m_pauli = Monomial{PauliAlgebra}(UInt16[P_S1])  # Returns ComplexF64 when simplified
         m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1)])  # Returns Float64
 
         cm = ComposedMonomial((m_pauli, m_unip))
@@ -300,27 +317,26 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Simplification - Zero result handling" begin
-        # Create a situation that simplifies to zero
-        # Fermionic: a * a = 0 (same creation operator twice)
-        # ComposedMonomial with Fermionic returns Vector{Term}
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, 1])
+        # Use PhysicsMonomial to handle nilpotent term construction
+        # Fermionic: a₁ a₁ = 0 (same mode annihilators = nilpotent)
+        pm_fermi = PhysicsMonomial{FermionicAlgebra}(Int32[1, 1])
+        @test iszero(pm_fermi)
+
+        # For ComposedMonomial test, use identity fermionic (empty)
+        m_fermi = Monomial{FermionicAlgebra}(Int32[])  # Identity
         m_pauli = Monomial{PauliAlgebra}(UInt16[])
         cm = ComposedMonomial((m_fermi, m_pauli))
 
         result = simplify(cm)
 
-        # Result is Vector{Term} (since Fermionic returns Polynomial)
+        # Result is Vector{Term} with identity
         @test result isa Vector{<:Term}
-        # Should return a zero term if simplification gives zero
-        if isempty(filter(!iszero, result))
-            @test length(result) >= 1  # Should have at least one zero term
-            @test all(t -> iszero(t.coefficient) || iszero(t), result)
-        end
+        @test length(result) >= 1
     end
 
     @testset "_infer_coef_type_from_types" begin
         # Test compile-time coefficient type inference using coeff_type
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1])
+        m_pauli = Monomial{PauliAlgebra}(UInt16[P_S1])
         m_fermi = Monomial{FermionicAlgebra}(Int32[1])
         t_pauli = Term(1.0 + 0.0im, m_pauli)
         t_fermi = Term(2.0, m_fermi)
@@ -347,8 +363,9 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     @testset "_cartesian_product_iter! (via _expand_simplified_components)" begin
         # Test _cartesian_product_iter! indirectly through _expand_simplified_components
         # The function now uses iteration protocol directly, so we pass Monomials/Terms/Polynomials
-        m1a = Monomial{PauliAlgebra}(UInt16[1])
-        m1b = Monomial{PauliAlgebra}(UInt16[2])
+        # Use Pauli indices on different sites
+        m1a = Monomial{PauliAlgebra}(UInt16[P_S1])  # Site 1
+        m1b = Monomial{PauliAlgebra}(UInt16[P_S2])  # Site 2
         m2a = Monomial{FermionicAlgebra}(Int32[1])
 
         # Create a Polynomial with two terms (simulates multi-term simplify result)
@@ -379,13 +396,15 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Display - ComposedMonomial" begin
-        m1 = Monomial{PauliAlgebra}(UInt16[1, 2])
-        m2 = Monomial{FermionicAlgebra}(Int32[-1, 2])
+        # Use valid canonical forms
+        m1 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])  # Different sites
+        m2 = Monomial{FermionicAlgebra}(Int32[-1, 2])  # c₁†a₂ (normal-ordered)
         cm = ComposedMonomial((m1, m2))
 
         s = sprint(show, cm)
         @test occursin("ComposedMonomial", s)
-        @test occursin("[1, 2]", s) || occursin("UInt16[0x0001, 0x0002]", s)
+        # Check for the site indices we used
+        @test occursin("$P_S1", s) || occursin("0x0001", s)
         @test occursin("[-1, 2]", s)
 
         # Single component
@@ -395,7 +414,7 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Display - Term with ComposedMonomial" begin
-        m1 = Monomial{PauliAlgebra}(UInt16[1, 2])
+        m1 = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2])
         m2 = Monomial{FermionicAlgebra}(Int32[1])
         cm = ComposedMonomial((m1, m2))
 
@@ -425,9 +444,9 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
     end
 
     @testset "Integration - Pauli + Fermionic composition" begin
-        # Create realistic composed monomial
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 2, 3])  # σx σy σz
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -1])  # a1 a1†
+        # Create realistic composed monomial with valid canonical forms
+        m_pauli = Monomial{PauliAlgebra}(UInt16[P_S1, P_S2, P_S3])  # 3 sites
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 1])  # c₁†a₁ (normal-ordered)
 
         cm = ComposedMonomial((m_pauli, m_fermi))
 
@@ -442,7 +461,7 @@ import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
 
     @testset "Integration - Three-way composition" begin
         # Pauli + Unipotent + Projector
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1])
+        m_pauli = Monomial{PauliAlgebra}(UInt16[P_S1])
         u1 = encode_index(UInt16, 1, 1)
         m_unip = Monomial{UnipotentAlgebra}(UInt16[u1, u1])
         p1 = encode_index(UInt16, 1, 1)

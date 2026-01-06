@@ -69,7 +69,8 @@ using NCTSSoS: cyclic_symmetric_canon
         @test isone(m5_canon)
 
         # Test with PauliAlgebra (different algebra type)
-        mp = Monomial{PauliAlgebra}(UInt16[3, 2, 1])
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        mp = Monomial{PauliAlgebra,UInt16}(UInt16[3, 2, 1])
         mp_canon = symmetric_canon(mp)
         @test mp_canon.word == UInt16[1, 2, 3]
         @test mp_canon isa Monomial{PauliAlgebra}
@@ -138,7 +139,8 @@ using NCTSSoS: cyclic_symmetric_canon
         @test isone(m5_canon)
 
         # Test with PauliAlgebra
-        mp = Monomial{PauliAlgebra}(UInt16[2, 3, 1])
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        mp = Monomial{PauliAlgebra,UInt16}(UInt16[2, 3, 1])
         mp_canon = cyclic_canon(mp)
         @test mp_canon.word == UInt16[1, 2, 3]
         @test mp_canon isa Monomial{PauliAlgebra}
@@ -207,7 +209,8 @@ using NCTSSoS: cyclic_symmetric_canon
         @test isone(m4_canon)
 
         # Test with PauliAlgebra
-        mp = Monomial{PauliAlgebra}(UInt16[3, 2, 1])
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        mp = Monomial{PauliAlgebra,UInt16}(UInt16[3, 2, 1])
         mp_canon = cyclic_symmetric_canon(mp)
         @test mp_canon.word == UInt16[1, 2, 3]
         @test mp_canon isa Monomial{PauliAlgebra}
@@ -380,7 +383,8 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "canonicalize - type preservation" begin
         # Test that algebra types are preserved throughout
-        m_pauli = Monomial{PauliAlgebra}(UInt16[3, 2, 1])
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        m_pauli = Monomial{PauliAlgebra,UInt16}(UInt16[3, 2, 1])
         m_nc = Monomial{NonCommutativeAlgebra}([3, 2, 1])
 
         @test symmetric_canon(m_pauli) isa Monomial{PauliAlgebra}
@@ -407,7 +411,8 @@ using NCTSSoS: cyclic_symmetric_canon
         #
         # Raw: min([4,1,5,2], [2,5,1,4]) = [2,5,1,4] (2 < 4)
         # Site-sorted: min([1,2,4,5], [2,1,5,4]) = [1,2,4,5] (1 < 2)
-        m = Monomial{PauliAlgebra}([4, 1, 5, 2])
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        m = Monomial{PauliAlgebra,Int}([4, 1, 5, 2])
         canon = symmetric_canon(m)
         @test canon.word == [1, 2, 4, 5]
 
@@ -483,7 +488,8 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "cyclic_canon PauliAlgebra multi-site interleaved" begin
         # [σx@site2, σx@site1, σy@site2, σy@site1] = [4, 1, 5, 2]
-        m = Monomial{PauliAlgebra}([4, 1, 5, 2])
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        m = Monomial{PauliAlgebra,Int}([4, 1, 5, 2])
         canon = cyclic_canon(m)
         # Each rotation gets site-sorted, pick minimum
         # Rotations: [4,1,5,2], [1,5,2,4], [5,2,4,1], [2,4,1,5]
@@ -497,7 +503,8 @@ using NCTSSoS: cyclic_symmetric_canon
     end
 
     @testset "cyclic_symmetric_canon PauliAlgebra multi-site interleaved" begin
-        m = Monomial{PauliAlgebra}([4, 1, 5, 2])
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        m = Monomial{PauliAlgebra,Int}([4, 1, 5, 2])
         canon = cyclic_symmetric_canon(m)
         @test canon.word == [1, 2, 4, 5]
     end
@@ -506,7 +513,8 @@ using NCTSSoS: cyclic_symmetric_canon
         # PauliAlgebra: demonstrate the difference with interleaved sites
         word = [4, 1, 5, 2]  # [σx@s2, σx@s1, σy@s2, σy@s1]
         raw_result = symmetric_canon(word)  # NoSiteAware path
-        m = Monomial{PauliAlgebra}(word)
+        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
+        m = Monomial{PauliAlgebra,Int}(word)
         site_result = symmetric_canon(m).word  # SiteAware path
 
         @test raw_result != site_result

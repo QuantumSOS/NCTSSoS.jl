@@ -119,7 +119,7 @@ function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
 
     # Convert from Vector{Term} to PhysicsMonomial
     if isempty(term_vec)
-        return PhysicsMonomial{BosonicAlgebra,T}(Int[0], [Monomial{BosonicAlgebra,T}(T[])])
+        return PhysicsMonomial{BosonicAlgebra,T}(Int[], Monomial{BosonicAlgebra,T}[])
     end
 
     coeffs = Int[]
@@ -133,7 +133,7 @@ function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
     end
 
     if isempty(coeffs)
-        return PhysicsMonomial{BosonicAlgebra,T}(Int[0], [Monomial{BosonicAlgebra,T}(T[])])
+        return PhysicsMonomial{BosonicAlgebra,T}(Int[], Monomial{BosonicAlgebra,T}[])
     end
 
     combined = _combine_physics_terms(coeffs, monos)
@@ -503,3 +503,68 @@ end
 
 # Note: simplify(pm::PhysicsMonomial{BosonicAlgebra}) is defined in physics_monomial.jl
 # since PhysicsMonomial is loaded after simplification modules
+
+# =============================================================================
+# Validation (for Monomial constructor)
+# =============================================================================
+
+"""
+    _validate_bosonic_word!(word::Vector{T}) where {T<:Signed}
+
+Check that a bosonic word is in normal-ordered form. Throws `ArgumentError` if invalid.
+
+Normal order requirements:
+- Creation operators (negative indices) come before annihilation operators (positive)
+- Within each category, sorted by mode (|index|)
+
+This is used by `Monomial{BosonicAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_bosonic_word!(word::Vector{T}) where {T<:Signed}
+    isempty(word) && return nothing
+
+    if !is_normal_ordered(word)
+        throw(ArgumentError(
+            "Bosonic word is not normal-ordered. " *
+            "Use PhysicsMonomial{BosonicAlgebra}(word) for auto-normal-ordering."
+        ))
+    end
+    return nothing
+end
+
+# =============================================================================
+# Specialized Outer Constructor (validates, rejects non-normal-ordered)
+# =============================================================================
+
+"""
+    Monomial{BosonicAlgebra}(word::Vector{T}) where {T<:Signed}
+
+Construct a Bosonic monomial, validating that the input is in normal-ordered form.
+
+Throws `ArgumentError` if the word is not normal-ordered. For non-normal-ordered words,
+use `PhysicsMonomial{BosonicAlgebra}(word)` which auto-normal-orders and tracks coefficients.
+
+Normal order requirements:
+- Creation operators (negative indices) come before annihilation operators (positive)
+- Within each category, sorted by mode (|index|)
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m = Monomial{BosonicAlgebra}(Int32[-1, 1]);  # c₁† c₁ - normal ordered
+
+julia> m.word
+2-element Vector{Int32}:
+ -1
+  1
+
+julia> Monomial{BosonicAlgebra}(Int32[1, -1])  # c₁ c₁† - NOT normal ordered
+ERROR: ArgumentError: Bosonic word is not normal-ordered. Use PhysicsMonomial{BosonicAlgebra}(word) for auto-normal-ordering.
+```
+"""
+function Monomial{BosonicAlgebra}(word::Vector{T}) where {T<:Signed}
+    word_filtered = filter(!iszero, word)
+    # Validate BEFORE allocation - throws ArgumentError if non-normal-ordered
+    _validate_bosonic_word!(word_filtered)
+    return Monomial{BosonicAlgebra,T}(word_filtered)
+end

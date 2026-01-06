@@ -118,7 +118,8 @@ function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:I
         result[n_a + i] = b.word[i]
     end
 
-    return Monomial{A}(result)
+    # Use inner constructor to bypass validation (result needs simplify anyway)
+    return Monomial{A,T}(result)
 end
 
 """
@@ -178,7 +179,8 @@ function _neat_dot3(
         result[n_a + n_m + i] = b.word[i]
     end
 
-    return Monomial{A}(result)
+    # Use inner constructor to bypass validation (result needs simplify anyway)
+    return Monomial{A,T}(result)
 end
 
 # =============================================================================
@@ -436,7 +438,8 @@ returns a vector with a single zero term.
 function combine_like_terms(
     terms::Vector{Term{Monomial{A,T},C}}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
-    isempty(terms) && return [Term(zero(C), Monomial{A}(T[]))]
+    # Use inner constructor since we're reconstructing from existing valid words
+    isempty(terms) && return [Term(zero(C), Monomial{A,T}(T[]))]
 
     grouped = Dict{Vector{T},C}()
     for t in terms
@@ -447,12 +450,13 @@ function combine_like_terms(
     result = Term{Monomial{A,T},C}[]
     for (word, coef) in grouped
         if !iszero(coef)
-            push!(result, Term(coef, Monomial{A}(word)))
+            # Use inner constructor since word came from valid monomial
+            push!(result, Term(coef, Monomial{A,T}(word)))
         end
     end
 
     if isempty(result)
-        push!(result, Term(zero(C), Monomial{A}(T[])))
+        push!(result, Term(zero(C), Monomial{A,T}(T[])))
     end
 
     return result

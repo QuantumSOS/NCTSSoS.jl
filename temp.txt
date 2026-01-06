@@ -1,0 +1,362 @@
+"""
+ Here is Claude's plan:
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Code Review: ys/type-system-revamp vs ys/rev/rev/polynomial
+
+ Overview
+
+ Commits: 16 commits ahead
+ Scope: +3,484 / -408 lines across 27 files
+ Tests: 1979 passing (100%)
+
+ ---
+ Summary
+
+ This is a well-designed type system revamp that introduces wrapper types to encode algebraic structure at the type level. The core
+ goal—making invalid states unrepresentable—is achieved.
+
+ What's New
+
+ | Type                  | Purpose                                      | Algebra            |
+ |-----------------------|----------------------------------------------|--------------------|
+ | PauliMonomial{T}      | Canonical form + phase (im)^k                | Pauli              |
+ | PhysicsMonomial{A,T}  | Normal-ordered sum with integer coefficients | Fermionic, Bosonic |
+ | AbstractMonomial{A,T} | Unified supertype hierarchy                  | All                |
+
+ Breaking Changes
+
+ 1. Multiplication return types changed:
+   - Monomial{Pauli} × Monomial{Pauli} → PauliMonomial{T} (was Monomial)
+   - Monomial{Fermi} × Monomial{Fermi} → PhysicsMonomial{Fermi,T} (was Monomial)
+ 2. simplify() return types changed:
+   - Pauli: returns PauliMonomial (was Term)
+   - Fermionic/Bosonic: returns PhysicsMonomial (was Polynomial)
+ 3. State polynomials restricted to SimpleAlgebra only (NonCommutative, Projector, Unipotent)
+
+ ---
+ Issues Found
+
+ High Priority
+
+ 1. Integer Overflow Risk (PhysicsMonomial)
+
+ File: src/types/physics_monomial.jl
+ Issue: coeffs::Vector{Int} multiplication has no overflow check:
+ coef_prod = c1 * c2  # Could overflow for large coefficients
+ Risk: High-order expansions may accumulate large coefficients.
+ Recommendation: Document limitation or add checked arithmetic.
+
+ 2. Type Hardcoding in Mixed Multiplication
+
+ File: src/types/physics_monomial.jl:543-553
+ pm_m = PhysicsMonomial{A,T}(Int[1], [m])  # Hardcoded Int
+ Fix: Let type inference handle: PhysicsMonomial{A,T}([1], [m])
+
+ Medium Priority
+
+ 3. Constructor Behavior Inconsistency
+
+ - Monomial{A}(word) → stores as-is (no validation)
+ - PauliMonomial(word) → canonicalizes
+ - PhysicsMonomial{A}(word) → normal-orders
+
+ Users may expect uniform behavior. Document or unify.
+
+ 4. Deferred Validation for Monomial
+
+ File: src/types/monomial.jl
+ Constructor comment: "validation is done in outer constructors after simplification is loaded"
+ Risk: Non-canonical monomials may slip through in some code paths.
+
+ 5. Fermionic Nilpotency Check Ordering
+
+ File: src/simplification/fermionic.jl:374-378
+ iszero(m) called BEFORE simplification. Monomial with surplus=1 may still simplify to zero via contraction.
+ Impact: Semantically confusing but works in practice (tests pass).
+
+ Low Priority
+
+ 6. Ambiguous Zero Representation
+
+ PhysicsMonomial zero: ([0], [identity_monomial]) vs truly empty.
+ iszero() handles this but representation is degenerate.
+
+ 7. ComposedMonomial Type Explosion
+
+ Each unique Tuple{...} combination creates new type. Could cause compile-time overhead with many algebra combinations.
+
+ 8. Term Iteration Breaking Change
+
+ Old: coef, mono = term (destructuring)
+ New: (coef, mono), = term (tuple unpacking)
+ Status: Documented in code, tests updated.
+
+ ---
+ Strengths
+
+ 1. Type safety: Algebra types as compile-time parameters enable clean dispatch
+ 2. Zero runtime overhead: Wrapper types minimal
+ 3. Automatic simplification: Multiplication dispatch maintains canonical forms
+ 4. Unified iteration: for (coef, mono) in result works uniformly
+ 5. Comprehensive tests: 1979 tests with NCTSSOS oracle validation
+ 6. Good documentation: architecture_diagram.md, function_specs.md, plan.md
+
+ ---
+ Test Coverage Assessment
+
+ | Area                               | Coverage         | Notes                        |
+ |------------------------------------|------------------|------------------------------|
+ | PauliMonomial algebraic identities | ✅ Comprehensive | σ²=I, cyclic products        |
+ | PhysicsMonomial CAR/CCR            | ✅ Comprehensive | Anticommutation, commutation |
+ | Wrapper type return types          | ✅ Full          | Explicit isa checks          |
+ | Oracle validation                  | ✅ Full          | NCTSSOS baseline             |
+ | Multi-site scenarios               | ⚠️ TODO          | Marked but not implemented   |
+ | Moment matrix phase handling       | ⚠️ Implicit      | Covered in relaxation tests  |
+
+ ---
+ Action Items
+
+ 1. Fix type hardcoding in physics_monomial.jl:543-553
+
+ File: src/types/physics_monomial.jl
+ Lines: 543-553
+
+ # BEFORE (line 545, 551):
+ pm_m = PhysicsMonomial{A,T}(Int[1], [m])
+
+ # AFTER:
+ pm_m = PhysicsMonomial{A,T}([1], [m])
+
+ 2. Monomial{A}(raw_words) constructor behavior by algebra type
+
+ Files:
+ - src/types/monomial.jl (inner constructor changes)
+ - src/simplification/*.jl (validation functions)
+
+ Semantics: Monomial{A,T} means "canonical/normal form". Non-canonical input must use wrapper types.
+
+ SimpleAlgebras (NonCommutative, Unipotent, Projector): Auto-canonicalize
+
+ # In inner constructor - dispatch on algebra type
+ function Monomial{A,T}(word::Vector{T}) where {A<:NonCommutativeAlgebra,T<:Integer}
+     word_filtered = filter(!iszero, word)
+     # Stable sort by physical site (different sites commute)
+     sort!(word_filtered, by=decode_site, alg=Base.Sort.MergeSort)  # see existing impl
+     new{A,T}(word_filtered)
+ end
+
+ function Monomial{A,T}(word::Vector{T}) where {A<:UnipotentAlgebra,T<:Integer}
+     word_filtered = filter(!iszero, word)
+     # TODO: verify if stable sort by site needed BEFORE simplification
+     canonical = _simplify_unipotent_word!(copy(word_filtered))
+     new{A,T}(canonical)
+ end
+
+ function Monomial{A,T}(word::Vector{T}) where {A<:ProjectorAlgebra,T<:Integer}
+     word_filtered = filter(!iszero, word)
+     # TODO: verify if stable sort by site needed BEFORE simplification
+     canonical = _simplify_projector_word!(copy(word_filtered))
+     new{A,T}(canonical)
+ end
+
+ Complex Algebras (Pauli, Fermionic, Bosonic): Validate & reject BEFORE allocation
+
+ function Monomial{A,T}(word::Vector{T}) where {A<:PauliAlgebra,T<:Integer}
+     word_filtered = filter(!iszero, word)
+     # Validate BEFORE allocation
+     _validate_pauli_canonical(word_filtered) || throw(ArgumentError(
+         "Non-canonical Pauli word. Use PauliMonomial(word) for auto-canonicalization."))
+     new{A,T}(word_filtered)
+ end
+
+ function Monomial{A,T}(word::Vector{T}) where {A<:FermionicAlgebra,T<:Integer}
+     word_filtered = filter(!iszero, word)
+     # Validate BEFORE allocation
+     _validate_normal_order(word_filtered) || throw(ArgumentError(
+         "Non-normal-ordered Fermionic word. Use PhysicsMonomial{FermionicAlgebra}(word)."))
+     new{A,T}(word_filtered)
+ end
+
+ function Monomial{A,T}(word::Vector{T}) where {A<:BosonicAlgebra,T<:Integer}
+     word_filtered = filter(!iszero, word)
+     # Validate BEFORE allocation
+     _validate_normal_order(word_filtered) || throw(ArgumentError(
+         "Non-normal-ordered Bosonic word. Use PhysicsMonomial{BosonicAlgebra}(word)."))
+     new{A,T}(word_filtered)
+ end
+
+ Required validation functions (operate on Vector{T}, not Monomial):
+ - _validate_pauli_canonical(word::Vector{T}) in src/simplification/pauli.jl: check ≤1 op/site, sorted by site
+ - _validate_normal_order(word::Vector{T}) in src/simplification/fermionic.jl & bosonic.jl: check creators left, sorted
+
+ Note: Internal code constructing already-canonical monomials continues to work. Only user-facing construction of non-canonical words will
+ throw.
+
+ 3. PhysicsMonomial guard against zero coefficients
+
+ File: src/types/physics_monomial.jl
+ Lines: 54-62 (inner constructor)
+
+ Current: Outer constructors filter zeros, but inner constructor allows zeros.
+
+ Fix: Add filtering in inner constructor:
+ function PhysicsMonomial{A,T}(
+     coeffs::Vector{Int},
+     monos::Vector{Monomial{A,T}}
+ ) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
+     @assert length(coeffs) == length(monos) "coeffs and monos must have same length"
+
+     # Filter zero coefficients
+     nonzero_mask = coeffs .!= 0
+     if !all(nonzero_mask)
+         coeffs = coeffs[nonzero_mask]
+         monos = monos[nonzero_mask]
+     end
+
+     # Handle empty (zero) result
+     if isempty(coeffs)
+         return new{A,T}([0], [Monomial{A}(T[])])
+     end
+
+     new{A,T}(coeffs, monos)
+ end
+
+ 4. Add multi-site test scenarios (HIGH PRIORITY)
+
+ File: test/polynomials/simplify.jl
+ Location: End of file (after line 1591)
+
+ Test structure:
+ - Variables: a,b on site 1 (with a < b), c,d on site 2 (with c < d)
+ - Raw word: [b, c, a, d] (out of order across sites)
+ - Expected canonical: stable sort by site → [b, a, c, d] or [a, b, c, d] depending on algebra
+
+ Tests to add:
+ @testset "Multi-site simplification" begin
+     # Setup: 2 variables per site, 2 sites
+     # Site 1: a, b (a < b)
+     # Site 2: c, d (c < d)
+     # Raw word: [b, c, a, d] - out of order
+
+     @testset "Pauli multi-site" begin
+         # Create variables on 2 sites with 2 ops each
+         reg, (σx, σy) = create_pauli_variables(1:2)  # site 1: σx₁,σy₁; site 2: σx₂,σy₂
+
+         a, b = σx[1].word[1], σy[1].word[1]  # site 1, a < b
+         c, d = σx[2].word[1], σy[2].word[1]  # site 2, c < d
+
+         raw_word = [b, c, a, d]  # out of order
+
+         # Test canonical ordering: stable sort by site
+         pm = PauliMonomial(raw_word)
+         # Site 1 ops should come before site 2, within site order preserved
+         @test decode_site.(pm.mono.word) == [1, 1, 2, 2]  # or check specific ordering
+     end
+
+     @testset "Fermionic multi-mode" begin
+         reg, (a_op,) = create_fermionic_variables(1:4)
+
+         a, b = a_op[1].word[1], a_op[2].word[1]  # mode 1,2 (site 1)
+         c, d = a_op[3].word[1], a_op[4].word[1]  # mode 3,4 (site 2)
+
+         raw_word = [b, c, a, d]
+
+         # Test: different modes anticommute
+         pm = PhysicsMonomial{FermionicAlgebra}(raw_word)
+         # Check sign from anticommutation swaps
+     end
+
+     @testset "Bosonic multi-mode" begin
+         reg, (c_op,) = create_bosonic_variables(1:4)
+
+         a, b = c_op[1].word[1], c_op[2].word[1]
+         c, d = c_op[3].word[1], c_op[4].word[1]
+
+         raw_word = [b, c, a, d]
+
+         # Test: different modes commute (no sign change)
+         pm = PhysicsMonomial{BosonicAlgebra}(raw_word)
+         # Check no sign change
+     end
+
+     @testset "NonCommutative multi-site" begin
+         reg, (x,) = create_noncommutative_variables(:x, 1:4)
+
+         a, b = x[1].word[1], x[2].word[1]  # site 1
+         c, d = x[3].word[1], x[4].word[1]  # site 2
+
+         raw_word = [b, c, a, d]
+
+         # Test: stable sort by site
+         m = Monomial{NonCommutativeAlgebra}(raw_word)
+         @test issorted(decode_site.(m.word))
+     end
+ end
+
+ Document Only
+
+ - Integer overflow risk in PhysicsMonomial coefficients
+ - Fermionic nilpotency check ordering (works correctly, semantics confusing)
+ - State polynomial algebra restrictions
+
+ Accepted As-Is
+
+ - ComposedMonomial type explosion: OK, consumed in problem declaration
+
+ ---
+ Files Changed
+
+ Core Types:
+ - src/types/pauli_monomial.jl (NEW, 495 lines)
+ - src/types/physics_monomial.jl (NEW, 666 lines)
+ - src/types/monomial.jl (+72 lines)
+ - src/types/algebra.jl (+60 lines)
+ - src/types/term.jl (+33 lines)
+ - src/types/polynomial.jl (+29 lines)
+
+ Simplification:
+ - src/simplification/pauli.jl (+109 lines)
+ - src/simplification/fermionic.jl (+86 lines)
+ - src/simplification/bosonic.jl (+100 lines)
+
+ Other:
+ - src/util/helpers.jl (NEW, 115 lines)
+ - src/algorithms/basis.jl (+140 lines)
+ - src/states/word.jl, src/states/polynomial.jl (restrictions)
+
+ ---
+ Verdict
+
+ APPROVE with minor fixes. The type system revamp is well-designed and achieves its goals. The one blocking issue (type hardcoding) is a
+ one-line fix. Other issues are documentation/edge cases that don't affect correctness.
+"""
+
+# My review
+
+sort!(word_filtered, by=decode_site, alg=Base.Sort.InsertionSort)  # need to be stable sort because same site indices don't commute, and inplace is better
+
+why not:
+```
+function PhysicsMonomial{A,T}(
+     coeffs::Vector{Int},
+     monos::Vector{Monomial{A,T}}
+ ) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
+     @assert length(coeffs) == length(monos) "coeffs and monos must have same length"
+
+     # Filter zero coefficients
+     nonzero_mask = coeffs .!= 0
+     if !all(nonzero_mask)
+         coeffs = coeffs[nonzero_mask]
+         monos = monos[nonzero_mask]
+     end
+
+     # Handle empty (zero) result
+     if isempty(coeffs)
+         return new{A,T}(Int[], Monomial{A,T}[])
+     end
+
+     new{A,T}(coeffs, monos)
+ end
+
+ try to generate a few more tests that would trigger simplification during monomial creation
+ ```

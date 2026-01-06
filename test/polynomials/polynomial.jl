@@ -70,7 +70,8 @@ using NCTSSoS: variable_indices
     @testset "From Monomial - No Simplification" begin
         # Polynomial(m) does NOT simplify the monomial - this is documented behavior
         # For Pauli: σx * σx should simplify to I, but Polynomial(m) should preserve it
-        m_reducible = Monomial{PauliAlgebra}([1, 1])  # σx₁ * σx₁ (same Pauli twice)
+        # Use inner constructor to bypass validation (intentionally non-canonical for test)
+        m_reducible = Monomial{PauliAlgebra,Int}([1, 1])  # σx₁ * σx₁ (same Pauli twice)
         p = Polynomial(m_reducible)
 
         # Should preserve the un-simplified monomial
@@ -333,7 +334,8 @@ using NCTSSoS: variable_indices
 
     @testset "Adjoint Operations" begin
         # Test with PauliAlgebra (self-adjoint generators)
-        m_pauli = Monomial{PauliAlgebra}([1, 2, 3])
+        # Use indices on different sites: 1,4,7 = σx on sites 1,2,3
+        m_pauli = Monomial{PauliAlgebra}([1, 4, 7])
         p_pauli = Polynomial([Term(1.0 + 2.0im, m_pauli)])
 
         p_adj = adjoint(p_pauli)
@@ -342,7 +344,7 @@ using NCTSSoS: variable_indices
         @test coefficients(p_adj)[1] == 1.0 - 2.0im
 
         # Monomial word should be reversed and negated for PauliAlgebra
-        @test monomials(p_adj)[1].word == [-3, -2, -1]
+        @test monomials(p_adj)[1].word == [-7, -4, -1]
 
         # Test with NonCommutativeAlgebra
         m_nc = Monomial{NonCommutativeAlgebra}([1, 2])
@@ -358,7 +360,8 @@ using NCTSSoS: variable_indices
     end
 
     @testset "Adjoint with Julia syntax" begin
-        m = Monomial{PauliAlgebra}([1, 2])
+        # Use indices on different sites: 1,4 = σx on sites 1,2
+        m = Monomial{PauliAlgebra}([1, 4])
         p = Polynomial([Term(1.0 + 1.0im, m)])
 
         @test p' == adjoint(p)
@@ -367,16 +370,17 @@ using NCTSSoS: variable_indices
 
     @testset "Adjoint for Fermionic Polynomials" begin
         # Fermionic adjoint: reverse order AND negate indices
-        # For [1, -2] (a₁ a₂†), adjoint is a₂ a₁† = [2, -1] after reversing [-(-2), -1]
-        m = Monomial{FermionicAlgebra}(Int32[1, -2])
+        # Use normal-ordered input: [-2, 1] (a₂† a₁) - creator first, then annihilator
+        # adjoint is: reverse and negate: [-2, 1] -> [-1, 2] (a₁† a₂)
+        m = Monomial{FermionicAlgebra}(Int32[-2, 1])
         p = Polynomial([Term(2.0, m)])
 
         p_adj = adjoint(p)
 
         # Real coefficient stays unchanged
         @test coefficients(p_adj)[1] == 2.0
-        # Monomial adjoint: reverse and negate: [1, -2] -> [2, -1]
-        @test monomials(p_adj)[1].word == Int32[2, -1]
+        # Monomial adjoint: reverse and negate: [-2, 1] -> [-1, 2]
+        @test monomials(p_adj)[1].word == Int32[-1, 2]
 
         # Test involution: adjoint(adjoint(p)) == p
         @test adjoint(adjoint(p)) == p
@@ -402,7 +406,8 @@ using NCTSSoS: variable_indices
 
         # Test with signed types (fermionic/bosonic)
         # Note: negative = creation (a†), positive = annihilation (a)
-        m_signed = Monomial{FermionicAlgebra}([-1, 2, -3])  # a₁†, a₂, a₃†
+        # Use normal-ordered: creators first (sorted by mode ascending), then annihilators (sorted by mode ascending)
+        m_signed = Monomial{FermionicAlgebra}([-1, -3, 2])  # a₁†, a₃†, a₂ (modes 1,3 then 2)
         p_signed = Polynomial([Term(1.0, m_signed)])
         var_set_signed = variable_indices(p_signed)
         @test var_set_signed == Set([1, 2, 3])  # abs() normalizes for sparsity analysis
@@ -519,7 +524,8 @@ using NCTSSoS: variable_indices
     end
 
     @testset "Scalar * Monomial (returns Polynomial)" begin
-        m = Monomial{PauliAlgebra}([1, 2])
+        # Use indices on different sites: 1,4 = σx on sites 1,2
+        m = Monomial{PauliAlgebra}([1, 4])
 
         # Scalar * monomial
         p = 3.0 * m
@@ -548,7 +554,8 @@ using NCTSSoS: variable_indices
 
     @testset "Polynomial(m::Monomial) uses coeff_type" begin
         # PauliAlgebra should create ComplexF64 coefficients
-        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        # Use indices on different sites: 1,4 = σx on sites 1,2
+        m_pauli = Monomial{PauliAlgebra}([1, 4])
         p_pauli = Polynomial(m_pauli)
         @test eltype(coefficients(p_pauli)) == ComplexF64
         @test coefficients(p_pauli)[1] == 1.0 + 0.0im
@@ -560,14 +567,16 @@ using NCTSSoS: variable_indices
         @test coefficients(p_nc)[1] == 1.0
 
         # FermionicAlgebra should create Float64 coefficients
-        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2])
+        # Use normal-ordered: creators first (negative), then annihilators (positive)
+        m_ferm = Monomial{FermionicAlgebra}(Int32[-2, 1])
         p_ferm = Polynomial(m_ferm)
         @test eltype(coefficients(p_ferm)) == Float64
     end
 
     @testset "simplify(p::Polynomial) - direct tests" begin
         # Test 1: Pauli simplification - σx₁ * σx₁ = I
-        m_xx = Monomial{PauliAlgebra}([1, 1])
+        # Use inner constructor to bypass validation (intentionally non-canonical for test)
+        m_xx = Monomial{PauliAlgebra,Int}([1, 1])
         p_unsimplified = Polynomial(m_xx)
         @test degree(p_unsimplified) == 2  # Before simplify
 
@@ -577,7 +586,8 @@ using NCTSSoS: variable_indices
         @test coefficients(p_simplified)[1] == 1.0 + 0.0im
 
         # Test 2: Pauli simplification with phase - σx₁ * σy₁ = i*σz₁
-        m_xy = Monomial{PauliAlgebra}([1, 2])  # σx₁ * σy₁
+        # Use inner constructor to bypass validation (intentionally non-canonical for test)
+        m_xy = Monomial{PauliAlgebra,Int}([1, 2])  # σx₁ * σy₁
         p_xy = Polynomial(m_xy)
         p_xy_simplified = simplify(p_xy)
         @test degree(p_xy_simplified) == 1
@@ -588,7 +598,8 @@ using NCTSSoS: variable_indices
         @test iszero(simplify(p_zero))
 
         # Test 4: Multiple terms - each simplified independently
-        m1 = Monomial{PauliAlgebra}([1, 1])  # σx₁² = I
+        # Use inner constructor to bypass validation (intentionally non-canonical for test)
+        m1 = Monomial{PauliAlgebra,Int}([1, 1])  # σx₁² = I
         m2 = Monomial{PauliAlgebra}([4])     # σx₂ (already simple)
         p_multi = Polynomial([Term(2.0+0im, m1), Term(3.0+0im, m2)])
         p_multi_simplified = simplify(p_multi)
@@ -804,7 +815,8 @@ using NCTSSoS: variable_indices
         @test p_zero_float isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
 
         # Test 6: Pauli algebra conversion (ComplexF64 to other complex types)
-        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        # Use indices on different sites: 1,4 = σx on sites 1,2
+        m_pauli = Monomial{PauliAlgebra}([1, 4])
         p_pauli = Polynomial([Term(1.0 + 2.0im, m_pauli)])
         # Convert to ComplexF32 (narrower precision)
         p_pauli_f32 = convert(Polynomial{PauliAlgebra,Int64,ComplexF32}, p_pauli)

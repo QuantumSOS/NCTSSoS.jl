@@ -126,17 +126,18 @@ end
 
 @testset "Unipotent simplification with site-based commutation" begin
     # Test that operators on different sites commute (sorted by site)
-    
+
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-    
-    @testset "Cross-site monomials are distinct before simplify" begin
-        # y[1]*x[1] and x[1]*y[1] should be different operators before simplification
+
+    @testset "Cross-site monomials are canonicalized on construction" begin
+        # With auto-canonicalization, y[1]*x[1] and x[1]*y[1] produce the same result
+        # because different sites commute and the constructor sorts by site
         m_yx = y[1] * x[1]
         m_xy = x[1] * y[1]
-        
-        @test m_yx != m_xy  # These should be different monomials before simplify
+
+        @test m_yx == m_xy  # Equal because constructor auto-sorts by site
     end
-    
+
     @testset "Cross-site monomials become equal after simplify (site commutation)" begin
         # simplify is exported from NCTSSoS
 
@@ -144,10 +145,10 @@ end
         # so y[1]*x[1] and x[1]*y[1] should become the same (sorted by site)
         m_yx = y[1] * x[1]
         m_xy = x[1] * y[1]
-        
+
         m_yx_simp = simplify(m_yx)
         m_xy_simp = simplify(m_xy)
-        
+
         @test m_yx_simp == m_xy_simp  # Should be equal after site-based sorting
     end
     

@@ -144,3 +144,39 @@ function simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
     _simplify_nc_word!(word_copy)
     Monomial{NonCommutativeAlgebra,T}(word_copy)
 end
+
+# =============================================================================
+# Specialized Outer Constructor (auto-canonicalizes)
+# =============================================================================
+
+"""
+    Monomial{NonCommutativeAlgebra}(word::Vector{T}) where {T<:Unsigned}
+
+Construct a NonCommutative monomial, auto-canonicalizing the input.
+
+Operators on different sites commute, so the word is stable-sorted by site.
+Within each site, operator order is preserved exactly.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> using NCTSSoS: encode_index
+
+julia> idx1_s1 = encode_index(UInt16, 1, 1);
+
+julia> idx1_s2 = encode_index(UInt16, 1, 2);
+
+julia> m = Monomial{NonCommutativeAlgebra}([idx1_s2, idx1_s1]);
+
+julia> m.word == [idx1_s1, idx1_s2]  # Auto-sorted by site
+true
+```
+"""
+function Monomial{NonCommutativeAlgebra}(word::Vector{T}) where {T<:Unsigned}
+    word_filtered = filter(!iszero, word)
+    # Stable sort by site (same-site indices don't commute)
+    # InsertionSort: stable + in-place (better memory)
+    sort!(word_filtered, by=decode_site, alg=Base.Sort.InsertionSort)
+    return Monomial{NonCommutativeAlgebra,T}(word_filtered)
+end

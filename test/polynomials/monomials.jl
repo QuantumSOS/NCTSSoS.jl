@@ -54,9 +54,11 @@ using NCTSSoS: variable_indices, expval
 
     @testset "Adjoint Operation" begin
         # Adjoint reverses word for self-adjoint algebras (unsigned types)
-        mono1 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
+        # Note: NonCommutativeAlgebra constructor auto-sorts by site, so use indices on same site
+        # With UInt8 and site_bits=2, indices 1-4 are all on site 1
+        mono1 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])  # all on site 1
         mono1_adj = adjoint(mono1)
-        @test mono1_adj.word == [3, 2, 1]
+        @test mono1_adj.word == UInt8[3, 2, 1]
 
         # Empty monomial adjoint should be empty
         mono_empty = Monomial{NonCommutativeAlgebra}(UInt8[])
@@ -64,18 +66,26 @@ using NCTSSoS: variable_indices, expval
 
         # Single element adjoint
         mono_single = Monomial{NonCommutativeAlgebra}(UInt8[5])
-        @test adjoint(mono_single).word == [5]
+        @test adjoint(mono_single).word == UInt8[5]
 
         # Adjoint is involution: adjoint(adjoint(m)) == m
-        mono2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3, 4])
+        # Use indices on same site to avoid sorting interaction
+        mono2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3, 4])  # check involution
         @test adjoint(adjoint(mono2)) == mono2
 
         # Julia syntax shorthand
         @test mono1' == adjoint(mono1)
 
-        mono_grouped = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 20, 21, 3])
-        # simplification are done separately from adjoint in this version
-        @test adjoint(mono_grouped).word == UInt8[3, 21, 20, 2, 1]
+        # Multi-site monomial using encode_index for predictable behavior
+        # Note: Constructor auto-sorts by site (stable sort)
+        using NCTSSoS: encode_index
+        idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
+        idx2_s1 = encode_index(UInt16, 2, 1)  # site 1
+        idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
+        # Input [idx2_s1, idx1_s2, idx1_s1] sorts by site to [idx2_s1, idx1_s1, idx1_s2]
+        mono_multi = Monomial{NonCommutativeAlgebra}(UInt16[idx2_s1, idx1_s2, idx1_s1])
+        # Adjoint reverses the sorted word
+        @test adjoint(mono_multi).word == UInt16[idx1_s2, idx1_s1, idx2_s1]
     end
 
     @testset "Multiplication" begin
@@ -128,16 +138,18 @@ using NCTSSoS: variable_indices, expval
         @test mono1 != mono3
 
         # Different algebra types are never equal
-        mono_pauli = Monomial{PauliAlgebra}([1, 2, 3])
-        mono_nc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        # Use indices on different Pauli sites: 1,4,7 = σx on sites 1,2,3
+        mono_pauli = Monomial{PauliAlgebra}([1, 4, 7])
+        mono_nc = Monomial{NonCommutativeAlgebra}([1, 4, 7])
         @test mono_pauli != mono_nc
     end
 
     @testset "Algebra Type Preservation" begin
         # Monomials preserve their algebra type
-        mono_pauli = Monomial{PauliAlgebra}([1, 2])
-        mono_fermi = Monomial{FermionicAlgebra}(Int32[1, 2])
-        mono_unipotent = Monomial{UnipotentAlgebra}([1, 2])
+        # Use canonical forms: Pauli indices on diff sites, Fermi normal-ordered
+        mono_pauli = Monomial{PauliAlgebra}([1, 4])  # sites 1,2
+        mono_fermi = Monomial{FermionicAlgebra}(Int32[-1, 1])  # creation before annihilation
+        mono_unipotent = Monomial{UnipotentAlgebra}(UInt16[1, 2])
 
         @test mono_pauli isa Monomial{PauliAlgebra}
         @test mono_fermi isa Monomial{FermionicAlgebra}
@@ -146,21 +158,26 @@ using NCTSSoS: variable_indices, expval
 
     @testset "Adjoint for Fermionic/Signed Types" begin
         # Test FermionicAlgebra adjoint (reverses AND negates)
-        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2, 3])
+        # Use normal-ordered: creations (negative) first, then annihilations (positive)
+        # Sorted by mode within each group
+        m_ferm = Monomial{FermionicAlgebra}(Int32[-2, 1, 3])  # a2†, a1, a3
         m_adj = adjoint(m_ferm)
-        @test m_adj.word == Int32[-3, 2, -1]
+        @test m_adj.word == Int32[-3, -1, 2]
 
         # Verify involution property for signed types: adjoint(adjoint(m)) == m
-        m_ferm2 = Monomial{FermionicAlgebra}(Int32[1, -2, 3, -4])
+        # Note: adjoint reverses AND negates, then the result may not be normal-ordered
+        # For testing involution, we use monomials where adjoint(adjoint(m)) preserves form
+        # Normal-ordered: creators sorted by mode (-2 < -4), then annihilators sorted by mode (1 < 3)
+        m_ferm2 = Monomial{FermionicAlgebra}(Int32[-2, -4, 1, 3])  # c₂†c₄†a₁a₃ (normal-ordered)
         @test adjoint(adjoint(m_ferm2)) == m_ferm2
 
         # Empty fermionic monomial
         m_empty = Monomial{FermionicAlgebra}(Int32[])
         @test isone(adjoint(m_empty))
 
-        # Single element
-        m_single = Monomial{FermionicAlgebra}(Int32[5])
-        @test adjoint(m_single).word == Int32[-5]
+        # Single element (creation)
+        m_single = Monomial{FermionicAlgebra}(Int32[-5])  # creation operator
+        @test adjoint(m_single).word == Int32[5]  # becomes annihilation
 
         # Julia syntax shorthand
         @test m_ferm' == m_adj
@@ -168,12 +185,13 @@ using NCTSSoS: variable_indices, expval
 
     @testset "one(m::Monomial) Instance Method" begin
         # Test instance method preserves algebra type
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 2, 3])
+        # Use indices on different Pauli sites: 1,4,7 = σx on sites 1,2,3
+        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 4, 7])
         @test one(m_pauli) == Monomial{PauliAlgebra}(UInt16[])
         @test typeof(one(m_pauli)) == Monomial{PauliAlgebra,UInt16}
 
-        # Test with FermionicAlgebra
-        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2])
+        # Test with FermionicAlgebra (normal-ordered: creation first)
+        m_ferm = Monomial{FermionicAlgebra}(Int32[-2, 1])  # a2†, a1
         @test one(m_ferm) == Monomial{FermionicAlgebra}(Int32[])
         @test typeof(one(m_ferm)) == Monomial{FermionicAlgebra,Int32}
 
@@ -231,25 +249,29 @@ using NCTSSoS: variable_indices, expval
 
     @testset "Cross-Algebra Type Equality" begin
         # Same word, different algebras should never be equal
-        word = [1, 2, 3]
-        m_pauli = Monomial{PauliAlgebra}(word)
-        m_unipotent = Monomial{UnipotentAlgebra}(word)
-        m_projector = Monomial{ProjectorAlgebra}(word)
+        # Use indices on different Pauli sites: 1,4,7 = σx on sites 1,2,3
+        word_pauli = [1, 4, 7]
+        word_unsigned = UInt16[1, 4, 7]
+        m_pauli = Monomial{PauliAlgebra}(word_pauli)
+        m_unipotent = Monomial{UnipotentAlgebra}(word_unsigned)
+        m_projector = Monomial{ProjectorAlgebra}(word_unsigned)
 
         @test m_pauli != m_unipotent
         @test m_pauli != m_projector
         @test m_unipotent != m_projector
 
         # Different algebras with different integer types
-        m_fermi = Monomial{FermionicAlgebra}(Int32.(word))
+        # Use normal-ordered for fermionic: creations first, then annihilations
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-1, -4, 7])
         @test m_pauli != m_fermi
         @test m_unipotent != m_fermi
     end
 
     @testset "Cross-Algebra Safety" begin
         # Test that hash/equality contract is maintained across algebras
-        m_pauli = Monomial{PauliAlgebra}([1, 2, 3])
-        m_nc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        # Use indices on different Pauli sites: 1,4,7 = σx on sites 1,2,3
+        m_pauli = Monomial{PauliAlgebra}([1, 4, 7])
+        m_nc = Monomial{NonCommutativeAlgebra}([1, 4, 7])
 
         # Same word, different algebra = different hash (ensures Dict safety)
         @test hash(m_pauli) != hash(m_nc)
@@ -304,14 +326,16 @@ using NCTSSoS: variable_indices, expval
         @test isone(id^10)
 
         # Different integer types
-        m_uint8 = Monomial{PauliAlgebra}(UInt8[1, 3])
+        # Use indices on different Pauli sites: 1,4 = σx on sites 1,2
+        m_uint8 = Monomial{PauliAlgebra}(UInt8[1, 4])
         m_sq = m_uint8^2
-        @test m_sq.word == UInt8[1, 3, 1, 3]
+        @test m_sq.word == UInt8[1, 4, 1, 4]
         @test typeof(m_sq) == Monomial{PauliAlgebra,UInt8}
 
-        m_int32 = Monomial{FermionicAlgebra}(Int32[1, -2])
+        # Use normal-ordered: creation first, then annihilation
+        m_int32 = Monomial{FermionicAlgebra}(Int32[-2, 1])  # a2†, a1
         m_cubed = m_int32^3
-        @test m_cubed.word == Int32[1, -2, 1, -2, 1, -2]
+        @test m_cubed.word == Int32[-2, 1, -2, 1, -2, 1]
 
         # Power distribution: m^(a+b) = m^a * m^b
         m_test = Monomial{NonCommutativeAlgebra}([1, 2, 3])
@@ -374,7 +398,8 @@ using NCTSSoS: variable_indices, expval
 
     @testset "Iteration Protocol" begin
         # Monomial iteration yields single (coefficient, monomial) pair
-        m = Monomial{PauliAlgebra}([1, 2])
+        # Use indices on different Pauli sites: 1,4 = σx on sites 1,2
+        m = Monomial{PauliAlgebra}([1, 4])
         pairs = collect(m)
         @test length(pairs) == 1
         @test pairs[1] == (1.0 + 0.0im, m)  # ComplexF64 for Pauli
@@ -387,8 +412,8 @@ using NCTSSoS: variable_indices, expval
         @test pairs_nc[1][1] == 1.0
         @test pairs_nc[1][2] == m_nc
 
-        # Fermionic algebra also uses Float64
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, 2])
+        # Fermionic algebra also uses Float64 (normal-ordered)
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-2, 1])  # creation first
         pairs_fermi = collect(m_fermi)
         @test pairs_fermi[1][1] isa Float64
         @test pairs_fermi[1][1] == 1.0
@@ -483,9 +508,9 @@ using NCTSSoS: variable_indices, expval
     end
 
     @testset "variable_indices" begin
-        # Basic case: unique indices
-        m1 = Monomial{PauliAlgebra}([1, 2, 3])
-        @test variable_indices(m1) == Set([1, 2, 3])
+        # Basic case: unique indices (on different Pauli sites)
+        m1 = Monomial{PauliAlgebra}([1, 4, 7])  # sites 1,2,3
+        @test variable_indices(m1) == Set([1, 4, 7])
 
         # Repeated indices -> deduplicated in Set
         m2 = Monomial{NonCommutativeAlgebra}([1, 2, 1, 3, 2])
@@ -497,18 +522,20 @@ using NCTSSoS: variable_indices, expval
         @test isempty(variable_indices(m_id))
 
         # Single index
-        m_single = Monomial{UnipotentAlgebra}([42])
-        @test variable_indices(m_single) == Set([42])
+        m_single = Monomial{UnipotentAlgebra}(UInt16[42])
+        @test variable_indices(m_single) == Set(UInt16[42])
 
         # Signed types (Fermionic): abs() normalization
         # Creation (-1) and annihilation (1) refer to same mode
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -2, 3, -1])
+        # Use normal-ordered: creations first (sorted by mode), then annihilators (sorted by mode)
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-1, -2, -3, 1, 3])  # a1†a2†a3†a1a3
         var_set = variable_indices(m_fermi)
         @test var_set == Set(Int32[1, 2, 3])
-        @test length(var_set) == 3  # -1 and 1 both map to 1
+        @test length(var_set) == 3
 
-        # Bosonic also uses signed indices
-        m_bos = Monomial{BosonicAlgebra}(Int32[-1, 1, -2, 2])
+        # Bosonic also uses signed indices (normal-ordered)
+        # Use normal-ordered: creators first (sorted by mode), then annihilators (sorted by mode)
+        m_bos = Monomial{BosonicAlgebra}(Int32[-1, -2, 1, 2])  # c1†c2†c1c2
         @test variable_indices(m_bos) == Set(Int32[1, 2])
 
         # Different integer types preserve type in Set
@@ -522,10 +549,12 @@ using NCTSSoS: variable_indices, expval
         m = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
         @test expval(m) === m
 
-        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        # Use indices on different Pauli sites: 1,4 = σx on sites 1,2
+        m_pauli = Monomial{PauliAlgebra}([1, 4])
         @test expval(m_pauli) === m_pauli
 
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -2])
+        # Use normal-ordered: creation first
+        m_fermi = Monomial{FermionicAlgebra}(Int32[-2, 1])  # a2†, a1
         @test expval(m_fermi) === m_fermi
 
         # Identity monomial

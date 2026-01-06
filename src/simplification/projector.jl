@@ -166,3 +166,36 @@ function simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     _simplify_projector_word!(word_copy)
     Monomial{ProjectorAlgebra,T}(word_copy)
 end
+
+# =============================================================================
+# Specialized Outer Constructor (auto-canonicalizes)
+# =============================================================================
+
+"""
+    Monomial{ProjectorAlgebra}(word::Vector{T}) where {T<:Unsigned}
+
+Construct a Projector monomial, auto-canonicalizing the input.
+
+Applies projector simplification rules:
+- P² = P (adjacent duplicates of same operator merge)
+- Different sites commute (stable sort by site)
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> using NCTSSoS: encode_index
+
+julia> p1 = encode_index(UInt16, 1, 1);
+
+julia> m = Monomial{ProjectorAlgebra}([p1, p1]);
+
+julia> m.word == [p1]  # p₁ p₁ = p₁
+true
+```
+"""
+function Monomial{ProjectorAlgebra}(word::Vector{T}) where {T<:Unsigned}
+    word_filtered = filter(!iszero, word)
+    canonical = _simplify_projector_word!(copy(word_filtered))
+    return Monomial{ProjectorAlgebra,T}(canonical)
+end

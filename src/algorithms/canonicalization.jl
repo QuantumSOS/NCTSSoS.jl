@@ -174,12 +174,14 @@ symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _symmetric_canon(_site_trait(A, T), m)
 
 # NoSiteAware: use raw word algorithm
-_symmetric_canon(::NoSiteAware, m::Monomial{A}) where {A} =
-    Monomial{A}(symmetric_canon(m.word))
+# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_symmetric_canon(::NoSiteAware, m::Monomial{A,T}) where {A,T} =
+    Monomial{A,T}(symmetric_canon(m.word))
 
 # SiteAware: use site-sorted algorithm
-_symmetric_canon(::SiteAware, m::Monomial{A}) where {A} =
-    Monomial{A}(_symmetric_canon_site_sorted(m.word, A))
+# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_symmetric_canon(::SiteAware, m::Monomial{A,T}) where {A,T} =
+    Monomial{A,T}(_symmetric_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Cyclic Canonicalization
@@ -274,12 +276,14 @@ cyclic_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _cyclic_canon(_site_trait(A, T), m)
 
 # NoSiteAware: use raw word algorithm
-_cyclic_canon(::NoSiteAware, m::Monomial{A}) where {A} =
-    Monomial{A}(cyclic_canon(m.word))
+# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_canon(::NoSiteAware, m::Monomial{A,T}) where {A,T} =
+    Monomial{A,T}(cyclic_canon(m.word))
 
 # SiteAware: use site-sorted algorithm
-_cyclic_canon(::SiteAware, m::Monomial{A}) where {A} =
-    Monomial{A}(_cyclic_canon_site_sorted(m.word, A))
+# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_canon(::SiteAware, m::Monomial{A,T}) where {A,T} =
+    Monomial{A,T}(_cyclic_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Combined Cyclic-Symmetric Canonicalization
@@ -345,12 +349,14 @@ cyclic_symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _cyclic_symmetric_canon(_site_trait(A, T), m)
 
 # NoSiteAware: use raw word algorithm
-_cyclic_symmetric_canon(::NoSiteAware, m::Monomial{A}) where {A} =
-    Monomial{A}(cyclic_symmetric_canon(m.word))
+# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_symmetric_canon(::NoSiteAware, m::Monomial{A,T}) where {A,T} =
+    Monomial{A,T}(cyclic_symmetric_canon(m.word))
 
 # SiteAware: use site-sorted algorithm
-_cyclic_symmetric_canon(::SiteAware, m::Monomial{A}) where {A} =
-    Monomial{A}(_cyclic_symmetric_canon_site_sorted(m.word, A))
+# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_symmetric_canon(::SiteAware, m::Monomial{A,T}) where {A,T} =
+    Monomial{A,T}(_cyclic_symmetric_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Unified Canonicalize Interface

@@ -94,8 +94,9 @@
 
     @testset "Cross-Algebra Type Comparison" begin
         # Monomials of different algebra types should not be equal
+        # Use different sites for Pauli: 1,4 = σx on site 1, σx on site 2
         m_nc = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_pauli = Monomial{PauliAlgebra}([1, 2])
+        m_pauli = Monomial{PauliAlgebra}([1, 4])
 
         @test m_nc != m_pauli
     end

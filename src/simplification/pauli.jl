@@ -267,3 +267,40 @@ end
 
 # Note: simplify(pm::PauliMonomial) is defined in pauli_monomial.jl since
 # PauliMonomial is loaded after simplification modules
+
+# =============================================================================
+# Specialized Outer Constructor (validates, rejects non-canonical)
+# =============================================================================
+
+"""
+    Monomial{PauliAlgebra}(word::Vector{T}) where {T<:Integer}
+
+Construct a Pauli monomial, validating that the input is in canonical form.
+
+Throws `ArgumentError` if the word is not canonical. For non-canonical words,
+use `PauliMonomial(word)` which auto-canonicalizes and tracks phase.
+
+Canonical form requirements:
+- ≤1 operator per site (no σ² terms)
+- Sites sorted in ascending order
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m = Monomial{PauliAlgebra}([1]);  # σx₁ - canonical
+
+julia> m.word
+1-element Vector{Int64}:
+ 1
+
+julia> Monomial{PauliAlgebra}([1, 2])  # σx₁ σy₁ - NOT canonical (same site)
+ERROR: ArgumentError: Pauli word has multiple operators on site 1 (indices 1 and 2). Use PauliMonomial for raw words.
+```
+"""
+function Monomial{PauliAlgebra}(word::Vector{T}) where {T<:Integer}
+    word_filtered = filter(!iszero, word)
+    # Validate BEFORE allocation - throws ArgumentError if non-canonical
+    _validate_pauli_word!(word_filtered)
+    return Monomial{PauliAlgebra,T}(word_filtered)
+end

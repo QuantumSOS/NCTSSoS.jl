@@ -79,7 +79,8 @@ end
     @test coeff_type(Polynomial{BosonicAlgebra,Int32,Float64}) == Float64
 
     # Instance methods (delegates to type)
-    m = Monomial{PauliAlgebra}([1, 2])
+    # Use indices on different Pauli sites: 1,4 = σx on sites 1,2
+    m = Monomial{PauliAlgebra}([1, 4])
     @test coeff_type(m) == ComplexF64
 
     t = Term(2.5, Monomial{NonCommutativeAlgebra}([1]))

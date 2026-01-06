@@ -264,3 +264,6 @@ function simplify(m::Monomial{PauliAlgebra,T}) where {T}
     mono = Monomial{PauliAlgebra,T}(result)
     PauliMonomial{T}(mono, phase_k)
 end
+
+# Note: simplify(pm::PauliMonomial) is defined in pauli_monomial.jl since
+# PauliMonomial is loaded after simplification modules

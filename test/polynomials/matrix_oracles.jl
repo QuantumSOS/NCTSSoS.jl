@@ -50,10 +50,12 @@ end
                 for c in idxs
                     word = [a, b, c]
                     m = Monomial{PauliAlgebra}(word)
-                    t = simplify(m)
+                    pm = simplify(m)  # Returns PauliMonomial
 
                     lhs = _pauli_word_oracle(word, nsites)
-                    rhs = ComplexF64(t.coefficient) * _pauli_word_oracle(t.monomial.word, nsites)
+                    # PauliMonomial stores phase_k and mono separately
+                    coef = NCTSSoS.phase_to_complex(pm)
+                    rhs = ComplexF64(coef) * _pauli_word_oracle(pm.mono.word, nsites)
                     @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
                 end
             end
@@ -100,6 +102,17 @@ function _fermion_poly_oracle(p::Polynomial{FermionicAlgebra,T,C}, nmodes::Int) 
     acc = zeros(ComplexF64, dim, dim)
     for t in p.terms
         acc .+= ComplexF64(t.coefficient) * _fermion_word_oracle(t.monomial.word, nmodes)
+    end
+    return acc
+end
+
+# Overload for PhysicsMonomial (returned by simplify for FermionicAlgebra)
+function _fermion_poly_oracle(pm::PhysicsMonomial{FermionicAlgebra,T}, nmodes::Int) where {T<:Integer}
+    dim = 2^nmodes
+    acc = zeros(ComplexF64, dim, dim)
+    for (coef, mono) in zip(pm.coeffs, pm.monos)
+        coef == 0 && continue
+        acc .+= ComplexF64(coef) * _fermion_word_oracle(mono.word, nmodes)
     end
     return acc
 end

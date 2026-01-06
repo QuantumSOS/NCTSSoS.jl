@@ -531,6 +531,28 @@ function Base.:*(m1::Monomial{BosonicAlgebra,T}, m2::Monomial{BosonicAlgebra,T})
 end
 
 # =============================================================================
+# Mixed Multiplication: PhysicsMonomial × Monomial
+# =============================================================================
+
+"""
+    Base.:*(pm::PhysicsMonomial{A,T}, m::Monomial{A,T}) -> PhysicsMonomial{A,T}
+    Base.:*(m::Monomial{A,T}, pm::PhysicsMonomial{A,T}) -> PhysicsMonomial{A,T}
+
+Mixed multiplication between PhysicsMonomial and Monomial.
+"""
+function Base.:*(pm::PhysicsMonomial{A,T}, m::Monomial{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
+    # Convert monomial to PhysicsMonomial and multiply
+    pm_m = PhysicsMonomial{A,T}(Int[1], [m])
+    pm * pm_m
+end
+
+function Base.:*(m::Monomial{A,T}, pm::PhysicsMonomial{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
+    # Convert monomial to PhysicsMonomial and multiply
+    pm_m = PhysicsMonomial{A,T}(Int[1], [m])
+    pm_m * pm
+end
+
+# =============================================================================
 # Term Combination Helper (for simplify functions)
 # =============================================================================
 
@@ -590,4 +612,55 @@ function Polynomial(phm::PhysicsMonomial{A,T}) where {A<:Union{FermionicAlgebra,
     end
     terms_vec = [Term(Float64(c), m) for (c, m) in zip(phm.coeffs, phm.monos) if c != 0]
     Polynomial(terms_vec)
+end
+
+# =============================================================================
+# Simplify (identity for already-normal-ordered PhysicsMonomial)
+# =============================================================================
+
+"""
+    simplify(pm::PhysicsMonomial{A,T}) -> PhysicsMonomial{A,T}
+
+Return the PhysicsMonomial unchanged (already in normal-ordered form).
+"""
+simplify(pm::PhysicsMonomial{A,T}) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T} = pm
+
+# =============================================================================
+# Fermionic Parity Check
+# =============================================================================
+
+"""
+    has_even_parity(pm::PhysicsMonomial{FermionicAlgebra,T}) where T -> Bool
+
+Check if a fermionic PhysicsMonomial has even parity.
+
+For a PhysicsMonomial (sum of terms), returns true only if ALL terms have even parity.
+This is equivalent to checking that all contributing monomials have even fermion number.
+"""
+function has_even_parity(pm::PhysicsMonomial{FermionicAlgebra,T}) where {T}
+    for (coef, mono) in zip(pm.coeffs, pm.monos)
+        coef == 0 && continue  # Skip zero terms
+        has_even_parity(mono) || return false
+    end
+    return true
+end
+
+# =============================================================================
+# Polynomial Simplification Integration
+# =============================================================================
+
+"""
+    _collect_simplified_terms!(result, coef, pm::PhysicsMonomial)
+
+Helper for simplify(::Polynomial) to collect terms from PhysicsMonomial result.
+"""
+function _collect_simplified_terms!(
+    result::Vector{Term{Monomial{A,T},C}}, coef::C, pm::PhysicsMonomial{A,T}
+) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T,C}
+    for (c, mono) in zip(pm.coeffs, pm.monos)
+        combined_coef = C(coef * c)
+        if !iszero(combined_coef)
+            push!(result, Term(combined_coef, mono))
+        end
+    end
 end

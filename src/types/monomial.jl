@@ -736,3 +736,24 @@ coeff_type(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} = coeff_type
 
 # Instance method
 coeff_type(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = coeff_type(Monomial{A,T})
+
+"""
+    monomials(m::Monomial{A,T}) where {A,T} -> Vector{Monomial{A,T}}
+
+Return a single-element vector containing the monomial.
+
+This provides compatibility with the `monomials` function for Polynomials,
+allowing uniform iteration over monomials regardless of input type.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m = Monomial{PauliAlgebra}([1, 2]);
+
+julia> monomials(m)
+1-element Vector{Monomial{PauliAlgebra, Int64}}:
+ Monomial{PauliAlgebra, Int64}([1, 2])
+```
+"""
+monomials(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = [m]

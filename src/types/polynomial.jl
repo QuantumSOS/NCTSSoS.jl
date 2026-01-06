@@ -785,23 +785,27 @@ function Base.:(*)(
     isempty(p1.terms) && return zero(Polynomial{A,T,C})
     isempty(p2.terms) && return zero(Polynomial{A,T,C})
 
-    # Step 1: Form raw products (monomial concatenation, no simplification)
-    raw_terms = Term{Monomial{A,T},C}[]
+    # For algebras that return wrapper types from multiplication (PauliAlgebra -> PauliMonomial,
+    # Fermionic/Bosonic -> same monomial type but may need normal ordering), we need to
+    # collect simplified terms directly rather than building a raw polynomial.
+    DC = coeff_type(A)
+    NC = promote_type(C, DC)
+    result_terms = Term{Monomial{A,T},NC}[]
 
     for t1 in p1.terms
         for t2 in p2.terms
-            coef = C(t1.coefficient * t2.coefficient)
+            coef = NC(t1.coefficient * t2.coefficient)
             iszero(coef) && continue
 
-            # Raw monomial concatenation (no simplification yet)
-            raw_mono = t1.monomial * t2.monomial
-            push!(raw_terms, Term(coef, raw_mono))
+            # Multiply monomials - may return Monomial, PauliMonomial, or PhysicsMonomial
+            product = t1.monomial * t2.monomial
+            # Simplify and collect terms
+            simplified = simplify(product)
+            _collect_simplified_terms!(result_terms, coef, simplified)
         end
     end
 
-    # Step 2 & 3: Simplify and normalize via Polynomial constructor
-    raw_poly = Polynomial{A,T,C}(raw_terms)
-    return simplify(raw_poly)
+    return Polynomial(result_terms)
 end
 
 """
@@ -1258,6 +1262,9 @@ function _collect_simplified_terms!(
         end
     end
 end
+
+# Note: _collect_simplified_terms! methods for PauliMonomial and PhysicsMonomial
+# are defined in their respective type files since those types are loaded later
 
 # =============================================================================
 # Iteration Protocol (for unified simplify result processing)

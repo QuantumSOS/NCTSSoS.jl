@@ -488,3 +488,6 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
 
     return PhysicsMonomial{FermionicAlgebra,T}(combined[1], combined[2])
 end
+
+# Note: simplify(pm::PhysicsMonomial{FermionicAlgebra}) and has_even_parity(::PhysicsMonomial)
+# are defined in physics_monomial.jl since PhysicsMonomial is loaded after simplification modules

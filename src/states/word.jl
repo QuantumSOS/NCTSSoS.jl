@@ -1066,14 +1066,14 @@ function get_state_basis(
 ) where {A<:AlgebraType, T<:Integer, ST<:StateType}
     
     # Collect monomials by degree
+    # Note: For SimpleAlgebra (NC/Projector/Unipotent), get_ncbasis returns Vector{Monomial{A,T}}
     monos_by_deg = Vector{Vector{Monomial{A,T}}}(undef, d + 1)
     for deg in 0:d
-        poly_basis = get_ncbasis(registry, deg)
+        basis = get_ncbasis(registry, deg)
         monos = Monomial{A,T}[]
-        for poly in poly_basis
-            for term in poly.terms
-                push!(monos, term.monomial)
-            end
+        for elem in basis
+            # For SimpleAlgebra, basis elements are Monomial{A,T} directly
+            push!(monos, elem)
         end
         unique!(sort!(monos))
         monos_by_deg[deg + 1] = monos

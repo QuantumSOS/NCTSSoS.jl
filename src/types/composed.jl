@@ -301,6 +301,17 @@ function _get_identity_monomial(x::Vector{<:Term})
     return one(x[1].monomial)
 end
 
+function _get_identity_monomial(pm::PauliMonomial{T}) where {T}
+    return one(pm.mono)
+end
+
+function _get_identity_monomial(pm::PhysicsMonomial{A,T}) where {A,T}
+    if isempty(pm.monos)
+        return one(Monomial{A,T})
+    end
+    return one(pm.monos[1])
+end
+
 # Compile-time coefficient type inference using coeff_type
 @generated function _infer_coef_type_from_types(::T) where {T<:Tuple}
     types = T.parameters

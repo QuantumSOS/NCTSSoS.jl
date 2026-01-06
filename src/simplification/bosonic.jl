@@ -500,3 +500,6 @@ function simplify_bosonic_grouped!(
     # Step 3: Expand product and construct terms
     return expand_and_construct(mode_results, modes, T)
 end
+
+# Note: simplify(pm::PhysicsMonomial{BosonicAlgebra}) is defined in physics_monomial.jl
+# since PhysicsMonomial is loaded after simplification modules

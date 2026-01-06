@@ -414,6 +414,28 @@ function Base.:*(m1::Monomial{PauliAlgebra,T}, m2::Monomial{PauliAlgebra,T}) whe
     PauliMonomial(combined_word)
 end
 
+"""
+    Base.:*(pm::PauliMonomial{T}, m::Monomial{PauliAlgebra,T}) -> PauliMonomial{T}
+    Base.:*(m::Monomial{PauliAlgebra,T}, pm::PauliMonomial{T}) -> PauliMonomial{T}
+
+Mixed multiplication between PauliMonomial and Monomial{PauliAlgebra}.
+"""
+function Base.:*(pm::PauliMonomial{T}, m::Monomial{PauliAlgebra,T}) where {T<:Integer}
+    combined_word = vcat(pm.mono.word, m.word)
+    canonical_word, new_phase_k = _simplify_pauli_word!(combined_word)
+    total_phase_k = (pm.phase_k + new_phase_k) % UInt8(4)
+    mono = Monomial{PauliAlgebra,T}(canonical_word)
+    PauliMonomial{T}(mono, total_phase_k)
+end
+
+function Base.:*(m::Monomial{PauliAlgebra,T}, pm::PauliMonomial{T}) where {T<:Integer}
+    combined_word = vcat(m.word, pm.mono.word)
+    canonical_word, new_phase_k = _simplify_pauli_word!(combined_word)
+    total_phase_k = (pm.phase_k + new_phase_k) % UInt8(4)
+    mono = Monomial{PauliAlgebra,T}(canonical_word)
+    PauliMonomial{T}(mono, total_phase_k)
+end
+
 # =============================================================================
 # Polynomial Conversion
 # =============================================================================
@@ -440,4 +462,34 @@ julia> coefficients(p)[1]
 function Polynomial(pm::PauliMonomial{T}) where {T<:Integer}
     coef = _phase_k_to_complex(pm.phase_k)
     Polynomial(Term(coef, pm.mono))
+end
+
+# =============================================================================
+# Simplify (identity for already-canonical PauliMonomial)
+# =============================================================================
+
+"""
+    simplify(pm::PauliMonomial{T}) -> PauliMonomial{T}
+
+Return the PauliMonomial unchanged (already in canonical form).
+"""
+simplify(pm::PauliMonomial{T}) where {T} = pm
+
+# =============================================================================
+# Polynomial Simplification Integration
+# =============================================================================
+
+"""
+    _collect_simplified_terms!(result, coef, pm::PauliMonomial)
+
+Helper for simplify(::Polynomial) to collect terms from PauliMonomial result.
+"""
+function _collect_simplified_terms!(
+    result::Vector{Term{Monomial{PauliAlgebra,T},C}}, coef::C, pm::PauliMonomial{T}
+) where {T,C}
+    phase_coef = _phase_k_to_complex(pm.phase_k)
+    combined_coef = C(coef * phase_coef)
+    if !iszero(combined_coef)
+        push!(result, Term(combined_coef, pm.mono))
+    end
 end

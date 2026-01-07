@@ -18,19 +18,20 @@ The algebra type parameter enables dispatch on algebraic structure:
 abstract type OptimizationProblem{A<:AlgebraType, P} end
 
 """
-    PolyOpt{A<:AlgebraType, P<:Polynomial{A}} <: OptimizationProblem{A, P}
+    PolyOpt{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}} <: OptimizationProblem{A, P}
 
 A polynomial optimization problem structure with algebra type tracking.
 
 # Type Parameters
 - `A<:AlgebraType`: The algebra type governing simplification rules
-- `P<:Polynomial{A}`: Type of polynomial matching the algebra
+- `T<:Integer`: The integer type for monomial word indices
+- `P<:Polynomial{A,T}`: Type of polynomial matching the algebra
 
 # Fields
 - `objective::P`: The polynomial objective function to be optimized
 - `eq_constraints::Vector{P}`: Vector of equality constraints (p = 0)
 - `ineq_constraints::Vector{P}`: Vector of inequality constraints (p >= 0)
-- `registry::VariableRegistry{A}`: Variable registry mapping symbols to indices
+- `registry::VariableRegistry{A,T}`: Variable registry mapping symbols to indices
 
 # Notes
 - Algebra type determines simplification rules (no manual comm_gps, is_unipotent, is_projective)
@@ -74,12 +75,15 @@ Create a polynomial optimization problem from objective, registry, and optional 
 - `ineq_constraints`: Inequality constraints as polynomials (p >= 0). Default: empty
 
 # Returns
-A `PolyOpt{A, Polynomial{A,T,C}}` structure representing the optimization problem.
+A `PolyOpt{A,T,Polynomial{A,T,C}}` structure representing the optimization problem.
 
 # Notes
 - Algebra type `A` is inferred from the polynomial and registry (must match)
 - Coefficient type `C` cannot be an integer subtype (JuMP solver requirement)
 - Simplification rules are determined by the algebra type, not manual flags
+- For `FermionicAlgebra`: objectives should have even parity (parity superselection rule).
+  Odd-parity operators have zero expectation value. Validation is done during moment
+  relaxation via `_add_parity_constraints!`.
 
 # Examples
 ```julia
@@ -101,18 +105,8 @@ function polyopt(
     eq_constraints::Vector{Polynomial{A,T,C}}=Polynomial{A,T,C}[],
     ineq_constraints::Vector{Polynomial{A,T,C}}=Polynomial{A,T,C}[]
 ) where {A<:AlgebraType, T<:Integer, C<:Number}
-    @assert !(C <: Integer) "The polynomial coefficients cannot be integers (not supported by JuMP solvers)."
-
-    # For fermionic algebra, validate objective has even parity (superselection rule)
-    if A == FermionicAlgebra
-        for term in terms(objective)
-            mono = term.monomial
-            if !has_even_parity(mono)
-                error("Fermionic objective must have even parity (even number of operators). " *
-                      "Monomial with word $(mono.word) has odd parity and would always have " *
-                      "zero expectation value due to parity superselection.")
-            end
-        end
+    if C <: Integer
+        throw(ArgumentError("Polynomial coefficients cannot be integers (not supported by JuMP solvers). Use Float64 or other floating-point types."))
     end
 
     # Deduplicate constraints
@@ -205,7 +199,7 @@ _is_complex_problem(::Type{A}) where {A<:AlgebraType} = false  # Default fallbac
 # StateType, StateWord, NCStateWord, NCStatePolynomial are already available
 
 """
-    StatePolyOpt{A<:AlgebraType, ST<:StateType, P<:NCStatePolynomial} <: OptimizationProblem{A, P}
+    StatePolyOpt{A<:AlgebraType, T<:Integer, ST<:StateType, P<:NCStatePolynomial{<:Number,ST,A,T}} <: OptimizationProblem{A, P}
 
 A state polynomial optimization problem structure.
 
@@ -215,14 +209,15 @@ The objective and constraints are NCStatePolynomial objects.
 
 # Type Parameters
 - `A<:AlgebraType`: The algebra type governing simplification rules
+- `T<:Integer`: The integer type for monomial word indices
 - `ST<:StateType`: The state type (Arbitrary or MaxEntangled)
-- `P<:NCStatePolynomial`: Type of state polynomial
+- `P<:NCStatePolynomial{<:Number,ST,A,T}`: Type of state polynomial
 
 # Fields
 - `objective::P`: The NCStatePolynomial objective function
 - `eq_constraints::Vector{P}`: Vector of equality constraints
 - `ineq_constraints::Vector{P}`: Vector of inequality constraints
-- `registry::VariableRegistry{A}`: Variable registry for symbols
+- `registry::VariableRegistry{A,T}`: Variable registry for symbols
 
 # Examples
 ```julia
@@ -280,7 +275,9 @@ function polyopt(
     eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[],
     ineq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[]
 ) where {C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer}
-    @assert !(C <: Integer) "The polynomial coefficients cannot be integers (not supported by JuMP solvers)."
+    if C <: Integer
+        throw(ArgumentError("Polynomial coefficients cannot be integers (not supported by JuMP solvers). Use Float64 or other floating-point types."))
+    end
 
     # Deduplicate constraints
     eq_cons = unique!(copy(eq_constraints))
@@ -296,18 +293,17 @@ end
 Display a state polynomial optimization problem.
 """
 function Base.show(io::IO, spop::StatePolyOpt{A,T,ST,P}) where {A,T,ST,P}
-    println(io, "State Polynomial Optimization Problem ($(nameof(A)), $(nameof(ST)))")
-    println(io, "────────────────────────────────────────────────")
-
     # Create IO context with registry for pretty printing
     io_ctx = IOContext(io, :registry => spop.registry)
-    print(io, "Objective: ")
-    show(io_ctx, spop.objective)
-    println(io)
 
-    println(io, "Equality constraints: ", length(spop.eq_constraints))
-    println(io, "Inequality constraints: ", length(spop.ineq_constraints))
-    println(io, "Variables: ", length(spop.registry))
+    println(io_ctx, "State Polynomial Optimization Problem ($(nameof(A)), $(nameof(ST)))")
+    println(io_ctx, "────────────────────────────────────────────────")
+    print(io_ctx, "Objective: ")
+    show(io_ctx, spop.objective)
+    println(io_ctx)
+    println(io_ctx, "Equality constraints: ", length(spop.eq_constraints))
+    println(io_ctx, "Inequality constraints: ", length(spop.ineq_constraints))
+    println(io_ctx, "Variables: ", length(spop.registry))
 end
 
 

@@ -773,8 +773,8 @@ function solve_moment_problem(
     # Map StateWord to variable index
     sw_to_idx = Dict(sw => i for (i, sw) in enumerate(state_basis))
 
-    # Add constraints
-    for (cone, mat) in mp.constraints
+    # Add constraints (block_basis not needed here - used only during construction)
+    for (cone, mat, _) in mp.constraints
         dim = size(mat, 1)
         # Convert NCStatePolynomial matrix to JuMP expression matrix
         jump_mat = [

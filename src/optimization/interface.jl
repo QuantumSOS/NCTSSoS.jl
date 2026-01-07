@@ -176,7 +176,12 @@ The moment order is automatically determined from the polynomial degrees if not 
 """
 function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
 
-    order = iszero(solver_config.order) ? maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
+    order = if iszero(solver_config.order)
+        max_deg = maximum(degree(poly) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints])
+        isfinite(max_deg) ? ceil(Int, max_deg / 2) : 1  # Default to order=1 for trivial problems
+    else
+        solver_config.order
+    end
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
 
@@ -410,7 +415,12 @@ from the maximum polynomial degree.
 """
 function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
 
-    order = iszero(solver_config.order) ? maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) : solver_config.order
+    order = if iszero(solver_config.order)
+        max_deg = maximum(degree(poly) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints])
+        isfinite(max_deg) ? ceil(Int, max_deg / 2) : 1  # Default to order=1 for trivial problems
+    else
+        solver_config.order
+    end
 
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
 

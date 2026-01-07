@@ -1,6 +1,8 @@
 # =============================================================================
-# Code Quality Tests Runner
+# test/quality.jl - Code Quality Checks
 # =============================================================================
+# Run: julia --project -e 'include("test/quality.jl")'
+#
 # Runs code quality checks:
 #   - Aqua.jl: ambiguities, unbound args, piracy, etc.
 #   - ExplicitImports.jl: import hygiene
@@ -10,7 +12,7 @@
 using Test
 
 @testset "Code Quality" begin
-    include("Aqua.jl")
-    include("ExplicitImports.jl")
-    include("Doctest.jl")
+    include("quality/Aqua.jl")
+    include("quality/ExplicitImports.jl")
+    include("quality/Doctest.jl")
 end

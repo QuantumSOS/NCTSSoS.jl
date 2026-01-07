@@ -11,13 +11,15 @@
 #
 # RUNNING ORACLE SCRIPTS:
 #   Option 1: Using make (from NCTSSoS.jl repo)
-#     make oracle-chsh
-#     make oracle-i3322
+#     make oracle-chsh                         # default: mosek
+#     make oracle-chsh SOLVER=cosmo            # use COSMO solver
+#     make oracle-i3322 SOLVER=mosek           # use Mosek solver
 #     NCTSSOS_PATH=/custom/path make oracle-chsh
 #
 #   Option 2: Manual (from NCTSSOS repo)
 #     cd /path/to/NCTSSOS
 #     julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
+#     ORACLE_SOLVER=cosmo julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
 #
 # ORACLE FORMAT:
 #   (opt, sides, nuniq) where:
@@ -40,10 +42,25 @@ const NCTSSOS_PATH = get(ENV, "NCTSSOS_PATH",
     "(not detected - set NCTSSOS_PATH)"
 )
 
-using NCTSSOS, DynamicPolynomials
-using MosekTools
+# Solver selection via ORACLE_SOLVER env var (default: mosek)
+const ORACLE_SOLVER_NAME = Symbol(get(ENV, "ORACLE_SOLVER", "mosek"))
 
-@info "Oracle utilities loaded" NCTSSOS_PATH
+using NCTSSOS, DynamicPolynomials, JuMP
+
+if ORACLE_SOLVER_NAME == :cosmo
+    using COSMO
+    const ORACLE_SOLVER = optimizer_with_attributes(
+        COSMO.Optimizer,
+        "verbose" => false,
+        "eps_abs" => 1e-8,
+        "eps_rel" => 1e-8
+    )
+else
+    using MosekTools
+    const ORACLE_SOLVER = Mosek.Optimizer
+end
+
+@info "Oracle utilities loaded" NCTSSOS_PATH ORACLE_SOLVER_NAME
 
 # Extract oracle info from NCTSSOS result
 function extract_oracle(name, opt, data; use_cs=false)
@@ -65,7 +82,7 @@ end
 function print_summary(prefix, results)
     println()
     println("=" ^ 70)
-    println("$(uppercase(prefix)) ORACLE SUMMARY")
+    println("$(uppercase(prefix)) ORACLE SUMMARY (solver: $ORACLE_SOLVER_NAME)")
     println("=" ^ 70)
     println()
     println("const $(uppercase(prefix))_ORACLES = Dict(")
@@ -78,7 +95,7 @@ end
 # Print header
 function print_header(title)
     println("=" ^ 70)
-    println("NCTSSOS Oracle: $title")
+    println("NCTSSOS Oracle: $title (solver: $ORACLE_SOLVER_NAME)")
     println("=" ^ 70)
     println()
 end

@@ -252,20 +252,7 @@ Canonical form requirements:
 This is used by `Monomial{FermionicAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_fermionic_word!(word::Vector{T}) where {T<:Integer}
-    length(word) <= 1 && return nothing
-
-    for i in 1:length(word)-1
-        key_i = normal_order_key(word[i])
-        key_i1 = normal_order_key(word[i+1])
-        if key_i > key_i1
-            throw(ArgumentError(
-                "Fermionic word not in normal order at index $i: " *
-                "operator $(word[i]) should come after $(word[i+1]). " *
-                "Use PhysicsMonomial for raw words."
-            ))
-        end
-    end
-    return nothing
+    _validate_physics_word!(word; algebra_name="Fermionic")
 end
 
 """
@@ -282,6 +269,10 @@ Canonical form requirements:
 This is used by `Monomial{BosonicAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_bosonic_word!(word::Vector{T}) where {T<:Integer}
+    _validate_physics_word!(word; algebra_name="Bosonic")
+end
+
+function _validate_physics_word!(word::Vector{T}; algebra_name::AbstractString) where {T<:Integer}
     length(word) <= 1 && return nothing
 
     for i in 1:length(word)-1
@@ -289,7 +280,7 @@ function _validate_bosonic_word!(word::Vector{T}) where {T<:Integer}
         key_i1 = normal_order_key(word[i+1])
         if key_i > key_i1
             throw(ArgumentError(
-                "Bosonic word not in normal order at index $i: " *
+                "$algebra_name word not in normal order at index $i: " *
                 "operator $(word[i]) should come after $(word[i+1]). " *
                 "Use PhysicsMonomial for raw words."
             ))
@@ -420,13 +411,20 @@ false
 """
 is_normal_ordered(word::AbstractVector{T}) where {T<:Integer} = find_first_out_of_order(word) == 0
 
+@inline _sorted_symmetric_basis(xs) = sorted_unique(symmetric_canon.(xs))
+
+@inline function _sorted_stateword_basis_from_ncsw(xs)
+    return sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in xs])
+end
+
 """
     combine_like_terms(terms::Vector{Term{M,C}}) where {M,C} -> Vector{Term{M,C}}
 
 Combine terms with identical monomials by summing their coefficients.
 Filters out terms with zero coefficients.
 
-This is a generic utility used by both fermionic and bosonic simplification.
+    Internal utility for combining like terms by monomial word.
+    Currently used by tests; kept as a general helper.
 
 # Arguments
 - `terms`: Vector of Terms to combine

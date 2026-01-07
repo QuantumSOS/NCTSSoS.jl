@@ -755,7 +755,7 @@ function solve_moment_problem(
     # Build the StateWord basis from total_basis NCStateWords
     # We need to convert NCStateWord -> StateWord via expval for moment variables
     SW = StateWord{ST,A,T}
-    state_basis = sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in mp.total_basis])
+    state_basis = _sorted_stateword_basis_from_ncsw(mp.total_basis)
     n_basis = length(state_basis)
 
     # Create variables for basis StateWords
@@ -839,4 +839,3 @@ function _substitute_state_poly(
 
     return expr
 end
-

@@ -68,8 +68,8 @@ julia> length(terms(poly))  # Two terms: c₁† c₁ and identity
 ```
 """
 
-# Note: Helper functions (_is_creation, _operator_mode, normal_order_key,
-# find_first_out_of_order, is_normal_ordered) are in utils.jl
+# Note: Shared helpers (_is_creation, _operator_mode, normal_order_key,
+# find_first_out_of_order, is_normal_ordered) are in `src/util/helpers.jl`.
 
 """
     simplify(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}

@@ -28,6 +28,7 @@ include("types/polynomial.jl")
 # Simplification Algorithms (algebra-specific)
 # ============================================================================
 
+include("simplification/site_helpers.jl")
 include("simplification/projector.jl")
 include("simplification/unipotent.jl")
 include("simplification/noncommutative.jl")

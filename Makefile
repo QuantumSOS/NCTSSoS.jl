@@ -1,5 +1,13 @@
 JL = julia --project
 
+# Comma variable for escaping in macro calls
+, := ,
+
+# Macro for Pkg.test calls - usage: $(call pkg_test,["--flag1"$(,)"--flag2"])
+define pkg_test
+	$(JL) -e 'using Pkg; Pkg.test($(if $(1),test_args=$(1)))'
+endef
+
 default: init test
 
 # =============================================================================
@@ -29,6 +37,7 @@ update-docs:
 #
 # Flags:
 #   --local        Use Mosek solver (required for physics tests)
+#   --minimal      Fast smoke test (5 cases) for relaxation correctness
 #   --polynomials  Run polynomial algebra tests
 #   --quality      Run code quality checks
 #   --solvers      Run SDP solver tests
@@ -37,6 +46,8 @@ update-docs:
 # Usage:
 #   make test              - Full suite with Mosek
 #   make test-ci           - CI suite (no physics, uses COSMO)
+#   make test-minimal      - Fast smoke test (5 cases, ~30s) for relaxation correctness
+#   make test-minimal-local - Minimal with Mosek
 #   make test-polynomials  - Just polynomial algebra
 #   make test-solvers      - Just SDP solver tests
 #   make test-physics      - Just physics models (needs Mosek)
@@ -50,31 +61,39 @@ update-docs:
 
 # Full test suite with Mosek (includes physics)
 test:
-	$(JL) -e 'using Pkg; Pkg.test(test_args=["--local"])'
+	$(call pkg_test,["--local"])
 
 # CI test suite (no physics, uses COSMO)
 test-ci:
-	$(JL) -e 'using Pkg; Pkg.test()'
+	$(call pkg_test,)
 
 # Individual test groups
 test-polynomials:
-	$(JL) -e 'using Pkg; Pkg.test(test_args=["--polynomials"])'
+	$(call pkg_test,["--polynomials"])
 
 test-quality:
-	$(JL) -e 'using Pkg; Pkg.test(test_args=["--quality"])'
+	$(call pkg_test,["--quality"])
 
 test-solvers:
-	$(JL) -e 'using Pkg; Pkg.test(test_args=["--solvers"])'
+	$(call pkg_test,["--solvers"])
 
 test-physics:
-	$(JL) -e 'using Pkg; Pkg.test(test_args=["--physics", "--local"])'
+	$(call pkg_test,["--physics"$(,)"--local"])
+
+# Minimal correctness smoke test (5 cases covering critical algorithm paths)
+# Covers: Dense, CS, TS, CS+TS, Dualization - ~30s with COSMO
+test-minimal:
+	$(call pkg_test,["--minimal"])
+
+test-minimal-local:
+	$(call pkg_test,["--minimal"$(,)"--local"])
 
 # Combination targets
 test-no-physics:
-	$(JL) -e 'using Pkg; Pkg.test(test_args=["--polynomials", "--quality", "--solvers"])'
+	$(call pkg_test,["--polynomials"$(,)"--quality"$(,)"--solvers"])
 
 test-core:
-	$(JL) -e 'using Pkg; Pkg.test(test_args=["--polynomials", "--solvers"])'
+	$(call pkg_test,["--polynomials"$(,)"--solvers"])
 
 # Run a single test file with Mosek
 # Usage: make test-file FILE=test/relaxations/sparsity.jl
@@ -175,6 +194,6 @@ clean:
 
 .PHONY: init init-docs update update-docs \
         test test-ci test-polynomials test-quality test-solvers test-physics \
-        test-no-physics test-core test-file \
+        test-minimal test-minimal-local test-no-physics test-core test-file \
         sync-start sync-status sync-stop sync-pause sync-resume sync-flush \
         servedocs examples clean

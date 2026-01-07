@@ -74,11 +74,6 @@ const SHOULD_RUN_PROBLEMS = RUN_ALL || RUN_PROBLEMS
 # Run selected test groups
 # =============================================================================
 @testset "NCTSSoS.jl" begin
-    # =========================================================================
-    # TYPE SYSTEM REVAMP - Re-enabling tests incrementally
-    # =========================================================================
-    # See: .memory/tasks/type-system-revamp/plan.md
-    # =========================================================================
 
     # =========================================================================
     # 1. Polynomial Algebra Tests (no solver needed, no JuMP imports)

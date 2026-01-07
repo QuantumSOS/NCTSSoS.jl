@@ -863,7 +863,7 @@ basis elements, making the graph fully connected.
   constraint monomials
 """
 function init_activated_supp(
-    partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
+    partial_obj::P, cons::Vector{P}, _mom_mtx_bases::Vector{M}
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
     # Only include objective and constraint monomials (no monosquare/diagonal terms)
     # This matches NCTSSOS's default monosquare=false behavior

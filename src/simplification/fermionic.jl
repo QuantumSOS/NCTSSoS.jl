@@ -25,8 +25,8 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 4. Evaluate signs using permutation parity
 """
 
-# Note: Helper functions (_is_creation, _operator_mode, normal_order_key,
-# combine_like_terms) are in utils.jl
+# Note: Shared helpers (_is_creation, _operator_mode, normal_order_key, etc.)
+# are in `src/util/helpers.jl`.
 
 """
     has_even_parity(m::Monomial{FermionicAlgebra,T}) where T -> Bool
@@ -346,7 +346,7 @@ function _compute_normal_ordered_term(word::Vector{T}, contraction::Vector{Tuple
     return (Float64(total_sign), normal_word)
 end
 
-# Note: combine_like_terms is now in utils.jl as a shared helper
+# Note: Like-term combination happens via `_combine_physics_terms` in `src/types/physics_monomial.jl`.
 
 """
     _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer} -> Vector{Tuple{Int,Vector{T}}}

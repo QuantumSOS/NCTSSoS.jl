@@ -52,20 +52,11 @@ Canonical form requirements:
 This is used by `Monomial{NonCommutativeAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_nc_word!(word::Vector{T}) where {T<:Unsigned}
-    length(word) <= 1 && return nothing
-
-    prev_site = decode_site(word[1])
-    for i in 2:length(word)
-        curr_site = decode_site(word[i])
-        if curr_site < prev_site
-            throw(ArgumentError(
-                "NonCommutative word not sorted by site: site $curr_site at index $i " *
-                "comes after site $prev_site. Use simplify for raw words."
-            ))
-        end
-        prev_site = curr_site
-    end
-    return nothing
+    _validate_site_sorted_word!(
+        word;
+        algebra_name="NonCommutative",
+        sorted_hint="Use simplify for raw words."
+    )
 end
 
 # =============================================================================
@@ -91,7 +82,7 @@ function _simplify_nc_word!(word::Vector{T}) where {T<:Unsigned}
     length(word) <= 1 && return word
 
     # Stable sort by site: operators on different sites commute, within-site order preserved
-    sort!(word, alg=Base.Sort.InsertionSort, by=decode_site)
+    _stable_sort_by_site!(word)
     return word
 end
 
@@ -177,6 +168,6 @@ function Monomial{NonCommutativeAlgebra}(word::Vector{T}) where {T<:Unsigned}
     word_filtered = filter(!iszero, word)
     # Stable sort by site (same-site indices don't commute)
     # InsertionSort: stable + in-place (better memory)
-    sort!(word_filtered, by=decode_site, alg=Base.Sort.InsertionSort)
+    _stable_sort_by_site!(word_filtered)
     return Monomial{NonCommutativeAlgebra,T}(word_filtered)
 end

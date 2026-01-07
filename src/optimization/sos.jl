@@ -171,7 +171,7 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
 
     # Symmetrize basis: moment problem uses unsymmetrized basis, but
     # we need to match coefficients of symmetric (canonicalized) monomials
-    symmetric_basis = sorted_unique(symmetric_canon.(mp.total_basis))
+    symmetric_basis = _sorted_symmetric_basis(mp.total_basis)
     n_basis = length(symmetric_basis)
 
     # Create mapping from unsymmetrized basis to symmetric basis position
@@ -276,7 +276,7 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     # Create canonical StateWord basis from total_basis
     # Apply expval to convert NCStateWord to StateWord, then symmetric_canon
     SW = StateWord{ST,A,TI}
-    state_basis = sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in mp.total_basis])
+    state_basis = _sorted_stateword_basis_from_ncsw(mp.total_basis)
     n_basis = length(state_basis)
 
     # Initialize constraint expressions
@@ -388,7 +388,7 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     # Symmetrize basis: moment problem uses unsymmetrized basis, but
     # we need to match coefficients of symmetric (canonicalized) monomials
     # This is the same canonicalization used in real SOS dualization
-    symmetric_basis = sorted_unique(symmetric_canon.(mp.total_basis))
+    symmetric_basis = _sorted_symmetric_basis(mp.total_basis)
     n_basis = length(symmetric_basis)
 
     # Create mapping from unsymmetrized basis to symmetric basis position
@@ -457,5 +457,4 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
 
     return SOSProblem(dual_model)
 end
-
 

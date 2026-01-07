@@ -1,20 +1,13 @@
 # =============================================================================
-# Condensed Matter Physics Tests Runner
+# test/problems/condensed_matter/runtests.jl
 # =============================================================================
-# Tests for condensed matter physics models:
-#   - Heisenberg models (chain, star graph)
-#   - Ising model (transverse field)
-#   - XY model
-#   - Bose-Hubbard model
-#   - PXP model (Rydberg atoms)
-#
-# NOTE: These tests are commented out as they take too long or require
-#       --local flag (Mosek license) and are not yet validated.
+# Tests: Condensed matter physics models (Heisenberg, Ising, XY, Bose-Hubbard, PXP)
+# Dependencies: SOLVER
+# Requires --local: yes (parent runtests.jl guards with `if USE_LOCAL`)
 # =============================================================================
 
 using Test
 
-#=
 @testset "Condensed Matter" begin
     include("ising.jl")
     include("heisenberg_chain.jl")
@@ -24,4 +17,3 @@ using Test
     include("bose_hubbard.jl")
     include("pxp.jl")
 end
-=#

@@ -24,8 +24,15 @@ using NCTSSoS, Test
 using JuMP
 using NCTSSoS: simplify, degree  # Disambiguate from JuMP/Graphs
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
+# SOLVER fallback for standalone/REPL execution
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
 @testset "Bose-Hubbard Hamiltonian Construction" begin
     N = 4  # Number of sites

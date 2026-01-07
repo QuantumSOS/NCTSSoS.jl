@@ -13,7 +13,7 @@
 # 8. Benchmarks: Classical optimization benchmarks (Rosenbrock, etc.)
 #
 # Prerequisites:
-#   - SOLVER must be defined (from test/setup.jl or parent runtests.jl)
+#   - SOLVER must be defined (from test/TestUtils.jl or parent runtests.jl)
 #   - USE_LOCAL determines whether Mosek or COSMO is used
 #
 # NOTE: Many tests require --local flag (Mosek license) for sufficient

@@ -305,7 +305,10 @@ function _solve_real_moment_problem(
     silent && set_silent(model)
     optimize!(model)
 
-    return (objective=objective_value(model), model=model, monomap=monomap)
+    # Count unique monomials after symmetric canonicalization (matches SOS dual)
+    n_unique = length(_sorted_symmetric_basis(mp.total_basis))
+
+    return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
 
 """
@@ -385,7 +388,10 @@ function _solve_complex_moment_problem(
         for (m, i) in basis_to_idx
     )
 
-    return (objective=objective_value(model), model=model, monomap=monomap)
+    # Count unique monomials after symmetric canonicalization (matches SOS dual)
+    n_unique = length(_sorted_symmetric_basis(mp.total_basis))
+
+    return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
 
 
@@ -803,7 +809,10 @@ function solve_moment_problem(
     # Build monomap returning StateWord -> value
     monomap = Dict(sw => value(y[i]) for (sw, i) in sw_to_idx)
 
-    return (objective=objective_value(model), model=model, monomap=monomap)
+    # Count unique StateWords after symmetric canonicalization (matches SOS dual)
+    n_unique = length(_sorted_stateword_basis_from_ncsw(mp.total_basis))
+
+    return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
 
 """

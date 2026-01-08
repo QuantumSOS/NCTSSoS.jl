@@ -15,6 +15,7 @@ smaller and faster to solve than the primal moment problem.
 
 # Fields
 - `model::GenericModel{T}`: The JuMP model ready to be optimized
+- `n_unique_elements::Int`: Number of unique moment variables after canonicalization
 
 # Usage
 ```julia
@@ -32,6 +33,7 @@ See also: [`sos_dualize`](@ref), [`MomentProblem`](@ref)
 """
 struct SOSProblem{T}
     model::GenericModel{T}
+    n_unique_elements::Int  # Number of unique moment variables after canonicalization
 end
 
 
@@ -214,7 +216,7 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     # All coefficient constraints
     @constraint(dual_model, fα_constraints .== 0)
 
-    return SOSProblem(dual_model)
+    return SOSProblem(dual_model, n_basis)
 end
 
 
@@ -321,7 +323,7 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     # All coefficient constraints
     @constraint(dual_model, fα_constraints .== 0)
 
-    return SOSProblem(dual_model)
+    return SOSProblem(dual_model, n_basis)
 end
 
 """
@@ -455,6 +457,6 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     @constraint(dual_model, fα_constraints_re .== 0)
     @constraint(dual_model, fα_constraints_im .== 0)
 
-    return SOSProblem(dual_model)
+    return SOSProblem(dual_model, n_basis)
 end
 

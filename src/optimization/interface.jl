@@ -43,67 +43,26 @@ function _compute_moment_matrix_sizes(cliques_term_sparsities::Vector{Vector{Ter
 end
 
 """
-    _count_unique_moment_elements(cliques_term_sparsities)
+    PolyOptResult(objective, corr_sparsity, cliques_term_sparsities, model, n_unique_elements)
 
-Count the number of unique moment variables (affine constraints in the SDP).
-
-This counts the unique monomials across all moment and localizing matrices after:
-1. Constructing matrix entries as basis[i]† * g * basis[j] (g=1 for moment, g=constraint for localizing)
-2. Simplifying via algebra rules
-3. Canonicalizing with `symmetric_canon` (to match dualization deduplication)
-
-This matches NCTSSOS's `length(data.ksupp)` which counts affine constraints.
-"""
-function _count_unique_moment_elements(cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}}
-    unique_monos = Set{M}()
-    
-    for term_sparsities in cliques_term_sparsities
-        # Iterate over all term sparsities (moment + localizing matrices)
-        for ts in term_sparsities
-            for block_basis in ts.block_bases
-                for row_idx in block_basis
-                    for col_idx in block_basis
-                        # Compute basis[i]† * 1 * basis[j] = neat_dot(row_idx, one(M), col_idx)
-                        # Note: For localizing matrices, the constraint polynomial is handled
-                        # during SDP construction, not here. We count basis products only.
-                        prod_poly = Polynomial(simplify(_neat_dot3(row_idx, one(M), col_idx)))
-                        
-                        # Extract monomials, canonicalize, and add to set
-                        for mono in monomials(prod_poly)
-                            canon_mono = symmetric_canon(expval(mono))
-                            push!(unique_monos, canon_mono)
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    return length(unique_monos)
-end
-
-"""
-    PolyOptResult(objective, corr_sparsity, cliques_term_sparsities, model)
-
-Backwards-compatible constructor that computes the additional fields
-`moment_matrix_sizes` and `n_unique_moment_matrix_elements` automatically.
+Construct a PolyOptResult with all fields.
 """
 function PolyOptResult(
     objective::T,
     corr_sparsity::CorrelativeSparsity{A,TI,P,M},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
-    model::GenericModel{T}
+    model::GenericModel{T},
+    n_unique_elements::Int
 ) where {T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
     moment_matrix_sizes = _compute_moment_matrix_sizes(cliques_term_sparsities)
-    n_unique = _count_unique_moment_elements(cliques_term_sparsities)
-    
+
     return PolyOptResult{T,A,TI,P,M}(
         objective,
         corr_sparsity,
         cliques_term_sparsities,
         model,
         moment_matrix_sizes,
-        n_unique
+        n_unique_elements
     )
 end
 
@@ -212,11 +171,11 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
         sos_problem = sos_dualize(moment_problem)
         set_optimizer(sos_problem.model, solver_config.optimizer)
         optimize!(sos_problem.model)
-        return PolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model)
+        return PolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model, sos_problem.n_unique_elements)
     else
         # Solve moment problem directly
         result = solve_moment_problem(moment_problem, solver_config.optimizer)
-        return PolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model)
+        return PolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
     end
 end
 
@@ -263,11 +222,11 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
         sos_problem = sos_dualize(moment_problem)
         set_optimizer(sos_problem.model, solver_config.optimizer)
         optimize!(sos_problem.model)
-        return PolyOptResult(objective_value(sos_problem.model), prev_res.corr_sparsity, cliques_term_sparsities, sos_problem.model)
+        return PolyOptResult(objective_value(sos_problem.model), prev_res.corr_sparsity, cliques_term_sparsities, sos_problem.model, sos_problem.n_unique_elements)
     else
         # Solve moment problem directly
         result = solve_moment_problem(moment_problem, solver_config.optimizer)
-        return PolyOptResult(result.objective, prev_res.corr_sparsity, cliques_term_sparsities, result.model)
+        return PolyOptResult(result.objective, prev_res.corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
     end
 end
 
@@ -305,61 +264,26 @@ struct StatePolyOptResult{T, A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCSt
     n_unique_moment_matrix_elements::Int
 end
 
-function _count_unique_state_moment_elements(
-    corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M},
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
-) where {A<:AlgebraType, ST<:StateType, TI<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,TI}, M<:NCStateWord{ST,A,TI}}
-    unique_sws = Set{StateWord{ST,A,TI}}()
+"""
+    StatePolyOptResult(objective, corr_sparsity, cliques_term_sparsities, model, n_unique_elements)
 
-    one_poly = one(P)
-
-    for (term_sparsities, cons_idx) in zip(cliques_term_sparsities, corr_sparsity.clq_cons)
-        polys = [one_poly; corr_sparsity.cons[cons_idx]...]
-
-        for (term_sparsity, poly) in zip(term_sparsities, polys)
-            for ts_sub_basis in term_sparsity.block_bases
-                for row_idx in ts_sub_basis
-                    for col_idx in ts_sub_basis
-                        for ncsw in monomials(poly)
-                            prod_poly = simplify(_neat_dot3(row_idx, ncsw, col_idx))
-                            for ncsw_res in monomials(prod_poly)
-                                push!(unique_sws, symmetric_canon(expval(ncsw_res)))
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-
-    for global_con in corr_sparsity.global_cons
-        poly = corr_sparsity.cons[global_con]
-        for ncsw in monomials(poly)
-            prod_poly = simplify(_neat_dot3(one(M), ncsw, one(M)))
-            for ncsw_res in monomials(prod_poly)
-                push!(unique_sws, symmetric_canon(expval(ncsw_res)))
-            end
-        end
-    end
-
-    return length(unique_sws)
-end
-
+Construct a StatePolyOptResult with all fields.
+"""
 function StatePolyOptResult(
     objective::T,
     corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
-    model::GenericModel{T}
+    model::GenericModel{T},
+    n_unique_elements::Int
 ) where {T, A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
     moment_matrix_sizes = _compute_moment_matrix_sizes(cliques_term_sparsities)
-    n_unique = _count_unique_state_moment_elements(corr_sparsity, cliques_term_sparsities)
     return StatePolyOptResult{T,A,ST,TI,P,M}(
         objective,
         corr_sparsity,
         cliques_term_sparsities,
         model,
         moment_matrix_sizes,
-        n_unique
+        n_unique_elements
     )
 end
 
@@ -450,17 +374,15 @@ function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; du
     # Create symbolic state moment problem
     moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
 
-    M = NCStateWord{ST,A,T}
-
     if dualize
         # Dualize to SOS problem and solve
         sos_problem = sos_dualize(moment_problem)
         set_optimizer(sos_problem.model, solver_config.optimizer)
         optimize!(sos_problem.model)
-        return StatePolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model)
+        return StatePolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model, sos_problem.n_unique_elements)
     else
         # Solve moment problem directly
         result = solve_moment_problem(moment_problem, solver_config.optimizer)
-        return StatePolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model)
+        return StatePolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
     end
 end

@@ -116,6 +116,10 @@ PolyOpt → correlative_sparsity() → cliques
 - Polynomials: 2005/2005
 - Relaxations: 94/94
 
+**Commits**:
+- `1212753` refactor(interface): extract testable functions
+- `f9caecb` test: add unit tests for extracted interface functions
+
 **Status**: COMPLETE
 
 ---

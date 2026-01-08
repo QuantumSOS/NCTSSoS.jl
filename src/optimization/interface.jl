@@ -84,6 +84,119 @@ function Base.show(io::IO, result::PolyOptResult)
 end
 
 """
+    compute_relaxation_order(pop::OptimizationProblem, user_order::Int) -> Int
+
+Compute the relaxation order for the moment-SOS hierarchy.
+
+If `user_order > 0`, returns it directly. Otherwise, computes the minimum order
+needed to capture all polynomial degrees: `ceil(max_degree / 2)`.
+
+Returns 1 for trivial problems (empty or zero-degree polynomials).
+"""
+function compute_relaxation_order(pop::OptimizationProblem, user_order::Int)::Int
+    iszero(user_order) || return user_order
+    all_polys = [pop.objective; pop.eq_constraints; pop.ineq_constraints]
+    max_deg = maximum(degree(poly) for poly in all_polys)
+    isfinite(max_deg) ? ceil(Int, max_deg / 2) : 1
+end
+
+# Acceptable solver termination statuses
+const _ACCEPTABLE_STATUSES = Set([
+    MOI.OPTIMAL,
+    MOI.ALMOST_OPTIMAL,
+    MOI.LOCALLY_SOLVED,
+    MOI.ALMOST_LOCALLY_SOLVED,
+])
+
+"""
+    _check_solver_status(model)
+
+Check that the solver terminated successfully. Throws an error if the solver
+failed with an unacceptable status (infeasible, unbounded, numerical error, etc.).
+"""
+function _check_solver_status(model)
+    status = termination_status(model)
+    if status ∉ _ACCEPTABLE_STATUSES
+        primal = primal_status(model)
+        dual = dual_status(model)
+        error("Solver failed: termination=$status, primal=$primal, dual=$dual")
+    end
+    return status
+end
+
+"""
+    project_to_clique(poly::Polynomial, clique_indices) -> Polynomial
+
+Project a polynomial to a clique by keeping only terms whose variables are
+all contained in the clique.
+
+Returns a polynomial containing only the terms of `poly` where all variable
+indices are in `clique_indices`.
+"""
+function project_to_clique(poly::Polynomial{A,T,C}, clique_indices) where {A,T,C}
+    clique_set = Set(clique_indices)
+    result_terms = Term{Monomial{A,T},C}[]
+    for (coef, mono) in zip(coefficients(poly), monomials(poly))
+        if issubset(variable_indices(mono), clique_set)
+            push!(result_terms, Term(coef, mono))
+        end
+    end
+    isempty(result_terms) ? zero(poly) : Polynomial(result_terms)
+end
+
+"""
+    project_to_clique(poly::NCStatePolynomial, clique_indices) -> NCStatePolynomial
+
+Project a state polynomial to a clique by keeping only terms whose variables are
+all contained in the clique.
+"""
+function project_to_clique(poly::NCStatePolynomial{C,ST,A,T}, clique_indices) where {C,ST,A,T}
+    clique_set = Set(clique_indices)
+    result_coeffs = C[]
+    result_words = NCStateWord{ST,A,T}[]
+    for (coef, word) in zip(coefficients(poly), monomials(poly))
+        if issubset(variable_indices(word), clique_set)
+            push!(result_coeffs, coef)
+            push!(result_words, word)
+        end
+    end
+    isempty(result_coeffs) ? zero(poly) : NCStatePolynomial(result_coeffs, result_words)
+end
+
+"""
+    solve_sdp(moment_problem, optimizer; dualize::Bool=true)
+
+Solve the SDP relaxation, either via SOS dualization or directly as moment problem.
+
+Returns a named tuple `(objective, model, n_unique_elements, status)`.
+
+Throws an error if the solver fails (infeasible, unbounded, numerical error).
+"""
+function solve_sdp(moment_problem, optimizer; dualize::Bool=true)
+    if dualize
+        sos_problem = sos_dualize(moment_problem)
+        set_optimizer(sos_problem.model, optimizer)
+        optimize!(sos_problem.model)
+        status = _check_solver_status(sos_problem.model)
+        return (
+            objective = objective_value(sos_problem.model),
+            model = sos_problem.model,
+            n_unique_elements = sos_problem.n_unique_elements,
+            status = status
+        )
+    else
+        result = solve_moment_problem(moment_problem, optimizer)
+        status = _check_solver_status(result.model)
+        return (
+            objective = result.objective,
+            model = result.model,
+            n_unique_elements = result.n_unique_elements,
+            status = status
+        )
+    end
+end
+
+"""
     SolverConfig(; optimizer, order, cs_algo=NoElimination(), ts_algo=NoElimination())
 
 Configuration for solving polynomial optimization problems.
@@ -134,26 +247,11 @@ This function solves a polynomial optimization problem by:
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
 function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
-
-    order = if iszero(solver_config.order)
-        max_deg = maximum(degree(poly) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints])
-        isfinite(max_deg) ? ceil(Int, max_deg / 2) : 1  # Default to order=1 for trivial problems
-    else
-        solver_config.order
-    end
-
+    order = compute_relaxation_order(pop, solver_config.order)
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
 
     # Compute partial objectives for each clique
-    # cliques are now Vector{T} (indices), use variable_indices() for comparison
-    cliques_objective = map(corr_sparsity.cliques) do clique_indices
-        clique_set = Set(clique_indices)
-        reduce(+,
-            (issubset(variable_indices(mono), clique_set) ? coef * mono : zero(coef) * one(mono)
-             for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective)));
-            init=zero(pop.objective)
-        )
-    end
+    cliques_objective = map(c -> project_to_clique(pop.objective, c), corr_sparsity.cliques)
 
     initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
         init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
@@ -166,17 +264,8 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     # Create unified symbolic moment problem (handles both real and complex via algebra traits)
     moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
 
-    if dualize
-        # Dualize to SOS problem and solve
-        sos_problem = sos_dualize(moment_problem)
-        set_optimizer(sos_problem.model, solver_config.optimizer)
-        optimize!(sos_problem.model)
-        return PolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model, sos_problem.n_unique_elements)
-    else
-        # Solve moment problem directly
-        result = solve_moment_problem(moment_problem, solver_config.optimizer)
-        return PolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
-    end
+    result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
+    return PolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
 end
 
 """
@@ -217,17 +306,8 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
 
     moment_problem = moment_relax(pop, prev_res.corr_sparsity, cliques_term_sparsities)
 
-    if dualize
-        # Dualize to SOS problem and solve
-        sos_problem = sos_dualize(moment_problem)
-        set_optimizer(sos_problem.model, solver_config.optimizer)
-        optimize!(sos_problem.model)
-        return PolyOptResult(objective_value(sos_problem.model), prev_res.corr_sparsity, cliques_term_sparsities, sos_problem.model, sos_problem.n_unique_elements)
-    else
-        # Solve moment problem directly
-        result = solve_moment_problem(moment_problem, solver_config.optimizer)
-        return PolyOptResult(result.objective, prev_res.corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
-    end
+    result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
+    return PolyOptResult(result.objective, prev_res.corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
 end
 
 # =============================================================================
@@ -338,30 +418,11 @@ use `order >= 1`. If `order=0` is specified, it will be automatically computed
 from the maximum polynomial degree.
 """
 function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
-
-    order = if iszero(solver_config.order)
-        max_deg = maximum(degree(poly) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints])
-        isfinite(max_deg) ? ceil(Int, max_deg / 2) : 1  # Default to order=1 for trivial problems
-    else
-        solver_config.order
-    end
-
+    order = compute_relaxation_order(pop, solver_config.order)
     corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
 
     # Compute partial objectives for each clique
-    # For NCStatePolynomial, use variable_indices on NCStateWord
-    cliques_objective = map(corr_sparsity.cliques) do clique_indices
-        clique_set = Set(clique_indices)
-        result_coeffs = C[]
-        result_ncsws = NCStateWord{ST,A,T}[]
-        for (coef, ncsw) in zip(coefficients(pop.objective), monomials(pop.objective))
-            if issubset(variable_indices(ncsw), clique_set)
-                push!(result_coeffs, coef)
-                push!(result_ncsws, ncsw)
-            end
-        end
-        isempty(result_coeffs) ? zero(P) : NCStatePolynomial(result_coeffs, result_ncsws)
-    end
+    cliques_objective = map(c -> project_to_clique(pop.objective, c), corr_sparsity.cliques)
 
     initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
         init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
@@ -374,15 +435,6 @@ function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; du
     # Create symbolic state moment problem
     moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
 
-    if dualize
-        # Dualize to SOS problem and solve
-        sos_problem = sos_dualize(moment_problem)
-        set_optimizer(sos_problem.model, solver_config.optimizer)
-        optimize!(sos_problem.model)
-        return StatePolyOptResult(objective_value(sos_problem.model), corr_sparsity, cliques_term_sparsities, sos_problem.model, sos_problem.n_unique_elements)
-    else
-        # Solve moment problem directly
-        result = solve_moment_problem(moment_problem, solver_config.optimizer)
-        return StatePolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
-    end
+    result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
+    return StatePolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
 end

@@ -98,11 +98,33 @@ PolyOpt → correlative_sparsity() → cliques
 
 ---
 
+## Session 4: 2026-01-08
+
+**Focus**: Extract testable functions from `cs_nctssos`
+
+**Extractions completed**:
+1. `compute_relaxation_order(pop, user_order)` - unified order computation (DRY: 2→1)
+2. `solve_sdp(moment_problem, optimizer; dualize)` + `_check_solver_status` - **fixes missing error handling bug** (DRY: 3→1)
+3. `project_to_clique(poly, clique_indices)` - 2 dispatched methods for Polynomial/NCStatePolynomial (DRY: 2→1 per type)
+
+**Bug fixed**: Solver status was never checked after `optimize!()` - now throws on INFEASIBLE/UNBOUNDED/NUMERICAL_ERROR
+
+**Lines changed**: interface.jl ~+60 (new functions), ~-80 (removed duplication) = net ~-20
+
+**Tests**: All passing
+- Minimal: 24/24
+- Polynomials: 2005/2005
+- Relaxations: 94/94
+
+**Status**: COMPLETE
+
+---
+
 ## Checklist Progress
 
 ### Phase 1: Optimization Pipeline (Interactive Redo)
 - [x] 1.1 Problem Definition (`problem.jl`) - reviewed StatePolyOpt duplication issue
-- [ ] 1.2 Main Solver Entry (`interface.jl`) - IN PROGRESS, applied DRY refactor
+- [x] 1.2 Main Solver Entry (`interface.jl`) - extracted testable functions, fixed solver status bug
 - [ ] 1.3 Correlative Sparsity (`sparsity.jl`)
 - [ ] 1.4 Term Sparsity (`sparsity.jl:460-600`)
 - [ ] 1.5 Moment Relaxation (`moment.jl`)

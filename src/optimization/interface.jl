@@ -97,7 +97,7 @@ function compute_relaxation_order(pop::OptimizationProblem, user_order::Int)::In
     iszero(user_order) || return user_order
     all_polys = [pop.objective; pop.eq_constraints; pop.ineq_constraints]
     max_deg = maximum(degree(poly) for poly in all_polys)
-    isfinite(max_deg) ? ceil(Int, max_deg / 2) : 1
+    isfinite(max_deg) ? max(1, ceil(Int, max_deg / 2)) : 1
 end
 
 # Acceptable solver termination statuses

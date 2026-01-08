@@ -88,6 +88,7 @@ include("optimization/interface.jl")
 
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
+export SparsityResult, StateSparsityResult, compute_sparsity
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, reconstruct

@@ -132,6 +132,53 @@ PolyOpt → correlative_sparsity() → cliques
 
 ---
 
+## Session 5: 2026-01-08
+
+**Focus**: Extract `compute_sparsity` for debugging sparsity without solving
+
+**Problem**: User wanted to inspect `initial_activated_supps` and `cliques_term_sparsities` for debugging, but these were only accessible after solving the SDP.
+
+**Solution**: Introduced `SparsityResult` and `StateSparsityResult` structs with a `compute_sparsity()` function that returns sparsity info without running the solver.
+
+**Changes**:
+1. New types: `SparsityResult{A,TI,P,M}`, `StateSparsityResult{A,ST,TI,P,M}`
+2. New function: `compute_sparsity(pop, solver_config)` - returns sparsity before solving
+3. Refactored `PolyOptResult` and `StatePolyOptResult` to store nested `sparsity` field
+4. Simplified `cs_nctssos`: now calls `compute_sparsity` → `moment_relax` → `solve_sdp`
+5. Updated `cs_nctssos_higher` to use new field paths
+6. Exported: `SparsityResult`, `StateSparsityResult`, `compute_sparsity`
+
+**API Change** (breaking):
+```julia
+# Before
+result.corr_sparsity
+result.cliques_term_sparsities
+
+# After
+result.sparsity.corr_sparsity
+result.sparsity.initial_activated_supps  # NEW - now accessible
+result.sparsity.cliques_term_sparsities
+```
+
+**New Debug Usage**:
+```julia
+# Inspect sparsity without solving
+sparsity = compute_sparsity(pop, config)
+@show sparsity.initial_activated_supps
+@show sparsity.cliques_term_sparsities
+
+# Full solve (unchanged API)
+result = cs_nctssos(pop, config)
+```
+
+**Tests**: All passing (minimal: 24, relaxations: 114)
+
+**Next step**: Phase 1.3 - Correlative Sparsity (`sparsity.jl`)
+
+**Status**: COMPLETE
+
+---
+
 ## Checklist Progress
 
 ### Phase 1: Optimization Pipeline (Interactive Redo)

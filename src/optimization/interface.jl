@@ -1,3 +1,46 @@
+# =============================================================================
+# Sparsity Results (pre-solve, for debugging/inspection)
+# =============================================================================
+
+"""
+    SparsityResult{A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+
+Result of sparsity computation for polynomial optimization, before solving.
+
+Contains all information needed to construct and solve the moment relaxation,
+useful for debugging and inspecting the problem structure without running the solver.
+
+# Fields
+- `corr_sparsity::CorrelativeSparsity{A,TI,P,M}`: Correlative sparsity structure (cliques, constraints)
+- `initial_activated_supps::Vector{Vector{M}}`: Initial activated supports per clique (before term sparsity iteration)
+- `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity blocks per clique
+"""
+struct SparsityResult{A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M}
+    initial_activated_supps::Vector{Vector{M}}
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+end
+
+"""
+    StateSparsityResult{A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
+
+Result of sparsity computation for state polynomial optimization, before solving.
+
+# Fields
+- `corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M}`: State correlative sparsity structure
+- `initial_activated_supps::Vector{Vector{M}}`: Initial activated supports per clique
+- `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity blocks per clique
+"""
+struct StateSparsityResult{A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
+    corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M}
+    initial_activated_supps::Vector{Vector{M}}
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+end
+
+# =============================================================================
+# Polynomial Optimization Result
+# =============================================================================
+
 """
     PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
 
@@ -12,16 +55,14 @@ Result of a polynomial optimization problem solution.
 
 # Fields
 - `objective::T`: Optimal objective value
-- `corr_sparsity::CorrelativeSparsity{A,TI,P,M}`: Correlative sparsity structure
-- `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity for each clique
+- `sparsity::SparsityResult{A,TI,P,M}`: Sparsity structure (correlative + term sparsity + initial activated supports)
 - `model::GenericModel{T}`: JuMP model used for solving
 - `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix
 - `n_unique_moment_matrix_elements::Int`: Number of unique moment variables in all moment matrices (after canonicalization)
 """
 struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
     objective::T
-    corr_sparsity::CorrelativeSparsity{A,TI,P,M}
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+    sparsity::SparsityResult{A,TI,P,M}
     model::GenericModel{T}
     moment_matrix_sizes::Vector{Vector{Int}}
     n_unique_moment_matrix_elements::Int
@@ -43,23 +84,21 @@ function _compute_moment_matrix_sizes(cliques_term_sparsities::Vector{Vector{Ter
 end
 
 """
-    PolyOptResult(objective, corr_sparsity, cliques_term_sparsities, model, n_unique_elements)
+    PolyOptResult(objective, sparsity, model, n_unique_elements)
 
-Construct a PolyOptResult with all fields.
+Construct a PolyOptResult from a SparsityResult.
 """
 function PolyOptResult(
     objective::T,
-    corr_sparsity::CorrelativeSparsity{A,TI,P,M},
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+    sparsity::SparsityResult{A,TI,P,M},
     model::GenericModel{T},
     n_unique_elements::Int
 ) where {T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
-    moment_matrix_sizes = _compute_moment_matrix_sizes(cliques_term_sparsities)
+    moment_matrix_sizes = _compute_moment_matrix_sizes(sparsity.cliques_term_sparsities)
 
     return PolyOptResult{T,A,TI,P,M}(
         objective,
-        corr_sparsity,
-        cliques_term_sparsities,
+        sparsity,
         model,
         moment_matrix_sizes,
         n_unique_elements
@@ -68,9 +107,9 @@ end
 
 function Base.show(io::IO, result::PolyOptResult)
     println(io, "Objective: ", result.objective)
-    show(io, result.corr_sparsity)
+    show(io, result.sparsity.corr_sparsity)
     println(io, "Term Sparsity:")
-    for (i, sparsities) in enumerate(result.cliques_term_sparsities)
+    for (i, sparsities) in enumerate(result.sparsity.cliques_term_sparsities)
         println(io, "Clique $i:")
         println(io, "   Moment Matrix Block Sizes: ", result.moment_matrix_sizes[i])
         println(io, "   Moment Matrix:")
@@ -223,6 +262,58 @@ SolverConfig(Clarabel.MOIwrapper.Optimizer, 2, NoElimination(), NoElimination())
 end
 
 """
+    compute_sparsity(pop::PolyOpt, solver_config::SolverConfig) -> SparsityResult
+
+Compute correlative and term sparsity for a polynomial optimization problem.
+
+This function performs all sparsity computations without solving the SDP,
+useful for debugging and inspecting the problem structure.
+
+# Returns
+- `SparsityResult`: Contains correlative sparsity, initial activated supports, and term sparsities
+"""
+function compute_sparsity(pop::OP, solver_config::SolverConfig) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
+    order = compute_relaxation_order(pop, solver_config.order)
+    corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
+
+    # Compute partial objectives for each clique
+    cliques_objective = map(c -> project_to_clique(pop.objective, c), corr_sparsity.cliques)
+
+    initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
+        init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
+    end
+
+    cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
+        term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
+    end
+
+    return SparsityResult(corr_sparsity, initial_activated_supps, cliques_term_sparsities)
+end
+
+"""
+    compute_sparsity(pop::StatePolyOpt, solver_config::SolverConfig) -> StateSparsityResult
+
+Compute correlative and term sparsity for a state polynomial optimization problem.
+"""
+function compute_sparsity(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+    order = compute_relaxation_order(pop, solver_config.order)
+    corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
+
+    # Compute partial objectives for each clique
+    cliques_objective = map(c -> project_to_clique(pop.objective, c), corr_sparsity.cliques)
+
+    initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
+        init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
+    end
+
+    cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
+        term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
+    end
+
+    return StateSparsityResult(corr_sparsity, initial_activated_supps, cliques_term_sparsities)
+end
+
+"""
     cs_nctssos(pop::PolyOpt{P}, solver_config::SolverConfig; dualize::Bool=true) where {P}
 
 Solve a polynomial optimization problem using the CS-NCTSSOS method with correlative sparsity and term sparsity exploitation.
@@ -247,25 +338,10 @@ This function solves a polynomial optimization problem by:
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
 function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
-    order = compute_relaxation_order(pop, solver_config.order)
-    corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
-
-    # Compute partial objectives for each clique
-    cliques_objective = map(c -> project_to_clique(pop.objective, c), corr_sparsity.cliques)
-
-    initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-        init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
-    end
-
-    cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-        term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
-    end
-
-    # Create unified symbolic moment problem (handles both real and complex via algebra traits)
-    moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
-
+    sparsity = compute_sparsity(pop, solver_config)
+    moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
     result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
-    return PolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
+    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end
 
 """
@@ -294,20 +370,25 @@ This function performs a higher-order iteration of the CS-NCTSSOS method by:
 This is typically used when the previous relaxation was not tight enough and a higher-order relaxation is needed.
 """
 function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
-    initial_activated_supps = [reduce(sorted_union, [poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec])
-                               for term_sparsities_vec in prev_res.cliques_term_sparsities]
+    prev_sparsity = prev_res.sparsity
 
-    prev_corr_sparsity = prev_res.corr_sparsity
+    # Compute new initial activated supports from union of previous term sparsity graph supports
+    initial_activated_supps = [reduce(sorted_union, [poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec])
+                               for term_sparsities_vec in prev_sparsity.cliques_term_sparsities]
+
+    prev_corr_sparsity = prev_sparsity.corr_sparsity
 
     cliques_term_sparsities = map(zip(initial_activated_supps, prev_corr_sparsity.clq_cons, prev_corr_sparsity.clq_mom_mtx_bases, prev_corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
         term_sparsities(init_act_supp, prev_corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
     end
 
+    # Create new sparsity result with updated term sparsities
+    sparsity = SparsityResult(prev_corr_sparsity, initial_activated_supps, cliques_term_sparsities)
 
-    moment_problem = moment_relax(pop, prev_res.corr_sparsity, cliques_term_sparsities)
+    moment_problem = moment_relax(pop, prev_corr_sparsity, cliques_term_sparsities)
 
     result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
-    return PolyOptResult(result.objective, prev_res.corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
+    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end
 
 # =============================================================================
@@ -329,38 +410,34 @@ Result of a state polynomial optimization problem solution.
 
 # Fields
 - `objective::T`: Optimal objective value
-- `corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M}`: State correlative sparsity structure
-- `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity for each clique
+- `sparsity::StateSparsityResult{A,ST,TI,P,M}`: Sparsity structure (correlative + term sparsity + initial activated supports)
 - `model::GenericModel{T}`: JuMP model used for solving
 - `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix
 - `n_unique_moment_matrix_elements::Int`: Number of unique moment variables in all moment matrices (after canonicalization)
 """
 struct StatePolyOptResult{T, A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
     objective::T
-    corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M}
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+    sparsity::StateSparsityResult{A,ST,TI,P,M}
     model::GenericModel{T}
     moment_matrix_sizes::Vector{Vector{Int}}
     n_unique_moment_matrix_elements::Int
 end
 
 """
-    StatePolyOptResult(objective, corr_sparsity, cliques_term_sparsities, model, n_unique_elements)
+    StatePolyOptResult(objective, sparsity, model, n_unique_elements)
 
-Construct a StatePolyOptResult with all fields.
+Construct a StatePolyOptResult from a StateSparsityResult.
 """
 function StatePolyOptResult(
     objective::T,
-    corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M},
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+    sparsity::StateSparsityResult{A,ST,TI,P,M},
     model::GenericModel{T},
     n_unique_elements::Int
 ) where {T, A<:AlgebraType, ST<:StateType, TI<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
-    moment_matrix_sizes = _compute_moment_matrix_sizes(cliques_term_sparsities)
+    moment_matrix_sizes = _compute_moment_matrix_sizes(sparsity.cliques_term_sparsities)
     return StatePolyOptResult{T,A,ST,TI,P,M}(
         objective,
-        corr_sparsity,
-        cliques_term_sparsities,
+        sparsity,
         model,
         moment_matrix_sizes,
         n_unique_elements
@@ -370,9 +447,9 @@ end
 function Base.show(io::IO, result::StatePolyOptResult)
     println(io, "State Optimization Result")
     println(io, "Objective: ", result.objective)
-    show(io, result.corr_sparsity)
+    show(io, result.sparsity.corr_sparsity)
     println(io, "Term Sparsity:")
-    for (i, sparsities) in enumerate(result.cliques_term_sparsities)
+    for (i, sparsities) in enumerate(result.sparsity.cliques_term_sparsities)
         println(io, "Clique $i:")
         println(io, "   Moment Matrix Block Sizes: ", result.moment_matrix_sizes[i])
         println(io, "   Moment Matrix:")
@@ -418,23 +495,8 @@ use `order >= 1`. If `order=0` is specified, it will be automatically computed
 from the maximum polynomial degree.
 """
 function cs_nctssos(pop::StatePolyOpt{A,T,ST,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
-    order = compute_relaxation_order(pop, solver_config.order)
-    corr_sparsity = correlative_sparsity(pop, order, solver_config.cs_algo)
-
-    # Compute partial objectives for each clique
-    cliques_objective = map(c -> project_to_clique(pop.objective, c), corr_sparsity.cliques)
-
-    initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-        init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
-    end
-
-    cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-        term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
-    end
-
-    # Create symbolic state moment problem
-    moment_problem = moment_relax(pop, corr_sparsity, cliques_term_sparsities)
-
+    sparsity = compute_sparsity(pop, solver_config)
+    moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
     result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
-    return StatePolyOptResult(result.objective, corr_sparsity, cliques_term_sparsities, result.model, result.n_unique_elements)
+    return StatePolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end

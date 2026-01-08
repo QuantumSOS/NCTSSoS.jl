@@ -50,6 +50,10 @@ Monomial{A<:AlgebraType, T<:Integer} → Term → Polynomial
 - `src/optimization/` - SDP relaxation: sparsity.jl, moment.jl, sos.jl, interface.jl
 - `src/states/` - StatePolynomial for quantum expectations with trace operations
 
+## Refactoring Policy
+
+During the `ys/type-system-revamp` branch, prefer **cleaner breaking changes** over backwards-compatible hacks. This is a revamp - prioritize good design over preserving old APIs.
+
 ## Code Conventions
 
 ### Fermionic Operators

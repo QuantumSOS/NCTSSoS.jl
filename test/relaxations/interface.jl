@@ -441,3 +441,77 @@ end
         @test MOI.NUMERICAL_ERROR ∉ NCTSSoS._ACCEPTABLE_STATUSES
     end
 end
+
+@testset "compute_sparsity" begin
+    @testset "Returns SparsityResult with correct fields" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+        obj = 1.0*x[1]^2 + 1.0*x[2]^2 + 1.0*x[3]^2
+        pop = polyopt(obj, reg)
+        solver_config = SolverConfig(optimizer=SOLVER, order=1)
+
+        sparsity = compute_sparsity(pop, solver_config)
+
+        # Check struct type
+        @test sparsity isa SparsityResult
+
+        # Check all fields are populated
+        @test !isempty(sparsity.corr_sparsity.cliques)
+        @test !isempty(sparsity.initial_activated_supps)
+        @test !isempty(sparsity.cliques_term_sparsities)
+
+        # Number of cliques should match
+        n_cliques = length(sparsity.corr_sparsity.cliques)
+        @test length(sparsity.initial_activated_supps) == n_cliques
+        @test length(sparsity.cliques_term_sparsities) == n_cliques
+    end
+
+    @testset "Can inspect sparsity before solving" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:4)])
+
+        # Create a sparse problem: x1*x2 + x3*x4 (two disconnected cliques)
+        obj = 1.0*x[1]*x[2] + 1.0*x[3]*x[4]
+        pop = polyopt(obj, reg)
+        solver_config = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF())
+
+        # Compute sparsity without solving
+        sparsity = compute_sparsity(pop, solver_config)
+
+        # With MF elimination, should detect 2 cliques
+        @test length(sparsity.corr_sparsity.cliques) >= 1
+
+        # initial_activated_supps should be accessible
+        for (i, supp) in enumerate(sparsity.initial_activated_supps)
+            @test supp isa Vector{<:Monomial}
+        end
+    end
+
+    @testset "Sparsity matches what cs_nctssos uses" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        obj = x[1]^2 + x[2]^2 + 1.0
+        pop = polyopt(obj, reg)
+        solver_config = SolverConfig(optimizer=SOLVER, order=1)
+
+        # Get sparsity directly
+        sparsity = compute_sparsity(pop, solver_config)
+
+        # Solve and get result
+        result = cs_nctssos(pop, solver_config)
+
+        # Sparsity in result should match
+        @test result.sparsity.corr_sparsity.cliques == sparsity.corr_sparsity.cliques
+        @test length(result.sparsity.cliques_term_sparsities) == length(sparsity.cliques_term_sparsities)
+    end
+
+    @testset "StatePolyOpt returns StateSparsityResult" begin
+        reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+
+        sp = 1.0*ς(x[1])*ς(y[1]) + 1.0*ς(x[2])*ς(y[2])
+        pop = polyopt(sp * one(Monomial{UnipotentAlgebra,UInt8}), reg)
+        solver_config = SolverConfig(optimizer=SOLVER, order=1)
+
+        sparsity = compute_sparsity(pop, solver_config)
+
+        @test sparsity isa StateSparsityResult
+        @test !isempty(sparsity.initial_activated_supps)
+    end
+end

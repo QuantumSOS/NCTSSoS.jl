@@ -100,25 +100,33 @@ PolyOpt → correlative_sparsity() → cliques
 
 ## Session 4: 2026-01-08
 
-**Focus**: Extract testable functions from `cs_nctssos`
+**Focus**: Extract testable functions from `cs_nctssos` + add unit tests
 
 **Extractions completed**:
 1. `compute_relaxation_order(pop, user_order)` - unified order computation (DRY: 2→1)
 2. `solve_sdp(moment_problem, optimizer; dualize)` + `_check_solver_status` - **fixes missing error handling bug** (DRY: 3→1)
 3. `project_to_clique(poly, clique_indices)` - 2 dispatched methods for Polynomial/NCStatePolynomial (DRY: 2→1 per type)
 
-**Bug fixed**: Solver status was never checked after `optimize!()` - now throws on INFEASIBLE/UNBOUNDED/NUMERICAL_ERROR
+**Bugs fixed**:
+- Solver status was never checked after `optimize!()` - now throws on INFEASIBLE/UNBOUNDED/NUMERICAL_ERROR
+- `compute_relaxation_order` now returns at least 1 for trivial polynomials (degree 0) via `max(1, ...)`
 
-**Lines changed**: interface.jl ~+60 (new functions), ~-80 (removed duplication) = net ~-20
+**Unit tests added** (`test/relaxations/interface.jl`):
+- `compute_relaxation_order`: auto-compute, user override, constraints, trivial polynomial
+- `project_to_clique`: partial/empty/full projection, NCStatePolynomial
+- `_check_solver_status`: acceptable status constants, integration test
 
 **Tests**: All passing
 - Minimal: 24/24
 - Polynomials: 2005/2005
-- Relaxations: 94/94
+- Relaxations: 114/114 (+20 new unit tests)
 
 **Commits**:
 - `1212753` refactor(interface): extract testable functions
 - `f9caecb` test: add unit tests for extracted interface functions
+- `5d1d8b1` docs: update review progress
+
+**Next step**: Phase 1.3 - Correlative Sparsity (`sparsity.jl`)
 
 **Status**: COMPLETE
 

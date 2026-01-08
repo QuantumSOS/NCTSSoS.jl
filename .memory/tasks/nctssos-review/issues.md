@@ -26,7 +26,10 @@
 
 ## Test Coverage Gaps
 
-*(None found yet)*
+### TEST-001: compute_sparsity tests are structural only
+**File**: `test/relaxations/interface.jl`
+**Description**: Current tests only verify field existence and types, not concrete values.
+**Action**: When debugging a failing polynomial optimization, add the problem as a concrete test case with expected `initial_activated_supps` and `cliques_term_sparsities` values.
 
 ---
 

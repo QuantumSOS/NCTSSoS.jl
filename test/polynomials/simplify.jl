@@ -547,7 +547,7 @@ end
 
 @testset "Immutable Monomial Simplification" begin
     # encode_index is imported at the top of this file
-    # NOTE: SimpleAlgebra constructors now auto-canonicalize (sort by site, apply simplifications).
+    # NOTE: MonoidAlgebra constructors now auto-canonicalize (sort by site, apply simplifications).
     # So the "original" is already in canonical form after construction.
 
     @testset "NonCommutative simplification returns new monomial" begin
@@ -748,7 +748,7 @@ end
         idx1_s1 = encode_index(UInt16, 1, 1)
         idx1_s2 = encode_index(UInt16, 1, 2)
 
-        # NOTE: SimpleAlgebra constructors now auto-canonicalize.
+        # NOTE: MonoidAlgebra constructors now auto-canonicalize.
         # Both simplify and simplify! operate on already-canonical monomials.
 
         # NonCommutative: constructor auto-sorts, so both start sorted

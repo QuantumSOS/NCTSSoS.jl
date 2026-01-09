@@ -179,13 +179,62 @@ result = cs_nctssos(pop, config)
 
 ---
 
+## Session 6: 2026-01-08
+
+**Focus**: Phase 1.3/1.4 - Correlative & Term Sparsity deep dive
+
+**Files reviewed**: `src/optimization/sparsity.jl` (985 lines)
+
+**Architecture traced**:
+```
+correlative_sparsity(pop, order, elim_algo)
+   → get_correlative_graph() → SimpleGraph (variables connected if in same monomial)
+   → clique_decomp(G, elim_algo) → cliques (via CliqueTrees.jl)
+   → assign_constraint() → clq_cons, global_cons
+   → get_ncbasis() per clique → clq_mom_mtx_bases
+   → CorrelativeSparsity
+
+term_sparsities(activated_supp, cons, bases, ...)
+   → get_term_sparsity_graph() → edges where bᵢ†·supp·bⱼ ∈ activated_supp
+   → clique_decomp → blocks
+   → TermSparsity{block_bases}
+```
+
+**Key Insights**:
+1. Correlative sparsity: Variables that never appear together → don't interact → can be in separate SDP blocks
+2. Term sparsity: Within a clique, basis pairs whose products are outside support → zero matrix entries → block structure
+3. Objective uses per-monomial edges (finer sparsity), constraints use whole-polynomial edges (ensures assignability)
+
+**Bug Found & Fixed** (BUG-001):
+- Location: `get_state_correlative_graph()` lines 661-666
+- Issue: Used per-monomial constraint handling (should be whole constraint)
+- Impact: State polynomial constraints could become global unnecessarily
+- Fix: Changed to `variable_indices(con)` for whole constraint
+- Commit: `5dcbae1` fix(sparsity): use whole constraint for state correlative graph
+
+**Review Notes** (to investigate):
+- REVIEW-001: `abs(idx)` in get_positions (line 115) - treats a₁† and a₁ as same variable
+- REVIEW-002: `init_activated_supp` includes diagonals for Polynomial but not State (monosquare=false)
+
+**Refactoring Opportunities**:
+- MAINT-002: `simplified_monomials()` helper to avoid `Polynomial(simplify(...))` overhead
+- MAINT-003: Unify Polynomial/State sparsity functions (~400 lines duplication)
+
+**Tests**: All passing after bug fix (minimal: 24, relaxations: 94)
+
+**Next step**: Monomial hierarchy revamp (prerequisite for MAINT-002/MAINT-003)
+
+**Status**: REVIEW COMPLETE, REFACTORING BLOCKED (see `plan-sparsity-refactor.md`)
+
+---
+
 ## Checklist Progress
 
 ### Phase 1: Optimization Pipeline (Interactive Redo)
 - [x] 1.1 Problem Definition (`problem.jl`) - reviewed StatePolyOpt duplication issue
 - [x] 1.2 Main Solver Entry (`interface.jl`) - extracted testable functions, fixed solver status bug
-- [ ] 1.3 Correlative Sparsity (`sparsity.jl`)
-- [ ] 1.4 Term Sparsity (`sparsity.jl:460-600`)
+- [x] 1.3 Correlative Sparsity (`sparsity.jl`) - fixed BUG-001, identified unification opportunity
+- [x] 1.4 Term Sparsity (`sparsity.jl:460-600`) - traced algorithm, noted monosquare asymmetry
 - [ ] 1.5 Moment Relaxation (`moment.jl`)
 - [ ] 1.6 SOS Dualization (`sos.jl`)
 

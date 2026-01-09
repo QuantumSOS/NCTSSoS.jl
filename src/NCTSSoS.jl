@@ -107,9 +107,9 @@ export PauliMonomial, PhysicsMonomial, AbstractMonomial, AnyMonomial
 
 # Algebra Types (users need for dispatch)
 export AlgebraType
+export MonoidAlgebra, TwistedGroupAlgebra, PBWAlgebra
 export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra
 export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
-export SimpleAlgebra, ComplexAlgebra  # Type aliases
 
 # State Polynomial Operations
 export ς, tr

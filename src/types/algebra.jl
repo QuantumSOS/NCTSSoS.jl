@@ -33,17 +33,63 @@ true
 abstract type AlgebraType end
 
 """
-    NonCommutativeAlgebra <: AlgebraType
+    MonoidAlgebra <: AlgebraType
+
+Algebra category where the **normal form of a monomial is still a single monomial**
+(i.e. closed on monomials).
+
+This matches a *monoid algebra / monoid ring* viewpoint: basis elements are indexed
+by elements of a monoid, and multiplying basis elements yields another basis element
+in the same basis (extended linearly to polynomials). [@monoidRing]
+
+In `NCTSSoS.jl`, this category includes:
+- `NonCommutativeAlgebra` (free/noncommutative words)
+- `ProjectorAlgebra` (idempotency P² = P)
+- `UnipotentAlgebra` (involution U² = I)
+"""
+abstract type MonoidAlgebra <: AlgebraType end
+
+"""
+    TwistedGroupAlgebra <: AlgebraType
+
+Algebra category where the **normal form of a monomial is a scalar/phase times a single monomial**.
+
+This matches a *twisted group algebra* viewpoint: basis elements are indexed by a group,
+but multiplication is twisted by a scalar 2-cocycle, so products satisfy
+`u_g * u_h = α(g,h) u_{gh}`. [@twistedGroupAlgebra]
+
+In `NCTSSoS.jl`, this category includes:
+- `PauliAlgebra` (Pauli products generate phases {±1, ±i})
+"""
+abstract type TwistedGroupAlgebra <: AlgebraType end
+
+"""
+    PBWAlgebra <: AlgebraType
+
+Algebra category where the **normal form of a monomial expands to a sum of monomials**.
+
+This matches the computational noncommutative algebra pattern of *PBW algebras*: there is
+an ordered monomial basis and a rewriting/normal-ordering procedure, but reordering introduces
+lower terms, so a product may expand into multiple normal-form monomials. [@pbwAlgebraOscar]
+
+In `NCTSSoS.jl`, this category includes:
+- `FermionicAlgebra` (CAR / anticommutation)
+- `BosonicAlgebra` (CCR / commutation)
+"""
+abstract type PBWAlgebra <: AlgebraType end
+
+"""
+    NonCommutativeAlgebra <: MonoidAlgebra
 
 Generic non-commutative algebra with no specific simplification rules.
 Used as the default algebra type when no specific algebra is specified.
 
 Word order is preserved exactly as given.
 """
-struct NonCommutativeAlgebra <: AlgebraType end
+struct NonCommutativeAlgebra <: MonoidAlgebra end
 
 """
-    PauliAlgebra <: AlgebraType
+    PauliAlgebra <: TwistedGroupAlgebra
 
 Pauli spin matrix algebra.
 
@@ -62,10 +108,10 @@ For index `idx`: site = `(idx - 1) ÷ 3 + 1`, pauli_type = `(idx - 1) % 3`
 Typically uses unsigned integer types (self-adjoint operators).
 Concrete type determined by VariableRegistry.
 """
-struct PauliAlgebra <: AlgebraType end
+struct PauliAlgebra <: TwistedGroupAlgebra end
 
 """
-    FermionicAlgebra <: AlgebraType
+    FermionicAlgebra <: PBWAlgebra
 
 Fermionic creation/annihilation operator algebra.
 
@@ -85,10 +131,10 @@ of all annihilation operators (a).
 Uses signed integer types (sign distinguishes creation/annihilation).
 Concrete type determined by VariableRegistry.
 """
-struct FermionicAlgebra <: AlgebraType end
+struct FermionicAlgebra <: PBWAlgebra end
 
 """
-    BosonicAlgebra <: AlgebraType
+    BosonicAlgebra <: PBWAlgebra
 
 Bosonic creation/annihilation operator algebra.
 
@@ -112,10 +158,10 @@ multiple terms.
 Uses signed integer types (sign distinguishes creation/annihilation).
 Concrete type determined by VariableRegistry.
 """
-struct BosonicAlgebra <: AlgebraType end
+struct BosonicAlgebra <: PBWAlgebra end
 
 """
-    ProjectorAlgebra <: AlgebraType
+    ProjectorAlgebra <: MonoidAlgebra
 
 Projector operator algebra.
 
@@ -131,10 +177,10 @@ Projectors are self-adjoint.
 Typically uses unsigned integer types (self-adjoint operators).
 Concrete type determined by VariableRegistry.
 """
-struct ProjectorAlgebra <: AlgebraType end
+struct ProjectorAlgebra <: MonoidAlgebra end
 
 """
-    UnipotentAlgebra <: AlgebraType
+    UnipotentAlgebra <: MonoidAlgebra
 
 Unipotent operator algebra.
 
@@ -149,67 +195,7 @@ cyclic product rules. Unipotent only removes consecutive pairs.
 Typically uses unsigned integer types (self-adjoint operators).
 Concrete type determined by VariableRegistry.
 """
-struct UnipotentAlgebra <: AlgebraType end
-
-# =============================================================================
-# Algebra Type Categories
-# =============================================================================
-
-"""
-    SimpleAlgebra
-
-Type alias for algebras supported by state polynomial optimization.
-
-These algebras have real-valued expectation values and don't produce
-complex phases during simplification:
-- `NonCommutativeAlgebra`: Generic NC (no simplification rules)
-- `ProjectorAlgebra`: P² = P
-- `UnipotentAlgebra`: U² = I
-
-State polynomial optimization is NOT supported for:
-- `PauliAlgebra`: Complex phases from σₓσᵧ = iσᵤ
-- `FermionicAlgebra`: Anticommutation creates multiple terms
-- `BosonicAlgebra`: Commutation creates multiple terms
-
-# Examples
-```jldoctest
-julia> using NCTSSoS
-
-julia> NonCommutativeAlgebra <: SimpleAlgebra
-true
-
-julia> PauliAlgebra <: SimpleAlgebra
-false
-```
-
-See also: [`StateSymbol`](@ref), [`StateWord`](@ref), [`NCStatePolynomial`](@ref)
-"""
-const SimpleAlgebra = Union{NonCommutativeAlgebra, ProjectorAlgebra, UnipotentAlgebra}
-
-"""
-    ComplexAlgebra
-
-Type alias for algebras that produce complex phases during simplification.
-
-These algebras are NOT supported for state polynomial optimization but are
-fully supported for standard polynomial optimization via the moment-SOS hierarchy.
-
-- `PauliAlgebra`: Pauli products generate phases {1, i, -1, -i}
-- `FermionicAlgebra`: Anticommutation relations (though coefficients are ±1)
-- `BosonicAlgebra`: Commutation relations produce multiple terms
-
-# Examples
-```jldoctest
-julia> using NCTSSoS
-
-julia> PauliAlgebra <: ComplexAlgebra
-true
-
-julia> FermionicAlgebra <: ComplexAlgebra
-true
-```
-"""
-const ComplexAlgebra = Union{PauliAlgebra, FermionicAlgebra, BosonicAlgebra}
+struct UnipotentAlgebra <: MonoidAlgebra end
 
 # =============================================================================
 # Default Coefficient Types

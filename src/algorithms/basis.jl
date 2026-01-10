@@ -7,8 +7,8 @@
 #
 # Design:
 # - Registry-aware: uses VariableRegistry{A,T} for proper index types
-# - Returns Vector{Term}: handles simplification results with coefficients
-# - Algebra-dispatched: simplification is algebra-specific
+# - No extra monomial wrapper types: uses the `Monomial` iteration protocol for simplification results
+# - Algebra-dispatched: PBW expands; monoids stay one-monomial
 
 """
     _generate_all_words(indices::Vector{T}, d::Int) where {T<:Integer} -> Vector{Vector{T}}
@@ -69,17 +69,14 @@ end
 
 Generate all simplified monomials of exactly degree d using variables from the registry.
 
-Returns algebra-specific types:
-- `NonCommutativeAlgebra`, `ProjectorAlgebra`, `UnipotentAlgebra`: `Vector{Monomial{A,T}}`
-- `PauliAlgebra`: `Vector{PauliMonomial{T}}`
-- `FermionicAlgebra`, `BosonicAlgebra`: `Vector{PhysicsMonomial{A,T}}`
-
 # Arguments
 - `registry`: Variable registry containing the indices to use
 - `d`: Exact degree
 
 # Returns
-- `Vector{M}` where `M` is the appropriate monomial wrapper type
+- `Vector{NormalMonomial{A,T}}`: Canonical monomials produced by simplification.
+  - For `MonoidAlgebra`/`TwistedGroupAlgebra`: one monomial per input word (duplicates allowed)
+  - For `PBWAlgebra`: unique monomials appearing in the expansion
 
 # Examples
 ```jldoctest
@@ -114,64 +111,45 @@ true
 function get_ncbasis_deg(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
     idxs = indices(registry)
 
-    # Dispatch to algebra-specific implementation
-    _get_ncbasis_deg(A, T, idxs, d)
+    return _get_ncbasis_deg(A, T, idxs, d)
 end
 
-# NC, Projector, Unipotent: return Vector{Monomial{A,T}}
 function _get_ncbasis_deg(
     ::Type{A}, ::Type{T}, idxs::Vector{T}, d::Int
-) where {A<:Union{NonCommutativeAlgebra,ProjectorAlgebra,UnipotentAlgebra}, T<:Integer}
-    d < 0 && return Monomial{A,T}[]
-    d == 0 && return [Monomial{A}(T[])]
+) where {A<:PBWAlgebra, T<:Integer}
+    d < 0 && return NormalMonomial{A,T}[]
+    d == 0 && return [one(NormalMonomial{A,T})]
 
     all_words = _generate_all_words(idxs, d)
-    result = Monomial{A,T}[]
+    result = NormalMonomial{A,T}[]
 
     for word in all_words
-        mono = Monomial{A}(word)
-        simplified = simplify(mono)  # returns Monomial{A,T}
-        push!(result, simplified)
+        # Use inner constructor to allow raw (non-canonical) words; simplify() canonicalizes.
+        raw = NormalMonomial{A,T}(word, _UNSAFE_NORMAL_MONOMIAL)
+        for (_, mono) in simplify(raw)
+            push!(result, mono)
+        end
     end
 
+    unique!(sort!(result))
     return result
 end
 
-# Pauli: return Vector{PauliMonomial{T}}
-function _get_ncbasis_deg(
-    ::Type{PauliAlgebra}, ::Type{T}, idxs::Vector{T}, d::Int
-) where {T<:Integer}
-    d < 0 && return PauliMonomial{T}[]
-    d == 0 && return [one(PauliMonomial{T})]
-
-    all_words = _generate_all_words(idxs, d)
-    result = PauliMonomial{T}[]
-
-    for word in all_words
-        # Use PauliMonomial constructor directly - it handles canonicalization
-        # (Monomial{PauliAlgebra}(word) now validates and rejects non-canonical words)
-        simplified = PauliMonomial(word)
-        push!(result, simplified)
-    end
-
-    return result
-end
-
-# Fermionic/Bosonic: return Vector{PhysicsMonomial{A,T}}
 function _get_ncbasis_deg(
     ::Type{A}, ::Type{T}, idxs::Vector{T}, d::Int
-) where {A<:Union{FermionicAlgebra,BosonicAlgebra}, T<:Integer}
-    d < 0 && return PhysicsMonomial{A,T}[]
-    d == 0 && return [one(PhysicsMonomial{A,T})]
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra}, T<:Integer}
+    d < 0 && return NormalMonomial{A,T}[]
+    d == 0 && return [one(NormalMonomial{A,T})]
 
     all_words = _generate_all_words(idxs, d)
-    result = PhysicsMonomial{A,T}[]
+    result = NormalMonomial{A,T}[]
 
     for word in all_words
-        # Use PhysicsMonomial constructor directly - it handles normal-ordering
-        # (Monomial{A}(word) now validates and rejects non-normal-ordered words)
-        simplified = PhysicsMonomial{A}(word)
-        push!(result, simplified)
+        # Monoid/TwistedGroup algebras simplify to a single monomial (up to an internal coefficient).
+        raw = NormalMonomial{A,T}(word, _UNSAFE_NORMAL_MONOMIAL)
+        for (_, mono) in simplify(raw)
+            push!(result, mono)
+        end
     end
 
     return result
@@ -182,17 +160,12 @@ end
 
 Generate all simplified monomials up to and including degree d using variables from the registry.
 
-Returns algebra-specific types:
-- `NonCommutativeAlgebra`, `ProjectorAlgebra`, `UnipotentAlgebra`: `Vector{Monomial{A,T}}`
-- `PauliAlgebra`: `Vector{PauliMonomial{T}}`
-- `FermionicAlgebra`, `BosonicAlgebra`: `Vector{PhysicsMonomial{A,T}}`
-
 # Arguments
 - `registry`: Variable registry containing the indices to use
 - `d`: Maximum degree (inclusive)
 
 # Returns
-- `Vector{M}` where `M` is the appropriate monomial wrapper type
+- `Vector{NormalMonomial{A,T}}`: Canonical monomials appearing in simplification results
 
 # Examples
 ```jldoctest
@@ -222,38 +195,10 @@ true
 ```
 """
 function get_ncbasis(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
-    _get_ncbasis(A, T, registry, d)
-end
-
-# NC, Projector, Unipotent: return Vector{Monomial{A,T}}
-function _get_ncbasis(
-    ::Type{A}, ::Type{T}, registry::VariableRegistry{A,T}, d::Int
-) where {A<:Union{NonCommutativeAlgebra,ProjectorAlgebra,UnipotentAlgebra}, T<:Integer}
-    result = Monomial{A,T}[]
+    result = NormalMonomial{A,T}[]
     for deg in 0:d
         append!(result, get_ncbasis_deg(registry, deg))
     end
-    return result
-end
-
-# Pauli: return Vector{PauliMonomial{T}}
-function _get_ncbasis(
-    ::Type{PauliAlgebra}, ::Type{T}, registry::VariableRegistry{PauliAlgebra,T}, d::Int
-) where {T<:Integer}
-    result = PauliMonomial{T}[]
-    for deg in 0:d
-        append!(result, get_ncbasis_deg(registry, deg))
-    end
-    return result
-end
-
-# Fermionic/Bosonic: return Vector{PhysicsMonomial{A,T}}
-function _get_ncbasis(
-    ::Type{A}, ::Type{T}, registry::VariableRegistry{A,T}, d::Int
-) where {A<:Union{FermionicAlgebra,BosonicAlgebra}, T<:Integer}
-    result = PhysicsMonomial{A,T}[]
-    for deg in 0:d
-        append!(result, get_ncbasis_deg(registry, deg))
-    end
+    unique!(sort!(result))
     return result
 end

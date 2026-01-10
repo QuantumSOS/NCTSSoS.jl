@@ -49,14 +49,11 @@ end
             for b in idxs
                 for c in idxs
                     word = [a, b, c]
-                    # Use PauliMonomial directly - it handles canonicalization
-                    # (Monomial{PauliAlgebra} now validates and rejects non-canonical)
-                    pm = PauliMonomial(word)
+                    pm = simplify(PauliAlgebra, word)
+                    phase_k, mono = pm[1]
 
                     lhs = _pauli_word_oracle(word, nsites)
-                    # PauliMonomial stores phase_k and mono separately
-                    coef = NCTSSoS.phase_to_complex(pm)
-                    rhs = ComplexF64(coef) * _pauli_word_oracle(pm.mono.word, nsites)
+                    rhs = NCTSSoS._coeff_to_number(mono, phase_k) * _pauli_word_oracle(mono.word, nsites)
                     @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
                 end
             end
@@ -107,11 +104,20 @@ function _fermion_poly_oracle(p::Polynomial{FermionicAlgebra,T,C}, nmodes::Int) 
     return acc
 end
 
-# Overload for PhysicsMonomial (returned by simplify for FermionicAlgebra)
-function _fermion_poly_oracle(pm::PhysicsMonomial{FermionicAlgebra,T}, nmodes::Int) where {T<:Integer}
+function _fermion_poly_oracle(pairs::AbstractVector{Tuple{Int,NormalMonomial{FermionicAlgebra,T}}}, nmodes::Int) where {T<:Integer}
     dim = 2^nmodes
     acc = zeros(ComplexF64, dim, dim)
-    for (coef, mono) in zip(pm.coeffs, pm.monos)
+    for (coef, mono) in pairs
+        coef == 0 && continue
+        acc .+= ComplexF64(coef) * _fermion_word_oracle(mono.word, nmodes)
+    end
+    return acc
+end
+
+function _fermion_poly_oracle(m::Monomial{FermionicAlgebra,T}, nmodes::Int) where {T<:Integer}
+    dim = 2^nmodes
+    acc = zeros(ComplexF64, dim, dim)
+    for (coef, mono) in m
         coef == 0 && continue
         acc .+= ComplexF64(coef) * _fermion_word_oracle(mono.word, nmodes)
     end
@@ -123,28 +129,24 @@ end
         nmodes = 3
 
         # Nilpotency: a₁a₁ = 0, a₁†a₁† = 0
-        # Use inner constructor to bypass validation (intentionally non-canonical for testing simplification)
         for word in (Int32[1, 1], Int32[-1, -1])
-            m = Monomial{FermionicAlgebra,Int32}(word)
-            p = simplify(m)
+            p = simplify(FermionicAlgebra, word)
             lhs = _fermion_word_oracle(word, nmodes)
             rhs = _fermion_poly_oracle(p, nmodes)
             @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
         end
 
         # CAR: a₁ a₁† = 1 - a₁† a₁
-        # Use inner constructor to bypass validation (intentionally non-canonical for testing simplification)
-        m = Monomial{FermionicAlgebra,Int32}(Int32[1, -1])
-        p = simplify(m)
-        lhs = _fermion_word_oracle(m.word, nmodes)
+        word = Int32[1, -1]
+        p = simplify(FermionicAlgebra, word)
+        lhs = _fermion_word_oracle(word, nmodes)
         rhs = _fermion_poly_oracle(p, nmodes)
         @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
 
         # Cross-mode: a₁ a₂† = -a₂† a₁
-        # Use inner constructor to bypass validation (intentionally non-canonical for testing simplification)
-        m = Monomial{FermionicAlgebra,Int32}(Int32[1, -2])
-        p = simplify(m)
-        lhs = _fermion_word_oracle(m.word, nmodes)
+        word = Int32[1, -2]
+        p = simplify(FermionicAlgebra, word)
+        lhs = _fermion_word_oracle(word, nmodes)
         rhs = _fermion_poly_oracle(p, nmodes)
         @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
     end

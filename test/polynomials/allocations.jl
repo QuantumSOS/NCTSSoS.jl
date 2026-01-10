@@ -8,15 +8,15 @@
 @testset "Monomial Allocations" begin
     @testset "Monomial Creation Cached" begin
         # After warmup, monomial operations should minimize allocations
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
 
         # Equal monomials should have same hash (no re-computation needed)
         @test hash(m1) == hash(m2)
     end
 
     @testset "Degree Computation" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2, 3, 4, 5])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3, 4, 5])
 
         # Warmup
         degree(m)
@@ -26,8 +26,8 @@
     end
 
     @testset "isone Check" begin
-        m_one = one(Monomial{NonCommutativeAlgebra,Int64})
-        m_not_one = Monomial{NonCommutativeAlgebra}([1])
+        m_one = one(NormalMonomial{NonCommutativeAlgebra,Int64})
+        m_not_one = NormalMonomial{NonCommutativeAlgebra}([1])
 
         # Warmup
         isone(m_one)
@@ -41,7 +41,7 @@ end
 
 @testset "Term Allocations" begin
     @testset "iszero Check" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra}([1])
         t = Term(0.0, m)
         t2 = Term(1.0, m)
 
@@ -56,8 +56,8 @@ end
 end
 
 @testset "Polynomial Accessor Allocations" begin
-    m1 = Monomial{NonCommutativeAlgebra}([1])
-    m2 = Monomial{NonCommutativeAlgebra}([2])
+    m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+    m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
     p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
 

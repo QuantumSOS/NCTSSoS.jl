@@ -1,5 +1,5 @@
 # NCTSSoS is loaded by parent runtests.jl
-# Exported: get_ncbasis, create_noncommutative_variables, create_pauli_variables, create_unipotent_variables, indices, degree, Term, Polynomial, Monomial, NonCommutativeAlgebra
+    # Exported: get_ncbasis, create_noncommutative_variables, create_pauli_variables, create_unipotent_variables, indices, degree, Term, Polynomial, NormalMonomial, NonCommutativeAlgebra
 # Internal (not exported): encode_index, decode_operator_id, decode_site, get_ncbasis_deg
 using NCTSSoS: encode_index, decode_operator_id, decode_site, get_ncbasis_deg
 
@@ -81,23 +81,26 @@ using NCTSSoS: encode_index, decode_operator_id, decode_site, get_ncbasis_deg
         end
 
         # Monomials from registry should multiply correctly
-        # Note: Monomial multiplication now returns Monomial (word concatenation)
         m = x[1] * x[2]
-        @test m isa Monomial
+        @test m isa NormalMonomial
         @test degree(m) == 2
     end
 
     @testset "Adjoint Operation" begin
-        # Adjoint operation reverses word for unsigned types (self-adjoint)
-        m = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
+        # Adjoint operation reverses word for unsigned types (self-adjoint).
+        # Use indices on a single site so site-canonicalization does not reorder.
+        idx1_s1 = encode_index(UInt8, 1, 1)
+        idx2_s1 = encode_index(UInt8, 2, 1)
+        idx3_s1 = encode_index(UInt8, 3, 1)
+        m = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx1_s1, idx2_s1, idx3_s1])
         m_adj = adjoint(m)
-        @test m_adj.word == [3, 2, 1]
+        @test m_adj.word == UInt8[idx3_s1, idx2_s1, idx1_s1]
 
         # Adjoint is involution
         @test adjoint(adjoint(m)) == m
 
         # Empty monomial adjoint
-        m_empty = Monomial{NonCommutativeAlgebra}(UInt8[])
+        m_empty = NormalMonomial{NonCommutativeAlgebra}(UInt8[])
         @test isone(adjoint(m_empty))
 
         # Julia syntax shorthand

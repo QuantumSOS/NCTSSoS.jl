@@ -4,16 +4,16 @@ using NCTSSoS: ComposedMonomial
 
 @testset "Term" begin
     @testset "Construction" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         t = Term(2.0, m)
 
         @test t.coefficient == 2.0
         @test t.monomial == m
-        @test t isa Term{Monomial{NonCommutativeAlgebra,Int64},Float64}
+        @test t isa Term{NormalMonomial{NonCommutativeAlgebra,Int64},Float64}
     end
 
     @testset "isone" begin
-        m_empty = Monomial{NonCommutativeAlgebra}(Int[])
+        m_empty = NormalMonomial{NonCommutativeAlgebra}(Int[])
         t_one = Term(1.0, m_empty)
         @test isone(t_one)
 
@@ -22,22 +22,22 @@ using NCTSSoS: ComposedMonomial
         @test !isone(t_two)
 
         # Monomial not empty -> false
-        m_non_empty = Monomial{NonCommutativeAlgebra}([1])
+        m_non_empty = NormalMonomial{NonCommutativeAlgebra}([1])
         t_one_mono = Term(1.0, m_non_empty)
         @test !isone(t_one_mono)
 
         # Complex coefficient
-        t_one_c = Term(1.0 + 0.0im, Monomial{PauliAlgebra}(Int[]))
+        t_one_c = Term(1.0 + 0.0im, NormalMonomial{PauliAlgebra}(Int[]))
         @test isone(t_one_c)
 
         # Complex with imaginary part -> false
-        t_not_one = Term(1.0 + 0.1im, Monomial{PauliAlgebra}(Int[]))
+        t_not_one = Term(1.0 + 0.1im, NormalMonomial{PauliAlgebra}(Int[]))
         @test !isone(t_not_one)
     end
 
     @testset "iszero" begin
-        m_empty = Monomial{NonCommutativeAlgebra}(Int[])
-        m_non_empty = Monomial{NonCommutativeAlgebra}([1])
+        m_empty = NormalMonomial{NonCommutativeAlgebra}(Int[])
+        m_non_empty = NormalMonomial{NonCommutativeAlgebra}([1])
 
         # Zero coefficient -> zero
         t_zero = Term(0.0, m_empty)
@@ -55,14 +55,14 @@ using NCTSSoS: ComposedMonomial
         @test !iszero(t_nonzero2)
 
         # Complex zero
-        t_zero_c = Term(0.0 + 0.0im, Monomial{PauliAlgebra}(Int[]))
+        t_zero_c = Term(0.0 + 0.0im, NormalMonomial{PauliAlgebra}(Int[]))
         @test iszero(t_zero_c)
     end
 
     @testset "Equality and Hash" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m3 = Monomial{NonCommutativeAlgebra}([2, 1])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m3 = NormalMonomial{NonCommutativeAlgebra}([2, 1])
 
         t1 = Term(2.0, m1)
         t2 = Term(2.0, m2)
@@ -80,12 +80,12 @@ using NCTSSoS: ComposedMonomial
 
         # Cross-algebra comparison should return false
         # Use different sites for Pauli: 1,4 = σx on site 1, σx on site 2
-        m_pauli = Monomial{PauliAlgebra}([1, 4])
+        m_pauli = NormalMonomial{PauliAlgebra}([1, 4])
         t_pauli = Term(2.0, m_pauli)
         @test t1 != t_pauli
 
         # Different coefficient types but same values
-        t_int = Term(2, Monomial{NonCommutativeAlgebra}([1, 2]))
+        t_int = Term(2, NormalMonomial{NonCommutativeAlgebra}([1, 2]))
         @test t1 == t_int  # 2.0 == 2
 
         # Hash contract: equal terms must have equal hashes
@@ -106,35 +106,35 @@ using NCTSSoS: ComposedMonomial
     end
 
     @testset "one(Type)" begin
-        T = Term{Monomial{UnipotentAlgebra,Int},Float64}
+        T = Term{NormalMonomial{UnipotentAlgebra,Int},Float64}
         t_one = one(T)
         @test isone(t_one)
         @test t_one.coefficient == 1.0
         @test isempty(t_one.monomial.word)
 
         # Different coefficient types
-        T_complex = Term{Monomial{PauliAlgebra,UInt16},ComplexF64}
+        T_complex = Term{NormalMonomial{PauliAlgebra,UInt16},ComplexF64}
         t_one_c = one(T_complex)
         @test isone(t_one_c)
         @test t_one_c.coefficient == (1.0 + 0.0im)
         @test isempty(t_one_c.monomial.word)
 
         # Different integer types
-        T_int32 = Term{Monomial{FermionicAlgebra,Int32},Float64}
+        T_int32 = Term{NormalMonomial{FermionicAlgebra,Int32},Float64}
         t_one_32 = one(T_int32)
         @test isone(t_one_32)
         @test eltype(t_one_32.monomial.word) == Int32
     end
 
     @testset "zero(Type)" begin
-        T = Term{Monomial{UnipotentAlgebra,Int},Float64}
+        T = Term{NormalMonomial{UnipotentAlgebra,Int},Float64}
         t_zero = zero(T)
         @test iszero(t_zero)
         @test t_zero.coefficient == 0.0
         @test isempty(t_zero.monomial.word)
 
         # Different coefficient types
-        T_complex = Term{Monomial{PauliAlgebra,UInt16},ComplexF64}
+        T_complex = Term{NormalMonomial{PauliAlgebra,UInt16},ComplexF64}
         t_zero_c = zero(T_complex)
         @test iszero(t_zero_c)
         @test t_zero_c.coefficient == (0.0 + 0.0im)
@@ -145,8 +145,8 @@ using NCTSSoS: ComposedMonomial
 
     @testset "one/zero for ComposedMonomial" begin
         # Create a ComposedMonomial type
-        m_pauli = Monomial{PauliAlgebra,UInt16}(UInt16[1, 2])
-        m_fermi = Monomial{FermionicAlgebra,Int32}(Int32[1])
+        m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4])
+        m_fermi = NormalMonomial{FermionicAlgebra}(Int32[1])
         cm = ComposedMonomial((m_pauli, m_fermi))
 
         # Test one for ComposedMonomial
@@ -168,7 +168,7 @@ using NCTSSoS: ComposedMonomial
     end
 
     @testset "Scalar Multiplication" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         t = Term(2.0, m)
 
         # Left multiplication
@@ -187,12 +187,12 @@ using NCTSSoS: ComposedMonomial
         # Type promotion: Int * Term{..., Float64} -> Float64
         t_int_scaled = 2 * t
         @test t_int_scaled.coefficient == 4.0
-        @test t_int_scaled isa Term{Monomial{NonCommutativeAlgebra,Int64},Float64}
+        @test t_int_scaled isa Term{NormalMonomial{NonCommutativeAlgebra,Int64},Float64}
 
         # Type promotion: ComplexF64 * Term{..., Float64} -> ComplexF64
         t_complex_scaled = (1.0 + 0.0im) * t
         @test t_complex_scaled.coefficient == (2.0 + 0.0im)
-        @test t_complex_scaled isa Term{Monomial{NonCommutativeAlgebra,Int64},ComplexF64}
+        @test t_complex_scaled isa Term{NormalMonomial{NonCommutativeAlgebra,Int64},ComplexF64}
 
         # Multiplication by zero
         t_zeroed = 0.0 * t
@@ -204,7 +204,7 @@ using NCTSSoS: ComposedMonomial
     end
 
     @testset "Negation" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         t = Term(2.0, m)
 
         t_neg = -t
@@ -223,8 +223,8 @@ using NCTSSoS: ComposedMonomial
     end
 
     @testset "Display (show)" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_empty = Monomial{NonCommutativeAlgebra}(Int[])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m_empty = NormalMonomial{NonCommutativeAlgebra}(Int[])
 
         # Zero term
         t_zero = Term(0.0, m)
@@ -260,7 +260,7 @@ using NCTSSoS: ComposedMonomial
     end
 
     @testset "Iteration Protocol" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         t = Term(2.5, m)
 
         # length (now 1, yields single (coef, mono) tuple)
@@ -289,12 +289,12 @@ using NCTSSoS: ComposedMonomial
         @test iter2 === nothing
 
         # eltype
-        @test eltype(typeof(t)) == Tuple{Float64,Monomial{NonCommutativeAlgebra,Int64}}
+        @test eltype(typeof(t)) == Tuple{Float64,NormalMonomial{NonCommutativeAlgebra,Int64}}
     end
 
     @testset "Immutability" begin
         # Term is immutable - monomial reference is shared
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         t1 = Term(2.0, m)
         t2 = Term(3.0, m)
 
@@ -310,21 +310,21 @@ using NCTSSoS: ComposedMonomial
         using NCTSSoS: coeff_type
 
         # Type-level dispatch (primary usage)
-        T_float = Term{Monomial{NonCommutativeAlgebra,Int},Float64}
+        T_float = Term{NormalMonomial{NonCommutativeAlgebra,Int},Float64}
         @test coeff_type(T_float) === Float64
 
-        T_complex = Term{Monomial{PauliAlgebra,UInt16},ComplexF64}
+        T_complex = Term{NormalMonomial{PauliAlgebra,UInt16},ComplexF64}
         @test coeff_type(T_complex) === ComplexF64
 
-        T_int = Term{Monomial{UnipotentAlgebra,Int32},Int}
+        T_int = Term{NormalMonomial{UnipotentAlgebra,Int32},Int}
         @test coeff_type(T_int) === Int
 
         # Instance-level dispatch
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         t_float = Term(2.5, m)
         @test coeff_type(t_float) === Float64
 
-        t_complex = Term(1.0 + 2.0im, Monomial{PauliAlgebra}([1]))
+        t_complex = Term(1.0 + 2.0im, NormalMonomial{PauliAlgebra}([1]))
         @test coeff_type(t_complex) === ComplexF64
 
         # After scalar multiplication (type promotion)
@@ -332,8 +332,8 @@ using NCTSSoS: ComposedMonomial
         @test coeff_type(t_promoted) === ComplexF64
 
         # ComposedMonomial support
-        m_pauli = Monomial{PauliAlgebra,UInt16}(UInt16[1, 2])
-        m_fermi = Monomial{FermionicAlgebra,Int32}(Int32[1])
+        m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4])
+        m_fermi = NormalMonomial{FermionicAlgebra}(Int32[1])
         cm = ComposedMonomial((m_pauli, m_fermi))
         CMType = typeof(cm)
         T_composed = Term{CMType,ComplexF64}

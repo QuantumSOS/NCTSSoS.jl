@@ -67,7 +67,7 @@ function _neat_dot3(
     # Concatenate state word parts directly (adjoint is identity due to Hermitian invariance)
     sw_prod = adjoint(a.sw) * m.sw * b.sw
 
-    # Compute nc_word part via _neat_dot3 on Monomials (no simplification)
+    # Compute nc_word part via _neat_dot3 on NormalMonomials (no simplification)
     nc_mono = _neat_dot3(a.nc_word, m.nc_word, b.nc_word)
 
     return NCStateWord(sw_prod, nc_mono)
@@ -75,23 +75,23 @@ end
 
 # Overload for regular Monomials (non-state context)
 """
-    neat_dot(a::Monomial, b::Monomial) -> Monomial
+    neat_dot(a::NormalMonomial, b::NormalMonomial) -> NormalMonomial
 
 Compute adjoint(a) * b for regular Monomials by concatenating words.
 
-Returns a Monomial with the adjoint of a's word followed by b's word.
+Returns a NormalMonomial with the adjoint of a's word followed by b's word.
 
 !!! note
-    The returned Monomial is NOT simplified. Callers should call `simplify!`
+    The returned NormalMonomial is NOT simplified. Callers should call `simplify!`
     explicitly if algebra-specific simplification is needed.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{PauliAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1, 2]);
 
-julia> m2 = Monomial{PauliAlgebra}([3, 4]);
+julia> m2 = NormalMonomial{PauliAlgebra}([3, 4]);
 
 julia> result = neat_dot(m1, m2);
 
@@ -103,7 +103,7 @@ julia> result.word
   4
 ```
 """
-function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function neat_dot(a::NormalMonomial{A,T}, b::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Preallocate result: reverse(a.word) ++ b.word (single allocation)
     n_a, n_b = length(a.word), length(b.word)
     result = Vector{T}(undef, n_a + n_b)
@@ -118,12 +118,11 @@ function neat_dot(a::Monomial{A,T}, b::Monomial{A,T}) where {A<:AlgebraType,T<:I
         result[n_a + i] = b.word[i]
     end
 
-    # Use inner constructor to bypass validation (result needs simplify anyway)
-    return Monomial{A,T}(result)
+    return NormalMonomial{A,T}(result, _UNSAFE_NORMAL_MONOMIAL)
 end
 
 """
-    _neat_dot3(a::Monomial, m::Monomial, b::Monomial) -> Monomial
+    _neat_dot3(a::NormalMonomial, m::NormalMonomial, b::NormalMonomial) -> NormalMonomial
 
 Compute adjoint(a) * m * b for regular Monomials by concatenating words.
 
@@ -131,7 +130,7 @@ This is the three-argument form commonly used in moment matrix construction
 where we need adjoint(row_index) * constraint_monomial * column_index.
 
 !!! note
-    The returned Monomial is NOT simplified. Callers should call `simplify`
+    The returned NormalMonomial is NOT simplified. Callers should call `simplify`
     explicitly if algebra-specific simplification is needed.
 
 # Examples
@@ -140,11 +139,11 @@ julia> using NCTSSoS
 
 julia> using NCTSSoS: _neat_dot3
 
-julia> m1 = Monomial{PauliAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1, 2]);
 
-julia> m2 = Monomial{PauliAlgebra}([3]);
+julia> m2 = NormalMonomial{PauliAlgebra}([3]);
 
-julia> m3 = Monomial{PauliAlgebra}([4, 5]);
+julia> m3 = NormalMonomial{PauliAlgebra}([4, 5]);
 
 julia> result = _neat_dot3(m1, m2, m3);
 
@@ -158,7 +157,7 @@ julia> result.word
 ```
 """
 function _neat_dot3(
-    a::Monomial{A,T}, m::Monomial{A,T}, b::Monomial{A,T}
+    a::NormalMonomial{A,T}, m::NormalMonomial{A,T}, b::NormalMonomial{A,T}
 ) where {A<:AlgebraType,T<:Integer}
     # Preallocate: reverse(a.word) ++ m.word ++ b.word (single allocation)
     n_a, n_m, n_b = length(a.word), length(m.word), length(b.word)
@@ -179,114 +178,42 @@ function _neat_dot3(
         result[n_a + n_m + i] = b.word[i]
     end
 
-    # Use inner constructor to bypass validation (result needs simplify anyway)
-    return Monomial{A,T}(result)
+    return NormalMonomial{A,T}(result, _UNSAFE_NORMAL_MONOMIAL)
 end
 
 # =============================================================================
-# Monomial Validation
+# NormalMonomial Validation
 # =============================================================================
 
 """
-    validate(m::Monomial{A,T}) where {A,T}
+    validate(m::NormalMonomial{A,T}) where {A,T}
 
-Validate that a Monomial is in canonical form for its algebra type.
+Validate that a NormalMonomial is in canonical form for its algebra type.
 Throws `ArgumentError` if invalid.
 
 # Canonical Forms by Algebra
 - `PauliAlgebra`: ≤1 operator per site, sorted by site
-- `FermionicAlgebra`: normal-ordered (creators left, sorted by mode)
-- `BosonicAlgebra`: normal-ordered (creators left, sorted by mode)
+- `FermionicAlgebra`: normal-ordered (creators left, creators by mode descending)
+- `BosonicAlgebra`: normal-ordered (creators left, creators by mode descending)
 - `ProjectorAlgebra`: sorted by site, no consecutive identical (no P²)
 - `UnipotentAlgebra`: sorted by site, no consecutive identical (no U²)
 - `NonCommutativeAlgebra`: sorted by site
 
 For raw (non-canonical) input, use:
-- `PauliMonomial` for Pauli algebra
-- `PhysicsMonomial` for Fermionic/Bosonic algebras
+- `simplify(PauliAlgebra, word)` for Pauli algebra (returns a `Monomial`, iterable as `(c_internal, NormalMonomial)` pairs)
+- `simplify(FermionicAlgebra, word)` / `simplify(BosonicAlgebra, word)` for PBW algebras
 
 # Examples
 ```julia
-julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ and σy₁ on same site!
+julia> m = NormalMonomial{PauliAlgebra}([1, 2]);  # σx₁ and σy₁ on same site!
 
 julia> validate(m)  # throws ArgumentError
 ERROR: ArgumentError: Pauli word has multiple operators on site 1
 ```
 """
-function validate(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    _validate_monomial_word(A, m.word)
+function validate(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    _validate_word!(A, m.word)
     return m
-end
-
-# Dispatch to algebra-specific validation
-_validate_monomial_word(::Type{PauliAlgebra}, word::Vector{T}) where {T} =
-    _validate_pauli_word!(word)
-_validate_monomial_word(::Type{FermionicAlgebra}, word::Vector{T}) where {T} =
-    _validate_fermionic_word!(word)
-_validate_monomial_word(::Type{BosonicAlgebra}, word::Vector{T}) where {T} =
-    _validate_bosonic_word!(word)
-_validate_monomial_word(::Type{ProjectorAlgebra}, word::Vector{T}) where {T<:Unsigned} =
-    _validate_projector_word!(word)
-_validate_monomial_word(::Type{UnipotentAlgebra}, word::Vector{T}) where {T<:Unsigned} =
-    _validate_unipotent_word!(word)
-_validate_monomial_word(::Type{NonCommutativeAlgebra}, word::Vector{T}) where {T<:Unsigned} =
-    _validate_nc_word!(word)
-# Fallback: no validation for unrecognized combinations
-_validate_monomial_word(::Type{<:AlgebraType}, word::Vector) = nothing
-
-# =============================================================================
-# Internal Validation Functions
-# =============================================================================
-
-"""
-    _validate_fermionic_word!(word::Vector{T}) where {T<:Integer}
-
-Check that a fermionic word is in canonical (normal-ordered) form.
-Throws `ArgumentError` if invalid.
-
-Canonical form requirements:
-- Normal-ordered: all creators (negative) before annihilators (positive)
-- Within creators: sorted by mode ascending
-- Within annihilators: sorted by mode ascending
-
-This is used by `Monomial{FermionicAlgebra,T}` constructor to enforce invariants.
-"""
-function _validate_fermionic_word!(word::Vector{T}) where {T<:Integer}
-    _validate_physics_word!(word; algebra_name="Fermionic")
-end
-
-"""
-    _validate_bosonic_word!(word::Vector{T}) where {T<:Integer}
-
-Check that a bosonic word is in canonical (normal-ordered) form.
-Throws `ArgumentError` if invalid.
-
-Canonical form requirements:
-- Normal-ordered: all creators (negative) before annihilators (positive)
-- Within creators: sorted by mode ascending
-- Within annihilators: sorted by mode ascending
-
-This is used by `Monomial{BosonicAlgebra,T}` constructor to enforce invariants.
-"""
-function _validate_bosonic_word!(word::Vector{T}) where {T<:Integer}
-    _validate_physics_word!(word; algebra_name="Bosonic")
-end
-
-function _validate_physics_word!(word::Vector{T}; algebra_name::AbstractString) where {T<:Integer}
-    length(word) <= 1 && return nothing
-
-    for i in 1:length(word)-1
-        key_i = normal_order_key(word[i])
-        key_i1 = normal_order_key(word[i+1])
-        if key_i > key_i1
-            throw(ArgumentError(
-                "$algebra_name word not in normal order at index $i: " *
-                "operator $(word[i]) should come after $(word[i+1]). " *
-                "Use PhysicsMonomial for raw words."
-            ))
-        end
-    end
-    return nothing
 end
 
 # =============================================================================
@@ -336,24 +263,28 @@ julia> _operator_mode(2)   # a₂ → mode 2
     normal_order_key(op::T) where T<:Integer -> Tuple{Int, T}
 
 Compute the sort key for normal ordering of fermionic/bosonic operators.
-Creation operators (negative) come first, then annihilation operators (positive).
-Within each group, operators are sorted by mode in ascending order.
 
-This establishes a canonical normal order used by both fermionic and bosonic algebras.
+Canonical order:
+- Creation operators (negative) on the LEFT, sorted by mode in **descending** order
+- Annihilation operators (positive) on the RIGHT, sorted by mode in ascending order
+
+This choice makes `adjoint(m)` preserve the normal-form invariant without
+introducing extra signs from re-sorting.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS: normal_order_key
 
 julia> normal_order_key(-3)  # a₃† (creation)
-(0, 3)
+(0, -3)
 
 julia> normal_order_key(2)   # a₂ (annihilation)
 (1, 2)
 ```
 """
 @inline function normal_order_key(op::T) where {T<:Integer}
-    return (_is_creation(op) ? 0 : 1, _operator_mode(op))
+    mode = _operator_mode(op)
+    return _is_creation(op) ? (0, -mode) : (1, mode)
 end
 
 """
@@ -364,7 +295,7 @@ Returns the index `i` where `word[i]` and `word[i+1]` are out of order,
 or 0 if the word is already in normal order.
 
 Normal order means: all creators (negative) before annihilators (positive),
-sorted by mode within each group.
+with creators sorted by mode descending and annihilators by mode ascending.
 
 # Examples
 ```jldoctest
@@ -376,7 +307,7 @@ julia> find_first_out_of_order(Int32[-1, 1])  # c₁† c₁ (normal order)
 julia> find_first_out_of_order(Int32[1, -1])  # c₁ c₁† (out of order at position 1)
 1
 
-julia> find_first_out_of_order(Int32[-2, -1]) # c₂† c₁† (out of order at position 1)
+julia> find_first_out_of_order(Int32[-1, -2]) # c₁† c₂† (out of order at position 1)
 1
 ```
 """
@@ -394,7 +325,7 @@ end
 
 Check if a word of fermionic/bosonic operators is in normal order.
 Normal order means: all creators (negative) before annihilators (positive),
-sorted by mode within each group.
+with creators sorted by mode descending and annihilators by mode ascending.
 
 Implemented in terms of `find_first_out_of_order` for DRY.
 
@@ -402,7 +333,7 @@ Implemented in terms of `find_first_out_of_order` for DRY.
 ```jldoctest
 julia> using NCTSSoS: is_normal_ordered
 
-julia> is_normal_ordered(Int32[-1, -2, 1, 2])  # c₁† c₂† c₁ c₂ (normal)
+julia> is_normal_ordered(Int32[-2, -1, 1, 2])  # c₂† c₁† c₁ c₂ (normal)
 true
 
 julia> is_normal_ordered(Int32[1, -1])  # c₁ c₁† (not normal)
@@ -434,27 +365,24 @@ A new vector with like terms combined. If all terms cancel to zero,
 returns a vector with a single zero term.
 """
 function combine_like_terms(
-    terms::Vector{Term{Monomial{A,T},C}}
+    terms::Vector{Term{NormalMonomial{A,T},C}}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     # Use inner constructor since we're reconstructing from existing valid words
-    isempty(terms) && return [Term(zero(C), Monomial{A,T}(T[]))]
+    isempty(terms) && return [Term(zero(C), one(NormalMonomial{A,T}))]
 
-    grouped = Dict{Vector{T},C}()
+    grouped = Dict{NormalMonomial{A,T},C}()
     for t in terms
-        key = t.monomial.word
-        grouped[key] = get(grouped, key, zero(C)) + t.coefficient
+        grouped[t.monomial] = get(grouped, t.monomial, zero(C)) + t.coefficient
     end
 
-    result = Term{Monomial{A,T},C}[]
-    for (word, coef) in grouped
-        if !iszero(coef)
-            # Use inner constructor since word came from valid monomial
-            push!(result, Term(coef, Monomial{A,T}(word)))
-        end
+    result = Term{NormalMonomial{A,T},C}[]
+    for (m, coef) in grouped
+        iszero(coef) && continue
+        push!(result, Term(coef, m))
     end
 
     if isempty(result)
-        push!(result, Term(zero(C), Monomial{A,T}(T[])))
+        push!(result, Term(zero(C), one(NormalMonomial{A,T})))
     end
 
     return result

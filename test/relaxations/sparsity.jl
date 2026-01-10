@@ -44,9 +44,9 @@ using NCTSSoS:
 # Helper to create NC polynomials from registry variables
 function nc_poly(registry::VariableRegistry{NonCommutativeAlgebra,T}, indices::Vector{T}) where T
     if isempty(indices)
-        return Polynomial{NonCommutativeAlgebra,T,Float64}([Term(1.0, Monomial{NonCommutativeAlgebra}(T[]))])
+        return Polynomial{NonCommutativeAlgebra,T,Float64}([Term(1.0, NormalMonomial{NonCommutativeAlgebra}(T[]))])
     end
-    m = Monomial{NonCommutativeAlgebra}(indices)
+    m = NormalMonomial{NonCommutativeAlgebra}(indices)
     return Polynomial{NonCommutativeAlgebra,T,Float64}([Term(1.0, m)])
 end
 
@@ -373,7 +373,7 @@ end
     @testset "Init Activated Support" begin
         registry, (x,) = create_noncommutative_variables([("x", 1:2)])
         T = eltype(indices(registry))
-        M = Monomial{NonCommutativeAlgebra,T}
+        M = NormalMonomial{NonCommutativeAlgebra,T}
         P = Polynomial{NonCommutativeAlgebra,T,Float64}
 
         # Get actual variable indices
@@ -385,7 +385,7 @@ end
 
         # Simple basis with actual variable indices
         one_mono = one(M)
-        basis = M[one_mono, Monomial{NonCommutativeAlgebra}(T[x_idx[1]]), Monomial{NonCommutativeAlgebra}(T[x_idx[2]])]
+        basis = M[one_mono, NormalMonomial{NonCommutativeAlgebra}(T[x_idx[1]]), NormalMonomial{NonCommutativeAlgebra}(T[x_idx[2]])]
 
         supp = init_activated_supp(obj, cons, basis)
         @test !isempty(supp)

@@ -43,20 +43,20 @@ end
     @testset "Variable creation" begin
         @test length(b) == N
         @test length(b_dag) == N
-        @test b[1] isa Monomial{BosonicAlgebra}
-        @test b_dag[1] isa Monomial{BosonicAlgebra}
+        @test b[1] isa NormalMonomial{BosonicAlgebra}
+        @test b_dag[1] isa NormalMonomial{BosonicAlgebra}
     end
 
     @testset "Number operator n_i = b†_i b_i" begin
         # Number operator for site 1
         n1 = b_dag[1] * b[1]
-        @test n1 isa Monomial{BosonicAlgebra}
-        @test degree(n1) == 2
+        n1_poly = Polynomial(n1)
+        @test n1_poly isa Polynomial{BosonicAlgebra}
+        @test degree(n1_poly) == 2
 
-        # Simplify should keep it in normal order
-        n1_simplified = simplify(n1)
-        @test length(n1_simplified.terms) == 1
-        @test n1_simplified.terms[1].coefficient == 1.0
+        # Already normal-ordered; should be single-term with unit coefficient
+        @test length(n1_poly.terms) == 1
+        @test n1_poly.terms[1].coefficient == 1.0
     end
 
     @testset "Hopping terms b†_i b_j + b†_j b_i" begin
@@ -74,7 +74,7 @@ end
 
         # After simplification using CCR: b b† = b† b + 1
         # b†₁ b₁ b†₁ b₁ = b†₁ (b†₁ b₁ + 1) b₁ = b†₁ b†₁ b₁ b₁ + b†₁ b₁
-        simplified = simplify(n1_squared)
+        simplified = Polynomial(n1_squared)
 
         # Should have 2 terms: (b†)² b² and b† b
         @test length(simplified.terms) == 2

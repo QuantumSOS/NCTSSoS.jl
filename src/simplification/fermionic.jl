@@ -16,7 +16,7 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 # Normal Ordering
 - All creators (negative) on LEFT
 - All annihilators (positive) on RIGHT
-- Within groups: sorted by mode (absolute value)
+- Within groups: creators sorted by mode descending, annihilators by mode ascending
 
 # Wick's Theorem Algorithm (4 steps)
 1. Identify valid contractions (pairs with non-zero contraction values)
@@ -29,7 +29,7 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 # are in `src/util/helpers.jl`.
 
 """
-    has_even_parity(m::Monomial{FermionicAlgebra,T}) where T -> Bool
+    has_even_parity(m::NormalMonomial{FermionicAlgebra,T}) where T -> Bool
 
 Check if a fermionic monomial has even parity (even number of operators).
 
@@ -39,7 +39,7 @@ number from having non-zero expectation values. Only operators with even parity
 expectation values.
 
 # Arguments
-- `m::Monomial{FermionicAlgebra,T}`: A fermionic monomial
+- `m::NormalMonomial{FermionicAlgebra,T}`: A fermionic monomial
 
 # Returns
 - `true` if the monomial has an even number of operators (including 0 for identity)
@@ -63,12 +63,12 @@ true
 
 See also: [`FermionicAlgebra`](@ref), [`simplify`](@ref)
 """
-function has_even_parity(m::Monomial{FermionicAlgebra,T}) where {T}
+function has_even_parity(m::NormalMonomial{FermionicAlgebra,T}) where {T}
     return iseven(length(m.word))
 end
 
 """
-    Base.iszero(m::Monomial{FermionicAlgebra,T}) -> Bool
+    Base.iszero(m::NormalMonomial{FermionicAlgebra,T}) -> Bool
 
 Check if a fermionic monomial is zero due to nilpotency.
 
@@ -84,28 +84,28 @@ they cannot all be contracted away and the result is zero.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{FermionicAlgebra}(Int32[1, 1]);  # a₁ a₁ = 0 (surplus 2)
+julia> m = NormalMonomial{FermionicAlgebra}(Int32[1, 1]);  # a₁ a₁ = 0 (surplus 2)
 
 julia> iszero(m)
 true
 
-julia> m2 = Monomial{FermionicAlgebra}(Int32[1, 2, 1]);  # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0
+julia> m2 = NormalMonomial{FermionicAlgebra}(Int32[1, 2, 1]);  # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0
 
 julia> iszero(m2)
 true
 
-julia> m3 = Monomial{FermionicAlgebra}(Int32[1, 1, -1]);  # a₁ a₁ a₁† (surplus 1, not zero yet)
+julia> m3 = NormalMonomial{FermionicAlgebra}(Int32[1, 1, -1]);  # a₁ a₁ a₁† (surplus 1, not zero yet)
 
 julia> iszero(m3)
 false
 
-julia> m4 = Monomial{FermionicAlgebra}(Int32[1, -1, 1, -1]);  # a₁ a₁† a₁ a₁† ≠ 0
+julia> m4 = NormalMonomial{FermionicAlgebra}(Int32[1, -1, 1, -1]);  # a₁ a₁† a₁ a₁† ≠ 0
 
 julia> iszero(m4)
 false
 ```
 """
-function Base.iszero(m::Monomial{FermionicAlgebra,T}) where {T}
+function Base.iszero(m::NormalMonomial{FermionicAlgebra,T}) where {T}
     word = m.word
     isempty(word) && return false
 
@@ -346,7 +346,7 @@ function _compute_normal_ordered_term(word::Vector{T}, contraction::Vector{Tuple
     return (Float64(total_sign), normal_word)
 end
 
-# Note: Like-term combination happens via `_combine_physics_terms` in `src/types/physics_monomial.jl`.
+# Note: Like-term combination happens via `_combine_physics_terms` below.
 
 """
     _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer} -> Vector{Tuple{Int,Vector{T}}}
@@ -356,7 +356,7 @@ Normal-order a fermionic word using Generalized Wick's Theorem.
 Returns a vector of (coefficient, normal_ordered_word) pairs representing the sum:
   Σ coeffs[i] * word[i]
 
-This is the low-level function used by PhysicsMonomial constructor.
+This is the low-level function used by `simplify(FermionicAlgebra, word)`.
 Integer coefficients are exact (from anticommutation signs).
 
 # Algorithm
@@ -371,8 +371,8 @@ function _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer}
         return Tuple{Int,Vector{T}}[(1, T[])]
     end
 
-    # Check for nilpotency (aᵢ² = 0) - use inner constructor (skips validation)
-    m_temp = Monomial{FermionicAlgebra,T}(word)
+    # Check for nilpotency (aᵢ² = 0) on the raw word.
+    m_temp = NormalMonomial{FermionicAlgebra,T}(word, _UNSAFE_NORMAL_MONOMIAL)
     if iszero(m_temp)
         return Tuple{Int,Vector{T}}[(0, T[])]
     end
@@ -415,11 +415,11 @@ function _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer}
 end
 
 """
-    simplify(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
+    simplify(m::NormalMonomial{FermionicAlgebra,T}) where T -> Monomial{FermionicAlgebra}
 
 Simplify and normal-order a fermionic algebra monomial using Generalized Wick's Theorem.
 
-Returns a Polynomial representing the normal-ordered expansion (potentially with multiple
+Returns a `Monomial` representing the canonical PBW expansion (potentially with multiple
 terms due to anticommutation). The original monomial is unchanged.
 
 # Algorithm
@@ -438,30 +438,30 @@ terms due to anticommutation). The original monomial is unchanged.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{FermionicAlgebra}(Int32[1, -1]);  # a₁ a₁†
+julia> word = Int32[1, -1];  # a₁ a₁† (raw word; not in fermionic normal form)
 
-julia> poly = simplify(m);
+julia> m = simplify(FermionicAlgebra, word);  # 1 - a₁† a₁
 
-julia> length(terms(poly))  # Two terms: 1 - a₁† a₁
+julia> length(m)  # Two terms: 1 - a₁† a₁
 2
 ```
 
 # Note
-Unlike other algebra types, fermionic simplification returns a `Polynomial` (not a `Monomial`)
-because anticommutation creates multiple terms. There is no `simplify!` variant since the
+Unlike other algebra types, fermionic simplification may return multiple terms because
+anticommutation creates delta corrections. There is no `simplify!` variant since the
 return type differs from the input type.
 """
-function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
+function simplify(m::NormalMonomial{FermionicAlgebra,T}) where {T}
     word = m.word
 
     # Handle empty word
     if isempty(word)
-        return PhysicsMonomial{FermionicAlgebra,T}(Int[1], [Monomial{FermionicAlgebra,T}(T[])])
+        return one(PBWMonomial{FermionicAlgebra,T})
     end
 
     # Early exit for nilpotent monomials (aᵢ² = 0)
     if iszero(m)
-        return PhysicsMonomial{FermionicAlgebra,T}(Int[], Monomial{FermionicAlgebra,T}[])
+        return zero(PBWMonomial{FermionicAlgebra,T})
     end
 
     # Step 1: Find valid contractions
@@ -472,28 +472,24 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
 
     # Steps 3-4: Compute each term
     coeffs = Int[]
-    monos = Monomial{FermionicAlgebra,T}[]
+    monos = NormalMonomial{FermionicAlgebra,T}[]
 
     for combo in combinations
         (coef, normal_word) = _compute_normal_ordered_term(word, combo)
         int_coef = round(Int, coef)  # fermionic coefficients are always ±1
         if int_coef != 0
             push!(coeffs, int_coef)
-            push!(monos, Monomial{FermionicAlgebra,T}(normal_word))
+            push!(monos, NormalMonomial{FermionicAlgebra,T}(normal_word, _OWNED_NORMAL_MONOMIAL))
         end
     end
 
     # Combine like terms
-    combined = _combine_physics_terms(coeffs, monos)
-
-    return PhysicsMonomial{FermionicAlgebra,T}(combined[1], combined[2])
+    terms = _combine_physics_terms(coeffs, monos)
+    return Monomial(terms)
 end
 
-# Note: simplify(pm::PhysicsMonomial{FermionicAlgebra}) and has_even_parity(::PhysicsMonomial)
-# are defined in physics_monomial.jl since PhysicsMonomial is loaded after simplification modules
-
 # =============================================================================
-# Validation (for Monomial constructor)
+# Validation (for NormalMonomial constructor)
 # =============================================================================
 
 """
@@ -503,9 +499,9 @@ Check that a fermionic word is in normal-ordered form. Throws `ArgumentError` if
 
 Normal order requirements:
 - Creation operators (negative indices) come before annihilation operators (positive)
-- Within each category, sorted by mode (|index|)
+- Creators sorted by mode descending; annihilators sorted by mode ascending
 
-This is used by `Monomial{FermionicAlgebra,T}` constructor to enforce invariants.
+This is used by `NormalMonomial{FermionicAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_fermionic_word!(word::Vector{T}) where {T<:Signed}
     isempty(word) && return nothing
@@ -513,46 +509,87 @@ function _validate_fermionic_word!(word::Vector{T}) where {T<:Signed}
     if !is_normal_ordered(word)
         throw(ArgumentError(
             "Fermionic word is not normal-ordered. " *
-            "Use PhysicsMonomial{FermionicAlgebra}(word) for auto-normal-ordering."
+            "Use simplify(FermionicAlgebra, word) for auto-normal-ordering."
         ))
+    end
+
+    # Normal-form monomials must be non-nilpotent: aᵢ² = 0 and (aᵢ†)² = 0.
+    # In normal order (creators then annihilators, each sorted by mode), duplicate operators
+    # can only appear as adjacent equal entries.
+    for i in 2:length(word)
+        if word[i] == word[i - 1]
+            throw(ArgumentError(
+                "Fermionic word is nilpotent (duplicate operator). " *
+                "Use simplify(FermionicAlgebra, word) for canonicalization."
+            ))
+        end
     end
     return nothing
 end
+
+# Connect validation hook used by `NormalMonomial{A,T}` inner constructor.
+_validate_word!(::Type{FermionicAlgebra}, word::Vector{T}) where {T<:Signed} =
+    _validate_fermionic_word!(word)
 
 # =============================================================================
 # Specialized Outer Constructor (validates, rejects non-normal-ordered)
 # =============================================================================
 
 """
-    Monomial{FermionicAlgebra}(word::Vector{T}) where {T<:Signed}
+    NormalMonomial{FermionicAlgebra}(word::Vector{T}) where {T<:Signed}
 
 Construct a Fermionic monomial, validating that the input is in normal-ordered form.
 
 Throws `ArgumentError` if the word is not normal-ordered. For non-normal-ordered words,
-use `PhysicsMonomial{FermionicAlgebra}(word)` which auto-normal-orders and tracks coefficients.
+use `simplify(FermionicAlgebra, word)` which auto-normal-orders and returns a `Monomial`
+(iterable as `(c_internal, NormalMonomial)` pairs).
 
 Normal order requirements:
 - Creation operators (negative indices) come before annihilation operators (positive)
-- Within each category, sorted by mode (|index|)
+- Creators sorted by mode descending; annihilators sorted by mode ascending
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{FermionicAlgebra}(Int32[-1, 1]);  # a₁† a₁ - normal ordered
+julia> m = NormalMonomial{FermionicAlgebra}(Int32[-1, 1]);  # a₁† a₁ - normal ordered
 
 julia> m.word
 2-element Vector{Int32}:
  -1
   1
 
-julia> Monomial{FermionicAlgebra}(Int32[1, -1])  # a₁ a₁† - NOT normal ordered
-ERROR: ArgumentError: Fermionic word is not normal-ordered. Use PhysicsMonomial{FermionicAlgebra}(word) for auto-normal-ordering.
+julia> NormalMonomial{FermionicAlgebra}(Int32[1, -1])  # a₁ a₁† - NOT normal ordered
+ERROR: ArgumentError: Fermionic word is not normal-ordered. Use simplify(FermionicAlgebra, word) for auto-normal-ordering.
 ```
 """
-function Monomial{FermionicAlgebra}(word::Vector{T}) where {T<:Signed}
+function NormalMonomial{FermionicAlgebra}(word::Vector{T}) where {T<:Signed}
     word_filtered = filter(!iszero, word)
-    # Validate BEFORE allocation - throws ArgumentError if non-normal-ordered
-    _validate_fermionic_word!(word_filtered)
-    return Monomial{FermionicAlgebra,T}(word_filtered)
+    return NormalMonomial{FermionicAlgebra,T}(word_filtered, _OWNED_NORMAL_MONOMIAL)
+end
+
+function Base.:*(m1::NormalMonomial{FermionicAlgebra,T}, m2::NormalMonomial{FermionicAlgebra,T}) where {T<:Integer}
+    return simplify(FermionicAlgebra, vcat(m1.word, m2.word))
+end
+
+# =============================================================================
+# Term Combination Helper (for fermionic/bosonic normal ordering)
+# =============================================================================
+
+function _combine_physics_terms(
+    coeffs::Vector{Int},
+    monos::Vector{NormalMonomial{A,T}},
+) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
+    grouped = Dict{NormalMonomial{A,T},Int}()
+    for (c, m) in zip(coeffs, monos)
+        grouped[m] = get(grouped, m, 0) + c
+    end
+
+    terms = Tuple{Int,NormalMonomial{A,T}}[]
+    for (m, c) in grouped
+        c == 0 && continue
+        push!(terms, (c, m))
+    end
+    sort!(terms, by=t -> t[2])
+    return terms
 end

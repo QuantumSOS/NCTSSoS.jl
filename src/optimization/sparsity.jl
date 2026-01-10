@@ -1,5 +1,5 @@
 """
-    CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Monomial{A,T}}
+    CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:NormalMonomial{A,T}}
 
 Structure representing the correlative sparsity pattern of a polynomial optimization problem.
 
@@ -7,7 +7,7 @@ Structure representing the correlative sparsity pattern of a polynomial optimiza
 - `A<:AlgebraType`: The algebra type (PauliAlgebra, NonCommutativeAlgebra, etc.)
 - `T<:Integer`: The index type used in the registry
 - `P<:Polynomial{A,T}`: The polynomial type
-- `M<:Monomial{A,T}`: The monomial type
+- `M<:NormalMonomial{A,T}`: The monomial type
 
 # Fields
 - `cliques::Vector{Vector{T}}`: Groups of variable indices that form cliques in the sparsity graph
@@ -23,7 +23,7 @@ Structure representing the correlative sparsity pattern of a polynomial optimiza
 - Use `subregistry(cs.registry, cs.cliques[i])` to get a clique-local registry
 - Use `cs.registry[idx]` to look up symbol names for indices
 """
-struct CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Monomial{A,T}}
+struct CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:NormalMonomial{A,T}}
     cliques::Vector{Vector{T}}
     registry::VariableRegistry{A,T}
     cons::Vector{P}
@@ -108,7 +108,7 @@ function get_correlative_graph(
     end
 
     # Helper to get graph positions from a monomial
-    function get_positions(m::Monomial{A,T}) where {A,T}
+    function get_positions(m::NormalMonomial{A,T}) where {A,T}
         positions = Int[]
         seen = Set{T}()
         for idx in m.word
@@ -181,76 +181,27 @@ function assign_constraint(
 end
 
 """
-    extract_monomials_from_basis(basis::Vector{Monomial{A,T}}) where {A,T}
+    extract_monomials_from_basis(basis::Vector{NormalMonomial{A,T}}) where {A,T}
 
 Extract underlying monomials from basis elements for use in moment matrix construction.
 
-For simple algebras (NonCommutative, Projector, Unipotent), the basis is already
-`Vector{Monomial{A,T}}`, so this is an identity operation.
+The basis returned by `get_ncbasis` is `Vector{NormalMonomial{A,T}}` for all algebras.
 
 # Arguments
-- `basis::Vector{Monomial{A,T}}`: Basis monomials from `get_ncbasis`
+- `basis::Vector{NormalMonomial{A,T}}`: Basis monomials from `get_ncbasis`
 
 # Returns
-- `Vector{Monomial{A,T}}`: Same monomials for moment matrix indexing
+- `Vector{NormalMonomial{A,T}}`: Same monomials for moment matrix indexing
 """
 function extract_monomials_from_basis(
-    basis::Vector{Monomial{A,T}}
-) where {A<:Union{NonCommutativeAlgebra,ProjectorAlgebra,UnipotentAlgebra}, T<:Integer}
+    basis::Vector{NormalMonomial{A,T}}
+) where {A<:AlgebraType, T<:Integer}
     return basis
-end
-
-"""
-    extract_monomials_from_basis(basis::Vector{PauliMonomial{T}}) where {T}
-
-Extract underlying monomials from PauliMonomial basis elements.
-
-For Pauli algebra, extracts the canonical `Monomial{PauliAlgebra,T}` from each
-`PauliMonomial{T}`, discarding the phase information for moment matrix indexing.
-(Phase is handled separately during constraint construction.)
-
-# Arguments
-- `basis::Vector{PauliMonomial{T}}`: Basis PauliMonomials from `get_ncbasis`
-
-# Returns
-- `Vector{Monomial{PauliAlgebra,T}}`: Underlying canonical monomials
-"""
-function extract_monomials_from_basis(
-    basis::Vector{PauliMonomial{T}}
-) where {T<:Integer}
-    return [pm.mono for pm in basis]
-end
-
-"""
-    extract_monomials_from_basis(basis::Vector{PhysicsMonomial{A,T}}) where {A,T}
-
-Extract underlying monomials from PhysicsMonomial basis elements.
-
-For Fermionic/Bosonic algebras, each PhysicsMonomial may represent multiple terms.
-We extract the leading (first) monomial from each for moment matrix indexing.
-(The full expansion is handled during constraint construction.)
-
-# Arguments
-- `basis::Vector{PhysicsMonomial{A,T}}`: Basis PhysicsMonomials from `get_ncbasis`
-
-# Returns
-- `Vector{Monomial{A,T}}`: Leading monomials from each PhysicsMonomial
-"""
-function extract_monomials_from_basis(
-    basis::Vector{PhysicsMonomial{A,T}}
-) where {A<:Union{FermionicAlgebra,BosonicAlgebra}, T<:Integer}
-    result = Monomial{A,T}[]
-    for pm in basis
-        if !isempty(pm.monos)
-            push!(result, pm.monos[1])
-        end
-    end
-    return result
 end
 
 # Legacy: handle old Polynomial-based basis (for backward compatibility during transition)
 function extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A<:AlgebraType, T<:Integer, C<:Number}
-    result = Monomial{A,T}[]
+    result = NormalMonomial{A,T}[]
     for p in basis_polys
         if isempty(p.terms)
             continue
@@ -309,7 +260,7 @@ function correlative_sparsity(
     cliques_cons, global_cons = assign_constraint(cliques, all_cons, registry)
 
     # Generate moment matrix bases for each clique using subregistry + get_ncbasis
-    M = Monomial{A,T}
+    M = NormalMonomial{A,T}
     cliques_moment_matrix_bases = Vector{Vector{M}}()
 
     for clique_indices in cliques
@@ -459,7 +410,7 @@ Initialize the activated support for term sparsity iteration.
 """
 function init_activated_supp(
     partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     # Compute diagonal entries b†b and simplify them using algebra-specific rules
     # (e.g., for ProjectorAlgebra, x†x = x*x simplifies to x)
     diagonal_entries = M[]
@@ -498,7 +449,7 @@ function term_sparsities(
     mom_mtx_bases::Vector{M},
     localizing_mtx_bases::Vector{Vector{M}},
     ts_algo::EliminationAlgorithm
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     [
         [iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo)];
         map(zip(cons, localizing_mtx_bases)) do (poly, basis)
@@ -523,7 +474,7 @@ Constructs a term sparsity graph for polynomial constraints.
 """
 function get_term_sparsity_graph(
     cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}}
     nterms = length(bases)
     G = SimpleGraph(nterms)
     sorted_activated_supp = sort(activated_supp)
@@ -562,7 +513,7 @@ Iteratively computes term sparsity support for a polynomial.
 """
 function iterate_term_sparse_supp(
     activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     F = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
     blocks = clique_decomp(F, elim_algo)
     map(block -> add_clique!(F, block), blocks)
@@ -586,7 +537,7 @@ Implements equation (10.4) from "Sparse Polynomial Optimization: Theory and Prac
 """
 function term_sparsity_graph_supp(
     G::SimpleGraph, basis::Vector{M}, g::P
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     # Compute products basis[a]† * g_support * basis[b] for all graph edges
     # _neat_dot3 returns Monomial, simplify then extract monomials
     gsupp(a, b) = reduce(vcat, [monomials(Polynomial(simplify(_neat_dot3(a, g_supp, b)))) for g_supp in monomials(g)])

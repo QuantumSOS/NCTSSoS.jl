@@ -5,8 +5,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
 
 @testset "StatePolynomial{MaxEntangled}" begin
     @testset "Creation" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3])
 
         sw1 = tr(m1)
         sw2 = tr(m2)
@@ -18,7 +18,7 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Automatic Deduplication" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         sw = tr(m)
 
         # Same state word appears twice with different coefficients
@@ -29,8 +29,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Zero Coefficient Removal" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         sw1 = tr(m1)
         sw2 = tr(m2)
@@ -45,8 +45,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Degree" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
-        m2 = Monomial{NonCommutativeAlgebra}([3, 4, 5])  # degree 3
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])  # degree 2
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 4, 5])  # degree 3
 
         sw1 = tr(m1)
         sw2 = tr(m2)
@@ -56,8 +56,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Variables" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3, 4])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 4])
 
         sw1 = tr(m1)
         sw2 = tr(m2)
@@ -79,8 +79,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Addition" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         sw1 = tr(m1)
         sw2 = tr(m2)
@@ -93,7 +93,7 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Subtraction" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra}([1])
         sw = tr(m)
 
         sp1 = StatePolynomial([3.0], [sw])
@@ -104,7 +104,7 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Unary Negation" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         sw = tr(m)
 
         # Negate a StateWord directly
@@ -120,7 +120,7 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Scalar Multiplication" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra}([1])
         sw = tr(m)
 
         sp = StatePolynomial([2.0], [sw])
@@ -133,8 +133,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Polynomial Multiplication" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         sw1 = tr(m1)
         sw2 = tr(m2)
@@ -148,7 +148,7 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Equality" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         sw = tr(m)
 
         sp1 = StatePolynomial([1.0], [sw])
@@ -162,8 +162,8 @@ end
 
 @testset "StatePolynomial{Arbitrary}" begin
     @testset "Creation with ς" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3])
 
         sw1 = ς(m1)
         sw2 = ς(m2)
@@ -174,8 +174,8 @@ end
     end
 
     @testset "Arithmetic" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         # Create polynomials
         sp1 = StatePolynomial([1.0], [ς(m1)])
@@ -193,8 +193,8 @@ end
 
 @testset "NCStatePolynomial{MaxEntangled}" begin
     @testset "Creation" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3])
+        m_state = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([3])
 
         sw = tr(m_state)
         ncsw = NCStateWord(sw, m_nc)
@@ -205,8 +205,8 @@ end
     end
 
     @testset "Automatic Deduplication" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1])
-        m_nc = Monomial{NonCommutativeAlgebra}([2])
+        m_state = NormalMonomial{NonCommutativeAlgebra}([1])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([2])
 
         sw = tr(m_state)
         ncsw = NCStateWord(sw, m_nc)
@@ -217,8 +217,8 @@ end
     end
 
     @testset "Degree" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
-        m_nc = Monomial{NonCommutativeAlgebra}([3])        # degree 1
+        m_state = NormalMonomial{NonCommutativeAlgebra}([1, 2])  # degree 2
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([3])        # degree 1
 
         sw = tr(m_state)
         ncsw = NCStateWord(sw, m_nc)
@@ -228,8 +228,8 @@ end
     end
 
     @testset "Monomials Accessor" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1])
-        m_nc = Monomial{NonCommutativeAlgebra}([2])
+        m_state = NormalMonomial{NonCommutativeAlgebra}([1])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([2])
 
         sw = tr(m_state)
         ncsw = NCStateWord(sw, m_nc)
@@ -252,8 +252,8 @@ end
     end
 
     @testset "Addition" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         ncsw1 = NCStateWord(tr(m1), m1)
         ncsw2 = NCStateWord(tr(m2), m2)
@@ -266,7 +266,7 @@ end
     end
 
     @testset "Scalar Multiplication" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra}([1])
         ncsw = NCStateWord(tr(m), m)
 
         ncsp = NCStatePolynomial([2.0], [ncsw])
@@ -276,7 +276,7 @@ end
     end
 
     @testset "Equality" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra}([1])
         ncsw = NCStateWord(tr(m), m)
 
         ncsp1 = NCStatePolynomial([1.0], [ncsw])
@@ -290,8 +290,8 @@ end
 
 @testset "NCStatePolynomial{Arbitrary}" begin
     @testset "Creation" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3])
+        m_state = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([3])
 
         sw = ς(m_state)
         ncsw = NCStateWord(sw, m_nc)
@@ -302,8 +302,8 @@ end
     end
 
     @testset "Arithmetic" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         ncsw1 = NCStateWord(ς(m1), m1)
         ncsw2 = NCStateWord(ς(m2), m2)
@@ -321,8 +321,8 @@ end
     end
 
     @testset "Variables" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3, 4])
+        m_state = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([3, 4])
 
         ncsw = NCStateWord(ς(m_state), m_nc)
         ncsp = NCStatePolynomial([1.0], [ncsw])

@@ -30,7 +30,7 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = Monomial{UnipotentAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
+julia> m = NormalMonomial{UnipotentAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
 
 julia> result = simplify(m);
 
@@ -46,7 +46,7 @@ julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
-julia> m = Monomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
+julia> m = NormalMonomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
 
 julia> result = simplify(m);
 
@@ -56,7 +56,7 @@ true
 """
 
 # =============================================================================
-# Validation (for Monomial constructor)
+# Validation (for NormalMonomial constructor)
 # =============================================================================
 
 """
@@ -68,7 +68,7 @@ Canonical form requirements:
 - Sites sorted in ascending order
 - No consecutive identical operators (no U² terms - they should cancel to I)
 
-This is used by `Monomial{UnipotentAlgebra,T}` constructor to enforce invariants.
+This is used by `NormalMonomial{UnipotentAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
     _validate_site_sorted_word!(
@@ -79,6 +79,10 @@ function _validate_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
         duplicate_hint="Use simplify for raw words."
     )
 end
+
+# Connect validation hook used by `NormalMonomial{A,T}` inner constructor.
+_validate_word!(::Type{UnipotentAlgebra}, word::Vector{T}) where {T<:Unsigned} =
+    _validate_unipotent_word!(word)
 
 # =============================================================================
 # Simplification
@@ -122,7 +126,7 @@ function _simplify_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
 end
 
 """
-    simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned} -> Monomial
+    simplify!(m::NormalMonomial{UnipotentAlgebra,T}) where {T<:Unsigned} -> NormalMonomial
 
 In-place simplification of a unipotent algebra monomial.
 
@@ -131,17 +135,17 @@ Mutates the input monomial's word vector and returns the same monomial.
 # Warning
 This mutates the input monomial. Use `simplify` for a non-mutating version.
 """
-function simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
+function simplify!(m::NormalMonomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     _simplify_unipotent_word!(m.word)
     return m
 end
 
 """
-    simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned} -> Monomial
+    simplify(m::NormalMonomial{UnipotentAlgebra,T}) where {T<:Unsigned} -> Monomial
 
 Simplify a unipotent algebra monomial with site-aware commutation and U²=I.
 
-Returns a new simplified Monomial (no coefficient changes, just reordering and pair cancellation).
+Returns a new simplified NormalMonomial (no coefficient changes, just reordering and pair cancellation).
 The original monomial is unchanged.
 
 # Examples
@@ -152,7 +156,7 @@ julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
-julia> m = Monomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
+julia> m = NormalMonomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
 
 julia> result = simplify(m);
 
@@ -163,10 +167,11 @@ julia> length(m.word)  # Original unchanged
 2
 ```
 """
-function simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
+function simplify(m::NormalMonomial{UnipotentAlgebra,T}) where {T<:Unsigned}
     word_copy = copy(m.word)
     _simplify_unipotent_word!(word_copy)
-    Monomial{UnipotentAlgebra,T}(word_copy)
+    mono = NormalMonomial{UnipotentAlgebra,T}(word_copy, _OWNED_NORMAL_MONOMIAL)
+    return Monomial(mono)
 end
 
 # =============================================================================
@@ -174,7 +179,7 @@ end
 # =============================================================================
 
 """
-    Monomial{UnipotentAlgebra}(word::Vector{T}) where {T<:Unsigned}
+    NormalMonomial{UnipotentAlgebra}(word::Vector{T}) where {T<:Unsigned}
 
 Construct a Unipotent monomial, auto-canonicalizing the input.
 
@@ -191,14 +196,14 @@ julia> using NCTSSoS: encode_index
 
 julia> u1 = encode_index(UInt16, 1, 1);
 
-julia> m = Monomial{UnipotentAlgebra}([u1, u1]);
+julia> m = NormalMonomial{UnipotentAlgebra}([u1, u1]);
 
 julia> isone(m)  # u₁ u₁ = I
 true
 ```
 """
-function Monomial{UnipotentAlgebra}(word::Vector{T}) where {T<:Unsigned}
+function NormalMonomial{UnipotentAlgebra}(word::Vector{T}) where {T<:Unsigned}
     word_filtered = filter(!iszero, word)
-    canonical = _simplify_unipotent_word!(copy(word_filtered))
-    return Monomial{UnipotentAlgebra,T}(canonical)
+    _simplify_unipotent_word!(word_filtered)
+    return NormalMonomial{UnipotentAlgebra,T}(word_filtered, _OWNED_NORMAL_MONOMIAL)
 end

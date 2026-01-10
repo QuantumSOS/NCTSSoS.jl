@@ -18,7 +18,7 @@ multiple dispatch for simplification algorithms.
 # Design
 Singleton types enable zero-cost dispatch on algebra operations:
 ```julia
-simplify(::Type{PauliAlgebra}, m::Monomial) = ...
+simplify(::Type{PauliAlgebra}, m::NormalMonomial) = ...
 ```
 
 # Examples
@@ -210,7 +210,7 @@ Different algebras naturally work with different coefficient types:
 - `PauliAlgebra`: `ComplexF64` (Pauli products generate complex phases)
 - All others: `Float64` (real coefficients suffice)
 
-This is used by constructors like `Polynomial(m::Monomial)` to infer
+This is used by constructors like `Polynomial(m::NormalMonomial)` to infer
 the appropriate coefficient type when not explicitly specified.
 
 # Examples
@@ -249,20 +249,20 @@ This enables compile-time determination of coefficient types for type-stable
 processing of simplification results. Used by `ComposedMonomial` simplification
 to determine appropriate coefficient types for the Cartesian product of terms.
 
-For `Monomial{A,T}`, returns `coeff_type(A)` (the algebra's default).
+For `NormalMonomial{A,T}`, returns `coeff_type(A)` (the algebra's default).
 For `Term{M,C}` and `Polynomial{A,T,C}`, returns `C` (the explicit coefficient type).
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> coeff_type(Monomial{PauliAlgebra,Int64})
+julia> coeff_type(NormalMonomial{PauliAlgebra,Int64})
 ComplexF64
 
-julia> coeff_type(Monomial{FermionicAlgebra,Int32})
+julia> coeff_type(NormalMonomial{FermionicAlgebra,Int32})
 Float64
 
-julia> coeff_type(Term{Monomial{PauliAlgebra,Int64},ComplexF64})
+julia> coeff_type(Term{NormalMonomial{PauliAlgebra,Int64},ComplexF64})
 ComplexF64
 
 julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64})
@@ -270,7 +270,7 @@ Float64
 ```
 """
 # Instance method: delegate to type method
-# Note: coeff_type methods for specific types (Monomial, Term, Polynomial)
+# Note: coeff_type methods for specific types (NormalMonomial, Term, Polynomial)
 # are defined in their respective source files.
 
 # =============================================================================

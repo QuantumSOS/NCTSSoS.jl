@@ -37,13 +37,6 @@ include("simplification/fermionic.jl")
 include("simplification/bosonic.jl")
 
 # ============================================================================
-# Wrapper Monomial Types (depend on simplification)
-# ============================================================================
-
-include("types/pauli_monomial.jl")
-include("types/physics_monomial.jl")
-
-# ============================================================================
 # Composed Types (depends on Polynomial for type checking in simplify)
 # ============================================================================
 
@@ -101,9 +94,9 @@ export create_pauli_variables, create_fermionic_variables, create_bosonic_variab
 export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
 
 # Core Types (users need these for type annotations and construction)
-export Monomial, Polynomial, Term, VariableRegistry
+export NormalMonomial, Monomial, Polynomial, Term, VariableRegistry
 export ComposedMonomial
-export PauliMonomial, PhysicsMonomial, AbstractMonomial, AnyMonomial
+export AbstractTensorMonomial, AbstractMonomial
 
 # Algebra Types (users need for dispatch)
 export AlgebraType

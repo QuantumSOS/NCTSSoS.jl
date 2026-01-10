@@ -1,30 +1,19 @@
 """
-    AnyMonomial
-
-Type union for all monomial types that can appear in Terms.
-
-Includes:
-- `AbstractMonomial{A,T}`: Single-algebra monomials (Monomial, PauliMonomial, PhysicsMonomial)
-- `AbstractMonomialUntyped`: Multi-algebra monomials (ComposedMonomial)
-"""
-const AnyMonomial = Union{AbstractMonomial, AbstractMonomialUntyped}
-
-"""
-    Term{M<:AnyMonomial, C<:Number}
+    Term{M<:AbstractTensorMonomial, C<:Number}
 
 Represents a coefficient paired with a monomial, the result of algebraic simplification.
 
 # Fields
 - `coefficient::C`: Numeric coefficient (Float64 or ComplexF64)
-- `monomial::M`: The simplified monomial (Monomial, PauliMonomial, PhysicsMonomial, or ComposedMonomial)
+- `monomial::M`: The monomial (NormalMonomial or ComposedMonomial)
 
 # Type Parameters
-- `M<:AnyMonomial`: Monomial type (Monomial{A,T}, wrapper types, or ComposedMonomial{Ts})
+- `M<:AbstractTensorMonomial`: Monomial type (NormalMonomial, StateWord, ComposedMonomial, ...)
 - `C<:Number`: Coefficient type (Float64, ComplexF64, etc.)
 
 # Design
-The Term struct is the output of simplification algorithms. Each algebra type
-returns a Term with an appropriate coefficient type:
+`Term` is the atomic unit of `Polynomial` and the output of `ComposedMonomial` simplification.
+Each algebra type uses an appropriate numeric coefficient type:
 - Pauli: `ComplexF64` (due to i phases from cyclic products)
 - Fermionic/Bosonic/Projector/Unipotent: `Float64` (real coefficients only)
 
@@ -33,7 +22,7 @@ The monomial field stores a reference, so no deep copying occurs.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2, 3]);
+julia> m = NormalMonomial{PauliAlgebra}([1, 2, 3]);
 
 julia> t = Term(1.0 + 0.0im, m);
 
@@ -51,7 +40,7 @@ Identity term (empty monomial with coefficient 1):
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{UnipotentAlgebra}(Int[]);
+julia> m = NormalMonomial{UnipotentAlgebra}(UInt8[]);
 
 julia> t = Term(1.0, m);
 
@@ -62,7 +51,7 @@ julia> t.coefficient
 1.0
 ```
 """
-struct Term{M<:AnyMonomial,C<:Number}
+struct Term{M<:AbstractTensorMonomial,C<:Number}
     coefficient::C
     monomial::M
 end
@@ -76,20 +65,22 @@ Check if a term is the multiplicative identity (coefficient 1, empty monomial).
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{UnipotentAlgebra}(Int[]);
+julia> m = NormalMonomial{UnipotentAlgebra}(UInt8[]);
 
 julia> t = Term(1.0, m);
 
 julia> isone(t)
 true
 
-julia> t2 = Term(2.0, Monomial{UnipotentAlgebra}([1]));
+julia> u1 = NCTSSoS.encode_index(UInt8, 1, 1);
+
+julia> t2 = Term(2.0, NormalMonomial{UnipotentAlgebra}(UInt8[u1]));
 
 julia> isone(t2)
 false
 ```
 """
-function Base.isone(t::Term{M,C}) where {M<:AnyMonomial,C}
+function Base.isone(t::Term{M,C}) where {M<:AbstractTensorMonomial,C}
     return isone(t.coefficient) && isone(t.monomial)
 end
 
@@ -100,14 +91,14 @@ Check if a term is zero (coefficient is zero).
 
 # Examples
 ```jldoctest
-julia> m = Monomial{FermionicAlgebra}(Int32[]);
+julia> m = NormalMonomial{FermionicAlgebra}(Int32[]);
 
 julia> t = Term(0.0, m);
 
 julia> iszero(t)
 true
 
-julia> t2 = Term(1.0, Monomial{FermionicAlgebra}(Int32[]));
+julia> t2 = Term(1.0, NormalMonomial{FermionicAlgebra}(Int32[]));
 
 julia> iszero(t2)
 false
@@ -139,9 +130,9 @@ function Base.hash(t::Term, h::UInt)
     return h
 end
 
-# Show method for clean output
+# Show method for clean output (single-algebra normal monomials)
 # Passes IOContext to monomial show for registry-aware display
-function Base.show(io::IO, t::Term{M,C}) where {M<:Monomial,C}
+function Base.show(io::IO, t::Term{M,C}) where {M<:NormalMonomial,C}
     if iszero(t)
         print(io, "0")
     elseif isone(t)
@@ -168,21 +159,21 @@ end
 
 Create an identity term (coefficient 1 with identity monomial).
 
-Works for any `AbstractMonomial` subtype (`Monomial` or `ComposedMonomial`)
+Works for any `AbstractMonomial` subtype (`NormalMonomial` or `ComposedMonomial`)
 as long as the monomial type implements `one(::Type{M})`.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> one(Term{Monomial{UnipotentAlgebra,Int},Float64})
+julia> one(Term{NormalMonomial{UnipotentAlgebra,Int},Float64})
 1
 
-julia> one(Term{Monomial{PauliAlgebra,UInt16},ComplexF64})
+julia> one(Term{NormalMonomial{PauliAlgebra,UInt16},ComplexF64})
 1
 ```
 """
-function Base.one(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number}
+function Base.one(::Type{Term{M,C}}) where {M<:AbstractTensorMonomial,C<:Number}
     return Term{M,C}(one(C), one(M))
 end
 
@@ -191,21 +182,21 @@ end
 
 Create a zero term (coefficient 0 with identity monomial).
 
-Works for any `AbstractMonomial` subtype (`Monomial` or `ComposedMonomial`)
+Works for any `AbstractMonomial` subtype (`NormalMonomial` or `ComposedMonomial`)
 as long as the monomial type implements `one(::Type{M})`.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> zero(Term{Monomial{FermionicAlgebra,Int32},Float64})
+julia> zero(Term{NormalMonomial{FermionicAlgebra,Int32},Float64})
 0
 
-julia> iszero(zero(Term{Monomial{FermionicAlgebra,Int32},Float64}))
+julia> iszero(zero(Term{NormalMonomial{FermionicAlgebra,Int32},Float64}))
 true
 ```
 """
-function Base.zero(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number}
+function Base.zero(::Type{Term{M,C}}) where {M<:AbstractTensorMonomial,C<:Number}
     return Term{M,C}(zero(C), one(M))
 end
 
@@ -260,13 +251,13 @@ A Term yields exactly one `(coefficient, monomial)` tuple when iterated.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);
+julia> m = NormalMonomial{PauliAlgebra}([1, 2]);
 
 julia> t = Term(2.5 + 0.0im, m);
 
 julia> collect(t)
-1-element Vector{Tuple{ComplexF64, Monomial{PauliAlgebra, Int64}}}:
- (2.5 + 0.0im, Monomial{PauliAlgebra, Int64}([1, 2]))
+1-element Vector{Tuple{ComplexF64, NormalMonomial{PauliAlgebra, Int64}}}:
+ (2.5 + 0.0im, NormalMonomial{PauliAlgebra, Int64}([1, 2]))
 
 julia> (coef, mono), = t;
 
@@ -279,7 +270,7 @@ julia> mono.word
  2
 ```
 """
-function Base.iterate(t::Term{M,C}) where {M<:AnyMonomial,C<:Number}
+function Base.iterate(t::Term{M,C}) where {M<:AbstractTensorMonomial,C<:Number}
     return ((t.coefficient, t.monomial), nothing)
 end
 
@@ -287,14 +278,14 @@ Base.iterate(::Term, ::Nothing) = nothing
 
 Base.length(::Term) = 1
 
-Base.eltype(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number} = Tuple{C,M}
+Base.eltype(::Type{Term{M,C}}) where {M<:AbstractTensorMonomial,C<:Number} = Tuple{C,M}
 
 """
     coeff_type(::Type{Term{M,C}}) where {M,C} -> Type{<:Number}
 
 Return the coefficient type C for a Term type.
 """
-coeff_type(::Type{Term{M,C}}) where {M<:AnyMonomial,C<:Number} = C
+coeff_type(::Type{Term{M,C}}) where {M<:AbstractTensorMonomial,C<:Number} = C
 
 # Instance method
-coeff_type(t::Term{M,C}) where {M<:AnyMonomial,C<:Number} = C
+coeff_type(t::Term{M,C}) where {M<:AbstractTensorMonomial,C<:Number} = C

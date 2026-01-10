@@ -28,7 +28,7 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = Monomial{NonCommutativeAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
 
 julia> result = simplify(m);
 
@@ -38,7 +38,7 @@ true
 """
 
 # =============================================================================
-# Validation (for Monomial constructor)
+# Validation (for NormalMonomial constructor)
 # =============================================================================
 
 """
@@ -49,7 +49,7 @@ Check that a noncommutative word is in canonical form. Throws `ArgumentError` if
 Canonical form requirements:
 - Sites sorted in ascending order (operators on different sites commute)
 
-This is used by `Monomial{NonCommutativeAlgebra,T}` constructor to enforce invariants.
+This is used by `NormalMonomial{NonCommutativeAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_nc_word!(word::Vector{T}) where {T<:Unsigned}
     _validate_site_sorted_word!(
@@ -58,6 +58,10 @@ function _validate_nc_word!(word::Vector{T}) where {T<:Unsigned}
         sorted_hint="Use simplify for raw words."
     )
 end
+
+# Connect validation hook used by `NormalMonomial{A,T}` inner constructor.
+_validate_word!(::Type{NonCommutativeAlgebra}, word::Vector{T}) where {T<:Unsigned} =
+    _validate_nc_word!(word)
 
 # =============================================================================
 # Simplification
@@ -87,7 +91,7 @@ function _simplify_nc_word!(word::Vector{T}) where {T<:Unsigned}
 end
 
 """
-    simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned} -> Monomial
+    simplify!(m::NormalMonomial{NonCommutativeAlgebra,T}) where {T<:Unsigned} -> NormalMonomial
 
 In-place simplification of a non-commutative algebra monomial.
 
@@ -96,17 +100,17 @@ Mutates the input monomial's word vector and returns the same monomial.
 # Warning
 This mutates the input monomial. Use `simplify` for a non-mutating version.
 """
-function simplify!(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
+function simplify!(m::NormalMonomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
     _simplify_nc_word!(m.word)
     return m
 end
 
 """
-    simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned} -> Monomial
+    simplify(m::NormalMonomial{NonCommutativeAlgebra,T}) where {T<:Unsigned} -> Monomial
 
 Simplify a non-commutative algebra monomial with site-aware commutation.
 
-Returns a new simplified Monomial (no coefficient changes, just reordering).
+Returns a new simplified NormalMonomial (no coefficient changes, just reordering).
 The original monomial is unchanged.
 
 # Examples
@@ -119,7 +123,7 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = Monomial{NonCommutativeAlgebra}([idx1_s2, idx1_s1]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([idx1_s2, idx1_s1]);
 
 julia> result = simplify(m);
 
@@ -130,10 +134,11 @@ julia> m.word == [idx1_s2, idx1_s1]  # Original unchanged
 true
 ```
 """
-function simplify(m::Monomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
+function simplify(m::NormalMonomial{NonCommutativeAlgebra,T}) where {T<:Unsigned}
     word_copy = copy(m.word)
     _simplify_nc_word!(word_copy)
-    Monomial{NonCommutativeAlgebra,T}(word_copy)
+    mono = NormalMonomial{NonCommutativeAlgebra,T}(word_copy, _OWNED_NORMAL_MONOMIAL)
+    return Monomial(mono)
 end
 
 # =============================================================================
@@ -141,7 +146,7 @@ end
 # =============================================================================
 
 """
-    Monomial{NonCommutativeAlgebra}(word::Vector{T}) where {T<:Unsigned}
+    NormalMonomial{NonCommutativeAlgebra}(word::Vector{T}) where {T<:Unsigned}
 
 Construct a NonCommutative monomial, auto-canonicalizing the input.
 
@@ -158,16 +163,16 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = Monomial{NonCommutativeAlgebra}([idx1_s2, idx1_s1]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([idx1_s2, idx1_s1]);
 
 julia> m.word == [idx1_s1, idx1_s2]  # Auto-sorted by site
 true
 ```
 """
-function Monomial{NonCommutativeAlgebra}(word::Vector{T}) where {T<:Unsigned}
+function NormalMonomial{NonCommutativeAlgebra}(word::Vector{T}) where {T<:Unsigned}
     word_filtered = filter(!iszero, word)
     # Stable sort by site (same-site indices don't commute)
     # InsertionSort: stable + in-place (better memory)
     _stable_sort_by_site!(word_filtered)
-    return Monomial{NonCommutativeAlgebra,T}(word_filtered)
+    return NormalMonomial{NonCommutativeAlgebra,T}(word_filtered, _OWNED_NORMAL_MONOMIAL)
 end

@@ -126,9 +126,9 @@ end
         )
         true_obj = sum([sp1_sq, sp2_sq])
 
-        # StatePolynomial * Monomial → NCStatePolynomial
-        pop = polyopt(sp * one(Monomial{UnipotentAlgebra,UInt8}), reg)
-        @test pop.objective == true_obj * one(Monomial{UnipotentAlgebra,UInt8})
+        # StatePolynomial * NormalMonomial → NCStatePolynomial
+        pop = polyopt(sp * one(NormalMonomial{UnipotentAlgebra,UInt8}), reg)
+        @test pop.objective == true_obj * one(NormalMonomial{UnipotentAlgebra,UInt8})
         @test isempty(pop.eq_constraints)
         @test isempty(pop.ineq_constraints)
     end
@@ -141,7 +141,7 @@ end
             cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) +
             cov(3, 1) - cov(3, 2)
 
-        pop = polyopt(sp * one(Monomial{UnipotentAlgebra,UInt8}), reg)
+        pop = polyopt(sp * one(NormalMonomial{UnipotentAlgebra,UInt8}), reg)
         true_obj = sum(
             [
                 1.0,
@@ -182,7 +182,7 @@ end
                 ]),
             ),
         )
-        @test pop.objective == true_obj * one(Monomial{UnipotentAlgebra,UInt8})
+        @test pop.objective == true_obj * one(NormalMonomial{UnipotentAlgebra,UInt8})
         @test isempty(pop.eq_constraints)
         @test isempty(pop.ineq_constraints)
     end
@@ -210,7 +210,7 @@ end
             -1.0 * J2 * J2,
             -1.0 * L * L,
         ])
-        pop = polyopt(sp * one(Monomial{UnipotentAlgebra,UInt8}), reg)
+        pop = polyopt(sp * one(NormalMonomial{UnipotentAlgebra,UInt8}), reg)
         @test isempty(pop.eq_constraints)
         @test isempty(pop.ineq_constraints)
     end
@@ -399,7 +399,7 @@ end
 
         # Create state polynomial with terms on different variable sets
         sp = 1.0*ς(x[1])*ς(y[1]) + 2.0*ς(x[2])*ς(y[2]) + 3.0*ς(x[3])*ς(y[3])
-        ncstp = sp * one(Monomial{UnipotentAlgebra,UInt8})
+        ncstp = sp * one(NormalMonomial{UnipotentAlgebra,UInt8})
 
         # Get variable indices for x1,x2,y1,y2
         idx_x1 = collect(variable_indices(x[1]))[1]
@@ -506,7 +506,7 @@ end
         reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
         sp = 1.0*ς(x[1])*ς(y[1]) + 1.0*ς(x[2])*ς(y[2])
-        pop = polyopt(sp * one(Monomial{UnipotentAlgebra,UInt8}), reg)
+        pop = polyopt(sp * one(NormalMonomial{UnipotentAlgebra,UInt8}), reg)
         solver_config = SolverConfig(optimizer=SOLVER, order=1)
 
         sparsity = compute_sparsity(pop, solver_config)

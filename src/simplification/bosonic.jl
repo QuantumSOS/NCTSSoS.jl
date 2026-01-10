@@ -14,14 +14,13 @@ Same as fermionic:
 # Normal Ordering
 All creation operators (c†, negative indices) are placed to the LEFT of
 all annihilation operators (c, positive indices). Within each group,
-operators are sorted by mode (absolute value of index).
+creators are sorted by mode descending and annihilators by mode ascending.
 
 # Key Difference from Fermionic
 Unlike fermionic operators:
 1. Bosonic operators COMMUTE (no sign change when swapping)
 2. But cᵢ cⱼ† = cⱼ† cᵢ + δᵢⱼ creates an additional term when modes match
 3. Bosonic operators are NOT nilpotent (cᵢ cᵢ ≠ 0)
-4. **Returns `Vector{Term}` instead of single `Term`** due to term generation
 
 # Algorithm
 Uses a group-based algorithm with closed-form formulas based on:
@@ -53,17 +52,18 @@ naive iterative expansion.
 **TODO**: Verify complexity bounds against literature.
 
 # Returns
-`Polynomial{BosonicAlgebra,T,Float64}` - potentially multiple terms due to delta corrections
+`Monomial{BosonicAlgebra}` - a canonical PBW expansion (integer coefficients internally).
+Convert to numeric coefficients with `Polynomial(m)` if needed.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{BosonicAlgebra}(Int32[1, -1]);  # c₁ c₁†
+julia> word = Int32[1, -1];  # c₁ c₁† (raw word; not in Bosonic normal form)
 
-julia> poly = simplify(m);
+julia> m = simplify(BosonicAlgebra, word);
 
-julia> length(terms(poly))  # Two terms: c₁† c₁ and identity
+julia> length(terms(m))  # Two terms: c₁† c₁ and identity
 2
 ```
 """
@@ -72,12 +72,12 @@ julia> length(terms(poly))  # Two terms: c₁† c₁ and identity
 # find_first_out_of_order, is_normal_ordered) are in `src/util/helpers.jl`.
 
 """
-    simplify(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}
+    simplify(m::NormalMonomial{BosonicAlgebra,T}) where T -> Monomial{BosonicAlgebra}
 
 Simplify and normal-order a bosonic algebra monomial.
 
-Returns a Polynomial (potentially with multiple terms) due to delta corrections from commutation.
-The original monomial is unchanged.
+Returns a `Monomial` (canonical PBW expansion). Bosonic commutation may introduce
+additional terms; coefficients are stored internally as exact integers.
 
 Uses a group-based algorithm with closed-form formulas (rook numbers on Ferrers boards)
 based on arXiv:quant-ph/0507206. This is more efficient than iterative expansion,
@@ -93,51 +93,41 @@ especially for expressions with multiple modes.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{BosonicAlgebra}(Int32[2, -1]);  # c₂ c₁†
+julia> m = NormalMonomial{BosonicAlgebra}(Int32[-1, 2]);  # c₁† c₂ (already normal ordered)
 
-julia> poly = simplify(m);
+julia> sm = simplify(m);
 
-julia> length(terms(poly))  # Just one term (different modes, no delta)
+julia> length(terms(sm))  # One term
 1
 
-julia> monomials(poly)[1].word
+julia> monomials(sm)[1].word
 2-element Vector{Int32}:
  -1
   2
 ```
 
 # Note
-Unlike other algebra types, bosonic simplification returns a `Polynomial` (not a `Monomial`)
-because commutation creates multiple terms. There is no `simplify!` variant since the
-return type differs from the input type.
+Unlike monoid-like algebras, bosonic simplification may return multiple terms because
+commutation creates delta corrections. There is no `simplify!` variant since the return
+type differs from the input type.
 """
-function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
-    # Create a copy of the word to work with
-    word_copy = copy(m.word)
-    m_copy = Monomial{BosonicAlgebra,T}(word_copy)
-    term_vec = simplify_bosonic_grouped!(m_copy)
-
-    # Convert from Vector{Term} to PhysicsMonomial
-    if isempty(term_vec)
-        return PhysicsMonomial{BosonicAlgebra,T}(Int[], Monomial{BosonicAlgebra,T}[])
-    end
+function simplify(m::NormalMonomial{BosonicAlgebra,T}) where {T}
+    pairs = _simplify_bosonic_word!(copy(m.word))
 
     coeffs = Int[]
-    monos = Monomial{BosonicAlgebra,T}[]
-    for term in term_vec
-        int_coef = round(Int, term.coefficient)
-        if int_coef != 0
-            push!(coeffs, int_coef)
-            push!(monos, term.monomial)
-        end
+    monos = NormalMonomial{BosonicAlgebra,T}[]
+    for (c, w) in pairs
+        c == 0 && continue
+        push!(coeffs, c)
+        push!(monos, NormalMonomial{BosonicAlgebra,T}(w, _OWNED_NORMAL_MONOMIAL))
     end
 
     if isempty(coeffs)
-        return PhysicsMonomial{BosonicAlgebra,T}(Int[], Monomial{BosonicAlgebra,T}[])
+        return zero(PBWMonomial{BosonicAlgebra,T})
     end
 
-    combined = _combine_physics_terms(coeffs, monos)
-    return PhysicsMonomial{BosonicAlgebra,T}(combined[1], combined[2])
+    terms = _combine_physics_terms(coeffs, monos)
+    return Monomial(terms)
 end
 
 # =============================================================================
@@ -352,7 +342,7 @@ function expand_and_construct(
     mode_results::Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}},
     modes::Vector{Int},
     ::Type{T}
-)::Vector{Term{Monomial{BosonicAlgebra,T},Float64}} where {T}
+)::Vector{Term{NormalMonomial{BosonicAlgebra,T},Float64}} where {T}
     @assert !isempty(mode_results) "mode_results must be non-empty (caller handles empty case)"
     @assert length(modes) == length(mode_results) "modes and mode_results must have same length"
 
@@ -371,17 +361,18 @@ function expand_and_construct(
     end
 
     # Construct final Term vector
-    result = Term{Monomial{BosonicAlgebra,T},Float64}[]
+    result = Term{NormalMonomial{BosonicAlgebra,T},Float64}[]
     for ((cre, ann), coef) in combined
         coef == 0 && continue
         word = T[]
-        for (i, m) in enumerate(modes)
+        for i in reverse(eachindex(modes))
+            m = modes[i]
             append!(word, fill(T(-m), cre[i]))
         end
         for (i, m) in enumerate(modes)
             append!(word, fill(T(m), ann[i]))
         end
-        push!(result, Term(Float64(coef), Monomial{BosonicAlgebra}(word)))
+        push!(result, Term(Float64(coef), NormalMonomial{BosonicAlgebra,T}(word)))
     end
 
     return result
@@ -395,7 +386,7 @@ Normal-order a bosonic word using the group-based algorithm with rook numbers.
 Returns a vector of (coefficient, normal_ordered_word) pairs representing the sum:
   Σ coeffs[i] * word[i]
 
-This is the low-level function used by PhysicsMonomial constructor.
+This is the low-level function used by `simplify(BosonicAlgebra, word)`.
 Integer coefficients are exact (from commutation relations).
 
 # Algorithm
@@ -445,7 +436,8 @@ function _simplify_bosonic_word!(word::Vector{T}) where {T<:Integer}
     for ((cre, ann), coef) in combined
         coef == 0 && continue
         new_word = T[]
-        for (i, m) in enumerate(modes)
+        for i in reverse(eachindex(modes))
+            m = modes[i]
             append!(new_word, fill(T(-m), cre[i]))
         end
         for (i, m) in enumerate(modes)
@@ -462,7 +454,7 @@ function _simplify_bosonic_word!(word::Vector{T}) where {T<:Integer}
 end
 
 """
-    simplify_bosonic_grouped!(m::Monomial{BosonicAlgebra,T}) -> Vector{Term}
+    simplify_bosonic_grouped!(m::NormalMonomial{BosonicAlgebra,T}) -> Vector{Term}
 
 Simplify a bosonic monomial using the group-based algorithm with rook numbers.
 
@@ -475,8 +467,8 @@ Algorithm:
 This is more efficient than iterative expansion for multi-mode expressions.
 """
 function simplify_bosonic_grouped!(
-    m::Monomial{BosonicAlgebra,T}
-)::Vector{Term{Monomial{BosonicAlgebra,T},Float64}} where {T}
+    m::NormalMonomial{BosonicAlgebra,T}
+)::Vector{Term{NormalMonomial{BosonicAlgebra,T},Float64}} where {T}
     word = m.word
 
     # Handle empty monomial
@@ -501,11 +493,10 @@ function simplify_bosonic_grouped!(
     return expand_and_construct(mode_results, modes, T)
 end
 
-# Note: simplify(pm::PhysicsMonomial{BosonicAlgebra}) is defined in physics_monomial.jl
-# since PhysicsMonomial is loaded after simplification modules
+# Note: `simplify(::NormalMonomial)` is identity (see types/monomial.jl).
 
 # =============================================================================
-# Validation (for Monomial constructor)
+# Validation (for NormalMonomial constructor)
 # =============================================================================
 
 """
@@ -515,9 +506,9 @@ Check that a bosonic word is in normal-ordered form. Throws `ArgumentError` if i
 
 Normal order requirements:
 - Creation operators (negative indices) come before annihilation operators (positive)
-- Within each category, sorted by mode (|index|)
+- Creators sorted by mode descending; annihilators sorted by mode ascending
 
-This is used by `Monomial{BosonicAlgebra,T}` constructor to enforce invariants.
+This is used by `NormalMonomial{BosonicAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_bosonic_word!(word::Vector{T}) where {T<:Signed}
     isempty(word) && return nothing
@@ -525,46 +516,53 @@ function _validate_bosonic_word!(word::Vector{T}) where {T<:Signed}
     if !is_normal_ordered(word)
         throw(ArgumentError(
             "Bosonic word is not normal-ordered. " *
-            "Use PhysicsMonomial{BosonicAlgebra}(word) for auto-normal-ordering."
+            "Use simplify(BosonicAlgebra, word) for auto-normal-ordering."
         ))
     end
     return nothing
 end
+
+# Connect validation hook used by `NormalMonomial{A,T}` inner constructor.
+_validate_word!(::Type{BosonicAlgebra}, word::Vector{T}) where {T<:Signed} =
+    _validate_bosonic_word!(word)
 
 # =============================================================================
 # Specialized Outer Constructor (validates, rejects non-normal-ordered)
 # =============================================================================
 
 """
-    Monomial{BosonicAlgebra}(word::Vector{T}) where {T<:Signed}
+    NormalMonomial{BosonicAlgebra}(word::Vector{T}) where {T<:Signed}
 
 Construct a Bosonic monomial, validating that the input is in normal-ordered form.
 
 Throws `ArgumentError` if the word is not normal-ordered. For non-normal-ordered words,
-use `PhysicsMonomial{BosonicAlgebra}(word)` which auto-normal-orders and tracks coefficients.
+use `simplify(BosonicAlgebra, word)` which auto-normal-orders and returns a `Monomial`
+(iterable as `(c_internal, NormalMonomial)` pairs).
 
 Normal order requirements:
 - Creation operators (negative indices) come before annihilation operators (positive)
-- Within each category, sorted by mode (|index|)
+- Creators sorted by mode descending; annihilators sorted by mode ascending
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{BosonicAlgebra}(Int32[-1, 1]);  # c₁† c₁ - normal ordered
+julia> m = NormalMonomial{BosonicAlgebra}(Int32[-1, 1]);  # c₁† c₁ - normal ordered
 
 julia> m.word
 2-element Vector{Int32}:
  -1
   1
 
-julia> Monomial{BosonicAlgebra}(Int32[1, -1])  # c₁ c₁† - NOT normal ordered
-ERROR: ArgumentError: Bosonic word is not normal-ordered. Use PhysicsMonomial{BosonicAlgebra}(word) for auto-normal-ordering.
+julia> NormalMonomial{BosonicAlgebra}(Int32[1, -1])  # c₁ c₁† - NOT normal ordered
+ERROR: ArgumentError: Bosonic word is not normal-ordered. Use simplify(BosonicAlgebra, word) for auto-normal-ordering.
 ```
 """
-function Monomial{BosonicAlgebra}(word::Vector{T}) where {T<:Signed}
+function NormalMonomial{BosonicAlgebra}(word::Vector{T}) where {T<:Signed}
     word_filtered = filter(!iszero, word)
-    # Validate BEFORE allocation - throws ArgumentError if non-normal-ordered
-    _validate_bosonic_word!(word_filtered)
-    return Monomial{BosonicAlgebra,T}(word_filtered)
+    return NormalMonomial{BosonicAlgebra,T}(word_filtered, _OWNED_NORMAL_MONOMIAL)
+end
+
+function Base.:*(m1::NormalMonomial{BosonicAlgebra,T}, m2::NormalMonomial{BosonicAlgebra,T}) where {T<:Integer}
+    return simplify(BosonicAlgebra, vcat(m1.word, m2.word))
 end

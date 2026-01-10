@@ -61,17 +61,17 @@ end
 
 @testset "coeff_type trait" begin
     # Monomial: returns coeff_type(A)
-    @test coeff_type(Monomial{PauliAlgebra,Int64}) == ComplexF64
-    @test coeff_type(Monomial{NonCommutativeAlgebra,Int64}) == Float64
-    @test coeff_type(Monomial{FermionicAlgebra,Int32}) == Float64
-    @test coeff_type(Monomial{BosonicAlgebra,Int32}) == Float64
-    @test coeff_type(Monomial{ProjectorAlgebra,UInt16}) == Float64
-    @test coeff_type(Monomial{UnipotentAlgebra,UInt16}) == Float64
+    @test coeff_type(NormalMonomial{PauliAlgebra,Int64}) == ComplexF64
+    @test coeff_type(NormalMonomial{NonCommutativeAlgebra,Int64}) == Float64
+    @test coeff_type(NormalMonomial{FermionicAlgebra,Int32}) == Float64
+    @test coeff_type(NormalMonomial{BosonicAlgebra,Int32}) == Float64
+    @test coeff_type(NormalMonomial{ProjectorAlgebra,UInt16}) == Float64
+    @test coeff_type(NormalMonomial{UnipotentAlgebra,UInt16}) == Float64
 
     # Term: returns C (the coefficient type)
-    @test coeff_type(Term{Monomial{PauliAlgebra,Int64},ComplexF64}) == ComplexF64
-    @test coeff_type(Term{Monomial{NonCommutativeAlgebra,Int64},Float64}) == Float64
-    @test coeff_type(Term{Monomial{FermionicAlgebra,Int32},Float32}) == Float32
+    @test coeff_type(Term{NormalMonomial{PauliAlgebra,Int64},ComplexF64}) == ComplexF64
+    @test coeff_type(Term{NormalMonomial{NonCommutativeAlgebra,Int64},Float64}) == Float64
+    @test coeff_type(Term{NormalMonomial{FermionicAlgebra,Int32},Float32}) == Float32
 
     # Polynomial: returns C (the coefficient type)
     @test coeff_type(Polynomial{PauliAlgebra,Int64,ComplexF64}) == ComplexF64
@@ -80,13 +80,13 @@ end
 
     # Instance methods (delegates to type)
     # Use indices on different Pauli sites: 1,4 = σx on sites 1,2
-    m = Monomial{PauliAlgebra}([1, 4])
+    m = NormalMonomial{PauliAlgebra}([1, 4])
     @test coeff_type(m) == ComplexF64
 
-    t = Term(2.5, Monomial{NonCommutativeAlgebra}([1]))
+    t = Term(2.5, NormalMonomial{NonCommutativeAlgebra}([1]))
     @test coeff_type(t) == Float64
 
-    p = Polynomial([Term(1.0+0im, Monomial{PauliAlgebra}([1]))])
+    p = Polynomial([Term(1.0 + 0im, NormalMonomial{PauliAlgebra}([1]))])
     @test coeff_type(p) == ComplexF64
 end
 

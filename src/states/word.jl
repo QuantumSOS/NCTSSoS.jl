@@ -13,7 +13,7 @@ that has been canonicalized according to the state type:
 - `MaxEntangled`: cyclic_symmetric_canon(m)
 
 # Fields
-- `mono::Monomial{A,T}`: The canonicalized monomial
+- `mono::NormalMonomial{A,T}`: The canonicalized monomial
 
 # Type Parameters
 - `ST`: State type (Arbitrary or MaxEntangled)
@@ -39,7 +39,7 @@ which complicates expectation value semantics.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{ProjectorAlgebra}(UInt8[1, 2]);
+julia> m = NormalMonomial{ProjectorAlgebra}(UInt8[1, 2]);
 
 julia> sym = StateSymbol{Arbitrary}(m);
 
@@ -50,17 +50,17 @@ julia> degree(sym)
 See also: [`StateWord`](@ref), [`_state_canon`](@ref), [`MonoidAlgebra`](@ref)
 """
 struct StateSymbol{ST<:StateType,A<:MonoidAlgebra,T<:Integer} <: AbstractMonomial{A,T}
-    mono::Monomial{A,T}
+    mono::NormalMonomial{A,T}
 
     # Inner constructor: canonicalize on construction
-    function StateSymbol{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    function StateSymbol{ST}(m::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
         canon_m = _state_canon(ST, m)
         new{ST,A,T}(canon_m)
     end
 end
 
 """
-    StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T}
+    StateSymbol(::Type{ST}, m::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T}
 
 Construct a StateSymbol with explicit state type.
 
@@ -71,7 +71,7 @@ For Pauli/Fermionic/Bosonic algebras, use standard Polynomial optimization inste
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{ProjectorAlgebra}(UInt8[1, 2]);
+julia> m = NormalMonomial{ProjectorAlgebra}(UInt8[1, 2]);
 
 julia> sym = StateSymbol(Arbitrary, m);
 
@@ -79,8 +79,36 @@ julia> sym isa StateSymbol{Arbitrary}
 true
 ```
 """
-function StateSymbol(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+function StateSymbol(::Type{ST}, m::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     StateSymbol{ST}(m)
+end
+
+function StateSymbol{ST}(
+    pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}},
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(pairs) && throw(ArgumentError("StateSymbol cannot be constructed from an empty expansion"))
+    _, mono = pairs[1]
+    return StateSymbol{ST}(mono)
+end
+
+function StateSymbol{ST}(
+    m::Monomial{A,T},
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(m) && throw(ArgumentError("StateSymbol cannot be constructed from an empty expansion"))
+    _, mono = m[1]
+    return StateSymbol{ST}(mono)
+end
+
+function StateSymbol(
+    ::Type{ST}, pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}},
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    return StateSymbol{ST}(pairs)
+end
+
+function StateSymbol(
+    ::Type{ST}, m::Monomial{A,T},
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    return StateSymbol{ST}(m)
 end
 
 # =============================================================================
@@ -93,7 +121,7 @@ end
 Create the identity StateSymbol (wrapping identity monomial).
 """
 function Base.one(::Type{StateSymbol{ST,A,T}}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
-    StateSymbol{ST}(one(Monomial{A,T}))
+    StateSymbol{ST}(one(NormalMonomial{A,T}))
 end
 
 """
@@ -244,9 +272,9 @@ All symbols share the same algebra type A.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([3]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);
 
@@ -272,7 +300,7 @@ struct StateWord{ST<:StateType,A<:MonoidAlgebra,T<:Integer} <: AbstractMonomial{
 end
 
 # Constructor from monomials (canonical path)
-function StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+function StateWord{ST}(monos::Vector{NormalMonomial{A,T}}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     syms = StateSymbol{ST,A,T}[StateSymbol{ST}(m) for m in monos]
     StateWord{ST,A,T}(syms)
 end
@@ -282,18 +310,18 @@ end
 # =============================================================================
 
 """
-    _involution_canon(m::Monomial{A,T}) where {A,T}
+    _involution_canon(m::NormalMonomial{A,T}) where {A,T}
 
 Apply the involution canonicalization: return min(m, adjoint(m)).
 This ensures that m and adjoint(m) are treated as equivalent in state expectations.
 """
-function _involution_canon(m::Monomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
+function _involution_canon(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
     m_adj = adjoint(m)
     return isless(m, m_adj) ? m : (m == m_adj ? m : m_adj)
 end
 
 """
-    _state_canon(::Type{ST}, m::Monomial{A,T}) where {ST<:StateType,A,T}
+    _state_canon(::Type{ST}, m::NormalMonomial{A,T}) where {ST<:StateType,A,T}
 
 Apply state-type-specific canonicalization to a monomial.
 
@@ -307,12 +335,12 @@ Apply state-type-specific canonicalization to a monomial.
 # Returns
 A canonicalized monomial.
 """
-function _state_canon(::Type{Arbitrary}, m::Monomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
+function _state_canon(::Type{Arbitrary}, m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
     # For arbitrary states: <M> = <M†>, so use involution (symmetric) canonicalization
     _involution_canon(m)
 end
 
-function _state_canon(::Type{MaxEntangled}, m::Monomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
+function _state_canon(::Type{MaxEntangled}, m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
     # For trace states: tr(ABC) = tr(BCA) = tr(CBA)† = tr(A†B†C†)
     # Use cyclic-symmetric canonicalization
     cyclic_symmetric_canon(m)
@@ -325,7 +353,7 @@ end
 # Convenience constructors
 
 # Explicit type parameters from monomials
-function StateWord{ST,A,T}(monos::Vector{Monomial{A,T}}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+function StateWord{ST,A,T}(monos::Vector{NormalMonomial{A,T}}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     StateWord{ST}(monos)
 end
 
@@ -335,8 +363,8 @@ function StateWord{ST}(syms::Vector{StateSymbol{ST,A,T}}) where {ST<:StateType,A
 end
 
 """
-    StateWord{ST}(m::Monomial{A,T}) where {ST,A,T}
-    StateWord{ST}(monos::Vector{Monomial{A,T}}) where {ST,A,T}
+    StateWord{ST}(m::NormalMonomial{A,T}) where {ST,A,T}
+    StateWord{ST}(monos::Vector{NormalMonomial{A,T}}) where {ST,A,T}
     StateWord{ST}(sym::StateSymbol{ST,A,T}) where {ST,A,T}
     StateWord{ST}(syms::Vector{StateSymbol{ST,A,T}}) where {ST,A,T}
 
@@ -347,9 +375,9 @@ Each monomial is lifted to a StateSymbol with canonicalization.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([3]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);
 
@@ -362,8 +390,24 @@ julia> length(sw_single.state_syms)
 1
 ```
 """
-function StateWord{ST}(m::Monomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+function StateWord{ST}(m::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     StateWord{ST}([m])
+end
+
+function StateWord{ST}(
+    pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}},
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(pairs) && throw(ArgumentError("StateWord cannot be constructed from an empty expansion"))
+    _, mono = pairs[1]
+    return StateWord{ST}([mono])
+end
+
+function StateWord{ST}(
+    m::Monomial{A,T},
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(m) && throw(ArgumentError("StateWord cannot be constructed from an empty expansion"))
+    _, mono = m[1]
+    return StateWord{ST}([mono])
 end
 
 # From single symbol
@@ -437,7 +481,7 @@ julia> sw_one = one(StateWord{Arbitrary,NonCommutativeAlgebra,Int64});
 julia> isone(sw_one)
 true
 
-julia> m = Monomial{NonCommutativeAlgebra}([1]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([1]);
 
 julia> sw = StateWord{Arbitrary}([m]);
 
@@ -460,9 +504,9 @@ Compute the total degree of a StateWord (sum of symbol degrees).
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);  # degree 2
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);  # degree 2
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([3]);     # degree 1
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);     # degree 1
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);
 
@@ -481,9 +525,9 @@ Get the set of all variable indices used in the StateWord's symbols.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([2, 3]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([2, 3]);
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);
 
@@ -531,9 +575,9 @@ Compare two StateWords using degree-first ordering, then lexicographic on state_
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
 julia> sw1 = StateWord{Arbitrary}([m1]);
 
@@ -564,9 +608,9 @@ all expectations from both operands.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([3]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);
 
 julia> sw1 = StateWord{Arbitrary}([m1]);
 
@@ -603,7 +647,7 @@ Due to the involution invariant, adjoint(sw) == sw for all StateWords.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{NonCommutativeAlgebra}([1, 2, 3]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3]);
 
 julia> sw = StateWord{Arbitrary}([m]);
 
@@ -652,15 +696,15 @@ Combines a commutative StateWord (expectations) with a non-commutative monomial 
 
 # Fields
 - `sw::StateWord{ST,A,T}`: Commutative state word part
-- `nc_word::Monomial{A,T}`: Non-commutative operator part
+- `nc_word::NormalMonomial{A,T}`: Non-commutative operator part
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([3]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 
@@ -674,20 +718,20 @@ See also: [`StateWord`](@ref), [`NCStatePolynomial`](@ref), [`expval`](@ref)
 """
 struct NCStateWord{ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     sw::StateWord{ST,A,T}
-    nc_word::Monomial{A,T}
+    nc_word::NormalMonomial{A,T}
 
-    function NCStateWord(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    function NCStateWord(sw::StateWord{ST,A,T}, nc_word::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
         new{ST,A,T}(sw, nc_word)
     end
 end
 
 # Convenience constructors
 """
-    NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST,A,T}
+    NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::NormalMonomial{A,T}) where {ST,A,T}
 
 Construct an NCStateWord with explicit state type.
 """
-function NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::Monomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+function NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NCStateWord(sw, nc_word)
 end
 
@@ -697,16 +741,28 @@ end
 Construct an NCStateWord from a StateWord with identity nc_word.
 """
 function NCStateWord(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
-    NCStateWord(sw, one(Monomial{A,T}))
+    NCStateWord(sw, one(NormalMonomial{A,T}))
 end
 
 """
-    NCStateWord(m::Monomial{A,T}) where {A,T}
+    NCStateWord(m::NormalMonomial{A,T}) where {A,T}
 
 Construct an NCStateWord from a monomial with identity StateWord.
 """
-function NCStateWord(m::Monomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
+function NCStateWord(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
     NCStateWord(one(StateWord{Arbitrary,A,T}), m)
+end
+
+function NCStateWord(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer}
+    isempty(pairs) && throw(ArgumentError("NCStateWord cannot be constructed from an empty expansion"))
+    _, mono = pairs[1]
+    NCStateWord(one(StateWord{Arbitrary,A,T}), mono)
+end
+
+function NCStateWord(m::Monomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
+    isempty(m) && throw(ArgumentError("NCStateWord cannot be constructed from an empty expansion"))
+    _, mono = m[1]
+    NCStateWord(one(StateWord{Arbitrary,A,T}), mono)
 end
 
 # =============================================================================
@@ -811,7 +867,7 @@ Compute adjoint(x) * y. Common operation in quantum optimization.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{NonCommutativeAlgebra}([1]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([1]);
 
 julia> sw = StateWord{Arbitrary}([m]);
 
@@ -836,9 +892,9 @@ Converts `<M1><M2>...<Mk> * Onc` to `<M1><M2>...<Mk><Onc>`.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([3, 4]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3, 4]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 
@@ -887,7 +943,7 @@ end
 Create the identity NCStateWord.
 """
 function Base.one(::Type{NCStateWord{ST,A,T}}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
-    NCStateWord(one(StateWord{ST,A,T}), one(Monomial{A,T}))
+    NCStateWord(one(StateWord{ST,A,T}), one(NormalMonomial{A,T}))
 end
 
 """
@@ -922,9 +978,9 @@ produce a new canonical word (even when the result stays single-term for
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{UnipotentAlgebra}(UInt[1, 1]);  # x₁²
+julia> m = NormalMonomial{UnipotentAlgebra}(UInt[1, 1]);  # x₁²
 
-julia> sw = StateWord{Arbitrary}([one(Monomial{UnipotentAlgebra,UInt})]);
+julia> sw = StateWord{Arbitrary}([one(NormalMonomial{UnipotentAlgebra,UInt})]);
 
 julia> ncsw = NCStateWord(sw, m);
 
@@ -949,7 +1005,7 @@ end
 # =============================================================================
 
 """
-    ς(m::Monomial{A,T}) where {A,T}
+    ς(m::NormalMonomial{A,T}) where {A,T}
 
 Create a StateWord{Arbitrary} from a monomial.
 
@@ -960,7 +1016,7 @@ arbitrary state formalism. Equivalent to `StateWord{Arbitrary}(m)`.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
 julia> sw = ς(m);
 
@@ -973,10 +1029,12 @@ julia> length(sw.state_syms)
 
 See also: [`tr`](@ref), [`StateWord`](@ref)
 """
+ς(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{Arbitrary}(m)
+ς(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{Arbitrary}(pairs)
 ς(m::Monomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{Arbitrary}(m)
 
 """
-    tr(m::Monomial{A,T}) where {A,T}
+    tr(m::NormalMonomial{A,T}) where {A,T}
 
 Create a StateWord{MaxEntangled} from a monomial.
 
@@ -987,7 +1045,7 @@ maximally entangled state formalism. Equivalent to `StateWord{MaxEntangled}(m)`.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{NonCommutativeAlgebra}([1, 2]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
 julia> sw = tr(m);
 
@@ -1000,6 +1058,8 @@ julia> length(sw.state_syms)
 
 See also: [`ς`](@ref), [`StateWord`](@ref)
 """
+tr(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(m)
+tr(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(pairs)
 tr(m::Monomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(m)
 
 # =============================================================================
@@ -1068,13 +1128,13 @@ function get_state_basis(
 ) where {A<:AlgebraType, T<:Integer, ST<:StateType}
     
     # Collect monomials by degree
-    # Note: For MonoidAlgebra (NC/Projector/Unipotent), get_ncbasis returns Vector{Monomial{A,T}}
-    monos_by_deg = Vector{Vector{Monomial{A,T}}}(undef, d + 1)
+    # Note: For MonoidAlgebra (NC/Projector/Unipotent), get_ncbasis returns Vector{NormalMonomial{A,T}}
+    monos_by_deg = Vector{Vector{NormalMonomial{A,T}}}(undef, d + 1)
     for deg in 0:d
         basis = get_ncbasis(registry, deg)
-        monos = Monomial{A,T}[]
+        monos = NormalMonomial{A,T}[]
         for elem in basis
-            # For MonoidAlgebra, basis elements are Monomial{A,T} directly
+            # For MonoidAlgebra, basis elements are NormalMonomial{A,T} directly
             push!(monos, elem)
         end
         unique!(sort!(monos))
@@ -1128,7 +1188,7 @@ Includes:
 Vector of unique, sorted StateWords.
 """
 function _generate_statewords_up_to_degree(
-    monos::Vector{Monomial{A,T}},
+    monos::Vector{NormalMonomial{A,T}},
     max_deg::Int,
     ::Type{ST}
 ) where {A<:AlgebraType, T<:Integer, ST<:StateType}
@@ -1212,7 +1272,7 @@ constituent monomial is in its symmetric canonical form.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{NonCommutativeAlgebra}([3, 2, 1]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1]);
 
 julia> sw = StateWord{Arbitrary}([m]);
 
@@ -1248,7 +1308,7 @@ julia> using NCTSSoS: encode_index
 
 julia> idx1 = encode_index(UInt8, 1, 1);
 
-julia> m = Monomial{ProjectorAlgebra}([idx1, idx1]);  # P₁P₁
+julia> m = NormalMonomial{ProjectorAlgebra}([idx1, idx1]);  # P₁P₁
 
 julia> sw = StateWord{MaxEntangled}([m]);
 
@@ -1260,9 +1320,11 @@ julia> length(sw_canon.state_syms[1].mono.word)  # P₁P₁ → P₁
 """
 function symmetric_canon(sw::StateWord{ST,ProjectorAlgebra,T}) where {ST<:StateType,T<:Integer}
     # For projector algebra, apply P²=P simplification before cyclic canonicalization
-    canon_monos = Monomial{ProjectorAlgebra,T}[]
+    canon_monos = NormalMonomial{ProjectorAlgebra,T}[]
     for sym in sw.state_syms
-        simplified = simplify(sym.mono)  # Returns Monomial for ProjectorAlgebra
+        m = simplify(sym.mono)
+        isempty(m) && continue
+        _, simplified = m[1]
         # Only keep non-identity monomials
         if !isone(simplified)
             push!(canon_monos, symmetric_canon(simplified))
@@ -1282,9 +1344,9 @@ For NCStateWords, this canonicalizes both the StateWord part and the nc_word par
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{NonCommutativeAlgebra}([3, 2, 1]);
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1]);
 
-julia> m2 = Monomial{NonCommutativeAlgebra}([2, 1]);
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}([2, 1]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 

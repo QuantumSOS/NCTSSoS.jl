@@ -228,8 +228,8 @@ reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 sp = -1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) -
       1.0 * ς(x[2] * y[1]) + 1.0 * ς(x[2] * y[2])
 
-# Create optimization problem (multiply by identity Monomial for NCStatePolynomial)
-spop = polyopt(sp * one(Monomial), reg)
+# Create optimization problem (multiply by identity NormalMonomial for NCStatePolynomial)
+spop = polyopt(sp * one(NormalMonomial), reg)
 ```
 
 See also: [`polyopt`](@ref), [`NCStatePolynomial`](@ref), [`ς`](@ref)
@@ -264,7 +264,7 @@ A `StatePolyOpt{A, ST, NCStatePolynomial{C,ST,A,T}}` structure.
 # CHSH-type Bell inequality optimization
 reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 sp = -1.0 * ς(x[1]*y[1]) - 1.0 * ς(x[1]*y[2]) - 1.0 * ς(x[2]*y[1]) + 1.0 * ς(x[2]*y[2])
-spop = polyopt(sp * one(Monomial), reg)
+spop = polyopt(sp * one(NormalMonomial), reg)
 ```
 
 See also: [`StatePolyOpt`](@ref), [`NCStatePolynomial`](@ref)
@@ -305,5 +305,4 @@ function Base.show(io::IO, spop::StatePolyOpt{A,T,ST,P}) where {A,T,ST,P}
     println(io_ctx, "Inequality constraints: ", length(spop.ineq_constraints))
     println(io_ctx, "Variables: ", length(spop.registry))
 end
-
 

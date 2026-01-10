@@ -33,7 +33,7 @@ as soon as a difference is found. This is O(n/2) in the best case.
 
 !!! warning "Site-based algebras"
     For algebras with site-based commutation (using unsigned integer indices
-    with encoded sites), use the `Monomial` dispatch instead. The raw word
+    with encoded sites), use the `NormalMonomial` dispatch instead. The raw word
     version does not handle site-based sorting of the reversed word.
 
 # Arguments
@@ -153,14 +153,14 @@ function _cyclic_symmetric_canon_site_sorted(word::Vector{T}, ::Type{A}) where {
 end
 
 """
-    symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
+    symmetric_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType, T<:Integer}
 
 Return a new monomial with the symmetrically canonical word.
 Preserves the algebra type.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{PauliAlgebra}([3, 2, 1]);
+julia> m = NormalMonomial{PauliAlgebra}([3, 2, 1]);
 
 julia> symmetric_canon(m).word
 3-element Vector{Int64}:
@@ -170,18 +170,18 @@ julia> symmetric_canon(m).word
 ```
 """
 # Two-level dispatch: entry point dispatches on trait
-symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
+symmetric_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _symmetric_canon(_site_trait(A, T), m)
 
 # NoSiteAware: use raw word algorithm
-# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
-_symmetric_canon(::NoSiteAware, m::Monomial{A,T}) where {A,T} =
-    Monomial{A,T}(symmetric_canon(m.word))
+# Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_symmetric_canon(::NoSiteAware, m::NormalMonomial{A,T}) where {A,T} =
+    NormalMonomial{A,T}(symmetric_canon(m.word))
 
 # SiteAware: use site-sorted algorithm
-# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
-_symmetric_canon(::SiteAware, m::Monomial{A,T}) where {A,T} =
-    Monomial{A,T}(_symmetric_canon_site_sorted(m.word, A))
+# Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_symmetric_canon(::SiteAware, m::NormalMonomial{A,T}) where {A,T} =
+    NormalMonomial{A,T}(_symmetric_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Cyclic Canonicalization
@@ -255,14 +255,14 @@ function cyclic_canon(word::Vector{T}) where {T}
 end
 
 """
-    cyclic_canon(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
+    cyclic_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType, T<:Integer}
 
 Return a new monomial with the cyclically canonical word.
 Preserves the algebra type.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{PauliAlgebra}([2, 3, 1]);
+julia> m = NormalMonomial{PauliAlgebra}([2, 3, 1]);
 
 julia> cyclic_canon(m).word
 3-element Vector{Int64}:
@@ -272,18 +272,18 @@ julia> cyclic_canon(m).word
 ```
 """
 # Two-level dispatch: entry point dispatches on trait
-cyclic_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
+cyclic_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _cyclic_canon(_site_trait(A, T), m)
 
 # NoSiteAware: use raw word algorithm
-# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
-_cyclic_canon(::NoSiteAware, m::Monomial{A,T}) where {A,T} =
-    Monomial{A,T}(cyclic_canon(m.word))
+# Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_canon(::NoSiteAware, m::NormalMonomial{A,T}) where {A,T} =
+    NormalMonomial{A,T}(cyclic_canon(m.word))
 
 # SiteAware: use site-sorted algorithm
-# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
-_cyclic_canon(::SiteAware, m::Monomial{A,T}) where {A,T} =
-    Monomial{A,T}(_cyclic_canon_site_sorted(m.word, A))
+# Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_canon(::SiteAware, m::NormalMonomial{A,T}) where {A,T} =
+    NormalMonomial{A,T}(_cyclic_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Combined Cyclic-Symmetric Canonicalization
@@ -328,14 +328,14 @@ function cyclic_symmetric_canon(word::Vector{T}) where {T}
 end
 
 """
-    cyclic_symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
+    cyclic_symmetric_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType, T<:Integer}
 
 Return a new monomial with the cyclic-symmetrically canonical word.
 Preserves the algebra type.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{PauliAlgebra}([3, 2, 1]);
+julia> m = NormalMonomial{PauliAlgebra}([3, 2, 1]);
 
 julia> cyclic_symmetric_canon(m).word
 3-element Vector{Int64}:
@@ -345,25 +345,25 @@ julia> cyclic_symmetric_canon(m).word
 ```
 """
 # Two-level dispatch: entry point dispatches on trait
-cyclic_symmetric_canon(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} =
+cyclic_symmetric_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _cyclic_symmetric_canon(_site_trait(A, T), m)
 
 # NoSiteAware: use raw word algorithm
-# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
-_cyclic_symmetric_canon(::NoSiteAware, m::Monomial{A,T}) where {A,T} =
-    Monomial{A,T}(cyclic_symmetric_canon(m.word))
+# Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_symmetric_canon(::NoSiteAware, m::NormalMonomial{A,T}) where {A,T} =
+    NormalMonomial{A,T}(cyclic_symmetric_canon(m.word))
 
 # SiteAware: use site-sorted algorithm
-# Use inner constructor Monomial{A,T} to bypass validation (canonicalization preserves algebra validity)
-_cyclic_symmetric_canon(::SiteAware, m::Monomial{A,T}) where {A,T} =
-    Monomial{A,T}(_cyclic_symmetric_canon_site_sorted(m.word, A))
+# Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
+_cyclic_symmetric_canon(::SiteAware, m::NormalMonomial{A,T}) where {A,T} =
+    NormalMonomial{A,T}(_cyclic_symmetric_canon_site_sorted(m.word, A))
 
 # =============================================================================
 # Unified Canonicalize Interface
 # =============================================================================
 
 """
-    canonicalize(m::Monomial{A,T}; cyclic::Bool=false) where {A<:AlgebraType, T<:Integer}
+    canonicalize(m::NormalMonomial{A,T}; cyclic::Bool=false) where {A<:AlgebraType, T<:Integer}
 
 Canonicalize a monomial using the specified method.
 
@@ -371,7 +371,7 @@ This function operates on the structural word level and assumes that algebraic
 simplification (e.g., `simplify`) has already been applied if needed.
 
 # Arguments
-- `m::Monomial{A,T}`: The monomial to canonicalize
+- `m::NormalMonomial{A,T}`: The monomial to canonicalize
 - `cyclic::Bool=false`: Canonicalization mode
   - `false` (default): Symmetric canonicalization only (min of word and reverse)
   - `true`: Cyclic-symmetric canonicalization (min of all rotations and their reversals)
@@ -385,7 +385,7 @@ simplification (e.g., `simplify`) has already been applied if needed.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{PauliAlgebra}([3, 2, 1]);
+julia> m = NormalMonomial{PauliAlgebra}([3, 2, 1]);
 
 julia> canonicalize(m).word  # symmetric (default)
 3-element Vector{Int64}:
@@ -402,7 +402,7 @@ julia> canonicalize(m; cyclic=true).word  # cyclic + symmetric
 
 See also: [`symmetric_canon`](@ref), [`cyclic_canon`](@ref), [`cyclic_symmetric_canon`](@ref)
 """
-function canonicalize(m::Monomial{A,T}; cyclic::Bool=false) where {A<:AlgebraType,T<:Integer}
+function canonicalize(m::NormalMonomial{A,T}; cyclic::Bool=false) where {A<:AlgebraType,T<:Integer}
     if cyclic
         return cyclic_symmetric_canon(m)
     else
@@ -422,7 +422,7 @@ This function:
 
 # Arguments
 - `p::Polynomial{A,T,C}`: The polynomial to canonicalize
-- `cyclic::Bool=false`: Canonicalization mode (see `canonicalize(::Monomial)`)
+- `cyclic::Bool=false`: Canonicalization mode (see `canonicalize(::NormalMonomial)`)
 
 # Returns
 - A new polynomial with canonical monomials and combined coefficients
@@ -431,9 +431,9 @@ This function:
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{PauliAlgebra}([3, 2, 1]);
+julia> m1 = NormalMonomial{PauliAlgebra}([3, 2, 1]);
 
-julia> m2 = Monomial{PauliAlgebra}([1, 2, 3]);
+julia> m2 = NormalMonomial{PauliAlgebra}([1, 2, 3]);
 
 julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
 
@@ -446,7 +446,7 @@ julia> coefficients(p_canon)[1]
 3.0 + 0.0im
 ```
 
-See also: [`canonicalize(::Monomial)`](@ref)
+See also: [`canonicalize(::NormalMonomial)`](@ref)
 """
 function canonicalize(
     p::Polynomial{A,T,C}; cyclic::Bool=false

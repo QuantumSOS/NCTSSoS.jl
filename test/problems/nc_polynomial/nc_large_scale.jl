@@ -37,7 +37,7 @@ if USE_LOCAL
 
         # Build polynomial
         f = Polynomial{NonCommutativeAlgebra,UInt8,Float64}(
-            Term{Monomial{NonCommutativeAlgebra,UInt8},Float64}[]
+            Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Float64}[]
         )
         for i = 1:n
             jset = max(1, i - 5):min(n, i + 1)

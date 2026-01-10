@@ -17,17 +17,15 @@ This is a GNS-internal function distinct from `extract_monomials_from_basis` in 
 # Returns
 Vector of monomials in the same order as the input polynomials.
 """
-function _gns_extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
-    result = Monomial{A,T}[]
-    for poly in basis_polys
-        poly_monomials = monomials(poly)
-        if isempty(poly_monomials)
-            # This shouldn't happen for a proper basis, but handle gracefully
-            push!(result, Monomial{A}(T[]))
-        else
-            # Take the first monomial (leading term after simplification)
-            push!(result, first(poly_monomials))
-        end
+function _gns_extract_monomials_from_basis(basis_monos::Vector{NormalMonomial{A,T}}) where {A,T}
+    return basis_monos
+end
+
+function _gns_extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    result = NormalMonomial{A,T}[]
+    for p in basis_polys
+        isempty(p.terms) && continue
+        push!(result, p.terms[1].monomial)
     end
     return result
 end
@@ -177,7 +175,7 @@ function reconstruct(
 end
 
 """
-    hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:Monomial}) where {T <: Number} -> Dict{Monomial, T}
+    hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:NormalMonomial}) where {T <: Number} -> Dict{NormalMonomial, T}
 
 Create a lookup dictionary mapping monomial products to Hankel matrix entries.
 
@@ -190,10 +188,10 @@ matrix structure, which is essential for constructing localizing matrices.
 
 # Arguments
 - `hankel::Matrix{T}`: Square Hankel matrix where hankel[i,j] = ⟨basis[i]†, basis[j]⟩
-- `basis::Vector{<:Monomial}`: Monomial basis used to index the rows and columns of `hankel`
+- `basis::Vector{<:NormalMonomial}`: Monomial basis used to index the rows and columns of `hankel`
 
 # Returns
-- `Dict{Monomial, T}`: Dictionary mapping monomial products to their moment values
+- `Dict{NormalMonomial, T}`: Dictionary mapping monomial products to their moment values
 
 # Notes
 - If multiple pairs (i,j) yield the same product u†·v, only one entry is stored
@@ -209,7 +207,7 @@ dict = hankel_entries_dict(H, basis)
 # value = dict[neat_dot(x[1], x[1])]
 ```
 """
-function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:Monomial}) where {T<:Number}
+function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:NormalMonomial}) where {T<:Number}
     size(hankel, 1) == size(hankel, 2) ||
         throw(ArgumentError("Hankel matrix must be square, got size $(size(hankel))"))
     length(basis) == size(hankel, 1) || throw(
@@ -233,7 +231,7 @@ function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:Monomial}) where
 end
 
 """
-    construct_localizing_matrix(hankel_dict::Dict{M,T}, var_idx::TI, basis::Vector{M}) where {A,TM,M<:Monomial{A,TM},T,TI}
+    construct_localizing_matrix(hankel_dict::Dict{M,T}, var_idx::TI, basis::Vector{M}) where {A,TM,M<:NormalMonomial{A,TM},T,TI}
 
 Construct the localizing matrix for a given variable index using precomputed Hankel data.
 
@@ -275,12 +273,12 @@ function construct_localizing_matrix(
     hankel_dict::Dict{M,T},
     var_idx::TI,
     basis::Vector{M},
-) where {A<:AlgebraType,TM<:Integer,M<:Monomial{A,TM},T<:Number,TI<:Integer}
+) where {A<:AlgebraType,TM<:Integer,M<:NormalMonomial{A,TM},T<:Number,TI<:Integer}
     n = length(basis)
     K = zeros(T, n, n)
 
     # Create monomial from variable index
-    var_monomial = Monomial{A}([TM(var_idx)])
+    var_monomial = NormalMonomial{A}([TM(var_idx)])
 
     for (i, row_mono) in enumerate(basis)
         for (j, col_mono) in enumerate(basis)

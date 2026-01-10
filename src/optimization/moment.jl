@@ -3,7 +3,7 @@
 # =============================================================================
 
 """
-    MomentProblem{A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P<:Polynomial{A,T}}
+    MomentProblem{A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P<:Polynomial{A,T}}
 
 A symbolic representation of a moment relaxation problem.
 
@@ -15,7 +15,7 @@ The algebra type `A` determines which cone type to use when solving:
 # Type Parameters
 - `A`: Algebra type determining simplification rules and cone type
 - `T`: Integer type for monomial word representation
-- `M`: Monomial type `Monomial{A,T}`
+- `M`: Monomial type `NormalMonomial{A,T}`
 - `P`: Polynomial type `Polynomial{A,T,C}` for some coefficient type `C`
 
 # Fields
@@ -43,7 +43,7 @@ optimize!(sos.model)
 
 See also: [`moment_relax`](@ref), [`sos_dualize`](@ref)
 """
-struct MomentProblem{A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P<:Polynomial{A,T}}
+struct MomentProblem{A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P<:Polynomial{A,T}}
     objective::P
     constraints::Vector{Tuple{Symbol, Matrix{P}}}
     total_basis::Vector{M}
@@ -135,7 +135,7 @@ function moment_relax(
     pop::PolyOpt{A,TI,P},
     corr_sparsity::CorrelativeSparsity{A,TI,P,M},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
-) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:Monomial{A,TI}}
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
 
     # Compute total basis: union of all moment matrix entry monomials
     # _neat_dot3 returns Monomial, simplify then extract monomials
@@ -241,7 +241,7 @@ function solve_moment_problem(
     mp::MomentProblem{A,T,M,P},
     optimizer;
     silent::Bool=true
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P<:Polynomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P<:Polynomial{A,T}}
 
     # Determine coefficient type from polynomial
     C = eltype(coefficients(mp.objective))
@@ -266,7 +266,7 @@ function _solve_real_moment_problem(
     mp::MomentProblem{A,T,M,P},
     optimizer,
     silent::Bool
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P}
 
     # Get coefficient type
     C = eltype(coefficients(mp.objective))
@@ -323,7 +323,7 @@ function _solve_complex_moment_problem(
     mp::MomentProblem{A,T,M,P},
     optimizer,
     silent::Bool
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P}
 
     # Get real coefficient type
     C = real(eltype(coefficients(mp.objective)))

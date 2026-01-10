@@ -1,15 +1,16 @@
 """
-    ComposedMonomial{Ts<:Tuple} <: AbstractMonomialUntyped
+    ComposedMonomial{As<:Tuple,Ts<:Tuple} <: AbstractTensorMonomial{As}
 
 Represents a product of monomials from DIFFERENT algebra types.
 
-Each component is a `Monomial{A,T}` with its own algebra type in the type parameter.
+Each component is a `NormalMonomial{A,T}` with its own algebra type in the type parameter.
 This enables tensor products of operators from different algebraic structures.
 
 # Fields
-- `components::Ts`: Tuple of monomials, e.g., `(Monomial{PauliAlgebra}, Monomial{FermionicAlgebra})`
+- `components::Ts`: Tuple of monomials, e.g., `(NormalMonomial{PauliAlgebra}, NormalMonomial{FermionicAlgebra})`
 
 # Type Parameters
+- `As<:Tuple`: Ordered algebra signature, e.g. `Tuple{PauliAlgebra,FermionicAlgebra}`
 - `Ts<:Tuple`: Tuple type of the component monomials
 
 # Design
@@ -20,9 +21,9 @@ so ComposedMonomial has zero runtime overhead for algebra type storage.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m_pauli = Monomial{PauliAlgebra}([1, 2, 3]);
+julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7]);  # σx on sites 1,2,3
 
-julia> m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 2]);
+julia> m_fermi = NormalMonomial{FermionicAlgebra}(Int32[-1, 2]);
 
 julia> cm = ComposedMonomial((m_pauli, m_fermi));
 
@@ -42,9 +43,9 @@ julia> using NCTSSoS
 
 julia> using NCTSSoS: encode_index
 
-julia> m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1, 2]);
+julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4]);  # σx on sites 1,2
 
-julia> m_unip = Monomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1), encode_index(UInt16, 1, 1), encode_index(UInt16, 2, 1)]);
+julia> m_unip = NormalMonomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1), encode_index(UInt16, 1, 1), encode_index(UInt16, 2, 1)]);
 
 julia> cm = ComposedMonomial((m_pauli, m_unip));
 
@@ -53,28 +54,60 @@ julia> terms = simplify(cm);
 julia> terms[1].coefficient
 1.0 + 0.0im
 
-julia> terms[1].monomial[1].word  # Pauli: [1,1,2] -> [2] (sigma_x squared = I)
-1-element Vector{UInt16}:
- 0x0002
+julia> terms[1].monomial[1].word == UInt16[1, 4]  # Pauli component stays canonical
+true
 
 julia> terms[1].monomial[2].word == [encode_index(UInt16, 2, 1)]  # Unipotent: [1,1,2] -> [2]
 true
 ```
 """
-struct ComposedMonomial{Ts<:Tuple} <: AbstractMonomialUntyped
-    components::Ts
+@generated function _composed_signature(::Type{Ts}) where {Ts<:Tuple}
+    comps = Ts.parameters
+    isempty(comps) && return :(Tuple{})
+
+    algs = Any[]
+    for C in comps
+        sup = Base.unwrap_unionall(supertype(C))
+        if sup.name.wrapper !== AbstractMonomial
+            error("ComposedMonomial components must be subtypes of AbstractMonomial{A,T}, got $(C)")
+        end
+        push!(algs, sup.parameters[1])
+    end
+
+    return :(Tuple{$(algs...)})
 end
 
-# Note: Default constructor ComposedMonomial(components::Tuple) is provided by Julia
-# since the struct only has one field.
+# -----------------------------------------------------------------------------
+# Type definition + constructors
+# -----------------------------------------------------------------------------
+
+struct ComposedMonomial{As<:Tuple,Ts<:Tuple} <: AbstractTensorMonomial{As}
+    components::Ts
+
+    function ComposedMonomial{As,Ts}(components::Ts) where {As<:Tuple,Ts<:Tuple}
+        if As !== _composed_signature(Ts)
+            throw(ArgumentError(
+                "ComposedMonomial signature mismatch: As=$As but components imply $(_composed_signature(Ts))"
+            ))
+        end
+        return new{As,Ts}(components)
+    end
+end
+
+function ComposedMonomial(components::Ts) where {Ts<:Tuple}
+    return ComposedMonomial{_composed_signature(Ts),Ts}(components)
+end
 
 """
     Base.:(==)(cm1::ComposedMonomial, cm2::ComposedMonomial) -> Bool
 
 Equality check via component-wise comparison.
 """
-function Base.:(==)(cm1::ComposedMonomial{T1}, cm2::ComposedMonomial{T2}) where {T1,T2}
-    T1 !== T2 && return false
+function Base.:(==)(
+    cm1::ComposedMonomial{As1,Ts1},
+    cm2::ComposedMonomial{As2,Ts2},
+) where {As1,Ts1,As2,Ts2}
+    (As1 !== As2 || Ts1 !== Ts2) && return false
     return cm1.components == cm2.components
 end
 
@@ -92,7 +125,7 @@ function Base.hash(cm::ComposedMonomial, h::UInt)
 end
 
 """
-    Base.isless(cm1::ComposedMonomial{Ts}, cm2::ComposedMonomial{Ts}) where {Ts<:Tuple}
+    Base.isless(cm1::ComposedMonomial{As,Ts}, cm2::ComposedMonomial{As,Ts}) where {As<:Tuple,Ts<:Tuple}
 
 Compare two ComposedMonomials using degree-first ordering, then component-wise lexicographic.
 
@@ -106,11 +139,11 @@ This ordering enables sorting ComposedMonomials for polynomial operations.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{PauliAlgebra}(UInt16[1]);
+julia> m1 = NormalMonomial{PauliAlgebra}(UInt16[1]);
 
-julia> m2 = Monomial{PauliAlgebra}(UInt16[1, 2]);
+julia> m2 = NormalMonomial{PauliAlgebra}(UInt16[1, 2]);
 
-julia> m3 = Monomial{FermionicAlgebra}(Int32[1]);
+julia> m3 = NormalMonomial{FermionicAlgebra}(Int32[1]);
 
 julia> cm1 = ComposedMonomial((m1, m3));  # degree 2
 
@@ -120,7 +153,7 @@ julia> isless(cm1, cm2)  # degree 2 < degree 3
 true
 ```
 """
-function Base.isless(cm1::ComposedMonomial{Ts}, cm2::ComposedMonomial{Ts}) where {Ts<:Tuple}
+function Base.isless(cm1::ComposedMonomial{As,Ts}, cm2::ComposedMonomial{As,Ts}) where {As<:Tuple,Ts<:Tuple}
     # Degree-first ordering
     d1, d2 = degree(cm1), degree(cm2)
     d1 != d2 && return d1 < d2
@@ -140,7 +173,7 @@ Number of component monomials.
 Base.length(cm::ComposedMonomial) = length(cm.components)
 
 """
-    Base.getindex(cm::ComposedMonomial, i::Int) -> Monomial
+    Base.getindex(cm::ComposedMonomial, i::Int) -> NormalMonomial
 
 Access the i-th component monomial.
 """
@@ -155,9 +188,9 @@ Total degree across all components.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{PauliAlgebra}(UInt16[1, 2, 3]);
+julia> m1 = NormalMonomial{PauliAlgebra}(UInt16[1, 2, 3]);
 
-julia> m2 = Monomial{FermionicAlgebra}(Int32[1, 2]);
+julia> m2 = NormalMonomial{FermionicAlgebra}(Int32[1, 2]);
 
 julia> cm = ComposedMonomial((m1, m2));
 
@@ -177,33 +210,33 @@ function Base.isone(cm::ComposedMonomial)
 end
 
 """
-    Base.one(::Type{ComposedMonomial{Ts}}) where {Ts<:Tuple}
+    Base.one(::Type{ComposedMonomial{As,Ts}}) where {As<:Tuple,Ts<:Tuple}
 
 Create the identity ComposedMonomial (all components are identity monomials).
 """
-function Base.one(::Type{ComposedMonomial{Ts}}) where {Ts<:Tuple}
+function Base.one(::Type{ComposedMonomial{As,Ts}}) where {As<:Tuple,Ts<:Tuple}
     identity_components = ntuple(i -> one(fieldtype(Ts, i)), fieldcount(Ts))
     return ComposedMonomial(identity_components)
 end
 
 """
-    Base.one(cm::ComposedMonomial{Ts}) where {Ts}
+    Base.one(cm::ComposedMonomial{As,Ts}) where {As,Ts}
 
 Create the identity ComposedMonomial for the same type as `cm`.
 """
-function Base.one(cm::ComposedMonomial{Ts}) where {Ts}
-    return one(ComposedMonomial{Ts})
+function Base.one(cm::ComposedMonomial{As,Ts}) where {As,Ts}
+    return one(ComposedMonomial{As,Ts})
 end
 
 """
-    Base.isone(t::Term{ComposedMonomial{Ts},C}) where {Ts,C} -> Bool
+    Base.isone(t::Term{ComposedMonomial{As,Ts},C}) where {As,Ts,C} -> Bool
 
 Check if a composed term is the identity (coefficient 1, all empty monomials).
 """
-function Base.isone(t::Term{ComposedMonomial{Ts},C}) where {Ts,C}
+function Base.isone(t::Term{ComposedMonomial{As,Ts},C}) where {As,Ts,C}
     isone(t.coefficient) || return false
     for mono in t.monomial.components
-        isempty(mono.word) || return false
+        isone(mono) || return false
     end
     return true
 end
@@ -228,11 +261,11 @@ julia> using NCTSSoS
 
 julia> using NCTSSoS: encode_index
 
-julia> m_pauli = Monomial{PauliAlgebra}(UInt16[1, 1]);
+julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[]);  # identity
 
 julia> u2 = encode_index(UInt16, 2, 1);
 
-julia> m_unip = Monomial{UnipotentAlgebra}([u2, u2]);
+julia> m_unip = NormalMonomial{UnipotentAlgebra}(UInt16[u2, u2]);
 
 julia> cm = ComposedMonomial((m_pauli, m_unip));
 
@@ -244,7 +277,7 @@ true
 julia> result[1].coefficient
 1.0 + 0.0im
 
-julia> isempty(result[1].monomial[1].word)  # Pauli [1,1] -> [] (sigma_x squared = I)
+julia> isempty(result[1].monomial[1].word)  # Pauli identity stays identity
 true
 
 julia> isempty(result[1].monomial[2].word)  # Unipotent [2,2] -> []
@@ -278,38 +311,13 @@ function _expand_simplified_components(simplified::Tuple)
     return result
 end
 
-# Get identity monomial from a simplified component (avoids brittle type reflection)
-function _get_identity_monomial(x::Monomial)
-    return one(x)
+# Get identity monomial from a simplified component (for zero-result fallback)
+function _get_identity_monomial(::Vector{Tuple{C,NormalMonomial{A,T}}}) where {C,A<:AlgebraType,T<:Integer}
+    return one(NormalMonomial{A,T})
 end
 
-function _get_identity_monomial(x::Term)
-    return one(x.monomial)
-end
-
-function _get_identity_monomial(x::Polynomial)
-    if isempty(x.terms)
-        # Empty polynomial - create identity from the Polynomial's type
-        # Use the concrete monomial type from the polynomial
-        return one(eltype(x.terms).parameters[1])
-    else
-        return one(x.terms[1].monomial)
-    end
-end
-
-function _get_identity_monomial(x::Vector{<:Term})
-    return one(x[1].monomial)
-end
-
-function _get_identity_monomial(pm::PauliMonomial{T}) where {T}
-    return one(pm.mono)
-end
-
-function _get_identity_monomial(pm::PhysicsMonomial{A,T}) where {A,T}
-    if isempty(pm.monos)
-        return one(Monomial{A,T})
-    end
-    return one(pm.monos[1])
+function _get_identity_monomial(::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    return one(NormalMonomial{A,T})
 end
 
 # Compile-time coefficient type inference using coeff_type
@@ -339,8 +347,8 @@ function _cartesian_product_iter!(
     end
 
     # Iterate over simplified component using new iteration protocol
-    for (coef, mono) in components[idx]
-        new_coef = current_coef * coef
+    for (coef_internal, mono) in components[idx]
+        new_coef = current_coef * _coeff_to_number(mono, coef_internal)
         new_monomials = (current_monomials..., mono)
         _cartesian_product_iter!(result, components, idx + 1, new_monomials, new_coef)
     end
@@ -351,7 +359,7 @@ function Base.show(io::IO, cm::ComposedMonomial)
     print(io, "ComposedMonomial(")
     for (i, mono) in enumerate(cm.components)
         i > 1 && print(io, ", ")
-        print(io, mono.word)
+        show(io, mono)
     end
     return print(io, ")")
 end

@@ -40,40 +40,40 @@ using NCTSSoS: cyclic_symmetric_canon
         @test symmetric_canon([5, 4, 3, 2, 1]) == [1, 2, 3, 4, 5]
     end
 
-    @testset "symmetric_canon(Monomial)" begin
+    @testset "symmetric_canon(NormalMonomial)" begin
         # Already canonical
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
         m1_canon = symmetric_canon(m1)
         @test m1_canon.word == [1, 2, 3]
-        @test m1_canon isa Monomial{NonCommutativeAlgebra}
+        @test m1_canon isa NormalMonomial{NonCommutativeAlgebra}
 
         # Needs reversal
-        m2 = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         m2_canon = symmetric_canon(m2)
         @test m2_canon.word == [1, 2, 3]
 
         # Palindrome
-        m3 = Monomial{NonCommutativeAlgebra}([1, 2, 1])
+        m3 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 1])
         m3_canon = symmetric_canon(m3)
         @test m3_canon.word == [1, 2, 1]
 
         # Single element
-        m4 = Monomial{NonCommutativeAlgebra}([5])
+        m4 = NormalMonomial{NonCommutativeAlgebra}([5])
         m4_canon = symmetric_canon(m4)
         @test m4_canon.word == [5]
 
         # Empty (identity)
-        m5 = Monomial{NonCommutativeAlgebra}(Int[])
+        m5 = NormalMonomial{NonCommutativeAlgebra}(Int[])
         m5_canon = symmetric_canon(m5)
         @test m5_canon.word == Int[]
         @test isone(m5_canon)
 
         # Test with PauliAlgebra (different algebra type)
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        mp = Monomial{PauliAlgebra,UInt16}(UInt16[3, 2, 1])
+        # Use a canonical Pauli word (≤1 operator per site, sites sorted)
+        mp = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7])  # σx on sites 1,2,3
         mp_canon = symmetric_canon(mp)
-        @test mp_canon.word == UInt16[1, 2, 3]
-        @test mp_canon isa Monomial{PauliAlgebra}
+        @test mp_canon.word == UInt16[1, 4, 7]
+        @test mp_canon isa NormalMonomial{PauliAlgebra}
     end
 
     @testset "cyclic_canon(Vector)" begin
@@ -110,40 +110,40 @@ using NCTSSoS: cyclic_symmetric_canon
         @test cyclic_canon([4, 5, 1, 2, 3]) == [1, 2, 3, 4, 5]
     end
 
-    @testset "cyclic_canon(Monomial)" begin
+    @testset "cyclic_canon(NormalMonomial)" begin
         # Already canonical
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
         m1_canon = cyclic_canon(m1)
         @test m1_canon.word == [1, 2, 3]
-        @test m1_canon isa Monomial{NonCommutativeAlgebra}
+        @test m1_canon isa NormalMonomial{NonCommutativeAlgebra}
 
         # One rotation
-        m2 = Monomial{NonCommutativeAlgebra}([2, 3, 1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2, 3, 1])
         m2_canon = cyclic_canon(m2)
         @test m2_canon.word == [1, 2, 3]
 
         # Two rotations
-        m3 = Monomial{NonCommutativeAlgebra}([3, 1, 2])
+        m3 = NormalMonomial{NonCommutativeAlgebra}([3, 1, 2])
         m3_canon = cyclic_canon(m3)
         @test m3_canon.word == [1, 2, 3]
 
         # Single element
-        m4 = Monomial{NonCommutativeAlgebra}([5])
+        m4 = NormalMonomial{NonCommutativeAlgebra}([5])
         m4_canon = cyclic_canon(m4)
         @test m4_canon.word == [5]
 
         # Empty (identity)
-        m5 = Monomial{NonCommutativeAlgebra}(Int[])
+        m5 = NormalMonomial{NonCommutativeAlgebra}(Int[])
         m5_canon = cyclic_canon(m5)
         @test m5_canon.word == Int[]
         @test isone(m5_canon)
 
         # Test with PauliAlgebra
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        mp = Monomial{PauliAlgebra,UInt16}(UInt16[2, 3, 1])
+        # Use a canonical Pauli word (≤1 operator per site, sites sorted)
+        mp = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7])  # σx on sites 1,2,3
         mp_canon = cyclic_canon(mp)
-        @test mp_canon.word == UInt16[1, 2, 3]
-        @test mp_canon isa Monomial{PauliAlgebra}
+        @test mp_canon.word == UInt16[1, 4, 7]
+        @test mp_canon isa NormalMonomial{PauliAlgebra}
     end
 
     @testset "cyclic_symmetric_canon(Vector)" begin
@@ -185,69 +185,69 @@ using NCTSSoS: cyclic_symmetric_canon
         @test cyclic_symmetric_canon([3, 2, 4, 1]) == [1, 3, 2, 4]
     end
 
-    @testset "cyclic_symmetric_canon(Monomial)" begin
+    @testset "cyclic_symmetric_canon(NormalMonomial)" begin
         # Simple case
-        m1 = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         m1_canon = cyclic_symmetric_canon(m1)
         @test m1_canon.word == [1, 2, 3]
-        @test m1_canon isa Monomial{NonCommutativeAlgebra}
+        @test m1_canon isa NormalMonomial{NonCommutativeAlgebra}
 
         # Docstring example
-        m2 = Monomial{NonCommutativeAlgebra}([3, 1, 4, 2])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 1, 4, 2])
         m2_canon = cyclic_symmetric_canon(m2)
         @test m2_canon.word == [1, 3, 2, 4]
 
         # Already canonical
-        m3 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m3 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
         m3_canon = cyclic_symmetric_canon(m3)
         @test m3_canon.word == [1, 2, 3]
 
         # Empty (identity)
-        m4 = Monomial{NonCommutativeAlgebra}(Int[])
+        m4 = NormalMonomial{NonCommutativeAlgebra}(Int[])
         m4_canon = cyclic_symmetric_canon(m4)
         @test m4_canon.word == Int[]
         @test isone(m4_canon)
 
         # Test with PauliAlgebra
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        mp = Monomial{PauliAlgebra,UInt16}(UInt16[3, 2, 1])
+        # Use a canonical Pauli word (≤1 operator per site, sites sorted)
+        mp = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7])  # σx on sites 1,2,3
         mp_canon = cyclic_symmetric_canon(mp)
-        @test mp_canon.word == UInt16[1, 2, 3]
-        @test mp_canon isa Monomial{PauliAlgebra}
+        @test mp_canon.word == UInt16[1, 4, 7]
+        @test mp_canon isa NormalMonomial{PauliAlgebra}
     end
 
-    @testset "canonicalize(Monomial) - symmetric mode" begin
+    @testset "canonicalize(NormalMonomial) - symmetric mode" begin
         # Default mode (cyclic=false) uses symmetric_canon
-        m1 = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         m1_canon = canonicalize(m1)
         @test m1_canon.word == [1, 2, 3]
-        @test m1_canon isa Monomial{NonCommutativeAlgebra}
+        @test m1_canon isa NormalMonomial{NonCommutativeAlgebra}
 
         # Explicit cyclic=false
-        m2 = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         m2_canon = canonicalize(m2; cyclic=false)
         @test m2_canon.word == [1, 2, 3]
 
         # Test difference between symmetric and cyclic
         # [2, 3, 1]: symmetric_canon([2,3,1]) = [1,3,2] (reverse is smaller)
-        m3 = Monomial{NonCommutativeAlgebra}([2, 3, 1])
+        m3 = NormalMonomial{NonCommutativeAlgebra}([2, 3, 1])
         m3_sym = canonicalize(m3; cyclic=false)
         @test m3_sym.word == [1, 3, 2]
 
         # Empty
-        m4 = Monomial{NonCommutativeAlgebra}(Int[])
+        m4 = NormalMonomial{NonCommutativeAlgebra}(Int[])
         m4_canon = canonicalize(m4)
         @test isone(m4_canon)
     end
 
-    @testset "canonicalize(Monomial) - cyclic mode" begin
+    @testset "canonicalize(NormalMonomial) - cyclic mode" begin
         # cyclic=true uses cyclic_symmetric_canon
-        m1 = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         m1_canon = canonicalize(m1; cyclic=true)
         @test m1_canon.word == [1, 2, 3]
 
         # Test docstring example from cyclic_symmetric_canon
-        m2 = Monomial{NonCommutativeAlgebra}([3, 1, 4, 2])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 1, 4, 2])
         m2_canon = canonicalize(m2; cyclic=true)
         @test m2_canon.word == [1, 3, 2, 4]
 
@@ -255,22 +255,22 @@ using NCTSSoS: cyclic_symmetric_canon
         # [2, 3, 1]:
         #   symmetric: reverse([2,3,1]) = [1,3,2] (smaller) -> [1,3,2]
         #   cyclic: cyclic_canon([2,3,1]) = [1,2,3], cyclic_canon([1,3,2]) = [1,3,2], min = [1,2,3]
-        m3 = Monomial{NonCommutativeAlgebra}([2, 3, 1])
+        m3 = NormalMonomial{NonCommutativeAlgebra}([2, 3, 1])
         m3_sym = canonicalize(m3; cyclic=false)
         m3_cyc = canonicalize(m3; cyclic=true)
         @test m3_sym.word == [1, 3, 2]
         @test m3_cyc.word == [1, 2, 3]
 
         # Empty
-        m4 = Monomial{NonCommutativeAlgebra}(Int[])
+        m4 = NormalMonomial{NonCommutativeAlgebra}(Int[])
         m4_canon = canonicalize(m4; cyclic=true)
         @test isone(m4_canon)
     end
 
     @testset "canonicalize(Polynomial) - term combining" begin
         # Test case from docstring: [3,2,1] and [1,2,3] combine
-        m1 = Monomial{NonCommutativeAlgebra}([3, 2, 1])
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
         p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
 
         p_canon = canonicalize(p)
@@ -289,8 +289,8 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "canonicalize(Polynomial) - term cancellation" begin
         # Terms that cancel to zero
-        m1 = Monomial{NonCommutativeAlgebra}([3, 2, 1])
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
         p = Polynomial([Term(2.0, m1), Term(-2.0, m2)])
 
         p_canon = canonicalize(p)
@@ -310,7 +310,7 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "canonicalize(Polynomial) - single term" begin
         # Single term
-        m = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        m = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         p = Polynomial([Term(5.0, m)])
 
         p_canon = canonicalize(p)
@@ -322,8 +322,8 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "canonicalize(Polynomial) - already canonical" begin
         # Already canonical polynomial
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([1, 3])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([1, 3])
         p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
 
         p_canon = canonicalize(p)
@@ -338,8 +338,8 @@ using NCTSSoS: cyclic_symmetric_canon
         # Test cyclic mode with rotations
         # [2, 3, 1] rotates to [1, 2, 3]
         # [3, 1, 2] rotates to [1, 2, 3]
-        m1 = Monomial{NonCommutativeAlgebra}([2, 3, 1])
-        m2 = Monomial{NonCommutativeAlgebra}([3, 1, 2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([2, 3, 1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 1, 2])
         p = Polynomial([Term(1.5, m1), Term(2.5, m2)])
 
         p_canon = canonicalize(p; cyclic=true)
@@ -352,9 +352,9 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "canonicalize(Polynomial) - multiple term combining" begin
         # Three terms that all canonicalize to the same monomial
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        m2 = Monomial{NonCommutativeAlgebra}([3, 2, 1])  # symmetric -> [1,2,3]
-        m3 = Monomial{NonCommutativeAlgebra}([1, 2, 3])  # already canonical
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])  # symmetric -> [1,2,3]
+        m3 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])  # already canonical
 
         p = Polynomial([Term(1.0, m1), Term(2.0, m2), Term(3.0, m3)])
         p_canon = canonicalize(p)
@@ -366,9 +366,9 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "canonicalize(Polynomial) - partial combining" begin
         # Some terms combine, others don't
-        m1 = Monomial{NonCommutativeAlgebra}([3, 2, 1])  # -> [1,2,3]
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 3])  # -> [1,2,3]
-        m3 = Monomial{NonCommutativeAlgebra}([4, 5, 6])  # -> [4,5,6] (distinct)
+        m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])  # -> [1,2,3]
+        m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])  # -> [1,2,3]
+        m3 = NormalMonomial{NonCommutativeAlgebra}([4, 5, 6])  # -> [4,5,6] (distinct)
 
         p = Polynomial([Term(1.0, m1), Term(2.0, m2), Term(3.0, m3)])
         p_canon = canonicalize(p)
@@ -383,19 +383,18 @@ using NCTSSoS: cyclic_symmetric_canon
 
     @testset "canonicalize - type preservation" begin
         # Test that algebra types are preserved throughout
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        m_pauli = Monomial{PauliAlgebra,UInt16}(UInt16[3, 2, 1])
-        m_nc = Monomial{NonCommutativeAlgebra}([3, 2, 1])
+        m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
 
-        @test symmetric_canon(m_pauli) isa Monomial{PauliAlgebra}
-        @test cyclic_canon(m_pauli) isa Monomial{PauliAlgebra}
-        @test cyclic_symmetric_canon(m_pauli) isa Monomial{PauliAlgebra}
-        @test canonicalize(m_pauli) isa Monomial{PauliAlgebra}
+        @test symmetric_canon(m_pauli) isa NormalMonomial{PauliAlgebra}
+        @test cyclic_canon(m_pauli) isa NormalMonomial{PauliAlgebra}
+        @test cyclic_symmetric_canon(m_pauli) isa NormalMonomial{PauliAlgebra}
+        @test canonicalize(m_pauli) isa NormalMonomial{PauliAlgebra}
 
-        @test symmetric_canon(m_nc) isa Monomial{NonCommutativeAlgebra}
-        @test cyclic_canon(m_nc) isa Monomial{NonCommutativeAlgebra}
-        @test cyclic_symmetric_canon(m_nc) isa Monomial{NonCommutativeAlgebra}
-        @test canonicalize(m_nc) isa Monomial{NonCommutativeAlgebra}
+        @test symmetric_canon(m_nc) isa NormalMonomial{NonCommutativeAlgebra}
+        @test cyclic_canon(m_nc) isa NormalMonomial{NonCommutativeAlgebra}
+        @test cyclic_symmetric_canon(m_nc) isa NormalMonomial{NonCommutativeAlgebra}
+        @test canonicalize(m_nc) isa NormalMonomial{NonCommutativeAlgebra}
     end
 
     # =========================================================================
@@ -403,22 +402,6 @@ using NCTSSoS: cyclic_symmetric_canon
     # These tests verify site-based commutation produces different results
     # than raw lexicographic comparison
     # =========================================================================
-
-    @testset "symmetric_canon PauliAlgebra multi-site interleaved" begin
-        # Pauli indices: site1 = {1,2,3} (σx,σy,σz), site2 = {4,5,6}
-        # Word: [σx@site2, σx@site1, σy@site2, σy@site1] = [4, 1, 5, 2]
-        # Sites interleaved: [2, 1, 2, 1]
-        #
-        # Raw: min([4,1,5,2], [2,5,1,4]) = [2,5,1,4] (2 < 4)
-        # Site-sorted: min([1,2,4,5], [2,1,5,4]) = [1,2,4,5] (1 < 2)
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        m = Monomial{PauliAlgebra,Int}([4, 1, 5, 2])
-        canon = symmetric_canon(m)
-        @test canon.word == [1, 2, 4, 5]
-
-        # Verify differs from raw
-        @test symmetric_canon([4, 1, 5, 2]) == [2, 5, 1, 4]
-    end
 
     @testset "symmetric_canon NonCommutativeAlgebra multi-site interleaved" begin
         # encode_index(UInt16, op_id, site): op_id << 4 | site
@@ -438,7 +421,7 @@ using NCTSSoS: cyclic_symmetric_canon
         # 17 < 33, so [17, 33, 18, 34] wins
 
         word = [a_s2, b_s1, c_s2, d_s1]
-        m = Monomial{NonCommutativeAlgebra}(word)
+        m = NormalMonomial{NonCommutativeAlgebra}(word)
         canon = symmetric_canon(m)
         @test canon.word == [b_s1, d_s1, a_s2, c_s2]  # [17, 33, 18, 34]
 
@@ -456,7 +439,7 @@ using NCTSSoS: cyclic_symmetric_canon
 
         # Word: [p1_s2, p1_s1, p2_s2, p2_s1] - interleaved sites
         word = [p1_s2, p1_s1, p2_s2, p2_s1]
-        m = Monomial{ProjectorAlgebra}(word)
+        m = NormalMonomial{ProjectorAlgebra}(word)
         canon = symmetric_canon(m)
 
         # Site-sorted word: [17, 33, 18, 34]
@@ -475,7 +458,7 @@ using NCTSSoS: cyclic_symmetric_canon
 
         # Word: [u1_s2, u1_s1, u2_s2, u2_s1] - interleaved sites
         word = [u1_s2, u1_s1, u2_s2, u2_s1]
-        m = Monomial{UnipotentAlgebra}(word)
+        m = NormalMonomial{UnipotentAlgebra}(word)
         canon = symmetric_canon(m)
 
         # Site-sorted word: [17, 33, 18, 34]
@@ -486,39 +469,4 @@ using NCTSSoS: cyclic_symmetric_canon
         @test raw_canon != canon.word
     end
 
-    @testset "cyclic_canon PauliAlgebra multi-site interleaved" begin
-        # [σx@site2, σx@site1, σy@site2, σy@site1] = [4, 1, 5, 2]
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        m = Monomial{PauliAlgebra,Int}([4, 1, 5, 2])
-        canon = cyclic_canon(m)
-        # Each rotation gets site-sorted, pick minimum
-        # Rotations: [4,1,5,2], [1,5,2,4], [5,2,4,1], [2,4,1,5]
-        # Site-sorted: [1,2,4,5], [1,2,4,5], [2,1,4,5], [2,4,1,5]
-        # min = [1,2,4,5]
-        @test canon.word == [1, 2, 4, 5]
-
-        # Verify differs from raw cyclic
-        raw_cyclic = cyclic_canon([4, 1, 5, 2])
-        @test raw_cyclic != canon.word
-    end
-
-    @testset "cyclic_symmetric_canon PauliAlgebra multi-site interleaved" begin
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        m = Monomial{PauliAlgebra,Int}([4, 1, 5, 2])
-        canon = cyclic_symmetric_canon(m)
-        @test canon.word == [1, 2, 4, 5]
-    end
-
-    @testset "site-aware vs raw comparison degree-4" begin
-        # PauliAlgebra: demonstrate the difference with interleaved sites
-        word = [4, 1, 5, 2]  # [σx@s2, σx@s1, σy@s2, σy@s1]
-        raw_result = symmetric_canon(word)  # NoSiteAware path
-        # Use inner constructor to bypass validation (testing canonicalization, not algebra)
-        m = Monomial{PauliAlgebra,Int}(word)
-        site_result = symmetric_canon(m).word  # SiteAware path
-
-        @test raw_result != site_result
-        @test raw_result == [2, 5, 1, 4]    # raw picks reverse (2 < 4)
-        @test site_result == [1, 2, 4, 5]   # site-sorted picks original sorted
-    end
 end

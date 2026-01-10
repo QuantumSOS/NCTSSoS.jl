@@ -5,17 +5,17 @@
     @testset "Monomial Multiplication" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Variable multiplication now returns Monomial (word concatenation)
+        # Variable multiplication returns NormalMonomial (word concatenation)
         m1 = x[1]
         m2 = x[2]
 
         result = m1 * m2
-        @test result isa Monomial
+        @test result isa NormalMonomial
         @test degree(result) == 2
     end
 
     @testset "Scalar * Monomial -> Polynomial" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
 
         # Scalar times monomial gives Term, which can be converted to Polynomial
         t = Term(3.0, m)
@@ -26,8 +26,8 @@
     end
 
     @testset "Polynomial Addition" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         p1 = Polynomial(Term(1.0, m1))
         p2 = Polynomial(Term(2.0, m2))
@@ -43,8 +43,8 @@
     end
 
     @testset "Polynomial Multiplication" begin
-        m1 = Monomial{NonCommutativeAlgebra}(UInt16[1])
-        m2 = Monomial{NonCommutativeAlgebra}(UInt16[2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}(UInt16[2])
 
         p1 = Polynomial(Term(2.0, m1))
         p2 = Polynomial(Term(3.0, m2))
@@ -55,7 +55,7 @@
     end
 
     @testset "Monomial-Polynomial Interaction" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         p = Polynomial(Term(2.0, m))
 
         # Polynomial can be scaled
@@ -64,8 +64,8 @@
     end
 
     @testset "Subtraction" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}([1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         p1 = Polynomial(Term(5.0, m1))
         p2 = Polynomial(Term(3.0, m1))
@@ -80,8 +80,8 @@
     end
 
     @testset "Scaling Polynomial" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
-        p = Polynomial([Term(1.0, m), Term(2.0, Monomial{NonCommutativeAlgebra}([2]))])
+        m = NormalMonomial{NonCommutativeAlgebra}([1])
+        p = Polynomial([Term(1.0, m), Term(2.0, NormalMonomial{NonCommutativeAlgebra}([2]))])
 
         p_scaled = 2.0 * p
         @test coefficients(p_scaled) == [2.0, 4.0]
@@ -92,8 +92,8 @@
     end
 
     @testset "Polynomial Multiplication Distributivity" begin
-        m1 = Monomial{NonCommutativeAlgebra}(UInt16[1])
-        m2 = Monomial{NonCommutativeAlgebra}(UInt16[2])
+        m1 = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}(UInt16[2])
 
         # (a + b) * c = a*c + b*c
         p_ab = Polynomial([Term(1.0, m1), Term(2.0, m2)])
@@ -106,7 +106,7 @@
     end
 
     @testset "Identity Multiplication" begin
-        m = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        m = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
         p = Polynomial(Term(2.0, m))
 
         p_one = one(typeof(p))
@@ -116,7 +116,7 @@
     end
 
     @testset "Zero Multiplication" begin
-        m = Monomial{NonCommutativeAlgebra}(UInt16[1])
+        m = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
         p = Polynomial(Term(2.0, m))
 
         p_zero = zero(typeof(p))
@@ -126,9 +126,9 @@
     end
 
     @testset "Type Promotion" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra}([1])
 
-        p_int = Polynomial([Term{Monomial{NonCommutativeAlgebra,Int64},Int}(2, m)])
+        p_int = Polynomial([Term{NormalMonomial{NonCommutativeAlgebra,Int64},Int}(2, m)])
         p_float = Polynomial([Term(1.5, m)])
 
         p_sum = p_int + p_float

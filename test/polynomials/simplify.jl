@@ -7,7 +7,17 @@ using NCTSSoS:
     normal_order_key,
     is_normal_ordered,
     find_first_out_of_order,
-    combine_like_terms
+    combine_like_terms,
+    _coeff_to_number
+
+# Helpers: `simplify` returns `Monomial` (iterable as `(c_internal, NormalMonomial)` pairs).
+# Helpers: normalize all simplification outputs to `Vector{(c_internal, NormalMonomial)}` via `collect`.
+_pairs(x::Vector) = x
+_pairs(x::Monomial) = collect(x)
+_pairs(x) = collect(simplify(x))
+_coeffs(x) = [_coeff_to_number(m, c) for (c, m) in _pairs(x)]
+_monos(x) = last.(_pairs(x))
+_mono1(x) = _monos(x)[1]
 
 # Note: The new API uses AlgebraType dispatch for simplification instead of SimplifyAlgorithm
 # Each algebra type (NonCommutativeAlgebra, PauliAlgebra, UnipotentAlgebra, etc.) has its own simplification rules
@@ -20,19 +30,19 @@ using NCTSSoS:
 
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Simple case: multiplication now returns Monomial (word concatenation)
+        # Simple case: multiplication returns NormalMonomial (word concatenation)
         result = x[1] * x[2]
-        @test result isa Monomial
+        @test result isa NormalMonomial{NonCommutativeAlgebra}
         @test degree(result) == 2
 
-        # After simplify, we get a Monomial (NC algebra returns Monomial)
-        simplified = simplify(result)
-        @test simplified isa Monomial
+        # After simplify, we get a single canonical word
+        simplified = _mono1(result)
+        @test simplified isa NormalMonomial{NonCommutativeAlgebra}
         @test degree(simplified) == 2
 
         # Same variable twice
         result2 = x[1] * x[1]
-        @test result2 isa Monomial
+        @test result2 isa NormalMonomial{NonCommutativeAlgebra}
         @test degree(result2) == 2
     end
 
@@ -48,28 +58,27 @@ using NCTSSoS:
         @test degree(σy[1]) == 1
         @test degree(σz[1]) == 1
 
-        # Pauli variables are monomials
-        @test σx[1] isa Monomial{PauliAlgebra}
+        # Pauli variables are normal-form words
+        @test σx[1] isa NormalMonomial{PauliAlgebra}
     end
 
     @testset "Projector Simplification" begin
         # Projector algebra: P^2 = P (idempotency)
         reg, (P,) = create_projector_variables([("P", 1:3)])
 
-        @test P[1] isa Monomial{ProjectorAlgebra}
+        @test P[1] isa NormalMonomial{ProjectorAlgebra}
         @test degree(P[1]) == 1
 
-        # Multiple projectors - multiplication returns Monomial
+        # Multiple projectors - multiplication returns NormalMonomial
         result = P[1] * P[2]
-        @test result isa Monomial
+        @test result isa NormalMonomial{ProjectorAlgebra}
         @test degree(result) == 2
 
         # Equivalence test: P[2] * P[1]^2 * P[2] == P[2] * P[1] * P[2] (since P^2 = P)
-        # Projector simplify returns Monomial
-        lhs = simplify(P[2] * P[1] * P[1] * P[2])
-        rhs = simplify(P[2] * P[1] * P[2])
-        @test lhs isa Monomial
-        @test rhs isa Monomial
+        lhs = _mono1(P[2] * P[1] * P[1] * P[2])
+        rhs = _mono1(P[2] * P[1] * P[2])
+        @test lhs isa NormalMonomial{ProjectorAlgebra}
+        @test rhs isa NormalMonomial{ProjectorAlgebra}
         @test lhs == rhs
     end
 
@@ -77,25 +86,24 @@ using NCTSSoS:
         # Unipotent algebra: U^2 = I (squares to identity)
         reg, (U,) = create_unipotent_variables([("U", 1:3)])
 
-        @test U[1] isa Monomial{UnipotentAlgebra}
+        @test U[1] isa NormalMonomial{UnipotentAlgebra}
         @test degree(U[1]) == 1
 
-        # Multiplication of different unipotent variables - returns Monomial
+        # Multiplication of different unipotent variables - returns NormalMonomial
         result = U[1] * U[2]
-        @test result isa Monomial
+        @test result isa NormalMonomial{UnipotentAlgebra}
         @test degree(result) == 2
 
         # Equivalence test: U[2] * U[1]^2 * U[2] == I (since U^2 = I)
         # U[2] * U[1]^2 * U[2] = U[2] * I * U[2] = U[2]^2 = I
-        # Unipotent simplify returns Monomial
-        m = simplify(U[2] * U[1] * U[1] * U[2])
-        @test m isa Monomial
+        m = _mono1(U[2] * U[1] * U[1] * U[2])
+        @test m isa NormalMonomial{UnipotentAlgebra}
         @test isempty(m.word)  # Identity monomial has empty word
     end
 
 
     @testset "Term Structure" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         t = Term(2.0, m)
 
         @test t.coefficient == 2.0
@@ -110,17 +118,18 @@ using NCTSSoS:
     end
 
     @testset "simplify returns Monomial" begin
-        # Test that simplify returns a new Monomial
-        # NonCommutative simplify returns Monomial
-        m = Monomial{NonCommutativeAlgebra}(UInt8[2, 1])  # Will be sorted by site
+        # Test that simplify returns a NormalMonomial
+        m = NormalMonomial{NonCommutativeAlgebra}(UInt8[2, 1])  # Will be sorted by site
 
         result = simplify(m)
-        @test result isa Monomial
+        @test length(result) == 1
+        @test _coeffs(result)[1] == 1.0
+        @test _mono1(result) isa NormalMonomial{NonCommutativeAlgebra}
     end
 
     @testset "Adjoint and Simplification Interaction" begin
         # Test adjoint involution on directly created monomials
-        m = Monomial{NonCommutativeAlgebra}(UInt8[5, 9])
+        m = NormalMonomial{NonCommutativeAlgebra}(UInt8[5, 9])
         m_adj = adjoint(m)
 
         # adjoint is involutory: adjoint(adjoint(m)).word == m.word
@@ -138,68 +147,68 @@ end
     reg, (a, a_dag) = create_fermionic_variables(1:3)
 
     @testset "Basic Operations" begin
-        # Empty word → identity PhysicsMonomial
-        m_empty = Monomial{FermionicAlgebra}(Int32[])
+        # Empty word → identity
+        m_empty = NormalMonomial{FermionicAlgebra}(Int32[])
         result = simplify(m_empty)
-        @test result isa PhysicsMonomial
-        @test length(result.coeffs) == 1
-        @test result.coeffs[1] == 1
-        @test isempty(result.monos[1].word)
+        @test length(_pairs(result)) == 1
+        @test _coeffs(result)[1] == 1.0
+        @test isempty(_pairs(result)[1][2].word)
 
         # Single annihilation a₁ → unchanged
         m_a1 = a[1]
         result_a1 = simplify(m_a1)
-        @test length(result_a1.coeffs) == 1
-        @test result_a1.coeffs[1] == 1
-        @test result_a1.monos[1].word == [1]
+        @test length(_pairs(result_a1)) == 1
+        @test _coeffs(result_a1)[1] == 1.0
+        @test _pairs(result_a1)[1][2].word == [1]
 
         # Single creation a₁† → unchanged
         m_a1_dag = a_dag[1]
         result_a1_dag = simplify(m_a1_dag)
-        @test length(result_a1_dag.coeffs) == 1
-        @test result_a1_dag.coeffs[1] == 1
-        @test result_a1_dag.monos[1].word == [-1]
+        @test length(_pairs(result_a1_dag)) == 1
+        @test _coeffs(result_a1_dag)[1] == 1.0
+        @test _pairs(result_a1_dag)[1][2].word == [-1]
     end
 
     @testset "Anticommutation (CAR)" begin
         # a₁ a₁† = 1 - a₁† a₁ (verify both terms)
         m = a[1] * a_dag[1]  # a₁ a₁†
         result = simplify(m)
-        @test length(result.coeffs) == 2
+        @test length(_pairs(result)) == 2
 
         # Sort terms by degree (identity first, then normal-ordered)
-        perm = sortperm(result.monos, by=m -> degree(m))
-        sorted_coeffs = result.coeffs[perm]
-        sorted_monos = result.monos[perm]
+        pairs = _pairs(result)
+        perm = sortperm(pairs, by=t -> degree(t[2]))
+        sorted_coeffs = _coeffs(result)[perm]
+        sorted_monos = _monos(result)[perm]
 
         # First term: identity (scalar contraction)
-        @test sorted_coeffs[1] == 1
+        @test sorted_coeffs[1] == 1.0
         @test isempty(sorted_monos[1].word)
 
         # Second term: -a₁† a₁ (normal-ordered with sign)
-        @test sorted_coeffs[2] == -1
+        @test sorted_coeffs[2] == -1.0
         @test sorted_monos[2].word == [-1, 1]
 
         # a₁† a₁ → unchanged (already normal)
         m_normal = a_dag[1] * a[1]
         result_normal = simplify(m_normal)
-        @test length(result_normal.coeffs) == 1
-        @test result_normal.coeffs[1] == 1
-        @test result_normal.monos[1].word == [-1, 1]
+        @test length(_pairs(result_normal)) == 1
+        @test _coeffs(result_normal)[1] == 1.0
+        @test _pairs(result_normal)[1][2].word == [-1, 1]
 
         # a₁ a₂ → a₁ a₂ (annihilators already in order by mode)
         m_diff = a[1] * a[2]
         result_diff = simplify(m_diff)
-        @test length(result_diff.coeffs) == 1
-        @test result_diff.coeffs[1] == 1
-        @test result_diff.monos[1].word == [1, 2]  # Sorted by mode
+        @test length(_pairs(result_diff)) == 1
+        @test _coeffs(result_diff)[1] == 1.0
+        @test _pairs(result_diff)[1][2].word == [1, 2]  # Sorted by mode
 
-        # a₁† a₂† → a₁† a₂† (creators already in order)
+        # a₁† a₂† → -a₂† a₁† (creators must be sorted by mode descending)
         m_cr = a_dag[1] * a_dag[2]
         result_cr = simplify(m_cr)
-        @test length(result_cr.coeffs) == 1
-        @test result_cr.coeffs[1] == 1
-        @test result_cr.monos[1].word == [-1, -2]
+        @test length(_pairs(result_cr)) == 1
+        @test _coeffs(result_cr)[1] == -1.0
+        @test _pairs(result_cr)[1][2].word == [-2, -1]
     end
 
     @testset "Nilpotency" begin
@@ -207,19 +216,17 @@ end
         m_a1a1 = a[1] * a[1]
         @test iszero(m_a1a1)
         result_a1a1 = simplify(m_a1a1)
-        # Zero PhysicsMonomial has no coeffs or all zeros
         @test iszero(result_a1a1)
 
         # a₁† a₁† = 0
         m_dag_dag = a_dag[1] * a_dag[1]
         @test iszero(m_dag_dag)
         result_dag_dag = simplify(m_dag_dag)
-        # Zero PhysicsMonomial has no coeffs or all zeros
         @test iszero(result_dag_dag)
 
-        # Direct construction using PhysicsMonomial (Monomial validates normal-order)
+        # Direct construction from a raw word via simplify(Type, word)
         # a₁ a₁ = 0 (nilpotent - same mode annihilators)
-        pm_nilp = PhysicsMonomial{FermionicAlgebra}(Int32[1, 1])
+        pm_nilp = simplify(FermionicAlgebra, Int32[1, 1])
         @test iszero(pm_nilp)
 
         # Non-nilpotent case: a₁ a₁† a₁ a₁† ≠ 0 (alternating)
@@ -228,36 +235,34 @@ end
     end
 
     @testset "Surplus-based iszero (net flux >= 2)" begin
-        # Use PhysicsMonomial for non-normal-ordered words (Monomial validates)
         # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0 (surplus of 2 annihilations for mode 1)
-        pm_cross_mode = PhysicsMonomial{FermionicAlgebra}(Int32[1, 2, 1])
+        pm_cross_mode = simplify(FermionicAlgebra, Int32[1, 2, 1])
         @test iszero(pm_cross_mode)
 
         # a₁† a₂† a₁† = 0 (surplus of 2 creations for mode 1)
-        pm_cross_mode_dag = PhysicsMonomial{FermionicAlgebra}(Int32[-1, -2, -1])
+        pm_cross_mode_dag = simplify(FermionicAlgebra, Int32[-1, -2, -1])
         @test iszero(pm_cross_mode_dag)
 
         # a₁ a₁ a₁† has surplus 1 (2 ann - 1 cre = 1)
         # Actually: a₁ a₁ a₁† = (a₁ a₁) a₁† = 0 * a₁† = 0 due to nilpotency
-        pm_surplus_1 = PhysicsMonomial{FermionicAlgebra}(Int32[1, 1, -1])
-        # PhysicsMonomial auto-simplifies and detects nilpotency
+        pm_surplus_1 = simplify(FermionicAlgebra, Int32[1, 1, -1])
         @test iszero(pm_surplus_1)
 
         # a₁† a₁ a₁† has surplus -1 (1 - 2 = -1), NOT zero
         # a₁† a₁ a₁† = a₁† (1 - a₁† a₁) = a₁† - a₁† a₁† a₁ = a₁† - 0 = a₁† ≠ 0
-        pm_surplus_neg1 = PhysicsMonomial{FermionicAlgebra}(Int32[-1, 1, -1])
+        pm_surplus_neg1 = simplify(FermionicAlgebra, Int32[-1, 1, -1])
         @test !iszero(pm_surplus_neg1)
-        # PhysicsMonomial already simplified - just verify it's a₁†
-        @test length(pm_surplus_neg1.coeffs) == 1
-        @test pm_surplus_neg1.coeffs[1] == 1
-        @test pm_surplus_neg1.monos[1].word == [-1]  # Just a₁†
+        # Already simplified - just verify it's a₁†
+        @test length(_pairs(pm_surplus_neg1)) == 1
+        @test _coeffs(pm_surplus_neg1)[1] == 1.0
+        @test _pairs(pm_surplus_neg1)[1][2].word == [-1]  # Just a₁†
 
         # a₁ a₂ a₃ a₁ a₂ = 0 (modes 1 and 2 each have surplus 2)
-        pm_multi_surplus = PhysicsMonomial{FermionicAlgebra}(Int32[1, 2, 3, 1, 2])
+        pm_multi_surplus = simplify(FermionicAlgebra, Int32[1, 2, 3, 1, 2])
         @test iszero(pm_multi_surplus)
 
         # a₁ a₂ a₁† a₂† = non-zero (each mode has surplus 0)
-        pm_balanced = PhysicsMonomial{FermionicAlgebra}(Int32[1, 2, -1, -2])
+        pm_balanced = simplify(FermionicAlgebra, Int32[1, 2, -1, -2])
         @test !iszero(pm_balanced)
     end
 
@@ -265,18 +270,18 @@ end
         # a₁ a₂† → -a₂† a₁ (different modes, need to swap an and cr)
         m_cross = a[1] * a_dag[2]
         result_cross = simplify(m_cross)
-        @test length(result_cross.coeffs) == 1
-        @test result_cross.coeffs[1] == -1  # Sign from anticommutation
-        @test result_cross.monos[1].word == [-2, 1]
+        @test length(_pairs(result_cross)) == 1
+        @test _pairs(result_cross)[1][1] == -1.0  # Sign from anticommutation
+        @test _pairs(result_cross)[1][2].word == [-2, 1]
 
         # a₁ a₁† a₂ a₂† → 4 terms from two contractions
         m_two_mode = a[1] * a_dag[1] * a[2] * a_dag[2]
         result_two_mode = simplify(m_two_mode)
-        @test length(result_two_mode.coeffs) == 4
+        @test length(_pairs(result_two_mode)) == 4
 
         # Check total coefficient sum (should be 1 + 1 - 1 - 1 = 0 is wrong; it's more complex)
         # The correct expansion is: (1 - a₁† a₁)(1 - a₂† a₂) = 1 - a₁† a₁ - a₂† a₂ + a₁† a₁ a₂† a₂
-        @test 1 in result_two_mode.coeffs  # Identity term
+        @test 1.0 in _coeffs(result_two_mode)  # Identity term
     end
 
     @testset "Complex Case" begin
@@ -285,16 +290,16 @@ end
         result_complex = simplify(m_complex)
 
         # Multiple contraction possibilities should produce multiple terms
-        @test length(result_complex.coeffs) > 1
+        @test length(_pairs(result_complex)) > 1
 
         # Should include fully contracted term (identity)
-        identity_idx = findfirst(m -> isempty(m.word), result_complex.monos)
+        identity_idx = findfirst(m -> isempty(m.word), _monos(result_complex))
         @test !isnothing(identity_idx)
     end
 
     @testset "has_even_parity" begin
         # Identity (empty word) has 0 operators → even parity
-        m_identity = Monomial{FermionicAlgebra}(Int32[])
+        m_identity = NormalMonomial{FermionicAlgebra}(Int32[])
         @test has_even_parity(m_identity) == true
 
         # Single annihilation a₁ → 1 operator → odd parity
@@ -304,23 +309,23 @@ end
         @test has_even_parity(a_dag[1]) == false
 
         # Two operators a₁ a₂ → even parity
-        m_two_ann = a[1] * a[2]
+        m_two_ann = NormalMonomial{FermionicAlgebra}(Int32[1, 2])
         @test has_even_parity(m_two_ann) == true
 
-        # Two operators a₁† a₂† → even parity
-        m_two_cre = a_dag[1] * a_dag[2]
+        # Two operators a₂† a₁† (normal-ordered creators: mode descending) → even parity
+        m_two_cre = NormalMonomial{FermionicAlgebra}(Int32[-2, -1])
         @test has_even_parity(m_two_cre) == true
 
         # Number operator a₁† a₁ → 2 operators → even parity
-        m_number = a_dag[1] * a[1]
+        m_number = NormalMonomial{FermionicAlgebra}(Int32[-1, 1])
         @test has_even_parity(m_number) == true
 
         # Three operators → odd parity
-        m_three = a_dag[1] * a[1] * a[2]
+        m_three = NormalMonomial{FermionicAlgebra}(Int32[-1, 1, 2])
         @test has_even_parity(m_three) == false
 
         # Four operators → even parity
-        m_four = a_dag[1] * a_dag[2] * a[1] * a[2]
+        m_four = NormalMonomial{FermionicAlgebra}(Int32[-2, -1, 1, 2])
         @test has_even_parity(m_four) == true
     end
 end
@@ -334,68 +339,68 @@ end
     reg, (c, c_dag) = create_bosonic_variables(1:3)
 
     @testset "Basic Operations" begin
-        # Empty word → identity PhysicsMonomial
-        m_empty = Monomial{BosonicAlgebra}(Int32[])
+        # Empty word → identity
+        m_empty = NormalMonomial{BosonicAlgebra}(Int32[])
         result = simplify(m_empty)
-        @test result isa PhysicsMonomial
-        @test length(result.coeffs) == 1
-        @test result.coeffs[1] == 1
-        @test isempty(result.monos[1].word)
+        @test length(_pairs(result)) == 1
+        @test _coeffs(result)[1] == 1.0
+        @test isempty(_pairs(result)[1][2].word)
 
         # Single annihilation c₁ → unchanged
         m_c1 = c[1]
         result_c1 = simplify(m_c1)
-        @test length(result_c1.coeffs) == 1
-        @test result_c1.coeffs[1] == 1
-        @test result_c1.monos[1].word == [1]
+        @test length(_pairs(result_c1)) == 1
+        @test _coeffs(result_c1)[1] == 1.0
+        @test _pairs(result_c1)[1][2].word == [1]
 
         # Single creation c₁† → unchanged
         m_c1_dag = c_dag[1]
         result_c1_dag = simplify(m_c1_dag)
-        @test length(result_c1_dag.coeffs) == 1
-        @test result_c1_dag.coeffs[1] == 1
-        @test result_c1_dag.monos[1].word == [-1]
+        @test length(_pairs(result_c1_dag)) == 1
+        @test _coeffs(result_c1_dag)[1] == 1.0
+        @test _pairs(result_c1_dag)[1][2].word == [-1]
     end
 
     @testset "Commutation (CCR)" begin
         # c₁ c₁† = c₁† c₁ + 1 (verify both terms)
         m = c[1] * c_dag[1]  # c₁ c₁†
         result = simplify(m)
-        @test length(result.coeffs) == 2
+        @test length(_pairs(result)) == 2
 
         # Sort terms by degree (identity first, then normal-ordered)
-        perm = sortperm(result.monos, by=m -> degree(m))
-        sorted_coeffs = result.coeffs[perm]
-        sorted_monos = result.monos[perm]
+        pairs = _pairs(result)
+        perm = sortperm(pairs, by=t -> degree(t[2]))
+        sorted_coeffs = _coeffs(result)[perm]
+        sorted_monos = _monos(result)[perm]
 
         # First term: identity (delta correction)
-        @test sorted_coeffs[1] == 1
+        @test sorted_coeffs[1] == 1.0
         @test isempty(sorted_monos[1].word)
 
         # Second term: c₁† c₁ (normal-ordered, no sign for bosons)
-        @test sorted_coeffs[2] == 1
+        @test sorted_coeffs[2] == 1.0
         @test sorted_monos[2].word == [-1, 1]
 
         # c₁† c₁ → unchanged (already normal)
         m_normal = c_dag[1] * c[1]
         result_normal = simplify(m_normal)
-        @test length(result_normal.coeffs) == 1
-        @test result_normal.coeffs[1] == 1
-        @test result_normal.monos[1].word == [-1, 1]
+        @test length(_pairs(result_normal)) == 1
+        @test _coeffs(result_normal)[1] == 1.0
+        @test _pairs(result_normal)[1][2].word == [-1, 1]
 
         # c₁ c₂ → c₁ c₂ (annihilators commute, just sort by mode)
         m_comm = c[1] * c[2]
         result_comm = simplify(m_comm)
-        @test length(result_comm.coeffs) == 1
-        @test result_comm.coeffs[1] == 1
-        @test result_comm.monos[1].word == [1, 2]
+        @test length(_pairs(result_comm)) == 1
+        @test _coeffs(result_comm)[1] == 1.0
+        @test _pairs(result_comm)[1][2].word == [1, 2]
 
-        # c₁† c₂† → c₁† c₂† (creators commute)
+        # c₁† c₂† → c₂† c₁† (creators commute; canonical mode-descending order)
         m_cr = c_dag[1] * c_dag[2]
         result_cr = simplify(m_cr)
-        @test length(result_cr.coeffs) == 1
-        @test result_cr.coeffs[1] == 1
-        @test result_cr.monos[1].word == [-1, -2]
+        @test length(_pairs(result_cr)) == 1
+        @test _coeffs(result_cr)[1] == 1.0
+        @test _pairs(result_cr)[1][2].word == [-2, -1]
     end
 
     @testset "NOT Nilpotent" begin
@@ -403,40 +408,40 @@ end
         m_c1c1 = c[1] * c[1]
         # Note: iszero is only defined for FermionicAlgebra, not BosonicAlgebra
         result_c1c1 = simplify(m_c1c1)
-        @test length(result_c1c1.coeffs) == 1
-        @test result_c1c1.coeffs[1] == 1
-        @test result_c1c1.monos[1].word == [1, 1]  # Stays as c₁ c₁
+        @test length(_pairs(result_c1c1)) == 1
+        @test _coeffs(result_c1c1)[1] == 1.0
+        @test _pairs(result_c1c1)[1][2].word == [1, 1]  # Stays as c₁ c₁
 
         # c₁† c₁† ≠ 0
         m_dag_dag = c_dag[1] * c_dag[1]
         result_dag_dag = simplify(m_dag_dag)
-        @test length(result_dag_dag.coeffs) == 1
-        @test result_dag_dag.coeffs[1] == 1
-        @test result_dag_dag.monos[1].word == [-1, -1]
+        @test length(_pairs(result_dag_dag)) == 1
+        @test _coeffs(result_dag_dag)[1] == 1.0
+        @test _pairs(result_dag_dag)[1][2].word == [-1, -1]
     end
 
     @testset "Multi-mode" begin
         # c₁ c₂† → c₂† c₁ (different modes, no delta)
         m_cross = c[1] * c_dag[2]
         result_cross = simplify(m_cross)
-        @test length(result_cross.coeffs) == 1
-        @test result_cross.coeffs[1] == 1
-        @test result_cross.monos[1].word == [-2, 1]
+        @test length(_pairs(result_cross)) == 1
+        @test _coeffs(result_cross)[1] == 1.0
+        @test _pairs(result_cross)[1][2].word == [-2, 1]
 
         # c₁ c₂ c₁† c₂† → 4 terms
         # Expansion: (c₁ c₁† + 1)(c₂ c₂† + 1) - (direct but with commutations)
         # Normal form: 1 + c₁† c₁ + c₂† c₂ + c₁† c₂† c₁ c₂
         m_two_mode = c[1] * c[2] * c_dag[1] * c_dag[2]
         result_two_mode = simplify(m_two_mode)
-        @test length(result_two_mode.coeffs) == 4
+        @test length(_pairs(result_two_mode)) == 4
 
         # Check for identity term
-        identity_idx = findfirst(m -> isempty(m.word), result_two_mode.monos)
+        identity_idx = findfirst(m -> isempty(m.word), _monos(result_two_mode))
         @test !isnothing(identity_idx)
-        @test result_two_mode.coeffs[identity_idx] == 1
+        @test _coeffs(result_two_mode)[identity_idx] == 1.0
 
         # Check for fully normal-ordered term c₁† c₂† c₁ c₂
-        full_term_idx = findfirst(m -> length(m.word) == 4, result_two_mode.monos)
+        full_term_idx = findfirst(m -> length(m.word) == 4, _monos(result_two_mode))
         @test !isnothing(full_term_idx)
     end
 
@@ -447,23 +452,23 @@ end
         result_rook = simplify(m_rook)
 
         # Should have 3 terms: c₁†² c₁², c₁† c₁, and identity
-        @test length(result_rook.coeffs) == 3
+        @test length(_pairs(result_rook)) == 3
 
         # Find and verify each term - build dict of degree -> (coeff, mono)
-        coeffs_by_degree = Dict(degree(result_rook.monos[i]) => result_rook.coeffs[i]
-                                 for i in 1:length(result_rook.coeffs))
+        coeffs_by_degree = Dict(degree(_monos(result_rook)[i]) => _coeffs(result_rook)[i]
+                                 for i in 1:length(_pairs(result_rook)))
 
         # Identity term (degree 0) with coefficient 2
         @test haskey(coeffs_by_degree, 0)
-        @test coeffs_by_degree[0] == 2
+        @test coeffs_by_degree[0] == 2.0
 
         # c₁† c₁ term (degree 2) with coefficient 4
         @test haskey(coeffs_by_degree, 2)
-        @test coeffs_by_degree[2] == 4
+        @test coeffs_by_degree[2] == 4.0
 
         # c₁†² c₁² term (degree 4) with coefficient 1
         @test haskey(coeffs_by_degree, 4)
-        @test coeffs_by_degree[4] == 1
+        @test coeffs_by_degree[4] == 1.0
     end
 
     @testset "is_normal_ordered helper" begin
@@ -481,11 +486,11 @@ end
         # c₁ c₁† (not normal - annihilator before creator)
         @test is_normal_ordered(Int32[1, -1]) == false
 
-        # Multiple creators sorted by mode: c₁† c₂† (normal)
-        @test is_normal_ordered(Int32[-1, -2]) == true
+        # Multiple creators sorted by mode (descending): c₂† c₁† (normal)
+        @test is_normal_ordered(Int32[-2, -1]) == true
 
-        # Multiple creators unsorted: c₂† c₁† (not normal)
-        @test is_normal_ordered(Int32[-2, -1]) == false
+        # Multiple creators unsorted: c₁† c₂† (not normal)
+        @test is_normal_ordered(Int32[-1, -2]) == false
 
         # Multiple annihilators sorted by mode: c₁ c₂ (normal)
         @test is_normal_ordered(Int32[1, 2]) == true
@@ -493,8 +498,8 @@ end
         # Multiple annihilators unsorted: c₂ c₁ (not normal)
         @test is_normal_ordered(Int32[2, 1]) == false
 
-        # Full normal form: c₁† c₂† c₁ c₂
-        @test is_normal_ordered(Int32[-1, -2, 1, 2]) == true
+        # Full normal form: c₂† c₁† c₁ c₂
+        @test is_normal_ordered(Int32[-2, -1, 1, 2]) == true
 
         # Not normal: c₁† c₁ c₂† c₂ (annihilator before second creator)
         @test is_normal_ordered(Int32[-1, 1, -2, 2]) == false
@@ -509,13 +514,13 @@ end
 
         # Normal order → returns 0
         @test find_first_out_of_order(Int32[-1, 1]) == 0
-        @test find_first_out_of_order(Int32[-1, -2, 1, 2]) == 0
+        @test find_first_out_of_order(Int32[-2, -1, 1, 2]) == 0
 
         # c₁ c₁† → position 1 is out of order (annihilator followed by creator)
         @test find_first_out_of_order(Int32[1, -1]) == 1
 
-        # c₂† c₁† → position 1 is out of order (creator with higher mode before lower)
-        @test find_first_out_of_order(Int32[-2, -1]) == 1
+        # c₁† c₂† → position 1 is out of order (creator with lower mode before higher)
+        @test find_first_out_of_order(Int32[-1, -2]) == 1
 
         # c₁† c₂ c₁ → position 2 is out of order (annihilator c₂ before c₁)
         @test find_first_out_of_order(Int32[-1, 2, 1]) == 2
@@ -528,15 +533,15 @@ end
 @testset "Algebra Type Dispatch" begin
     @testset "Type Safety" begin
         # Monomials of different algebra types cannot be multiplied directly
-        m_nc = Monomial{NonCommutativeAlgebra}([1])
-        m_pauli = Monomial{PauliAlgebra}([1])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}([1])
+        m_pauli = NormalMonomial{PauliAlgebra}([1])
 
         @test typeof(m_nc) != typeof(m_pauli)
     end
 
     @testset "Polynomial with Algebra Types" begin
-        m1 = Monomial{PauliAlgebra}([1])
-        m2 = Monomial{PauliAlgebra}([2])
+        m1 = NormalMonomial{PauliAlgebra}([1])
+        m2 = NormalMonomial{PauliAlgebra}([2])
 
         p = Polynomial([Term(1.0 + 0.0im, m1), Term(2.0 + 0.0im, m2)])
 
@@ -554,9 +559,9 @@ end
         # Create monomial - constructor auto-sorts by site
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
-        m_nc = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
+        m_nc = NormalMonomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
 
-        result_nc = simplify(m_nc)
+        result_nc = _mono1(m_nc)
 
         # Verify different object returned (immutable - simplify always copies)
         @test result_nc !== m_nc
@@ -571,9 +576,9 @@ end
     @testset "Unipotent simplification with pair cancellation" begin
         # Create monomial - constructor auto-simplifies U² = I
         idx1_s1 = encode_index(UInt16, 1, 1)
-        m_uni = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m_uni = NormalMonomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
 
-        result_uni = simplify(m_uni)
+        result_uni = _mono1(m_uni)
 
         # Verify different object returned (immutable - simplify always copies)
         @test result_uni !== m_uni
@@ -587,9 +592,9 @@ end
         # UnipotentAlgebra: constructor auto-sorts by site
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
-        m_uni2 = Monomial{UnipotentAlgebra}(UInt16[idx1_s2, idx1_s1])
+        m_uni2 = NormalMonomial{UnipotentAlgebra}(UInt16[idx1_s2, idx1_s1])
 
-        result_uni2 = simplify(m_uni2)
+        result_uni2 = _mono1(m_uni2)
 
         # Verify different object returned (immutable - simplify always copies)
         @test result_uni2 !== m_uni2
@@ -602,9 +607,9 @@ end
     @testset "Projector simplification with duplicate removal" begin
         # Create monomial - constructor auto-simplifies P² = P
         idx1_s1 = encode_index(UInt16, 1, 1)
-        m_proj = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1, idx1_s1])
+        m_proj = NormalMonomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1, idx1_s1])
 
-        result_proj = simplify(m_proj)
+        result_proj = _mono1(m_proj)
 
         # Verify different object returned (immutable - simplify always copies)
         @test result_proj !== m_proj
@@ -619,9 +624,9 @@ end
         # Create monomial - constructor auto-sorts by site
         idx1_s1 = encode_index(UInt16, 1, 1)  # site 1
         idx1_s2 = encode_index(UInt16, 1, 2)  # site 2
-        m_proj2 = Monomial{ProjectorAlgebra}(UInt16[idx1_s2, idx1_s1])
+        m_proj2 = NormalMonomial{ProjectorAlgebra}(UInt16[idx1_s2, idx1_s1])
 
-        result_proj2 = simplify(m_proj2)
+        result_proj2 = _mono1(m_proj2)
 
         # Verify different object returned (immutable - simplify always copies)
         @test result_proj2 !== m_proj2
@@ -645,10 +650,10 @@ end
         p1_site2 = encode_index(UInt16, 1, 2)  # P₁ on site 2
 
         # Create monomial P₁¹ P₁¹ P₁² (two P₁ on site 1, one on site 2)
-        m = Monomial{ProjectorAlgebra}(UInt16[p1_site1, p1_site1, p1_site2])
+        m = NormalMonomial{ProjectorAlgebra}(UInt16[p1_site1, p1_site1, p1_site2])
 
         # Simplify: P² = P, so P₁¹ P₁¹ → P₁¹
-        result = simplify(m)
+        result = _mono1(m)
 
         # Verify result preserves encoding (simplify returns Monomial for ProjectorAlgebra)
         @test result.word[1] == p1_site1  # First should be site 1
@@ -664,10 +669,10 @@ end
         u1_site2 = encode_index(UInt16, 1, 2)  # U₁ on site 2
 
         # Create monomial U₁¹ U₁¹ U₁² (two U₁ on site 1, one on site 2)
-        m = Monomial{UnipotentAlgebra}(UInt16[u1_site1, u1_site1, u1_site2])
+        m = NormalMonomial{UnipotentAlgebra}(UInt16[u1_site1, u1_site1, u1_site2])
 
         # Simplify: U² = I, so U₁¹ U₁¹ → identity (removed)
-        result = simplify(m)
+        result = _mono1(m)
 
         # After U₁¹ U₁¹ cancels, only U₁² remains (simplify returns Monomial for UnipotentAlgebra)
         @test length(result.word) == 1
@@ -689,11 +694,11 @@ end
         x3_site1 = encode_index(UInt16, 3, 1)  # op 3 on site 1
 
         # Create monomial [op2@site2, op1@site1, op3@site1] (out of site order)
-        m = Monomial{NonCommutativeAlgebra}(UInt16[x2_site2, x1_site1, x3_site1])
+        m = NormalMonomial{NonCommutativeAlgebra}(UInt16[x2_site2, x1_site1, x3_site1])
 
         # Simplify: stable sort by site → [op1@site1, op3@site1, op2@site2]
         # Site 1 elements [op1, op3] preserve relative order from input
-        result = simplify(m)
+        result = _mono1(m)
 
         # Site 1 operators should come before site 2
         @test decode_site(result.word[1]) == 1
@@ -713,7 +718,7 @@ end
     @testset "NonCommutativeAlgebra simplify!" begin
         idx1_s1 = encode_index(UInt16, 1, 1)
         idx1_s2 = encode_index(UInt16, 1, 2)
-        m = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
+        m = NormalMonomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
 
         # simplify! mutates and returns the same monomial
         result = simplify!(m)
@@ -724,7 +729,7 @@ end
 
     @testset "ProjectorAlgebra simplify!" begin
         idx1_s1 = encode_index(UInt16, 1, 1)
-        m = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1, idx1_s1])
+        m = NormalMonomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1, idx1_s1])
 
         # simplify! mutates and returns the same monomial
         result = simplify!(m)
@@ -735,7 +740,7 @@ end
 
     @testset "UnipotentAlgebra simplify!" begin
         idx1_s1 = encode_index(UInt16, 1, 1)
-        m = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m = NormalMonomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
 
         # simplify! mutates and returns the same monomial
         result = simplify!(m)
@@ -752,8 +757,8 @@ end
         # Both simplify and simplify! operate on already-canonical monomials.
 
         # NonCommutative: constructor auto-sorts, so both start sorted
-        m1 = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
-        m2 = Monomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
+        m1 = NormalMonomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
+        m2 = NormalMonomial{NonCommutativeAlgebra}(UInt16[idx1_s2, idx1_s1])
 
         result1 = simplify(m1)
         result2 = simplify!(m2)
@@ -764,8 +769,8 @@ end
         @test m2.word == [idx1_s1, idx1_s2]  # simplify! on already-sorted is no-op
 
         # Projector: constructor auto-simplifies P² = P
-        m3 = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
-        m4 = Monomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m3 = NormalMonomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m4 = NormalMonomial{ProjectorAlgebra}(UInt16[idx1_s1, idx1_s1])
 
         result3 = simplify(m3)
         result4 = simplify!(m4)
@@ -776,8 +781,8 @@ end
         @test length(m4.word) == 1  # simplify! on already-simplified is no-op
 
         # Unipotent: constructor auto-simplifies U² = I
-        m5 = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
-        m6 = Monomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m5 = NormalMonomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
+        m6 = NormalMonomial{UnipotentAlgebra}(UInt16[idx1_s1, idx1_s1])
 
         result5 = simplify(m5)
         result6 = simplify!(m6)
@@ -799,21 +804,22 @@ end
         @test normal_order_key(Int32(1))[1] == 1   # c₁
         @test normal_order_key(Int32(2))[1] == 1   # c₂
 
-        # Mode is the second element
-        @test normal_order_key(Int32(-3))[2] == 3  # c₃† has mode 3
+        # Second element enforces within-group ordering:
+        # creators use negative mode (so larger modes come first), annihilators use positive mode.
+        @test normal_order_key(Int32(-3))[2] == -3  # c₃†
         @test normal_order_key(Int32(2))[2] == 2   # c₂ has mode 2
 
         # Sorting by normal_order_key gives normal order
         ops = Int32[2, -1, 1, -2]  # c₂ c₁† c₁ c₂†
         sorted_ops = sort(ops, by=normal_order_key)
-        @test sorted_ops == Int32[-1, -2, 1, 2]  # c₁† c₂† c₁ c₂
+        @test sorted_ops == Int32[-2, -1, 1, 2]  # c₂† c₁† c₁ c₂
     end
 
     @testset "combine_like_terms" begin
         # Test with FermionicAlgebra
-        t1 = Term(1.0, Monomial{FermionicAlgebra}(Int32[-1, 1]))
-        t2 = Term(2.0, Monomial{FermionicAlgebra}(Int32[-1, 1]))
-        t3 = Term(1.0, Monomial{FermionicAlgebra}(Int32[]))
+        t1 = Term(1.0, NormalMonomial{FermionicAlgebra}(Int32[-1, 1]))
+        t2 = Term(2.0, NormalMonomial{FermionicAlgebra}(Int32[-1, 1]))
+        t3 = Term(1.0, NormalMonomial{FermionicAlgebra}(Int32[]))
 
         result = combine_like_terms([t1, t2, t3])
         @test length(result) == 2
@@ -824,22 +830,22 @@ end
         @test result[combined_term].coefficient == 3.0  # 1.0 + 2.0
 
         # Test cancellation
-        t4 = Term(1.0, Monomial{FermionicAlgebra}(Int32[1]))
-        t5 = Term(-1.0, Monomial{FermionicAlgebra}(Int32[1]))
+        t4 = Term(1.0, NormalMonomial{FermionicAlgebra}(Int32[1]))
+        t5 = Term(-1.0, NormalMonomial{FermionicAlgebra}(Int32[1]))
         result_cancel = combine_like_terms([t4, t5])
         # Should return zero term when everything cancels
         @test length(result_cancel) == 1
         @test result_cancel[1].coefficient == 0.0
 
         # Test with BosonicAlgebra
-        b1 = Term(2.0, Monomial{BosonicAlgebra}(Int32[-1, 1]))
-        b2 = Term(3.0, Monomial{BosonicAlgebra}(Int32[-1, 1]))
+        b1 = Term(2.0, NormalMonomial{BosonicAlgebra}(Int32[-1, 1]))
+        b2 = Term(3.0, NormalMonomial{BosonicAlgebra}(Int32[-1, 1]))
         result_bos = combine_like_terms([b1, b2])
         @test length(result_bos) == 1
         @test result_bos[1].coefficient == 5.0
 
         # Test empty input
-        empty_result = combine_like_terms(Term{Monomial{FermionicAlgebra,Int32},Float64}[])
+        empty_result = combine_like_terms(Term{NormalMonomial{FermionicAlgebra,Int32},Float64}[])
         @test length(empty_result) == 1
         @test empty_result[1].coefficient == 0.0
     end
@@ -861,27 +867,27 @@ end
 
         # Case 1: Simple pair cancellation
         m1 = U[1] * U[1]
-        s1 = simplify(m1)
+        s1 = _mono1(m1)
         @test isempty(s1.word)  # [1,1] → []
 
         # Case 2: Multiple consecutive pairs
         m2 = U[1] * U[1] * U[2] * U[2]
-        s2 = simplify(m2)
+        s2 = _mono1(m2)
         @test isempty(s2.word)  # [1,1,2,2] → []
 
         # Case 3: Cascading cancellation
         m3 = U[1] * U[2] * U[2] * U[1]
-        s3 = simplify(m3)
+        s3 = _mono1(m3)
         @test isempty(s3.word)  # [1,2,2,1] → []
 
         # Case 4: Non-consecutive (no cancellation)
         m4 = U[1] * U[2] * U[1] * U[2]
-        s4 = simplify(m4)
+        s4 = _mono1(m4)
         @test length(s4.word) == 4  # [1,2,1,2] → [1,2,1,2]
 
         # Case 5: Mixed
         m5 = U[1] * U[1] * U[2] * U[3] * U[3] * U[2]
-        s5 = simplify(m5)
+        s5 = _mono1(m5)
         @test isempty(s5.word)  # [1,1,2,3,3,2] → [] (cascading)
     end
 
@@ -893,23 +899,23 @@ end
 
         # Case 1: Simple idempotency
         m1 = P[1] * P[1]
-        s1 = simplify(m1)
+        s1 = _mono1(m1)
         @test length(s1.word) == 1  # [1,1] → [1]
         @test s1.word == P[1].word
 
         # Case 2: Triple idempotency
         m2 = P[1] * P[1] * P[1]
-        s2 = simplify(m2)
+        s2 = _mono1(m2)
         @test length(s2.word) == 1  # [1,1,1] → [1]
 
         # Case 3: Mixed with idempotency
         m3 = P[1] * P[1] * P[2] * P[2] * P[1]
-        s3 = simplify(m3)
+        s3 = _mono1(m3)
         @test length(s3.word) == 3  # [1,1,2,2,1] → [1,2,1]
 
         # Case 4: Non-consecutive (no collapse)
         m4 = P[1] * P[2] * P[1]
-        s4 = simplify(m4)
+        s4 = _mono1(m4)
         @test length(s4.word) == 3  # [1,2,1] → [1,2,1]
     end
 end
@@ -917,13 +923,13 @@ end
 @testset "PauliAlgebra Algebraic Identities" begin
     reg, (σx, σy, σz) = create_pauli_variables(1:2)
 
-    # Helper to get complex phase from PauliMonomial
-    _phase(pm::PauliMonomial) = NCTSSoS.phase_to_complex(pm)
+    # Helper to get complex phase from simplified result
+    _phase(pm) = _coeffs(pm)[1]
 
     @testset "Involution: σᵢ² = I" begin
         for σ in [σx[1], σy[1], σz[1], σx[2], σy[2], σz[2]]
             pm = simplify(σ * σ)
-            @test isempty(pm.mono.word)
+            @test isempty(_mono1(pm).word)
             @test _phase(pm) ≈ 1.0 + 0.0im
         end
     end
@@ -932,39 +938,39 @@ end
         # XY → iZ
         pm_xy = simplify(σx[1] * σy[1])
         @test _phase(pm_xy) ≈ im
-        @test pm_xy.mono.word == σz[1].word
+        @test _mono1(pm_xy).word == σz[1].word
 
         # YZ → iX
         pm_yz = simplify(σy[1] * σz[1])
         @test _phase(pm_yz) ≈ im
-        @test pm_yz.mono.word == σx[1].word
+        @test _mono1(pm_yz).word == σx[1].word
 
         # ZX → iY
         pm_zx = simplify(σz[1] * σx[1])
         @test _phase(pm_zx) ≈ im
-        @test pm_zx.mono.word == σy[1].word
+        @test _mono1(pm_zx).word == σy[1].word
     end
 
     @testset "Anti-cyclic products: σᵧσₓ = -iσz (same site)" begin
         # YX → -iZ
         pm_yx = simplify(σy[1] * σx[1])
         @test _phase(pm_yx) ≈ -im
-        @test pm_yx.mono.word == σz[1].word
+        @test _mono1(pm_yx).word == σz[1].word
 
         # ZY → -iX
         pm_zy = simplify(σz[1] * σy[1])
         @test _phase(pm_zy) ≈ -im
-        @test pm_zy.mono.word == σx[1].word
+        @test _mono1(pm_zy).word == σx[1].word
 
         # XZ → -iY
         pm_xz = simplify(σx[1] * σz[1])
         @test _phase(pm_xz) ≈ -im
-        @test pm_xz.mono.word == σy[1].word
+        @test _mono1(pm_xz).word == σy[1].word
     end
 
     @testset "Triple product: σₓσᵧσz = i·I" begin
         pm = simplify(σx[1] * σy[1] * σz[1])
-        @test isempty(pm.mono.word)
+        @test isempty(_mono1(pm).word)
         @test _phase(pm) ≈ im
     end
 
@@ -972,7 +978,7 @@ end
         # σx₁ σy₂ should just be sorted by site
         pm = simplify(σx[2] * σy[1])
         @test _phase(pm) ≈ 1.0 + 0.0im
-        @test length(pm.mono.word) == 2
+        @test length(_mono1(pm).word) == 2
     end
 end
 
@@ -989,22 +995,22 @@ end
     @testset "Anticommutation: {aᵢ, aⱼ†} = δᵢⱼ" begin
         # Same mode: a₁ a₁† = 1 - a₁† a₁
         p = simplify(a[1] * a_dag[1])
-        @test length(p.coeffs) == 2
+        @test length(_pairs(p)) == 2
 
-        identity_idx = findfirst(m -> isempty(m.word), p.monos)
+        identity_idx = findfirst(m -> isempty(m.word), _monos(p))
         @test !isnothing(identity_idx)
-        @test p.coeffs[identity_idx] == 1
+        @test _coeffs(p)[identity_idx] == 1.0
 
         # Different modes: a₁ a₂† = -a₂† a₁ (no delta)
         p_cross = simplify(a[1] * a_dag[2])
-        @test length(p_cross.coeffs) == 1
-        @test p_cross.coeffs[1] == -1  # Sign from anticommutation
+        @test length(_pairs(p_cross)) == 1
+        @test _coeffs(p_cross)[1] == -1.0  # Sign from anticommutation
     end
 
     @testset "Parity check" begin
-        @test has_even_parity(Monomial{FermionicAlgebra}(Int32[]))  # Identity
+        @test has_even_parity(NormalMonomial{FermionicAlgebra}(Int32[]))  # Identity
         @test !has_even_parity(a[1])  # Single operator
-        @test has_even_parity(a_dag[1] * a[1])  # Number operator
+        @test has_even_parity(NormalMonomial{FermionicAlgebra}(Int32[-1, 1]))  # Number operator
     end
 end
 
@@ -1014,44 +1020,44 @@ end
     @testset "Commutation: [cᵢ, cⱼ†] = δᵢⱼ" begin
         # Same mode: c₁ c₁† = c₁† c₁ + 1
         p = simplify(c[1] * c_dag[1])
-        @test length(p.coeffs) == 2
+        @test length(_pairs(p)) == 2
 
-        identity_idx = findfirst(m -> isempty(m.word), p.monos)
+        identity_idx = findfirst(m -> isempty(m.word), _monos(p))
         @test !isnothing(identity_idx)
-        @test p.coeffs[identity_idx] == 1
+        @test _coeffs(p)[identity_idx] == 1.0
 
-        normal_idx = findfirst(m -> !isempty(m.word), p.monos)
+        normal_idx = findfirst(m -> !isempty(m.word), _monos(p))
         @test !isnothing(normal_idx)
-        @test p.coeffs[normal_idx] == 1  # No sign for bosons
+        @test _coeffs(p)[normal_idx] == 1.0  # No sign for bosons
 
         # Different modes: c₁ c₂† = c₂† c₁ (no delta)
         p_cross = simplify(c[1] * c_dag[2])
-        @test length(p_cross.coeffs) == 1
-        @test p_cross.coeffs[1] == 1  # No sign for bosons
+        @test length(_pairs(p_cross)) == 1
+        @test _coeffs(p_cross)[1] == 1.0  # No sign for bosons
     end
 
     @testset "NOT nilpotent: cᵢ² ≠ 0" begin
         p = simplify(c[1] * c[1])
-        @test length(p.coeffs) == 1
-        @test p.monos[1].word == Int8[1, 1]
+        @test length(_pairs(p)) == 1
+        @test _monos(p)[1].word == vcat(c[1].word, c[1].word)
     end
 
     @testset "Rook number identity: c c c† c† = 2 + 4c†c + c†²c²" begin
         p = simplify(c[1] * c[1] * c_dag[1] * c_dag[1])
-        @test length(p.coeffs) == 3
+        @test length(_pairs(p)) == 3
 
         # Find terms by degree
-        identity_idx = findfirst(m -> isempty(m.word), p.monos)
+        identity_idx = findfirst(m -> isempty(m.word), _monos(p))
         @test !isnothing(identity_idx)
-        @test p.coeffs[identity_idx] == 2
+        @test _coeffs(p)[identity_idx] == 2.0
 
-        deg2_idx = findfirst(m -> length(m.word) == 2, p.monos)
+        deg2_idx = findfirst(m -> length(m.word) == 2, _monos(p))
         @test !isnothing(deg2_idx)
-        @test p.coeffs[deg2_idx] == 4
+        @test _coeffs(p)[deg2_idx] == 4.0
 
-        deg4_idx = findfirst(m -> length(m.word) == 4, p.monos)
+        deg4_idx = findfirst(m -> length(m.word) == 4, _monos(p))
         @test !isnothing(deg4_idx)
-        @test p.coeffs[deg4_idx] == 1
+        @test _coeffs(p)[deg4_idx] == 1.0
     end
 end
 
@@ -1061,7 +1067,7 @@ end
 
         # y₁ x₁ should become x₁ y₁ (site 1 before site 2)
         m = y[1] * x[1]
-        s = simplify(m)
+        s = _mono1(m)
         @test decode_site(s.word[1]) == 1
         @test decode_site(s.word[2]) == 2
     end
@@ -1071,7 +1077,7 @@ end
 
         # V₁ U₁ V₁ U₁ should sort by site, then U pairs and V pairs cancel
         m = V[1] * U[1] * V[1] * U[1]
-        s = simplify(m)
+        s = _mono1(m)
         @test isempty(s.word)  # After site sort: U₁U₁V₁V₁ → cancels
     end
 
@@ -1080,7 +1086,7 @@ end
 
         # Q₁ P₁ Q₁ P₁ should sort by site: P₁P₁Q₁Q₁ → P₁Q₁
         m = Q[1] * P[1] * Q[1] * P[1]
-        s = simplify(m)
+        s = _mono1(m)
         @test length(s.word) == 2  # P₁ Q₁
         @test decode_site(s.word[1]) == 1
         @test decode_site(s.word[2]) == 2
@@ -1245,10 +1251,8 @@ end
     basis2 = get_ncbasis_deg(reg2, 2)
     @test length(basis2) == 4
     result_words = Set{Vector{UInt16}}()
-    for poly in basis2
-        for (_, mono) in poly
-            push!(result_words, UInt16[decode_operator_id(idx) for idx in mono.word])
-        end
+    for mono in basis2
+        push!(result_words, UInt16[decode_operator_id(idx) for idx in mono.word])
     end
     @test result_words == Set([UInt16[1,1], UInt16[1,2], UInt16[2,1], UInt16[2,2]])
 end
@@ -1258,23 +1262,23 @@ end
         reg, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 1:2)])
 
         # Same site, same var → cancels
-        @test isempty(simplify(U[1] * U[1]).word)
+        @test isempty(_mono1(U[1] * U[1]).word)
 
         # Same site, different vars → preserved
-        @test length(simplify(U[2] * U[1]).word) == 2
+        @test length(_mono1(U[2] * U[1]).word) == 2
 
         # Cross-site pairs cancel after site-sorting
-        @test isempty(simplify(V[1] * U[1] * V[1] * U[1]).word)
+        @test isempty(_mono1(V[1] * U[1] * V[1] * U[1]).word)
     end
 
     @testset "ProjectorAlgebra" begin
         reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
 
         # Same site, same var → collapses
-        @test length(simplify(P[1] * P[1]).word) == 1
+        @test length(_mono1(P[1] * P[1]).word) == 1
 
         # Cross-site with idempotency
-        s = simplify(Q[1] * P[1] * Q[1] * P[1])
+        s = _mono1(Q[1] * P[1] * Q[1] * P[1])
         @test length(s.word) == 2
         @test decode_site(s.word[1]) == 1
         @test decode_site(s.word[2]) == 2
@@ -1311,30 +1315,30 @@ end
     @test decode_site(y2.word[1]) == 2
 
     # Test: y₁ x₁ → x₁ y₁ (site 2 moves after site 1)
-    m1 = Monomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1]])
-    s1 = simplify(m1)
+    m1 = NormalMonomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1]])
+    s1 = _mono1(m1)
     @test s1.word == [x1.word[1], y1.word[1]]
 
     # Test: x₂ x₁ → x₂ x₁ (same site, order PRESERVED)
-    m2 = Monomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1]])
-    s2 = simplify(m2)
+    m2 = NormalMonomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1]])
+    s2 = _mono1(m2)
     @test s2.word == [x2.word[1], x1.word[1]]  # NOT sorted to [x1, x2]!
 
     # Test: y₂ y₁ → y₂ y₁ (same site, order PRESERVED)
-    m3 = Monomial{NonCommutativeAlgebra}([y2.word[1], y1.word[1]])
-    s3 = simplify(m3)
+    m3 = NormalMonomial{NonCommutativeAlgebra}([y2.word[1], y1.word[1]])
+    s3 = _mono1(m3)
     @test s3.word == [y2.word[1], y1.word[1]]  # NOT sorted to [y1, y2]!
 
     # Test: y₂ x₂ y₁ x₁ → x₂ x₁ y₂ y₁ (stable sort by site)
     # Site 1 elements [x₂, x₁] preserve relative order
     # Site 2 elements [y₂, y₁] preserve relative order
-    m4 = Monomial{NonCommutativeAlgebra}([y2.word[1], x2.word[1], y1.word[1], x1.word[1]])
-    s4 = simplify(m4)
+    m4 = NormalMonomial{NonCommutativeAlgebra}([y2.word[1], x2.word[1], y1.word[1], x1.word[1]])
+    s4 = _mono1(m4)
     @test s4.word == [x2.word[1], x1.word[1], y2.word[1], y1.word[1]]
 
     # Test: y₁ x₁ y₂ x₂ → x₁ x₂ y₁ y₂ (stable sort by site)
-    m5 = Monomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1], y2.word[1], x2.word[1]])
-    s5 = simplify(m5)
+    m5 = NormalMonomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1], y2.word[1], x2.word[1]])
+    s5 = _mono1(m5)
     @test s5.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
 end
 
@@ -1351,16 +1355,16 @@ end
     # Test: x₂ x₁ y₂ y₁ vs reverse y₁ y₂ x₁ x₂
     # After site sort: [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂]
     # Min is lexicographically smaller (comparing encoded indices)
-    m1 = Monomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1], y2.word[1], y1.word[1]])
-    s1 = simplify(m1)
+    m1 = NormalMonomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1], y2.word[1], y1.word[1]])
+    s1 = _mono1(m1)
     c1 = symmetric_canon(s1)
     # The reverse [y₁,y₂,x₁,x₂] sorted by site → [x₁,x₂,y₁,y₂]
     # Compare [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂] → min is [x₁,x₂,y₁,y₂] since x₁ < x₂
     @test c1.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
 
     # Test: already canonical x₁ x₂ y₁ y₂
-    m2 = Monomial{NonCommutativeAlgebra}([x1.word[1], x2.word[1], y1.word[1], y2.word[1]])
-    s2 = simplify(m2)
+    m2 = NormalMonomial{NonCommutativeAlgebra}([x1.word[1], x2.word[1], y1.word[1], y2.word[1]])
+    s2 = _mono1(m2)
     c2 = symmetric_canon(s2)
     @test c2.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
 end
@@ -1601,12 +1605,13 @@ end
         raw_word = [b, c, a, d]  # out of order across sites
 
         # Test canonical ordering: stable sort by site
-        pm = PauliMonomial(raw_word)
+        pm = simplify(PauliAlgebra, raw_word)
+        mono = _mono1(pm)
 
         # Site 1 ops should come before site 2
         # Use Pauli site encoding: site = (idx-1) ÷ 3 + 1
         pauli_site(idx) = (idx - 1) ÷ 3 + 1
-        sites = pauli_site.(pm.mono.word)
+        sites = pauli_site.(mono.word)
         @test issorted(sites)
 
         # Within each site, simplification occurs (σy σx = -i σz)
@@ -1621,41 +1626,40 @@ end
     end
 
     @testset "Fermionic multi-mode" begin
-        reg, (a_op,) = create_fermionic_variables(1:4)
+        reg, (a_op, _) = create_fermionic_variables(1:4)
 
         # Get raw indices
         a1 = a_op[1].word[1]  # mode 1 annihilation
         a2 = a_op[2].word[1]  # mode 2 annihilation
 
         # Different modes anticommute: a₁ a₂ = -a₂ a₁
-        # PhysicsMonomial will normal-order these
-        pm12 = PhysicsMonomial{FermionicAlgebra}(Int32[a1, a2])
-        pm21 = PhysicsMonomial{FermionicAlgebra}(Int32[a2, a1])
+        pm12 = simplify(FermionicAlgebra, Int32[a1, a2])
+        pm21 = simplify(FermionicAlgebra, Int32[a2, a1])
 
         # Both should have one term in normal order
-        @test length(pm12.coeffs) == 1
-        @test length(pm21.coeffs) == 1
+        @test length(_pairs(pm12)) == 1
+        @test length(_pairs(pm21)) == 1
 
         # pm21 should have opposite sign from pm12
         # because swapping annihilation operators gives -1
-        @test pm12.coeffs[1] == -pm21.coeffs[1]
+        @test _coeffs(pm12)[1] == -_coeffs(pm21)[1]
     end
 
     @testset "Bosonic multi-mode" begin
-        reg, (c_op,) = create_bosonic_variables(1:4)
+        reg, (c_op, _) = create_bosonic_variables(1:4)
 
         # Get raw indices
         c1 = c_op[1].word[1]  # mode 1 annihilation
         c2 = c_op[2].word[1]  # mode 2 annihilation
 
         # Different modes commute: c₁ c₂ = c₂ c₁
-        pm12 = PhysicsMonomial{BosonicAlgebra}(Int32[c1, c2])
-        pm21 = PhysicsMonomial{BosonicAlgebra}(Int32[c2, c1])
+        pm12 = simplify(BosonicAlgebra, Int32[c1, c2])
+        pm21 = simplify(BosonicAlgebra, Int32[c2, c1])
 
         # Both should be equal (modes commute)
-        @test length(pm12.coeffs) == length(pm21.coeffs)
-        @test length(pm12.coeffs) == 1
-        @test pm12.coeffs[1] == pm21.coeffs[1]
+        @test length(_pairs(pm12)) == length(_pairs(pm21))
+        @test length(_pairs(pm12)) == 1
+        @test _coeffs(pm12)[1] == _coeffs(pm21)[1]
     end
 
     @testset "NonCommutative multi-site" begin
@@ -1667,7 +1671,7 @@ end
         raw_word = UInt16[b, c, a, d]  # out of order by site
 
         # Test: stable sort by site in constructor
-        m = Monomial{NonCommutativeAlgebra}(raw_word)
+        m = NormalMonomial{NonCommutativeAlgebra}(raw_word)
         @test issorted(decode_site.(m.word))
     end
 end
@@ -1682,15 +1686,15 @@ end
         a, b = u[1].word[1], u[2].word[1]
 
         # u₁ u₁ should simplify to identity (U² = I)
-        m = Monomial{UnipotentAlgebra}(UInt16[a, a])
+        m = NormalMonomial{UnipotentAlgebra}(UInt16[a, a])
         @test isone(m)
 
         # u₁ u₂ u₁ u₂ should simplify to identity
-        m2 = Monomial{UnipotentAlgebra}(UInt16[a, b, a, b])
+        m2 = NormalMonomial{UnipotentAlgebra}(UInt16[a, b, a, b])
         @test isone(m2)
 
         # u₁ u₂ u₁ should simplify (cascade)
-        m3 = Monomial{UnipotentAlgebra}(UInt16[a, b, a])
+        m3 = NormalMonomial{UnipotentAlgebra}(UInt16[a, b, a])
         @test m3.word == [b]
     end
 
@@ -1699,16 +1703,16 @@ end
         a, b = p[1].word[1], p[2].word[1]
 
         # p₁ p₁ should simplify to p₁ (P² = P)
-        m = Monomial{ProjectorAlgebra}(UInt16[a, a])
+        m = NormalMonomial{ProjectorAlgebra}(UInt16[a, a])
         @test m.word == [a]
 
         # p₁ p₁ p₁ should simplify to p₁
-        m2 = Monomial{ProjectorAlgebra}(UInt16[a, a, a])
+        m2 = NormalMonomial{ProjectorAlgebra}(UInt16[a, a, a])
         @test m2.word == [a]
 
         # p₁ p₂ p₁ stays as-is after site-sorting (different sites don't simplify directly)
         # But order should be sorted by site
-        m3 = Monomial{ProjectorAlgebra}(UInt16[a, b, a])
+        m3 = NormalMonomial{ProjectorAlgebra}(UInt16[a, b, a])
         @test issorted(decode_site.(m3.word))
     end
 
@@ -1717,14 +1721,14 @@ end
         x, y = σx[1].word[1], σy[1].word[1]
 
         # σx₁ σy₁ is NOT canonical (should be iσz₁)
-        @test_throws ArgumentError Monomial{PauliAlgebra}([x, y])
+        @test_throws ArgumentError NormalMonomial{PauliAlgebra}([x, y])
 
         # σx₁ alone IS canonical
-        m = Monomial{PauliAlgebra}([x])
+        m = NormalMonomial{PauliAlgebra}([x])
         @test m.word == [x]
 
         # Identity is canonical
-        m_id = Monomial{PauliAlgebra}(Int[])
+        m_id = NormalMonomial{PauliAlgebra}(Int[])
         @test isone(m_id)
     end
 
@@ -1734,14 +1738,14 @@ end
         cre = -ann              # creation (negative)
 
         # a₁ a₁† is NOT normal-ordered (should be 1 - a₁†a₁)
-        @test_throws ArgumentError Monomial{FermionicAlgebra}([ann, cre])
+        @test_throws ArgumentError NormalMonomial{FermionicAlgebra}([ann, cre])
 
         # a₁†a₁ IS normal-ordered
-        m = Monomial{FermionicAlgebra}([cre, ann])
+        m = NormalMonomial{FermionicAlgebra}([cre, ann])
         @test m.word == [cre, ann]
 
         # Identity is normal-ordered
-        m_id = Monomial{FermionicAlgebra}(Int32[])
+        m_id = NormalMonomial{FermionicAlgebra}(Int32[])
         @test isone(m_id)
     end
 
@@ -1751,14 +1755,14 @@ end
         cre = -ann
 
         # c₁ c₁† is NOT normal-ordered
-        @test_throws ArgumentError Monomial{BosonicAlgebra}([ann, cre])
+        @test_throws ArgumentError NormalMonomial{BosonicAlgebra}([ann, cre])
 
         # c₁†c₁ IS normal-ordered
-        m = Monomial{BosonicAlgebra}([cre, ann])
+        m = NormalMonomial{BosonicAlgebra}([cre, ann])
         @test m.word == [cre, ann]
 
         # Identity is normal-ordered
-        m_id = Monomial{BosonicAlgebra}(Int32[])
+        m_id = NormalMonomial{BosonicAlgebra}(Int32[])
         @test isone(m_id)
     end
 
@@ -1768,7 +1772,7 @@ end
 
         # Out of order by site
         raw = UInt16[c, a, b]
-        m = Monomial{NonCommutativeAlgebra}(raw)
+        m = NormalMonomial{NonCommutativeAlgebra}(raw)
 
         # Should be sorted by site
         @test issorted(decode_site.(m.word))

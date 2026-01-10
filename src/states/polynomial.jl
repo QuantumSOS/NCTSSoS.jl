@@ -19,9 +19,9 @@ Represents a sum of state words with coefficients: sum_i c_i * sw_i
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{ProjectorAlgebra}(UInt8[1, 2]);
+julia> m1 = NormalMonomial{ProjectorAlgebra}(UInt8[1, 2]);
 
-julia> m2 = Monomial{ProjectorAlgebra}(UInt8[3]);
+julia> m2 = NormalMonomial{ProjectorAlgebra}(UInt8[3]);
 
 julia> sw1 = StateWord{Arbitrary}([m1]);
 
@@ -407,32 +407,64 @@ Scalar multiplication (scalar on right).
 Base.:(*)(sp::StatePolynomial, c::Number) = c * sp
 
 """
-    Base.:(*)(sp::StatePolynomial{C,ST,A,T}, m::Monomial{A,T}) where {C,ST,A,T}
+    Base.:(*)(sp::StatePolynomial{C,ST,A,T}, m::NormalMonomial{A,T}) where {C,ST,A,T}
 
-Multiply a StatePolynomial by a Monomial (on the right).
-Equivalent to multiplying by one(Polynomial) - used in expressions like `sp * one(Monomial)`.
+Multiply a StatePolynomial by a NormalMonomial (on the right).
+Equivalent to multiplying by `one(Polynomial)` - used in expressions like `sp * one(NormalMonomial)`.
 The result is an NCStatePolynomial since it now has both state and non-commutative parts.
 """
 function Base.:(*)(
-    sp::StatePolynomial{C,ST,A,T}, m::Monomial{A,T}
+    sp::StatePolynomial{C,ST,A,T}, m::NormalMonomial{A,T}
 ) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     # Convert to NCStatePolynomial
     nc_sws = [NCStateWord(sw, m) for sw in sp.state_words]
     NCStatePolynomial(copy(sp.coeffs), nc_sws)
 end
 
-"""
-    Base.:(*)(m::Monomial{A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
+function Base.:(*)(
+    sp::StatePolynomial{C1,ST,A,T}, pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}},
+) where {C1<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(pairs) && throw(ArgumentError("cannot multiply by empty monomial expansion"))
+    _, mono = pairs[1]
+    return sp * mono
+end
 
-Multiply a Monomial by a StatePolynomial (on the left).
+function Base.:(*)(
+    sp::StatePolynomial{C1,ST,A,T}, m::Monomial{A,T},
+) where {C1<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(m) && throw(ArgumentError("cannot multiply by empty monomial expansion"))
+    _, mono = m[1]
+    return sp * mono
+end
+
+"""
+    Base.:(*)(m::NormalMonomial{A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
+
+Multiply a NormalMonomial by a StatePolynomial (on the left).
 """
 function Base.:(*)(
-    m::Monomial{A,T}, sp::StatePolynomial{C,ST,A,T}
+    m::NormalMonomial{A,T}, sp::StatePolynomial{C,ST,A,T}
 ) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     # Convert to NCStatePolynomial - but with monomial on left
     # NCStateWord stores nc_word first, so m * sw means nc_word = m, state_part = sw
     nc_sws = [NCStateWord(sw, m) for sw in sp.state_words]
     NCStatePolynomial(copy(sp.coeffs), nc_sws)
+end
+
+function Base.:(*)(
+    pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}, sp::StatePolynomial{C2,ST,A,T},
+) where {C2<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(pairs) && throw(ArgumentError("cannot multiply by empty monomial expansion"))
+    _, mono = pairs[1]
+    return mono * sp
+end
+
+function Base.:(*)(
+    m::Monomial{A,T}, sp::StatePolynomial{C2,ST,A,T},
+) where {C2<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(m) && throw(ArgumentError("cannot multiply by empty monomial expansion"))
+    _, mono = m[1]
+    return mono * sp
 end
 
 """
@@ -596,7 +628,7 @@ Converts each term's monomial to a StateWord{Arbitrary}.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{ProjectorAlgebra}(UInt8[1, 2]);
+julia> m = NormalMonomial{ProjectorAlgebra}(UInt8[1, 2]);
 
 julia> p = Polynomial([Term(1.0, m)]);
 
@@ -636,7 +668,7 @@ Same as StatePolynomial: sorted, unique, non-zero coefficients.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{ProjectorAlgebra}(UInt8[1]);
+julia> m1 = NormalMonomial{ProjectorAlgebra}(UInt8[1]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 
@@ -759,7 +791,7 @@ end
 Get variable indices from an NCStateWord.
 
 This is an alias for `variables()` that matches the naming convention used
-by regular Monomial types.
+by regular NormalMonomial types.
 """
 function variable_indices(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
     variables(ncsw)

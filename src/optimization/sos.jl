@@ -127,7 +127,7 @@ obj = objective_value(sos.model)
 
 See also: [`MomentProblem`](@ref), [`moment_relax`](@ref), [`SOSProblem`](@ref)
 """
-function sos_dualize(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}, P<:Polynomial{A,TI}}
+function sos_dualize(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     # Determine if complex based on algebra type
     is_complex = _is_complex_problem(A)
 
@@ -151,7 +151,7 @@ Internal: Dualize a real-valued symbolic moment problem.
 For real algebras (NonCommutative, Projector, Unipotent), constraints use
 standard PSD cones without complex embedding.
 """
-function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}, P<:Polynomial{A,TI}}
+function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     # Get coefficient type from polynomial
     C = eltype(coefficients(mp.objective))
 
@@ -342,7 +342,7 @@ H in HPSD <=> [Re(H), -Im(H); Im(H), Re(H)] in PSD
 For the dual SOS problem, we create 2n x 2n matrix variables and extract
 the real and imaginary parts of the SOS multiplier from the block structure.
 """
-function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}, P<:Polynomial{A,TI}}
+function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     # Get coefficient type (should be complex for these algebras)
     C = eltype(coefficients(mp.objective))
     RC = real(C)  # Real coefficient type for dual model
@@ -459,4 +459,3 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
 
     return SOSProblem(dual_model, n_basis)
 end
-

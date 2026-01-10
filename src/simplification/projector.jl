@@ -29,7 +29,7 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = Monomial{ProjectorAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
+julia> m = NormalMonomial{ProjectorAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
 
 julia> result = simplify(m);
 
@@ -39,7 +39,7 @@ true
 """
 
 # =============================================================================
-# Validation (for Monomial constructor)
+# Validation (for NormalMonomial constructor)
 # =============================================================================
 
 """
@@ -51,7 +51,7 @@ Canonical form requirements:
 - Sites sorted in ascending order
 - No consecutive identical operators (no P² terms)
 
-This is used by `Monomial{ProjectorAlgebra,T}` constructor to enforce invariants.
+This is used by `NormalMonomial{ProjectorAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_projector_word!(word::Vector{T}) where {T<:Unsigned}
     _validate_site_sorted_word!(
@@ -62,6 +62,10 @@ function _validate_projector_word!(word::Vector{T}) where {T<:Unsigned}
         duplicate_hint="Use simplify for raw words."
     )
 end
+
+# Connect validation hook used by `NormalMonomial{A,T}` inner constructor.
+_validate_word!(::Type{ProjectorAlgebra}, word::Vector{T}) where {T<:Unsigned} =
+    _validate_projector_word!(word)
 
 # =============================================================================
 # Simplification
@@ -104,7 +108,7 @@ function _simplify_projector_word!(word::Vector{T}) where {T<:Unsigned}
 end
 
 """
-    simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
+    simplify!(m::NormalMonomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> NormalMonomial
 
 In-place simplification of a projector algebra monomial.
 
@@ -113,17 +117,17 @@ Mutates the input monomial's word vector and returns the same monomial.
 # Warning
 This mutates the input monomial. Use `simplify` for a non-mutating version.
 """
-function simplify!(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
+function simplify!(m::NormalMonomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     _simplify_projector_word!(m.word)
     return m
 end
 
 """
-    simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
+    simplify(m::NormalMonomial{ProjectorAlgebra,T}) where {T<:Unsigned} -> Monomial
 
 Simplify a projector algebra monomial with site-aware commutation and idempotency.
 
-Returns a new simplified Monomial (no coefficient changes, just reordering and collapsing).
+Returns a new simplified NormalMonomial (no coefficient changes, just reordering and collapsing).
 The original monomial is unchanged.
 
 # Examples
@@ -134,7 +138,7 @@ julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
-julia> m = Monomial{ProjectorAlgebra}([idx1_s1, idx1_s1, idx1_s1]);
+julia> m = NormalMonomial{ProjectorAlgebra}([idx1_s1, idx1_s1, idx1_s1]);
 
 julia> result = simplify(m);
 
@@ -145,10 +149,11 @@ julia> length(m.word)  # Original unchanged
 3
 ```
 """
-function simplify(m::Monomial{ProjectorAlgebra,T}) where {T<:Unsigned}
+function simplify(m::NormalMonomial{ProjectorAlgebra,T}) where {T<:Unsigned}
     word_copy = copy(m.word)
     _simplify_projector_word!(word_copy)
-    Monomial{ProjectorAlgebra,T}(word_copy)
+    mono = NormalMonomial{ProjectorAlgebra,T}(word_copy, _OWNED_NORMAL_MONOMIAL)
+    return Monomial(mono)
 end
 
 # =============================================================================
@@ -156,7 +161,7 @@ end
 # =============================================================================
 
 """
-    Monomial{ProjectorAlgebra}(word::Vector{T}) where {T<:Unsigned}
+    NormalMonomial{ProjectorAlgebra}(word::Vector{T}) where {T<:Unsigned}
 
 Construct a Projector monomial, auto-canonicalizing the input.
 
@@ -172,14 +177,14 @@ julia> using NCTSSoS: encode_index
 
 julia> p1 = encode_index(UInt16, 1, 1);
 
-julia> m = Monomial{ProjectorAlgebra}([p1, p1]);
+julia> m = NormalMonomial{ProjectorAlgebra}([p1, p1]);
 
 julia> m.word == [p1]  # p₁ p₁ = p₁
 true
 ```
 """
-function Monomial{ProjectorAlgebra}(word::Vector{T}) where {T<:Unsigned}
+function NormalMonomial{ProjectorAlgebra}(word::Vector{T}) where {T<:Unsigned}
     word_filtered = filter(!iszero, word)
-    canonical = _simplify_projector_word!(copy(word_filtered))
-    return Monomial{ProjectorAlgebra,T}(canonical)
+    _simplify_projector_word!(word_filtered)
+    return NormalMonomial{ProjectorAlgebra,T}(word_filtered, _OWNED_NORMAL_MONOMIAL)
 end

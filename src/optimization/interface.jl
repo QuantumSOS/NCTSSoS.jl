@@ -3,7 +3,7 @@
 # =============================================================================
 
 """
-    SparsityResult{A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+    SparsityResult{A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:NormalMonomial{A,TI}}
 
 Result of sparsity computation for polynomial optimization, before solving.
 
@@ -15,7 +15,7 @@ useful for debugging and inspecting the problem structure without running the so
 - `initial_activated_supps::Vector{Vector{M}}`: Initial activated supports per clique (before term sparsity iteration)
 - `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity blocks per clique
 """
-struct SparsityResult{A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+struct SparsityResult{A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:NormalMonomial{A,TI}}
     corr_sparsity::CorrelativeSparsity{A,TI,P,M}
     initial_activated_supps::Vector{Vector{M}}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
@@ -42,7 +42,7 @@ end
 # =============================================================================
 
 """
-    PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+    PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:NormalMonomial{A,TI}}
 
 Result of a polynomial optimization problem solution.
 
@@ -60,7 +60,7 @@ Result of a polynomial optimization problem solution.
 - `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix
 - `n_unique_moment_matrix_elements::Int`: Number of unique moment variables in all moment matrices (after canonicalization)
 """
-struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:NormalMonomial{A,TI}}
     objective::T
     sparsity::SparsityResult{A,TI,P,M}
     model::GenericModel{T}
@@ -93,7 +93,7 @@ function PolyOptResult(
     sparsity::SparsityResult{A,TI,P,M},
     model::GenericModel{T},
     n_unique_elements::Int
-) where {T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:Monomial{A,TI}}
+) where {T, A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:NormalMonomial{A,TI}}
     moment_matrix_sizes = _compute_moment_matrix_sizes(sparsity.cliques_term_sparsities)
 
     return PolyOptResult{T,A,TI,P,M}(
@@ -174,7 +174,7 @@ indices are in `clique_indices`.
 """
 function project_to_clique(poly::Polynomial{A,T,C}, clique_indices) where {A,T,C}
     clique_set = Set(clique_indices)
-    result_terms = Term{Monomial{A,T},C}[]
+    result_terms = Term{NormalMonomial{A,T},C}[]
     for (coef, mono) in zip(coefficients(poly), monomials(poly))
         if issubset(variable_indices(mono), clique_set)
             push!(result_terms, Term(coef, mono))

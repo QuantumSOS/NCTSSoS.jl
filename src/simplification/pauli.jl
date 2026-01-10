@@ -24,14 +24,16 @@ For index `idx`:
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁ = iσz₁
+julia> word = [1, 2];  # σx₁ σy₁ = iσz₁ (raw word; not in Pauli normal form)
 
-julia> t = simplify(m);
+julia> m = simplify(PauliAlgebra, word);  # canonical expansion as `Monomial`
 
-julia> t.coefficient
+julia> p = Polynomial(m);  # convert internal phase encoding to numeric coefficient
+
+julia> coefficients(p)[1]
 0.0 + 1.0im
 
-julia> t.monomial.word
+julia> monomials(p)[1].word
 1-element Vector{Int64}:
  3
 ```
@@ -64,7 +66,7 @@ Index = (site - 1) * 3 + type + 1
 @inline _pauli_index(site::Integer, type::Integer) = (site - 1) * 3 + type + 1
 
 # =============================================================================
-# Validation (for Monomial constructor)
+# Validation (for NormalMonomial constructor)
 # =============================================================================
 
 """
@@ -76,7 +78,7 @@ Canonical form requirements:
 - ≤1 operator per site (no σ² terms)
 - Sites sorted in ascending order
 
-This is used by `Monomial{PauliAlgebra,T}` constructor to enforce invariants.
+This is used by `NormalMonomial{PauliAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_pauli_word!(word::Vector{T}) where {T<:Integer}
     length(word) <= 1 && return nothing
@@ -92,13 +94,17 @@ function _validate_pauli_word!(word::Vector{T}) where {T<:Integer}
         elseif curr_site == prev_site
             throw(ArgumentError(
                 "Pauli word has multiple operators on site $curr_site " *
-                "(indices $(i-1) and $i). Use PauliMonomial for raw words."
+                "(indices $(i-1) and $i). Use simplify(PauliAlgebra, word) for raw words."
             ))
         end
         prev_site = curr_site
     end
     return nothing
 end
+
+# Connect validation hook used by `NormalMonomial{A,T}` inner constructor.
+_validate_word!(::Type{PauliAlgebra}, word::Vector{T}) where {T<:Integer} =
+    _validate_pauli_word!(word)
 
 # =============================================================================
 # Cyclic product table
@@ -225,7 +231,7 @@ phase_k ∈ 0:3 maps to (im)^phase_k: 0→1, 1→i, 2→-1, 3→-i
 end
 
 """
-    simplify(m::Monomial{PauliAlgebra,T}) where T -> Term{Monomial{PauliAlgebra,T},ComplexF64}
+    simplify(m::NormalMonomial{PauliAlgebra,T}) where T -> Monomial
 
 Simplify a Pauli algebra monomial.
 
@@ -241,7 +247,7 @@ The original monomial is unchanged.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁
+julia> m = NormalMonomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁
 
 julia> t = simplify(m);
 
@@ -258,27 +264,24 @@ julia> m.word  # Original unchanged
  2
 ```
 """
-function simplify(m::Monomial{PauliAlgebra,T}) where {T}
+function simplify(m::NormalMonomial{PauliAlgebra,T}) where {T}
     word_copy = copy(m.word)
     result, phase_k = _simplify_pauli_word!(word_copy)
-    mono = Monomial{PauliAlgebra,T}(result)
-    PauliMonomial{T}(mono, phase_k)
+    mono = NormalMonomial{PauliAlgebra,T}(result, _OWNED_NORMAL_MONOMIAL)
+    return Monomial(phase_k, mono)
 end
-
-# Note: simplify(pm::PauliMonomial) is defined in pauli_monomial.jl since
-# PauliMonomial is loaded after simplification modules
 
 # =============================================================================
 # Specialized Outer Constructor (validates, rejects non-canonical)
 # =============================================================================
 
 """
-    Monomial{PauliAlgebra}(word::Vector{T}) where {T<:Integer}
+    NormalMonomial{PauliAlgebra}(word::Vector{T}) where {T<:Integer}
 
 Construct a Pauli monomial, validating that the input is in canonical form.
 
 Throws `ArgumentError` if the word is not canonical. For non-canonical words,
-use `PauliMonomial(word)` which auto-canonicalizes and tracks phase.
+use `simplify(PauliAlgebra, word)` which auto-canonicalizes and returns a `Monomial`.
 
 Canonical form requirements:
 - ≤1 operator per site (no σ² terms)
@@ -288,19 +291,21 @@ Canonical form requirements:
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1]);  # σx₁ - canonical
+julia> m = NormalMonomial{PauliAlgebra}([1]);  # σx₁ - canonical
 
 julia> m.word
 1-element Vector{Int64}:
  1
 
-julia> Monomial{PauliAlgebra}([1, 2])  # σx₁ σy₁ - NOT canonical (same site)
-ERROR: ArgumentError: Pauli word has multiple operators on site 1 (indices 1 and 2). Use PauliMonomial for raw words.
+julia> NormalMonomial{PauliAlgebra}([1, 2])  # σx₁ σy₁ - NOT canonical (same site)
+ERROR: ArgumentError: Pauli word has multiple operators on site 1 (indices 1 and 2). Use simplify(PauliAlgebra, word) for raw words.
 ```
 """
-function Monomial{PauliAlgebra}(word::Vector{T}) where {T<:Integer}
+function NormalMonomial{PauliAlgebra}(word::Vector{T}) where {T<:Integer}
     word_filtered = filter(!iszero, word)
-    # Validate BEFORE allocation - throws ArgumentError if non-canonical
-    _validate_pauli_word!(word_filtered)
-    return Monomial{PauliAlgebra,T}(word_filtered)
+    return NormalMonomial{PauliAlgebra,T}(word_filtered, _OWNED_NORMAL_MONOMIAL)
+end
+
+function Base.:*(m1::NormalMonomial{PauliAlgebra,T}, m2::NormalMonomial{PauliAlgebra,T}) where {T<:Integer}
+    return simplify(PauliAlgebra, vcat(m1.word, m2.word))
 end

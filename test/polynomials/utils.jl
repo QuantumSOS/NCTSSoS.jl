@@ -1,5 +1,5 @@
 # NCTSSoS is loaded by parent runtests.jl
-    # Exported: get_ncbasis, create_noncommutative_variables, create_pauli_variables, create_unipotent_variables, indices, degree, Term, Polynomial, NormalMonomial, NonCommutativeAlgebra
+    # Exported: get_ncbasis, create_noncommutative_variables, create_pauli_variables, create_unipotent_variables, indices, degree, Polynomial, NormalMonomial, NonCommutativeAlgebra
 # Internal (not exported): encode_index, decode_operator_id, decode_site, get_ncbasis_deg
 using NCTSSoS: encode_index, decode_operator_id, decode_site, get_ncbasis_deg
 
@@ -82,7 +82,7 @@ using NCTSSoS: encode_index, decode_operator_id, decode_site, get_ncbasis_deg
 
         # Monomials from registry should multiply correctly
         m = x[1] * x[2]
-        @test m isa NormalMonomial
+        @test m isa Monomial{NonCommutativeAlgebra}
         @test degree(m) == 2
     end
 

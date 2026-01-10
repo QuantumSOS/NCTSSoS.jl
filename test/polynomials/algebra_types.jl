@@ -68,11 +68,6 @@ end
     @test coeff_type(NormalMonomial{ProjectorAlgebra,UInt16}) == Float64
     @test coeff_type(NormalMonomial{UnipotentAlgebra,UInt16}) == Float64
 
-    # Term: returns C (the coefficient type)
-    @test coeff_type(Term{NormalMonomial{PauliAlgebra,Int64},ComplexF64}) == ComplexF64
-    @test coeff_type(Term{NormalMonomial{NonCommutativeAlgebra,Int64},Float64}) == Float64
-    @test coeff_type(Term{NormalMonomial{FermionicAlgebra,Int32},Float32}) == Float32
-
     # Polynomial: returns C (the coefficient type)
     @test coeff_type(Polynomial{PauliAlgebra,Int64,ComplexF64}) == ComplexF64
     @test coeff_type(Polynomial{NonCommutativeAlgebra,Int64,Float64}) == Float64
@@ -83,10 +78,7 @@ end
     m = NormalMonomial{PauliAlgebra}([1, 4])
     @test coeff_type(m) == ComplexF64
 
-    t = Term(2.5, NormalMonomial{NonCommutativeAlgebra}([1]))
-    @test coeff_type(t) == Float64
-
-    p = Polynomial([Term(1.0 + 0im, NormalMonomial{PauliAlgebra}([1]))])
+    p = Polynomial([(1.0 + 0im, NormalMonomial{PauliAlgebra}([1]))])
     @test coeff_type(p) == ComplexF64
 end
 

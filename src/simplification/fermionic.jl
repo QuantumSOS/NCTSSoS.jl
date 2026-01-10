@@ -67,6 +67,16 @@ function has_even_parity(m::NormalMonomial{FermionicAlgebra,T}) where {T}
     return iseven(length(m.word))
 end
 
+function has_even_parity(m::Monomial{FermionicAlgebra,T}) where {T<:Integer}
+    isempty(m) && return true
+    parity = has_even_parity(m.words[1])
+    @inbounds for i in 2:length(m.words)
+        has_even_parity(m.words[i]) == parity ||
+            throw(ArgumentError("inconsistent parity in fermionic monomial expansion"))
+    end
+    return parity
+end
+
 """
     Base.iszero(m::NormalMonomial{FermionicAlgebra,T}) -> Bool
 
@@ -456,12 +466,12 @@ function simplify(m::NormalMonomial{FermionicAlgebra,T}) where {T}
 
     # Handle empty word
     if isempty(word)
-        return one(PBWMonomial{FermionicAlgebra,T})
+        return one(Monomial{FermionicAlgebra,T})
     end
 
     # Early exit for nilpotent monomials (aᵢ² = 0)
     if iszero(m)
-        return zero(PBWMonomial{FermionicAlgebra,T})
+        return zero(Monomial{FermionicAlgebra,T})
     end
 
     # Step 1: Find valid contractions

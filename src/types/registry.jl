@@ -108,6 +108,14 @@ end
 # Unicode subscript digits: ₀₁₂₃₄₅₆₇₈₉
 const SUBSCRIPT_DIGITS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
 
+@inline function _monomial_element_type(::Type{A}, ::Type{T}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    return Monomial{A,T,UInt8,NormalMonomial{A,T}}
+end
+
+@inline function _monomial_element_type(::Type{A}, ::Type{T}) where {A<:PBWAlgebra,T<:Integer}
+    return Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}
+end
+
 """
     _subscript_string(n::Int) -> String
 
@@ -312,15 +320,16 @@ function create_pauli_variables(subscripts)
     reg = VariableRegistry{PauliAlgebra, T}(idx_to_vars, variables_to_idx)
 
     # Build monomial vectors grouped by Pauli type (x, y, z)
-    σx = Vector{NormalMonomial{PauliAlgebra, T}}(undef, n_sites)
-    σy = Vector{NormalMonomial{PauliAlgebra, T}}(undef, n_sites)
-    σz = Vector{NormalMonomial{PauliAlgebra, T}}(undef, n_sites)
+    MT = _monomial_element_type(PauliAlgebra, T)
+    σx = Vector{MT}(undef, n_sites)
+    σy = Vector{MT}(undef, n_sites)
+    σz = Vector{MT}(undef, n_sites)
 
     for (site_idx, subscript) in enumerate(subscripts)
         subscript_str = _subscript_string(subscript)
-        σx[site_idx] = NormalMonomial{PauliAlgebra}([reg[Symbol("σx" * subscript_str)]])
-        σy[site_idx] = NormalMonomial{PauliAlgebra}([reg[Symbol("σy" * subscript_str)]])
-        σz[site_idx] = NormalMonomial{PauliAlgebra}([reg[Symbol("σz" * subscript_str)]])
+        σx[site_idx] = Monomial{PauliAlgebra}([reg[Symbol("σx" * subscript_str)]])
+        σy[site_idx] = Monomial{PauliAlgebra}([reg[Symbol("σy" * subscript_str)]])
+        σz[site_idx] = Monomial{PauliAlgebra}([reg[Symbol("σz" * subscript_str)]])
     end
 
     return (reg, (σx, σy, σz))
@@ -415,13 +424,14 @@ function _create_physical_variables(::Type{A}, subscripts, prefix::String) where
     reg = VariableRegistry{A, T}(idx_to_vars, variables_to_idx)
 
     # Build monomial vectors grouped by operator type (annihilation, creation)
-    annihilation = Vector{NormalMonomial{A, T}}(undef, n_modes)
-    creation = Vector{NormalMonomial{A, T}}(undef, n_modes)
+    MT = _monomial_element_type(A, T)
+    annihilation = Vector{MT}(undef, n_modes)
+    creation = Vector{MT}(undef, n_modes)
 
     for (i, subscript) in enumerate(subscripts)
         subscript_str = _subscript_string(subscript)
-        annihilation[i] = NormalMonomial{A}([reg[Symbol(prefix * subscript_str)]])
-        creation[i] = NormalMonomial{A}([reg[Symbol(prefix * "⁺" * subscript_str)]])
+        annihilation[i] = Monomial{A}([reg[Symbol(prefix * subscript_str)]])
+        creation[i] = Monomial{A}([reg[Symbol(prefix * "⁺" * subscript_str)]])
     end
 
     return (reg, (annihilation, creation))
@@ -673,14 +683,15 @@ function _create_noncommutative_variables(
     reg = VariableRegistry{A, IndexT}(idx_to_vars, variables_to_idx)
 
     # Build grouped monomial vectors
-    monomial_groups = Vector{Vector{NormalMonomial{A, IndexT}}}()
+    MT = _monomial_element_type(A, IndexT)
+    monomial_groups = Vector{Vector{MT}}()
 
     for (prefix, subscripts) in prefix_subscripts
-        group = Vector{NormalMonomial{A, IndexT}}()
+        group = Vector{MT}()
         for subscript in subscripts
             sym = Symbol(prefix * _subscript_string(subscript))
             idx = reg[sym]
-            push!(group, NormalMonomial{A}([idx]))
+            push!(group, Monomial{A}([idx]))
         end
         push!(monomial_groups, group)
     end

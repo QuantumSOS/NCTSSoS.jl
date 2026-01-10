@@ -153,6 +153,32 @@ function _cyclic_symmetric_canon_site_sorted(word::Vector{T}, ::Type{A}) where {
 end
 
 """
+    _cyclic_symmetric_canon_site_sorted(word, ::Type{A}) where {A<:Union{ProjectorAlgebra,UnipotentAlgebra}}
+
+Projector / unipotent words can become invalid (adjacent duplicates) under cyclic rotation.
+Apply the algebra simplification to each candidate rotation before comparing.
+"""
+function _cyclic_symmetric_canon_site_sorted(
+    word::Vector{T},
+    ::Type{A},
+) where {T<:Unsigned, A<:Union{ProjectorAlgebra,UnipotentAlgebra}}
+    n = length(word)
+    n <= 1 && return copy(word)
+
+    best = NormalMonomial{A}(copy(word))
+
+    for base_word in (word, reverse(word))
+        for offset in 0:(n - 1)
+            rotation = [base_word[mod1(i + offset, n)] for i in 1:n]
+            candidate = NormalMonomial{A}(rotation)
+            isless(candidate, best) && (best = candidate)
+        end
+    end
+
+    return best.word
+end
+
+"""
     symmetric_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType, T<:Integer}
 
 Return a new monomial with the symmetrically canonical word.
@@ -172,6 +198,14 @@ julia> symmetric_canon(m).word
 # Two-level dispatch: entry point dispatches on trait
 symmetric_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _symmetric_canon(_site_trait(A, T), m)
+
+# User-facing: canonicalize a single-term monomial element (Monoid / twisted-group).
+function symmetric_canon(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    iszero(m) && return m
+    return Monomial(m.coeffs, symmetric_canon(m.words))
+end
 
 # NoSiteAware: use raw word algorithm
 # Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
@@ -275,6 +309,13 @@ julia> cyclic_canon(m).word
 cyclic_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _cyclic_canon(_site_trait(A, T), m)
 
+function cyclic_canon(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    iszero(m) && return m
+    return Monomial(m.coeffs, cyclic_canon(m.words))
+end
+
 # NoSiteAware: use raw word algorithm
 # Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
 _cyclic_canon(::NoSiteAware, m::NormalMonomial{A,T}) where {A,T} =
@@ -348,6 +389,13 @@ julia> cyclic_symmetric_canon(m).word
 cyclic_symmetric_canon(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} =
     _cyclic_symmetric_canon(_site_trait(A, T), m)
 
+function cyclic_symmetric_canon(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    iszero(m) && return m
+    return Monomial(m.coeffs, cyclic_symmetric_canon(m.words))
+end
+
 # NoSiteAware: use raw word algorithm
 # Use inner constructor NormalMonomial{A,T} to bypass validation (canonicalization preserves algebra validity)
 _cyclic_symmetric_canon(::NoSiteAware, m::NormalMonomial{A,T}) where {A,T} =
@@ -410,6 +458,13 @@ function canonicalize(m::NormalMonomial{A,T}; cyclic::Bool=false) where {A<:Alge
     end
 end
 
+function canonicalize(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}}; cyclic::Bool=false,
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    iszero(m) && return m
+    return Monomial(m.coeffs, canonicalize(m.words; cyclic=cyclic))
+end
+
 """
     canonicalize(p::Polynomial{A,T,C}; cyclic::Bool=false) where {A<:AlgebraType, T<:Integer, C<:Number}
 
@@ -435,7 +490,7 @@ julia> m1 = NormalMonomial{PauliAlgebra}([3, 2, 1]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}([1, 2, 3]);
 
-julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
+julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
 
 julia> p_canon = canonicalize(p);
 
@@ -454,7 +509,7 @@ function canonicalize(
     isempty(p.terms) && return zero(Polynomial{A,T,C})
 
     # Canonicalize each term's monomial
-    new_terms = [Term(t.coefficient, canonicalize(t.monomial; cyclic=cyclic)) for t in p.terms]
+    new_terms = [(c, canonicalize(m; cyclic=cyclic)) for (c, m) in p.terms]
 
     # Polynomial constructor handles sorting, deduplication, and zero removal
     Polynomial(new_terms)

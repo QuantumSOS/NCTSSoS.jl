@@ -24,11 +24,11 @@ abstract type AbstractPolynomial{C<:Number} end
 """
     Polynomial{A<:AlgebraType, T<:Integer, C<:Number}
 
-A polynomial represented as a sum of terms with coefficients.
+A polynomial represented as a sum of `(coefficient, monomial)` pairs.
 Maintains sorted, unique monomials with non-zero coefficients.
 
 # Fields
-- `terms::Vector{Term{NormalMonomial{A,T}, C}}`: Sorted terms with unique monomials and non-zero coefficients
+- `terms::Vector{Tuple{C,NormalMonomial{A,T}}}`: Sorted terms with unique monomials and non-zero coefficients
 
 # Type Parameters
 - `A<:AlgebraType`: Algebra type for dispatch (PauliAlgebra, FermionicAlgebra, etc.)
@@ -48,11 +48,7 @@ julia> m1 = NormalMonomial{PauliAlgebra}([1, 2]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}([3]);
 
-julia> t1 = Term(1.0 + 0.0im, m1);
-
-julia> t2 = Term(2.0 + 0.0im, m2);
-
-julia> p = Polynomial([t1, t2]);
+julia> p = Polynomial([(1.0 + 0.0im, m1), (2.0 + 0.0im, m2)]);
 
 julia> length(terms(p))
 2
@@ -67,7 +63,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1]);
 
-julia> p = Polynomial([Term(1.0+0im, m), Term(2.0+0im, m)]);  # Same monomial twice
+julia> p = Polynomial([(1.0+0im, m), (2.0+0im, m)]);  # Same monomial twice
 
 julia> length(terms(p))  # Combined into one term
 1
@@ -76,14 +72,14 @@ julia> coefficients(p)[1]  # Coefficients added
 3.0 + 0.0im
 ```
 
-See also: [`Term`](@ref), [`NormalMonomial`](@ref), [`coefficients`](@ref), [`monomials`](@ref)
+See also: [`NormalMonomial`](@ref), [`coefficients`](@ref), [`monomials`](@ref)
 """
 struct Polynomial{A<:AlgebraType,T<:Integer,C<:Number} <: AbstractPolynomial{C}
-    terms::Vector{Term{NormalMonomial{A,T},C}}
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}}
 
     # Inner constructor enforces invariants: sorted, deduplicated, non-zero coefficients
     function Polynomial{A,T,C}(
-        input_terms::Vector{Term{NormalMonomial{A,T},C}}
+        input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
     ) where {A<:AlgebraType,T<:Integer,C<:Number}
         return new{A,T,C}(input_terms)
     end
@@ -91,14 +87,14 @@ end
 
 # Delegate explicit type calls to the inner constructor
 function Polynomial(
-    input_terms::Vector{Term{NormalMonomial{A,T},C}}
+    input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     processed = _process_terms(input_terms, C)
     return Polynomial{A,T,C}(processed)
 end
 
 """
-    _process_terms(input_terms, C) -> Vector{Term}
+    _process_terms(input_terms, C) -> Vector{Tuple{C,NormalMonomial}}
 
 Process a vector of terms: sort by monomial, combine duplicates, remove zeros.
 This is the core algorithm for maintaining polynomial invariants.
@@ -110,33 +106,33 @@ This is the core algorithm for maintaining polynomial invariants.
 4. Filter out terms with zero coefficients
 """
 function _process_terms(
-    input_terms::Vector{Term{NormalMonomial{A,T},C}}, ::Type{C}
+    input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}, ::Type{C}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     isempty(input_terms) && return input_terms
 
     # Sort by monomial
-    sorted = sort(input_terms; by=t -> t.monomial)
+    sorted = sort(input_terms; by=t -> t[2])
 
     # Combine duplicates and filter zeros
-    result = Term{NormalMonomial{A,T},C}[]
-    current_mono = sorted[1].monomial
-    current_coef = sorted[1].coefficient
+    result = Tuple{C,NormalMonomial{A,T}}[]
+    current_coef, current_mono = sorted[1]
 
     for i in 2:length(sorted)
-        if sorted[i].monomial == current_mono
-            current_coef += sorted[i].coefficient
+        coef_i, mono_i = sorted[i]
+        if mono_i == current_mono
+            current_coef += coef_i
         else
             if !iszero(current_coef)
-                push!(result, Term(current_coef, current_mono))
+                push!(result, (current_coef, current_mono))
             end
-            current_mono = sorted[i].monomial
-            current_coef = sorted[i].coefficient
+            current_mono = mono_i
+            current_coef = coef_i
         end
     end
 
     # Don't forget the last accumulated term
     if !iszero(current_coef)
-        push!(result, Term(current_coef, current_mono))
+        push!(result, (current_coef, current_mono))
     end
 
     return result
@@ -147,7 +143,7 @@ end
 # =============================================================================
 
 """
-    Polynomial(t::Term{NormalMonomial{A,T}, C}) where {A,T,C}
+    Polynomial((c, m)::Tuple{C,NormalMonomial{A,T}}) where {A,T,C}
 
 Construct a polynomial from a single term.
 
@@ -157,19 +153,24 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1, 2]);
 
-julia> t = Term(3.0 + 0.0im, m);
-
-julia> p = Polynomial(t);
+julia> p = Polynomial((3.0 + 0.0im, m));
 
 julia> length(terms(p))
 1
 ```
 """
-function Polynomial(t::Term{NormalMonomial{A,T},C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    if iszero(t.coefficient)
-        return Polynomial{A,T,C}(Term{NormalMonomial{A,T},C}[])
+function Polynomial(t::Tuple{C,NormalMonomial{A,T}}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    coef, _ = t
+    if iszero(coef)
+        return Polynomial{A,T,C}(Tuple{C,NormalMonomial{A,T}}[])
     end
     return Polynomial{A,T,C}([t])
+end
+
+function Polynomial(t::Tuple{CIn,Monomial{A,T}}) where {CIn<:Number,A<:AlgebraType,T<:Integer}
+    coef, m = t
+    iszero(coef) && return zero(Polynomial{A,T,CIn})
+    return coef * Polynomial(m)
 end
 
 """
@@ -202,29 +203,42 @@ julia> coefficients(p)
 """
 function Polynomial(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     C = coeff_type(A)
-    return Polynomial(Term(one(C), m))
+    return Polynomial((one(C), m))
 end
 
 function Polynomial(
     pairs::Vector{Tuple{CIn,NormalMonomial{A,T}}},
 ) where {CIn,A<:AlgebraType,T<:Integer}
-    C = coeff_type(A)
-    terms = Term{NormalMonomial{A,T},C}[]
-    for (c_internal, mono) in pairs
-        c = _coeff_to_number(A, c_internal)
+    return Polynomial{A,T,CIn}(pairs)
+end
+
+function Polynomial(
+    pairs::Vector{Tuple{CIn,Monomial{A,T}}},
+) where {CIn<:Number,A<:AlgebraType,T<:Integer}
+    isempty(pairs) && return zero(Polynomial{A,T,CIn})
+
+    DC = coeff_type(A)
+    NC = promote_type(CIn, DC)
+    out = Tuple{NC,NormalMonomial{A,T}}[]
+    for (c, m) in pairs
         iszero(c) && continue
-        push!(terms, Term(c, mono))
+        for (c_internal, mono) in m
+            c2 = _coeff_to_number(mono, c_internal)
+            coef = NC(c * c2)
+            iszero(coef) && continue
+            push!(out, (coef, mono))
+        end
     end
-    return Polynomial(terms)
+    return Polynomial(out)
 end
 
 function Polynomial(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     C = coeff_type(A)
-    terms = Term{NormalMonomial{A,T},C}[]
+    terms = Tuple{C,NormalMonomial{A,T}}[]
     for (c_internal, mono) in m
         c = _coeff_to_number(mono, c_internal)
         iszero(c) && continue
-        push!(terms, Term(c, mono))
+        push!(terms, (c, mono))
     end
     return Polynomial(terms)
 end
@@ -233,13 +247,13 @@ end
     Polynomial(p::Polynomial{A,T,C}) where {A,T,C}
 
 Identity constructor: returns the polynomial unchanged.
-Useful for generic code that may receive NormalMonomial, Term, or Polynomial.
+Useful for generic code that may receive NormalMonomial or Polynomial.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> p1 = Polynomial([Term(2.0, NormalMonomial{PauliAlgebra}([1]))]);
+julia> p1 = Polynomial([(2.0 + 0.0im, NormalMonomial{PauliAlgebra}([1]))]);
 
 julia> p2 = Polynomial(p1);
 
@@ -272,9 +286,9 @@ true
 """
 function Polynomial{A,T,C}(c::Number) where {A<:AlgebraType,T<:Integer,C<:Number}
     if iszero(c)
-        return Polynomial{A,T,C}(Term{NormalMonomial{A,T},C}[])
+        return Polynomial{A,T,C}(Tuple{C,NormalMonomial{A,T}}[])
     end
-    return Polynomial{A,T,C}([Term(C(c), one(NormalMonomial{A,T}))])
+    return Polynomial{A,T,C}([(C(c), one(NormalMonomial{A,T}))])
 end
 
 # =============================================================================
@@ -295,7 +309,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[1]);
 
-julia> p_int = Polynomial([Term(2, m)]);  # Int64 coefficients
+julia> p_int = Polynomial([(2, m)]);  # Int coefficients
 
 julia> p_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_int);
 
@@ -305,7 +319,7 @@ julia> coefficients(p_float)[1]
 """
 function Base.convert(::Type{Polynomial{A,T,C2}}, p::Polynomial{A,T,C1}) where {A<:AlgebraType,T<:Integer,C1<:Number,C2<:Number}
     C1 === C2 && return p
-    new_terms = [Term(C2(t.coefficient), t.monomial) for t in p.terms]
+    new_terms = [(C2(c), m) for (c, m) in p.terms]
     return Polynomial{A,T,C2}(new_terms)
 end
 
@@ -335,7 +349,7 @@ julia> length(terms(p))
 ```
 """
 function Base.zero(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    return Polynomial{A,T,C}(Term{NormalMonomial{A,T},C}[])
+    return Polynomial{A,T,C}(Tuple{C,NormalMonomial{A,T}}[])
 end
 
 """
@@ -367,7 +381,7 @@ julia> coefficients(p)
 ```
 """
 function Base.one(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    return Polynomial{A,T,C}([Term(one(C), one(NormalMonomial{A,T}))])
+    return Polynomial{A,T,C}([(one(C), one(NormalMonomial{A,T}))])
 end
 
 """
@@ -385,10 +399,8 @@ end
 Create a shallow copy of the polynomial.
 """
 function Base.copy(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    # Create a new Polynomial with copied terms
-    # Since terms are mutable, we need to create new Term objects
-    copied_terms = [Term(t.coefficient, t.monomial) for t in p.terms]
-    return Polynomial{A,T,C}(copied_terms)
+    # Shallow copy: coefficients are immutable; monomials share underlying word storage.
+    return Polynomial{A,T,C}(copy(p.terms))
 end
 
 """
@@ -402,7 +414,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1]);
 
-julia> p = Polynomial([Term(1.0+0im, m), Term(-1.0+0im, m)]);  # Cancels out
+julia> p = Polynomial([(1.0+0im, m), (-1.0+0im, m)]);  # Cancels out
 
 julia> iszero(p)
 true
@@ -432,7 +444,8 @@ false
 """
 function Base.isone(p::Polynomial)
     length(p.terms) == 1 || return false
-    return isone(p.terms[1])
+    coef, mono = p.terms[1]
+    return isone(coef) && isone(mono)
 end
 
 # =============================================================================
@@ -440,25 +453,30 @@ end
 # =============================================================================
 
 """
-    terms(p::Polynomial) -> Vector{Term}
+    terms(p::Polynomial)
 
-Get the terms of the polynomial. Terms are sorted by monomial and have unique monomials.
+Iterate the polynomial as `(coefficient, monomial)` pairs.
+
+The returned monomials are `Monomial`s (user-facing algebra elements). Internally, the
+polynomial stores normal-form basis elements as `NormalMonomial`.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{PauliAlgebra}([1]);
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:1);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([2, 3]);
+julia> m1 = σx[1];
 
-julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
+julia> m2 = σy[1];
+
+julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
 
 julia> length(terms(p))
 2
 ```
 """
-terms(p::Polynomial) = p.terms
+terms(p::Polynomial) = p
 
 """
     coefficients(p::Polynomial) -> Vector{C}
@@ -473,7 +491,7 @@ julia> m1 = NormalMonomial{PauliAlgebra}([1]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}([2]);
 
-julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
+julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
 
 julia> coefficients(p)
 2-element Vector{ComplexF64}:
@@ -481,10 +499,10 @@ julia> coefficients(p)
  2.0 + 0.0im
 ```
 """
-coefficients(p::Polynomial) = [t.coefficient for t in p.terms]
+coefficients(p::Polynomial) = [c for (c, _) in p.terms]
 
 """
-    monomials(p::Polynomial) -> Vector{NormalMonomial}
+    monomials(p::Polynomial) -> Vector{Monomial}
 
 Extract the monomials of all terms in the polynomial.
 
@@ -492,11 +510,13 @@ Extract the monomials of all terms in the polynomial.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{PauliAlgebra}([1]);
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:1);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([2]);
+julia> m1 = σx[1];
 
-julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
+julia> m2 = σy[1];
+
+julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
 
 julia> ms = monomials(p);
 
@@ -504,7 +524,7 @@ julia> length(ms)
 2
 ```
 """
-monomials(p::Polynomial) = [t.monomial for t in p.terms]
+monomials(p::Polynomial{A,T}) where {A<:AlgebraType,T<:Integer} = [Monomial(m) for (_, m) in p.terms]
 
 """
     degree(p::Polynomial) -> Union{Int, Float64}
@@ -521,7 +541,7 @@ julia> m1 = NormalMonomial{PauliAlgebra}([1]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}([2, 3, 4]);
 
-julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
+julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
 
 julia> degree(p)
 3
@@ -532,7 +552,7 @@ julia> degree(zero(Polynomial{PauliAlgebra,Int64,ComplexF64}))
 """
 function degree(p::Polynomial)
     isempty(p.terms) && return -Inf
-    return maximum(degree(t.monomial) for t in p.terms)
+    return maximum(degree(m) for (_, m) in p.terms)
 end
 
 
@@ -551,7 +571,7 @@ julia> m1 = NormalMonomial{PauliAlgebra}([1, 2]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}([2, 3]);
 
-julia> p = Polynomial([Term(1.0+0im, m1), Term(1.0+0im, m2)]);
+julia> p = Polynomial([(1.0+0im, m1), (1.0+0im, m2)]);
 
 julia> variable_indices(p)
 Set{Int64} with 3 elements:
@@ -562,8 +582,8 @@ Set{Int64} with 3 elements:
 """
 function variable_indices(p::Polynomial{A,T,C}) where {A,T,C}
     result = Set{T}()
-    for t in p.terms
-        for idx in t.monomial.word
+    for (_, mono) in p.terms
+        for idx in mono.word
             # For signed types (Fermionic/Bosonic), use abs() to treat creation (-) and
             # annihilation (+) of the same mode as the same variable for sparsity analysis
             push!(result, T(abs(idx)))
@@ -651,8 +671,7 @@ function Base.:(==)(
     length(p1.terms) != length(p2.terms) && return false
 
     for (t1, t2) in zip(p1.terms, p2.terms)
-        t1.monomial != t2.monomial && return false
-        t1.coefficient != t2.coefficient && return false
+        t1 != t2 && return false
     end
     return true
 end
@@ -664,8 +683,8 @@ Hash function for polynomial. Combines hashes of all terms.
 """
 function Base.hash(p::Polynomial, h::UInt)
     h = hash(:Polynomial, h)
-    for t in p.terms
-        h = hash(t.coefficient, hash(t.monomial, h))
+    for (c, m) in p.terms
+        h = hash(c, hash(m, h))
     end
     return h
 end
@@ -685,9 +704,32 @@ function Base.isless(
 
     # Then compare term-by-term (by monomial)
     for (t1, t2) in zip(p1.terms, p2.terms)
-        t1.monomial != t2.monomial && return isless(t1.monomial, t2.monomial)
+        t1[2] != t2[2] && return isless(t1[2], t2[2])
     end
     return false  # Equal polynomials
+end
+
+function _show_term(io::IO, coef::Number, mono)
+    if iszero(coef)
+        print(io, "0")
+    elseif isone(coef) && isone(mono)
+        print(io, "1")
+    elseif isempty(mono.word)
+        print(io, coef)
+    elseif coef == one(typeof(coef))
+        show(io, mono)
+    elseif coef == -one(typeof(coef))
+        print(io, "-")
+        show(io, mono)
+    else
+        if !isreal(coef)
+            print(io, "(" * string(coef) * ") * ")
+        else
+            print(io, coef, " * ")
+        end
+        show(io, mono)
+    end
+    return nothing
 end
 
 # =============================================================================
@@ -706,11 +748,11 @@ function Base.show(io::IO, p::Polynomial{A,T,C}) where {A,T,C}
     end
 
     first_term = true
-    for t in p.terms
+    for (coef, mono) in p.terms
         if !first_term
             print(io, " + ")
         end
-        print(io, t)
+        _show_term(io, coef, mono)
         first_term = false
     end
 end
@@ -727,7 +769,7 @@ function Base.show(io::IO, m::Monomial{A,T}) where {A,T}
             print(io, " + ")
         end
         c = _coeff_to_number(mono, c_internal)
-        show(io, Term(c, mono))
+        _show_term(io, c, mono)
         first_term = false
     end
     return nothing
@@ -750,9 +792,9 @@ julia> m1 = NormalMonomial{PauliAlgebra}([1]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}([2]);
 
-julia> p1 = Polynomial(Term(1.0+0im, m1));
+julia> p1 = Polynomial((1.0+0im, m1));
 
-julia> p2 = Polynomial(Term(2.0+0im, m2));
+julia> p2 = Polynomial((2.0+0im, m2));
 
 julia> p_sum = p1 + p2;
 
@@ -766,8 +808,8 @@ function Base.:(+)(
     C = promote_type(C1, C2)
 
     # Convert terms to promoted coefficient type and concatenate
-    terms1 = [Term(C(t.coefficient), t.monomial) for t in p1.terms]
-    terms2 = [Term(C(t.coefficient), t.monomial) for t in p2.terms]
+    terms1 = [(C(c), m) for (c, m) in p1.terms]
+    terms2 = [(C(c), m) for (c, m) in p2.terms]
 
     return Polynomial(vcat(terms1, terms2))
 end
@@ -794,7 +836,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1]);
 
-julia> p = Polynomial(Term(2.0+0im, m));
+julia> p = Polynomial((2.0+0im, m));
 
 julia> p_neg = -p;
 
@@ -803,7 +845,7 @@ julia> coefficients(p_neg)[1]
 ```
 """
 function Base.:(-)(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    negated_terms = [Term(-t.coefficient, t.monomial) for t in p.terms]
+    negated_terms = [(-c, m) for (c, m) in p.terms]
     # No need to re-process since just negating coefficients preserves invariants
     return Polynomial{A,T,C}(negated_terms)
 end
@@ -827,9 +869,9 @@ julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt16[1]);
 
 julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt16[2]);
 
-julia> p1 = Polynomial(Term(2.0, m1));
+julia> p1 = Polynomial((2.0, m1));
 
-julia> p2 = Polynomial(Term(3.0, m2));
+julia> p2 = Polynomial((3.0, m2));
 
 julia> p_prod = p1 * p2;
 
@@ -849,18 +891,18 @@ function Base.:(*)(
     # `(c_internal, NormalMonomial)` pairs; `c_internal` may be an internal encoding (e.g. Pauli phase as `UInt8`).
     DC = coeff_type(A)
     NC = promote_type(C, DC)
-    result_terms = Term{NormalMonomial{A,T},NC}[]
+    result_terms = Tuple{NC,NormalMonomial{A,T}}[]
 
-    for t1 in p1.terms
-        for t2 in p2.terms
-            base_coef = t1.coefficient * t2.coefficient
+    for (coef1, mono1) in p1.terms
+        for (coef2, mono2) in p2.terms
+            base_coef = coef1 * coef2
             iszero(base_coef) && continue
 
-            for (coef2_internal, mono2) in simplify(t1.monomial * t2.monomial)
-                coef2 = _coeff_to_number(mono2, coef2_internal)
-                coef = NC(base_coef * coef2)
+            for (coef_prod_internal, mono_prod) in simplify(mono1 * mono2)
+                coef_prod = _coeff_to_number(mono_prod, coef_prod_internal)
+                coef = NC(base_coef * coef_prod)
                 iszero(coef) && continue
-                push!(result_terms, Term(coef, mono2))
+                push!(result_terms, (coef, mono_prod))
             end
         end
     end
@@ -879,7 +921,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1]);
 
-julia> p = Polynomial(Term(2.0+0im, m));
+julia> p = Polynomial((2.0+0im, m));
 
 julia> p2 = 3.0 * p;
 
@@ -893,7 +935,7 @@ function Base.:(*)(
     iszero(c) && return zero(Polynomial{A,T,promote_type(typeof(c), C)})
 
     NC = promote_type(typeof(c), C)
-    scaled_terms = [Term(NC(c * t.coefficient), t.monomial) for t in p.terms]
+    scaled_terms = [(NC(c * coef), mono) for (coef, mono) in p.terms]
     # Scaling preserves invariants (sorted, unique, non-zero if original was)
     return Polynomial{A,T,NC}(scaled_terms)
 end
@@ -924,8 +966,8 @@ julia> coefficients(p)[1]
 ```
 """
 function Base.:(*)(c::Number, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    iszero(c) && return Polynomial{A,T,typeof(c)}(Term{NormalMonomial{A,T},typeof(c)}[])
-    return Polynomial([Term(c, m)])
+    iszero(c) && return zero(Polynomial{A,T,typeof(c)})
+    return Polynomial([(typeof(c)(c), m)])
 end
 
 function Base.:(*)(
@@ -962,7 +1004,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1]);
 
-julia> p = Polynomial(Term(6.0+0im, m));
+julia> p = Polynomial((6.0+0im, m));
 
 julia> p2 = p / 2.0;
 
@@ -988,10 +1030,10 @@ function Base.:(+)(
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     NC = promote_type(typeof(c), C)
     # Create constant term with identity monomial
-    const_term = Term(NC(c), one(NormalMonomial{A,T}))
+    const_term = (NC(c), one(NormalMonomial{A,T}))
     const_poly = Polynomial([const_term])
     # Convert p to new coefficient type and add
-    p_converted = Polynomial([Term(NC(t.coefficient), t.monomial) for t in p.terms])
+    p_converted = Polynomial([(NC(coef), mono) for (coef, mono) in p.terms])
     return p_converted + const_poly
 end
 Base.:(+)(c::Number, p::Polynomial) = p + c
@@ -1006,7 +1048,7 @@ Add a monomial to a polynomial. Converts the monomial to a single-term polynomia
 ```jldoctest
 julia> using NCTSSoS
 
-julia> p = Polynomial([Term(1.0, NormalMonomial{NonCommutativeAlgebra}([1]))]);
+julia> p = Polynomial([(1.0, NormalMonomial{NonCommutativeAlgebra}([1]))]);
 
 julia> m = NormalMonomial{NonCommutativeAlgebra}([2, 3]);
 
@@ -1025,7 +1067,7 @@ function Base.:(+)(
     p::Polynomial{A,T,C}, m::NormalMonomial{A,T}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     # Convert monomial to polynomial and add
-    m_poly = Polynomial([Term(one(C), m)])
+    m_poly = Polynomial([(one(C), m)])
     return p + m_poly
 end
 
@@ -1060,7 +1102,7 @@ Subtract a monomial from a polynomial or vice versa.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> p = Polynomial([Term(1.0, NormalMonomial{NonCommutativeAlgebra}([1]))]);
+julia> p = Polynomial([(1.0, NormalMonomial{NonCommutativeAlgebra}([1]))]);
 
 julia> m = NormalMonomial{NonCommutativeAlgebra}([2, 3]);
 
@@ -1079,7 +1121,7 @@ function Base.:(-)(
     p::Polynomial{A,T,C}, m::NormalMonomial{A,T}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     # Convert monomial to polynomial with negative coefficient and add
-    m_poly = Polynomial([Term(-one(C), m)])
+    m_poly = Polynomial([(-one(C), m)])
     return p + m_poly
 end
 
@@ -1087,7 +1129,7 @@ function Base.:(-)(
     m::NormalMonomial{A,T}, p::Polynomial{A,T,C}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     # Convert monomial to polynomial and subtract p
-    m_poly = Polynomial([Term(one(C), m)])
+    m_poly = Polynomial([(one(C), m)])
     return m_poly - p
 end
 
@@ -1115,7 +1157,7 @@ function Base.:(-)(
     c::Number, p::Polynomial{A,T,C}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     NC = promote_type(typeof(c), C)
-    const_term = Term(NC(c), one(NormalMonomial{A,T}))
+    const_term = (NC(c), one(NormalMonomial{A,T}))
     const_poly = Polynomial([const_term])
     return const_poly + (-p)
 end
@@ -1138,7 +1180,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{NonCommutativeAlgebra}([1]);
 
-julia> p = Polynomial([Term(1.0, NormalMonomial{NonCommutativeAlgebra}([2])), Term(2.0, NormalMonomial{NonCommutativeAlgebra}([3]))]);
+julia> p = Polynomial([(1.0, NormalMonomial{NonCommutativeAlgebra}([2])), (2.0, NormalMonomial{NonCommutativeAlgebra}([3]))]);
 
 julia> result = m * p;
 
@@ -1162,7 +1204,7 @@ Multiply a polynomial by a monomial. Returns a Polynomial.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> p = Polynomial([Term(1.0, NormalMonomial{NonCommutativeAlgebra}([1])), Term(2.0, NormalMonomial{NonCommutativeAlgebra}([2]))]);
+julia> p = Polynomial([(1.0, NormalMonomial{NonCommutativeAlgebra}([1])), (2.0, NormalMonomial{NonCommutativeAlgebra}([2]))]);
 
 julia> m = NormalMonomial{NonCommutativeAlgebra}([3]);
 
@@ -1202,7 +1244,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt16[1]);
 
-julia> p = Polynomial(Term(2.0, m));
+julia> p = Polynomial((2.0, m));
 
 julia> p0 = p^0;
 
@@ -1245,7 +1287,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1, 2, 3]);
 
-julia> p = Polynomial(Term(1.0 + 2.0im, m));
+julia> p = Polynomial((1.0 + 2.0im, m));
 
 julia> p_adj = adjoint(p);
 
@@ -1268,7 +1310,7 @@ function Base.adjoint(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:
     isempty(p.terms) && return zero(Polynomial{A,T,C})
 
     # Adjoint of polynomial: adjoint each monomial, conjugate each coefficient
-    new_terms = [Term(conj(t.coefficient), adjoint(t.monomial)) for t in p.terms]
+    new_terms = [(conj(c), adjoint(m)) for (c, m) in p.terms]
     return Polynomial(new_terms)
 end
 
@@ -1326,17 +1368,16 @@ function simplify(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Numb
     # (e.g., ComplexF64 for Pauli even if input was Float64)
     DC = coeff_type(A)
     NC = promote_type(C, DC)
-    result_terms = Term{NormalMonomial{A,T},NC}[]
+    result_terms = Tuple{NC,NormalMonomial{A,T}}[]
 
-    for t in p.terms
-        base_coef = t.coefficient
+    for (base_coef, base_mono) in p.terms
         iszero(base_coef) && continue
 
-        for (coef2_internal, mono2) in simplify(t.monomial)
-            coef2 = _coeff_to_number(mono2, coef2_internal)
+        for (coef_internal, mono) in simplify(base_mono)
+            coef2 = _coeff_to_number(mono, coef_internal)
             coef = NC(base_coef * coef2)
             iszero(coef) && continue
-            push!(result_terms, Term(coef, mono2))
+            push!(result_terms, (coef, mono))
         end
     end
 
@@ -1348,15 +1389,14 @@ end
 # =============================================================================
 
 """
-    Base.iterate(p::Polynomial{A,T,C}) -> Union{Tuple{Tuple{C, NormalMonomial{A,T}}, Int}, Nothing}
-    Base.iterate(p::Polynomial{A,T,C}, state::Int) -> Union{Tuple{Tuple{C, NormalMonomial{A,T}}, Int}, Nothing}
+    Base.iterate(p::Polynomial{A,T,C})
+    Base.iterate(p::Polynomial{A,T,C}, state::Int)
 
 Iterate a Polynomial, yielding `(coefficient, monomial)` pairs for each term.
 
 This enables uniform processing of simplify results across all algebra types:
-- `NormalMonomial` (NonCommutative, Projector, Unipotent algebras) - yields 1 pair
-- `Term` (Pauli algebra) - yields 1 pair
-- `Polynomial` (Fermionic, Bosonic algebras) - yields N pairs
+- `Monomial` (canonical algebra element) - yields 0/1/N pairs (depending on algebra)
+- `Polynomial` - yields one `(coefficient, monomial)` pair per term
 
 All three types can be iterated with the same `for (coef, mono) in result` pattern.
 
@@ -1364,16 +1404,16 @@ All three types can be iterated with the same `for (coef, mono) in result` patte
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{PauliAlgebra}([1]);
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:1);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([2]);
+julia> m1 = σx[1];
 
-julia> p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)]);
+julia> m2 = σy[1];
 
-julia> collect(p)
-2-element Vector{Tuple{ComplexF64, NormalMonomial{PauliAlgebra, Int64}}}:
- (1.0 + 0.0im, NormalMonomial{PauliAlgebra, Int64}([1]))
- (2.0 + 0.0im, NormalMonomial{PauliAlgebra, Int64}([2]))
+julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
+
+julia> length(collect(p))
+2
 
 julia> for (coef, mono) in p
            println("Coefficient: \$coef, Degree: \$(degree(mono))")
@@ -1384,20 +1424,23 @@ Coefficient: 2.0 + 0.0im, Degree: 1
 """
 function Base.iterate(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
     isempty(p.terms) && return nothing
-    t = p.terms[1]
-    return ((t.coefficient, t.monomial), 2)
+    coef, mono = p.terms[1]
+    return ((coef, Monomial(mono)), 2)
 end
 
 function Base.iterate(
     p::Polynomial{A,T,C}, state::Int
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     state > length(p.terms) && return nothing
-    t = p.terms[state]
-    return ((t.coefficient, t.monomial), state + 1)
+    coef, mono = p.terms[state]
+    return ((coef, Monomial(mono)), state + 1)
 end
 
-Base.eltype(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number} =
-    Tuple{C,NormalMonomial{A,T}}
+Base.eltype(::Type{Polynomial{A,T,C}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer,C<:Number} =
+    Tuple{C,Monomial{A,T,UInt8,NormalMonomial{A,T}}}
+
+Base.eltype(::Type{Polynomial{A,T,C}}) where {A<:PBWAlgebra,T<:Integer,C<:Number} =
+    Tuple{C,Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}}
 
 # Length for iteration (number of terms)
 Base.length(p::Polynomial) = length(p.terms)

@@ -141,6 +141,11 @@ function simplify(m::NormalMonomial{NonCommutativeAlgebra,T}) where {T<:Unsigned
     return Monomial(mono)
 end
 
+function simplify(m::NormalMonomial{NonCommutativeAlgebra,T}) where {T<:Signed}
+    # No site encoding available for signed index types; treat as already canonical.
+    return Monomial(m)
+end
+
 # =============================================================================
 # Specialized Outer Constructor (auto-canonicalizes)
 # =============================================================================

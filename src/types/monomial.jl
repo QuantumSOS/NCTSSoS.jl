@@ -43,6 +43,29 @@ See also: [`NormalMonomial`](@ref), [`AbstractTensorMonomial`](@ref)
 abstract type AbstractMonomial{A<:AlgebraType,T<:Integer} <: AbstractTensorMonomial{Tuple{A}} end
 
 # =============================================================================
+# Shared helpers (keep NormalMonomial / Monomial definitions DRY)
+# =============================================================================
+
+@inline function _eq_same_algebra(::Type{A1}, ::Type{A2}, x1, x2) where {A1<:AlgebraType,A2<:AlgebraType}
+    A1 !== A2 && return false
+    return x1 == x2
+end
+
+@inline _hash_with_algebra(::Type{A}, payload, h::UInt) where {A<:AlgebraType} =
+    hash(A, hash(payload, h))
+
+"""
+    coeff_type(::Type{<:AbstractMonomial{A}}) where {A<:AlgebraType} -> Type{<:Number}
+
+Return the numeric coefficient type for monomials in algebra `A`.
+
+This is shared by `NormalMonomial`, simplified `Monomial` expansions, and state monomials
+(`StateSymbol`, `StateWord`) that carry the same algebra type parameter.
+"""
+coeff_type(::Type{<:AbstractMonomial{A}}) where {A<:AlgebraType} = coeff_type(A)
+coeff_type(m::AbstractMonomial) = coeff_type(typeof(m))
+
+# =============================================================================
 # Normal-form validation hook (extended by algebra-specific simplifiers)
 # =============================================================================
 
@@ -213,7 +236,7 @@ julia> m.word
 ```
 """
 function Base.:*(m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
-    return NormalMonomial{A}(vcat(m1.word, m2.word))
+    return Monomial(NormalMonomial{A}(vcat(m1.word, m2.word)))
 end
 
 """
@@ -230,9 +253,9 @@ This never constructs an invalid `NormalMonomial`.
 """
 function Base.:^(m::NormalMonomial{A,T}, n::Integer) where {A<:MonoidAlgebra,T<:Integer}
     n < 0 && throw(DomainError(n, "monomial exponent must be non-negative"))
-    n == 0 && return one(m)
-    n == 1 && return m
-    return NormalMonomial{A}(repeat(m.word, n))
+    n == 0 && return Monomial(one(m))
+    n == 1 && return Monomial(m)
+    return Monomial(NormalMonomial{A}(repeat(m.word, n)))
 end
 
 function Base.:^(m::NormalMonomial{A,T}, n::Integer) where {A<:Union{TwistedGroupAlgebra,PBWAlgebra},T<:Integer}
@@ -249,9 +272,7 @@ Equality comparison for monomials.
 Monomials of different algebra types are never equal (type-level distinction).
 """
 function Base.:(==)(m1::NormalMonomial{A1,T1}, m2::NormalMonomial{A2,T2}) where {A1,A2,T1,T2}
-    # Different algebra types are never equal
-    A1 !== A2 && return false
-    return m1.word == m2.word
+    return _eq_same_algebra(A1, A2, m1.word, m2.word)
 end
 
 """
@@ -263,7 +284,7 @@ The hash includes both the algebra type `A` and the word vector, ensuring that
 monomials from different algebras with the same word have different hashes.
 This maintains the hash/equality contract: if `m1 == m2`, then `hash(m1) == hash(m2)`.
 """
-Base.hash(m::NormalMonomial{A}, h::UInt) where {A} = hash(A, hash(m.word, h))
+Base.hash(m::NormalMonomial{A}, h::UInt) where {A} = _hash_with_algebra(A, m.word, h)
 
 """
     degree(m::NormalMonomial) -> Int
@@ -471,7 +492,7 @@ true
 """
 function Base.:(+)(m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Convert both monomials to polynomials and add
-    return Polynomial([Term(1.0, m1), Term(1.0, m2)])
+    return Polynomial([(1.0, m1), (1.0, m2)])
 end
 
 """
@@ -498,7 +519,7 @@ julia> length(terms(p2))
 function Base.:(+)(m::NormalMonomial{A,T}, c::Number) where {A<:AlgebraType,T<:Integer}
     # Create monomial term + constant term
     I = one(NormalMonomial{A,T})  # Identity monomial for constant
-    return Polynomial([Term(float(c), I), Term(1.0, m)])
+    return Polynomial([(float(c), I), (1.0, m)])
 end
 
 Base.:(+)(c::Number, m::NormalMonomial) = m + c
@@ -524,13 +545,13 @@ julia> coefficients(p)
 """
 function Base.:(-)(m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Convert both monomials to polynomials and subtract
-    return Polynomial([Term(1.0, m1), Term(-1.0, m2)])
+    return Polynomial([(1.0, m1), (-1.0, m2)])
 end
 
 """
     Base.:(-)(m::NormalMonomial{A,T}) where {A,T}
 
-Negate a monomial. Returns a Term with negated coefficient.
+    Negate a monomial. Returns a `(coefficient, monomial)` pair.
 
 # Examples
 ```jldoctest
@@ -538,14 +559,14 @@ julia> m = NormalMonomial{PauliAlgebra}([1, 2]);
 
 julia> t = -m;
 
-julia> t.coefficient
+julia> t[1]
 -1.0
 
-julia> t.monomial === m
+julia> t[2] === m
 true
 ```
 """
-Base.:(-)(m::NormalMonomial) = Term(-1.0, m)
+Base.:(-)(m::NormalMonomial) = (-1.0, m)
 
 """
     Base.:(-)(m::NormalMonomial{A,T}, c::Number) where {A,T}
@@ -570,12 +591,12 @@ julia> length(terms(p2))
 """
 function Base.:(-)(m::NormalMonomial{A,T}, c::Number) where {A<:AlgebraType,T<:Integer}
     I = one(NormalMonomial{A,T})
-    return Polynomial([Term(1.0, m), Term(-float(c), I)])
+    return Polynomial([(1.0, m), (-float(c), I)])
 end
 
 function Base.:(-)(c::Number, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     I = one(NormalMonomial{A,T})
-    return Polynomial([Term(float(c), I), Term(-1.0, m)])
+    return Polynomial([(float(c), I), (-1.0, m)])
 end
 
 # =============================================================================
@@ -696,16 +717,6 @@ true
 expval(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = m
 
 """
-    coeff_type(::Type{NormalMonomial{A,T}}) where {A,T} -> Type{<:Number}
-
-Return the default coefficient type for a NormalMonomial of algebra type A.
-"""
-coeff_type(::Type{NormalMonomial{A,T}}) where {A<:AlgebraType,T<:Integer} = coeff_type(A)
-
-# Instance method
-coeff_type(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = coeff_type(NormalMonomial{A,T})
-
-"""
     monomials(m::NormalMonomial{A,T}) where {A,T} -> Vector{NormalMonomial{A,T}}
 
 Return a single-element vector containing the monomial.
@@ -759,12 +770,146 @@ struct Monomial{A<:AlgebraType,T<:Integer,C,W} <: AbstractMonomial{A,T}
     words::W
 end
 
+# Compatibility: allow `m.word` to access the underlying word vector for single-term monomials.
+@inline function Base.getproperty(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+    s::Symbol,
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    s === :word && return getfield(getfield(m, :words), :word)
+    return getfield(m, s)
+end
+
+# =============================================================================
+# Expectation Value (compat for Monomial wrapper)
+# =============================================================================
+
+# `Monomial` is a user-facing wrapper around one (Monoid/TG) or many (PBW) normal-form
+# basis elements. Optimization code canonicalizes on `NormalMonomial`, so expose the
+# underlying normal word for single-term cases.
+expval(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} = m.words
+
+function expval(
+    m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
+) where {A<:PBWAlgebra,T<:Integer}
+    length(m.words) == 1 || throw(ArgumentError("expval(::Monomial) requires a single-term PBW monomial; got $(length(m.words)) terms"))
+    return m.words[1]
+end
+
+# `monomials` for `Monomial`: align with `monomials(::Polynomial)` returning user-facing `Monomial`s.
+monomials(m::Monomial{A,T,UInt8,NormalMonomial{A,T}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} =
+    iszero(m) ? Monomial{A,T,UInt8,NormalMonomial{A,T}}[] : [m]
+
+monomials(m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}) where {A<:PBWAlgebra,T<:Integer} =
+    [Monomial(w) for w in m.words]
+
+# Ordering for user-facing monomials (needed for `sort` / `searchsortedfirst` on `Vector{Monomial}`).
+function Base.isless(
+    m1::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+    m2::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    iszero(m1) != iszero(m2) && return iszero(m1)
+    m1.words != m2.words && return isless(m1.words, m2.words)
+    return m1.coeffs < m2.coeffs
+end
+
+function Base.isless(
+    m1::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
+    m2::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
+) where {A<:PBWAlgebra,T<:Integer}
+    length(m1.words) != length(m2.words) && return length(m1.words) < length(m2.words)
+    @inbounds for i in eachindex(m1.words)
+        w1 = m1.words[i]
+        w2 = m2.words[i]
+        w1 != w2 && return isless(w1, w2)
+        c1 = m1.coeffs[i]
+        c2 = m2.coeffs[i]
+        c1 != c2 && return c1 < c2
+    end
+    return false
+end
+
 # Reserved internal coefficient sentinel for "zero" in TwistedGroupAlgebra monomials.
 const _TG_ZERO = typemax(UInt8)  # 0xff
 
-# Concrete storage aliases (internal convenience).
-const ScalarMonomial{A,T} = Monomial{A,T,UInt8,NormalMonomial{A,T}}
-const PBWMonomial{A,T} = Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}
+# =============================================================================
+# Display (Monomial)
+# =============================================================================
+
+function Base.show(
+    io::IO,
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+) where {A<:MonoidAlgebra,T<:Integer}
+    iszero(m) && return print(io, "0")
+    return show(io, m.words)
+end
+
+function Base.show(
+    io::IO,
+    m::Monomial{PauliAlgebra,T,UInt8,NormalMonomial{PauliAlgebra,T}},
+) where {T<:Integer}
+    iszero(m) && return print(io, "0")
+
+    phase_k = m.coeffs
+    mono = m.words
+
+    phase_k == 0x00 && return show(io, mono)
+
+    if isone(mono)
+        phase_k == 0x01 && return print(io, "im")
+        phase_k == 0x02 && return print(io, "-1")
+        phase_k == 0x03 && return print(io, "-im")
+        return print(io, "(im)^", Int(phase_k))
+    end
+
+    phase_k == 0x01 && print(io, "im*")
+    phase_k == 0x02 && print(io, "-")
+    phase_k == 0x03 && print(io, "-im*")
+    return show(io, mono)
+end
+
+function Base.show(
+    io::IO,
+    m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
+) where {A<:PBWAlgebra,T<:Integer}
+    iszero(m) && return print(io, "0")
+
+    first_term = true
+    for (c, mono) in m
+        c == 0 && continue
+
+        if first_term
+            if c == -1
+                print(io, "-")
+                show(io, mono)
+            elseif c == 1
+                show(io, mono)
+            else
+                print(io, c, "*")
+                show(io, mono)
+            end
+            first_term = false
+            continue
+        end
+
+        if c < 0
+            print(io, " - ")
+            c = -c
+        else
+            print(io, " + ")
+        end
+
+        if c == 1
+            show(io, mono)
+        else
+            print(io, c, "*")
+            show(io, mono)
+        end
+    end
+
+    return nothing
+end
 
 # -----------------------------
 # Monomial constructors
@@ -801,14 +946,14 @@ function Monomial(c::UInt8, m::NormalMonomial{A,T}) where {A<:Union{MonoidAlgebr
 end
 
 function Monomial(c::Int, m::NormalMonomial{A,T}) where {A<:PBWAlgebra,T<:Integer}
-    return PBWMonomial{A,T}(Int[c], [m])
+    return Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}(Int[c], [m])
 end
 
 function Monomial(coeffs::Vector{Int}, words::Vector{NormalMonomial{A,T}}) where {A<:PBWAlgebra,T<:Integer}
     length(coeffs) == length(words) || throw(ArgumentError(
         "Monomial coeffs/words length mismatch: $(length(coeffs)) vs $(length(words))"
     ))
-    return PBWMonomial{A,T}(coeffs, words)
+    return Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}(coeffs, words)
 end
 
 function Monomial(pairs::Vector{Tuple{Int,NormalMonomial{A,T}}}) where {A<:PBWAlgebra,T<:Integer}
@@ -822,6 +967,43 @@ function Monomial(pairs::Vector{Tuple{Int,NormalMonomial{A,T}}}) where {A<:PBWAl
 end
 
 # -----------------------------
+# Addition / subtraction (Monomial)
+# -----------------------------
+
+function Base.:(+)(
+    m1::Monomial{A,T},
+    m2::Monomial{A,T},
+) where {A<:AlgebraType,T<:Integer}
+    return Polynomial(m1) + Polynomial(m2)
+end
+
+function Base.:(+)(
+    m::Monomial{A,T},
+    c::Number,
+) where {A<:AlgebraType,T<:Integer}
+    return Polynomial(m) + c
+end
+
+Base.:(+)(c::Number, m::Monomial) = m + c
+
+function Base.:(-)(
+    m1::Monomial{A,T},
+    m2::Monomial{A,T},
+) where {A<:AlgebraType,T<:Integer}
+    return Polynomial(m1) - Polynomial(m2)
+end
+
+Base.:(-)(m::Monomial, c::Number) = Polynomial(m) - c
+Base.:(-)(c::Number, m::Monomial) = c - Polynomial(m)
+Base.:(-)(m::Monomial) = -Polynomial(m)
+
+# Cross-type arithmetic: promote `NormalMonomial` to `Monomial` when mixed.
+Base.:(+)(m::NormalMonomial{A,T}, n::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = Monomial(m) + n
+Base.:(+)(n::Monomial{A,T}, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = n + Monomial(m)
+Base.:(-)(m::NormalMonomial{A,T}, n::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = Monomial(m) - n
+Base.:(-)(n::Monomial{A,T}, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = n - Monomial(m)
+
+# -----------------------------
 # Iteration / term interface
 # -----------------------------
 
@@ -832,30 +1014,47 @@ Iterate the canonical expansion of a monomial element as `(c_internal, NormalMon
 """
 terms(m::Monomial) = m
 
-function Base.iterate(m::ScalarMonomial{A,T}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+function Base.iterate(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}}
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
     iszero(m) && return nothing
     return ((m.coeffs, m.words), nothing)
 end
 
-Base.iterate(::ScalarMonomial{A,T}, ::Nothing) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} = nothing
+Base.iterate(
+    ::Monomial{A,T,UInt8,NormalMonomial{A,T}}, ::Nothing,
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} = nothing
 
-function Base.iterate(m::PBWMonomial{A,T}, i::Int=1) where {A<:PBWAlgebra,T<:Integer}
+function Base.iterate(
+    m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
+    i::Int=1,
+) where {A<:PBWAlgebra,T<:Integer}
     i > length(m.coeffs) && return nothing
     return ((m.coeffs[i], m.words[i]), i + 1)
 end
 
-# Let `collect(m::Monomial)` infer a concrete element type (avoid `Vector{Any}`).
-Base.IteratorEltype(::Type{<:Monomial}) = Base.HasEltype()
-Base.eltype(::Type{ScalarMonomial{A,T}}) where {A<:AlgebraType,T<:Integer} = Tuple{UInt8,NormalMonomial{A,T}}
-Base.eltype(::Type{PBWMonomial{A,T}}) where {A<:PBWAlgebra,T<:Integer} = Tuple{Int,NormalMonomial{A,T}}
+# Note: we intentionally do not override `Base.IteratorEltype` here.
+# Some tooling (ExplicitImports) forbids qualified access to non-public Base internals
+# like `Base.HasEltype`. `Base.eltype` below is still provided for callers that need it.
+Base.eltype(::Type{Monomial{A,T,UInt8,NormalMonomial{A,T}}}) where {A<:AlgebraType,T<:Integer} =
+    Tuple{UInt8,NormalMonomial{A,T}}
+
+Base.eltype(::Type{Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}}) where {A<:PBWAlgebra,T<:Integer} =
+    Tuple{Int,NormalMonomial{A,T}}
 
 # Optional indexing support (keeps callers simple; Monomial is not an AbstractVector).
-function Base.getindex(m::ScalarMonomial{A,T}, i::Int) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+function Base.getindex(
+    m::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+    i::Int,
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
     (i == 1 && !iszero(m)) && return (m.coeffs, m.words)
     throw(BoundsError(m, i))
 end
 
-function Base.getindex(m::PBWMonomial{A,T}, i::Int) where {A<:PBWAlgebra,T<:Integer}
+function Base.getindex(
+    m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
+    i::Int,
+) where {A<:PBWAlgebra,T<:Integer}
     return (m.coeffs[i], m.words[i])
 end
 
@@ -863,37 +1062,58 @@ end
 # Zero/one + size
 # -----------------------------
 
-Base.iszero(m::PBWMonomial) = isempty(m.coeffs)
-Base.iszero(m::ScalarMonomial{A}) where {A<:MonoidAlgebra} = m.coeffs == 0x00
-Base.iszero(m::ScalarMonomial{A}) where {A<:TwistedGroupAlgebra} = m.coeffs == _TG_ZERO
+Base.iszero(m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}) where {A<:PBWAlgebra,T<:Integer} =
+    isempty(m.coeffs)
+
+Base.iszero(m::Monomial{A,T,UInt8,NormalMonomial{A,T}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} =
+    m.coeffs == _zero_internal_coeff(A)
 
 Base.isempty(m::Monomial) = iszero(m)
 
-Base.length(m::PBWMonomial) = length(m.coeffs)
-Base.length(m::ScalarMonomial) = iszero(m) ? 0 : 1
+Base.length(m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}) where {A<:PBWAlgebra,T<:Integer} =
+    length(m.coeffs)
 
-function Base.zero(::Type{ScalarMonomial{A,T}}) where {A<:MonoidAlgebra,T<:Integer}
+Base.length(m::Monomial{A,T,UInt8,NormalMonomial{A,T}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} =
+    iszero(m) ? 0 : 1
+
+function Base.zero(
+    ::Type{Monomial{A,T,UInt8,NormalMonomial{A,T}}},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
     return Monomial{A,T,UInt8,NormalMonomial{A,T}}(_zero_internal_coeff(A), one(NormalMonomial{A,T}))
 end
 
-function Base.one(::Type{ScalarMonomial{A,T}}) where {A<:MonoidAlgebra,T<:Integer}
+function Base.one(
+    ::Type{Monomial{A,T,UInt8,NormalMonomial{A,T}}},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
     return Monomial{A,T,UInt8,NormalMonomial{A,T}}(_unit_internal_coeff(A), one(NormalMonomial{A,T}))
 end
 
-function Base.zero(::Type{ScalarMonomial{A,T}}) where {A<:TwistedGroupAlgebra,T<:Integer}
-    return Monomial{A,T,UInt8,NormalMonomial{A,T}}(_zero_internal_coeff(A), one(NormalMonomial{A,T}))
+function Base.zero(
+    ::Type{Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}},
+) where {A<:PBWAlgebra,T<:Integer}
+    return Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}(Int[], NormalMonomial{A,T}[])
 end
 
-function Base.one(::Type{ScalarMonomial{A,T}}) where {A<:TwistedGroupAlgebra,T<:Integer}
-    return Monomial{A,T,UInt8,NormalMonomial{A,T}}(_unit_internal_coeff(A), one(NormalMonomial{A,T}))
+function Base.one(
+    ::Type{Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}},
+) where {A<:PBWAlgebra,T<:Integer}
+    return Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}(Int[1], [one(NormalMonomial{A,T})])
 end
 
-function Base.zero(::Type{PBWMonomial{A,T}}) where {A<:PBWAlgebra,T<:Integer}
-    return PBWMonomial{A,T}(Int[], NormalMonomial{A,T}[])
+function Base.zero(::Type{Monomial{A,T}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    return zero(Monomial{A,T,UInt8,NormalMonomial{A,T}})
 end
 
-function Base.one(::Type{PBWMonomial{A,T}}) where {A<:PBWAlgebra,T<:Integer}
-    return PBWMonomial{A,T}(Int[1], [one(NormalMonomial{A,T})])
+function Base.one(::Type{Monomial{A,T}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    return one(Monomial{A,T,UInt8,NormalMonomial{A,T}})
+end
+
+function Base.zero(::Type{Monomial{A,T}}) where {A<:PBWAlgebra,T<:Integer}
+    return zero(Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}})
+end
+
+function Base.one(::Type{Monomial{A,T}}) where {A<:PBWAlgebra,T<:Integer}
+    return one(Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}})
 end
 
 Base.zero(m::Monomial) = zero(typeof(m))
@@ -902,53 +1122,56 @@ Base.one(m::Monomial) = one(typeof(m))
 # Fallback identity for generic `one(Monomial)` (mirrors `one(NormalMonomial)` fallback).
 Base.one(::Type{Monomial}) = Monomial(one(NormalMonomial))
 
-function Base.isone(m::ScalarMonomial{A}) where {A<:MonoidAlgebra}
-    return (m.coeffs == 0x01) && isone(m.words)
-end
+Base.isone(m::Monomial{A,T,UInt8,NormalMonomial{A,T}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} =
+    (m.coeffs == _unit_internal_coeff(A)) && isone(m.words)
 
-function Base.isone(m::ScalarMonomial{A}) where {A<:TwistedGroupAlgebra}
-    return (m.coeffs == 0x00) && isone(m.words)
-end
-
-function Base.isone(m::PBWMonomial)
+function Base.isone(m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}) where {A<:PBWAlgebra,T<:Integer}
     length(m.coeffs) == 1 || return false
     m.coeffs[1] == 1 || return false
     return isone(m.words[1])
 end
 
-# Monomial "monomials" protocol: return all normal-form monomials appearing in the expansion.
-monomials(m::PBWMonomial) = m.words
-monomials(m::ScalarMonomial{A,T}) where {A<:AlgebraType,T<:Integer} =
-    iszero(m) ? NormalMonomial{A,T}[] : [m.words]
-
 # Degree of a Monomial expansion: maximum degree among its terms (0 for the zero monomial).
-degree(m::PBWMonomial) = iszero(m) ? 0 : maximum(degree, m.words)
-degree(m::ScalarMonomial) = iszero(m) ? 0 : degree(m.words)
+degree(m::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}}) where {A<:PBWAlgebra,T<:Integer} =
+    iszero(m) ? 0 : maximum(degree, m.words)
+
+degree(m::Monomial{A,T,UInt8,NormalMonomial{A,T}}) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer} =
+    iszero(m) ? 0 : degree(m.words)
+
+# -----------------------------
+# Powers
+# -----------------------------
+
+function Base.:^(m::Monomial{A,T}, n::Integer) where {A<:AlgebraType,T<:Integer}
+    n < 0 && throw(DomainError(n, "monomial exponent must be non-negative"))
+    n == 0 && return one(m)
+    iszero(m) && return zero(m)
+    n == 1 && return m
+
+    result = one(m)
+    base = m
+    exp = n
+    while exp > 0
+        if isodd(exp)
+            result = result * base
+        end
+        exp ÷= 2
+        exp == 0 && break
+        base = base * base
+    end
+    return result
+end
 
 # -----------------------------
 # Equality / hashing
 # -----------------------------
 
 function Base.:(==)(m1::Monomial{A1}, m2::Monomial{A2}) where {A1<:AlgebraType,A2<:AlgebraType}
-    A1 !== A2 && return false
-    return (m1.coeffs == m2.coeffs) && (m1.words == m2.words)
+    return _eq_same_algebra(A1, A2, (m1.coeffs, m1.words), (m2.coeffs, m2.words))
 end
 
-Base.hash(m::Monomial{A}, h::UInt) where {A<:AlgebraType} = hash(A, hash(m.coeffs, hash(m.words, h)))
-
-"""
-    coeff_type(::Type{Monomial{A,T,C,W}}) where {A,T,C,W} -> Type{<:Number}
-
-Return the numeric coefficient type for a simplified monomial expansion represented as
-`Monomial`.
-
-The stored coefficient `c` may be an internal encoding (e.g. `UInt8` for Pauli phases,
-`UInt8` sentinels for monoid/twisted-group monomials, `Int` for PBW expansions), but the numeric
-coefficient type is determined only by the algebra type `A`.
-"""
-coeff_type(::Type{Monomial{A,T,C,W}}) where {C,W,A<:AlgebraType,T<:Integer} = coeff_type(A)
-
-coeff_type(x::Monomial) = coeff_type(typeof(x))
+Base.hash(m::Monomial{A}, h::UInt) where {A<:AlgebraType} =
+    _hash_with_algebra(A, (m.coeffs, m.words), h)
 
 # Legacy: coefficient type for the old `Vector{(c, mono)}` representation.
 coeff_type(::Type{Vector{Tuple{C,NormalMonomial{A,T}}}}) where {C,A<:AlgebraType,T<:Integer} = coeff_type(A)
@@ -992,15 +1215,15 @@ simplify(m::Monomial) = m
 # -----------------------------------------------------------------------------
 
 function Base.:*(
-    terms::ScalarMonomial{PauliAlgebra,T},
+    terms::Monomial{PauliAlgebra,T,UInt8,NormalMonomial{PauliAlgebra,T}},
     m::NormalMonomial{PauliAlgebra,T},
 ) where {T<:Integer}
-    iszero(terms) && return zero(ScalarMonomial{PauliAlgebra,T})
+    iszero(terms) && return zero(Monomial{PauliAlgebra,T})
     phase1 = terms.coeffs
     mono1 = terms.words
 
     prod = simplify(PauliAlgebra, vcat(mono1.word, m.word))
-    iszero(prod) && return zero(ScalarMonomial{PauliAlgebra,T})
+    iszero(prod) && return zero(Monomial{PauliAlgebra,T})
     phase2 = prod.coeffs
     mono2 = prod.words
 
@@ -1010,14 +1233,14 @@ end
 
 function Base.:*(
     m::NormalMonomial{PauliAlgebra,T},
-    terms::ScalarMonomial{PauliAlgebra,T},
+    terms::Monomial{PauliAlgebra,T,UInt8,NormalMonomial{PauliAlgebra,T}},
 ) where {T<:Integer}
-    iszero(terms) && return zero(ScalarMonomial{PauliAlgebra,T})
+    iszero(terms) && return zero(Monomial{PauliAlgebra,T})
     phase2 = terms.coeffs
     mono2 = terms.words
 
     prod = simplify(PauliAlgebra, vcat(m.word, mono2.word))
-    iszero(prod) && return zero(ScalarMonomial{PauliAlgebra,T})
+    iszero(prod) && return zero(Monomial{PauliAlgebra,T})
     phase1 = prod.coeffs
     mono1 = prod.words
 
@@ -1026,17 +1249,17 @@ function Base.:*(
 end
 
 function Base.:*(
-    t1::ScalarMonomial{PauliAlgebra,T},
-    t2::ScalarMonomial{PauliAlgebra,T},
+    t1::Monomial{PauliAlgebra,T,UInt8,NormalMonomial{PauliAlgebra,T}},
+    t2::Monomial{PauliAlgebra,T,UInt8,NormalMonomial{PauliAlgebra,T}},
 ) where {T<:Integer}
-    (iszero(t1) || iszero(t2)) && return zero(ScalarMonomial{PauliAlgebra,T})
+    (iszero(t1) || iszero(t2)) && return zero(Monomial{PauliAlgebra,T})
     phase1 = t1.coeffs
     mono1 = t1.words
     phase2 = t2.coeffs
     mono2 = t2.words
 
     prod = simplify(PauliAlgebra, vcat(mono1.word, mono2.word))
-    iszero(prod) && return zero(ScalarMonomial{PauliAlgebra,T})
+    iszero(prod) && return zero(Monomial{PauliAlgebra,T})
     phase3 = prod.coeffs
     mono3 = prod.words
 
@@ -1045,10 +1268,10 @@ function Base.:*(
 end
 
 function Base.:*(
-    terms::PBWMonomial{A,T},
+    terms::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
     m::NormalMonomial{A,T},
 ) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
-    iszero(terms) && return zero(PBWMonomial{A,T})
+    iszero(terms) && return zero(Monomial{A,T})
 
     grouped = Dict{NormalMonomial{A,T},Int}()
     for (c1, mono1) in terms
@@ -1069,9 +1292,9 @@ end
 
 function Base.:*(
     m::NormalMonomial{A,T},
-    terms::PBWMonomial{A,T},
+    terms::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
 ) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
-    iszero(terms) && return zero(PBWMonomial{A,T})
+    iszero(terms) && return zero(Monomial{A,T})
 
     grouped = Dict{NormalMonomial{A,T},Int}()
     for (c2, mono2) in terms
@@ -1091,10 +1314,10 @@ function Base.:*(
 end
 
 function Base.:*(
-    t1::PBWMonomial{A,T},
-    t2::PBWMonomial{A,T},
+    t1::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
+    t2::Monomial{A,T,Vector{Int},Vector{NormalMonomial{A,T}}},
 ) where {A<:Union{FermionicAlgebra,BosonicAlgebra},T<:Integer}
-    (iszero(t1) || iszero(t2)) && return zero(PBWMonomial{A,T})
+    (iszero(t1) || iszero(t2)) && return zero(Monomial{A,T})
 
     grouped = Dict{NormalMonomial{A,T},Int}()
     for (c1, mono1) in t1
@@ -1116,28 +1339,28 @@ function Base.:*(
 end
 
 function Base.:*(
-    terms::ScalarMonomial{A,T},
+    terms::Monomial{A,T,UInt8,NormalMonomial{A,T}},
     m::NormalMonomial{A,T},
 ) where {A<:MonoidAlgebra,T<:Integer}
-    iszero(terms) && return zero(ScalarMonomial{A,T})
+    iszero(terms) && return zero(Monomial{A,T})
     mono1 = terms.words
     return simplify(A, vcat(mono1.word, m.word))
 end
 
 function Base.:*(
     m::NormalMonomial{A,T},
-    terms::ScalarMonomial{A,T},
+    terms::Monomial{A,T,UInt8,NormalMonomial{A,T}},
 ) where {A<:MonoidAlgebra,T<:Integer}
-    iszero(terms) && return zero(ScalarMonomial{A,T})
+    iszero(terms) && return zero(Monomial{A,T})
     mono2 = terms.words
     return simplify(A, vcat(m.word, mono2.word))
 end
 
 function Base.:*(
-    t1::ScalarMonomial{A,T},
-    t2::ScalarMonomial{A,T},
+    t1::Monomial{A,T,UInt8,NormalMonomial{A,T}},
+    t2::Monomial{A,T,UInt8,NormalMonomial{A,T}},
 ) where {A<:MonoidAlgebra,T<:Integer}
-    (iszero(t1) || iszero(t2)) && return zero(ScalarMonomial{A,T})
+    (iszero(t1) || iszero(t2)) && return zero(Monomial{A,T})
     mono1 = t1.words
     mono2 = t2.words
     return simplify(A, vcat(mono1.word, mono2.word))

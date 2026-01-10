@@ -123,7 +123,7 @@ function simplify(m::NormalMonomial{BosonicAlgebra,T}) where {T}
     end
 
     if isempty(coeffs)
-        return zero(PBWMonomial{BosonicAlgebra,T})
+        return zero(Monomial{BosonicAlgebra,T})
     end
 
     terms = _combine_physics_terms(coeffs, monos)
@@ -321,64 +321,6 @@ function single_mode_normal_form(ops::V)::Vector{Tuple{Int,Int,Int}} where {T, V
 end
 
 """
-    expand_and_construct(mode_results, modes, ::Type{T}) -> Vector{Term}
-
-Expand the product of normal-ordered terms across all modes and construct final Terms.
-
-# Arguments
-- `mode_results`: Vector of (mode_idx, terms) where terms = [(coef, num_creations, num_annihilations), ...]
-- `modes`: Sorted vector of actual mode indices
-- `T`: Integer type for the monomial word
-
-# Example
-```julia
-mode_results = [(1, [(1, 1, 1), (1, 0, 0)]), (2, [(1, 1, 0)])]  # (a₁†a₁ + 1) × a₂†
-modes = [1, 2]
-result = expand_and_construct(mode_results, modes, Int32)
-# Returns terms for: a₁†a₂†a₁ + a₂†
-```
-"""
-function expand_and_construct(
-    mode_results::Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}},
-    modes::Vector{Int},
-    ::Type{T}
-)::Vector{Term{NormalMonomial{BosonicAlgebra,T},Float64}} where {T}
-    @assert !isempty(mode_results) "mode_results must be non-empty (caller handles empty case)"
-    @assert length(modes) == length(mode_results) "modes and mode_results must have same length"
-
-    n_modes = length(modes)
-    term_lists = [terms for (_, terms) in mode_results]
-
-    # Cartesian product of all mode terms, combine like terms
-    combined = Dict{Tuple{Vector{Int},Vector{Int}},Int}()
-    for combo in Iterators.product(term_lists...)
-        coef = prod(t[1] for t in combo)
-        coef == 0 && continue
-        cre = [combo[i][2] for i in 1:n_modes]
-        ann = [combo[i][3] for i in 1:n_modes]
-        key = (cre, ann)
-        combined[key] = get(combined, key, 0) + coef
-    end
-
-    # Construct final Term vector
-    result = Term{NormalMonomial{BosonicAlgebra,T},Float64}[]
-    for ((cre, ann), coef) in combined
-        coef == 0 && continue
-        word = T[]
-        for i in reverse(eachindex(modes))
-            m = modes[i]
-            append!(word, fill(T(-m), cre[i]))
-        end
-        for (i, m) in enumerate(modes)
-            append!(word, fill(T(m), ann[i]))
-        end
-        push!(result, Term(Float64(coef), NormalMonomial{BosonicAlgebra,T}(word)))
-    end
-
-    return result
-end
-
-"""
     _simplify_bosonic_word!(word::Vector{T}) where {T<:Integer} -> Vector{Tuple{Int,Vector{T}}}
 
 Normal-order a bosonic word using the group-based algorithm with rook numbers.
@@ -452,48 +394,6 @@ function _simplify_bosonic_word!(word::Vector{T}) where {T<:Integer}
 
     return result
 end
-
-"""
-    simplify_bosonic_grouped!(m::NormalMonomial{BosonicAlgebra,T}) -> Vector{Term}
-
-Simplify a bosonic monomial using the group-based algorithm with rook numbers.
-
-Algorithm:
-1. Group operators by mode (preserving relative order within each mode)
-2. For each mode, compute normal form using rook number formula
-3. Expand product across all modes
-4. Construct final terms
-
-This is more efficient than iterative expansion for multi-mode expressions.
-"""
-function simplify_bosonic_grouped!(
-    m::NormalMonomial{BosonicAlgebra,T}
-)::Vector{Term{NormalMonomial{BosonicAlgebra,T},Float64}} where {T}
-    word = m.word
-
-    # Handle empty monomial
-    if isempty(word)
-        return [Term(1.0, m)]
-    end
-
-    # Step 1: Group by mode (stable sort)
-    sep = group_by_mode!(word)
-    n_modes = length(sep) - 1
-
-    # Step 2: Compute single-mode normal forms
-    modes = Vector{Int}(undef, n_modes)
-    mode_results = Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}}(undef, n_modes)
-    for i in 1:n_modes
-        modes[i] = _operator_mode(word[sep[i]+1])
-        ops = @view word[sep[i]+1:sep[i+1]]
-        mode_results[i] = (i, single_mode_normal_form(ops))
-    end
-
-    # Step 3: Expand product and construct terms
-    return expand_and_construct(mode_results, modes, T)
-end
-
-# Note: `simplify(::NormalMonomial)` is identity (see types/monomial.jl).
 
 # =============================================================================
 # Validation (for NormalMonomial constructor)

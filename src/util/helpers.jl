@@ -349,7 +349,7 @@ is_normal_ordered(word::AbstractVector{T}) where {T<:Integer} = find_first_out_o
 end
 
 """
-    combine_like_terms(terms::Vector{Term{M,C}}) where {M,C} -> Vector{Term{M,C}}
+    combine_like_terms(terms::Vector{Tuple{C,NormalMonomial{A,T}}}) where {A,T,C} -> Vector{Tuple{C,NormalMonomial{A,T}}}
 
 Combine terms with identical monomials by summing their coefficients.
 Filters out terms with zero coefficients.
@@ -358,31 +358,31 @@ Filters out terms with zero coefficients.
     Currently used by tests; kept as a general helper.
 
 # Arguments
-- `terms`: Vector of Terms to combine
+- `terms`: Vector of `(coefficient, monomial)` pairs to combine
 
 # Returns
 A new vector with like terms combined. If all terms cancel to zero,
 returns a vector with a single zero term.
 """
 function combine_like_terms(
-    terms::Vector{Term{NormalMonomial{A,T},C}}
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     # Use inner constructor since we're reconstructing from existing valid words
-    isempty(terms) && return [Term(zero(C), one(NormalMonomial{A,T}))]
+    isempty(terms) && return [(zero(C), one(NormalMonomial{A,T}))]
 
     grouped = Dict{NormalMonomial{A,T},C}()
-    for t in terms
-        grouped[t.monomial] = get(grouped, t.monomial, zero(C)) + t.coefficient
+    for (coef, mono) in terms
+        grouped[mono] = get(grouped, mono, zero(C)) + coef
     end
 
-    result = Term{NormalMonomial{A,T},C}[]
+    result = Tuple{C,NormalMonomial{A,T}}[]
     for (m, coef) in grouped
         iszero(coef) && continue
-        push!(result, Term(coef, m))
+        push!(result, (coef, m))
     end
 
     if isempty(result)
-        push!(result, Term(zero(C), one(NormalMonomial{A,T})))
+        push!(result, (zero(C), one(NormalMonomial{A,T})))
     end
 
     return result

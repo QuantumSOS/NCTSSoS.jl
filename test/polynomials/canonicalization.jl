@@ -2,6 +2,8 @@
 using Test, NCTSSoS
 using NCTSSoS: cyclic_symmetric_canon
 
+_mono1(m::Monomial) = last(first(m))
+
 @testset "Canonicalization" begin
     @testset "symmetric_canon(Vector)" begin
         # Already canonical (ascending order)
@@ -271,17 +273,17 @@ using NCTSSoS: cyclic_symmetric_canon
         # Test case from docstring: [3,2,1] and [1,2,3] combine
         m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p = Polynomial([(1.0, m1), (2.0, m2)])
 
         p_canon = canonicalize(p)
 
         # Both canonicalize to [1, 2, 3], coefficients should sum
         @test length(terms(p_canon)) == 1
         @test coefficients(p_canon)[1] == 3.0
-        @test monomials(p_canon)[1].word == [1, 2, 3]
+        @test _mono1(monomials(p_canon)[1]).word == [1, 2, 3]
 
         # Test with complex coefficients
-        p_complex = Polynomial([Term(1.0+1.0im, m1), Term(2.0+0.0im, m2)])
+        p_complex = Polynomial([(1.0 + 1.0im, m1), (2.0 + 0.0im, m2)])
         p_complex_canon = canonicalize(p_complex)
         @test length(terms(p_complex_canon)) == 1
         @test coefficients(p_complex_canon)[1] == 3.0 + 1.0im
@@ -291,7 +293,7 @@ using NCTSSoS: cyclic_symmetric_canon
         # Terms that cancel to zero
         m1 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])
-        p = Polynomial([Term(2.0, m1), Term(-2.0, m2)])
+        p = Polynomial([(2.0, m1), (-2.0, m2)])
 
         p_canon = canonicalize(p)
 
@@ -311,27 +313,27 @@ using NCTSSoS: cyclic_symmetric_canon
     @testset "canonicalize(Polynomial) - single term" begin
         # Single term
         m = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])
-        p = Polynomial([Term(5.0, m)])
+        p = Polynomial([(5.0, m)])
 
         p_canon = canonicalize(p)
 
         @test length(terms(p_canon)) == 1
         @test coefficients(p_canon)[1] == 5.0
-        @test monomials(p_canon)[1].word == [1, 2, 3]
+        @test _mono1(monomials(p_canon)[1]).word == [1, 2, 3]
     end
 
     @testset "canonicalize(Polynomial) - already canonical" begin
         # Already canonical polynomial
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([1, 3])
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p = Polynomial([(1.0, m1), (2.0, m2)])
 
         p_canon = canonicalize(p)
 
         # Should have same structure (no combining)
         @test length(terms(p_canon)) == 2
-        @test monomials(p_canon)[1].word == [1, 2]
-        @test monomials(p_canon)[2].word == [1, 3]
+        @test _mono1(monomials(p_canon)[1]).word == [1, 2]
+        @test _mono1(monomials(p_canon)[2]).word == [1, 3]
     end
 
     @testset "canonicalize(Polynomial) - cyclic mode" begin
@@ -340,14 +342,14 @@ using NCTSSoS: cyclic_symmetric_canon
         # [3, 1, 2] rotates to [1, 2, 3]
         m1 = NormalMonomial{NonCommutativeAlgebra}([2, 3, 1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([3, 1, 2])
-        p = Polynomial([Term(1.5, m1), Term(2.5, m2)])
+        p = Polynomial([(1.5, m1), (2.5, m2)])
 
         p_canon = canonicalize(p; cyclic=true)
 
         # Both should canonicalize to [1, 2, 3] and combine
         @test length(terms(p_canon)) == 1
         @test coefficients(p_canon)[1] == 4.0
-        @test monomials(p_canon)[1].word == [1, 2, 3]
+        @test _mono1(monomials(p_canon)[1]).word == [1, 2, 3]
     end
 
     @testset "canonicalize(Polynomial) - multiple term combining" begin
@@ -356,12 +358,12 @@ using NCTSSoS: cyclic_symmetric_canon
         m2 = NormalMonomial{NonCommutativeAlgebra}([3, 2, 1])  # symmetric -> [1,2,3]
         m3 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])  # already canonical
 
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2), Term(3.0, m3)])
+        p = Polynomial([(1.0, m1), (2.0, m2), (3.0, m3)])
         p_canon = canonicalize(p)
 
         @test length(terms(p_canon)) == 1
         @test coefficients(p_canon)[1] == 6.0
-        @test monomials(p_canon)[1].word == [1, 2, 3]
+        @test _mono1(monomials(p_canon)[1]).word == [1, 2, 3]
     end
 
     @testset "canonicalize(Polynomial) - partial combining" begin
@@ -370,14 +372,14 @@ using NCTSSoS: cyclic_symmetric_canon
         m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3])  # -> [1,2,3]
         m3 = NormalMonomial{NonCommutativeAlgebra}([4, 5, 6])  # -> [4,5,6] (distinct)
 
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2), Term(3.0, m3)])
+        p = Polynomial([(1.0, m1), (2.0, m2), (3.0, m3)])
         p_canon = canonicalize(p)
 
         @test length(terms(p_canon)) == 2
         # Terms should be sorted, so [1,2,3] comes before [4,5,6]
-        @test monomials(p_canon)[1].word == [1, 2, 3]
+        @test _mono1(monomials(p_canon)[1]).word == [1, 2, 3]
         @test coefficients(p_canon)[1] == 3.0
-        @test monomials(p_canon)[2].word == [4, 5, 6]
+        @test _mono1(monomials(p_canon)[2]).word == [4, 5, 6]
         @test coefficients(p_canon)[2] == 3.0
     end
 

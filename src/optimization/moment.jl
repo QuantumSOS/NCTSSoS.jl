@@ -47,6 +47,7 @@ struct MomentProblem{A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P<:Poly
     objective::P
     constraints::Vector{Tuple{Symbol, Matrix{P}}}
     total_basis::Vector{M}
+    n_unique_moment_matrix_elements::Int
 end
 
 
@@ -70,12 +71,12 @@ Build a symbolic constraint matrix for the moment relaxation.
 The matrix element at (i,j) is sum over terms: coef * basis[i]' * mono * basis[j]
 """
 function _build_constraint_matrix(
-    poly::P,
+    poly::Polynomial{A,T,C},
     local_basis::Vector{M},
     cone::Symbol
-) where {T, P<:AbstractPolynomial{T}, M}
+) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T}}
     # Each matrix element is a polynomial: sum of coef * neat_dot(row, mono, col)
-    moment_mtx = Matrix{P}(undef, length(local_basis), length(local_basis))
+    moment_mtx = Matrix{Polynomial{A,T,C}}(undef, length(local_basis), length(local_basis))
 
     for (i, row_idx) in enumerate(local_basis)
         for (j, col_idx) in enumerate(local_basis)
@@ -83,7 +84,7 @@ function _build_constraint_matrix(
             # _neat_dot3 returns Monomial, simplify to get Polynomial
             element_poly = sum(
                 coef * Polynomial(simplify(_neat_dot3(row_idx, mono, col_idx)))
-                for (coef, mono) in zip(coefficients(poly), monomials(poly))
+                for (coef, mono) in poly.terms
             )
             moment_mtx[i, j] = element_poly
         end
@@ -137,12 +138,28 @@ function moment_relax(
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
 
+    # Unique moment variables are determined by moment matrices only (poly = 1),
+    # not by the full set of localizing matrices.
+    one_mono = one(M)
+    moment_matrix_basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
+        reduce(vcat, [
+            [
+                mono
+                for row_idx in basis
+                for col_idx in basis
+                for (_, mono) in Polynomial(simplify(_neat_dot3(row_idx, one_mono, col_idx))).terms
+            ]
+            for basis in term_sparsities[1].block_bases
+        ])
+    end...)
+    n_unique_moment_matrix_elements = length(_sorted_symmetric_basis(moment_matrix_basis))
+
     # Compute total basis: union of all moment matrix entry monomials
     # _neat_dot3 returns Monomial, simplify then extract monomials
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
             # _neat_dot3 returns Monomial; simplify then extract monomials (may be multiple for Bosonic)
-            [mono for m in monomials(poly) for mono in monomials(Polynomial(simplify(_neat_dot3(row_idx, m, col_idx))))]
+            [mono for m in last.(poly.terms) for (_, mono) in Polynomial(simplify(_neat_dot3(row_idx, m, col_idx))).terms]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
             for basis in term_sparsity.block_bases
             for row_idx in basis
@@ -185,7 +202,7 @@ function moment_relax(
         push!(constraints, constraint)
     end
 
-    mp = MomentProblem{A, TI, M, P}(pop.objective, constraints, total_basis)
+    mp = MomentProblem{A, TI, M, P}(pop.objective, constraints, total_basis, n_unique_moment_matrix_elements)
 
     # Add parity superselection constraints for fermionic algebras
     # This enforces that odd-parity moment entries are zero
@@ -305,8 +322,7 @@ function _solve_real_moment_problem(
     silent && set_silent(model)
     optimize!(model)
 
-    # Count unique monomials after symmetric canonicalization (matches SOS dual)
-    n_unique = length(_sorted_symmetric_basis(mp.total_basis))
+    n_unique = mp.n_unique_moment_matrix_elements
 
     return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
@@ -388,8 +404,7 @@ function _solve_complex_moment_problem(
         for (m, i) in basis_to_idx
     )
 
-    # Count unique monomials after symmetric canonicalization (matches SOS dual)
-    n_unique = length(_sorted_symmetric_basis(mp.total_basis))
+    n_unique = mp.n_unique_moment_matrix_elements
 
     return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
@@ -597,6 +612,7 @@ struct StateMomentProblem{A<:AlgebraType, ST<:StateType, T<:Integer, M<:NCStateW
     objective::P
     constraints::Vector{Tuple{Symbol, Matrix{P}, Vector{M}}}  # (cone, matrix, block_basis)
     total_basis::Vector{M}
+    n_unique_moment_matrix_elements::Int
 end
 
 """
@@ -655,6 +671,21 @@ function moment_relax(
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
 ) where {A<:AlgebraType,TI<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,TI},M<:NCStateWord{ST,A,TI}}
 
+    # Unique moment variables are determined by moment matrices only (poly = 1),
+    # not by the full set of localizing matrices.
+    moment_matrix_basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
+        reduce(vcat, [
+            [
+                ncsw_result
+                for row_idx in basis
+                for col_idx in basis
+                for ncsw_result in monomials(simplify(_neat_dot3(row_idx, one(M), col_idx)))
+            ]
+            for basis in term_sparsities[1].block_bases
+        ])
+    end...)
+    n_unique_moment_matrix_elements = length(_sorted_stateword_basis_from_ncsw(moment_matrix_basis))
+
     # Compute total basis: union of all moment matrix entry NCStateWords
     # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
@@ -701,7 +732,7 @@ function moment_relax(
         push!(constraints, (cone_type, mat, global_basis))
     end
 
-    return StateMomentProblem{A, ST, TI, M, P}(pop.objective, constraints, total_basis)
+    return StateMomentProblem{A, ST, TI, M, P}(pop.objective, constraints, total_basis, n_unique_moment_matrix_elements)
 end
 
 
@@ -809,8 +840,7 @@ function solve_moment_problem(
     # Build monomap returning StateWord -> value
     monomap = Dict(sw => value(y[i]) for (sw, i) in sw_to_idx)
 
-    # Count unique StateWords after symmetric canonicalization (matches SOS dual)
-    n_unique = length(_sorted_stateword_basis_from_ncsw(mp.total_basis))
+    n_unique = mp.n_unique_moment_matrix_elements
 
     return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end

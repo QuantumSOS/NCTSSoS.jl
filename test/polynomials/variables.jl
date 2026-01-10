@@ -177,9 +177,9 @@ using NCTSSoS:
         @test length(x) == 3
 
         # Check that monomials are created correctly
-        @test x[1] isa NormalMonomial{NonCommutativeAlgebra}
-        @test x[2] isa NormalMonomial{NonCommutativeAlgebra}
-        @test x[3] isa NormalMonomial{NonCommutativeAlgebra}
+        @test x[1] isa Monomial{NonCommutativeAlgebra}
+        @test x[2] isa Monomial{NonCommutativeAlgebra}
+        @test x[3] isa Monomial{NonCommutativeAlgebra}
 
         # Check registry contains symbols
         @test :x₁ in reg
@@ -206,9 +206,9 @@ using NCTSSoS:
         @test length(σy) == 2
         @test length(σz) == 2
 
-        @test σx[1] isa NormalMonomial{PauliAlgebra}
-        @test σy[1] isa NormalMonomial{PauliAlgebra}
-        @test σz[1] isa NormalMonomial{PauliAlgebra}
+        @test σx[1] isa Monomial{PauliAlgebra}
+        @test σy[1] isa Monomial{PauliAlgebra}
+        @test σz[1] isa Monomial{PauliAlgebra}
 
         # Check registry symbols
         @test :σx₁ in reg
@@ -223,7 +223,7 @@ using NCTSSoS:
         reg, (P,) = create_projector_variables([("P", 1:3)])
 
         @test length(P) == 3
-        @test P[1] isa NormalMonomial{ProjectorAlgebra}
+        @test P[1] isa Monomial{ProjectorAlgebra}
 
         @test :P₁ in reg
         @test :P₂ in reg
@@ -234,7 +234,7 @@ using NCTSSoS:
         reg, (U,) = create_unipotent_variables([("U", 1:3)])
 
         @test length(U) == 3
-        @test U[1] isa NormalMonomial{UnipotentAlgebra}
+        @test U[1] isa Monomial{UnipotentAlgebra}
 
         @test :U₁ in reg
         @test :U₂ in reg
@@ -246,8 +246,8 @@ using NCTSSoS:
 
         @test length(a) == 2
         @test length(a_dag) == 2
-        @test a[1] isa NormalMonomial{FermionicAlgebra}
-        @test a_dag[1] isa NormalMonomial{FermionicAlgebra}
+        @test a[1] isa Monomial{FermionicAlgebra}
+        @test a_dag[1] isa Monomial{FermionicAlgebra}
 
         # Check both annihilation and creation operators
         @test :a₁ in reg
@@ -261,8 +261,8 @@ using NCTSSoS:
 
         @test length(c) == 2
         @test length(c_dag) == 2
-        @test c[1] isa NormalMonomial{BosonicAlgebra}
-        @test c_dag[1] isa NormalMonomial{BosonicAlgebra}
+        @test c[1] isa Monomial{BosonicAlgebra}
+        @test c_dag[1] isa Monomial{BosonicAlgebra}
 
         # Check both annihilation and creation operators
         @test :c₁ in reg
@@ -288,7 +288,7 @@ using NCTSSoS:
 
         # x^2 should create a monomial with word [idx, idx]
         x2 = x[1] * x[1]
-        @test x2 isa NormalMonomial
+        @test x2 isa Monomial
         @test degree(x2) == 2
 
         # x^0 should be identity

@@ -250,7 +250,7 @@ processing of simplification results. Used by `ComposedMonomial` simplification
 to determine appropriate coefficient types for the Cartesian product of terms.
 
 For `NormalMonomial{A,T}`, returns `coeff_type(A)` (the algebra's default).
-For `Term{M,C}` and `Polynomial{A,T,C}`, returns `C` (the explicit coefficient type).
+For `Polynomial{A,T,C}`, returns `C` (the explicit coefficient type).
 
 # Examples
 ```jldoctest
@@ -262,15 +262,12 @@ ComplexF64
 julia> coeff_type(NormalMonomial{FermionicAlgebra,Int32})
 Float64
 
-julia> coeff_type(Term{NormalMonomial{PauliAlgebra,Int64},ComplexF64})
-ComplexF64
-
 julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64})
 Float64
 ```
 """
 # Instance method: delegate to type method
-# Note: coeff_type methods for specific types (NormalMonomial, Term, Polynomial)
+# Note: coeff_type methods for specific types (NormalMonomial, Monomial, Polynomial)
 # are defined in their respective source files.
 
 # =============================================================================

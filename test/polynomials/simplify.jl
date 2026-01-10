@@ -30,9 +30,9 @@ _mono1(x) = _monos(x)[1]
 
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Simple case: multiplication returns NormalMonomial (word concatenation)
+        # Simple case: multiplication returns a simplified Monomial (single word)
         result = x[1] * x[2]
-        @test result isa NormalMonomial{NonCommutativeAlgebra}
+        @test result isa Monomial{NonCommutativeAlgebra}
         @test degree(result) == 2
 
         # After simplify, we get a single canonical word
@@ -42,7 +42,7 @@ _mono1(x) = _monos(x)[1]
 
         # Same variable twice
         result2 = x[1] * x[1]
-        @test result2 isa NormalMonomial{NonCommutativeAlgebra}
+        @test result2 isa Monomial{NonCommutativeAlgebra}
         @test degree(result2) == 2
     end
 
@@ -59,19 +59,19 @@ _mono1(x) = _monos(x)[1]
         @test degree(σz[1]) == 1
 
         # Pauli variables are normal-form words
-        @test σx[1] isa NormalMonomial{PauliAlgebra}
+        @test σx[1] isa Monomial{PauliAlgebra}
     end
 
     @testset "Projector Simplification" begin
         # Projector algebra: P^2 = P (idempotency)
         reg, (P,) = create_projector_variables([("P", 1:3)])
 
-        @test P[1] isa NormalMonomial{ProjectorAlgebra}
+        @test P[1] isa Monomial{ProjectorAlgebra}
         @test degree(P[1]) == 1
 
-        # Multiple projectors - multiplication returns NormalMonomial
+        # Multiple projectors - multiplication returns a simplified Monomial
         result = P[1] * P[2]
-        @test result isa NormalMonomial{ProjectorAlgebra}
+        @test result isa Monomial{ProjectorAlgebra}
         @test degree(result) == 2
 
         # Equivalence test: P[2] * P[1]^2 * P[2] == P[2] * P[1] * P[2] (since P^2 = P)
@@ -86,12 +86,12 @@ _mono1(x) = _monos(x)[1]
         # Unipotent algebra: U^2 = I (squares to identity)
         reg, (U,) = create_unipotent_variables([("U", 1:3)])
 
-        @test U[1] isa NormalMonomial{UnipotentAlgebra}
+        @test U[1] isa Monomial{UnipotentAlgebra}
         @test degree(U[1]) == 1
 
-        # Multiplication of different unipotent variables - returns NormalMonomial
+        # Multiplication of different unipotent variables - returns a simplified Monomial
         result = U[1] * U[2]
-        @test result isa NormalMonomial{UnipotentAlgebra}
+        @test result isa Monomial{UnipotentAlgebra}
         @test degree(result) == 2
 
         # Equivalence test: U[2] * U[1]^2 * U[2] == I (since U^2 = I)
@@ -102,30 +102,15 @@ _mono1(x) = _monos(x)[1]
     end
 
 
-    @testset "Term Structure" begin
-        m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
-        t = Term(2.0, m)
+	    @testset "simplify returns Monomial" begin
+	        # Test that simplify returns a Monomial (iterable as (c_internal, NormalMonomial))
+	        m = NormalMonomial{NonCommutativeAlgebra}(UInt8[2, 1])  # Will be sorted by site
 
-        @test t.coefficient == 2.0
-        @test t.monomial == m
-
-        # Term operations
-        t_neg = -t
-        @test t_neg.coefficient == -2.0
-
-        t_scaled = 3.0 * t
-        @test t_scaled.coefficient == 6.0
-    end
-
-    @testset "simplify returns Monomial" begin
-        # Test that simplify returns a NormalMonomial
-        m = NormalMonomial{NonCommutativeAlgebra}(UInt8[2, 1])  # Will be sorted by site
-
-        result = simplify(m)
-        @test length(result) == 1
-        @test _coeffs(result)[1] == 1.0
-        @test _mono1(result) isa NormalMonomial{NonCommutativeAlgebra}
-    end
+	        result = simplify(m)
+	        @test length(result) == 1
+	        @test _coeffs(result)[1] == 1.0
+	        @test _mono1(result) isa NormalMonomial{NonCommutativeAlgebra}
+	    end
 
     @testset "Adjoint and Simplification Interaction" begin
         # Test adjoint involution on directly created monomials
@@ -543,7 +528,7 @@ end
         m1 = NormalMonomial{PauliAlgebra}([1])
         m2 = NormalMonomial{PauliAlgebra}([2])
 
-        p = Polynomial([Term(1.0 + 0.0im, m1), Term(2.0 + 0.0im, m2)])
+        p = Polynomial([(1.0 + 0.0im, m1), (2.0 + 0.0im, m2)])
 
         @test p isa Polynomial{PauliAlgebra}
         @test degree(p) == 1
@@ -817,37 +802,38 @@ end
 
     @testset "combine_like_terms" begin
         # Test with FermionicAlgebra
-        t1 = Term(1.0, NormalMonomial{FermionicAlgebra}(Int32[-1, 1]))
-        t2 = Term(2.0, NormalMonomial{FermionicAlgebra}(Int32[-1, 1]))
-        t3 = Term(1.0, NormalMonomial{FermionicAlgebra}(Int32[]))
+        t1 = (1.0, NormalMonomial{FermionicAlgebra}(Int32[-1, 1]))
+        t2 = (2.0, NormalMonomial{FermionicAlgebra}(Int32[-1, 1]))
+        t3 = (1.0, NormalMonomial{FermionicAlgebra}(Int32[]))
 
         result = combine_like_terms([t1, t2, t3])
         @test length(result) == 2
 
         # Find the combined term
-        combined_term = findfirst(t -> t.monomial.word == Int32[-1, 1], result)
+        combined_term = findfirst(t -> last(t).word == Int32[-1, 1], result)
         @test !isnothing(combined_term)
-        @test result[combined_term].coefficient == 3.0  # 1.0 + 2.0
+        @test first(result[combined_term]) == 3.0  # 1.0 + 2.0
 
         # Test cancellation
-        t4 = Term(1.0, NormalMonomial{FermionicAlgebra}(Int32[1]))
-        t5 = Term(-1.0, NormalMonomial{FermionicAlgebra}(Int32[1]))
+        t4 = (1.0, NormalMonomial{FermionicAlgebra}(Int32[1]))
+        t5 = (-1.0, NormalMonomial{FermionicAlgebra}(Int32[1]))
         result_cancel = combine_like_terms([t4, t5])
         # Should return zero term when everything cancels
         @test length(result_cancel) == 1
-        @test result_cancel[1].coefficient == 0.0
+        @test first(result_cancel[1]) == 0.0
 
         # Test with BosonicAlgebra
-        b1 = Term(2.0, NormalMonomial{BosonicAlgebra}(Int32[-1, 1]))
-        b2 = Term(3.0, NormalMonomial{BosonicAlgebra}(Int32[-1, 1]))
+        b1 = (2.0, NormalMonomial{BosonicAlgebra}(Int32[-1, 1]))
+        b2 = (3.0, NormalMonomial{BosonicAlgebra}(Int32[-1, 1]))
         result_bos = combine_like_terms([b1, b2])
         @test length(result_bos) == 1
-        @test result_bos[1].coefficient == 5.0
+        @test first(result_bos[1]) == 5.0
 
         # Test empty input
-        empty_result = combine_like_terms(Term{NormalMonomial{FermionicAlgebra,Int32},Float64}[])
+        empty_terms = Tuple{Float64,NormalMonomial{FermionicAlgebra,Int32}}[]
+        empty_result = combine_like_terms(empty_terms)
         @test length(empty_result) == 1
-        @test empty_result[1].coefficient == 0.0
+        @test first(empty_result[1]) == 0.0
     end
 end
 
@@ -901,7 +887,7 @@ end
         m1 = P[1] * P[1]
         s1 = _mono1(m1)
         @test length(s1.word) == 1  # [1,1] → [1]
-        @test s1.word == P[1].word
+        @test s1.word == _mono1(P[1]).word
 
         # Case 2: Triple idempotency
         m2 = P[1] * P[1] * P[1]
@@ -938,34 +924,34 @@ end
         # XY → iZ
         pm_xy = simplify(σx[1] * σy[1])
         @test _phase(pm_xy) ≈ im
-        @test _mono1(pm_xy).word == σz[1].word
+        @test _mono1(pm_xy).word == _mono1(σz[1]).word
 
         # YZ → iX
         pm_yz = simplify(σy[1] * σz[1])
         @test _phase(pm_yz) ≈ im
-        @test _mono1(pm_yz).word == σx[1].word
+        @test _mono1(pm_yz).word == _mono1(σx[1]).word
 
         # ZX → iY
         pm_zx = simplify(σz[1] * σx[1])
         @test _phase(pm_zx) ≈ im
-        @test _mono1(pm_zx).word == σy[1].word
+        @test _mono1(pm_zx).word == _mono1(σy[1]).word
     end
 
     @testset "Anti-cyclic products: σᵧσₓ = -iσz (same site)" begin
         # YX → -iZ
         pm_yx = simplify(σy[1] * σx[1])
         @test _phase(pm_yx) ≈ -im
-        @test _mono1(pm_yx).word == σz[1].word
+        @test _mono1(pm_yx).word == _mono1(σz[1]).word
 
         # ZY → -iX
         pm_zy = simplify(σz[1] * σy[1])
         @test _phase(pm_zy) ≈ -im
-        @test _mono1(pm_zy).word == σx[1].word
+        @test _mono1(pm_zy).word == _mono1(σx[1]).word
 
         # XZ → -iY
         pm_xz = simplify(σx[1] * σz[1])
         @test _phase(pm_xz) ≈ -im
-        @test _mono1(pm_xz).word == σy[1].word
+        @test _mono1(pm_xz).word == _mono1(σy[1]).word
     end
 
     @testset "Triple product: σₓσᵧσz = i·I" begin
@@ -1039,7 +1025,7 @@ end
     @testset "NOT nilpotent: cᵢ² ≠ 0" begin
         p = simplify(c[1] * c[1])
         @test length(_pairs(p)) == 1
-        @test _monos(p)[1].word == vcat(c[1].word, c[1].word)
+        @test _monos(p)[1].word == vcat(_mono1(c[1]).word, _mono1(c[1]).word)
     end
 
     @testset "Rook number identity: c c c† c† = 2 + 4c†c + c†²c²" begin
@@ -1252,7 +1238,8 @@ end
     @test length(basis2) == 4
     result_words = Set{Vector{UInt16}}()
     for mono in basis2
-        push!(result_words, UInt16[decode_operator_id(idx) for idx in mono.word])
+        word = _mono1(mono).word
+        push!(result_words, UInt16[decode_operator_id(idx) for idx in word])
     end
     @test result_words == Set([UInt16[1,1], UInt16[1,2], UInt16[2,1], UInt16[2,2]])
 end
@@ -1309,37 +1296,39 @@ end
     reg, ((x1, x2), (y1, y2)) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
 
     # Verify site assignment
-    @test decode_site(x1.word[1]) == 1
-    @test decode_site(x2.word[1]) == 1
-    @test decode_site(y1.word[1]) == 2
-    @test decode_site(y2.word[1]) == 2
+    x1i, x2i = _mono1(x1).word[1], _mono1(x2).word[1]
+    y1i, y2i = _mono1(y1).word[1], _mono1(y2).word[1]
+    @test decode_site(x1i) == 1
+    @test decode_site(x2i) == 1
+    @test decode_site(y1i) == 2
+    @test decode_site(y2i) == 2
 
     # Test: y₁ x₁ → x₁ y₁ (site 2 moves after site 1)
-    m1 = NormalMonomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1]])
+    m1 = NormalMonomial{NonCommutativeAlgebra}([y1i, x1i])
     s1 = _mono1(m1)
-    @test s1.word == [x1.word[1], y1.word[1]]
+    @test s1.word == [x1i, y1i]
 
     # Test: x₂ x₁ → x₂ x₁ (same site, order PRESERVED)
-    m2 = NormalMonomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1]])
+    m2 = NormalMonomial{NonCommutativeAlgebra}([x2i, x1i])
     s2 = _mono1(m2)
-    @test s2.word == [x2.word[1], x1.word[1]]  # NOT sorted to [x1, x2]!
+    @test s2.word == [x2i, x1i]  # NOT sorted to [x1, x2]!
 
     # Test: y₂ y₁ → y₂ y₁ (same site, order PRESERVED)
-    m3 = NormalMonomial{NonCommutativeAlgebra}([y2.word[1], y1.word[1]])
+    m3 = NormalMonomial{NonCommutativeAlgebra}([y2i, y1i])
     s3 = _mono1(m3)
-    @test s3.word == [y2.word[1], y1.word[1]]  # NOT sorted to [y1, y2]!
+    @test s3.word == [y2i, y1i]  # NOT sorted to [y1, y2]!
 
     # Test: y₂ x₂ y₁ x₁ → x₂ x₁ y₂ y₁ (stable sort by site)
     # Site 1 elements [x₂, x₁] preserve relative order
     # Site 2 elements [y₂, y₁] preserve relative order
-    m4 = NormalMonomial{NonCommutativeAlgebra}([y2.word[1], x2.word[1], y1.word[1], x1.word[1]])
+    m4 = NormalMonomial{NonCommutativeAlgebra}([y2i, x2i, y1i, x1i])
     s4 = _mono1(m4)
-    @test s4.word == [x2.word[1], x1.word[1], y2.word[1], y1.word[1]]
+    @test s4.word == [x2i, x1i, y2i, y1i]
 
     # Test: y₁ x₁ y₂ x₂ → x₁ x₂ y₁ y₂ (stable sort by site)
-    m5 = NormalMonomial{NonCommutativeAlgebra}([y1.word[1], x1.word[1], y2.word[1], x2.word[1]])
+    m5 = NormalMonomial{NonCommutativeAlgebra}([y1i, x1i, y2i, x2i])
     s5 = _mono1(m5)
-    @test s5.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
+    @test s5.word == [x1i, x2i, y1i, y2i]
 end
 
 @testset "NCTSSOS Oracle: Two-site symmetric_canon (4 vars, 2 sites)" begin
@@ -1355,18 +1344,20 @@ end
     # Test: x₂ x₁ y₂ y₁ vs reverse y₁ y₂ x₁ x₂
     # After site sort: [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂]
     # Min is lexicographically smaller (comparing encoded indices)
-    m1 = NormalMonomial{NonCommutativeAlgebra}([x2.word[1], x1.word[1], y2.word[1], y1.word[1]])
+    x1i, x2i = _mono1(x1).word[1], _mono1(x2).word[1]
+    y1i, y2i = _mono1(y1).word[1], _mono1(y2).word[1]
+    m1 = NormalMonomial{NonCommutativeAlgebra}([x2i, x1i, y2i, y1i])
     s1 = _mono1(m1)
     c1 = symmetric_canon(s1)
     # The reverse [y₁,y₂,x₁,x₂] sorted by site → [x₁,x₂,y₁,y₂]
     # Compare [x₂,x₁,y₂,y₁] vs [x₁,x₂,y₁,y₂] → min is [x₁,x₂,y₁,y₂] since x₁ < x₂
-    @test c1.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
+    @test c1.word == [x1i, x2i, y1i, y2i]
 
     # Test: already canonical x₁ x₂ y₁ y₂
-    m2 = NormalMonomial{NonCommutativeAlgebra}([x1.word[1], x2.word[1], y1.word[1], y2.word[1]])
+    m2 = NormalMonomial{NonCommutativeAlgebra}([x1i, x2i, y1i, y2i])
     s2 = _mono1(m2)
     c2 = symmetric_canon(s2)
-    @test c2.word == [x1.word[1], x2.word[1], y1.word[1], y2.word[1]]
+    @test c2.word == [x1i, x2i, y1i, y2i]
 end
 
 # =============================================================================
@@ -1517,7 +1508,7 @@ const CONSTRAINT_BASIS_COUNTS_ORACLE = [
             reg, _ = create_projector_variables([("P", 1:n)])
             basis = get_ncbasis(reg, d)
             # Extract unique operator-id words (ignore encoded site)
-            words = Set([decode_operator_id.(m.word) for p in basis for m in monomials(p)])
+            words = Set(decode_operator_id.(_mono1(m).word) for m in basis)
             @test length(words) == expected_proj
         end
     end
@@ -1527,7 +1518,7 @@ const CONSTRAINT_BASIS_COUNTS_ORACLE = [
             reg, _ = create_unipotent_variables([("U", 1:n)])
             basis = get_ncbasis(reg, d)
             # Extract unique operator-id words (ignore encoded site)
-            words = Set([decode_operator_id.(m.word) for p in basis for m in monomials(p)])
+            words = Set(decode_operator_id.(_mono1(m).word) for m in basis)
             @test length(words) == expected_unip
         end
     end
@@ -1543,13 +1534,13 @@ end
         # Single-site: 3 vars, degree 3 → 22 unique words (NCTSSOS oracle)
         reg_single, _ = create_projector_variables([("P", 1:3)])
         basis_single = get_ncbasis(reg_single, 3)
-        monos_single = Set(m for p in basis_single for m in monomials(p))
+        monos_single = Set(_mono1(m) for m in basis_single)
         @test length(monos_single) == 22
 
         # Multi-site: V on site 1, W₁,W₂ on site 2 → 12 unique (site commutation)
         reg_multi, ((x,), (y, z)) = create_projector_variables([("V", 1:1), ("W", 1:2)])
         basis_multi = get_ncbasis(reg_multi, 3)
-        monos_multi = Set(m for p in basis_multi for m in monomials(p))
+        monos_multi = Set(_mono1(m) for m in basis_multi)
         @test length(monos_multi) == 12  # Reduced by site-based commutation
 
         # Verify site-sorting: site 1 always before site 2
@@ -1566,13 +1557,13 @@ end
         # Single-site: 3 vars, degree 3 → 22 unique words (NCTSSOS oracle)
         reg_single, _ = create_unipotent_variables([("U", 1:3)])
         basis_single = get_ncbasis(reg_single, 3)
-        monos_single = Set(m for p in basis_single for m in monomials(p))
+        monos_single = Set(_mono1(m) for m in basis_single)
         @test length(monos_single) == 22
 
         # Multi-site: V on site 1, W₁,W₂ on site 2 → 12 unique (site commutation)
         reg_multi, ((x,), (y, z)) = create_unipotent_variables([("V", 1:1), ("W", 1:2)])
         basis_multi = get_ncbasis(reg_multi, 3)
-        monos_multi = Set(m for p in basis_multi for m in monomials(p))
+        monos_multi = Set(_mono1(m) for m in basis_multi)
         @test length(monos_multi) == 12  # Reduced by site-based commutation
 
         # Verify site-sorting: site 1 always before site 2
@@ -1595,14 +1586,14 @@ end
     # Site 2: c, d (c < d)
     # Raw word: [b, c, a, d] - out of order
 
-    @testset "Pauli multi-site" begin
-        # Create variables on 2 sites with 3 ops each (σx, σy, σz)
-        reg, (σx, σy, σz) = create_pauli_variables(1:2)
+        @testset "Pauli multi-site" begin
+            # Create variables on 2 sites with 3 ops each (σx, σy, σz)
+            reg, (σx, σy, σz) = create_pauli_variables(1:2)
 
-        a, b = σx[1].word[1], σy[1].word[1]  # site 1, a < b
-        c, d = σx[2].word[1], σy[2].word[1]  # site 2, c < d
+            a, b = _mono1(σx[1]).word[1], _mono1(σy[1]).word[1]  # site 1, a < b
+            c, d = _mono1(σx[2]).word[1], _mono1(σy[2]).word[1]  # site 2, c < d
 
-        raw_word = [b, c, a, d]  # out of order across sites
+            raw_word = [b, c, a, d]  # out of order across sites
 
         # Test canonical ordering: stable sort by site
         pm = simplify(PauliAlgebra, raw_word)
@@ -1625,12 +1616,12 @@ end
         end
     end
 
-    @testset "Fermionic multi-mode" begin
-        reg, (a_op, _) = create_fermionic_variables(1:4)
+        @testset "Fermionic multi-mode" begin
+            reg, (a_op, _) = create_fermionic_variables(1:4)
 
-        # Get raw indices
-        a1 = a_op[1].word[1]  # mode 1 annihilation
-        a2 = a_op[2].word[1]  # mode 2 annihilation
+            # Get raw indices
+            a1 = _mono1(a_op[1]).word[1]  # mode 1 annihilation
+            a2 = _mono1(a_op[2]).word[1]  # mode 2 annihilation
 
         # Different modes anticommute: a₁ a₂ = -a₂ a₁
         pm12 = simplify(FermionicAlgebra, Int32[a1, a2])
@@ -1645,12 +1636,12 @@ end
         @test _coeffs(pm12)[1] == -_coeffs(pm21)[1]
     end
 
-    @testset "Bosonic multi-mode" begin
-        reg, (c_op, _) = create_bosonic_variables(1:4)
+        @testset "Bosonic multi-mode" begin
+            reg, (c_op, _) = create_bosonic_variables(1:4)
 
-        # Get raw indices
-        c1 = c_op[1].word[1]  # mode 1 annihilation
-        c2 = c_op[2].word[1]  # mode 2 annihilation
+            # Get raw indices
+            c1 = _mono1(c_op[1]).word[1]  # mode 1 annihilation
+            c2 = _mono1(c_op[2]).word[1]  # mode 2 annihilation
 
         # Different modes commute: c₁ c₂ = c₂ c₁
         pm12 = simplify(BosonicAlgebra, Int32[c1, c2])
@@ -1662,63 +1653,65 @@ end
         @test _coeffs(pm12)[1] == _coeffs(pm21)[1]
     end
 
-    @testset "NonCommutative multi-site" begin
-        reg, (x,) = create_noncommutative_variables([("x", 1:4)])
+        @testset "NonCommutative multi-site" begin
+            reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
 
-        a, b = x[1].word[1], x[2].word[1]  # different indices
-        c, d = x[3].word[1], x[4].word[1]  # different indices
+            a, b = _mono1(x[1]).word[1], _mono1(x[2]).word[1]  # site 1
+            c, d = _mono1(y[1]).word[1], _mono1(y[2]).word[1]  # site 2
 
-        raw_word = UInt16[b, c, a, d]  # out of order by site
+            raw_word = eltype(_mono1(x[1]).word)[b, c, a, d]  # out of order by site
 
-        # Test: stable sort by site in constructor
-        m = NormalMonomial{NonCommutativeAlgebra}(raw_word)
-        @test issorted(decode_site.(m.word))
-    end
+            # Test: stable sort by site in constructor
+            m = NormalMonomial{NonCommutativeAlgebra}(raw_word)
+            @test issorted(decode_site.(m.word))
+        end
 end
 
 # =============================================================================
 # Constructor simplification tests
 # =============================================================================
 
-@testset "Constructor simplification" begin
-    @testset "Unipotent constructor simplification" begin
-        reg, (u,) = create_unipotent_variables([("u", 1:2)])
-        a, b = u[1].word[1], u[2].word[1]
+    @testset "Constructor simplification" begin
+        @testset "Unipotent constructor simplification" begin
+            reg, (u,) = create_unipotent_variables([("u", 1:2)])
+            a, b = _mono1(u[1]).word[1], _mono1(u[2]).word[1]
+            T = typeof(a)
 
-        # u₁ u₁ should simplify to identity (U² = I)
-        m = NormalMonomial{UnipotentAlgebra}(UInt16[a, a])
-        @test isone(m)
+            # u₁ u₁ should simplify to identity (U² = I)
+            m = NormalMonomial{UnipotentAlgebra}(T[a, a])
+            @test isone(m)
 
-        # u₁ u₂ u₁ u₂ should simplify to identity
-        m2 = NormalMonomial{UnipotentAlgebra}(UInt16[a, b, a, b])
-        @test isone(m2)
+            # Cascading cancellation: u₁ u₁ u₂ u₂ -> I
+            m2 = NormalMonomial{UnipotentAlgebra}(T[a, a, b, b])
+            @test isone(m2)
 
-        # u₁ u₂ u₁ should simplify (cascade)
-        m3 = NormalMonomial{UnipotentAlgebra}(UInt16[a, b, a])
-        @test m3.word == [b]
-    end
+            # u₁ u₁ u₂ -> u₂
+            m3 = NormalMonomial{UnipotentAlgebra}(T[a, a, b])
+            @test m3.word == [b]
+        end
 
-    @testset "Projector constructor simplification" begin
-        reg, (p,) = create_projector_variables([("p", 1:2)])
-        a, b = p[1].word[1], p[2].word[1]
+        @testset "Projector constructor simplification" begin
+            reg, (p,) = create_projector_variables([("p", 1:2)])
+            a, b = _mono1(p[1]).word[1], _mono1(p[2]).word[1]
+            T = typeof(a)
 
-        # p₁ p₁ should simplify to p₁ (P² = P)
-        m = NormalMonomial{ProjectorAlgebra}(UInt16[a, a])
-        @test m.word == [a]
+            # p₁ p₁ should simplify to p₁ (P² = P)
+            m = NormalMonomial{ProjectorAlgebra}(T[a, a])
+            @test m.word == [a]
 
-        # p₁ p₁ p₁ should simplify to p₁
-        m2 = NormalMonomial{ProjectorAlgebra}(UInt16[a, a, a])
-        @test m2.word == [a]
+            # p₁ p₁ p₁ should simplify to p₁
+            m2 = NormalMonomial{ProjectorAlgebra}(T[a, a, a])
+            @test m2.word == [a]
 
-        # p₁ p₂ p₁ stays as-is after site-sorting (different sites don't simplify directly)
-        # But order should be sorted by site
-        m3 = NormalMonomial{ProjectorAlgebra}(UInt16[a, b, a])
-        @test issorted(decode_site.(m3.word))
-    end
+            # p₁ p₂ p₁ stays as-is after site-sorting (different sites don't simplify directly)
+            # But order should be sorted by site
+            m3 = NormalMonomial{ProjectorAlgebra}(T[a, b, a])
+            @test issorted(decode_site.(m3.word))
+        end
 
-    @testset "Pauli constructor rejects non-canonical" begin
-        reg, (σx, σy, σz) = create_pauli_variables(1:1)
-        x, y = σx[1].word[1], σy[1].word[1]
+        @testset "Pauli constructor rejects non-canonical" begin
+            reg, (σx, σy, σz) = create_pauli_variables(1:1)
+            x, y = _mono1(σx[1]).word[1], _mono1(σy[1]).word[1]
 
         # σx₁ σy₁ is NOT canonical (should be iσz₁)
         @test_throws ArgumentError NormalMonomial{PauliAlgebra}([x, y])
@@ -1732,10 +1725,10 @@ end
         @test isone(m_id)
     end
 
-    @testset "Fermionic constructor rejects non-normal-ordered" begin
-        reg, (a,) = create_fermionic_variables(1:1)
-        ann = a[1].word[1]      # annihilation (positive)
-        cre = -ann              # creation (negative)
+        @testset "Fermionic constructor rejects non-normal-ordered" begin
+            reg, (a_op, a_dag) = create_fermionic_variables(1:1)
+            ann = _mono1(a_op[1]).word[1]     # annihilation (positive)
+            cre = _mono1(a_dag[1]).word[1]    # creation (negative)
 
         # a₁ a₁† is NOT normal-ordered (should be 1 - a₁†a₁)
         @test_throws ArgumentError NormalMonomial{FermionicAlgebra}([ann, cre])
@@ -1749,10 +1742,10 @@ end
         @test isone(m_id)
     end
 
-    @testset "Bosonic constructor rejects non-normal-ordered" begin
-        reg, (c,) = create_bosonic_variables(1:1)
-        ann = c[1].word[1]
-        cre = -ann
+        @testset "Bosonic constructor rejects non-normal-ordered" begin
+            reg, (c_op, c_dag) = create_bosonic_variables(1:1)
+            ann = _mono1(c_op[1]).word[1]
+            cre = _mono1(c_dag[1]).word[1]
 
         # c₁ c₁† is NOT normal-ordered
         @test_throws ArgumentError NormalMonomial{BosonicAlgebra}([ann, cre])
@@ -1766,15 +1759,16 @@ end
         @test isone(m_id)
     end
 
-    @testset "NonCommutative constructor auto-sorts" begin
-        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
-        a, b, c = x[1].word[1], x[2].word[1], x[3].word[1]
+        @testset "NonCommutative constructor auto-sorts" begin
+            reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:1)])
+            a, b = _mono1(x[1]).word[1], _mono1(x[2]).word[1]  # site 1
+            c = _mono1(y[1]).word[1]  # site 2
 
-        # Out of order by site
-        raw = UInt16[c, a, b]
-        m = NormalMonomial{NonCommutativeAlgebra}(raw)
+            # Out of order by site: site 2 index appears first
+            raw = typeof(a)[c, a, b]
+            m = NormalMonomial{NonCommutativeAlgebra}(raw)
 
-        # Should be sorted by site
-        @test issorted(decode_site.(m.word))
+            # Should be sorted by site
+            @test issorted(decode_site.(m.word))
+        end
     end
-end

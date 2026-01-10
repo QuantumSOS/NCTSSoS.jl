@@ -235,7 +235,8 @@ end
 
 Simplify a Pauli algebra monomial.
 
-Returns a Term containing the simplified monomial and accumulated phase coefficient.
+Returns a `Monomial` containing the simplified monomial and accumulated phase coefficient
+in an internal encoding. Use `Polynomial(simplify(m))` to convert to numeric coefficients.
 The original monomial is unchanged.
 
 # Algebraic Rules
@@ -249,12 +250,14 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{PauliAlgebra}([1, 2]);  # σx₁ σy₁
 
-julia> t = simplify(m);
+julia> sm = simplify(m);  # Monomial with internal phase encoding
 
-julia> t.coefficient
+julia> p = Polynomial(sm);  # convert to numeric coefficients
+
+julia> coefficients(p)[1]
 0.0 + 1.0im
 
-julia> t.monomial.word
+julia> monomials(p)[1].word
 1-element Vector{Int64}:
  3
 

@@ -267,67 +267,72 @@ function Base.:(-)(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,
 end
 
 """
-    Base.:(+)(sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {ST,A,T,TC}
+    Base.:(+)(sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {ST,A,T,TC}
 
-Add a StateWord to a Term{StateWord} to create a StatePolynomial.
+Add a StateWord to a `(coefficient, StateWord)` pair to create a StatePolynomial.
 """
 function Base.:(+)(
-    sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer,TC<:Number}
-    StatePolynomial(TC[one(TC), t.coefficient], [sw, t.monomial])
+    coef, mono = t
+    StatePolynomial(TC[one(TC), coef], [sw, mono])
 end
-Base.:(+)(t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}) where {ST,A,T,TC} = sw + t
+Base.:(+)(t::Tuple{TC,StateWord{ST,A,T}}, sw::StateWord{ST,A,T}) where {ST,A,T,TC} = sw + t
 
 """
-    Base.:(-)(sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {ST,A,T,TC}
+    Base.:(-)(sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {ST,A,T,TC}
 
-Subtract a Term{StateWord} from a StateWord to create a StatePolynomial.
+Subtract a `(coefficient, StateWord)` pair from a StateWord to create a StatePolynomial.
 """
 function Base.:(-)(
-    sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer,TC<:Number}
-    StatePolynomial(TC[one(TC), -t.coefficient], [sw, t.monomial])
+    coef, mono = t
+    StatePolynomial(TC[one(TC), -coef], [sw, mono])
 end
 
 """
-    Base.:(-)(t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}) where {ST,A,T,TC}
+    Base.:(-)(t::Tuple{TC,StateWord{ST,A,T}}, sw::StateWord{ST,A,T}) where {ST,A,T,TC}
 
-Subtract a StateWord from a Term{StateWord} to create a StatePolynomial.
+Subtract a StateWord from a `(coefficient, StateWord)` pair to create a StatePolynomial.
 """
 function Base.:(-)(
-    t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}
+    t::Tuple{TC,StateWord{ST,A,T}}, sw::StateWord{ST,A,T}
 ) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer,TC<:Number}
-    StatePolynomial(TC[t.coefficient, -one(TC)], [t.monomial, sw])
+    coef, mono = t
+    StatePolynomial(TC[coef, -one(TC)], [mono, sw])
 end
 
 """
-    Base.:(+)(sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {C,TC,ST,A,T}
+    Base.:(+)(sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {C,TC,ST,A,T}
 
-Add a Term{StateWord} to a StatePolynomial.
+Add a `(coefficient, StateWord)` pair to a StatePolynomial.
 """
 function Base.:(+)(
-    sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {C<:Number,TC<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NC = promote_type(C, TC)
+    coef, mono = t
     StatePolynomial(
-        NC[NC.(sp.coeffs); NC(t.coefficient)],
-        [sp.state_words; t.monomial]
+        NC[NC.(sp.coeffs); NC(coef)],
+        [sp.state_words; mono]
     )
 end
-Base.:(+)(t::Term{StateWord{ST,A,T},TC}, sp::StatePolynomial{C,ST,A,T}) where {C,TC,ST,A,T} = sp + t
+Base.:(+)(t::Tuple{TC,StateWord{ST,A,T}}, sp::StatePolynomial{C,ST,A,T}) where {C,TC,ST,A,T} = sp + t
 
 """
-    Base.:(-)(sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {C,TC,ST,A,T}
+    Base.:(-)(sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {C,TC,ST,A,T}
 
-Subtract a Term{StateWord} from a StatePolynomial.
+Subtract a `(coefficient, StateWord)` pair from a StatePolynomial.
 """
 function Base.:(-)(
-    sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {C<:Number,TC<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NC = promote_type(C, TC)
+    coef, mono = t
     StatePolynomial(
-        NC[NC.(sp.coeffs); NC(-t.coefficient)],
-        [sp.state_words; t.monomial]
+        NC[NC.(sp.coeffs); NC(-coef)],
+        [sp.state_words; mono]
     )
 end
 
@@ -630,7 +635,7 @@ julia> using NCTSSoS
 
 julia> m = NormalMonomial{ProjectorAlgebra}(UInt8[1, 2]);
 
-julia> p = Polynomial([Term(1.0, m)]);
+julia> p = Polynomial([(1.0, m)]);
 
 julia> sp = ς(p);
 
@@ -641,8 +646,8 @@ true
 function ς(p::Polynomial{A,T,C}) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
     isempty(p.terms) && return StatePolynomial(C[], StateWord{Arbitrary,A,T}[])
 
-    state_words = [StateWord{Arbitrary}(t.monomial) for t in p.terms]
-    coeffs = C[t.coefficient for t in p.terms]
+    state_words = [StateWord{Arbitrary}(mono) for (_, mono) in p.terms]
+    coeffs = C[coef for (coef, _) in p.terms]
     return StatePolynomial(coeffs, state_words)
 end
 

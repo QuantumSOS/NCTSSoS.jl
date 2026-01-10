@@ -37,7 +37,7 @@ julia> cm[1] === m_pauli
 true
 ```
 
-Simplification dispatches to each component's algebra and returns `Vector{Term}`:
+Simplification dispatches to each component's algebra and returns a vector of `(coefficient, ComposedMonomial)` pairs:
 ```jldoctest
 julia> using NCTSSoS
 
@@ -51,24 +51,31 @@ julia> cm = ComposedMonomial((m_pauli, m_unip));
 
 julia> terms = simplify(cm);
 
-julia> terms[1].coefficient
+julia> terms[1][1]
 1.0 + 0.0im
 
-julia> terms[1].monomial[1].word == UInt16[1, 4]  # Pauli component stays canonical
+julia> terms[1][2][1].word == UInt16[1, 4]  # Pauli component stays canonical
 true
 
-julia> terms[1].monomial[2].word == [encode_index(UInt16, 2, 1)]  # Unipotent: [1,1,2] -> [2]
+julia> terms[1][2][2].word == [encode_index(UInt16, 2, 1)]  # Unipotent: [1,1,2] -> [2]
 true
 ```
 """
+@inline function _unwrap_unionall(T)
+    while T isa UnionAll
+        T = T.body
+    end
+    return T
+end
+
 @generated function _composed_signature(::Type{Ts}) where {Ts<:Tuple}
     comps = Ts.parameters
     isempty(comps) && return :(Tuple{})
 
     algs = Any[]
     for C in comps
-        sup = Base.unwrap_unionall(supertype(C))
-        if sup.name.wrapper !== AbstractMonomial
+        sup = _unwrap_unionall(supertype(C))
+        if !(sup <: AbstractMonomial)
             error("ComposedMonomial components must be subtypes of AbstractMonomial{A,T}, got $(C)")
         end
         push!(algs, sup.parameters[1])
@@ -229,25 +236,22 @@ function Base.one(cm::ComposedMonomial{As,Ts}) where {As,Ts}
 end
 
 """
-    Base.isone(t::Term{ComposedMonomial{As,Ts},C}) where {As,Ts,C} -> Bool
+    Base.isone(t::Tuple{C,<:ComposedMonomial}) where {C} -> Bool
 
-Check if a composed term is the identity (coefficient 1, all empty monomials).
+Check if a composed term is the identity (coefficient 1, all components are identity monomials).
 """
-function Base.isone(t::Term{ComposedMonomial{As,Ts},C}) where {As,Ts,C}
-    isone(t.coefficient) || return false
-    for mono in t.monomial.components
-        isone(mono) || return false
-    end
-    return true
+function Base.isone(t::Tuple{C,<:ComposedMonomial}) where {C<:Number}
+    coef, cm = t
+    return isone(coef) && isone(cm)
 end
 
 """
-    simplify(cm::ComposedMonomial) -> Vector{Term{<:ComposedMonomial}}
+    simplify(cm::ComposedMonomial) -> Vector{Tuple{<:Number,<:ComposedMonomial}}
 
 Simplify each component according to its algebra type.
 
-Always returns `Vector{Term{ComposedMonomial}}` for consistent API. Each term
-contains a ComposedMonomial with the simplified component monomials.
+Always returns `Vector{Tuple{coefficient,ComposedMonomial}}` for consistent API.
+Each entry contains a ComposedMonomial with the simplified component monomials.
 
 # Algorithm
 1. Simplify each component using its algebra's simplify function
@@ -271,51 +275,47 @@ julia> cm = ComposedMonomial((m_pauli, m_unip));
 
 julia> result = simplify(cm);
 
-julia> result isa Vector{<:Term}
+julia> result isa Vector{<:Tuple}
 true
 
-julia> result[1].coefficient
+julia> result[1][1]
 1.0 + 0.0im
 
-julia> isempty(result[1].monomial[1].word)  # Pauli identity stays identity
+julia> isempty(result[1][2][1].word)  # Pauli identity stays identity
 true
 
-julia> isempty(result[1].monomial[2].word)  # Unipotent [2,2] -> []
+julia> isempty(result[1][2][2].word)  # Unipotent [2,2] -> []
 true
 ```
 """
-function simplify(cm::ComposedMonomial)
+function simplify(cm::ComposedMonomial{As,Ts}) where {As<:Tuple,Ts<:Tuple}
     simplified_components = map(simplify, cm.components)
-    return _expand_simplified_components(simplified_components)
+    return _expand_simplified_components(ComposedMonomial{As,Ts}, simplified_components)
 end
 
 # Helper to expand Cartesian product of simplified components
-function _expand_simplified_components(simplified::Tuple)
+function _expand_simplified_components(::Type{CM}, simplified::Tuple) where {CM<:ComposedMonomial}
     # Infer coefficient type from tuple element types at compile time
     CoefType = _infer_coef_type_from_types(simplified)
 
     # Compute Cartesian product using iteration protocol
-    result = Term[]
+    result = Tuple{CoefType,CM}[]
 
     _cartesian_product_iter!(result, simplified, 1, (), one(CoefType))
 
     # Filter zeros and return
-    filter!(!iszero, result)
+    filter!(t -> !iszero(t[1]), result)
 
     if isempty(result)
         # Return zero term with identity monomials
         one_components = map(_get_identity_monomial, simplified)
-        return [Term(zero(CoefType), ComposedMonomial(one_components))]
+        return Tuple{CoefType,CM}[(zero(CoefType), ComposedMonomial(one_components))]
     end
 
     return result
 end
 
 # Get identity monomial from a simplified component (for zero-result fallback)
-function _get_identity_monomial(::Vector{Tuple{C,NormalMonomial{A,T}}}) where {C,A<:AlgebraType,T<:Integer}
-    return one(NormalMonomial{A,T})
-end
-
 function _get_identity_monomial(::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     return one(NormalMonomial{A,T})
 end
@@ -333,16 +333,16 @@ end
 
 # New helper using iteration protocol
 function _cartesian_product_iter!(
-    result::Vector{Term},
+    result::Vector{Tuple{CoefType,CM}},
     components::Tuple,
     idx::Int,
     current_monomials::Tuple,
-    current_coef::Number,
-)
+    current_coef::CoefType,
+) where {CoefType<:Number,CM<:ComposedMonomial}
     if idx > length(components)
         # Base case: all components processed
         cm = ComposedMonomial(current_monomials)
-        push!(result, Term(current_coef, cm))
+        push!(result, (current_coef, cm))
         return nothing
     end
 
@@ -364,15 +364,18 @@ function Base.show(io::IO, cm::ComposedMonomial)
     return print(io, ")")
 end
 
-# Show method for Term with ComposedMonomial
-function Base.show(io::IO, t::Term{<:ComposedMonomial,C}) where {C}
-    if iszero(t)
+# Minimal helpers for `(coefficient, ComposedMonomial)` pairs (legacy `Term` replacement)
+Base.iszero(t::Tuple{C,<:ComposedMonomial}) where {C<:Number} = iszero(t[1])
+
+function Base.show(io::IO, t::Tuple{C,<:ComposedMonomial}) where {C<:Number}
+    coef, mono = t
+    if iszero(coef)
         print(io, "0")
-    elseif isone(t)
+    elseif isone(coef) && isone(mono)
         print(io, "1")
-    elseif t.coefficient == one(C)
-        print(io, t.monomial)
+    elseif coef == one(C)
+        print(io, mono)
     else
-        print(io, t.coefficient, " * ", t.monomial)
+        print(io, coef, " * ", mono)
     end
 end

@@ -96,7 +96,7 @@ using NCTSSoS: variable_indices, expval
 
         # Same variable multiplication produces longer word (concatenation)
         result = x[1] * x[1]
-        @test result isa NormalMonomial
+        @test result isa Monomial
         @test degree(result) == 2
 
         # Different variables
@@ -104,13 +104,9 @@ using NCTSSoS: variable_indices, expval
         @test degree(result2) == 2
 
         # Identity multiplication
-        mono_id = one(NormalMonomial{NonCommutativeAlgebra,UInt8})
-        mono_x = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
-        result3 = mono_id * mono_x
-        @test result3 == mono_x
-
-        result4 = mono_x * mono_id
-        @test result4 == mono_x
+        mono_id = one(x[1])
+        @test mono_id * x[1] == x[1]
+        @test x[1] * mono_id == x[1]
     end
 
     @testset "Comparison" begin
@@ -303,23 +299,23 @@ using NCTSSoS: variable_indices, expval
 
         # m^1 should equal m
         m1 = m^1
-        @test m1 == m
+        @test m1.words == m
         @test degree(m1) == 2
 
         # m^2 should repeat word twice
         m2 = m^2
-        @test m2.word == [1, 2, 1, 2]
+        @test m2.words.word == [1, 2, 1, 2]
         @test degree(m2) == 4
 
         # m^3 should repeat word three times
         m3 = m^3
-        @test m3.word == [1, 2, 1, 2, 1, 2]
+        @test m3.words.word == [1, 2, 1, 2, 1, 2]
         @test degree(m3) == 6
 
         # Power of single variable
         x = NormalMonomial{NonCommutativeAlgebra}([3])
         x5 = x^5
-        @test x5.word == [3, 3, 3, 3, 3]
+        @test x5.words.word == [3, 3, 3, 3, 3]
         @test degree(x5) == 5
 
         # Power of identity stays identity
@@ -374,9 +370,9 @@ using NCTSSoS: variable_indices, expval
 
         # Test negation
         t = -m1
-        @test t isa Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Float64}
-        @test t.coefficient == -1.0
-        @test t.monomial === m1
+        @test t isa Tuple{Float64,NormalMonomial{NonCommutativeAlgebra,UInt8}}
+        @test first(t) == -1.0
+        @test last(t) === m1
 
         # Test scalar addition
         p3 = m1 + 2.0

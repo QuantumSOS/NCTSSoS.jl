@@ -155,32 +155,32 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         @test degree(cm_empty) == 0
     end
 
-    @testset "Term isone" begin
+    @testset "(coefficient, ComposedMonomial) isone" begin
         m_empty1 = NormalMonomial{PauliAlgebra}(UInt16[])
         m_empty2 = NormalMonomial{FermionicAlgebra}(Int32[])
         cm_empty = ComposedMonomial((m_empty1, m_empty2))
 
         # Coefficient 1, all empty monomials -> true
-        t_one = Term(1.0, cm_empty)
+        t_one = (1.0, cm_empty)
         @test isone(t_one)
 
         # Complex coefficient 1
-        t_one_complex = Term(1.0 + 0.0im, cm_empty)
+        t_one_complex = (1.0 + 0.0im, cm_empty)
         @test isone(t_one_complex)
 
         # Coefficient not 1 -> false
-        t_two = Term(2.0, cm_empty)
+        t_two = (2.0, cm_empty)
         @test !isone(t_two)
 
         # Non-empty monomial -> false
         m_nonempty = NormalMonomial{PauliAlgebra}(UInt16[P_S1])
         cm_nonempty = ComposedMonomial((m_nonempty, m_empty2))
-        t_nonempty = Term(1.0, cm_nonempty)
+        t_nonempty = (1.0, cm_nonempty)
         @test !isone(t_nonempty)
 
         # Second component non-empty -> false
         cm_nonempty2 = ComposedMonomial((m_empty1, NormalMonomial{FermionicAlgebra}(Int32[1])))
-        t_nonempty2 = Term(1.0, cm_nonempty2)
+        t_nonempty2 = (1.0, cm_nonempty2)
         @test !isone(t_nonempty2)
     end
 
@@ -194,19 +194,19 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
 
         result = simplify(cm)
 
-        # Result is always Vector{Term}
-        @test result isa Vector{<:Term}
+        # Result is always Vector{(coefficient, ComposedMonomial)} pairs
+        @test result isa Vector{<:Tuple}
         @test length(result) == 1
-        @test result[1].coefficient ≈ 1.0 + 0.0im
-        @test isempty(result[1].monomial[1].word)  # Pauli simplified
-        @test result[1].monomial[2].word == [encode_index(UInt16, 1, 1)]
+        @test result[1][1] ≈ 1.0 + 0.0im
+        @test isempty(result[1][2][1].word)  # Pauli simplified
+        @test result[1][2][2].word == [encode_index(UInt16, 1, 1)]
     end
 
     @testset "Simplification - Single-term algebras (UnipotentAlgebra)" begin
         # Unipotent: U² = I (consecutive pairs cancel)
         # Constructor now auto-simplifies, so:
         # [u1, u1, u2] -> [u2] (u1 pair cancels, u2 remains)
-        # ComposedMonomial always returns Vector{Term}
+        # ComposedMonomial always returns Vector{(coefficient, ComposedMonomial)}
         u1 = encode_index(UInt16, 1, 1)
         u2 = encode_index(UInt16, 2, 1)
 
@@ -217,16 +217,16 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
 
         result = simplify(cm)
 
-        # Result is always Vector{Term}
-        @test result isa Vector{<:Term}
+        # Result is always Vector{(coefficient, ComposedMonomial)} pairs
+        @test result isa Vector{<:Tuple}
         @test length(result) == 1
         # Unipotent [u1, u1, u2] -> [u2] (u1 pair cancels via U²=I)
-        @test result[1].monomial[2].word == [u2]
+        @test result[1][2][2].word == [u2]
     end
 
     @testset "Simplification - Single-term algebras (ProjectorAlgebra)" begin
         # Projector: [e_ii, e_ii] -> [e_ii] (idempotent)
-        # ComposedMonomial always returns Vector{Term}
+        # ComposedMonomial always returns Vector{(coefficient, ComposedMonomial)}
         p1 = encode_index(UInt16, 1, 1)
 
         m_proj = NormalMonomial{ProjectorAlgebra}(UInt16[p1, p1])
@@ -235,10 +235,10 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
 
         result = simplify(cm)
 
-        # Result is always Vector{Term}
-        @test result isa Vector{<:Term}
+        # Result is always Vector{(coefficient, ComposedMonomial)} pairs
+        @test result isa Vector{<:Tuple}
         @test length(result) == 1
-        @test result[1].monomial[1].word == [p1]  # Projector simplified
+        @test result[1][2][1].word == [p1]  # Projector simplified
     end
 
     @testset "Simplification - Multi-term algebras (FermionicAlgebra)" begin
@@ -257,9 +257,9 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
 
         result = simplify(cm)
 
-        # Result is Vector{Term} (Cartesian product across component expansions)
-        @test result isa Vector{<:Term}
-        @test all(t -> t.monomial isa ComposedMonomial, result)
+        # Result is Vector{(coefficient, ComposedMonomial)} pairs
+        @test result isa Vector{<:Tuple}
+        @test all(t -> t[2] isa ComposedMonomial, result)
     end
 
     @testset "Simplification - Multi-term algebras (BosonicAlgebra)" begin
@@ -275,17 +275,17 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         result = simplify(cm)
 
         # Should produce multiple terms due to commutation
-        # Result is Vector{Term} (Cartesian product across component PBW expansions)
-        @test result isa Vector{<:Term}
+        # Result is Vector{(coefficient, ComposedMonomial)} pairs
+        @test result isa Vector{<:Tuple}
         # Exact count depends on simplification rules - just verify structure
-        @test all(t -> t.monomial isa ComposedMonomial, result)
+        @test all(t -> t[2] isa ComposedMonomial, result)
     end
 
     @testset "Simplification - Cartesian product" begin
         # When both algebras produce terms, result is Cartesian product
         # Use normal-ordered fermionic: c₁†a₁
         # Use canonical Pauli on single site
-        # ComposedMonomial with Fermionic returns Vector{Term}
+        # ComposedMonomial with Fermionic returns Vector{(coefficient, ComposedMonomial)}
 
         m_fermi = NormalMonomial{FermionicAlgebra}(Int32[-1, 1])  # c₁†a₁ (normal-ordered)
         m_pauli = NormalMonomial{PauliAlgebra}(UInt16[P_S1])  # Single Pauli
@@ -293,9 +293,9 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
 
         result = simplify(cm)
 
-        # Verify we get Vector{Term} with properly structured terms
-        @test result isa Vector{<:Term}
-        @test all(t -> length(t.monomial.components) == 2, result)
+        # Verify we get Vector{(coefficient, ComposedMonomial)} pairs with properly structured monomials
+        @test result isa Vector{<:Tuple}
+        @test all(t -> length(t[2].components) == 2, result)
     end
 
     @testset "Simplification - Type promotion" begin
@@ -308,9 +308,9 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         result = simplify(cm)
 
         # Result should have ComplexF64 coefficient
-        @test result isa Vector{<:Term}
+        @test result isa Vector{<:Tuple}
         @test length(result) == 1
-        @test result[1].coefficient isa ComplexF64
+        @test result[1][1] isa ComplexF64
     end
 
     @testset "Simplification - Zero result handling" begin
@@ -325,8 +325,8 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
 
         result = simplify(cm)
 
-        # Result is Vector{Term} with identity
-        @test result isa Vector{<:Term}
+        # Result is Vector{(coefficient, ComposedMonomial)} pairs with identity
+        @test result isa Vector{<:Tuple}
         @test length(result) >= 1
     end
 
@@ -334,16 +334,10 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         # Test compile-time coefficient type inference using coeff_type
         m_pauli = NormalMonomial{PauliAlgebra}(UInt16[P_S1])
         m_fermi = NormalMonomial{FermionicAlgebra}(Int32[1])
-        t_pauli = Term(1.0 + 0.0im, m_pauli)
-        t_fermi = Term(2.0, m_fermi)
 
         # Monomial + Monomial: Pauli (ComplexF64) + Fermionic (Float64) -> ComplexF64
         T1 = _infer_coef_type_from_types((m_pauli, m_fermi))
         @test T1 == ComplexF64
-
-        # Term + Term: ComplexF64 + Float64 -> ComplexF64
-        T2 = _infer_coef_type_from_types((t_pauli, t_fermi))
-        @test T2 == ComplexF64
 
         # All Float64 monomials
         m_nc = NormalMonomial{NonCommutativeAlgebra}([1])
@@ -351,44 +345,35 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         @test T3 == Float64
 
         # Polynomial (ComplexF64) + Monomial (Float64) -> ComplexF64
-        p_pauli = Polynomial([t_pauli])
+        p_pauli = Polynomial([(1.0 + 0.0im, m_pauli)])
         T4 = _infer_coef_type_from_types((p_pauli, m_fermi))
         @test T4 == ComplexF64
     end
 
     @testset "_cartesian_product_iter! (via _expand_simplified_components)" begin
         # Test _cartesian_product_iter! indirectly through _expand_simplified_components
-        # The function now uses iteration protocol directly, so we pass Monomials/Terms/Polynomials
-        # Use Pauli indices on different sites
-        m1a = NormalMonomial{PauliAlgebra}(UInt16[P_S1])  # Site 1
-        m1b = NormalMonomial{PauliAlgebra}(UInt16[P_S2])  # Site 2
-        m2a = NormalMonomial{FermionicAlgebra}(Int32[1])
+        # The helper expects components iterable as `(c_internal, NormalMonomial)` pairs, i.e. `Monomial`s.
+        f1 = NormalMonomial{FermionicAlgebra}(Int32[1])
+        f2 = NormalMonomial{FermionicAlgebra}(Int32[2])
+        ferm_multi = Monomial(Int[1, 2], [f1, f2])
 
-        # Create a Polynomial with two terms (simulates multi-term simplify result)
-        t1a = Term(1.0 + 0.0im, m1a)
-        t1b = Term(2.0 + 0.0im, m1b)
-        p_pauli = Polynomial([t1a, t1b])
+        p = NormalMonomial{PauliAlgebra}(UInt16[P_S1])
+        pauli_phase = Monomial(UInt8(1), p)  # phase_k = 1 → i
 
-        # Single term (use Term for single-element simplify result)
-        t2a = Term(3.0, m2a)
+        cm_template = ComposedMonomial((f1, p))
+        result = _expand_simplified_components(typeof(cm_template), (ferm_multi, pauli_phase))
 
-        # Create simplified components tuple - Polynomial and Term
-        # The iteration protocol will yield (coef, mono) pairs from each
-        simplified = (p_pauli, t2a)
-
-        result = _expand_simplified_components(simplified)
-
-        # Should produce 2 * 1 = 2 terms (Cartesian product)
+        # Should produce 2 * 1 = 2 terms (Cartesian product across components)
         @test length(result) == 2
 
-        # Check coefficients are products (ComplexF64 due to Pauli)
-        coeffs = Set([real(t.coefficient) for t in result])
-        @test 1.0 * 3.0 in coeffs
-        @test 2.0 * 3.0 in coeffs
+        # Coefficients pick up the Pauli phase: {i, 2i}
+        coeffs = Set(map(imag ∘ first, result))
+        @test 1.0 in coeffs
+        @test 2.0 in coeffs
 
         # Check monomials are composed correctly
-        @test all(t -> t.monomial isa ComposedMonomial, result)
-        @test all(t -> length(t.monomial.components) == 2, result)
+        @test all(t -> t[2] isa ComposedMonomial, result)
+        @test all(t -> length(t[2].components) == 2, result)
     end
 
     @testset "Display - ComposedMonomial" begin
@@ -409,30 +394,30 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         @test occursin("ComposedMonomial", s_single)
     end
 
-    @testset "Display - Term with ComposedMonomial" begin
+    @testset "Display - (coefficient, ComposedMonomial)" begin
         m1 = NormalMonomial{PauliAlgebra}(UInt16[P_S1, P_S2])
         m2 = NormalMonomial{FermionicAlgebra}(Int32[1])
         cm = ComposedMonomial((m1, m2))
 
         # Zero term
-        t_zero = Term(0.0, cm)
+        t_zero = (0.0, cm)
         @test sprint(show, t_zero) == "0"
 
         # Identity term (coefficient 1, empty monomials)
         m_empty1 = NormalMonomial{PauliAlgebra}(UInt16[])
         m_empty2 = NormalMonomial{FermionicAlgebra}(Int32[])
         cm_empty = ComposedMonomial((m_empty1, m_empty2))
-        t_one = Term(1.0, cm_empty)
+        t_one = (1.0, cm_empty)
         @test sprint(show, t_one) == "1"
 
         # Coefficient = 1 with non-empty monomial
-        t_coef_one = Term(1.0, cm)
+        t_coef_one = (1.0, cm)
         s_one = sprint(show, t_coef_one)
         @test !occursin("1.0 *", s_one)  # Should not show coefficient
         @test occursin("ComposedMonomial", s_one)
 
         # General case
-        t_general = Term(2.5, cm)
+        t_general = (2.5, cm)
         s_general = sprint(show, t_general)
         @test occursin("2.5", s_general)
         @test occursin("*", s_general)
@@ -452,7 +437,7 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         # Simplify
         terms = simplify(cm)
         @test !isempty(terms)
-        @test all(t -> t.monomial isa ComposedMonomial, terms)
+        @test all(t -> t[2] isa ComposedMonomial, terms)
     end
 
     @testset "Integration - Three-way composition" begin

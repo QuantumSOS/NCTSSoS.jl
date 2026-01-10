@@ -7,7 +7,7 @@
 #
 # Design:
 # - Registry-aware: uses VariableRegistry{A,T} for proper index types
-# - No extra monomial wrapper types: uses the `Monomial` iteration protocol for simplification results
+# - User-facing basis elements are `Monomial` (single-term, unit internal coefficient)
 # - Algebra-dispatched: PBW expands; monoids stay one-monomial
 
 """
@@ -74,9 +74,9 @@ Generate all simplified monomials of exactly degree d using variables from the r
 - `d`: Exact degree
 
 # Returns
-- `Vector{NormalMonomial{A,T}}`: Canonical monomials produced by simplification.
-  - For `MonoidAlgebra`/`TwistedGroupAlgebra`: one monomial per input word (duplicates allowed)
-  - For `PBWAlgebra`: unique monomials appearing in the expansion
+- `Vector{Monomial{A,T}}`: Canonical monomial *elements* produced by simplification.
+  Each entry is a single-term `Monomial` with unit internal coefficient and a
+  `NormalMonomial` word in normal form.
 
 # Examples
 ```jldoctest
@@ -111,7 +111,8 @@ true
 function get_ncbasis_deg(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
     idxs = indices(registry)
 
-    return _get_ncbasis_deg(A, T, idxs, d)
+    monos = _get_ncbasis_deg(A, T, idxs, d)
+    return [Monomial(m) for m in monos]
 end
 
 function _get_ncbasis_deg(
@@ -165,7 +166,7 @@ Generate all simplified monomials up to and including degree d using variables f
 - `d`: Maximum degree (inclusive)
 
 # Returns
-- `Vector{NormalMonomial{A,T}}`: Canonical monomials appearing in simplification results
+- `Vector{Monomial{A,T}}`: Canonical monomial elements (single-term) appearing in simplification results
 
 # Examples
 ```jldoctest
@@ -195,10 +196,12 @@ true
 ```
 """
 function get_ncbasis(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraType, T<:Integer}
+    idxs = indices(registry)
+
     result = NormalMonomial{A,T}[]
     for deg in 0:d
-        append!(result, get_ncbasis_deg(registry, deg))
+        append!(result, _get_ncbasis_deg(A, T, idxs, deg))
     end
     unique!(sort!(result))
-    return result
+    return [Monomial(m) for m in result]
 end

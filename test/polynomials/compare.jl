@@ -45,9 +45,9 @@
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([3])
 
-        p1 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p2 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p3 = Polynomial([Term(1.00000001, m1), Term(2.0, m2)])
+        p1 = Polynomial([(1.0, m1), (2.0, m2)])
+        p2 = Polynomial([(1.0, m1), (2.0, m2)])
+        p3 = Polynomial([(1.00000001, m1), (2.0, m2)])
 
         @test p1 == p2
         @test p1 != p3  # Different coefficient
@@ -57,9 +57,9 @@
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([3])
 
-        p1 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p2 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p3 = Polynomial([Term(1.00000001, m1), Term(2.0, m2)])
+        p1 = Polynomial([(1.0, m1), (2.0, m2)])
+        p2 = Polynomial([(1.0, m1), (2.0, m2)])
+        p3 = Polynomial([(1.00000001, m1), (2.0, m2)])
 
         @test hash(p1) == hash(p2)
 

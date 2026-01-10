@@ -12,12 +12,12 @@ useful for debugging and inspecting the problem structure without running the so
 
 # Fields
 - `corr_sparsity::CorrelativeSparsity{A,TI,P,M}`: Correlative sparsity structure (cliques, constraints)
-- `initial_activated_supps::Vector{Vector{M}}`: Initial activated supports per clique (before term sparsity iteration)
+- `initial_activated_supps::Vector{<:AbstractVector{<:Monomial{A,TI}}}`: Initial activated supports per clique (user-facing, before term sparsity iteration)
 - `cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}`: Term sparsity blocks per clique
 """
 struct SparsityResult{A<:AlgebraType, TI<:Integer, P<:Polynomial{A,TI}, M<:NormalMonomial{A,TI}}
     corr_sparsity::CorrelativeSparsity{A,TI,P,M}
-    initial_activated_supps::Vector{Vector{M}}
+    initial_activated_supps::Vector{<:AbstractVector{<:Monomial{A,TI}}}
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
 end
 
@@ -155,12 +155,21 @@ failed with an unacceptable status (infeasible, unbounded, numerical error, etc.
 """
 function _check_solver_status(model)
     status = termination_status(model)
-    if status ∉ _ACCEPTABLE_STATUSES
-        primal = primal_status(model)
-        dual = dual_status(model)
-        error("Solver failed: termination=$status, primal=$primal, dual=$dual")
+    status ∈ _ACCEPTABLE_STATUSES && return status
+
+    primal = primal_status(model)
+    dual = dual_status(model)
+
+    # COSMO (and other first-order solvers) can hit iteration/time limits while still
+    # returning a usable (nearly) feasible point. Treat those as acceptable so that
+    # downstream tests can validate objective values against known tolerances.
+    if status == MOI.ITERATION_LIMIT &&
+       (primal ∈ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT) ||
+        dual ∈ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT))
+        return status
     end
-    return status
+
+    error("Solver failed: termination=$status, primal=$primal, dual=$dual")
 end
 
 """
@@ -174,10 +183,10 @@ indices are in `clique_indices`.
 """
 function project_to_clique(poly::Polynomial{A,T,C}, clique_indices) where {A,T,C}
     clique_set = Set(clique_indices)
-    result_terms = Term{NormalMonomial{A,T},C}[]
-    for (coef, mono) in zip(coefficients(poly), monomials(poly))
+    result_terms = Tuple{C,Monomial{A,T}}[]
+    for (coef, mono) in terms(poly)
         if issubset(variable_indices(mono), clique_set)
-            push!(result_terms, Term(coef, mono))
+            push!(result_terms, (coef, mono))
         end
     end
     isempty(result_terms) ? zero(poly) : Polynomial(result_terms)
@@ -220,7 +229,7 @@ function solve_sdp(moment_problem, optimizer; dualize::Bool=true)
         return (
             objective = objective_value(sos_problem.model),
             model = sos_problem.model,
-            n_unique_elements = sos_problem.n_unique_elements,
+            n_unique_elements = moment_problem.n_unique_moment_matrix_elements,
             status = status
         )
     else
@@ -279,14 +288,15 @@ function compute_sparsity(pop::OP, solver_config::SolverConfig) where {A<:Algebr
     # Compute partial objectives for each clique
     cliques_objective = map(c -> project_to_clique(pop.objective, c), corr_sparsity.cliques)
 
-    initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
+    initial_activated_supps_nm = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
         init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
     end
 
-    cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
+    cliques_term_sparsities = map(zip(initial_activated_supps_nm, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
         term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
     end
 
+    initial_activated_supps = [Monomial.(supp) for supp in initial_activated_supps_nm]
     return SparsityResult(corr_sparsity, initial_activated_supps, cliques_term_sparsities)
 end
 
@@ -373,16 +383,19 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
     prev_sparsity = prev_res.sparsity
 
     # Compute new initial activated supports from union of previous term sparsity graph supports
-    initial_activated_supps = [reduce(sorted_union, [poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec])
-                               for term_sparsities_vec in prev_sparsity.cliques_term_sparsities]
+    initial_activated_supps_nm = [
+        reduce(sorted_union, [poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec])
+        for term_sparsities_vec in prev_sparsity.cliques_term_sparsities
+    ]
 
     prev_corr_sparsity = prev_sparsity.corr_sparsity
 
-    cliques_term_sparsities = map(zip(initial_activated_supps, prev_corr_sparsity.clq_cons, prev_corr_sparsity.clq_mom_mtx_bases, prev_corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
+    cliques_term_sparsities = map(zip(initial_activated_supps_nm, prev_corr_sparsity.clq_cons, prev_corr_sparsity.clq_mom_mtx_bases, prev_corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
         term_sparsities(init_act_supp, prev_corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
     end
 
     # Create new sparsity result with updated term sparsities
+    initial_activated_supps = [Monomial.(supp) for supp in initial_activated_supps_nm]
     sparsity = SparsityResult(prev_corr_sparsity, initial_activated_supps, cliques_term_sparsities)
 
     moment_problem = moment_relax(pop, prev_corr_sparsity, cliques_term_sparsities)

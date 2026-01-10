@@ -70,12 +70,14 @@ function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) whe
     n_basis = length(unsymmetrized_basis)
 
     for ci in cis
-        for t in terms(localizing_mtx[ci])
-            coeff, alpha = t.coefficient, t.monomial
-            idx = searchsortedfirst(unsymmetrized_basis, alpha)
+        for (coeff, alpha) in terms(localizing_mtx[ci])
+            # `terms(::Polynomial)` yields `(coefficient, Monomial)` pairs; internal SOS basis
+            # for moment problems is still in `NormalMonomial` space.
+            alpha_key = (M <: NormalMonomial) ? expval(alpha) : alpha
+            idx = searchsortedfirst(unsymmetrized_basis, alpha_key)
             # Skip monomials not in basis (e.g., odd-parity fermionic monomials)
             # These have expectation value 0 and don't contribute
-            if idx <= n_basis && unsymmetrized_basis[idx] == alpha
+            if idx <= n_basis && unsymmetrized_basis[idx] == alpha_key
                 dictionary_of_keys[(idx, ci.I[1], ci.I[2])] = coeff
             end
         end
@@ -187,10 +189,11 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     #   sum_j sum_{k,l} C_alpha_jkl * G_j[k,l] = c_alpha - delta_{alpha,1} * b
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in 1:n_basis]
 
-    # Add objective polynomial coefficients
-    for (coef, mono) in zip(coefficients(mp.objective), monomials(mp.objective))
-        sym_idx = searchsortedfirst(symmetric_basis, symmetric_canon(mono))
-        if sym_idx <= n_basis && symmetric_basis[sym_idx] == symmetric_canon(mono)
+    # Add objective polynomial coefficients (work in NormalMonomial space)
+    for (coef, mono) in mp.objective.terms
+        canon_mono = symmetric_canon(mono)
+        sym_idx = searchsortedfirst(symmetric_basis, canon_mono)
+        if sym_idx <= n_basis && symmetric_basis[sym_idx] == canon_mono
             add_to_expression!(fα_constraints[sym_idx], coef)
         end
     end
@@ -202,7 +205,9 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     sorted_basis = sort(mp.total_basis)
     for (i, (_, mat)) in enumerate(mp.constraints)
         Cαjs = get_Cαj(sorted_basis, mat)
-        for (ky, coef) in Cαjs
+        # Deterministic iteration (Dict order is randomized per Julia session).
+        for ky in sort!(collect(keys(Cαjs)))
+            coef = Cαjs[ky]
             basis_idx, row, col = ky
             # Map unsymmetrized basis index to symmetric index
             if basis_idx <= length(sorted_basis)
@@ -405,8 +410,8 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     fα_constraints_re = [zero(GenericAffExpr{RC,VariableRef}) for _ in 1:n_basis]
     fα_constraints_im = [zero(GenericAffExpr{RC,VariableRef}) for _ in 1:n_basis]
 
-    # Add objective polynomial coefficients (real and imaginary parts)
-    for (coef, mono) in zip(coefficients(mp.objective), monomials(mp.objective))
+    # Add objective polynomial coefficients (real and imaginary parts; NormalMonomial space)
+    for (coef, mono) in mp.objective.terms
         canon_mono = symmetric_canon(mono)
         idx = searchsortedfirst(symmetric_basis, canon_mono)
         if idx <= n_basis && symmetric_basis[idx] == canon_mono
@@ -421,7 +426,9 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     # Process each constraint matrix
     for (i, (_, mat)) in enumerate(mp.constraints)
         Cαjs = get_Cαj(sorted_unsym_basis, mat)
-        for (ky, coef) in Cαjs
+        # Deterministic iteration (Dict order is randomized per Julia session).
+        for ky in sort!(collect(keys(Cαjs)))
+            coef = Cαjs[ky]
             unsym_basis_idx, row, col = ky
 
             # Map unsymmetrized basis index to symmetric index

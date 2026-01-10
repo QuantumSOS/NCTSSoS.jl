@@ -107,21 +107,10 @@ function get_correlative_graph(
         return [idx_to_node[idx] for idx in idxs]
     end
 
-    # Helper to get graph positions from a monomial
-    function get_positions(m::NormalMonomial{A,T}) where {A,T}
-        positions = Int[]
-        seen = Set{T}()
-        for idx in m.word
-            abs_idx = T(abs(idx))
-            if abs_idx in seen
-                continue
-            end
-            push!(seen, abs_idx)
-            if haskey(idx_to_node, abs_idx)
-                push!(positions, idx_to_node[abs_idx])
-            end
-        end
-        return positions
+    # Helper to get graph positions from a monomial element
+    function get_positions(m::Monomial{A,T}) where {A,T}
+        idxs = variable_indices(m)
+        return sort([idx_to_node[idx] for idx in idxs])
     end
 
     # Add cliques from objective monomials
@@ -185,18 +174,30 @@ end
 
 Extract underlying monomials from basis elements for use in moment matrix construction.
 
-The basis returned by `get_ncbasis` is `Vector{NormalMonomial{A,T}}` for all algebras.
+The basis returned by `get_ncbasis` is `Vector{Monomial{A,T}}` (single-term canonical elements).
 
 # Arguments
-- `basis::Vector{NormalMonomial{A,T}}`: Basis monomials from `get_ncbasis`
+- `basis`: Basis elements from `get_ncbasis`
 
 # Returns
-- `Vector{NormalMonomial{A,T}}`: Same monomials for moment matrix indexing
+- `Vector{NormalMonomial{A,T}}`: Normal-form monomials for moment matrix indexing
 """
 function extract_monomials_from_basis(
     basis::Vector{NormalMonomial{A,T}}
 ) where {A<:AlgebraType, T<:Integer}
     return basis
+end
+
+function extract_monomials_from_basis(
+    basis::AbstractVector{<:Monomial{A,T}},
+) where {A<:AlgebraType,T<:Integer}
+    result = NormalMonomial{A,T}[]
+    for m in basis
+        isempty(m) && continue
+        _, mono = m[1]
+        push!(result, mono)
+    end
+    return result
 end
 
 # Legacy: handle old Polynomial-based basis (for backward compatibility during transition)
@@ -206,7 +207,8 @@ function extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) wh
         if isempty(p.terms)
             continue
         end
-        push!(result, p.terms[1].monomial)
+        _, mono = p.terms[1]
+        push!(result, mono)
     end
     return result
 end
@@ -418,11 +420,11 @@ function init_activated_supp(
         diag_mono = neat_dot(b, b)
         # Simplify and extract monomials (may produce multiple terms)
         simplified_poly = Polynomial(simplify(diag_mono))
-        append!(diagonal_entries, monomials(simplified_poly))
+        append!(diagonal_entries, last.(simplified_poly.terms))
     end
     return sorted_union(
-        symmetric_canon.(monomials(partial_obj)),
-        mapreduce(monomials, vcat, cons; init=M[]),
+        symmetric_canon.(last.(partial_obj.terms)),
+        mapreduce(p -> last.(p.terms), vcat, cons; init=M[]),
         diagonal_entries
     )
 end
@@ -484,9 +486,9 @@ function get_term_sparsity_graph(
             # _neat_dot3 returns Monomial, simplify to get Polynomial with algebra-specific rules
             connected_poly_lr = Polynomial(simplify(_neat_dot3(bases[i], supp, bases[j])))
             connected_poly_rl = Polynomial(simplify(_neat_dot3(bases[j], supp, bases[i])))
-            # Check if any monomial from the simplified result is in activated support
-            monos_lr = monomials(connected_poly_lr)
-            monos_rl = monomials(connected_poly_rl)
+            # Check if any normal-form monomial from the simplified result is in activated support
+            monos_lr = last.(connected_poly_lr.terms)
+            monos_rl = last.(connected_poly_rl.terms)
             if any(m in sorted_activated_supp for m in monos_lr) ||
                any(m in sorted_activated_supp for m in monos_rl)
                 add_edge!(G, i, j)
@@ -514,7 +516,7 @@ Iteratively computes term sparsity support for a polynomial.
 function iterate_term_sparse_supp(
     activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
-    F = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
+    F = get_term_sparsity_graph(last.(poly.terms), activated_supp, basis)
     blocks = clique_decomp(F, elim_algo)
     map(block -> add_clique!(F, block), blocks)
     return TermSparsity(term_sparsity_graph_supp(F, basis, poly), map(x -> basis[x], blocks))
@@ -540,7 +542,14 @@ function term_sparsity_graph_supp(
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     # Compute products basis[a]† * g_support * basis[b] for all graph edges
     # _neat_dot3 returns Monomial, simplify then extract monomials
-    gsupp(a, b) = reduce(vcat, [monomials(Polynomial(simplify(_neat_dot3(a, g_supp, b)))) for g_supp in monomials(g)])
+    function gsupp(a::M, b::M)
+        out = M[]
+        for g_supp in last.(g.terms)
+            p = Polynomial(simplify(_neat_dot3(a, g_supp, b)))
+            append!(out, last.(p.terms))
+        end
+        return out
+    end
     return union(
         [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
         [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...

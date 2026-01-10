@@ -18,10 +18,7 @@ include("types/registry.jl")
 # Monomial type (depends on algebra types and registry)
 include("types/monomial.jl")
 
-# Term type (depends on monomial)
-include("types/term.jl")
-
-# Polynomial type (depends on term)
+# Polynomial type (depends on monomial)
 include("types/polynomial.jl")
 
 # ============================================================================
@@ -94,7 +91,7 @@ export create_pauli_variables, create_fermionic_variables, create_bosonic_variab
 export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
 
 # Core Types (users need these for type annotations and construction)
-export NormalMonomial, Monomial, Polynomial, Term, VariableRegistry
+export NormalMonomial, Monomial, Polynomial, VariableRegistry
 export ComposedMonomial
 export AbstractTensorMonomial, AbstractMonomial
 

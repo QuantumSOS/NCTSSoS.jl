@@ -5,21 +5,20 @@
     @testset "Monomial Multiplication" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Variable multiplication returns NormalMonomial (word concatenation)
+        # Variable multiplication returns a simplified Monomial
         m1 = x[1]
         m2 = x[2]
 
         result = m1 * m2
-        @test result isa NormalMonomial
+        @test result isa Monomial
         @test degree(result) == 2
     end
 
     @testset "Scalar * Monomial -> Polynomial" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
 
-        # Scalar times monomial gives Term, which can be converted to Polynomial
-        t = Term(3.0, m)
-        p = Polynomial(t)
+        # Scalar times monomial as a (coef, monomial) pair
+        p = Polynomial((3.0, m))
 
         @test p isa Polynomial
         @test coefficients(p) == [3.0]
@@ -29,14 +28,14 @@
         m1 = NormalMonomial{NonCommutativeAlgebra}([1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
-        p1 = Polynomial(Term(1.0, m1))
-        p2 = Polynomial(Term(2.0, m2))
+        p1 = Polynomial((1.0, m1))
+        p2 = Polynomial((2.0, m2))
 
         p_sum = p1 + p2
         @test length(monomials(p_sum)) == 2
 
         # Adding same monomial
-        p3 = Polynomial(Term(3.0, m1))
+        p3 = Polynomial((3.0, m1))
         p_combined = p1 + p3
         @test length(monomials(p_combined)) == 1
         @test coefficients(p_combined) == [4.0]
@@ -46,8 +45,8 @@
         m1 = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
         m2 = NormalMonomial{NonCommutativeAlgebra}(UInt16[2])
 
-        p1 = Polynomial(Term(2.0, m1))
-        p2 = Polynomial(Term(3.0, m2))
+        p1 = Polynomial((2.0, m1))
+        p2 = Polynomial((3.0, m2))
 
         p_prod = p1 * p2
         @test coefficients(p_prod) == [6.0]
@@ -56,7 +55,7 @@
 
     @testset "Monomial-Polynomial Interaction" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
-        p = Polynomial(Term(2.0, m))
+        p = Polynomial((2.0, m))
 
         # Polynomial can be scaled
         p_scaled = 3.0 * p
@@ -67,21 +66,21 @@
         m1 = NormalMonomial{NonCommutativeAlgebra}([1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
-        p1 = Polynomial(Term(5.0, m1))
-        p2 = Polynomial(Term(3.0, m1))
+        p1 = Polynomial((5.0, m1))
+        p2 = Polynomial((3.0, m1))
 
         p_diff = p1 - p2
         @test coefficients(p_diff) == [2.0]
 
         # Different monomials
-        p3 = Polynomial(Term(2.0, m2))
+        p3 = Polynomial((2.0, m2))
         p_diff2 = p1 - p3
         @test length(monomials(p_diff2)) == 2
     end
 
     @testset "Scaling Polynomial" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1])
-        p = Polynomial([Term(1.0, m), Term(2.0, NormalMonomial{NonCommutativeAlgebra}([2]))])
+        p = Polynomial([(1.0, m), (2.0, NormalMonomial{NonCommutativeAlgebra}([2]))])
 
         p_scaled = 2.0 * p
         @test coefficients(p_scaled) == [2.0, 4.0]
@@ -96,8 +95,8 @@
         m2 = NormalMonomial{NonCommutativeAlgebra}(UInt16[2])
 
         # (a + b) * c = a*c + b*c
-        p_ab = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p_c = Polynomial([Term(3.0, m1)])
+        p_ab = Polynomial([(1.0, m1), (2.0, m2)])
+        p_c = Polynomial([(3.0, m1)])
 
         p_prod = p_ab * p_c
 
@@ -107,7 +106,7 @@
 
     @testset "Identity Multiplication" begin
         m = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
-        p = Polynomial(Term(2.0, m))
+        p = Polynomial((2.0, m))
 
         p_one = one(typeof(p))
 
@@ -117,7 +116,7 @@
 
     @testset "Zero Multiplication" begin
         m = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
-        p = Polynomial(Term(2.0, m))
+        p = Polynomial((2.0, m))
 
         p_zero = zero(typeof(p))
 
@@ -128,8 +127,8 @@
     @testset "Type Promotion" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1])
 
-        p_int = Polynomial([Term{NormalMonomial{NonCommutativeAlgebra,Int64},Int}(2, m)])
-        p_float = Polynomial([Term(1.5, m)])
+        p_int = Polynomial([(2, m)])
+        p_float = Polynomial([(1.5, m)])
 
         p_sum = p_int + p_float
         @test eltype(coefficients(p_sum)) <: AbstractFloat

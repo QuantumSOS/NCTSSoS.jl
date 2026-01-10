@@ -39,27 +39,11 @@
     end
 end
 
-@testset "Term Allocations" begin
-    @testset "iszero Check" begin
-        m = NormalMonomial{NonCommutativeAlgebra}([1])
-        t = Term(0.0, m)
-        t2 = Term(1.0, m)
-
-        # Warmup
-        iszero(t)
-        iszero(t2)
-
-        # iszero on Term just checks coefficient - should be allocation-free
-        @test (@allocated iszero(t)) == 0
-        @test (@allocated iszero(t2)) == 0
-    end
-end
-
 @testset "Polynomial Accessor Allocations" begin
     m1 = NormalMonomial{NonCommutativeAlgebra}([1])
     m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
-    p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+    p = Polynomial([(1.0, m1), (2.0, m2)])
 
     @testset "iszero and isone" begin
         p_zero = zero(typeof(p))

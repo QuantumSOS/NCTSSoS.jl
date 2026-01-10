@@ -336,14 +336,16 @@ Apply state-type-specific canonicalization to a monomial.
 A canonicalized monomial.
 """
 function _state_canon(::Type{Arbitrary}, m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
-    # For arbitrary states: <M> = <M†>, so use involution (symmetric) canonicalization
-    _involution_canon(m)
+    # For arbitrary states, we canonicalize even-degree expectation symbols under involution.
+    # This matches NCTSSOS' state-basis sizing and keeps odd-degree symbols distinct.
+    iseven(degree(m)) ? _involution_canon(m) : m
 end
 
 function _state_canon(::Type{MaxEntangled}, m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
     # For trace states: tr(ABC) = tr(BCA) = tr(CBA)† = tr(A†B†C†)
     # Use cyclic-symmetric canonicalization
-    cyclic_symmetric_canon(m)
+    m_simplified = (A <: Union{ProjectorAlgebra,UnipotentAlgebra}) ? expval(simplify(m)) : m
+    cyclic_symmetric_canon(m_simplified)
 end
 
 # =============================================================================
@@ -725,6 +727,16 @@ struct NCStateWord{ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     end
 end
 
+# Accept user-facing monomial elements (single-term) as the nc_word.
+function NCStateWord(
+    sw::StateWord{ST,A,T},
+    nc::Monomial{A,T},
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    isempty(nc) && throw(ArgumentError("NCStateWord cannot be constructed from an empty expansion"))
+    _, mono = nc[1]
+    return NCStateWord(sw, mono)
+end
+
 # Convenience constructors
 """
     NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::NormalMonomial{A,T}) where {ST,A,T}
@@ -733,6 +745,10 @@ Construct an NCStateWord with explicit state type.
 """
 function NCStateWord{ST}(sw::StateWord{ST,A,T}, nc_word::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NCStateWord(sw, nc_word)
+end
+
+function NCStateWord{ST}(sw::StateWord{ST,A,T}, nc::Monomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCStateWord(sw, nc)
 end
 
 """
@@ -995,8 +1011,8 @@ function simplify(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgeb
     nc_poly = Polynomial(simplify(ncsw.nc_word))
 
     # Convert to NCStatePolynomial: each term gets the same StateWord
-    coeffs = [t.coefficient for t in nc_poly.terms]
-    ncsws = [NCStateWord(ncsw.sw, t.monomial) for t in nc_poly.terms]
+    coeffs = [c for (c, _) in nc_poly.terms]
+    ncsws = [NCStateWord(ncsw.sw, m) for (_, m) in nc_poly.terms]
     return NCStatePolynomial(coeffs, ncsws)
 end
 
@@ -1125,20 +1141,20 @@ function get_state_basis(
     registry::VariableRegistry{A,T},
     d::Int;
     state_type::Type{ST}=Arbitrary
-) where {A<:AlgebraType, T<:Integer, ST<:StateType}
+) where {A<:MonoidAlgebra, T<:Integer, ST<:StateType}
     
-    # Collect monomials by degree
-    # Note: For MonoidAlgebra (NC/Projector/Unipotent), get_ncbasis returns Vector{NormalMonomial{A,T}}
-    monos_by_deg = Vector{Vector{NormalMonomial{A,T}}}(undef, d + 1)
-    for deg in 0:d
-        basis = get_ncbasis(registry, deg)
-        monos = NormalMonomial{A,T}[]
-        for elem in basis
-            # For MonoidAlgebra, basis elements are NormalMonomial{A,T} directly
-            push!(monos, elem)
-        end
+    # Collect monomials by *actual* degree after simplification.
+    # For monoid algebras (e.g. unipotent), a word of length `deg` can simplify
+    # to a lower-degree monomial, so bucketing by requested `deg` misses valid
+    # StateWord/Monomial combinations.
+    monos_by_deg = [NormalMonomial{A,T}[] for _ in 0:d]
+    for elem in get_ncbasis(registry, d)
+        mono = elem.words
+        deg = degree(mono)
+        deg <= d && push!(monos_by_deg[deg + 1], mono)
+    end
+    foreach(monos_by_deg) do monos
         unique!(sort!(monos))
-        monos_by_deg[deg + 1] = monos
     end
     
     # All monomials up to degree d

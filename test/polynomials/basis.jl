@@ -57,9 +57,9 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
     @testset "get_ncbasis_deg (NonCommutativeAlgebra)" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # Degree 2: returns Vector{NormalMonomial} (canonical words)
+        # Degree 2: returns Vector{Monomial} (canonical elements)
         basis = get_ncbasis_deg(reg, 2)
-        @test basis isa Vector{<:NormalMonomial}
+        @test basis isa Vector{<:Monomial{NonCommutativeAlgebra}}
         @test length(basis) == 9  # 3^2 = 9
 
         # All monomials should have degree 2 (NonCommutativeAlgebra doesn't simplify)
@@ -85,10 +85,10 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 6 Pauli operators
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:NormalMonomial{PauliAlgebra}}
+        @test basis_d1 isa Vector{<:Monomial{PauliAlgebra}}
         @test length(basis_d1) == 6
 
-        # Each NormalMonomial should have degree 1
+        # Each monomial should have degree 1
         @test all(m -> degree(m) == 1, basis_d1)
     end
 
@@ -97,7 +97,7 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 3 projectors
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:NormalMonomial{ProjectorAlgebra}}
+        @test basis_d1 isa Vector{<:Monomial{ProjectorAlgebra}}
         @test length(basis_d1) == 3
     end
 
@@ -107,7 +107,7 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Degree 2: generates 4 words, but U_i * U_i simplifies
         basis = get_ncbasis_deg(reg, 2)
-        @test basis isa Vector{<:NormalMonomial{UnipotentAlgebra}}
+        @test basis isa Vector{<:Monomial{UnipotentAlgebra}}
 
         # Should have 4 monomials (one per input word)
         @test length(basis) == 4
@@ -118,12 +118,12 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 4 operators (a1, a1†, a2, a2†)
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:NormalMonomial{FermionicAlgebra}}
+        @test basis_d1 isa Vector{<:Monomial{FermionicAlgebra}}
         @test length(basis_d1) == 4
 
         # Degree 2: 16 raw words; simplification may introduce identity and merge duplicates.
         basis_d2 = get_ncbasis_deg(reg, 2)
-        @test basis_d2 isa Vector{<:NormalMonomial{FermionicAlgebra}}
+        @test basis_d2 isa Vector{<:Monomial{FermionicAlgebra}}
         @test length(basis_d2) <= 16
     end
 
@@ -132,7 +132,7 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Degree 1: 4 operators
         basis_d1 = get_ncbasis_deg(reg, 1)
-        @test basis_d1 isa Vector{<:NormalMonomial{BosonicAlgebra}}
+        @test basis_d1 isa Vector{<:Monomial{BosonicAlgebra}}
         @test length(basis_d1) == 4
     end
 
@@ -145,7 +145,7 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Up to degree 2: 1 + 2 + 4 = 7 monomials
         basis = get_ncbasis(reg, 2)
-        @test basis isa Vector{<:NormalMonomial{NonCommutativeAlgebra}}
+        @test basis isa Vector{<:Monomial{NonCommutativeAlgebra}}
         @test length(basis) == 7
 
         # Contains identity monomial
@@ -161,7 +161,7 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Up to degree 2
         basis = get_ncbasis(reg, 2)
-        @test basis isa Vector{<:NormalMonomial{PauliAlgebra}}
+        @test basis isa Vector{<:Monomial{PauliAlgebra}}
 
         # Contains identity
         @test any(isone, basis)
@@ -180,7 +180,7 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
 
         # Degree 2: 4^2 = 16 monomials (one per input word)
         basis_d2 = get_ncbasis_deg(reg, 2)
-        @test basis_d2 isa Vector{<:NormalMonomial{ProjectorAlgebra}}
+        @test basis_d2 isa Vector{<:Monomial{ProjectorAlgebra}}
         @test length(basis_d2) == 16
     end
 
@@ -197,21 +197,19 @@ using NCTSSoS: get_ncbasis_deg, _generate_all_words
         reg_indices = indices(reg)
 
         # All monomial words should use registry indices
-        for poly in basis
-            for mono in monomials(poly)
-                if !isempty(mono.word)
-                    @test all(idx -> idx in reg_indices, mono.word)
-                end
+        for m in basis
+            for (_, mono) in m
+                isempty(mono.word) && continue
+                @test all(idx -> idx in reg_indices, mono.word)
             end
         end
 
         # Index type should match
         T = eltype(keys(reg.idx_to_variables))
-        for poly in basis
-            for mono in monomials(poly)
-                if !isempty(mono.word)
-                    @test eltype(mono.word) == T
-                end
+        for m in basis
+            for (_, mono) in m
+                isempty(mono.word) && continue
+                @test eltype(mono.word) == T
             end
         end
     end

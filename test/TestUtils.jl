@@ -40,6 +40,11 @@ if !@isdefined(SOLVER)
     end
 end
 
+# Provide a stable solver name for oracle selection in test files.
+if !@isdefined(SOLVER_NAME)
+    const SOLVER_NAME = USE_LOCAL ? :mosek : :cosmo
+end
+
 # =============================================================================
 # Shared Helpers
 # =============================================================================

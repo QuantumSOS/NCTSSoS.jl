@@ -13,7 +13,6 @@ using Test, NCTSSoS
     include("polynomials/algebra_types.jl")
     include("polynomials/variables.jl")
     include("polynomials/monomials.jl")
-    include("polynomials/term.jl")
     include("polynomials/composed_monomial.jl")
     include("polynomials/polynomial.jl")
     include("polynomials/arithmetic.jl")

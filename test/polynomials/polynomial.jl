@@ -2,15 +2,17 @@
 using Test, NCTSSoS
 using NCTSSoS: variable_indices
 
+_mono1(m::Monomial) = last(first(m))
+
 @testset "Polynomial" begin
     @testset "Creation from Terms" begin
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])  # degree 2
         m2 = NormalMonomial{NonCommutativeAlgebra}([3])     # degree 1
         m3 = NormalMonomial{NonCommutativeAlgebra}([1])     # degree 1
 
-        t1 = Term(1.0, m1)
-        t2 = Term(2.0, m2)
-        t3 = Term(-3.0, m3)
+        t1 = (1.0, m1)
+        t2 = (2.0, m2)
+        t3 = (-3.0, m3)
 
         p = Polynomial([t1, t2, t3])
 
@@ -25,7 +27,7 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2])  # same as m1
 
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p = Polynomial([(1.0, m1), (2.0, m2)])
 
         # Should combine duplicate monomials
         @test length(terms(p)) == 1
@@ -37,12 +39,12 @@ using NCTSSoS: variable_indices
         m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
         # Zero coefficient term should be removed
-        p = Polynomial([Term(0.0, m1), Term(1.0, m2)])
+        p = Polynomial([(0.0, m1), (1.0, m2)])
         @test length(terms(p)) == 1
         @test coefficients(p) == [1.0]
 
         # Cancellation should remove the term entirely
-        p2 = Polynomial([Term(2.0, m1), Term(-2.0, m1)])
+        p2 = Polynomial([(2.0, m1), (-2.0, m1)])
         @test iszero(p2)
     end
 
@@ -64,7 +66,7 @@ using NCTSSoS: variable_indices
 
         @test length(terms(p)) == 1
         @test coefficients(p) == [1.0]
-        @test monomials(p)[1] == m
+        @test monomials(p)[1] == Monomial(m)
     end
 
     @testset "From Monomial - No Simplification" begin
@@ -76,7 +78,7 @@ using NCTSSoS: variable_indices
         # Should preserve the un-simplified monomial
         @test length(terms(p)) == 1
         @test degree(p) == 2  # Still degree 2, not 0 (identity)
-        @test monomials(p)[1] == m_reducible
+        @test monomials(p)[1] == Monomial(m_reducible)
 
         # For comparison, multiplication DOES simplify
         σx = NormalMonomial{PauliAlgebra}([1])
@@ -85,10 +87,9 @@ using NCTSSoS: variable_indices
         @test degree(p_simplified) == 0  # Simplified to identity
     end
 
-    @testset "From Term" begin
+    @testset "From (coefficient, monomial) pair" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
-        t = Term(3.0, m)
-        p = Polynomial(t)
+        p = Polynomial((3.0, m))
 
         @test length(terms(p)) == 1
         @test coefficients(p) == [3.0]
@@ -98,7 +99,7 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}([1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2, 3])
 
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p = Polynomial([(1.0, m1), (2.0, m2)])
 
         @test length(coefficients(p)) == 2
         @test length(monomials(p)) == 2
@@ -108,7 +109,7 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}([1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2, 3, 4])
 
-        p = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p = Polynomial([(1.0, m1), (2.0, m2)])
 
         @test degree(p) == 3  # max degree
 
@@ -121,7 +122,7 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2, 3])
 
-        p = Polynomial([Term(1.0, m1), Term(1.0, m2)])
+        p = Polynomial([(1.0, m1), (1.0, m2)])
 
         var_idxs = variable_indices(p)
         # variable_indices() returns Set{T} of indices
@@ -148,7 +149,7 @@ using NCTSSoS: variable_indices
     @testset "Negation" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1, 2])  # degree 2
         m2 = NormalMonomial{NonCommutativeAlgebra}([3])    # degree 1
-        p = Polynomial([Term(2.0, m), Term(-3.0, m2)])
+        p = Polynomial([(2.0, m), (-3.0, m2)])
 
         p_neg = -p
         # Order: [3] (deg 1) before [1,2] (deg 2), so coeffs: 3.0, -2.0
@@ -161,8 +162,8 @@ using NCTSSoS: variable_indices
         m2 = NormalMonomial{NonCommutativeAlgebra}([2])
         m3 = NormalMonomial{NonCommutativeAlgebra}([3])
 
-        p1 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p2 = Polynomial([Term(3.0, m2), Term(4.0, m3)])
+        p1 = Polynomial([(1.0, m1), (2.0, m2)])
+        p2 = Polynomial([(3.0, m2), (4.0, m3)])
 
         p_sum = p1 + p2
 
@@ -170,7 +171,7 @@ using NCTSSoS: variable_indices
         # m2 should have coefficient 2 + 3 = 5
         monos = monomials(p_sum)
         coeffs = coefficients(p_sum)
-        m2_idx = findfirst(==(m2), monos)
+        m2_idx = findfirst(==(Monomial(m2)), monos)
         @test coeffs[m2_idx] == 5.0
     end
 
@@ -180,7 +181,7 @@ using NCTSSoS: variable_indices
         m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[1, 2])
         m3 = NormalMonomial{NonCommutativeAlgebra}(UInt8[3])
 
-        p = Polynomial([Term(2.0, m1), Term(3.0, m2)])
+        p = Polynomial([(2.0, m1), (3.0, m2)])
 
         # Test Polynomial + Monomial
         result1 = p + m3
@@ -214,23 +215,23 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}([1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2])
 
-        p1 = Polynomial([Term(3.0, m1)])
-        p2 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
+        p1 = Polynomial([(3.0, m1)])
+        p2 = Polynomial([(1.0, m1), (2.0, m2)])
 
         p_diff = p1 - p2
 
         # Should have m1 with coeff 2, m2 with coeff -2
         monos = monomials(p_diff)
         coeffs = coefficients(p_diff)
-        m1_idx = findfirst(==(m1), monos)
-        m2_idx = findfirst(==(m2), monos)
+        m1_idx = findfirst(==(Monomial(m1)), monos)
+        m2_idx = findfirst(==(Monomial(m2)), monos)
         @test coeffs[m1_idx] == 2.0
         @test coeffs[m2_idx] == -2.0
     end
 
     @testset "Scalar Multiplication" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
-        p = Polynomial([Term(2.0, m)])
+        p = Polynomial([(2.0, m)])
 
         p_scaled = 3.0 * p
         @test coefficients(p_scaled) == [6.0]
@@ -241,7 +242,7 @@ using NCTSSoS: variable_indices
 
     @testset "Scalar Division" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1])
-        p = Polynomial([Term(6.0, m)])
+        p = Polynomial([(6.0, m)])
 
         p_div = p / 2.0
         @test coefficients(p_div) == [3.0]
@@ -249,7 +250,7 @@ using NCTSSoS: variable_indices
 
     @testset "Polynomial Power" begin
         m = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
-        p = Polynomial(Term(2.0, m))
+        p = Polynomial((2.0, m))
 
         p0 = p^0
         @test isone(p0)
@@ -265,9 +266,9 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([3])
 
-        p1 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p2 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p3 = Polynomial([Term(1.0, m1), Term(3.0, m2)])
+        p1 = Polynomial([(1.0, m1), (2.0, m2)])
+        p2 = Polynomial([(1.0, m1), (2.0, m2)])
+        p3 = Polynomial([(1.0, m1), (3.0, m2)])
 
         @test p1 == p2
         @test p1 != p3
@@ -277,9 +278,9 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([3])
 
-        p1 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p2 = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p3 = Polynomial([Term(1.0, m1), Term(3.0, m2)])
+        p1 = Polynomial([(1.0, m1), (2.0, m2)])
+        p2 = Polynomial([(1.0, m1), (2.0, m2)])
+        p3 = Polynomial([(1.0, m1), (3.0, m2)])
 
         @test hash(p1) == hash(p2)
         @test hash(p1) != hash(p3)
@@ -291,7 +292,7 @@ using NCTSSoS: variable_indices
 
     @testset "Copy" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1, 2])
-        p = Polynomial([Term(2.0, m)])
+        p = Polynomial([(2.0, m)])
 
         p_copy = copy(p)
         @test p == p_copy
@@ -301,8 +302,8 @@ using NCTSSoS: variable_indices
     @testset "Type Promotion in Arithmetic" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1])
 
-        p_int = Polynomial([Term{NormalMonomial{NonCommutativeAlgebra,Int64},Int}(2, m)])
-        p_float = Polynomial([Term(1.0, m)])
+        p_int = Polynomial([(2, m)])
+        p_float = Polynomial([(1.0, m)])
 
         p_sum = p_int + p_float
         @test eltype(coefficients(p_sum)) == Float64
@@ -316,14 +317,14 @@ using NCTSSoS: variable_indices
 
         # Single term
         m = NormalMonomial{NonCommutativeAlgebra}([1])
-        p_single = Polynomial([Term(2.0, m)])
+        p_single = Polynomial([(2.0, m)])
         output = repr(p_single)
         @test contains(output, "2.0")
 
         # Multiple terms
         m1 = NormalMonomial{NonCommutativeAlgebra}([1])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2])
-        p_multi = Polynomial([Term(1.0, m1), Term(3.0, m2)])
+        p_multi = Polynomial([(1.0, m1), (3.0, m2)])
         output_multi = repr(p_multi)
         # Tests that both terms appear and + separator exists
         @test contains(output_multi, "+")
@@ -335,7 +336,7 @@ using NCTSSoS: variable_indices
         # Test with PauliAlgebra (self-adjoint generators)
         # Use indices on different sites: 1,4,7 = σx on sites 1,2,3
         m_pauli = NormalMonomial{PauliAlgebra}([1, 4, 7])
-        p_pauli = Polynomial([Term(1.0 + 2.0im, m_pauli)])
+        p_pauli = Polynomial([(1.0 + 2.0im, m_pauli)])
 
         p_adj = adjoint(p_pauli)
 
@@ -343,7 +344,7 @@ using NCTSSoS: variable_indices
         @test coefficients(p_adj)[1] == 1.0 - 2.0im
 
         # Pauli generators are Hermitian and the canonical word is site-sorted, so adjoint preserves the word.
-        @test monomials(p_adj)[1] == m_pauli
+        @test monomials(p_adj)[1] == Monomial(m_pauli)
 
         # Test with NonCommutativeAlgebra
         # Use indices on the same site so site-based canonicalization does not reorder.
@@ -351,11 +352,11 @@ using NCTSSoS: variable_indices
         idx1_s1 = encode_index(UInt8, 1, 1)
         idx2_s1 = encode_index(UInt8, 2, 1)
         m_nc = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx1_s1, idx2_s1])
-        p_nc = Polynomial([Term(3.0 + 4.0im, m_nc)])
+        p_nc = Polynomial([(3.0 + 4.0im, m_nc)])
         p_nc_adj = adjoint(p_nc)
         @test coefficients(p_nc_adj)[1] == 3.0 - 4.0im
         # NonCommutativeAlgebra uses word reversal for adjoint (unsigned encoding).
-        @test monomials(p_nc_adj)[1].word == UInt8[idx2_s1, idx1_s1]
+        @test _mono1(monomials(p_nc_adj)[1]).word == UInt8[idx2_s1, idx1_s1]
 
         # Zero polynomial adjoint
         p_zero = zero(Polynomial{PauliAlgebra,Int64,ComplexF64})
@@ -365,7 +366,7 @@ using NCTSSoS: variable_indices
     @testset "Adjoint with Julia syntax" begin
         # Use indices on different sites: 1,4 = σx on sites 1,2
         m = NormalMonomial{PauliAlgebra}([1, 4])
-        p = Polynomial([Term(1.0 + 1.0im, m)])
+        p = Polynomial([(1.0 + 1.0im, m)])
 
         @test p' == adjoint(p)
         @test coefficients(p')[1] == 1.0 - 1.0im
@@ -376,14 +377,14 @@ using NCTSSoS: variable_indices
         # Use normal-ordered input: [-2, 1] (a₂† a₁) - creator first, then annihilator
         # adjoint is: reverse and negate: [-2, 1] -> [-1, 2] (a₁† a₂)
         m = NormalMonomial{FermionicAlgebra}(Int32[-2, 1])
-        p = Polynomial([Term(2.0, m)])
+        p = Polynomial([(2.0, m)])
 
         p_adj = adjoint(p)
 
         # Real coefficient stays unchanged
         @test coefficients(p_adj)[1] == 2.0
         # Monomial adjoint: reverse and negate: [-2, 1] -> [-1, 2]
-        @test monomials(p_adj)[1].word == Int32[-1, 2]
+        @test _mono1(monomials(p_adj)[1]).word == Int32[-1, 2]
 
         # Test involution: adjoint(adjoint(p)) == p
         @test adjoint(adjoint(p)) == p
@@ -393,7 +394,7 @@ using NCTSSoS: variable_indices
         # Multiple variables
         m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2])
         m2 = NormalMonomial{NonCommutativeAlgebra}([2, 3])
-        p = Polynomial([Term(1.0, m1), Term(1.0, m2)])
+        p = Polynomial([(1.0, m1), (1.0, m2)])
 
         var_set = variable_indices(p)
         @test var_set == Set([1, 2, 3])
@@ -404,14 +405,14 @@ using NCTSSoS: variable_indices
 
         # Single variable repeated
         m_single = NormalMonomial{NonCommutativeAlgebra}([1, 1, 1])
-        p_single = Polynomial([Term(2.0, m_single)])
+        p_single = Polynomial([(2.0, m_single)])
         @test variable_indices(p_single) == Set([1])
 
         # Test with signed types (fermionic/bosonic)
         # Note: negative = creation (a†), positive = annihilation (a)
         # Use normal-ordered: creators first (sorted by mode descending), then annihilators (sorted by mode ascending)
         m_signed = NormalMonomial{FermionicAlgebra}([-3, -1, 2])  # a₃†, a₁†, a₂ (modes 3,1 then 2)
-        p_signed = Polynomial([Term(1.0, m_signed)])
+        p_signed = Polynomial([(1.0, m_signed)])
         var_set_signed = variable_indices(p_signed)
         @test var_set_signed == Set([1, 2, 3])  # abs() normalizes for sparsity analysis
     end
@@ -419,7 +420,7 @@ using NCTSSoS: variable_indices
     @testset "Error Paths" begin
         # Division by zero
         m = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
-        p = Polynomial([Term(6.0, m)])
+        p = Polynomial([(6.0, m)])
         @test_throws DivideError p / 0.0
 
         # Negative power - actually throws MethodError (no inv method for Polynomial)
@@ -435,7 +436,7 @@ using NCTSSoS: variable_indices
     @testset "Edge Cases: zero and one from instance" begin
         # zero from instance
         m = NormalMonomial{NonCommutativeAlgebra}(UInt8[1, 2])
-        p = Polynomial([Term(5.0, m)])
+        p = Polynomial([(5.0, m)])
         p_zero_from_inst = zero(p)
         @test iszero(p_zero_from_inst)
         @test typeof(p_zero_from_inst) == typeof(p)
@@ -449,7 +450,7 @@ using NCTSSoS: variable_indices
     @testset "Scalar + Polynomial" begin
         # Scalar + polynomial (both orderings)
         m = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
-        p = Polynomial([Term(2.0, m)])
+        p = Polynomial([(2.0, m)])
 
         # Polynomial + scalar
         p_plus_scalar = p + 3.0
@@ -468,7 +469,7 @@ using NCTSSoS: variable_indices
 
     @testset "Scalar - Polynomial and Polynomial - Scalar" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1])
-        p = Polynomial([Term(2.0, m)])
+        p = Polynomial([(2.0, m)])
 
         # Polynomial - scalar
         p_minus_scalar = p - 3.0
@@ -484,7 +485,7 @@ using NCTSSoS: variable_indices
         monos2 = monomials(scalar_minus_p)
         coeffs2 = coefficients(scalar_minus_p)
         id_idx2 = findfirst(isone, monos2)
-        m_idx = findfirst(==(m), monos2)
+        m_idx = findfirst(==(Monomial(m)), monos2)
         @test coeffs2[id_idx2] == 5.0
         @test coeffs2[m_idx] == -2.0
     end
@@ -493,8 +494,8 @@ using NCTSSoS: variable_indices
         m_pauli = NormalMonomial{PauliAlgebra}([1])
         m_nc = NormalMonomial{NonCommutativeAlgebra}([1])
 
-        p_pauli = Polynomial([Term(1.0, m_pauli)])
-        p_nc = Polynomial([Term(1.0, m_nc)])
+        p_pauli = Polynomial([(1.0, m_pauli)])
+        p_nc = Polynomial([(1.0, m_nc)])
 
         # Different algebra types should never be equal
         @test p_pauli != p_nc
@@ -505,8 +506,8 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{PauliAlgebra}([1])  # σ_1
         m2 = NormalMonomial{PauliAlgebra}([1])  # σ_1
 
-        p1 = Polynomial([Term(2.0, m1)])
-        p2 = Polynomial([Term(3.0, m2)])
+        p1 = Polynomial([(2.0, m1)])
+        p2 = Polynomial([(3.0, m2)])
 
         # σ_1 * σ_1 = I (identity)
         p_prod = p1 * p2
@@ -517,7 +518,7 @@ using NCTSSoS: variable_indices
 
     @testset "Polynomial Multiplication with zero polynomial" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1])
-        p = Polynomial([Term(2.0, m)])
+        p = Polynomial([(2.0, m)])
         p_zero = zero(Polynomial{NonCommutativeAlgebra,Int64,Float64})
 
         # p * 0 = 0
@@ -535,7 +536,7 @@ using NCTSSoS: variable_indices
         @test p isa Polynomial
         @test length(terms(p)) == 1
         @test coefficients(p)[1] == 3.0
-        @test monomials(p)[1] == m
+        @test monomials(p)[1] == Monomial(m)
 
         # Monomial * scalar
         p2 = m * 3.0
@@ -546,11 +547,9 @@ using NCTSSoS: variable_indices
         @test iszero(p_zero)
     end
 
-    @testset "Polynomial from zero Term" begin
+    @testset "Polynomial from zero coefficient pair" begin
         m = NormalMonomial{NonCommutativeAlgebra}([1])
-        t_zero = Term(0.0, m)
-
-        p = Polynomial(t_zero)
+        p = Polynomial((0.0, m))
         @test iszero(p)
         @test isempty(terms(p))
     end
@@ -602,14 +601,14 @@ using NCTSSoS: variable_indices
         # Test 4: Multiple terms - each simplified independently
         m1 = NormalMonomial{PauliAlgebra,Int}([1, 1], NCTSSoS._UNSAFE_NORMAL_MONOMIAL)  # σx₁² = I
         m2 = NormalMonomial{PauliAlgebra}([4])     # σx₂ (already simple)
-        p_multi = Polynomial([Term(2.0+0im, m1), Term(3.0+0im, m2)])
+        p_multi = Polynomial([(2.0 + 0im, m1), (3.0 + 0im, m2)])
         p_multi_simplified = simplify(p_multi)
         # Should have identity term (coef 2) and σx₂ term (coef 3)
         @test length(terms(p_multi_simplified)) == 2
 
         # Test 5: Coefficient type promotion (Float64 → ComplexF64 for Pauli)
         m_pauli = NormalMonomial{PauliAlgebra}([1])
-        p_float = Polynomial([Term(2.0, m_pauli)])  # Float64 coefficient
+        p_float = Polynomial([(2.0, m_pauli)])  # Float64 coefficient
         p_promoted = simplify(p_float)
         @test eltype(coefficients(p_promoted)) == ComplexF64
     end
@@ -617,8 +616,10 @@ using NCTSSoS: variable_indices
     @testset "Monomial * Polynomial multiplication" begin
         # m * p
         m = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
-        p = Polynomial([Term(1.0, NormalMonomial{NonCommutativeAlgebra}(UInt16[2])),
-                       Term(2.0, NormalMonomial{NonCommutativeAlgebra}(UInt16[3]))])
+        p = Polynomial([
+            (1.0, NormalMonomial{NonCommutativeAlgebra}(UInt16[2])),
+            (2.0, NormalMonomial{NonCommutativeAlgebra}(UInt16[3])),
+        ])
 
         result_mp = m * p
         @test result_mp isa Polynomial{NonCommutativeAlgebra,UInt16,Float64}
@@ -640,8 +641,8 @@ using NCTSSoS: variable_indices
         m1 = NormalMonomial{NonCommutativeAlgebra}(UInt16[1])
         m2 = NormalMonomial{NonCommutativeAlgebra}(UInt16[2])
 
-        p1 = Polynomial(Term(2.0, m1))
-        p2 = Polynomial(Term(3.0, m2))
+        p1 = Polynomial((2.0, m1))
+        p2 = Polynomial((3.0, m2))
 
         p_prod = p1 * p2
         @test coefficients(p_prod)[1] == 6.0
@@ -652,22 +653,22 @@ using NCTSSoS: variable_indices
         # Multi-term polynomial iteration
         m1 = NormalMonomial{PauliAlgebra}([1])
         m2 = NormalMonomial{PauliAlgebra}([2])
-        p = Polynomial([Term(1.0+0im, m1), Term(2.0+0im, m2)])
+        p = Polynomial([(1.0 + 0im, m1), (2.0 + 0im, m2)])
 
         pairs = collect(p)
         @test length(pairs) == 2
-        @test pairs[1] == (1.0+0im, m1)
-        @test pairs[2] == (2.0+0im, m2)
+        @test pairs[1] == (1.0 + 0im, Monomial(m1))
+        @test pairs[2] == (2.0 + 0im, Monomial(m2))
 
         # Iteration with for loop
         coeffs = Float64[]
-        monos = NormalMonomial[]
+        monos = Monomial[]
         for (coef, mono) in p
             push!(coeffs, real(coef))
             push!(monos, mono)
         end
         @test coeffs == [1.0, 2.0]
-        @test monos == [m1, m2]
+        @test monos == [Monomial(m1), Monomial(m2)]
 
         # Empty polynomial
         p_empty = zero(Polynomial{PauliAlgebra,Int64,ComplexF64})
@@ -675,33 +676,33 @@ using NCTSSoS: variable_indices
         @test iterate(p_empty) === nothing
 
         # Single-term polynomial
-        p_single = Polynomial([Term(3.5+0im, m1)])
+        p_single = Polynomial([(3.5 + 0im, m1)])
         pairs_single = collect(p_single)
         @test length(pairs_single) == 1
-        @test pairs_single[1] == (3.5+0im, m1)
+        @test pairs_single[1] == (3.5 + 0im, Monomial(m1))
 
         # eltype
-        @test eltype(typeof(p)) == Tuple{ComplexF64,NormalMonomial{PauliAlgebra,Int64}}
+        @test eltype(typeof(p)) == Tuple{ComplexF64,Monomial{PauliAlgebra,Int64,UInt8,NormalMonomial{PauliAlgebra,Int64}}}
 
         # NonCommutative algebra (Float64 coefficients)
         m_nc = NormalMonomial{NonCommutativeAlgebra}([1])
-        p_nc = Polynomial([Term(5.0, m_nc)])
+        p_nc = Polynomial([(5.0, m_nc)])
         pairs_nc = collect(p_nc)
         @test pairs_nc[1][1] isa Float64
-        @test eltype(typeof(p_nc)) == Tuple{Float64,NormalMonomial{NonCommutativeAlgebra,Int64}}
+        @test eltype(typeof(p_nc)) == Tuple{Float64,Monomial{NonCommutativeAlgebra,Int64,UInt8,NormalMonomial{NonCommutativeAlgebra,Int64}}}
     end
 
     @testset "Polynomial - Monomial subtraction" begin
         m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
         m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[2])
-        p = Polynomial([Term(3.0, m1)])
+        p = Polynomial([(3.0, m1)])
 
         # p - m
         result1 = p - m2
         @test length(terms(result1)) == 2
         monos = monomials(result1)
         coeffs = coefficients(result1)
-        m2_idx = findfirst(==(m2), monos)
+        m2_idx = findfirst(==(Monomial(m2)), monos)
         @test coeffs[m2_idx] == -1.0
 
         # m - p
@@ -709,8 +710,8 @@ using NCTSSoS: variable_indices
         @test length(terms(result2)) == 2
         monos2 = monomials(result2)
         coeffs2 = coefficients(result2)
-        m1_idx = findfirst(==(m1), monos2)
-        m2_idx2 = findfirst(==(m2), monos2)
+        m1_idx = findfirst(==(Monomial(m1)), monos2)
+        m2_idx2 = findfirst(==(Monomial(m2)), monos2)
         @test coeffs2[m1_idx] == -3.0
         @test coeffs2[m2_idx2] == 1.0
     end
@@ -725,9 +726,9 @@ using NCTSSoS: variable_indices
         m2 = NormalMonomial{NonCommutativeAlgebra}([2])
         m3 = NormalMonomial{NonCommutativeAlgebra}([3])
 
-        p_one_term = Polynomial([Term(1.0, m1)])
-        p_two_terms = Polynomial([Term(1.0, m1), Term(2.0, m2)])
-        p_three_terms = Polynomial([Term(1.0, m1), Term(2.0, m2), Term(3.0, m3)])
+        p_one_term = Polynomial([(1.0, m1)])
+        p_two_terms = Polynomial([(1.0, m1), (2.0, m2)])
+        p_three_terms = Polynomial([(1.0, m1), (2.0, m2), (3.0, m3)])
 
         @test isless(p_one_term, p_two_terms)
         @test isless(p_two_terms, p_three_terms)
@@ -735,22 +736,22 @@ using NCTSSoS: variable_indices
 
         # Test 2: Same number of terms - compare by monomial (lexicographic)
         # Monomials: [1] < [2] < [3] (by lexicographic order)
-        p_m1 = Polynomial([Term(1.0, m1)])
-        p_m2 = Polynomial([Term(1.0, m2)])
-        p_m3 = Polynomial([Term(1.0, m3)])
+        p_m1 = Polynomial([(1.0, m1)])
+        p_m2 = Polynomial([(1.0, m2)])
+        p_m3 = Polynomial([(1.0, m3)])
 
         @test isless(p_m1, p_m2)
         @test isless(p_m2, p_m3)
         @test isless(p_m1, p_m3)
 
         # Test 3: Same first term, different second term
-        p_12 = Polynomial([Term(1.0, m1), Term(1.0, m2)])
-        p_13 = Polynomial([Term(1.0, m1), Term(1.0, m3)])
+        p_12 = Polynomial([(1.0, m1), (1.0, m2)])
+        p_13 = Polynomial([(1.0, m1), (1.0, m3)])
         @test isless(p_12, p_13)  # [1,2] < [1,3] because m2 < m3
 
         # Test 4: Equal polynomials - isless returns false
-        p_same1 = Polynomial([Term(2.0, m1)])
-        p_same2 = Polynomial([Term(2.0, m1)])
+        p_same1 = Polynomial([(2.0, m1)])
+        p_same2 = Polynomial([(2.0, m1)])
         @test !isless(p_same1, p_same2)
         @test !isless(p_same2, p_same1)
 
@@ -762,8 +763,8 @@ using NCTSSoS: variable_indices
         # Test 6: Graded ordering - degree-first for monomials affects polynomial ordering
         m_deg1 = NormalMonomial{NonCommutativeAlgebra}([1])       # degree 1
         m_deg2 = NormalMonomial{NonCommutativeAlgebra}([1, 2])    # degree 2
-        p_deg1 = Polynomial([Term(1.0, m_deg1)])
-        p_deg2 = Polynomial([Term(1.0, m_deg2)])
+        p_deg1 = Polynomial([(1.0, m_deg1)])
+        p_deg2 = Polynomial([(1.0, m_deg2)])
         @test isless(p_deg1, p_deg2)  # Monomial with lower degree < higher degree
 
         # Test 7: Sorting a vector of polynomials
@@ -777,32 +778,29 @@ using NCTSSoS: variable_indices
     @testset "convert(Polynomial{A,T,C2}, p) - Coefficient Type Conversion" begin
         # Test 1: Int to Float64
         m = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
-        p_int = Polynomial([Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Int}(2, m)])
+        p_int = Polynomial([(2, m)])
         p_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_int)
 
         @test p_float isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
         @test coefficients(p_float)[1] === 2.0
-        @test monomials(p_float)[1] == m
+        @test monomials(p_float)[1] == Monomial(m)
 
         # Test 2: Float64 to ComplexF64
-        p_real = Polynomial([Term(3.0, m)])
+        p_real = Polynomial([(3.0, m)])
         p_complex = convert(Polynomial{NonCommutativeAlgebra,UInt8,ComplexF64}, p_real)
 
         @test p_complex isa Polynomial{NonCommutativeAlgebra,UInt8,ComplexF64}
         @test coefficients(p_complex)[1] === 3.0 + 0.0im
 
         # Test 3: Identity conversion (no-op)
-        p_float64 = Polynomial([Term(5.0, m)])
+        p_float64 = Polynomial([(5.0, m)])
         p_same = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_float64)
         @test p_same === p_float64  # Should return the same object
 
         # Test 4: Multiple terms conversion
         m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
         m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[2])
-        p_multi_int = Polynomial([
-            Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Int}(2, m1),
-            Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Int}(3, m2)
-        ])
+        p_multi_int = Polynomial([(2, m1), (3, m2)])
         p_multi_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_multi_int)
 
         @test length(terms(p_multi_float)) == 2
@@ -810,7 +808,7 @@ using NCTSSoS: variable_indices
         @test coefficients(p_multi_float) == [2.0, 3.0]
 
         # Test 5: Zero polynomial conversion
-        p_zero_int = Polynomial{NonCommutativeAlgebra,UInt8,Int}(Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Int}[])
+        p_zero_int = zero(Polynomial{NonCommutativeAlgebra,UInt8,Int})
         p_zero_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_zero_int)
         @test iszero(p_zero_float)
         @test p_zero_float isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
@@ -818,7 +816,7 @@ using NCTSSoS: variable_indices
         # Test 6: Pauli algebra conversion (ComplexF64 to other complex types)
         # Use indices on different sites: 1,4 = σx on sites 1,2
         m_pauli = NormalMonomial{PauliAlgebra}([1, 4])
-        p_pauli = Polynomial([Term(1.0 + 2.0im, m_pauli)])
+        p_pauli = Polynomial([(1.0 + 2.0im, m_pauli)])
         # Convert to ComplexF32 (narrower precision)
         p_pauli_f32 = convert(Polynomial{PauliAlgebra,Int64,ComplexF32}, p_pauli)
         @test p_pauli_f32 isa Polynomial{PauliAlgebra,Int64,ComplexF32}
@@ -833,11 +831,11 @@ using NCTSSoS: variable_indices
 
         # Test 2: From instance
         m = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
-        p_float = Polynomial([Term(2.0, m)])
+        p_float = Polynomial([(2.0, m)])
         @test NCTSSoS.coeff_type(p_float) == Float64
 
         m_pauli = NormalMonomial{PauliAlgebra}([1])
-        p_complex = Polynomial([Term(1.0 + 0.0im, m_pauli)])
+        p_complex = Polynomial([(1.0 + 0.0im, m_pauli)])
         @test NCTSSoS.coeff_type(p_complex) == ComplexF64
 
         # Test 3: Zero polynomial preserves type
@@ -846,17 +844,17 @@ using NCTSSoS: variable_indices
 
         # Test 4: Integer coefficients
         m_int = NormalMonomial{NonCommutativeAlgebra}(UInt8[1])
-        p_int = Polynomial([Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Int}(5, m_int)])
+        p_int = Polynomial([(5, m_int)])
         @test NCTSSoS.coeff_type(p_int) == Int
 
         # Test 5: Type consistency through operations
-        p1 = Polynomial([Term(1.0, m)])
-        p2 = Polynomial([Term(2.0, m)])
+        p1 = Polynomial([(1.0, m)])
+        p2 = Polynomial([(2.0, m)])
         p_sum = p1 + p2
         @test NCTSSoS.coeff_type(p_sum) == Float64
 
         # Test 6: Type promotion through operations
-        p_int2 = Polynomial([Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Int}(3, m)])
+        p_int2 = Polynomial([(3, m)])
         p_promoted = p_float + p_int2
         @test NCTSSoS.coeff_type(p_promoted) == Float64  # Int + Float64 → Float64
     end

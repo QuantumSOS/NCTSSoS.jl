@@ -10,7 +10,6 @@
 # - algebra_types.jl: Algebra type system (Pauli, Fermionic, Bosonic, etc.)
 # - variables.jl: Variable creation and registry
 # - monomials.jl: Monomial operations
-# - term.jl: Term (coefficient * monomial) operations
 # - composed_monomial.jl: Trace/state monomials
 # - polynomial.jl: Polynomial construction and access
 # - arithmetic.jl: Addition, multiplication, scalar operations
@@ -29,7 +28,6 @@ using Test, NCTSSoS
     include("algebra_types.jl")
     include("variables.jl")
     include("monomials.jl")
-    include("term.jl")
     include("composed_monomial.jl")
     include("polynomial.jl")
     include("arithmetic.jl")

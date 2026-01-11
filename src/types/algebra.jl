@@ -11,7 +11,7 @@ multiple dispatch for simplification algorithms.
 - `NonCommutativeAlgebra`: Standard non-commutative variables (xy ≠ yx)
 - `PauliAlgebra`: Pauli spin matrices satisfying σᵢ² = I and {σᵢ, σⱼ} = 2δᵢⱼ
 - `FermionicAlgebra`: Fermionic creation/annihilation operators with {aᵢ, aⱼ†} = δᵢⱼ
-- `BosonicAlgebra`: Bosonic creation/annihilation operators with [aᵢ, cⱼ†] = δᵢⱼ
+- `BosonicAlgebra`: Bosonic creation/annihilation operators with [cᵢ, cⱼ†] = δᵢⱼ
 - `ProjectorAlgebra`: Projector operators satisfying Pᵢ² = Pᵢ (idempotent)
 - `UnipotentAlgebra`: Unipotent operators satisfying P² = I
 
@@ -227,13 +227,8 @@ Float64
 coeff_type(::Type{<:AlgebraType}) = Float64
 coeff_type(::Type{PauliAlgebra}) = ComplexF64
 
-# Show methods for clean output
-Base.show(io::IO, ::NonCommutativeAlgebra) = print(io, "NonCommutativeAlgebra()")
-Base.show(io::IO, ::PauliAlgebra) = print(io, "PauliAlgebra()")
-Base.show(io::IO, ::FermionicAlgebra) = print(io, "FermionicAlgebra()")
-Base.show(io::IO, ::BosonicAlgebra) = print(io, "BosonicAlgebra()")
-Base.show(io::IO, ::ProjectorAlgebra) = print(io, "ProjectorAlgebra()")
-Base.show(io::IO, ::UnipotentAlgebra) = print(io, "UnipotentAlgebra()")
+# Show method for singleton algebra types
+Base.show(io::IO, a::AlgebraType) = print(io, nameof(typeof(a)), "()")
 
 # =============================================================================
 # Coefficient Type Introspection
@@ -287,14 +282,16 @@ Float64
     site_bits(::Type{T}) where {T<:Unsigned} -> Int
 
 Number of bits used for site encoding. Fixed at n/4 where n is bit width.
+Equivalently: `sizeof(T) * 8 ÷ 4 = sizeof(T) * 2`.
 
 # Examples
 ```julia
+site_bits(UInt8)   # 2
 site_bits(UInt16)  # 4
 site_bits(UInt32)  # 8
 ```
 """
-@inline site_bits(::Type{T}) where {T<:Unsigned} = sizeof(T) * 2
+@inline site_bits(::Type{T}) where {T<:Unsigned} = sizeof(T) * 8 ÷ 4
 
 """
     max_sites(::Type{T}) where {T<:Unsigned} -> Int
@@ -344,13 +341,16 @@ decode_site(idx)                   # 3
 decode_operator_id(idx)            # 1
 ```
 """
-@inline function encode_index(::Type{T}, operator_id::Int, site::Int) where {T<:Unsigned}
-    # TODO: if this takes too long, we could remove it
+@inline function encode_index(::Type{T}, operator_id::Integer, site::Integer) where {T<:Unsigned}
     k = site_bits(T)
     ms = max_sites(T)
     mo = max_operators(T)
-    @assert site >= 1 && site <= ms "Site $site out of range for $T (max $ms)"
-    @assert operator_id >= 1 && operator_id <= mo "Operator $operator_id out of range for $T (max $mo)"
+    @boundscheck if site < 1 || site > ms
+        throw(ArgumentError("Site $site out of range for $T (valid: 1-$ms)"))
+    end
+    @boundscheck if operator_id < 1 || operator_id > mo
+        throw(ArgumentError("Operator $operator_id out of range for $T (valid: 1-$mo)"))
+    end
     return T((T(operator_id) << k) | site)  # 1-indexed site storage
 end
 
@@ -380,6 +380,15 @@ end
 Select the smallest unsigned integer type that can encode the given number
 of operators and sites.
 
+!!! note "Type Stability"
+    This function returns a `Type`, not a value. The returned type depends on
+    runtime values, so callers should use a function barrier or type annotation
+    to maintain type stability in performance-critical code:
+    ```julia
+    T = select_uint_type(n_ops, n_sites)
+    _inner_loop(T, data)  # function barrier
+    ```
+
 # Arguments
 - `n_operators`: Number of distinct operators per site
 - `n_sites`: Number of physical sites
@@ -401,5 +410,5 @@ function select_uint_type(n_operators::Integer, n_sites::Integer)
             return T
         end
     end
-    return error("Cannot fit $n_operators operators × $n_sites sites in any UInt type")
+    throw(ArgumentError("Cannot fit $n_operators operators × $n_sites sites in any UInt type"))
 end

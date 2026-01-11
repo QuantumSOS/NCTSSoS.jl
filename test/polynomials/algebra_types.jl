@@ -447,13 +447,13 @@ end
 
     @testset "select_uint_type error handling" begin
         # Too many sites for UInt64
-        @test_throws ErrorException NCTSSoS.select_uint_type(100, 65536)
+        @test_throws ArgumentError NCTSSoS.select_uint_type(100, 65536)
 
         # Too many operators for UInt64 (using large value that doesn't overflow max_operators calculation)
-        @test_throws ErrorException NCTSSoS.select_uint_type(281474976710656, 100)
+        @test_throws ArgumentError NCTSSoS.select_uint_type(281474976710656, 100)
 
         # Both exceed UInt64 capacity
-        @test_throws ErrorException NCTSSoS.select_uint_type(281474976710656, 65536)
+        @test_throws ArgumentError NCTSSoS.select_uint_type(281474976710656, 65536)
     end
 
     @testset "select_uint_type error message validation" begin
@@ -462,7 +462,7 @@ end
             NCTSSoS.select_uint_type(100, 65536)
             @test false  # Should not reach here
         catch e
-            @test e isa ErrorException
+            @test e isa ArgumentError
             @test occursin("Cannot fit", e.msg)
             @test occursin("65536", e.msg)  # sites value in message
         end
@@ -471,7 +471,7 @@ end
             NCTSSoS.select_uint_type(281474976710656, 100)
             @test false  # Should not reach here
         catch e
-            @test e isa ErrorException
+            @test e isa ArgumentError
             @test occursin("Cannot fit", e.msg)
             @test occursin("281474976710656", e.msg)  # operators value in message
         end

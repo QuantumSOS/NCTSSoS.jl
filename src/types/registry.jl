@@ -537,20 +537,7 @@ function create_projector_variables(
     _create_noncommutative_variables(ProjectorAlgebra, prefix_subscripts)
 end
 
-"""
-    _select_unsigned_type(n_operators::Int, n_sites::Int) -> Type{<:Unsigned}
-
-Select the smallest unsigned integer type that can encode the given number
-of operators and sites using the site-based encoding scheme.
-"""
-function _select_unsigned_type(n_operators::Int, n_sites::Int)
-    for T in (UInt8, UInt16, UInt32, UInt64)
-        if n_sites <= max_sites(T) && n_operators <= max_operators(T)
-            return T
-        end
-    end
-    error("Cannot fit $n_operators operators × $n_sites sites in any UInt type")
-end
+# Note: Use select_uint_type from algebra.jl for site-based index type selection
 
 """
     create_unipotent_variables(prefix_subscripts::Vector{Tuple{String, VT}})
@@ -631,8 +618,6 @@ function create_noncommutative_variables(
     _create_noncommutative_variables(NonCommutativeAlgebra, prefix_subscripts)
 end
 
-# Use encode_index from algebra_types.jl for site-based index encoding
-
 """
     _create_noncommutative_variables(::Type{A}, prefix_subscripts::Vector{Tuple{String, VT}})
 
@@ -661,7 +646,7 @@ function _create_noncommutative_variables(
 ) where {A<:AlgebraType, T<:Integer, VT<:AbstractVector{T}}
     n_operators = sum(x -> length(x[2]), prefix_subscripts)
     n_sites = length(prefix_subscripts)
-    IndexT = _select_unsigned_type(n_operators, n_sites)
+    IndexT = select_uint_type(n_operators, n_sites)
 
     all_symbols = Vector{Symbol}(undef, n_operators)
     all_indices = Vector{IndexT}(undef, n_operators)

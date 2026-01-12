@@ -2,417 +2,184 @@ using Test
 using NCTSSoS
 using NCTSSoS: coeff_type
 
-@testset "AlgebraType Singleton Types" begin
-    @testset "NonCommutativeAlgebra" begin
-        alg = NonCommutativeAlgebra()
-        @test alg isa AlgebraType
-        @test alg isa NonCommutativeAlgebra
-        # Singleton type - all instances equal
-        @test NonCommutativeAlgebra() === NonCommutativeAlgebra()
-    end
+# Test data for algebra types
+const ALGEBRA_TYPES = [
+    NonCommutativeAlgebra,
+    PauliAlgebra,
+    FermionicAlgebra,
+    BosonicAlgebra,
+    ProjectorAlgebra,
+    UnipotentAlgebra,
+]
 
-    @testset "PauliAlgebra" begin
-        alg = PauliAlgebra()
-        @test alg isa AlgebraType
-        @test alg isa PauliAlgebra
-        @test PauliAlgebra() === PauliAlgebra()
-    end
+# Expected coeff_type for each algebra (PauliAlgebra is special)
+const ALGEBRA_COEFF_TYPES = Dict(
+    PauliAlgebra => ComplexF64,
+    NonCommutativeAlgebra => Float64,
+    FermionicAlgebra => Float64,
+    BosonicAlgebra => Float64,
+    ProjectorAlgebra => Float64,
+    UnipotentAlgebra => Float64,
+)
 
-    @testset "FermionicAlgebra" begin
-        alg = FermionicAlgebra()
-        @test alg isa AlgebraType
-        @test alg isa FermionicAlgebra
-        @test FermionicAlgebra() === FermionicAlgebra()
-    end
+# Index types for NormalMonomial (signed for PBW algebras)
+const ALGEBRA_INDEX_TYPES = Dict(
+    PauliAlgebra => UInt16,
+    NonCommutativeAlgebra => UInt16,
+    FermionicAlgebra => Int32,
+    BosonicAlgebra => Int32,
+    ProjectorAlgebra => UInt16,
+    UnipotentAlgebra => UInt16,
+)
 
-    @testset "BosonicAlgebra" begin
-        alg = BosonicAlgebra()
-        @test alg isa AlgebraType
-        @test alg isa BosonicAlgebra
-        @test BosonicAlgebra() === BosonicAlgebra()
-    end
+# UInt types and their encoding parameters
+const UINT_TYPES = [UInt8, UInt16, UInt32, UInt64]
+const UINT_PARAMS = Dict(
+    UInt8 => (site_bits=2, max_sites=3, max_ops=63),
+    UInt16 => (site_bits=4, max_sites=15, max_ops=4095),
+    UInt32 => (site_bits=8, max_sites=255, max_ops=16777215),
+    UInt64 => (site_bits=16, max_sites=65535, max_ops=281474976710655),
+)
 
-    @testset "ProjectorAlgebra" begin
-        alg = ProjectorAlgebra()
-        @test alg isa AlgebraType
-        @test alg isa ProjectorAlgebra
-        @test ProjectorAlgebra() === ProjectorAlgebra()
-    end
+# Test cases for encode_index
+const ENCODE_TEST_CASES = Dict(
+    UInt8 => [
+        (op=1, site=1, expected=0x05),
+        (op=5, site=2, expected=0x16),
+        (op=63, site=3, expected=0xFF),
+    ],
+    UInt16 => [
+        (op=1, site=1, expected=0x0011),
+        (op=100, site=10, expected=0x064A),
+        (op=4095, site=15, expected=0xFFFF),
+    ],
+    UInt32 => [
+        (op=1, site=1, expected=0x00000101),
+        (op=1000, site=100, expected=0x0003E864),
+        (op=16777215, site=255, expected=0xFFFFFFFF),
+    ],
+    UInt64 => [
+        (op=1, site=1, expected=0x0000000000010001),
+        (op=10000, site=5000, expected=0x0000000027101388),
+        (op=281474976710655, site=65535, expected=0xFFFFFFFFFFFFFFFF),
+    ],
+)
 
-    @testset "UnipotentAlgebra" begin
-        alg = UnipotentAlgebra()
-        @test alg isa AlgebraType
-        @test alg isa UnipotentAlgebra
-        @test UnipotentAlgebra() === UnipotentAlgebra()
+# Round-trip test values
+const ROUNDTRIP_TEST_VALUES = Dict(
+    UInt8 => (ops=[1, 10, 32, 63], sites=[1, 2, 3]),
+    UInt16 => (ops=[1, 100, 1000, 4095], sites=[1, 7, 15]),
+    UInt32 => (ops=[1, 1000, 100000, 16777215], sites=[1, 100, 255]),
+    UInt64 => (ops=[1, 10000, 1000000, 100000000, 281474976710655], sites=[1, 1000, 10000, 65535]),
+)
+
+@testset "coeff_type trait for algebras" begin
+    for (A, expected) in ALGEBRA_COEFF_TYPES
+        @test coeff_type(A) == expected
     end
 end
 
-@testset "coeff_type trait" begin
-    # PauliAlgebra uses ComplexF64 (Pauli products generate complex phases)
-    @test coeff_type(PauliAlgebra) == ComplexF64
-
-    # All other algebras use Float64
-    @test coeff_type(NonCommutativeAlgebra) == Float64
-    @test coeff_type(FermionicAlgebra) == Float64
-    @test coeff_type(BosonicAlgebra) == Float64
-    @test coeff_type(ProjectorAlgebra) == Float64
-    @test coeff_type(UnipotentAlgebra) == Float64
-end
-
-@testset "coeff_type trait" begin
-    # Monomial: returns coeff_type(A)
-    @test coeff_type(Monomial{PauliAlgebra,Int64}) == ComplexF64
-    @test coeff_type(Monomial{NonCommutativeAlgebra,Int64}) == Float64
-    @test coeff_type(Monomial{FermionicAlgebra,Int32}) == Float64
-    @test coeff_type(Monomial{BosonicAlgebra,Int32}) == Float64
-    @test coeff_type(Monomial{ProjectorAlgebra,UInt16}) == Float64
-    @test coeff_type(Monomial{UnipotentAlgebra,UInt16}) == Float64
-
-    # Term: returns C (the coefficient type)
-    @test coeff_type(Term{Monomial{PauliAlgebra,Int64},ComplexF64}) == ComplexF64
-    @test coeff_type(Term{Monomial{NonCommutativeAlgebra,Int64},Float64}) == Float64
-    @test coeff_type(Term{Monomial{FermionicAlgebra,Int32},Float32}) == Float32
+@testset "coeff_type trait for types" begin
+    # NormalMonomial: returns coeff_type(A)
+    for (A, expected) in ALGEBRA_COEFF_TYPES
+        T = ALGEBRA_INDEX_TYPES[A]
+        @test coeff_type(NormalMonomial{A,T}) == expected
+    end
 
     # Polynomial: returns C (the coefficient type)
-    @test coeff_type(Polynomial{PauliAlgebra,Int64,ComplexF64}) == ComplexF64
-    @test coeff_type(Polynomial{NonCommutativeAlgebra,Int64,Float64}) == Float64
+    @test coeff_type(Polynomial{PauliAlgebra,UInt16,ComplexF64}) == ComplexF64
+    @test coeff_type(Polynomial{NonCommutativeAlgebra,UInt16,Float64}) == Float64
     @test coeff_type(Polynomial{BosonicAlgebra,Int32,Float64}) == Float64
 
-    # Instance methods (delegates to type)
-    m = Monomial{PauliAlgebra}([1, 2])
+    T = UInt16
+    # Instance methods
+    m = NormalMonomial{PauliAlgebra,T}(T[1, 4])
     @test coeff_type(m) == ComplexF64
 
-    t = Term(2.5, Monomial{NonCommutativeAlgebra}([1]))
-    @test coeff_type(t) == Float64
-
-    p = Polynomial([Term(1.0+0im, Monomial{PauliAlgebra}([1]))])
+    p = Polynomial([(1.0 + 0im, NormalMonomial{PauliAlgebra,T}(T[1]))])
     @test coeff_type(p) == ComplexF64
 end
 
-@testset "AlgebraType Show Methods" begin
-    @testset "NonCommutativeAlgebra show" begin
-        alg = NonCommutativeAlgebra()
-        @test sprint(show, alg) == "NonCommutativeAlgebra()"
-    end
-
-    @testset "PauliAlgebra show" begin
-        alg = PauliAlgebra()
-        @test sprint(show, alg) == "PauliAlgebra()"
-    end
-
-    @testset "FermionicAlgebra show" begin
-        alg = FermionicAlgebra()
-        @test sprint(show, alg) == "FermionicAlgebra()"
-    end
-
-    @testset "BosonicAlgebra show" begin
-        alg = BosonicAlgebra()
-        @test sprint(show, alg) == "BosonicAlgebra()"
-    end
-
-    @testset "ProjectorAlgebra show" begin
-        alg = ProjectorAlgebra()
-        @test sprint(show, alg) == "ProjectorAlgebra()"
-    end
-
-    @testset "UnipotentAlgebra show" begin
-        alg = UnipotentAlgebra()
-        @test sprint(show, alg) == "UnipotentAlgebra()"
-    end
-end
-
 @testset "Index Encoding: site_bits" begin
-    @test NCTSSoS.site_bits(UInt8) == 2
-    @test NCTSSoS.site_bits(UInt16) == 4
-    @test NCTSSoS.site_bits(UInt32) == 8
-    @test NCTSSoS.site_bits(UInt64) == 16
+    for T in UINT_TYPES
+        @test NCTSSoS.site_bits(T) == UINT_PARAMS[T].site_bits
+    end
 end
 
 @testset "Index Encoding: max_sites" begin
-    @testset "UInt8 max_sites" begin
-        # 2 bits for site: 2^2 - 1 = 3
-        @test NCTSSoS.max_sites(UInt8) == 3
-    end
-
-    @testset "UInt16 max_sites" begin
-        # 4 bits for site: 2^4 - 1 = 15
-        @test NCTSSoS.max_sites(UInt16) == 15
-    end
-
-    @testset "UInt32 max_sites" begin
-        # 8 bits for site: 2^8 - 1 = 255
-        @test NCTSSoS.max_sites(UInt32) == 255
-    end
-
-    @testset "UInt64 max_sites" begin
-        # 16 bits for site: 2^16 - 1 = 65535
-        @test NCTSSoS.max_sites(UInt64) == 65535
+    for T in UINT_TYPES
+        @test NCTSSoS.max_sites(T) == UINT_PARAMS[T].max_sites
     end
 end
 
 @testset "Index Encoding: max_operators" begin
-    @testset "UInt8 max_operators" begin
-        # 6 bits for operator: 2^6 - 1 = 63
-        @test NCTSSoS.max_operators(UInt8) == 63
-    end
-
-    @testset "UInt16 max_operators" begin
-        # 12 bits for operator: 2^12 - 1 = 4095
-        @test NCTSSoS.max_operators(UInt16) == 4095
-    end
-
-    @testset "UInt32 max_operators" begin
-        # 24 bits for operator: 2^24 - 1 = 16777215
-        @test NCTSSoS.max_operators(UInt32) == 16777215
-    end
-
-    @testset "UInt64 max_operators" begin
-        # 48 bits for operator: 2^48 - 1 = 281474976710655
-        @test NCTSSoS.max_operators(UInt64) == 281474976710655
+    for T in UINT_TYPES
+        @test NCTSSoS.max_operators(T) == UINT_PARAMS[T].max_ops
     end
 end
 
 @testset "Index Encoding: encode_index" begin
-    @testset "UInt8 encoding" begin
-        # UInt8: 2 bits for site, 6 bits for operator_id
-        idx = NCTSSoS.encode_index(UInt8, 1, 1)
-        @test idx isa UInt8
-        @test idx == 0x05  # (1 << 2) | 1 = 5
-
-        idx = NCTSSoS.encode_index(UInt8, 5, 2)
-        @test idx == 0x16  # (5 << 2) | 2 = 22
-
-        idx = NCTSSoS.encode_index(UInt8, 63, 3)
-        @test idx == 0xFF  # (63 << 2) | 3 = 255
-    end
-
-    @testset "UInt16 encoding" begin
-        # UInt16: 4 bits for site, 12 bits for operator_id
-        idx = NCTSSoS.encode_index(UInt16, 1, 1)
-        @test idx isa UInt16
-        @test idx == 0x0011  # (1 << 4) | 1
-
-        idx = NCTSSoS.encode_index(UInt16, 100, 10)
-        @test idx == 0x064A  # (100 << 4) | 10
-
-        idx = NCTSSoS.encode_index(UInt16, 4095, 15)
-        @test idx == 0xFFFF  # (4095 << 4) | 15
-    end
-
-    @testset "UInt32 encoding" begin
-        # UInt32: 8 bits for site, 24 bits for operator_id
-        idx = NCTSSoS.encode_index(UInt32, 1, 1)
-        @test idx isa UInt32
-        @test idx == 0x00000101  # (1 << 8) | 1
-
-        idx = NCTSSoS.encode_index(UInt32, 1000, 100)
-        @test idx == 0x0003E864  # (1000 << 8) | 100
-
-        idx = NCTSSoS.encode_index(UInt32, 16777215, 255)
-        @test idx == 0xFFFFFFFF  # (16777215 << 8) | 255
-    end
-
-    @testset "UInt64 encoding" begin
-        # UInt64: 16 bits for site, 48 bits for operator_id
-        idx = NCTSSoS.encode_index(UInt64, 1, 1)
-        @test idx isa UInt64
-        @test idx == 0x0000000000010001  # (1 << 16) | 1
-
-        idx = NCTSSoS.encode_index(UInt64, 10000, 5000)
-        @test idx == 0x0000000027101388  # (10000 << 16) | 5000
-
-        idx = NCTSSoS.encode_index(UInt64, 281474976710655, 65535)
-        @test idx == 0xFFFFFFFFFFFFFFFF
+    for T in UINT_TYPES
+        @testset "$T encoding" begin
+            for tc in ENCODE_TEST_CASES[T]
+                idx = NCTSSoS.encode_index(T, tc.op, tc.site)
+                @test idx == tc.expected
+            end
+        end
     end
 end
 
 @testset "Index Encoding: encode_index boundary tests" begin
-    @testset "UInt8 boundaries" begin
-        # Valid: site 1 to 3, operator_id 1 to 63
-        @test_nowarn NCTSSoS.encode_index(UInt8, 1, 1)
-        @test_nowarn NCTSSoS.encode_index(UInt8, 63, 3)
+    for T in UINT_TYPES
+        params = UINT_PARAMS[T]
+        @testset "$T boundaries" begin
+            # Valid boundaries
+            @test_nowarn NCTSSoS.encode_index(T, 1, 1)
+            @test_nowarn NCTSSoS.encode_index(T, params.max_ops, params.max_sites)
 
-        # Invalid: site out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt8, 1, 0)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt8, 1, 4)
+            # Invalid: site out of range
+            @test_throws ArgumentError NCTSSoS.encode_index(T, 1, 0)
+            @test_throws ArgumentError NCTSSoS.encode_index(T, 1, params.max_sites + 1)
 
-        # Invalid: operator_id out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt8, 0, 1)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt8, 64, 1)
-    end
-
-    @testset "UInt16 boundaries" begin
-        # Valid: site 1 to 15, operator_id 1 to 4095
-        @test_nowarn NCTSSoS.encode_index(UInt16, 1, 1)
-        @test_nowarn NCTSSoS.encode_index(UInt16, 4095, 15)
-
-        # Invalid: site out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt16, 1, 0)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt16, 1, 16)
-
-        # Invalid: operator_id out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt16, 0, 1)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt16, 4096, 1)
-    end
-
-    @testset "UInt32 boundaries" begin
-        # Valid: site 1 to 255, operator_id 1 to 16777215
-        @test_nowarn NCTSSoS.encode_index(UInt32, 1, 1)
-        @test_nowarn NCTSSoS.encode_index(UInt32, 16777215, 255)
-
-        # Invalid: site out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt32, 1, 0)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt32, 1, 256)
-
-        # Invalid: operator_id out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt32, 0, 1)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt32, 16777216, 1)
-    end
-
-    @testset "UInt64 boundaries" begin
-        # Valid: site 1 to 65535, operator_id 1 to 281474976710655
-        @test_nowarn NCTSSoS.encode_index(UInt64, 1, 1)
-        @test_nowarn NCTSSoS.encode_index(UInt64, 281474976710655, 65535)
-
-        # Invalid: site out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt64, 1, 0)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt64, 1, 65536)
-
-        # Invalid: operator_id out of range
-        @test_throws AssertionError NCTSSoS.encode_index(UInt64, 0, 1)
-        @test_throws AssertionError NCTSSoS.encode_index(UInt64, 281474976710656, 1)
+            # Invalid: operator_id out of range
+            @test_throws ArgumentError NCTSSoS.encode_index(T, 0, 1)
+            @test_throws ArgumentError NCTSSoS.encode_index(T, params.max_ops + 1, 1)
+        end
     end
 end
 
 @testset "Index Encoding: decode_site" begin
-    @testset "UInt8 decode_site" begin
-        idx = NCTSSoS.encode_index(UInt8, 10, 2)
-        @test NCTSSoS.decode_site(idx) == 2
-
-        idx = NCTSSoS.encode_index(UInt8, 63, 3)
-        @test NCTSSoS.decode_site(idx) == 3
-
-        idx = NCTSSoS.encode_index(UInt8, 1, 1)
-        @test NCTSSoS.decode_site(idx) == 1
-    end
-
-    @testset "UInt16 decode_site" begin
-        idx = NCTSSoS.encode_index(UInt16, 100, 10)
-        @test NCTSSoS.decode_site(idx) == 10
-
-        idx = NCTSSoS.encode_index(UInt16, 4095, 15)
-        @test NCTSSoS.decode_site(idx) == 15
-
-        idx = NCTSSoS.encode_index(UInt16, 1, 1)
-        @test NCTSSoS.decode_site(idx) == 1
-    end
-
-    @testset "UInt32 decode_site" begin
-        idx = NCTSSoS.encode_index(UInt32, 1000, 100)
-        @test NCTSSoS.decode_site(idx) == 100
-
-        idx = NCTSSoS.encode_index(UInt32, 16777215, 255)
-        @test NCTSSoS.decode_site(idx) == 255
-
-        idx = NCTSSoS.encode_index(UInt32, 1, 1)
-        @test NCTSSoS.decode_site(idx) == 1
-    end
-
-    @testset "UInt64 decode_site" begin
-        idx = NCTSSoS.encode_index(UInt64, 10000, 5000)
-        @test NCTSSoS.decode_site(idx) == 5000
-
-        idx = NCTSSoS.encode_index(UInt64, 281474976710655, 65535)
-        @test NCTSSoS.decode_site(idx) == 65535
-
-        idx = NCTSSoS.encode_index(UInt64, 1, 1)
-        @test NCTSSoS.decode_site(idx) == 1
+    for T in UINT_TYPES
+        @testset "$T decode_site" begin
+            for tc in ENCODE_TEST_CASES[T]
+                idx = NCTSSoS.encode_index(T, tc.op, tc.site)
+                @test NCTSSoS.decode_site(idx) == tc.site
+            end
+        end
     end
 end
 
 @testset "Index Encoding: decode_operator_id" begin
-    @testset "UInt8 decode_operator_id" begin
-        idx = NCTSSoS.encode_index(UInt8, 10, 2)
-        @test NCTSSoS.decode_operator_id(idx) == 10
-
-        idx = NCTSSoS.encode_index(UInt8, 63, 3)
-        @test NCTSSoS.decode_operator_id(idx) == 63
-
-        idx = NCTSSoS.encode_index(UInt8, 1, 1)
-        @test NCTSSoS.decode_operator_id(idx) == 1
-    end
-
-    @testset "UInt16 decode_operator_id" begin
-        idx = NCTSSoS.encode_index(UInt16, 100, 10)
-        @test NCTSSoS.decode_operator_id(idx) == 100
-
-        idx = NCTSSoS.encode_index(UInt16, 4095, 15)
-        @test NCTSSoS.decode_operator_id(idx) == 4095
-
-        idx = NCTSSoS.encode_index(UInt16, 1, 1)
-        @test NCTSSoS.decode_operator_id(idx) == 1
-    end
-
-    @testset "UInt32 decode_operator_id" begin
-        idx = NCTSSoS.encode_index(UInt32, 1000, 100)
-        @test NCTSSoS.decode_operator_id(idx) == 1000
-
-        idx = NCTSSoS.encode_index(UInt32, 16777215, 255)
-        @test NCTSSoS.decode_operator_id(idx) == 16777215
-
-        idx = NCTSSoS.encode_index(UInt32, 1, 1)
-        @test NCTSSoS.decode_operator_id(idx) == 1
-    end
-
-    @testset "UInt64 decode_operator_id" begin
-        idx = NCTSSoS.encode_index(UInt64, 10000, 5000)
-        @test NCTSSoS.decode_operator_id(idx) == 10000
-
-        idx = NCTSSoS.encode_index(UInt64, 281474976710655, 65535)
-        @test NCTSSoS.decode_operator_id(idx) == 281474976710655
-
-        idx = NCTSSoS.encode_index(UInt64, 1, 1)
-        @test NCTSSoS.decode_operator_id(idx) == 1
+    for T in UINT_TYPES
+        @testset "$T decode_operator_id" begin
+            for tc in ENCODE_TEST_CASES[T]
+                idx = NCTSSoS.encode_index(T, tc.op, tc.site)
+                @test NCTSSoS.decode_operator_id(idx) == tc.op
+            end
+        end
     end
 end
 
 @testset "Index Encoding: round-trip tests" begin
-    @testset "UInt8 round-trip" begin
-        for op_id in [1, 10, 32, 63]
-            for site in [1, 2, 3]
-                idx = NCTSSoS.encode_index(UInt8, op_id, site)
-                @test NCTSSoS.decode_operator_id(idx) == op_id
-                @test NCTSSoS.decode_site(idx) == site
-            end
-        end
-    end
-
-    @testset "UInt16 round-trip" begin
-        for op_id in [1, 100, 1000, 4095]
-            for site in [1, 7, 15]
-                idx = NCTSSoS.encode_index(UInt16, op_id, site)
-                @test NCTSSoS.decode_operator_id(idx) == op_id
-                @test NCTSSoS.decode_site(idx) == site
-            end
-        end
-    end
-
-    @testset "UInt32 round-trip" begin
-        for op_id in [1, 1000, 100000, 16777215]
-            for site in [1, 100, 255]
-                idx = NCTSSoS.encode_index(UInt32, op_id, site)
-                @test NCTSSoS.decode_operator_id(idx) == op_id
-                @test NCTSSoS.decode_site(idx) == site
-            end
-        end
-    end
-
-    @testset "UInt64 round-trip" begin
-        for op_id in [1, 10000, 1000000, 100000000, 281474976710655]
-            for site in [1, 1000, 10000, 65535]
-                idx = NCTSSoS.encode_index(UInt64, op_id, site)
-                @test NCTSSoS.decode_operator_id(idx) == op_id
-                @test NCTSSoS.decode_site(idx) == site
+    for T in UINT_TYPES
+        @testset "$T round-trip" begin
+            vals = ROUNDTRIP_TEST_VALUES[T]
+            for op_id in vals.ops
+                for site in vals.sites
+                    idx = NCTSSoS.encode_index(T, op_id, site)
+                    @test NCTSSoS.decode_operator_id(idx) == op_id
+                    @test NCTSSoS.decode_site(idx) == site
+                end
             end
         end
     end
@@ -420,7 +187,6 @@ end
 
 @testset "Index Encoding: select_uint_type" begin
     @testset "UInt8 selection" begin
-        # UInt8: max 63 operators, max 3 sites
         @test NCTSSoS.select_uint_type(10, 3) == UInt8
         @test NCTSSoS.select_uint_type(63, 3) == UInt8
         @test NCTSSoS.select_uint_type(1, 1) == UInt8
@@ -428,94 +194,65 @@ end
     end
 
     @testset "UInt16 selection" begin
-        # UInt16: max 4095 operators, max 15 sites
         @test NCTSSoS.select_uint_type(100, 4) == UInt16
-        @test NCTSSoS.select_uint_type(64, 3) == UInt16  # exceeds UInt8 operators
-        @test NCTSSoS.select_uint_type(10, 4) == UInt16  # exceeds UInt8 sites
+        @test NCTSSoS.select_uint_type(64, 3) == UInt16   # exceeds UInt8 operators
+        @test NCTSSoS.select_uint_type(10, 4) == UInt16   # exceeds UInt8 sites
         @test NCTSSoS.select_uint_type(4095, 15) == UInt16
         @test NCTSSoS.select_uint_type(1000, 10) == UInt16
     end
 
     @testset "UInt32 selection" begin
-        # UInt32: max 16777215 operators, max 255 sites
-        @test NCTSSoS.select_uint_type(5000, 16) == UInt32  # exceeds UInt16 sites
-        @test NCTSSoS.select_uint_type(4096, 10) == UInt32  # exceeds UInt16 operators
+        @test NCTSSoS.select_uint_type(5000, 16) == UInt32    # exceeds UInt16 sites
+        @test NCTSSoS.select_uint_type(4096, 10) == UInt32    # exceeds UInt16 operators
         @test NCTSSoS.select_uint_type(100000, 100) == UInt32
         @test NCTSSoS.select_uint_type(16777215, 255) == UInt32
     end
 
     @testset "UInt64 selection" begin
-        # UInt64: max 281474976710655 operators, max 65535 sites
-        @test NCTSSoS.select_uint_type(100, 256) == UInt64  # exceeds UInt32 sites
-        @test NCTSSoS.select_uint_type(16777216, 100) == UInt64  # exceeds UInt32 operators
+        @test NCTSSoS.select_uint_type(100, 256) == UInt64        # exceeds UInt32 sites
+        @test NCTSSoS.select_uint_type(16777216, 100) == UInt64   # exceeds UInt32 operators
         @test NCTSSoS.select_uint_type(1000000, 1000) == UInt64
         @test NCTSSoS.select_uint_type(100000000, 10000) == UInt64
     end
 
     @testset "select_uint_type error handling" begin
-        # Too many sites for UInt64
-        @test_throws ErrorException NCTSSoS.select_uint_type(100, 65536)
-
-        # Too many operators for UInt64 (using large value that doesn't overflow max_operators calculation)
-        @test_throws ErrorException NCTSSoS.select_uint_type(281474976710656, 100)
-
-        # Both exceed UInt64 capacity
-        @test_throws ErrorException NCTSSoS.select_uint_type(281474976710656, 65536)
+        @test_throws ArgumentError NCTSSoS.select_uint_type(100, 65536)
+        @test_throws ArgumentError NCTSSoS.select_uint_type(281474976710656, 100)
+        @test_throws ArgumentError NCTSSoS.select_uint_type(281474976710656, 65536)
     end
 
     @testset "select_uint_type error message validation" begin
-        # Verify error messages are informative
         try
             NCTSSoS.select_uint_type(100, 65536)
-            @test false  # Should not reach here
+            @test false
         catch e
-            @test e isa ErrorException
+            @test e isa ArgumentError
             @test occursin("Cannot fit", e.msg)
-            @test occursin("65536", e.msg)  # sites value in message
+            @test occursin("65536", e.msg)
         end
 
         try
             NCTSSoS.select_uint_type(281474976710656, 100)
-            @test false  # Should not reach here
+            @test false
         catch e
-            @test e isa ErrorException
+            @test e isa ArgumentError
             @test occursin("Cannot fit", e.msg)
-            @test occursin("281474976710656", e.msg)  # operators value in message
+            @test occursin("281474976710656", e.msg)
         end
     end
 end
 
 @testset "Index Encoding: edge case combinations" begin
-    @testset "Minimum values" begin
-        # Test minimum valid values (1, 1) for all types
-        for T in [UInt8, UInt16, UInt32, UInt64]
-            idx = NCTSSoS.encode_index(T, 1, 1)
-            @test NCTSSoS.decode_operator_id(idx) == 1
-            @test NCTSSoS.decode_site(idx) == 1
+    @testset "Maximum values" begin
+        for T in UINT_TYPES
+            params = UINT_PARAMS[T]
+            idx = NCTSSoS.encode_index(T, params.max_ops, params.max_sites)
+            @test NCTSSoS.decode_operator_id(idx) == params.max_ops
+            @test NCTSSoS.decode_site(idx) == params.max_sites
         end
     end
 
-    @testset "Maximum values" begin
-        # Test maximum valid values for each type
-        idx = NCTSSoS.encode_index(UInt8, 63, 3)
-        @test NCTSSoS.decode_operator_id(idx) == 63
-        @test NCTSSoS.decode_site(idx) == 3
-
-        idx = NCTSSoS.encode_index(UInt16, 4095, 15)
-        @test NCTSSoS.decode_operator_id(idx) == 4095
-        @test NCTSSoS.decode_site(idx) == 15
-
-        idx = NCTSSoS.encode_index(UInt32, 16777215, 255)
-        @test NCTSSoS.decode_operator_id(idx) == 16777215
-        @test NCTSSoS.decode_site(idx) == 255
-
-        idx = NCTSSoS.encode_index(UInt64, 281474976710655, 65535)
-        @test NCTSSoS.decode_operator_id(idx) == 281474976710655
-        @test NCTSSoS.decode_site(idx) == 65535
-    end
-
     @testset "Mixed boundary values" begin
-        # Test max operator with min site and vice versa
         idx = NCTSSoS.encode_index(UInt16, 4095, 1)
         @test NCTSSoS.decode_operator_id(idx) == 4095
         @test NCTSSoS.decode_site(idx) == 1

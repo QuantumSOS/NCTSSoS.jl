@@ -15,6 +15,7 @@ smaller and faster to solve than the primal moment problem.
 
 # Fields
 - `model::GenericModel{T}`: The JuMP model ready to be optimized
+- `n_unique_elements::Int`: Number of unique moment variables after canonicalization
 
 # Usage
 ```julia
@@ -32,6 +33,7 @@ See also: [`sos_dualize`](@ref), [`MomentProblem`](@ref)
 """
 struct SOSProblem{T}
     model::GenericModel{T}
+    n_unique_elements::Int  # Number of unique moment variables after canonicalization
 end
 
 
@@ -68,12 +70,14 @@ function get_Cαj(unsymmetrized_basis::Vector{M}, localizing_mtx::Matrix{P}) whe
     n_basis = length(unsymmetrized_basis)
 
     for ci in cis
-        for t in terms(localizing_mtx[ci])
-            coeff, alpha = t.coefficient, t.monomial
-            idx = searchsortedfirst(unsymmetrized_basis, alpha)
+        for (coeff, alpha) in terms(localizing_mtx[ci])
+            # `terms(::Polynomial)` yields `(coefficient, Monomial)` pairs; internal SOS basis
+            # for moment problems is still in `NormalMonomial` space.
+            alpha_key = alpha
+            idx = searchsortedfirst(unsymmetrized_basis, alpha_key)
             # Skip monomials not in basis (e.g., odd-parity fermionic monomials)
             # These have expectation value 0 and don't contribute
-            if idx <= n_basis && unsymmetrized_basis[idx] == alpha
+            if idx <= n_basis && unsymmetrized_basis[idx] == alpha_key
                 dictionary_of_keys[(idx, ci.I[1], ci.I[2])] = coeff
             end
         end
@@ -125,7 +129,7 @@ obj = objective_value(sos.model)
 
 See also: [`MomentProblem`](@ref), [`moment_relax`](@ref), [`SOSProblem`](@ref)
 """
-function sos_dualize(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}, P<:Polynomial{A,TI}}
+function sos_dualize(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     # Determine if complex based on algebra type
     is_complex = _is_complex_problem(A)
 
@@ -149,7 +153,7 @@ Internal: Dualize a real-valued symbolic moment problem.
 For real algebras (NonCommutative, Projector, Unipotent), constraints use
 standard PSD cones without complex embedding.
 """
-function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}, P<:Polynomial{A,TI}}
+function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     # Get coefficient type from polynomial
     C = eltype(coefficients(mp.objective))
 
@@ -171,7 +175,7 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
 
     # Symmetrize basis: moment problem uses unsymmetrized basis, but
     # we need to match coefficients of symmetric (canonicalized) monomials
-    symmetric_basis = sorted_unique(symmetric_canon.(mp.total_basis))
+    symmetric_basis = _sorted_symmetric_basis(mp.total_basis)
     n_basis = length(symmetric_basis)
 
     # Create mapping from unsymmetrized basis to symmetric basis position
@@ -185,10 +189,11 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     #   sum_j sum_{k,l} C_alpha_jkl * G_j[k,l] = c_alpha - delta_{alpha,1} * b
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in 1:n_basis]
 
-    # Add objective polynomial coefficients
-    for (coef, mono) in zip(coefficients(mp.objective), monomials(mp.objective))
-        sym_idx = searchsortedfirst(symmetric_basis, symmetric_canon(mono))
-        if sym_idx <= n_basis && symmetric_basis[sym_idx] == symmetric_canon(mono)
+    # Add objective polynomial coefficients (work in NormalMonomial space)
+    for (coef, mono) in mp.objective.terms
+        canon_mono = symmetric_canon(mono)
+        sym_idx = searchsortedfirst(symmetric_basis, canon_mono)
+        if sym_idx <= n_basis && symmetric_basis[sym_idx] == canon_mono
             add_to_expression!(fα_constraints[sym_idx], coef)
         end
     end
@@ -200,7 +205,9 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     sorted_basis = sort(mp.total_basis)
     for (i, (_, mat)) in enumerate(mp.constraints)
         Cαjs = get_Cαj(sorted_basis, mat)
-        for (ky, coef) in Cαjs
+        # Deterministic iteration (Dict order is randomized per Julia session).
+        for ky in sort!(collect(keys(Cαjs)))
+            coef = Cαjs[ky]
             basis_idx, row, col = ky
             # Map unsymmetrized basis index to symmetric index
             if basis_idx <= length(sorted_basis)
@@ -214,7 +221,7 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     # All coefficient constraints
     @constraint(dual_model, fα_constraints .== 0)
 
-    return SOSProblem(dual_model)
+    return SOSProblem(dual_model, n_basis)
 end
 
 
@@ -276,7 +283,7 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     # Create canonical StateWord basis from total_basis
     # Apply expval to convert NCStateWord to StateWord, then symmetric_canon
     SW = StateWord{ST,A,TI}
-    state_basis = sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in mp.total_basis])
+    state_basis = _sorted_stateword_basis_from_ncsw(mp.total_basis)
     n_basis = length(state_basis)
 
     # Initialize constraint expressions
@@ -321,7 +328,7 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     # All coefficient constraints
     @constraint(dual_model, fα_constraints .== 0)
 
-    return SOSProblem(dual_model)
+    return SOSProblem(dual_model, n_basis)
 end
 
 """
@@ -340,7 +347,7 @@ H in HPSD <=> [Re(H), -Im(H); Im(H), Re(H)] in PSD
 For the dual SOS problem, we create 2n x 2n matrix variables and extract
 the real and imaginary parts of the SOS multiplier from the block structure.
 """
-function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:Monomial{A,TI}, P<:Polynomial{A,TI}}
+function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     # Get coefficient type (should be complex for these algebras)
     C = eltype(coefficients(mp.objective))
     RC = real(C)  # Real coefficient type for dual model
@@ -388,7 +395,7 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     # Symmetrize basis: moment problem uses unsymmetrized basis, but
     # we need to match coefficients of symmetric (canonicalized) monomials
     # This is the same canonicalization used in real SOS dualization
-    symmetric_basis = sorted_unique(symmetric_canon.(mp.total_basis))
+    symmetric_basis = _sorted_symmetric_basis(mp.total_basis)
     n_basis = length(symmetric_basis)
 
     # Create mapping from unsymmetrized basis to symmetric basis position
@@ -403,8 +410,8 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     fα_constraints_re = [zero(GenericAffExpr{RC,VariableRef}) for _ in 1:n_basis]
     fα_constraints_im = [zero(GenericAffExpr{RC,VariableRef}) for _ in 1:n_basis]
 
-    # Add objective polynomial coefficients (real and imaginary parts)
-    for (coef, mono) in zip(coefficients(mp.objective), monomials(mp.objective))
+    # Add objective polynomial coefficients (real and imaginary parts; NormalMonomial space)
+    for (coef, mono) in mp.objective.terms
         canon_mono = symmetric_canon(mono)
         idx = searchsortedfirst(symmetric_basis, canon_mono)
         if idx <= n_basis && symmetric_basis[idx] == canon_mono
@@ -419,7 +426,9 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     # Process each constraint matrix
     for (i, (_, mat)) in enumerate(mp.constraints)
         Cαjs = get_Cαj(sorted_unsym_basis, mat)
-        for (ky, coef) in Cαjs
+        # Deterministic iteration (Dict order is randomized per Julia session).
+        for ky in sort!(collect(keys(Cαjs)))
+            coef = Cαjs[ky]
             unsym_basis_idx, row, col = ky
 
             # Map unsymmetrized basis index to symmetric index
@@ -455,7 +464,5 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     @constraint(dual_model, fα_constraints_re .== 0)
     @constraint(dual_model, fα_constraints_im .== 0)
 
-    return SOSProblem(dual_model)
+    return SOSProblem(dual_model, n_basis)
 end
-
-

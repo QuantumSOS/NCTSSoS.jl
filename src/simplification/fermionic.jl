@@ -16,7 +16,7 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 # Normal Ordering
 - All creators (negative) on LEFT
 - All annihilators (positive) on RIGHT
-- Within groups: sorted by mode (absolute value)
+- Within groups: creators sorted by mode descending, annihilators by mode ascending
 
 # Wick's Theorem Algorithm (4 steps)
 1. Identify valid contractions (pairs with non-zero contraction values)
@@ -25,11 +25,8 @@ Wick's theorem algorithm from the Generalized Time-Independent Wick Theorem.
 4. Evaluate signs using permutation parity
 """
 
-# Note: Helper functions (_is_creation, _operator_mode, normal_order_key,
-# combine_like_terms) are in utils.jl
-
 """
-    has_even_parity(m::Monomial{FermionicAlgebra,T}) where T -> Bool
+    has_even_parity(m::NormalMonomial{FermionicAlgebra,T}) where T -> Bool
 
 Check if a fermionic monomial has even parity (even number of operators).
 
@@ -39,7 +36,7 @@ number from having non-zero expectation values. Only operators with even parity
 expectation values.
 
 # Arguments
-- `m::Monomial{FermionicAlgebra,T}`: A fermionic monomial
+- `m::NormalMonomial{FermionicAlgebra,T}`: A fermionic monomial
 
 # Returns
 - `true` if the monomial has an even number of operators (including 0 for identity)
@@ -63,12 +60,12 @@ true
 
 See also: [`FermionicAlgebra`](@ref), [`simplify`](@ref)
 """
-function has_even_parity(m::Monomial{FermionicAlgebra,T}) where {T}
+function has_even_parity(m::NormalMonomial{FermionicAlgebra,T}) where {T}
     return iseven(length(m.word))
 end
 
 """
-    Base.iszero(m::Monomial{FermionicAlgebra,T}) -> Bool
+    Base.iszero(m::NormalMonomial{FermionicAlgebra,T}) -> Bool
 
 Check if a fermionic monomial is zero due to nilpotency.
 
@@ -84,31 +81,66 @@ they cannot all be contracted away and the result is zero.
 
 # Examples
 ```jldoctest
-julia> m = Monomial{FermionicAlgebra}(Int32[1, 1]);  # a₁ a₁ = 0 (surplus 2)
+julia> m = NormalMonomial{FermionicAlgebra}(Int32[1, 1]);  # a₁ a₁ = 0 (surplus 2)
 
 julia> iszero(m)
 true
 
-julia> m2 = Monomial{FermionicAlgebra}(Int32[1, 2, 1]);  # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0
+julia> m2 = NormalMonomial{FermionicAlgebra}(Int32[1, 2, 1]);  # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0
 
 julia> iszero(m2)
 true
 
-julia> m3 = Monomial{FermionicAlgebra}(Int32[1, 1, -1]);  # a₁ a₁ a₁† (surplus 1, not zero yet)
+julia> m3 = NormalMonomial{FermionicAlgebra}(Int32[1, 1, -1]);  # a₁ a₁ a₁† (surplus 1, not zero yet)
 
 julia> iszero(m3)
 false
 
-julia> m4 = Monomial{FermionicAlgebra}(Int32[1, -1, 1, -1]);  # a₁ a₁† a₁ a₁† ≠ 0
+julia> m4 = NormalMonomial{FermionicAlgebra}(Int32[1, -1, 1, -1]);  # a₁ a₁† a₁ a₁† ≠ 0
 
 julia> iszero(m4)
 false
 ```
 """
-function Base.iszero(m::Monomial{FermionicAlgebra,T}) where {T}
+function Base.iszero(m::NormalMonomial{FermionicAlgebra,T}) where {T}
     word = m.word
     isempty(word) && return false
 
+    # Find max mode to size the tracking array
+    max_mode = maximum(_operator_mode, word)
+
+    # Track net flux (annihilation - creation) for each mode
+    # +1 for annihilation, -1 for creation
+    flux = zeros(Int, max_mode)
+
+    @inbounds for op in word
+        mode = _operator_mode(op)
+        if _is_creation(op)
+            flux[mode] -= 1
+        else
+            flux[mode] += 1
+        end
+    end
+
+    # Check if any mode has a surplus of 2 or more operators
+    # |flux| >= 2 implies the operator is nilpotent
+    @inbounds for f in flux
+        abs(f) >= 2 && return true
+    end
+
+    return false
+end
+
+"""
+    _is_nilpotent_by_flux(word::Vector{T}) where {T<:Signed} -> Bool
+
+Check if a raw fermionic word is nilpotent using flux-based detection.
+A fermionic word is zero if any mode has net surplus >= 2 (same-type operators).
+
+This is the Vector{T} version of iszero(::NormalMonomial{FermionicAlgebra}) for use
+before a NormalMonomial is constructed.
+"""
+function _is_nilpotent_by_flux(word::Vector{T}) where {T<:Signed}
     # Find max mode to size the tracking array
     max_mode = maximum(_operator_mode, word)
 
@@ -185,7 +217,7 @@ function _find_valid_contractions(word::Vector{T}) where {T}
     contractions = Tuple{Int,Int}[]
     n = length(word)
 
-    for i in 1:n-1
+    @inbounds for i in 1:n-1
         for j in i+1:n
             op_i = word[i]
             op_j = word[j]
@@ -346,56 +378,35 @@ function _compute_normal_ordered_term(word::Vector{T}, contraction::Vector{Tuple
     return (Float64(total_sign), normal_word)
 end
 
-# Note: combine_like_terms is now in utils.jl as a shared helper
+# Note: Like-term combination happens via `_combine_physics_terms` below.
 
 """
-    simplify(m::Monomial{FermionicAlgebra,T}) where T -> Polynomial{FermionicAlgebra,T,Float64}
+    _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer} -> Vector{Tuple{Int,Vector{T}}}
 
-Simplify and normal-order a fermionic algebra monomial using Generalized Wick's Theorem.
+Normal-order a fermionic word using Generalized Wick's Theorem.
 
-Returns a Polynomial representing the normal-ordered expansion (potentially with multiple
-terms due to anticommutation). The original monomial is unchanged.
+Returns a vector of (coefficient, normal_ordered_word) pairs representing the sum:
+  Σ coeffs[i] * word[i]
+
+This is the low-level function used by `simplify(FermionicAlgebra, word)`.
+Integer coefficients are exact (from anticommutation signs).
 
 # Algorithm
 1. Find all valid contractions (aᵢ...aᵢ† pairs with same mode)
 2. Generate all non-overlapping contraction combinations
 3. For each combination, compute the normal-ordered term with sign
 4. Combine like terms
-
-# Algebraic Rules
-- {aᵢ, aⱼ†} = δᵢⱼ (anticommutation gives delta correction)
-- {aᵢ, aⱼ} = 0 (annihilation-annihilation anticommute)
-- {aᵢ†, aⱼ†} = 0 (creation-creation anticommute)
-- aᵢ² = 0, (aᵢ†)² = 0 (nilpotency)
-
-# Examples
-```jldoctest
-julia> using NCTSSoS
-
-julia> m = Monomial{FermionicAlgebra}(Int32[1, -1]);  # a₁ a₁†
-
-julia> poly = simplify(m);
-
-julia> length(terms(poly))  # Two terms: 1 - a₁† a₁
-2
-```
-
-# Note
-Unlike other algebra types, fermionic simplification returns a `Polynomial` (not a `Monomial`)
-because anticommutation creates multiple terms. There is no `simplify!` variant since the
-return type differs from the input type.
 """
-function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
-    word = m.word
-
+function _simplify_fermionic_word!(word::Vector{T}) where {T<:Integer}
     # Handle empty word
     if isempty(word)
-        return Polynomial([Term(1.0, Monomial{FermionicAlgebra}(T[]))])
+        return Tuple{Int,Vector{T}}[(1, T[])]
     end
 
-    # Early exit for nilpotent monomials (aᵢ² = 0)
-    if iszero(m)
-        return Polynomial([Term(0.0, Monomial{FermionicAlgebra}(T[]))])
+    # Check for nilpotency using flux-based detection.
+    # A fermionic word is zero if any mode has net surplus >= 2 (same-type operators).
+    if _is_nilpotent_by_flux(word)
+        return Tuple{Int,Vector{T}}[(0, T[])]
     end
 
     # Step 1: Find valid contractions
@@ -405,17 +416,162 @@ function simplify(m::Monomial{FermionicAlgebra,T}) where {T}
     combinations = _generate_nonoverlapping_combinations(contractions)
 
     # Steps 3-4: Compute each term
-    result_terms = Term{Monomial{FermionicAlgebra,T},Float64}[]
+    result_pairs = Tuple{Int,Vector{T}}[]
 
     for combo in combinations
         (coef, normal_word) = _compute_normal_ordered_term(word, combo)
-        if coef != 0.0
-            push!(result_terms, Term(coef, Monomial{FermionicAlgebra}(normal_word)))
+        coef_int = Int(coef)
+        if coef_int != 0
+            push!(result_pairs, (coef_int, normal_word))
         end
     end
 
     # Combine like terms
-    result_terms = combine_like_terms(result_terms)
+    grouped = Dict{Vector{T},Int}()
+    for (coef, w) in result_pairs
+        grouped[w] = get(grouped, w, 0) + coef
+    end
 
-    return Polynomial(result_terms)
+    result = Tuple{Int,Vector{T}}[]
+    for (w, coef) in grouped
+        if coef != 0
+            push!(result, (coef, w))
+        end
+    end
+
+    if isempty(result)
+        push!(result, (0, T[]))
+    end
+
+    return result
+end
+
+"""
+    simplify(::Type{FermionicAlgebra}, word::Vector{T}) where {T<:Signed} -> Vector{Tuple{Int,Vector{T}}}
+
+Simplify a raw fermionic word into normal-ordered form.
+
+This is the primary entry point for fermionic simplification. Takes a raw word vector
+and returns a vector of `(coefficient, normal_ordered_word)` pairs representing the
+canonical normal-ordered representation.
+"""
+simplify(::Type{FermionicAlgebra}, word::Vector{T}) where {T<:Signed} = simplify!(FermionicAlgebra, copy(word))
+
+"""
+    simplify!(::Type{FermionicAlgebra}, word::Vector{T}) where {T<:Signed} -> Vector{Tuple{Int,Vector{T}}}
+
+Low-level in-place normal ordering of a fermionic word.
+
+Returns a vector of `(coefficient, normal_ordered_word)` pairs representing the
+PBW expansion as a sum. Each word in the result is unique (coefficients are
+accumulated for identical words). Modifies `word` in-place (filters zeros).
+
+This is the internal workhorse; most users should call `simplify(FermionicAlgebra, word)`.
+
+# Algorithm
+Uses Generalized Wick's Theorem:
+1. Find all valid contractions (aᵢ...aᵢ† pairs with same mode)
+2. Generate all non-overlapping contraction combinations
+3. For each combination, compute the normal-ordered term with sign
+4. Combine like terms
+
+# Throws
+- `ErrorException` if simplification produces an empty result (should not happen for valid input)
+"""
+function simplify!(::Type{FermionicAlgebra}, word::Vector{T}) where {T<:Signed}
+    filter!(!iszero, word)
+
+    # Handle empty word (identity)
+    if isempty(word)
+        return [(1, T[])]
+    end
+
+    # Early exit for nilpotent monomials using flux-based detection
+    if _is_nilpotent_by_flux(word)
+        return [(0, T[])]
+    end
+
+    # Step 1: Find valid contractions
+    contractions = _find_valid_contractions(word)
+
+    # Step 2: Generate non-overlapping combinations
+    combinations = _generate_nonoverlapping_combinations(contractions)
+
+    # Steps 3-4: Compute each term and combine like terms
+    word_coeffs = Dict{Vector{T},Int}()
+
+    for combo in combinations
+        (coef, normal_word) = _compute_normal_ordered_term(word, combo)
+        int_coef = round(Int, coef)  # fermionic coefficients are always ±1
+        if int_coef != 0
+            word_coeffs[normal_word] = get(word_coeffs, normal_word, 0) + int_coef
+        end
+    end
+
+    # Construct final (coef, word) pairs, filtering zero coefficients
+    result = Tuple{Int,Vector{T}}[]
+    for (w, coef) in word_coeffs
+        coef == 0 && continue
+        push!(result, (coef, w))
+    end
+
+    isempty(result) && return [(0, T[])]
+
+    return result
+end
+
+"""
+    _is_fermionic_nilpotent(word::Vector{T}) where {T<:Signed} -> Bool
+
+Check if a fermionic word contains repeated identical operators (nilpotent: aᵢ² = 0 or (a†ᵢ)² = 0).
+
+Note: aᵢ and a†ᵢ are DIFFERENT operators (indices 1 and -1 for mode 1), so
+[1, -1] is NOT nilpotent, but [1, 1] or [-1, -1] are.
+"""
+function _is_fermionic_nilpotent(word::Vector{T}) where {T<:Signed}
+    seen = Set{T}()
+    for idx in word
+        idx ∈ seen && return true
+        push!(seen, idx)
+    end
+    return false
+end
+
+# =============================================================================
+# Validation (for NormalMonomial constructor)
+# =============================================================================
+
+"""
+    _validate_fermionic_word!(word::Vector{T}) where {T<:Signed}
+
+Check that a fermionic word is in normal-ordered form. Throws `ArgumentError` if invalid.
+
+Normal order requirements:
+- Creation operators (negative indices) come before annihilation operators (positive)
+- Creators sorted by mode descending; annihilators sorted by mode ascending
+
+This is used by `NormalMonomial{FermionicAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_word(::Type{FermionicAlgebra}, word::Vector{T}) where {T<:Signed}
+    isempty(word) && return nothing
+
+    if !is_normal_ordered(word)
+        throw(ArgumentError(
+            "Fermionic word is not normal-ordered. " *
+            "Use simplify(FermionicAlgebra, word) for auto-normal-ordering."
+        ))
+    end
+
+    # Normal-form monomials must be non-nilpotent: aᵢ² = 0 and (aᵢ†)² = 0.
+    # In normal order (creators then annihilators, each sorted by mode), duplicate operators
+    # can only appear as adjacent equal entries.
+    @inbounds for i in 2:length(word)
+        if word[i] == word[i - 1]
+            throw(ArgumentError(
+                "Fermionic word is nilpotent (duplicate operator). " *
+                "Use simplify(FermionicAlgebra, word) for canonicalization."
+            ))
+        end
+    end
+    return nothing
 end

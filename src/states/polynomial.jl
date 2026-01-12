@@ -19,9 +19,9 @@ Represents a sum of state words with coefficients: sum_i c_i * sw_i
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{PauliAlgebra}([1, 2]);
+julia> m1 = NormalMonomial{ProjectorAlgebra}(UInt8[1, 2]);
 
-julia> m2 = Monomial{PauliAlgebra}([3]);
+julia> m2 = NormalMonomial{ProjectorAlgebra}(UInt8[3]);
 
 julia> sw1 = StateWord{Arbitrary}([m1]);
 
@@ -101,6 +101,42 @@ monomials(sp::StatePolynomial) = sp.state_words
 Iterate over (coefficient, state_word) pairs.
 """
 terms(sp::StatePolynomial) = zip(sp.coeffs, sp.state_words)
+
+# =============================================================================
+# Expectation Value (StateSymbol / StatePolynomial)
+# =============================================================================
+
+"""
+    expval(::Type{ST}, m::NormalMonomial{A,T}) where {ST,A,T}
+
+Lift a normal-form operator monomial to a state expectation symbol.
+
+For polynomials with multiple terms or complex coefficients, use `expval(ST, p::Polynomial)`.
+"""
+# expval only generates expectation value which is `StateSymbol{Arbitrary`
+expval(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateSymbol{Arbitrary}(m)
+
+
+function expval(::Type{ST}, ::NormalMonomial) where {ST<:StateType}
+    throw(ArgumentError("expval(::Type{$ST}, ::NormalMonomial) is not supported; use expval(m) for Arbitrary expectations, or tr(m) for trace symbols."))
+end
+
+"""
+    expval(::Type{ST}, p::Polynomial{A,T,C}) where {ST,A,T,C}
+
+Expectation value of a Polynomial.
+
+Returns a `StatePolynomial` with the same coefficients, converting each
+`NormalMonomial` to a `StateWord{ST}`.
+"""
+function expval(
+    p::Polynomial{A,T,C},
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    isempty(p.terms) && return zero(StatePolynomial{C,Arbitrary,A,T})
+    coeffs = C[c for (c, _) in p.terms]
+    state_words = StateWord{Arbitrary,A,T}[StateWord{Arbitrary}(m) for (_, m) in p.terms]
+    return StatePolynomial(coeffs, state_words)
+end
 
 """
     degree(sp::StatePolynomial) -> Int
@@ -267,67 +303,72 @@ function Base.:(-)(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<
 end
 
 """
-    Base.:(+)(sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {ST,A,T,TC}
+    Base.:(+)(sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {ST,A,T,TC}
 
-Add a StateWord to a Term{StateWord} to create a StatePolynomial.
+Add a StateWord to a `(coefficient, StateWord)` pair to create a StatePolynomial.
 """
 function Base.:(+)(
-    sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {ST<:StateType,A<:AlgebraType,T<:Integer,TC<:Number}
-    StatePolynomial(TC[one(TC), t.coefficient], [sw, t.monomial])
+    coef, mono = t
+    StatePolynomial(TC[one(TC), coef], [sw, mono])
 end
-Base.:(+)(t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}) where {ST,A,T,TC} = sw + t
+Base.:(+)(t::Tuple{TC,StateWord{ST,A,T}}, sw::StateWord{ST,A,T}) where {ST,A,T,TC} = sw + t
 
 """
-    Base.:(-)(sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {ST,A,T,TC}
+    Base.:(-)(sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {ST,A,T,TC}
 
-Subtract a Term{StateWord} from a StateWord to create a StatePolynomial.
+Subtract a `(coefficient, StateWord)` pair from a StateWord to create a StatePolynomial.
 """
 function Base.:(-)(
-    sw::StateWord{ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sw::StateWord{ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {ST<:StateType,A<:AlgebraType,T<:Integer,TC<:Number}
-    StatePolynomial(TC[one(TC), -t.coefficient], [sw, t.monomial])
+    coef, mono = t
+    StatePolynomial(TC[one(TC), -coef], [sw, mono])
 end
 
 """
-    Base.:(-)(t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}) where {ST,A,T,TC}
+    Base.:(-)(t::Tuple{TC,StateWord{ST,A,T}}, sw::StateWord{ST,A,T}) where {ST,A,T,TC}
 
-Subtract a StateWord from a Term{StateWord} to create a StatePolynomial.
+Subtract a StateWord from a `(coefficient, StateWord)` pair to create a StatePolynomial.
 """
 function Base.:(-)(
-    t::Term{StateWord{ST,A,T},TC}, sw::StateWord{ST,A,T}
+    t::Tuple{TC,StateWord{ST,A,T}}, sw::StateWord{ST,A,T}
 ) where {ST<:StateType,A<:AlgebraType,T<:Integer,TC<:Number}
-    StatePolynomial(TC[t.coefficient, -one(TC)], [t.monomial, sw])
+    coef, mono = t
+    StatePolynomial(TC[coef, -one(TC)], [mono, sw])
 end
 
 """
-    Base.:(+)(sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {C,TC,ST,A,T}
+    Base.:(+)(sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {C,TC,ST,A,T}
 
-Add a Term{StateWord} to a StatePolynomial.
+Add a `(coefficient, StateWord)` pair to a StatePolynomial.
 """
 function Base.:(+)(
-    sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {C<:Number,TC<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
     NC = promote_type(C, TC)
+    coef, mono = t
     StatePolynomial(
-        NC[NC.(sp.coeffs); NC(t.coefficient)],
-        [sp.state_words; t.monomial]
+        NC[NC.(sp.coeffs); NC(coef)],
+        [sp.state_words; mono]
     )
 end
-Base.:(+)(t::Term{StateWord{ST,A,T},TC}, sp::StatePolynomial{C,ST,A,T}) where {C,TC,ST,A,T} = sp + t
+Base.:(+)(t::Tuple{TC,StateWord{ST,A,T}}, sp::StatePolynomial{C,ST,A,T}) where {C,TC,ST,A,T} = sp + t
 
 """
-    Base.:(-)(sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}) where {C,TC,ST,A,T}
+    Base.:(-)(sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}) where {C,TC,ST,A,T}
 
-Subtract a Term{StateWord} from a StatePolynomial.
+Subtract a `(coefficient, StateWord)` pair from a StatePolynomial.
 """
 function Base.:(-)(
-    sp::StatePolynomial{C,ST,A,T}, t::Term{StateWord{ST,A,T},TC}
+    sp::StatePolynomial{C,ST,A,T}, t::Tuple{TC,StateWord{ST,A,T}}
 ) where {C<:Number,TC<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
     NC = promote_type(C, TC)
+    coef, mono = t
     StatePolynomial(
-        NC[NC.(sp.coeffs); NC(-t.coefficient)],
-        [sp.state_words; t.monomial]
+        NC[NC.(sp.coeffs); NC(-coef)],
+        [sp.state_words; mono]
     )
 end
 
@@ -407,28 +448,28 @@ Scalar multiplication (scalar on right).
 Base.:(*)(sp::StatePolynomial, c::Number) = c * sp
 
 """
-    Base.:(*)(sp::StatePolynomial{C,ST,A,T}, m::Monomial{A,T}) where {C,ST,A,T}
+    Base.:(*)(sp::StatePolynomial{C,ST,A,T}, m::NormalMonomial{A,T}) where {C,ST,A,T}
 
-Multiply a StatePolynomial by a Monomial (on the right).
-Equivalent to multiplying by one(Polynomial) - used in expressions like `sp * one(Monomial)`.
+Multiply a StatePolynomial by a NormalMonomial (on the right).
+Equivalent to multiplying by `one(Polynomial)` - used in expressions like `sp * one(NormalMonomial)`.
 The result is an NCStatePolynomial since it now has both state and non-commutative parts.
 """
 function Base.:(*)(
-    sp::StatePolynomial{C,ST,A,T}, m::Monomial{A,T}
-) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    sp::StatePolynomial{C,ST,A,T}, m::NormalMonomial{A,T}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     # Convert to NCStatePolynomial
     nc_sws = [NCStateWord(sw, m) for sw in sp.state_words]
     NCStatePolynomial(copy(sp.coeffs), nc_sws)
 end
 
 """
-    Base.:(*)(m::Monomial{A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
+    Base.:(*)(m::NormalMonomial{A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
-Multiply a Monomial by a StatePolynomial (on the left).
+Multiply a NormalMonomial by a StatePolynomial (on the left).
 """
 function Base.:(*)(
-    m::Monomial{A,T}, sp::StatePolynomial{C,ST,A,T}
-) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    m::NormalMonomial{A,T}, sp::StatePolynomial{C,ST,A,T}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     # Convert to NCStatePolynomial - but with monomial on left
     # NCStateWord stores nc_word first, so m * sw means nc_word = m, state_part = sw
     nc_sws = [NCStateWord(sw, m) for sw in sp.state_words]
@@ -469,6 +510,51 @@ function Base.:(*)(c::Number, sw::StateWord{ST,A,T}) where {ST<:StateType,A<:Alg
     StatePolynomial(C[C(c)], [sw])
 end
 Base.:(*)(sw::StateWord, c::Number) = c * sw
+
+# =============================================================================
+# StateSymbol lifting helpers (treat a single expectation as a length-1 StateWord)
+# =============================================================================
+
+Base.:(*)(c::Number, sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    c * StateWord{ST}(sym)
+Base.:(*)(sym::StateSymbol{ST,A,T}, c::Number) where {ST<:StateType,A<:AlgebraType,T<:Integer} = c * sym
+
+Base.:(+)(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    StateWord{ST}(a) + StateWord{ST}(b)
+Base.:(-)(a::StateSymbol{ST,A,T}, b::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    StateWord{ST}(a) - StateWord{ST}(b)
+Base.:(-)(sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} = -StateWord{ST}(sym)
+
+Base.:(+)(c::Number, sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    c + StateWord{ST}(sym)
+Base.:(+)(sym::StateSymbol{ST,A,T}, c::Number) where {ST<:StateType,A<:AlgebraType,T<:Integer} = c + sym
+Base.:(-)(c::Number, sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    c - StateWord{ST}(sym)
+Base.:(-)(sym::StateSymbol{ST,A,T}, c::Number) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    StateWord{ST}(sym) + (-c)
+
+Base.:(+)(sym::StateSymbol{ST,A,T}, sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    StateWord{ST}(sym) + sw
+Base.:(+)(sw::StateWord{ST,A,T}, sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    sw + StateWord{ST}(sym)
+Base.:(-)(sym::StateSymbol{ST,A,T}, sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    StateWord{ST}(sym) - sw
+Base.:(-)(sw::StateWord{ST,A,T}, sym::StateSymbol{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer} =
+    sw - StateWord{ST}(sym)
+
+Base.:(+)(sp::StatePolynomial{C,ST,A,T}, sym::StateSymbol{ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} =
+    sp + StateWord{ST}(sym)
+Base.:(+)(sym::StateSymbol{ST,A,T}, sp::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} =
+    sp + sym
+Base.:(-)(sp::StatePolynomial{C,ST,A,T}, sym::StateSymbol{ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} =
+    sp - StateWord{ST}(sym)
+Base.:(-)(sym::StateSymbol{ST,A,T}, sp::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} =
+    StateWord{ST}(sym) - sp
+
+Base.:(*)(sym::StateSymbol{ST,A,T}, sp::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} =
+    StateWord{ST}(sym) * sp
+Base.:(*)(sp::StatePolynomial{C,ST,A,T}, sym::StateSymbol{ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} =
+    sp * StateWord{ST}(sym)
 
 # =============================================================================
 # Arithmetic - Polynomial Multiplication
@@ -596,9 +682,9 @@ Converts each term's monomial to a StateWord{Arbitrary}.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);
+julia> m = NormalMonomial{ProjectorAlgebra}(UInt8[1, 2]);
 
-julia> p = Polynomial([Term(1.0+0im, m)]);
+julia> p = Polynomial([(1.0, m)]);
 
 julia> sp = ς(p);
 
@@ -606,11 +692,25 @@ julia> sp isa StatePolynomial
 true
 ```
 """
-function ς(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+function ς(p::Polynomial{A,T,C}) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
     isempty(p.terms) && return StatePolynomial(C[], StateWord{Arbitrary,A,T}[])
 
-    state_words = [StateWord{Arbitrary}(t.monomial) for t in p.terms]
-    coeffs = C[t.coefficient for t in p.terms]
+    state_words = [StateWord{Arbitrary}(mono) for (_, mono) in p.terms]
+    coeffs = C[coef for (coef, _) in p.terms]
+    return StatePolynomial(coeffs, state_words)
+end
+
+"""
+    tr(p::Polynomial{A,T,C}) -> StatePolynomial
+
+Create a tracial StatePolynomial from a Polynomial.
+Converts each term's monomial to a `StateWord{MaxEntangled}`.
+"""
+function tr(p::Polynomial{A,T,C}) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
+    isempty(p.terms) && return StatePolynomial(C[], StateWord{MaxEntangled,A,T}[])
+
+    state_words = [StateWord{MaxEntangled}(mono) for (_, mono) in p.terms]
+    coeffs = C[coef for (coef, _) in p.terms]
     return StatePolynomial(coeffs, state_words)
 end
 
@@ -619,7 +719,7 @@ end
 # =============================================================================
 
 """
-    NCStatePolynomial{C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer}
+    NCStatePolynomial{C<:Number, ST<:StateType, A<:MonoidAlgebra, T<:Integer}
 
 A polynomial in non-commutative state words with coefficients.
 
@@ -636,7 +736,7 @@ Same as StatePolynomial: sorted, unique, non-zero coefficients.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = Monomial{PauliAlgebra}([1]);
+julia> m1 = NormalMonomial{ProjectorAlgebra}(UInt8[1]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 
@@ -650,13 +750,13 @@ julia> length(ncsp.nc_state_words)
 
 See also: [`NCStateWord`](@ref), [`StatePolynomial`](@ref)
 """
-struct NCStatePolynomial{C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractPolynomial{C}
+struct NCStatePolynomial{C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} <: AbstractPolynomial{C}
     coeffs::Vector{C}
     nc_state_words::Vector{NCStateWord{ST,A,T}}
 
     function NCStatePolynomial(
         coeffs::Vector{C}, nc_state_words::Vector{NCStateWord{ST,A,T}}
-    ) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    ) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
         # Handle empty case
         isempty(nc_state_words) && return new{C,ST,A,T}(C[], NCStateWord{ST,A,T}[])
 
@@ -759,7 +859,7 @@ end
 Get variable indices from an NCStateWord.
 
 This is an alias for `variables()` that matches the naming convention used
-by regular Monomial types.
+by regular NormalMonomial types.
 """
 function variable_indices(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
     variables(ncsw)
@@ -776,7 +876,7 @@ end
 
 Create the zero NCStatePolynomial.
 """
-function Base.zero(::Type{NCStatePolynomial{C,ST,A,T}}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.zero(::Type{NCStatePolynomial{C,ST,A,T}}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NCStatePolynomial(C[], NCStateWord{ST,A,T}[])
 end
 
@@ -785,7 +885,7 @@ end
 
 Create the zero NCStatePolynomial for the same type.
 """
-function Base.zero(::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.zero(::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     zero(NCStatePolynomial{C,ST,A,T})
 end
 
@@ -801,7 +901,7 @@ Base.iszero(ncsp::NCStatePolynomial) = isempty(ncsp.nc_state_words)
 
 Create the identity NCStatePolynomial.
 """
-function Base.one(::Type{NCStatePolynomial{C,ST,A,T}}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::Type{NCStatePolynomial{C,ST,A,T}}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NCStatePolynomial([one(C)], [one(NCStateWord{ST,A,T})])
 end
 
@@ -810,7 +910,7 @@ end
 
 Create the identity NCStatePolynomial for the same type.
 """
-function Base.one(::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.one(::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     one(NCStatePolynomial{C,ST,A,T})
 end
 
@@ -868,7 +968,7 @@ Add two NCStatePolynomials.
 """
 function Base.:(+)(
     a::NCStatePolynomial{C1,ST,A,T}, b::NCStatePolynomial{C2,ST,A,T}
-) where {C1<:Number,C2<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+) where {C1<:Number,C2<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     C = promote_type(C1, C2)
     NCStatePolynomial(
         C[C.(a.coeffs); C.(b.coeffs)],
@@ -881,7 +981,7 @@ end
 
 Negate an NCStatePolynomial.
 """
-function Base.:(-)(ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.:(-)(ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NCStatePolynomial(-ncsp.coeffs, copy(ncsp.nc_state_words))
 end
 
@@ -892,7 +992,7 @@ Subtract two NCStatePolynomials.
 """
 function Base.:(-)(
     a::NCStatePolynomial{C1,ST,A,T}, b::NCStatePolynomial{C2,ST,A,T}
-) where {C1<:Number,C2<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+) where {C1<:Number,C2<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     a + (-b)
 end
 
@@ -901,7 +1001,7 @@ end
 
 Scalar multiplication (scalar on left).
 """
-function Base.:(*)(c::Number, ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+function Base.:(*)(c::Number, ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     iszero(c) && return zero(NCStatePolynomial{promote_type(typeof(c), C),ST,A,T})
     NC = promote_type(typeof(c), C)
     NCStatePolynomial(NC.(c .* ncsp.coeffs), copy(ncsp.nc_state_words))
@@ -925,7 +1025,7 @@ Compute the expectation value of an NCStatePolynomial.
 
 Converts each NCStateWord to a StateWord using `expval` and combines with coefficients.
 """
-function expval(ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+function expval(ncsp::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     isempty(ncsp.nc_state_words) && return zero(StatePolynomial{C,ST,A,T})
 
     result_sws = [expval(ncsw) for ncsw in ncsp.nc_state_words]

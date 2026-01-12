@@ -5,10 +5,22 @@
 # Requires --local flag (Mosek) for sufficient precision.
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "..", "standalone_setup.jl"))
+# SOLVER fallback for standalone/REPL execution
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
+
+# USE_LOCAL fallback for standalone
+if !@isdefined(USE_LOCAL)
+    const USE_LOCAL = true  # Standalone assumes Mosek
+end
 
 if USE_LOCAL
     @testset "1D Transverse Field Ising Model" begin

@@ -45,18 +45,6 @@ struct VariableRegistry{A<:AlgebraType, T<:Integer}
     end
 end
 
-# Backward-compatible constructor: VariableRegistry{T}(...) defaults to NonCommutativeAlgebra
-"""
-    VariableRegistry{T}(idx_to_vars, vars_to_idx) where {T<:Integer}
-
-Backward-compatible constructor that defaults algebra type to `NonCommutativeAlgebra`.
-
-For new code, prefer the explicit two-parameter form: `VariableRegistry{A, T}(...)`.
-"""
-function VariableRegistry{T}(idx_to_vars::Dict{T, Symbol}, vars_to_idx::Dict{Symbol,T}) where {T<:Integer}
-    VariableRegistry{NonCommutativeAlgebra, T}(idx_to_vars, vars_to_idx)
-end
-
 """
     subregistry(reg::VariableRegistry{A,T}, subset_indices::VT) where {A,T,VT<:AbstractVector{T}}
 
@@ -232,9 +220,6 @@ function Base.show(io::IO, reg::VariableRegistry)
     end
 end
 
-# AlgebraType is defined in algebra_types.jl as singleton types
-# (Commutative, PauliAlgebra, FermionicAlgebra, BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra)
-
 """
     create_pauli_variables(subscripts)
 
@@ -266,8 +251,8 @@ julia> reg, (σx, σy, σz) = create_pauli_variables(1:2);
 julia> length(σx)  # One σx per site
 2
 
-julia> σx[1]  # Monomial for σx₁
-Monomial{PauliAlgebra, UInt8}(...)
+julia> σx[1]  # monomial for σx₁
+NormalMonomial{PauliAlgebra, UInt8}(...)
 
 julia> :σx₁ in reg
 true
@@ -312,15 +297,15 @@ function create_pauli_variables(subscripts)
     reg = VariableRegistry{PauliAlgebra, T}(idx_to_vars, variables_to_idx)
 
     # Build monomial vectors grouped by Pauli type (x, y, z)
-    σx = Vector{Monomial{PauliAlgebra, T}}(undef, n_sites)
-    σy = Vector{Monomial{PauliAlgebra, T}}(undef, n_sites)
-    σz = Vector{Monomial{PauliAlgebra, T}}(undef, n_sites)
+    σx = Vector{NormalMonomial{PauliAlgebra,T}}(undef, n_sites)
+    σy = Vector{NormalMonomial{PauliAlgebra,T}}(undef, n_sites)
+    σz = Vector{NormalMonomial{PauliAlgebra,T}}(undef, n_sites)
 
     for (site_idx, subscript) in enumerate(subscripts)
         subscript_str = _subscript_string(subscript)
-        σx[site_idx] = Monomial{PauliAlgebra}([reg[Symbol("σx" * subscript_str)]])
-        σy[site_idx] = Monomial{PauliAlgebra}([reg[Symbol("σy" * subscript_str)]])
-        σz[site_idx] = Monomial{PauliAlgebra}([reg[Symbol("σz" * subscript_str)]])
+        σx[site_idx] = NormalMonomial{PauliAlgebra,T}([reg[Symbol("σx" * subscript_str)]])
+        σy[site_idx] = NormalMonomial{PauliAlgebra,T}([reg[Symbol("σy" * subscript_str)]])
+        σz[site_idx] = NormalMonomial{PauliAlgebra,T}([reg[Symbol("σz" * subscript_str)]])
     end
 
     return (reg, (σx, σy, σz))
@@ -366,8 +351,8 @@ julia> reg, (a, a⁺) = create_fermionic_variables(1:2);
 julia> length(a)  # One annihilation per mode
 2
 
-julia> a[1]  # Monomial for a₁
-Monomial{FermionicAlgebra, Int8}(...)
+julia> a[1]  # monomial for a₁
+NormalMonomial{FermionicAlgebra, Int8}(...)
 
 julia> :a₁ in reg  # annihilation operator
 true
@@ -415,13 +400,13 @@ function _create_physical_variables(::Type{A}, subscripts, prefix::String) where
     reg = VariableRegistry{A, T}(idx_to_vars, variables_to_idx)
 
     # Build monomial vectors grouped by operator type (annihilation, creation)
-    annihilation = Vector{Monomial{A, T}}(undef, n_modes)
-    creation = Vector{Monomial{A, T}}(undef, n_modes)
+    annihilation = Vector{NormalMonomial{A,T}}(undef, n_modes)
+    creation = Vector{NormalMonomial{A,T}}(undef, n_modes)
 
     for (i, subscript) in enumerate(subscripts)
         subscript_str = _subscript_string(subscript)
-        annihilation[i] = Monomial{A}([reg[Symbol(prefix * subscript_str)]])
-        creation[i] = Monomial{A}([reg[Symbol(prefix * "⁺" * subscript_str)]])
+        annihilation[i] = NormalMonomial{A,T}([reg[Symbol(prefix * subscript_str)]])
+        creation[i] = NormalMonomial{A,T}([reg[Symbol(prefix * "⁺" * subscript_str)]])
     end
 
     return (reg, (annihilation, creation))
@@ -464,8 +449,8 @@ julia> reg, (c, c⁺) = create_bosonic_variables(1:2);
 julia> length(c)  # One annihilation per mode
 2
 
-julia> c[1]  # Monomial for c₁
-Monomial{BosonicAlgebra, Int8}(...)
+julia> c[1]  # monomial for c₁
+NormalMonomial{BosonicAlgebra, Int8}(...)
 
 julia> :c₁ in reg  # annihilation operator
 true
@@ -512,8 +497,8 @@ julia> reg, (P,) = create_projector_variables([("P", 1:3)]);
 julia> length(P)
 3
 
-julia> P[1]  # Monomial for P₁
-Monomial{ProjectorAlgebra, UInt8}(...)
+julia> P[1]  # monomial for P₁
+NormalMonomial{ProjectorAlgebra, UInt8}(...)
 
 julia> reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 3:4)]);
 
@@ -527,20 +512,7 @@ function create_projector_variables(
     _create_noncommutative_variables(ProjectorAlgebra, prefix_subscripts)
 end
 
-"""
-    _select_unsigned_type(n_operators::Int, n_sites::Int) -> Type{<:Unsigned}
-
-Select the smallest unsigned integer type that can encode the given number
-of operators and sites using the site-based encoding scheme.
-"""
-function _select_unsigned_type(n_operators::Int, n_sites::Int)
-    for T in (UInt8, UInt16, UInt32, UInt64)
-        if n_sites <= max_sites(T) && n_operators <= max_operators(T)
-            return T
-        end
-    end
-    error("Cannot fit $n_operators operators × $n_sites sites in any UInt type")
-end
+# Note: Use select_uint_type from algebra.jl for site-based index type selection
 
 """
     create_unipotent_variables(prefix_subscripts::Vector{Tuple{String, VT}})
@@ -568,8 +540,8 @@ julia> reg, (U,) = create_unipotent_variables([("U", 1:3)]);
 julia> length(U)
 3
 
-julia> U[1]  # Monomial for U₁
-Monomial{UnipotentAlgebra, UInt8}(...)
+julia> U[1]  # monomial for U₁
+NormalMonomial{UnipotentAlgebra, UInt8}(...)
 
 julia> reg, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 3:4)]);
 
@@ -606,8 +578,8 @@ julia> reg, (x,) = create_noncommutative_variables([("x", 1:3)]);
 julia> length(x)
 3
 
-julia> x[1]  # Monomial for x₁
-Monomial{NonCommutativeAlgebra, UInt8}(...)
+julia> x[1]  # monomial for x₁
+NormalMonomial{NonCommutativeAlgebra, UInt8}(...)
 
 julia> reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 3:4)]);
 
@@ -620,8 +592,6 @@ function create_noncommutative_variables(
 ) where {T<:Integer, VT<:AbstractVector{T}}
     _create_noncommutative_variables(NonCommutativeAlgebra, prefix_subscripts)
 end
-
-# Use encode_index from algebra_types.jl for site-based index encoding
 
 """
     _create_noncommutative_variables(::Type{A}, prefix_subscripts::Vector{Tuple{String, VT}})
@@ -637,7 +607,7 @@ Variables from each group are assigned to a distinct physical site (1-indexed by
 # Returns
 A tuple of:
 - `VariableRegistry`: Registry mapping symbols to encoded indices
-- `monomial_groups`: Tuple of `Vector{Monomial{A,T}}` for each prefix group
+- `monomial_groups`: Tuple of `Vector{NormalMonomial{A,T}}` for each prefix group
 
 # Examples
 ```julia
@@ -651,7 +621,7 @@ function _create_noncommutative_variables(
 ) where {A<:AlgebraType, T<:Integer, VT<:AbstractVector{T}}
     n_operators = sum(x -> length(x[2]), prefix_subscripts)
     n_sites = length(prefix_subscripts)
-    IndexT = _select_unsigned_type(n_operators, n_sites)
+    IndexT = select_uint_type(n_operators, n_sites)
 
     all_symbols = Vector{Symbol}(undef, n_operators)
     all_indices = Vector{IndexT}(undef, n_operators)
@@ -673,18 +643,17 @@ function _create_noncommutative_variables(
     reg = VariableRegistry{A, IndexT}(idx_to_vars, variables_to_idx)
 
     # Build grouped monomial vectors
-    monomial_groups = Vector{Vector{Monomial{A, IndexT}}}()
+    monomial_groups = Vector{Vector{NormalMonomial{A,IndexT}}}()
 
     for (prefix, subscripts) in prefix_subscripts
-        group = Vector{Monomial{A, IndexT}}()
+        group = Vector{NormalMonomial{A,IndexT}}()
         for subscript in subscripts
             sym = Symbol(prefix * _subscript_string(subscript))
             idx = reg[sym]
-            push!(group, Monomial{A}([idx]))
+            push!(group, NormalMonomial{A,IndexT}([idx]))
         end
         push!(monomial_groups, group)
     end
 
     return (reg, Tuple(monomial_groups))
 end
-

@@ -1,16 +1,12 @@
 # =============================================================================
-# Code Quality Tests Runner
-# =============================================================================
-# Runs code quality checks:
-#   - Aqua.jl: ambiguities, unbound args, piracy, etc.
-#   - ExplicitImports.jl: import hygiene
-#   - Doctest: docstring example verification
+# test/quality/runtests.jl - Code Quality Checks (Pkg.test entry)
 # =============================================================================
 
 using Test
 
-@testset "Code Quality" begin
+@testset "Quality" begin
     include("Aqua.jl")
     include("ExplicitImports.jl")
     include("Doctest.jl")
 end
+

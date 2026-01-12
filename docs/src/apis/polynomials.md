@@ -1,5 +1,20 @@
 # Fast Polynomials
 
+## Algebra Types
+
+```@autodocs
+Modules = [NCTSSoS]
+Pages = ["types/algebra.jl"]
+```
+
+### Categories
+
+`NCTSSoS.jl` groups algebras by the **normal form of monomials** (i.e. what `simplify(m::Monomial)` returns):
+
+- `MonoidAlgebra`: normal form stays a single monomial (monoid ring viewpoint). [@monoidRing]
+- `TwistedGroupAlgebra`: normal form is a scalar/phase times a monomial (twisted group algebra). [@twistedGroupAlgebra]
+- `PBWAlgebra`: normal form can expand into a sum of monomials (PBW-type rewriting/normal ordering). [@pbwAlgebraOscar]
+
 ## Variables
 
 ```@autodocs

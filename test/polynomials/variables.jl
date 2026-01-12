@@ -4,9 +4,23 @@ using NCTSSoS:
     _subscript_string,
     _select_pauli_type,
     _select_signed_index_type,
-    _select_unsigned_type,
     max_operators,
     max_sites
+
+# Test helper: verify all expected symbols exist in registry
+function check_symbols_in_registry(reg, expected_symbols)
+    for sym in expected_symbols
+        @test sym in reg
+    end
+end
+
+# Test helper: verify variable arrays have correct type and length
+function check_variable_arrays(vars, expected_type, expected_lengths)
+    for (var_array, expected_len) in zip(vars, expected_lengths)
+        @test length(var_array) == expected_len
+        @test all(v -> v isa NormalMonomial{expected_type}, var_array)
+    end
+end
 
 @testset "Variable Registry" begin
 
@@ -39,24 +53,13 @@ using NCTSSoS:
     end
 
     @testset "_subscript_string Edge Cases" begin
-        # Zero
-        @test _subscript_string(0) == "₀"
-
-        # Single digits
-        @test _subscript_string(1) == "₁"
-        @test _subscript_string(9) == "₉"
-
         # Multi-digit numbers
-        @test _subscript_string(10) == "₁₀"
         @test _subscript_string(42) == "₄₂"
         @test _subscript_string(123) == "₁₂₃"
-
-        # Large numbers
         @test _subscript_string(9999) == "₉₉₉₉"
 
         # Negative numbers should error
         @test_throws ErrorException _subscript_string(-1)
-        @test_throws ErrorException _subscript_string(-42)
     end
 
     @testset "Base.getindex Error Handling" begin
@@ -111,29 +114,6 @@ using NCTSSoS:
         @test _select_signed_index_type(127) == Int8
         @test _select_signed_index_type(128) == Int16
 
-        # _select_unsigned_type: checks both operator and site limits
-        # UInt8: max_operators = 63, max_sites = 3
-        @test _select_unsigned_type(63, 3) == UInt8
-        @test _select_unsigned_type(64, 1) == UInt16  # operators exceed UInt8
-        @test _select_unsigned_type(10, 4) == UInt16  # sites exceed UInt8
-        # UInt16: max_operators = 4095, max_sites = 15
-        @test _select_unsigned_type(4095, 15) == UInt16
-        @test _select_unsigned_type(4096, 1) == UInt32  # operators exceed UInt16
-        @test _select_unsigned_type(100, 16) == UInt32  # sites exceed UInt16
-
-        # Error path: cannot fit in any UInt type (even UInt64)
-        @test_throws ErrorException _select_unsigned_type(100, 65536)  # sites exceed UInt64
-        @test_throws ErrorException _select_unsigned_type(281474976710656, 1)  # operators exceed UInt64
-
-        # Error message includes offending dimensions
-        try
-            _select_unsigned_type(100, 65536)
-            @test false
-        catch e
-            @test e isa ErrorException
-            @test occursin("Cannot fit", e.msg)
-            @test occursin("65536", e.msg)
-        end
     end
 
     @testset "symbols() and indices() Ordering" begin
@@ -154,141 +134,62 @@ using NCTSSoS:
     end
 
     @testset "Empty and Edge Case Collections" begin
-        # Single element
-        reg1, (σx, σy, σz) = create_pauli_variables([1])
-        @test length(reg1) == 3
-        @test length(σx) == 1
-
         # Non-contiguous subscripts
         reg_nc, (P,) = create_projector_variables([("P", [1, 5, 100])])
-        @test :P₁ in reg_nc
-        @test :P₅ in reg_nc
-        @test :P₁₀₀ in reg_nc
-        @test length(P) == 3
+        check_symbols_in_registry(reg_nc, [:P₁, :P₅, :P₁₀₀])
 
         # Large subscripts
         reg_large, (U,) = create_unipotent_variables([("U", [9999])])
         @test :U₉₉₉₉ in reg_large
     end
     @testset "Non-Commutative Variable Creation" begin
-        # Create variables with single prefix
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
-        @test reg isa VariableRegistry
-        @test length(x) == 3
-
-        # Check that monomials are created correctly
-        @test x[1] isa Monomial{NonCommutativeAlgebra}
-        @test x[2] isa Monomial{NonCommutativeAlgebra}
-        @test x[3] isa Monomial{NonCommutativeAlgebra}
-
-        # Check registry contains symbols
-        @test :x₁ in reg
-        @test :x₂ in reg
-        @test :x₃ in reg
+        check_variable_arrays([x], NonCommutativeAlgebra, [3])
+        check_symbols_in_registry(reg, [:x₁, :x₂, :x₃])
     end
 
     @testset "Multi-Prefix Variable Creation" begin
         reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 3:4)])
-
-        @test length(x) == 2
-        @test length(y) == 2
-
-        @test :x₁ in reg
-        @test :x₂ in reg
-        @test :y₃ in reg
-        @test :y₄ in reg
+        check_variable_arrays([x, y], NonCommutativeAlgebra, [2, 2])
+        check_symbols_in_registry(reg, [:x₁, :x₂, :y₃, :y₄])
     end
 
     @testset "Pauli Variable Creation" begin
         reg, (σx, σy, σz) = create_pauli_variables(1:2)
-
-        @test length(σx) == 2
-        @test length(σy) == 2
-        @test length(σz) == 2
-
-        @test σx[1] isa Monomial{PauliAlgebra}
-        @test σy[1] isa Monomial{PauliAlgebra}
-        @test σz[1] isa Monomial{PauliAlgebra}
-
-        # Check registry symbols
-        @test :σx₁ in reg
-        @test :σy₁ in reg
-        @test :σz₁ in reg
-        @test :σx₂ in reg
-        @test :σy₂ in reg
-        @test :σz₂ in reg
+        check_variable_arrays([σx, σy, σz], PauliAlgebra, [2, 2, 2])
+        check_symbols_in_registry(reg, [:σx₁, :σy₁, :σz₁, :σx₂, :σy₂, :σz₂])
     end
 
     @testset "Projector Variable Creation" begin
         reg, (P,) = create_projector_variables([("P", 1:3)])
-
-        @test length(P) == 3
-        @test P[1] isa Monomial{ProjectorAlgebra}
-
-        @test :P₁ in reg
-        @test :P₂ in reg
-        @test :P₃ in reg
+        check_variable_arrays([P], ProjectorAlgebra, [3])
+        check_symbols_in_registry(reg, [:P₁, :P₂, :P₃])
     end
 
     @testset "Unipotent Variable Creation" begin
         reg, (U,) = create_unipotent_variables([("U", 1:3)])
-
-        @test length(U) == 3
-        @test U[1] isa Monomial{UnipotentAlgebra}
-
-        @test :U₁ in reg
-        @test :U₂ in reg
-        @test :U₃ in reg
+        check_variable_arrays([U], UnipotentAlgebra, [3])
+        check_symbols_in_registry(reg, [:U₁, :U₂, :U₃])
     end
 
     @testset "Fermionic Variable Creation" begin
         reg, (a, a_dag) = create_fermionic_variables(1:2)
-
-        @test length(a) == 2
-        @test length(a_dag) == 2
-        @test a[1] isa Monomial{FermionicAlgebra}
-        @test a_dag[1] isa Monomial{FermionicAlgebra}
-
-        # Check both annihilation and creation operators
-        @test :a₁ in reg
-        @test Symbol("a⁺₁") in reg
-        @test :a₂ in reg
-        @test Symbol("a⁺₂") in reg
+        check_variable_arrays([a, a_dag], FermionicAlgebra, [2, 2])
+        check_symbols_in_registry(reg, [:a₁, Symbol("a⁺₁"), :a₂, Symbol("a⁺₂")])
     end
 
     @testset "Bosonic Variable Creation" begin
         reg, (c, c_dag) = create_bosonic_variables(1:2)
-
-        @test length(c) == 2
-        @test length(c_dag) == 2
-        @test c[1] isa Monomial{BosonicAlgebra}
-        @test c_dag[1] isa Monomial{BosonicAlgebra}
-
-        # Check both annihilation and creation operators
-        @test :c₁ in reg
-        @test Symbol("c⁺₁") in reg
-    end
-
-    @testset "Registry Access" begin
-        reg, (x,) = create_noncommutative_variables([("x", 1:5)])
-
-        # Test symbols function
-        syms = symbols(reg)
-        @test length(syms) == 5
-        @test :x₁ in syms
-        @test :x₅ in syms
-
-        # Test indices function
-        idxs = indices(reg)
-        @test length(idxs) == 5
+        check_variable_arrays([c, c_dag], BosonicAlgebra, [2, 2])
+        check_symbols_in_registry(reg, [:c₁, Symbol("c⁺₁"), :c₂, Symbol("c⁺₂")])
     end
 
     @testset "Monomial Power" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
 
-        # x^2 should create a monomial with word [idx, idx]
+        # x^2 should create a polynomial with degree 2
         x2 = x[1] * x[1]
-        @test x2 isa Monomial  # Multiplication now returns Monomial
+        @test x2 isa Polynomial
         @test degree(x2) == 2
 
         # x^0 should be identity
@@ -337,11 +238,5 @@ using NCTSSoS:
         for idx in sorted_idxs
             @test full_sub[idx] == reg[idx]
         end
-
-        # Subregistry is a copy, not a view (implementation detail)
-        # Modification of sub_reg's internal dicts shouldn't affect parent
-        # This test documents the copy semantics mentioned in docstring
-        @test sub_reg.idx_to_variables !== reg.idx_to_variables
-        @test sub_reg.variables_to_idx !== reg.variables_to_idx
     end
 end

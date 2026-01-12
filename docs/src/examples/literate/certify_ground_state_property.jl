@@ -140,30 +140,11 @@ function cs_nctssos_with_entry(
     dualize::Bool=true
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, OP<:NCTSSoS.OptimizationProblem{P}}
 
-   ## Determine the order of moment relaxation (automatic if not specified)
-   order = iszero(solver_config.order) ?
-       maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) :
-       solver_config.order
-
-   ## Exploit correlative sparsity to reduce problem size
-   corr_sparsity = NCTSSoS.correlative_sparsity(pop, order, solver_config.cs_algo)
-
-   ## Decompose objective function across cliques (sparse subproblems)
-   cliques_objective = [reduce(+, [issubset(sort!(variables(mono)), clique) ? coef * mono : zero(coef) * one(mono) for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective))]) for clique in corr_sparsity.cliques]
-
-   ## Initialize support patterns for term sparsity
-   ## Note: SimplifyAlgorithm is no longer needed - algebra type dispatch handles simplification
-   initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-        NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
-   end
-
-   ## Apply term sparsity to further reduce problem size
-   cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-        NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
-   end
+   ## Compute sparsity structure (correlative + term sparsity)
+   sparsity = NCTSSoS.compute_sparsity(pop, solver_config)
 
    ## Build the moment relaxation problem
-   moment_problem = NCTSSoS.moment_relax(pop, corr_sparsity, cliques_term_sparsities)
+   moment_problem = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
 
    ## Add entry constraints for correlation function bounds
    ## These are semidefinite constraints that ensure physical validity
@@ -171,15 +152,11 @@ function cs_nctssos_with_entry(
        push!(moment_problem.constraints,(:HPSD, [c;;]))
    end
 
-   ## Dualize and solve
-   problem_to_solve = !dualize ? moment_problem : NCTSSoS.sos_dualize(moment_problem)
-
-   ## Solve the semidefinite program
-   set_optimizer(problem_to_solve.model, solver_config.optimizer)
-   optimize!(problem_to_solve.model)
+   ## Dualize and solve (using the same solve_sdp helper as cs_nctssos)
+   result = NCTSSoS.solve_sdp(moment_problem, solver_config.optimizer; dualize)
 
    ## Return optimization results
-   return NCTSSoS.PolyOptResult(objective_value(problem_to_solve.model), corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
+   return NCTSSoS.PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end
 
 # ## Computing Rigorous Bounds on Correlation Functions

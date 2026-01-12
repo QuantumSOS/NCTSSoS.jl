@@ -1,15 +1,177 @@
+# =============================================================================
+# Monomial Types for Non-Commutative Algebras
+# =============================================================================
+#
+# This file defines the core monomial representations for non-commutative
+# polynomial optimization:
+#
+#   AbstractTensorMonomial{As}      # Abstract base for tensor-product monomials
+#   ├── AbstractMonomial{A,T}       # Single-algebra monomials
+#   │   ├── NormalMonomial{A,T}     # Canonical word representation (immutable)
+#   └── ComposedMonomial{As,Ts}     # Multi-algebra tensor products (defined elsewhere)
+#
+# Design Principles:
+# - Algebra type `A` is a type parameter for zero-overhead dispatch
+# - `NormalMonomial` is always in canonical form (enforced by constructors)
+# - All simplification goes through `simplify(A, word)` which returns `Monomial`
+#
+# Coefficient Encodings (internal):
+# - MonoidAlgebra: UInt8 (0x00 = zero, 0x01 = one)
+# - TwistedGroupAlgebra: UInt8 phase k where coeff = (im)^k
+# - PBWAlgebra: Vector{Int} for multi-term expansions
+#
+# See also: `src/types/algebra.jl` for AlgebraType hierarchy
+# =============================================================================
+
 """
-    AbstractMonomial
+    AbstractTensorMonomial{As<:Tuple}
 
-Abstract supertype for all monomial types.
+Abstract supertype for monomials living in an **ordered tensor-product algebra**
+`⊗_{i} As[i]`.
 
-Subtypes:
-- `Monomial{A,T}`: Single-algebra monomial
-- `ComposedMonomial{Ts}`: Tensor product of monomials from different algebras
+The signature `As` is **semantic and ordered**:
+`Tuple{PauliAlgebra,FermionicAlgebra}` is different from
+`Tuple{FermionicAlgebra,PauliAlgebra}`.
+
+This type exists to enable signature-level multiple dispatch without wrapper
+objects.
+
+See also: [`AbstractMonomial`](@ref), [`ComposedMonomial`](@ref)
 """
-abstract type AbstractMonomial end
+abstract type AbstractTensorMonomial{As<:Tuple} end
 
-# Module-level constant for superscript display (avoids allocation in show loop)
+"""
+    AbstractMonomial{A<:AlgebraType, T<:Integer}
+
+Abstract supertype for all monomial types, parameterized by algebra type and integer type.
+
+The type hierarchy is:
+```
+AbstractTensorMonomial{As}
+├── AbstractMonomial{A,T}                 # Single-algebra monomials (As == Tuple{A})
+│   ├── NormalMonomial{A,T}               # Bare word (always in canonical form)
+│   ├── Monomial{A,T,C,W}                 # User-facing wrapper (coeff + word(s))
+│   ├── StateSymbol{ST,A,T}               # State expectation symbol (in src/states/)
+│   └── StateWord{ST,A,T}                 # Product of state symbols (in src/states/)
+└── ComposedMonomial{As,Ts}               # Multi-algebra tensor monomial (in composed.jl)
+```
+
+# Interface
+All subtypes should implement:
+- `degree(m)`: Return total degree (number of operators)
+- `variable_indices(m)`: Return set of variable indices present
+- `Base.isless(m1, m2)`: Ordering for sorting
+- `Base.:(==)(m1, m2)`: Equality comparison
+- `Base.hash(m, h)`: Hash function
+
+See also: [`NormalMonomial`](@ref), [`AbstractTensorMonomial`](@ref)
+"""
+abstract type AbstractMonomial{A<:AlgebraType,T<:Integer} <: AbstractTensorMonomial{Tuple{A}} end
+
+# =============================================================================
+# Shared helpers (keep NormalMonomial / Monomial definitions DRY)
+# =============================================================================
+
+"""
+    _eq_same_algebra(::Type{A1}, ::Type{A2}, x1, x2) -> Bool
+
+Internal helper for type-safe equality comparison across algebra types.
+
+Returns `false` immediately if `A1 !== A2` (different algebra types are never equal),
+otherwise delegates to `x1 == x2` for the actual payload comparison.
+
+This ensures monomials from different algebras with identical word vectors
+are correctly distinguished (e.g., Pauli `[1,2]` ≠ Fermionic `[1,2]`).
+"""
+@inline function _eq_same_algebra(::Type{A1}, ::Type{A2}, x1, x2) where {A1<:AlgebraType,A2<:AlgebraType}
+    A1 !== A2 && return false
+    return x1 == x2
+end
+
+"""
+    _hash_with_algebra(::Type{A}, payload, h::UInt) -> UInt
+
+Internal helper that incorporates the algebra type `A` into the hash.
+
+This maintains the hash/equality contract: since monomials from different algebras
+are never equal (even with identical payloads), their hashes must also differ.
+The algebra type is hashed first, then combined with the payload hash.
+"""
+@inline _hash_with_algebra(::Type{A}, payload, h::UInt) where {A<:AlgebraType} =
+    hash(A, hash(payload, h))
+
+"""
+    coeff_type(::Type{T}) -> Type{<:Number}
+    coeff_type(x) -> Type{<:Number}
+
+Return the coefficient type for a simplify result type.
+
+This enables compile-time determination of coefficient types for type-stable
+processing of simplification results. Used by `ComposedMonomial` simplification
+to determine appropriate coefficient types for the Cartesian product of terms.
+
+For `NormalMonomial{A,T}`, returns `coeff_type(A)` (the algebra's default).
+For `Polynomial{A,T,C}`, returns `C` (the explicit coefficient type).
+
+This method is shared by `NormalMonomial`, simplified `Monomial` expansions, and
+state monomials (`StateSymbol`, `StateWord`) that carry the same algebra type parameter.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> coeff_type(NormalMonomial{PauliAlgebra,Int64})
+ComplexF64
+
+julia> coeff_type(NormalMonomial{FermionicAlgebra,Int32})
+Float64
+
+julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64})
+Float64
+```
+"""
+coeff_type(::Type{<:AbstractMonomial{A}}) where {A<:AlgebraType} = coeff_type(A)
+coeff_type(m::AbstractMonomial) = coeff_type(typeof(m))
+
+"""
+    algebra_type(::Type{<:AbstractMonomial{A}}) where {A<:AlgebraType} -> Type{A}
+    algebra_type(m::AbstractMonomial) -> Type{A}
+
+Return the algebra type parameter for a monomial type or instance.
+"""
+algebra_type(::Type{<:AbstractMonomial{A}}) where {A<:AlgebraType} = A
+algebra_type(m::AbstractMonomial) = algebra_type(typeof(m))
+
+# =============================================================================
+# Normal-form validation hook (extended by algebra-specific simplifiers)
+# =============================================================================
+
+"""
+    _validate_word(::Type{A}, word::Vector{T}) where {A<:AlgebraType,T<:Integer}
+
+Validate that `word` is already in the algebra-specific normal form for `A`.
+
+This is called by the `NormalMonomial{A,T}` constructor to enforce the invariant:
+**a `NormalMonomial` is always in normal form**.
+
+Algebra-specific methods are defined in `src/simplification/*.jl`.
+The default implementation throws an error for unimplemented algebras.
+
+# Throws
+- `ErrorException` if no validation method is defined for algebra `A`
+"""
+function _validate_word(::Type{A}, ::Vector{T}) where {A<:AlgebraType,T<:Integer}
+    error("_validate_word not implemented for algebra type $A")
+end
+
+"""
+    SUPERSCRIPT_EXPONENTS::Dict{Int,String}
+
+Module-level constant mapping small exponents (2-9) to Unicode superscript characters.
+
+Used by `Base.show` to display repeated variables with exponents (e.g., `x³` instead of `x^3`).
+Avoids allocation in the display loop. Exponents outside this range fall back to `^n` notation.
+"""
 const SUPERSCRIPT_EXPONENTS = Dict(
     2 => "²",
     3 => "³",
@@ -22,7 +184,7 @@ const SUPERSCRIPT_EXPONENTS = Dict(
 )
 
 """
-    Monomial{A<:AlgebraType, T<:Integer} <: AbstractMonomial
+    NormalMonomial{A<:AlgebraType, T<:Integer} <: AbstractMonomial{A,T}
 
 Represents an immutable monomial in word representation for non-commutative algebras.
 The word vector represents a product of operators (e.g., [1,3,1,3] = xzxz).
@@ -47,7 +209,7 @@ rather than mutating existing ones.
 
 # Examples
 ```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1, 3, 1, 3]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1, 3, 1, 3]);
 
 julia> m1.word
 4-element Vector{Int64}:
@@ -57,200 +219,124 @@ julia> m1.word
  3
 
 julia> typeof(m1)
-Monomial{PauliAlgebra, Int64}
+NormalMonomial{PauliAlgebra, Int64}
 ```
 
 Different algebra types:
 ```jldoctest
-julia> m_pauli = Monomial{PauliAlgebra}(UInt16[1, 2, 3]);
+julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 2, 3]);
 
 julia> typeof(m_pauli)
-Monomial{PauliAlgebra, UInt16}
+NormalMonomial{PauliAlgebra, UInt16}
 
-julia> m_fermi = Monomial{FermionicAlgebra}(Int32[-1, 2, -3]);
+julia> m_fermi = NormalMonomial{FermionicAlgebra}(Int32[-1, 2, -3]);
 
 julia> typeof(m_fermi)
-Monomial{FermionicAlgebra, Int32}
+NormalMonomial{FermionicAlgebra, Int32}
 ```
 
 Equality comparison:
 ```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1, 3, 1, 3]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1, 3, 1, 3]);
 
-julia> m2 = Monomial{PauliAlgebra}([1, 3, 1, 2]);
+julia> m2 = NormalMonomial{PauliAlgebra}([1, 3, 1, 2]);
 
 julia> m1 == m2
 false
 
-julia> m3 = Monomial{PauliAlgebra}([1, 3, 1, 3]);
+julia> m3 = NormalMonomial{PauliAlgebra}([1, 3, 1, 3]);
 
 julia> m1 == m3
 true
 ```
 """
-struct Monomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial
+struct NormalMonomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     word::Vector{T}
-end
 
-# Outer constructor: infer integer type from vector
-function Monomial{A}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
-    word_filtered = filter(!iszero, word)
-    return Monomial{A,T}(word_filtered)
-end
-
-# Convenience constructor: defaults to NonCommutativeAlgebra
-function Monomial(word::Vector{T}) where {T<:Integer}
-    word_filtered = filter(!iszero, word)
-    return Monomial{NonCommutativeAlgebra,T}(word_filtered)
-end
-
-"""
-    Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
-
-Multiply two monomials of the same algebra type by concatenating their words.
-
-Returns a new Monomial with the concatenated word. Callers should apply
-`simplify!` explicitly if algebra-specific simplification is needed.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{NonCommutativeAlgebra}([1, 2]);
-
-julia> m2 = Monomial{NonCommutativeAlgebra}([3]);
-
-julia> m = m1 * m2;
-
-julia> m.word
-3-element Vector{Int64}:
- 1
- 2
- 3
-```
-"""
-function Base.:*(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    return Monomial{A}(vcat(m1.word, m2.word))
-end
-
-"""
-    Base.:^(m::Monomial{A,T}, n::Integer) where {A<:AlgebraType, T<:Integer}
-
-Raise a monomial to an integer power by repeated multiplication.
-
-For n ≥ 0, returns m^n = m * m * ... * m (n times).
-For n = 0, returns the identity monomial (empty word).
-Throws DomainError for negative exponents (monomials are not invertible in general).
-
-# Examples
-```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2]);
-
-julia> m2 = m^2;
-
-julia> m2.word
-4-element Vector{Int64}:
- 1
- 2
- 1
- 2
-
-julia> m^0 |> isone
-true
-
-julia> m^1 == m
-true
-```
-"""
-function Base.:^(m::Monomial{A,T}, n::Integer) where {A<:AlgebraType,T<:Integer}
-    if n < 0
-        throw(DomainError(n, "monomial exponent must be non-negative"))
-    elseif n == 0
-        return one(m)
-    elseif n == 1
-        return m
-    else
-        # Repeat the word n times
-        repeated_word = repeat(m.word, n)
-        return Monomial{A}(repeated_word)
+    # Inner constructor: validate no zeros, then validate algebra invariants.
+    function NormalMonomial{A,T}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
+        any(iszero, word) && throw(ArgumentError("NormalMonomial word must not contain zeros"))
+        _validate_word(A, word)
+        new{A,T}(word)
     end
+
 end
 
 """
-    Base.:(==)(m1::Monomial, m2::Monomial) -> Bool
+    Base.:(==)(m1::NormalMonomial, m2::NormalMonomial) -> Bool
 
 Equality comparison for monomials.
 Monomials of different algebra types are never equal (type-level distinction).
 """
-function Base.:(==)(m1::Monomial{A1,T1}, m2::Monomial{A2,T2}) where {A1,A2,T1,T2}
-    # Different algebra types are never equal
-    A1 !== A2 && return false
-    return m1.word == m2.word
+function Base.:(==)(m1::NormalMonomial{A1,T1}, m2::NormalMonomial{A2,T2}) where {A1,A2,T1,T2}
+    return _eq_same_algebra(A1, A2, m1.word, m2.word)
 end
 
 """
-    Base.hash(m::Monomial, h::UInt) -> UInt
+    Base.hash(m::NormalMonomial, h::UInt) -> UInt
 
-Hash function for Monomial. Includes algebra type for consistency with equality.
+Hash function for NormalMonomial. Includes algebra type for consistency with equality.
 
 The hash includes both the algebra type `A` and the word vector, ensuring that
 monomials from different algebras with the same word have different hashes.
 This maintains the hash/equality contract: if `m1 == m2`, then `hash(m1) == hash(m2)`.
 """
-Base.hash(m::Monomial{A}, h::UInt) where {A} = hash(A, hash(m.word, h))
+Base.hash(m::NormalMonomial{A}, h::UInt) where {A} = _hash_with_algebra(A, m.word, h)
 
 """
-    degree(m::Monomial) -> Int
+    degree(m::NormalMonomial) -> Int
 
 Compute the total degree of a monomial (length of word vector).
 For non-commutative monomials in word representation, this is the number of operators.
 
 # Examples
 ```jldoctest
-julia> m1 = Monomial([1, 3, 1, 3]);
+julia> m1 = NormalMonomial([1, 3, 1, 3]);
 
 julia> degree(m1)
 4
 
-julia> m2 = Monomial([2, 2, 2]);
+julia> m2 = NormalMonomial([2, 2, 2]);
 
 julia> degree(m2)
 3
 
-julia> m_zero = Monomial(Int[]);
+julia> m_zero = NormalMonomial(Int[]);
 
 julia> degree(m_zero)
 0
 ```
 """
-degree(m::Monomial) = length(m.word)
+degree(m::NormalMonomial) = length(m.word)
 
 """
-    Base.isone(m::Monomial) -> Bool
+    Base.isone(m::NormalMonomial) -> Bool
 
 Check if a monomial is the multiplicative identity (empty word).
 
 # Examples
 ```jldoctest
-julia> m_identity = Monomial{PauliAlgebra}(Int[]);
+julia> m_identity = NormalMonomial{PauliAlgebra}(Int[]);
 
 julia> isone(m_identity)
 true
 
-julia> m_not_identity = Monomial{PauliAlgebra}([1, 2]);
+julia> m_not_identity = NormalMonomial{PauliAlgebra}([1, 2]);
 
 julia> isone(m_not_identity)
 false
 ```
 """
-Base.isone(m::Monomial) = isempty(m.word)
+Base.isone(m::NormalMonomial) = isempty(m.word)
 
 """
-    Base.one(::Type{Monomial{A,T}}) where {A<:AlgebraType, T<:Integer}
+    Base.one(::Type{NormalMonomial{A,T}}) where {A<:AlgebraType, T<:Integer}
 
 Create the identity monomial (empty word).
 
 # Examples
 ```jldoctest
-julia> m_one = one(Monomial{PauliAlgebra,Int64});
+julia> m_one = one(NormalMonomial{PauliAlgebra,Int64});
 
 julia> isone(m_one)
 true
@@ -259,29 +345,29 @@ julia> m_one.word
 Int64[]
 ```
 """
-function Base.one(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer}
-    return Monomial{A}(T[])
+function Base.one(::Type{NormalMonomial{A,T}}) where {A<:AlgebraType,T<:Integer}
+    return NormalMonomial{A,T}(T[])
 end
 
 """
-    Base.one(m::Monomial{A,T}) where {A,T}
+    Base.one(m::NormalMonomial{A,T}) where {A,T}
 
 Create the identity monomial for the same type as `m`.
 """
-function Base.one(::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    return one(Monomial{A,T})
+function Base.one(::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    return one(NormalMonomial{A,T})
 end
 
 """
-    Base.one(::Type{Monomial}) -> Monomial{NonCommutativeAlgebra,UInt}
+    Base.one(::Type{NormalMonomial}) -> NormalMonomial{NonCommutativeAlgebra,UInt}
 
-Create the identity monomial (empty word) for the generic Monomial type.
-This fallback is needed for code that uses `one(Monomial)` without type parameters.
+Create the identity monomial (empty word) for the generic NormalMonomial type.
+This fallback is needed for code that uses `one(NormalMonomial)` without type parameters.
 """
-Base.one(::Type{Monomial}) = Monomial{NonCommutativeAlgebra}(UInt[])
+Base.one(::Type{NormalMonomial}) = NormalMonomial{NonCommutativeAlgebra,UInt}(UInt[])
 
 """
-    Base.isless(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A,T} -> Bool
+    Base.isless(m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}) where {A,T} -> Bool
 
 Compare two monomials of the same algebra type using degree-first (graded) ordering,
 then lexicographic ordering on the word vector for monomials of equal degree.
@@ -301,14 +387,14 @@ Attempting to compare monomials of different algebra types will result in a `Met
 
 # Examples
 ```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1]);
 
-julia> m2 = Monomial{PauliAlgebra}([1, 2]);
+julia> m2 = NormalMonomial{PauliAlgebra}([1, 2]);
 
 julia> isless(m1, m2)  # degree 1 < degree 2
 true
 
-julia> m3 = Monomial{PauliAlgebra}([2]);
+julia> m3 = NormalMonomial{PauliAlgebra}([2]);
 
 julia> isless(m1, m3)  # same degree, [1] < [2] lexicographically
 true
@@ -319,7 +405,7 @@ false
 
 Sorting works correctly:
 ```jldoctest
-julia> monos = [Monomial{PauliAlgebra}([2]), Monomial{PauliAlgebra}([1, 2]), Monomial{PauliAlgebra}([1])];
+julia> monos = [NormalMonomial{PauliAlgebra}([2]), NormalMonomial{PauliAlgebra}([1, 2]), NormalMonomial{PauliAlgebra}([1])];
 
 julia> sort!(monos);
 
@@ -332,7 +418,7 @@ julia> [m.word for m in monos]
 
 See also: [`cmp`](@ref), [`degree`](@ref)
 """
-function Base.isless(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function Base.isless(m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Compare by degree first (graded ordering)
     degree(m1) != degree(m2) && return degree(m1) < degree(m2)
     # Then lexicographic on word vector
@@ -340,193 +426,8 @@ function Base.isless(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType
 end
 
 # Fallback for cross-algebra comparison: provide descriptive error
-function Base.isless(m1::Monomial{A1}, m2::Monomial{A2}) where {A1<:AlgebraType,A2<:AlgebraType}
+function Base.isless(m1::NormalMonomial{A1}, m2::NormalMonomial{A2}) where {A1<:AlgebraType,A2<:AlgebraType}
     throw(ArgumentError("Cannot compare monomials of different algebras: $A1 vs $A2"))
-end
-
-# =============================================================================
-# Adjoint Operation
-# =============================================================================
-
-"""
-    Base.adjoint(m::Monomial{A,T}) where {A<:AlgebraType, T<:Integer}
-
-Compute the adjoint (Hermitian conjugate) of a monomial. Returns a new monomial.
-
-!!! note "Physics notation"
-    This is the dagger (†) or star (*) operation in physics notation.
-    You can also use the Julia syntax `m'` as shorthand for `adjoint(m)`.
-
-For self-adjoint algebras (Pauli, Projector, Unipotent with unsigned types): reverses the word.
-For non-self-adjoint algebras (Fermionic, Bosonic with signed types): reverses and negates indices.
-
-The behavior is determined by the integer type T:
-- Unsigned T: reverse only (operators are self-adjoint)
-- Signed T: reverse and negate (creation/annihilation distinction)
-
-# Examples
-```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2, 3]);
-
-julia> adjoint(m).word
-3-element Vector{Int64}:
- 3
- 2
- 1
-
-julia> m' == adjoint(m)  # Julia syntax shorthand
-true
-
-julia> m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2, 3]);
-
-julia> adjoint(m_ferm).word  # reverse + negate
-3-element Vector{Int32}:
- -3
-  2
- -1
-```
-"""
-function Base.adjoint(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    new_word = reverse(m.word)
-    if T <: Signed
-        new_word .= .-new_word
-    end
-    return Monomial{A}(new_word)
-end
-
-# =============================================================================
-# Addition of Monomials
-# =============================================================================
-
-"""
-    Base.:(+)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A,T}
-
-Add two monomials of the same algebra type. Returns a Polynomial with two terms.
-
-This enables expressions like `x + x^2` where both operands are monomials.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1]);
-
-julia> m2 = Monomial{PauliAlgebra}([1, 2]);
-
-julia> p = m1 + m2;
-
-julia> length(terms(p))
-2
-
-julia> p isa Polynomial{PauliAlgebra}
-true
-```
-"""
-function Base.:(+)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # Convert both monomials to polynomials and add
-    return Polynomial([Term(1.0, m1), Term(1.0, m2)])
-end
-
-"""
-    Base.:(+)(m::Monomial{A,T}, c::Number) where {A,T}
-    Base.:(+)(c::Number, m::Monomial{A,T}) where {A,T}
-
-Add a scalar to a monomial. Returns a Polynomial with two terms (the monomial and a constant).
-
-# Examples
-```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2]);
-
-julia> p = m + 2.0;
-
-julia> length(terms(p))
-2
-
-julia> p2 = 3.0 + m;
-
-julia> length(terms(p2))
-2
-```
-"""
-function Base.:(+)(m::Monomial{A,T}, c::Number) where {A<:AlgebraType,T<:Integer}
-    # Create monomial term + constant term
-    I = one(Monomial{A,T})  # Identity monomial for constant
-    return Polynomial([Term(float(c), I), Term(1.0, m)])
-end
-
-Base.:(+)(c::Number, m::Monomial) = m + c
-
-"""
-    Base.:(-)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A,T}
-
-Subtract one monomial from another. Returns a Polynomial with two terms.
-
-# Examples
-```jldoctest
-julia> m1 = Monomial{PauliAlgebra}([1]);
-
-julia> m2 = Monomial{PauliAlgebra}([1, 2]);
-
-julia> p = m1 - m2;
-
-julia> coefficients(p)
-2-element Vector{Float64}:
-  1.0
- -1.0
-```
-"""
-function Base.:(-)(m1::Monomial{A,T}, m2::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    # Convert both monomials to polynomials and subtract
-    return Polynomial([Term(1.0, m1), Term(-1.0, m2)])
-end
-
-"""
-    Base.:(-)(m::Monomial{A,T}) where {A,T}
-
-Negate a monomial. Returns a Term with negated coefficient.
-
-# Examples
-```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2]);
-
-julia> t = -m;
-
-julia> t.coefficient
--1.0
-
-julia> t.monomial === m
-true
-```
-"""
-Base.:(-)(m::Monomial) = Term(-1.0, m)
-
-"""
-    Base.:(-)(m::Monomial{A,T}, c::Number) where {A,T}
-    Base.:(-)(c::Number, m::Monomial{A,T}) where {A,T}
-
-Subtract operations involving monomials and scalars. Returns a Polynomial.
-
-# Examples
-```jldoctest
-julia> m = Monomial{PauliAlgebra}([1, 2]);
-
-julia> p = m - 2.0;
-
-julia> length(terms(p))
-2
-
-julia> p2 = 3.0 - m;
-
-julia> length(terms(p2))
-2
-```
-"""
-function Base.:(-)(m::Monomial{A,T}, c::Number) where {A<:AlgebraType,T<:Integer}
-    I = one(Monomial{A,T})
-    return Polynomial([Term(1.0, m), Term(-float(c), I)])
-end
-
-function Base.:(-)(c::Number, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    I = one(Monomial{A,T})
-    return Polynomial([Term(float(c), I), Term(-1.0, m)])
 end
 
 # =============================================================================
@@ -534,7 +435,7 @@ end
 # =============================================================================
 
 """
-    Base.show(io::IO, m::Monomial{A,T}) where {A,T}
+    Base.show(io::IO, m::NormalMonomial{A,T}) where {A,T}
 
 Display a monomial. If a `:registry` is present in the IOContext, uses symbol names
 from the registry. Otherwise, falls back to displaying raw indices.
@@ -547,7 +448,7 @@ When using a registry, consecutive identical variables are displayed with expone
 # Examples
 ```julia
 # Without registry (raw indices)
-julia> m = Monomial{PauliAlgebra}([1, 2, 3]);
+julia> m = NormalMonomial{PauliAlgebra}([1, 2, 3]);
 julia> show(stdout, m)
 [1, 2, 3]
 
@@ -558,14 +459,14 @@ julia> show(IOContext(stdout, :registry => reg), m)
 σx₁σy₁
 
 # With exponents for repeated variables
-julia> m = Monomial{PauliAlgebra}([1, 1, 1]);
+julia> m = NormalMonomial{PauliAlgebra}([1, 1, 1]);
 julia> show(IOContext(stdout, :registry => reg), m)
 σx₁³
 ```
 
 See also: [`VariableRegistry`](@ref)
 """
-function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+function Base.show(io::IO, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     if isempty(m.word)
         print(io, "𝟙")  # Identity symbol
         return nothing
@@ -577,22 +478,16 @@ function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
         i = 1
         while i <= length(m.word)
             idx = m.word[i]
-            abs_idx = T(abs(idx))
-            sym = get(registry.idx_to_variables, abs_idx, nothing)
+            sym = get(registry.idx_to_variables, idx, nothing)
 
             if sym !== nothing
                 # Count consecutive occurrences of the same variable
                 count = 1
-                while i + count <= length(m.word) && abs(m.word[i + count]) == abs_idx
+                while i + count <= length(m.word) && m.word[i + count] == idx
                     count += 1
                 end
 
-                # Handle signed indices (e.g., -1 for creation operator)
-                if idx < 0 && T <: Signed
-                    print(io, string(sym), "†")
-                else
-                    print(io, string(sym))
-                end
+                print(io, string(sym))
 
                 # Print exponent if count > 1
                 if count > 1
@@ -616,96 +511,82 @@ function Base.show(io::IO, m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
     end
 end
 
-# =============================================================================
-# Expectation Value (identity for regular monomials)
-# =============================================================================
-
 """
-    expval(m::Monomial{A,T}) where {A,T} -> Monomial{A,T}
+    monomials(m::NormalMonomial{A,T}) where {A,T} -> Vector{NormalMonomial{A,T}}
 
-Return the monomial unchanged (identity operation).
+Return a single-element vector containing the monomial.
 
-For regular (non-state) monomials, `expval` is an identity operation.
-This exists for API compatibility with `NCStateWord`, where `expval`
-collapses the state word to a `StateWord`.
-
-!!! todo "Refactor to return StateSymbol"
-    This should return `StateSymbol{ST}(m)` instead of `m` for consistency
-    with `expval(::NCStateWord)` which returns `StateWord`. Key decisions:
-    - Which `StateType` to use: `Arbitrary` (involution canon) or `MaxEntangled` (cyclic symmetric canon)
-    - Add `symmetric_canon(::StateSymbol)` method
-    - Update optimization code: `monomap` dict keys from `Monomial` to `StateSymbol`
-    See also: `StateSymbol` in `src/states/word.jl`
-
-# Examples
-```julia
-julia> m = Monomial{NonCommutativeAlgebra,UInt8}([1, 2, 3]);
-julia> expval(m) === m
-true
-```
-"""
-expval(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = m
-
-# =============================================================================
-# Iteration Protocol (for unified simplify result processing)
-# =============================================================================
-
-"""
-    Base.iterate(m::Monomial{A,T}) -> Tuple{Tuple{C, Monomial{A,T}}, Nothing}
-    Base.iterate(::Monomial, ::Nothing) -> Nothing
-
-Iterate a Monomial as a single-term simplify result, yielding one `(coefficient, monomial)` pair.
-The coefficient is `one(coeff_type(A))`.
-
-This enables uniform processing of simplify results across all algebra types:
-- `Monomial` (NonCommutative, Projector, Unipotent algebras)
-- `Term` (Pauli algebra)
-- `Polynomial` (Fermionic, Bosonic algebras)
-
-All three types can be iterated with the same `for (coef, mono) in result` pattern.
+This provides compatibility with the `monomials` function for Polynomials,
+allowing uniform iteration over monomials regardless of input type.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{PauliAlgebra}([1, 2]);
+julia> m = NormalMonomial{PauliAlgebra}([1, 2]);
 
-julia> collect(m)
-1-element Vector{Tuple{ComplexF64, Monomial{PauliAlgebra, Int64}}}:
- (1.0 + 0.0im, Monomial{PauliAlgebra, Int64}([1, 2]))
-
-julia> m_nc = Monomial{NonCommutativeAlgebra}([1, 2]);
-
-julia> (coef, mono), = m_nc;
-
-julia> coef
-1.0
-
-julia> mono == m_nc
-true
+julia> monomials(m)
+1-element Vector{NormalMonomial{PauliAlgebra, Int64}}:
+ NormalMonomial{PauliAlgebra, Int64}([1, 2])
 ```
 """
-function Base.iterate(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer}
+monomials(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = [m]
+
+# =============================================================================
+# Iteration Protocol for NormalMonomial
+# =============================================================================
+
+"""
+    Base.iterate(m::NormalMonomial{A,T}) where {A,T}
+    Base.iterate(m::NormalMonomial{A,T}, state) where {A,T}
+
+Iterate a NormalMonomial, yielding a single `(coefficient, NormalMonomial)` pair.
+
+The coefficient is `one(coeff_type(A))` since NormalMonomial represents a bare
+word with unit coefficient. This enables uniform iteration over both
+NormalMonomial (single term) and Polynomial (multiple terms) in algorithms
+that process bases of monomials.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> m = NormalMonomial{PauliAlgebra}([1, 2]);
+
+julia> for (coef, mono) in m
+           println("Coefficient: \$coef, Word: \$(mono.word)")
+       end
+Coefficient: 1.0 + 0.0im, Word: [1, 2]
+```
+"""
+function Base.iterate(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     C = coeff_type(A)
     return ((one(C), m), nothing)
 end
 
-Base.iterate(::Monomial, ::Nothing) = nothing
+function Base.iterate(::NormalMonomial{A,T}, ::Nothing) where {A<:AlgebraType,T<:Integer}
+    return nothing
+end
 
-Base.eltype(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} =
-    Tuple{coeff_type(A),Monomial{A,T}}
+# Length for iteration (always 1 term)
+Base.length(::NormalMonomial) = 1
 
-# Use HasLength with explicit length of 1 for single-element iteration.
-# We define a separate function to avoid confusion with degree().
-Base.IteratorSize(::Type{<:Monomial}) = Base.HasLength()
-Base.length(::Monomial) = 1  # Single (coefficient, monomial) pair when iterated
+# =============================================================================
+# Simplification (no-op for canonical NormalMonomial)
+# =============================================================================
 
-"""
-    coeff_type(::Type{Monomial{A,T}}) where {A,T} -> Type{<:Number}
+simplify(m::NormalMonomial) = m
+simplify!(m::NormalMonomial) = m
 
-Return the default coefficient type for a Monomial of algebra type A.
-"""
-coeff_type(::Type{Monomial{A,T}}) where {A<:AlgebraType,T<:Integer} = coeff_type(A)
+# =============================================================================
+# Adjoint (†)
+# =============================================================================
 
-# Instance method
-coeff_type(m::Monomial{A,T}) where {A<:AlgebraType,T<:Integer} = coeff_type(Monomial{A,T})
+function LinearAlgebra.adjoint(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer}
+    isempty(m.word) && return m
+    return NormalMonomial{A,T}(simplify!(A, reverse(m.word)))
+end
+
+LinearAlgebra.adjoint(m::NormalMonomial{PauliAlgebra,T}) where {T<:Unsigned} = copy(m)
+
+LinearAlgebra.adjoint(m::NormalMonomial{A,T}) where {A<:PBWAlgebra,T<:Signed} = throw(ArgumentError("adjoint not implemented for PBWAlgebra"))

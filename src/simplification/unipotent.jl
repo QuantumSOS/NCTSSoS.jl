@@ -30,7 +30,7 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = Monomial{UnipotentAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
+julia> m = NormalMonomial{UnipotentAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
 
 julia> result = simplify(m);
 
@@ -46,7 +46,7 @@ julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
-julia> m = Monomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
+julia> m = NormalMonomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
 
 julia> result = simplify(m);
 
@@ -55,8 +55,34 @@ true
 ```
 """
 
+# =============================================================================
+# Validation (for NormalMonomial constructor)
+# =============================================================================
+
 """
-    _simplify_unipotent_word!(word::Vector{T}) where {T<:Unsigned} -> Vector{T}
+    _validate_word(::Type{UnipotentAlgebra}, word::Vector{T}) where {T<:Unsigned}
+
+Check that a unipotent word is in canonical form. Throws `ArgumentError` if invalid.
+
+Canonical form requirements:
+- Sites sorted in ascending order
+- No consecutive identical operators (no U² terms - they should cancel to I)
+
+This is used by `NormalMonomial{UnipotentAlgebra,T}` constructor to enforce invariants.
+"""
+function _validate_word(::Type{UnipotentAlgebra},word::Vector{T}) where {T<:Unsigned}
+    _is_site_sorted(word) || throw(ArgumentError("UnipotentAlgebra word must be site-sorted. Use `simplify` for raw words."))
+    @inbounds for i in 1:length(word)-1
+        word[i] == word[i+1] && throw(ArgumentError("UnipotentAlgebra word must not contain consecutive identical operators. Use `simplify` for raw words."))
+    end
+end
+
+# =============================================================================
+# Simplification
+# =============================================================================
+
+"""
+    simplify!(::Type{UnipotentAlgebra}, word::Vector{T}) where {T<:Unsigned} -> Vector{T}
 
 In-place site-aware simplification for unipotent algebra word vectors.
 
@@ -69,12 +95,12 @@ Returns the simplified word vector (mutated in place).
 1. Stable sort by site (using `decode_site`)
 2. Apply U²=I via stack (remove consecutive pairs)
 """
-function _simplify_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
+function simplify!(::Type{UnipotentAlgebra},word::Vector{T}) where {T<:Unsigned}
     # Empty or single: nothing to simplify
     length(word) <= 1 && return word
 
     # Stable sort by site (operators on different sites commute, within-site order preserved)
-    sort!(word; alg=InsertionSort, by=decode_site)
+    _stable_sort_by_site!(word)
 
     # Apply U²=I: remove consecutive identical pairs with backtracking
     i = 1
@@ -93,49 +119,11 @@ function _simplify_unipotent_word!(word::Vector{T}) where {T<:Unsigned}
 end
 
 """
-    simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned} -> Monomial
+    simplify(::Type{UnipotentAlgebra}, word::Vector{T}) where {T<:Unsigned} -> Vector{T}
 
-In-place simplification of a unipotent algebra monomial.
+Simplify a raw UnipotentAlgebra word into canonical form.
 
-Mutates the input monomial's word vector and returns the same monomial.
-
-# Warning
-This mutates the input monomial. Use `simplify` for a non-mutating version.
+This is the primary entry point for UnipotentAlgebra simplification. Takes a raw word vector
+and returns a simplified copy (sorted by site, U²=I applied).
 """
-function simplify!(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
-    _simplify_unipotent_word!(m.word)
-    return m
-end
-
-"""
-    simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned} -> Monomial
-
-Simplify a unipotent algebra monomial with site-aware commutation and U²=I.
-
-Returns a new simplified Monomial (no coefficient changes, just reordering and pair cancellation).
-The original monomial is unchanged.
-
-# Examples
-```jldoctest
-julia> using NCTSSoS
-
-julia> using NCTSSoS: encode_index
-
-julia> idx1_s1 = encode_index(UInt16, 1, 1);
-
-julia> m = Monomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
-
-julia> result = simplify(m);
-
-julia> isempty(result.word)
-true
-
-julia> length(m.word)  # Original unchanged
-2
-```
-"""
-function simplify(m::Monomial{UnipotentAlgebra,T}) where {T<:Unsigned}
-    word_copy = copy(m.word)
-    _simplify_unipotent_word!(word_copy)
-    Monomial{UnipotentAlgebra,T}(word_copy)
-end
+simplify(::Type{UnipotentAlgebra}, word::Vector{T}) where {T<:Unsigned} =  simplify!(UnipotentAlgebra, copy(word))

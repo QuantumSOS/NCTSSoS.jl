@@ -2,100 +2,73 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
-
-NCTSSoS.jl solves sparse noncommutative polynomial optimization via structured moment-SOHS hierarchy. Successor to NCTSSOS.
-
 ## Build & Test Commands
 
 ```bash
-make init                # Install deps, precompile
-make test                # Full suite with Mosek (--local)
-make test-ci             # CI suite with COSMO
-make test-polynomials    # Core algebra only (no solver)
-make test-quality        # Aqua, ExplicitImports, Doctest
+# Testing (use Makefile targets)
+make test              # Full suite with Mosek (~5min)
+make test-ci           # CI suite: polynomials + minimal (~35s)
+make test-minimal      # Fast smoke test: 5 critical paths (~25s)
+make test-polynomials  # Core algebra only, no solver (~10s)
+make test-quality      # Aqua, ExplicitImports, Doctest
+make test-file FILE=test/relaxations/sparsity.jl  # Single file
 
-# Direct Pkg.test
-julia --project -e 'using Pkg; Pkg.test(test_args=["--polynomials"])'
-julia --project -e 'using Pkg; Pkg.test(test_args=["--local"])'
-julia --project -e 'using Pkg; Pkg.test(test_args=["--relaxations", "--problems"])'
+# Documentation
+make servedocs         # Live-reload docs server
+make init-docs         # Setup docs environment first
 
-make servedocs           # Serve docs locally
+# Direct Julia usage
+julia --project -e 'using Pkg; Pkg.test(test_args=["--minimal"])'
+julia --project -e 'using Pkg; Pkg.test(test_args=["--local"])'  # With Mosek
 ```
 
-## Generating Oracle Test Results
-
-Oracles = reference results from original NCTSSOS package for validation.
-
-**Run in separate NCTSSOS repo** (requires MosekTools):
-```bash
-cd ~/NCTSSOS
-julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
-```
-
-**Structure:**
-- `test/oracles/scripts/nctssos_*.jl` - Scripts running NCTSSOS
-- `test/oracles/results/*_oracles.jl` - Generated oracle dicts
-- `test/oracles/scripts/oracle_utils.jl` - Shared utilities
-
-**Oracle format:** `(opt, sides, nuniq)` where:
-- `opt` = optimal objective value
-- `sides` = moment matrix block sizes
-- `nuniq` = unique moment indices (affine constraints)
+Test flags: `--minimal`, `--polynomials`, `--quality`, `--relaxations`, `--problems`, `--local` (Mosek)
 
 ## Architecture
 
-### Algebra Types (`src/types/algebra.jl`)
-
-Singleton types for dispatch:
-- `NonCommutativeAlgebra` - generic NC (no simplification)
-- `PauliAlgebra` - σ² = I, cyclic products
-- `FermionicAlgebra` - anticommutation
-- `BosonicAlgebra` - commutation
-- `ProjectorAlgebra` - P² = P
-- `UnipotentAlgebra` - U² = I
-
-### Polynomial Stack
-
-1. `Monomial{A,T}` - word of variable indices
-2. `Term{M,C}` - coefficient × monomial
-3. `Polynomial{A,T,C}` - collection of terms
-
-State polynomials in `src/states/`: `NCStateWord`, `NCStatePolynomial`
-
-### Variable Creation
-
-```julia
-reg, (σx, σy, σz) = create_pauli_variables(1:n)
-reg, (a,) = create_fermionic_variables(1:n)
-reg, (x,) = create_noncommutative_variables(:x, 1:n)
+### Type System Hierarchy
 ```
+AlgebraType (abstract)
+├── MonoidAlgebra        # normal form = single monomial
+│   ├── NonCommutativeAlgebra, ProjectorAlgebra, UnipotentAlgebra
+├── TwistedGroupAlgebra  # normal form = scalar × monomial
+│   └── PauliAlgebra
+└── PBWAlgebra           # normal form = sum of monomials
+    ├── FermionicAlgebra, BosonicAlgebra
+```
+
+### Core Types
+- `NormalMonomial{A,T}` - Immutable canonical word
+- `Monomial{A,T,C,W}` - User-facing wrapper (coeff + word(s))
+- `Polynomial{A,T,C}` - Mutable mapping NormalMonomial → coefficient
+- `VariableRegistry{A,T}` - Bidirectional symbol ↔ index mapping
+
+### Type Parameter Convention
+Algebra type `A` comes first (enables dispatch), then index type `T`, then coefficient type `C`:
+```julia
+Polynomial{A,T,C}  # A = algebra, T = index integer, C = coefficient
+```
+
+### Key Directories
+- `src/types/` - Core type definitions (algebra, registry, monomial, polynomial)
+- `src/simplification/` - Algebra-specific simplification rules (one file per algebra)
+- `src/optimization/` - SDP relaxation pipeline (problem → sparsity → moment/sos → JuMP)
+- `src/states/` - State polynomial types for quantum information
+- `test/oracles/` - Reference values from NCTSSOS Python for validation
 
 ### Optimization Pipeline
-
-1. `polyopt(objective, registry; eq_constraints=[], ineq_constraints=[])` → `PolyOpt`
-2. `SolverConfig(optimizer=Mosek.Optimizer; order=3, cs_algo=MF(), ts_algo=MMD())`
-3. `cs_nctssos(pop, solver_config)` - main solver
-4. `cs_nctssos_higher(pop, prev_result, solver_config)` - higher-order refinement
-
-### Sparsity
-
-- **Correlative**: decomposes into cliques (`cs_algo`)
-- **Term**: reduces block sizes (`ts_algo`)
-- Options: `MF()`, `MMD()`, `NoElimination()`
-
-## Test Structure
-
 ```
-test/
-├── polynomials/     # Core algebra (no solver)
-├── relaxations/     # SOS, sparsity, GNS
-├── problems/        # Physics: bell_inequalities, condensed_matter, etc.
-├── oracles/         # NCTSSOS reference values
-└── setup.jl         # COSMO default, Mosek with --local
+polyopt() → cs_nctssos() → compute_sparsity() → moment/sos relaxation → JuMP model
 ```
 
-## Solver Notes
+## Key Patterns
 
-- **CI default**: COSMO (open-source)
-- **Full suite**: Mosek with `--local` (required for physics tests)
+1. **Immutable normal forms, mutable containers**: `NormalMonomial` is immutable; `Polynomial` is mutable
+2. **Algebra-specific simplification**: Each algebra in `simplification/` defines `simplify(::Type{A}, word)`
+3. **Registry for symbols**: Variables created via `create_*_variables()` are stored in a registry
+4. **Oracle validation**: Problem tests compare against NCTSSOS Python reference implementations
+
+## Solvers
+
+- **CI**: COSMO (free, slower)
+- **Local**: Mosek (requires license, faster) - use `--local` flag or `make test`

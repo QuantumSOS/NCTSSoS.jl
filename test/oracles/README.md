@@ -6,30 +6,42 @@ Oracles are reference values from the original NCTSSOS package for validation.
 
 ```
 test/oracles/
-├── scripts/           # Julia scripts to generate oracles (run in NCTSSOS repo)
-│   ├── oracle_utils.jl        # Shared utilities
-│   ├── nctssos_chsh.jl        # CHSH Bell inequality
-│   ├── nctssos_i3322.jl       # I3322 Bell inequality
-│   ├── nctssos_example1.jl    # NC polynomial example 1
-│   ├── nctssos_example2.jl    # NC polynomial example 2
-│   ├── nctssos_rosenbrock.jl  # Rosenbrock benchmark
-│   ├── nctssos_corr_sparsity.jl
-│   ├── nctssos_cs_ts_n10.jl
-│   ├── nctssos_heisenberg_star.jl
-│   ├── nctssos_state_poly.jl  # State polynomial 7.2.0-7.2.3
-│   └── nctssos_trace_poly.jl
-└── results/           # Generated oracle dictionaries
-    ├── chsh_oracles.jl
-    ├── i3322_oracles.jl
-    ├── example1_oracles.jl
-    ├── example2_oracles.jl
-    ├── rosenbrock_oracles.jl
-    ├── corr_sparsity_oracles.jl
-    ├── cs_ts_n10_oracles.jl
-    ├── heisenberg_star_oracles.jl
-    ├── state_poly_oracles.jl          # Has placeholders for 7.2.1-7.2.3
-    └── trace_poly_oracles.jl          # Has placeholders
+├── oracle_utils.jl              # Shared utilities for oracle generation
+├── nctssos_bell_template.jl     # Bell inequality template
+├── nctssos_benchmarks.jl        # NCPOP benchmarks
+├── nctssos_bilocal.jl           # Bilocal network
+├── nctssos_chsh.jl              # CHSH Bell inequality
+├── nctssos_corr_sparsity.jl     # Correlative sparsity examples
+├── nctssos_cs_ts_n10.jl         # Large-scale n=10 problems
+├── nctssos_example1.jl          # NC polynomial example 1
+├── nctssos_example2.jl          # NC polynomial example 2
+├── nctssos_heisenberg_star.jl   # Heisenberg star model
+├── nctssos_i3322.jl             # I3322 Bell inequality
+├── nctssos_rosenbrock.jl        # Rosenbrock optimization
+├── nctssos_state_poly.jl        # State polynomial examples
+├── nctssos_state_poly_extended.jl # Extended state polynomial
+├── nctssos_trace_poly.jl        # Trace polynomial examples
+└── README.md
 ```
+
+## Oracle Script → Test File Mapping
+
+| Oracle Script | Updates Test File(s) |
+|---------------|---------------------|
+| `nctssos_chsh.jl` | `test/problems/bell_inequalities/chsh_simple.jl`, `chsh_state.jl`, `chsh_trace.jl`, `chsh_high_order.jl` |
+| `nctssos_i3322.jl` | `test/problems/bell_inequalities/i3322.jl` |
+| `nctssos_bell_template.jl` | `test/problems/bell_inequalities/bell_inequalities.jl` |
+| `nctssos_bilocal.jl` | `test/problems/quantum_networks/bilocal_networks.jl` |
+| `nctssos_example1.jl` | `test/problems/nc_polynomial/nc_example1.jl` |
+| `nctssos_example2.jl` | `test/problems/nc_polynomial/nc_example2.jl` |
+| `nctssos_corr_sparsity.jl` | `test/problems/nc_polynomial/nc_correlative.jl` |
+| `nctssos_cs_ts_n10.jl` | `test/problems/nc_polynomial/nc_large_scale.jl` |
+| `nctssos_rosenbrock.jl` | `test/problems/benchmarks/ncpop_benchmarks.jl` |
+| `nctssos_benchmarks.jl` | `test/problems/benchmarks/ncpop_benchmarks.jl` |
+| `nctssos_heisenberg_star.jl` | `test/problems/condensed_matter/heisenberg_star.jl` |
+| `nctssos_state_poly.jl` | `test/problems/state_polynomial/state_polynomial.jl` |
+| `nctssos_state_poly_extended.jl` | `test/problems/state_polynomial/state_polynomial.jl` |
+| `nctssos_trace_poly.jl` | `test/problems/trace_polynomial/trace_polynomial.jl` |
 
 ## Oracle Format
 
@@ -56,8 +68,10 @@ const CHSH_ORACLES = Dict(
 
 ### Prerequisites
 
-1. NCTSSOS repository with MosekTools installed
-2. Mosek license active
+1. NCTSSOS repository
+2. Solver installed:
+   - **Mosek** (default): MosekTools + valid license
+   - **COSMO** (open-source): COSMO.jl package
 
 ### NCTSSOS Repository Paths
 
@@ -72,14 +86,19 @@ Set `NCTSSOS_PATH` environment variable to override.
 
 From NCTSSoS.jl repository:
 ```bash
-# Run specific oracle script
+# Run with Mosek (default)
 make oracle-chsh
 make oracle-i3322
-make oracle-state_poly
+
+# Run with COSMO solver
+make oracle-chsh SOLVER=cosmo
+make oracle-i3322 SOLVER=cosmo
 
 # With custom NCTSSOS path
-NCTSSOS_PATH=/custom/path make oracle-chsh
+NCTSSOS_PATH=/custom/path make oracle-chsh SOLVER=mosek
 ```
+
+After running, paste the output to Claude to update the test file.
 
 ### Manual Execution
 
@@ -87,43 +106,9 @@ NCTSSOS_PATH=/custom/path make oracle-chsh
 # Navigate to NCTSSOS repo
 cd /path/to/NCTSSOS
 
-# Run oracle script
-julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
+# Run with Mosek (default)
+julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
 
-# Copy output to results file
-# Output format: const CHSH_ORACLES = Dict(...)
+# Run with COSMO
+ORACLE_SOLVER=cosmo julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
 ```
-
-## Placeholder Values
-
-The following files contain placeholder values (marked with `# PLACEHOLDER`):
-
-### `state_poly_oracles.jl`
-- `State_7_2_1_Dense_d3`, `State_7_2_1_TS_d3`
-- `State_7_2_2_Dense_d2`, `State_7_2_2_TS_d2`
-- `State_7_2_3_Dense_d2`, `State_7_2_3_TS_d2`
-
-### `trace_poly_oracles.jl`
-- `Trace_6_1_Dense_d2`, `Trace_6_1_Dense_d3`, `Trace_6_1_TS_d2`, `Trace_6_1_TS_d3`
-- `Trace_6_2_0_Dense_d1`, `Trace_6_2_0_TS_d1`
-- `Trace_6_2_1_Dense_d2`, `Trace_6_2_1_TS_d2`
-- `Trace_6_2_2_Dense_d2`, `Trace_6_2_2_TS_d2`
-
-Placeholder format: `sides=[Int[]], nuniq=0`
-
-Run the corresponding oracle scripts to generate actual values.
-
-## Available Oracle Scripts
-
-| Script | Problem | Notes |
-|--------|---------|-------|
-| `nctssos_chsh.jl` | CHSH Bell inequality | 3 formulations (NC, State, Trace) |
-| `nctssos_i3322.jl` | I3322 Bell inequality | Multiple orders |
-| `nctssos_example1.jl` | 3-variable NC polynomial | Dense, TS |
-| `nctssos_example2.jl` | Rosenbrock-like | Dense, TS |
-| `nctssos_rosenbrock.jl` | Rosenbrock optimization | Dense, TS |
-| `nctssos_corr_sparsity.jl` | Correlative sparsity | CS, TS |
-| `nctssos_cs_ts_n10.jl` | Large-scale n=10 | Multiple combinations |
-| `nctssos_heisenberg_star.jl` | Condensed matter | Multiple sizes |
-| `nctssos_state_poly.jl` | State polynomial 7.2.0-7.2.3 | All state poly examples |
-| `nctssos_trace_poly.jl` | Trace polynomial 6.x | Examples 6.1, 6.2.0-6.2.2 |

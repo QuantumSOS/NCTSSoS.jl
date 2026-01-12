@@ -18,23 +18,26 @@ The algebra type parameter enables dispatch on algebraic structure:
 abstract type OptimizationProblem{A<:AlgebraType, P} end
 
 """
-    PolyOpt{A<:AlgebraType, P<:Polynomial{A}} <: OptimizationProblem{A, P}
+    PolyOpt{A<:AlgebraType, T<:Integer, P<:AbstractPolynomial} <: OptimizationProblem{A, P}
 
 A polynomial optimization problem structure with algebra type tracking.
+Handles both standard polynomials and state polynomials via the P parameter.
 
 # Type Parameters
 - `A<:AlgebraType`: The algebra type governing simplification rules
-- `P<:Polynomial{A}`: Type of polynomial matching the algebra
+- `T<:Integer`: The integer type for monomial word indices
+- `P<:AbstractPolynomial`: Type of polynomial (Polynomial{A,T,C} or NCStatePolynomial{C,ST,A,T})
 
 # Fields
 - `objective::P`: The polynomial objective function to be optimized
 - `eq_constraints::Vector{P}`: Vector of equality constraints (p = 0)
 - `ineq_constraints::Vector{P}`: Vector of inequality constraints (p >= 0)
-- `registry::VariableRegistry{A}`: Variable registry mapping symbols to indices
+- `registry::VariableRegistry{A,T}`: Variable registry mapping symbols to indices
 
 # Notes
 - Algebra type determines simplification rules (no manual comm_gps, is_unipotent, is_projective)
 - Registry provides bidirectional symbol <-> index mapping for variable access
+- For NCStatePolynomial objectives, the state type (Arbitrary, MaxEntangled) is embedded in P
 
 # Examples
 ```julia
@@ -46,11 +49,16 @@ ham = 0.5 * (σx[1]*σx[2] + σy[1]*σy[2] + σz[1]*σz[2])
 
 # Create optimization problem
 pop = polyopt(ham, reg)
+
+# State polynomial optimization (Bell inequalities)
+reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+sp = -1.0 * ς(x[1]*y[1]) - 1.0 * ς(x[1]*y[2]) - 1.0 * ς(x[2]*y[1]) + 1.0 * ς(x[2]*y[2])
+pop = polyopt(sp * one(NormalMonomial), reg)
 ```
 
 See also: [`polyopt`](@ref), [`VariableRegistry`](@ref), [`AlgebraType`](@ref)
 """
-struct PolyOpt{A<:AlgebraType,T<:Integer,P<:Polynomial{A,T}} <: OptimizationProblem{A,P}
+struct PolyOpt{A<:AlgebraType,T<:Integer,P<:AbstractPolynomial} <: OptimizationProblem{A,P}
     objective::P
     eq_constraints::Vector{P}
     ineq_constraints::Vector{P}
@@ -59,14 +67,16 @@ end
 
 
 """
-    polyopt(objective::Polynomial{A,T,C}, registry::VariableRegistry{A,T};
-            eq_constraints=Polynomial{A,T,C}[],
-            ineq_constraints=Polynomial{A,T,C}[]) where {A<:AlgebraType, T<:Integer, C<:Number}
+    polyopt(objective::P, registry::VariableRegistry{A,T};
+            eq_constraints=P[], ineq_constraints=P[]) where {P<:AbstractPolynomial, A, T}
 
 Create a polynomial optimization problem from objective, registry, and optional constraints.
 
+Works with any `AbstractPolynomial` subtype including `Polynomial{A,T,C}` and
+`NCStatePolynomial{C,ST,A,T}`.
+
 # Arguments
-- `objective::Polynomial{A,T,C}`: The polynomial objective function to optimize
+- `objective::P`: The polynomial objective function to optimize
 - `registry::VariableRegistry{A,T}`: Variable registry for the algebra
 
 # Keyword Arguments
@@ -74,12 +84,15 @@ Create a polynomial optimization problem from objective, registry, and optional 
 - `ineq_constraints`: Inequality constraints as polynomials (p >= 0). Default: empty
 
 # Returns
-A `PolyOpt{A, Polynomial{A,T,C}}` structure representing the optimization problem.
+A `PolyOpt{A,T,P}` structure representing the optimization problem.
 
 # Notes
-- Algebra type `A` is inferred from the polynomial and registry (must match)
-- Coefficient type `C` cannot be an integer subtype (JuMP solver requirement)
+- Algebra type `A` is inferred from the registry
+- Coefficient type cannot be an integer subtype (JuMP solver requirement)
 - Simplification rules are determined by the algebra type, not manual flags
+- For `FermionicAlgebra`: objectives should have even parity (parity superselection rule).
+  Odd-parity operators have zero expectation value. Validation is done during moment
+  relaxation via `_add_parity_constraints!`.
 
 # Examples
 ```julia
@@ -91,35 +104,30 @@ pop = polyopt(ham, reg)
 # With equality constraints
 constraint = σx[1]*σx[1] - one(typeof(ham))  # σx² = I (auto-simplified anyway)
 pop = polyopt(ham, reg; eq_constraints=[constraint])
+
+# State polynomial optimization (Bell inequalities)
+reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+sp = -1.0 * ς(x[1]*y[1]) - 1.0 * ς(x[1]*y[2]) - 1.0 * ς(x[2]*y[1]) + 1.0 * ς(x[2]*y[2])
+pop = polyopt(sp * one(NormalMonomial), reg)
 ```
 
-See also: [`PolyOpt`](@ref), [`VariableRegistry`](@ref)
+See also: [`PolyOpt`](@ref), [`VariableRegistry`](@ref), [`NCStatePolynomial`](@ref)
 """
 function polyopt(
-    objective::Polynomial{A,T,C},
+    objective::P,
     registry::VariableRegistry{A,T};
-    eq_constraints::Vector{Polynomial{A,T,C}}=Polynomial{A,T,C}[],
-    ineq_constraints::Vector{Polynomial{A,T,C}}=Polynomial{A,T,C}[]
-) where {A<:AlgebraType, T<:Integer, C<:Number}
-    @assert !(C <: Integer) "The polynomial coefficients cannot be integers (not supported by JuMP solvers)."
-
-    # For fermionic algebra, validate objective has even parity (superselection rule)
-    if A == FermionicAlgebra
-        for term in terms(objective)
-            mono = term.monomial
-            if !has_even_parity(mono)
-                error("Fermionic objective must have even parity (even number of operators). " *
-                      "Monomial with word $(mono.word) has odd parity and would always have " *
-                      "zero expectation value due to parity superselection.")
-            end
-        end
+    eq_constraints::Vector{P}=P[],
+    ineq_constraints::Vector{P}=P[]
+) where {P<:AbstractPolynomial, A<:AlgebraType, T<:Integer}
+    C = coeff_type(P)
+    if C <: Integer
+        throw(ArgumentError("Polynomial coefficients cannot be integers (not supported by JuMP solvers). Use Float64 or other floating-point types."))
     end
 
     # Deduplicate constraints
     eq_cons = unique!(copy(eq_constraints))
     ineq_cons = unique!(copy(ineq_constraints))
 
-    P = Polynomial{A,T,C}
     return PolyOpt{A,T,P}(objective, eq_cons, ineq_cons, registry)
 end
 
@@ -194,120 +202,5 @@ _is_complex_problem(::Type{BosonicAlgebra}) = true
 _is_complex_problem(::Type{NonCommutativeAlgebra}) = false
 _is_complex_problem(::Type{ProjectorAlgebra}) = false
 _is_complex_problem(::Type{UnipotentAlgebra}) = false
-_is_complex_problem(::Type{A}) where {A<:AlgebraType} = false  # Default fallback
-
-
-# =============================================================================
-# State Polynomial Optimization Problem
-# =============================================================================
-
-# State polynomial types are now defined in NCTSSoS directly
-# StateType, StateWord, NCStateWord, NCStatePolynomial are already available
-
-"""
-    StatePolyOpt{A<:AlgebraType, ST<:StateType, P<:NCStatePolynomial} <: OptimizationProblem{A, P}
-
-A state polynomial optimization problem structure.
-
-State polynomial optimization extends standard polynomial optimization by
-including state expectations (expectation values in a quantum state).
-The objective and constraints are NCStatePolynomial objects.
-
-# Type Parameters
-- `A<:AlgebraType`: The algebra type governing simplification rules
-- `ST<:StateType`: The state type (Arbitrary or MaxEntangled)
-- `P<:NCStatePolynomial`: Type of state polynomial
-
-# Fields
-- `objective::P`: The NCStatePolynomial objective function
-- `eq_constraints::Vector{P}`: Vector of equality constraints
-- `ineq_constraints::Vector{P}`: Vector of inequality constraints
-- `registry::VariableRegistry{A}`: Variable registry for symbols
-
-# Examples
-```julia
-# Create unipotent variables for CHSH-like optimization
-reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-
-# Build CHSH polynomial using state expectations
-sp = -1.0 * ς(x[1] * y[1]) - 1.0 * ς(x[1] * y[2]) -
-      1.0 * ς(x[2] * y[1]) + 1.0 * ς(x[2] * y[2])
-
-# Create optimization problem (multiply by identity Monomial for NCStatePolynomial)
-spop = polyopt(sp * one(Monomial), reg)
-```
-
-See also: [`polyopt`](@ref), [`NCStatePolynomial`](@ref), [`ς`](@ref)
-"""
-struct StatePolyOpt{A<:AlgebraType,T<:Integer,ST<:StateType,P<:NCStatePolynomial{<:Number,ST,A,T}} <: OptimizationProblem{A,P}
-    objective::P
-    eq_constraints::Vector{P}
-    ineq_constraints::Vector{P}
-    registry::VariableRegistry{A,T}
-end
-
-"""
-    polyopt(objective::NCStatePolynomial{C,ST,A,T}, registry::VariableRegistry{A,T};
-            eq_constraints=NCStatePolynomial{C,ST,A,T}[],
-            ineq_constraints=NCStatePolynomial{C,ST,A,T}[])
-
-Create a state polynomial optimization problem.
-
-# Arguments
-- `objective::NCStatePolynomial{C,ST,A,T}`: The state polynomial objective to optimize
-- `registry::VariableRegistry{A,T}`: Variable registry for the algebra
-
-# Keyword Arguments
-- `eq_constraints`: Equality constraints as NCStatePolynomials. Default: empty
-- `ineq_constraints`: Inequality constraints as NCStatePolynomials. Default: empty
-
-# Returns
-A `StatePolyOpt{A, ST, NCStatePolynomial{C,ST,A,T}}` structure.
-
-# Examples
-```julia
-# CHSH-type Bell inequality optimization
-reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-sp = -1.0 * ς(x[1]*y[1]) - 1.0 * ς(x[1]*y[2]) - 1.0 * ς(x[2]*y[1]) + 1.0 * ς(x[2]*y[2])
-spop = polyopt(sp * one(Monomial), reg)
-```
-
-See also: [`StatePolyOpt`](@ref), [`NCStatePolynomial`](@ref)
-"""
-function polyopt(
-    objective::NCStatePolynomial{C,ST,A,T},
-    registry::VariableRegistry{A,T};
-    eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[],
-    ineq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[]
-) where {C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer}
-    @assert !(C <: Integer) "The polynomial coefficients cannot be integers (not supported by JuMP solvers)."
-
-    # Deduplicate constraints
-    eq_cons = unique!(copy(eq_constraints))
-    ineq_cons = unique!(copy(ineq_constraints))
-
-    P = NCStatePolynomial{C,ST,A,T}
-    return StatePolyOpt{A,T,ST,P}(objective, eq_cons, ineq_cons, registry)
-end
-
-"""
-    Base.show(io::IO, spop::StatePolyOpt{A,T,ST,P})
-
-Display a state polynomial optimization problem.
-"""
-function Base.show(io::IO, spop::StatePolyOpt{A,T,ST,P}) where {A,T,ST,P}
-    println(io, "State Polynomial Optimization Problem ($(nameof(A)), $(nameof(ST)))")
-    println(io, "────────────────────────────────────────────────")
-
-    # Create IO context with registry for pretty printing
-    io_ctx = IOContext(io, :registry => spop.registry)
-    print(io, "Objective: ")
-    show(io_ctx, spop.objective)
-    println(io)
-
-    println(io, "Equality constraints: ", length(spop.eq_constraints))
-    println(io, "Inequality constraints: ", length(spop.ineq_constraints))
-    println(io, "Variables: ", length(spop.registry))
-end
 
 

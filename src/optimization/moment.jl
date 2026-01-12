@@ -3,7 +3,7 @@
 # =============================================================================
 
 """
-    MomentProblem{A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P<:Polynomial{A,T}}
+    MomentProblem{A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P<:Polynomial{A,T}}
 
 A symbolic representation of a moment relaxation problem.
 
@@ -15,7 +15,7 @@ The algebra type `A` determines which cone type to use when solving:
 # Type Parameters
 - `A`: Algebra type determining simplification rules and cone type
 - `T`: Integer type for monomial word representation
-- `M`: Monomial type `Monomial{A,T}`
+- `M`: Monomial type for basis elements (may expand for PBW algebras)
 - `P`: Polynomial type `Polynomial{A,T,C}` for some coefficient type `C`
 
 # Fields
@@ -43,10 +43,11 @@ optimize!(sos.model)
 
 See also: [`moment_relax`](@ref), [`sos_dualize`](@ref)
 """
-struct MomentProblem{A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P<:Polynomial{A,T}}
+struct MomentProblem{A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P<:Polynomial{A,T}}
     objective::P
     constraints::Vector{Tuple{Symbol, Matrix{P}}}
     total_basis::Vector{M}
+    n_unique_moment_matrix_elements::Int
 end
 
 
@@ -61,29 +62,36 @@ Build a symbolic constraint matrix for the moment relaxation.
 
 # Arguments
 - `poly`: The polynomial multiplier (1 for moment matrix, constraint poly for localizing)
-- `local_basis`: Vector of monomials indexing rows/columns
+- `local_basis`: Vector of Monomial elements indexing rows/columns
 - `cone`: Cone type symbol (:Zero, :PSD, or :HPSD)
 
 # Returns
 - `Tuple{Symbol, Matrix{P}}`: The cone type and the polynomial-valued constraint matrix
 
-The matrix element at (i,j) is sum over terms: coef * basis[i]' * mono * basis[j]
+The matrix element at (i,j) is the bilinear expansion:
+  M[i,j] = Σ_{k,l} conj(c_ik) * c_jl * Σ_m coef_m * simplify(word_ik† * mono_m * word_jl)
+
+For MonoidAlgebra/TwistedGroupAlgebra, each Monomial has a single term (single word with coefficient).
+For PBWAlgebra, Monomials may have multiple terms after normalization.
 """
 function _build_constraint_matrix(
-    poly::P,
+    poly::Polynomial{A,T,C},
     local_basis::Vector{M},
     cone::Symbol
-) where {T, P<:AbstractPolynomial{T}, M}
-    # Each matrix element is a polynomial: sum of coef * neat_dot(row, mono, col)
-    moment_mtx = Matrix{P}(undef, length(local_basis), length(local_basis))
+) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T}}
+    # Each matrix element is a polynomial: bilinear expansion over basis terms
+    moment_mtx = Matrix{Polynomial{A,T,C}}(undef, length(local_basis), length(local_basis))
 
-    for (i, row_idx) in enumerate(local_basis)
-        for (j, col_idx) in enumerate(local_basis)
-            # Build polynomial for this matrix element
-            # _neat_dot3 returns Monomial, simplify to get Polynomial
+    for (i, row_mono) in enumerate(local_basis)
+        for (j, col_mono) in enumerate(local_basis)
+            # Build polynomial for this matrix element with full bilinear expansion
+            # For each (c_row, row_word) in row_mono and (c_col, col_word) in col_mono,
+            # compute conj(c_row) * c_col * sum over poly terms
             element_poly = sum(
-                coef * Polynomial(simplify(_neat_dot3(row_idx, mono, col_idx)))
-                for (coef, mono) in zip(coefficients(poly), monomials(poly))
+                _conj_coef(A, c_row) * c_col * coef * Polynomial(simplify(A, _neat_dot3(row_word, mono, col_word)))
+                for (c_row, row_word) in row_mono
+                for (c_col, col_word) in col_mono
+                for (coef, mono) in poly.terms
             )
             moment_mtx[i, j] = element_poly
         end
@@ -91,6 +99,20 @@ function _build_constraint_matrix(
 
     return (cone, moment_mtx)
 end
+
+"""
+    _conj_coef(::Type{A}, c) where {A<:AlgebraType}
+
+Conjugate a Monomial coefficient for the bilinear form.
+
+For real algebras (MonoidAlgebra, PBWAlgebra with integer coefficients), returns c unchanged.
+For complex algebras (TwistedGroupAlgebra with phase encoding), conjugates the phase.
+"""
+_conj_coef(::Type{<:AlgebraType}, c) = c  # Default: identity (real coefficients)
+
+# For Pauli algebra, phase is encoded as UInt8: 0=1, 1=i, 2=-1, 3=-i
+# conj(i^k) = i^(-k) = i^(4-k mod 4)
+_conj_coef(::Type{PauliAlgebra}, c::UInt8) = (0x04 - c) & 0x03
 
 
 # =============================================================================
@@ -133,20 +155,42 @@ See also: [`MomentProblem`](@ref), [`sos_dualize`](@ref)
 """
 function moment_relax(
     pop::PolyOpt{A,TI,P},
-    corr_sparsity::CorrelativeSparsity{A,TI,P,M},
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M,Nothing},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
-) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:Monomial{A,TI}}
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
+
+    # Unique moment variables are determined by moment matrices only (poly = 1),
+    # not by the full set of localizing matrices.
+    # For Monomial bases, we expand over all term pairs from the bilinear form.
+    one_word = one(NormalMonomial{A,TI})
+    moment_matrix_basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
+        reduce(vcat, [
+            [
+                mono
+                for row_mono in basis
+                for col_mono in basis
+                for (_, row_word) in row_mono  # Iterate over terms in row Monomial
+                for (_, col_word) in col_mono  # Iterate over terms in col Monomial
+                for (_, mono) in Polynomial(simplify(A, _neat_dot3(row_word, one_word, col_word))).terms
+            ]
+            for basis in term_sparsities[1].block_bases
+        ])
+    end...)
+    n_unique_moment_matrix_elements = length(_sorted_symmetric_basis(moment_matrix_basis))
 
     # Compute total basis: union of all moment matrix entry monomials
-    # _neat_dot3 returns Monomial, simplify then extract monomials
+    # Expands over all term pairs from Monomial bases
     total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
         reduce(vcat, [
-            # _neat_dot3 returns Monomial; simplify then extract monomials (may be multiple for Bosonic)
-            [mono for m in monomials(poly) for mono in monomials(Polynomial(simplify(_neat_dot3(row_idx, m, col_idx))))]
+            [mono
+             for m in last.(poly.terms)
+             for (_, row_word) in row_mono  # Iterate over terms in row Monomial
+             for (_, col_word) in col_mono  # Iterate over terms in col Monomial
+             for (_, mono) in Polynomial(simplify(A, _neat_dot3(row_word, m, col_word))).terms]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
             for basis in term_sparsity.block_bases
-            for row_idx in basis
-            for col_idx in basis
+            for row_mono in basis
+            for col_mono in basis
         ])
     end...)
 
@@ -185,7 +229,7 @@ function moment_relax(
         push!(constraints, constraint)
     end
 
-    mp = MomentProblem{A, TI, M, P}(pop.objective, constraints, total_basis)
+    mp = MomentProblem{A, TI, M, P}(pop.objective, constraints, total_basis, n_unique_moment_matrix_elements)
 
     # Add parity superselection constraints for fermionic algebras
     # This enforces that odd-parity moment entries are zero
@@ -241,7 +285,7 @@ function solve_moment_problem(
     mp::MomentProblem{A,T,M,P},
     optimizer;
     silent::Bool=true
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P<:Polynomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P<:Polynomial{A,T}}
 
     # Determine coefficient type from polynomial
     C = eltype(coefficients(mp.objective))
@@ -266,17 +310,23 @@ function _solve_real_moment_problem(
     mp::MomentProblem{A,T,M,P},
     optimizer,
     silent::Bool
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P}
 
     # Get coefficient type
     C = eltype(coefficients(mp.objective))
     model = GenericModel{C}()
 
-    # Create variables for basis monomials
-    @variable(model, y[1:length(mp.total_basis)], set_string_name=false)
-    @constraint(model, first(y) == 1)  # Normalization
+    basis = [symmetric_canon(expval(m)) for m in mp.total_basis]
+    sorted_unique!(basis)
 
-    monomap = Dict(zip(mp.total_basis, y))
+    @variable(model, y[1:length(basis)], set_string_name=false)
+
+    one_sym = expval(one(M))
+    idx_one = findfirst(==(one_sym), basis)
+    idx_one === nothing && error("Expected identity moment to be present in basis")
+    @constraint(model, y[idx_one] == 1)  # Normalization
+
+    monomap = Dict(zip(basis, y))
 
     # Add constraints
     for (cone, mat) in mp.constraints
@@ -305,7 +355,9 @@ function _solve_real_moment_problem(
     silent && set_silent(model)
     optimize!(model)
 
-    return (objective=objective_value(model), model=model, monomap=monomap)
+    n_unique = mp.n_unique_moment_matrix_elements
+
+    return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
 
 """
@@ -320,24 +372,28 @@ function _solve_complex_moment_problem(
     mp::MomentProblem{A,T,M,P},
     optimizer,
     silent::Bool
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}, P}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}, P}
 
     # Get real coefficient type
     C = real(eltype(coefficients(mp.objective)))
     model = GenericModel{C}()
 
-    # For complex problems, we need separate real/imag variables
-    n_basis = length(mp.total_basis)
+    basis = [symmetric_canon(expval(m)) for m in mp.total_basis]
+    sorted_unique!(basis)
+
+    n_basis = length(basis)
     @variable(model, y_re[1:n_basis], set_string_name=false)
     @variable(model, y_im[1:n_basis], set_string_name=false)
 
-    # Normalization: y[1] = 1 (real), y_im[1] = 0
-    @constraint(model, y_re[1] == 1)
-    @constraint(model, y_im[1] == 0)
+    one_sym = expval(one(M))
+    idx_one = findfirst(==(one_sym), basis)
+    idx_one === nothing && error("Expected identity moment to be present in basis")
 
-    # Map monomials to complex JuMP expressions
-    # We'll create a map that returns (re_expr, im_expr) tuples
-    basis_to_idx = Dict(m => i for (i, m) in enumerate(mp.total_basis))
+    # Normalization: y[1] = 1 (real), y_im[1] = 0
+    @constraint(model, y_re[idx_one] == 1)
+    @constraint(model, y_im[idx_one] == 0)
+
+    basis_to_idx = Dict(m => i for (i, m) in enumerate(basis))
 
     # Add constraints with Hermitian embedding
     for (cone, mat) in mp.constraints
@@ -380,12 +436,11 @@ function _solve_complex_moment_problem(
     optimize!(model)
 
     # Build monomap returning complex values
-    monomap = Dict(
-        m => Complex(value(y_re[i]), value(y_im[i]))
-        for (m, i) in basis_to_idx
-    )
+    monomap = Dict(m => Complex(value(y_re[i]), value(y_im[i])) for (m, i) in basis_to_idx)
 
-    return (objective=objective_value(model), model=model, monomap=monomap)
+    n_unique = mp.n_unique_moment_matrix_elements
+
+    return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
 
 
@@ -506,8 +561,8 @@ function _has_odd_parity_only(
     for t in terms(poly)
         if !iszero(t.coefficient)
             has_nonzero_term = true
-            canon_mono = symmetric_canon(expval(t.monomial))
-            if has_even_parity(canon_mono)
+            canon_sym = symmetric_canon(expval(t.monomial))
+            if has_even_parity(canon_sym.mono)
                 return false  # Found even-parity term
             end
         end
@@ -591,6 +646,7 @@ struct StateMomentProblem{A<:AlgebraType, ST<:StateType, T<:Integer, M<:NCStateW
     objective::P
     constraints::Vector{Tuple{Symbol, Matrix{P}, Vector{M}}}  # (cone, matrix, block_basis)
     total_basis::Vector{M}
+    n_unique_moment_matrix_elements::Int
 end
 
 """
@@ -631,23 +687,38 @@ function _build_state_constraint_matrix(
 end
 
 """
-    moment_relax(pop::StatePolyOpt, corr_sparsity, cliques_term_sparsities) -> StateMomentProblem
+    moment_relax(pop::PolyOpt, corr_sparsity, cliques_term_sparsities) -> StateMomentProblem
 
 Construct a symbolic moment relaxation of a state polynomial optimization problem.
 
 # Arguments
-- `pop::StatePolyOpt{A,TI,ST,P}`: The state polynomial optimization problem
-- `corr_sparsity::StateCorrelativeSparsity`: Correlative sparsity structure
+- `pop::PolyOpt{A,TI,P}`: The polynomial optimization problem with NCStatePolynomial objective
+- `corr_sparsity::CorrelativeSparsity`: Correlative sparsity structure
 - `cliques_term_sparsities`: Term sparsity for each clique
 
 # Returns
 - `StateMomentProblem{A,ST,T,M,P}`: Symbolic state moment problem
 """
 function moment_relax(
-    pop::StatePolyOpt{A,TI,ST,P},
-    corr_sparsity::StateCorrelativeSparsity{A,ST,TI,P,M},
+    pop::PolyOpt{A,TI,P},
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M,ST},
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
 ) where {A<:AlgebraType,TI<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,TI},M<:NCStateWord{ST,A,TI}}
+
+    # Unique moment variables are determined by moment matrices only (poly = 1),
+    # not by the full set of localizing matrices.
+    moment_matrix_basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
+        reduce(vcat, [
+            [
+                ncsw_result
+                for row_idx in basis
+                for col_idx in basis
+                for ncsw_result in monomials(simplify(_neat_dot3(row_idx, one(M), col_idx)))
+            ]
+            for basis in term_sparsities[1].block_bases
+        ])
+    end...)
+    n_unique_moment_matrix_elements = length(_sorted_stateword_basis_from_ncsw(moment_matrix_basis))
 
     # Compute total basis: union of all moment matrix entry NCStateWords
     # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
@@ -695,7 +766,7 @@ function moment_relax(
         push!(constraints, (cone_type, mat, global_basis))
     end
 
-    return StateMomentProblem{A, ST, TI, M, P}(pop.objective, constraints, total_basis)
+    return StateMomentProblem{A, ST, TI, M, P}(pop.objective, constraints, total_basis, n_unique_moment_matrix_elements)
 end
 
 
@@ -755,7 +826,7 @@ function solve_moment_problem(
     # Build the StateWord basis from total_basis NCStateWords
     # We need to convert NCStateWord -> StateWord via expval for moment variables
     SW = StateWord{ST,A,T}
-    state_basis = sorted_unique([symmetric_canon(expval(ncsw)) for ncsw in mp.total_basis])
+    state_basis = _sorted_stateword_basis_from_ncsw(mp.total_basis)
     n_basis = length(state_basis)
 
     # Create variables for basis StateWords
@@ -773,8 +844,8 @@ function solve_moment_problem(
     # Map StateWord to variable index
     sw_to_idx = Dict(sw => i for (i, sw) in enumerate(state_basis))
 
-    # Add constraints
-    for (cone, mat) in mp.constraints
+    # Add constraints (block_basis not needed here - used only during construction)
+    for (cone, mat, _) in mp.constraints
         dim = size(mat, 1)
         # Convert NCStatePolynomial matrix to JuMP expression matrix
         jump_mat = [
@@ -803,7 +874,9 @@ function solve_moment_problem(
     # Build monomap returning StateWord -> value
     monomap = Dict(sw => value(y[i]) for (sw, i) in sw_to_idx)
 
-    return (objective=objective_value(model), model=model, monomap=monomap)
+    n_unique = mp.n_unique_moment_matrix_elements
+
+    return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)
 end
 
 """
@@ -839,4 +912,3 @@ function _substitute_state_poly(
 
     return expr
 end
-

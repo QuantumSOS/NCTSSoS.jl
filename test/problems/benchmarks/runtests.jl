@@ -1,8 +1,9 @@
 # =============================================================================
-# Benchmark Tests Runner
+# test/problems/benchmarks/runtests.jl
 # =============================================================================
-# Tests for classical optimization benchmarks:
-#   - NCPOP benchmarks (Rosenbrock, etc.)
+# Tests: Classical polynomial optimization benchmarks
+# Dependencies: SOLVER
+# Requires --local: no
 # =============================================================================
 
 using Test
@@ -10,3 +11,4 @@ using Test
 @testset "Benchmarks" begin
     include("ncpop_benchmarks.jl")
 end
+

@@ -14,14 +14,13 @@ Same as fermionic:
 # Normal Ordering
 All creation operators (c†, negative indices) are placed to the LEFT of
 all annihilation operators (c, positive indices). Within each group,
-operators are sorted by mode (absolute value of index).
+creators are sorted by mode descending and annihilators by mode ascending.
 
 # Key Difference from Fermionic
 Unlike fermionic operators:
 1. Bosonic operators COMMUTE (no sign change when swapping)
 2. But cᵢ cⱼ† = cⱼ† cᵢ + δᵢⱼ creates an additional term when modes match
 3. Bosonic operators are NOT nilpotent (cᵢ cᵢ ≠ 0)
-4. **Returns `Vector{Term}` instead of single `Term`** due to term generation
 
 # Algorithm
 Uses a group-based algorithm with closed-form formulas based on:
@@ -53,71 +52,109 @@ naive iterative expansion.
 **TODO**: Verify complexity bounds against literature.
 
 # Returns
-`Polynomial{BosonicAlgebra,T,Float64}` - potentially multiple terms due to delta corrections
+A vector of `(coefficient, word)` pairs representing the PBW expansion.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = Monomial{BosonicAlgebra}(Int32[1, -1]);  # c₁ c₁†
+julia> word = Int32[1, -1];  # c₁ c₁† (raw word; not in Bosonic normal form)
 
-julia> poly = simplify(m);
+julia> m = simplify(BosonicAlgebra, word);
 
-julia> length(terms(poly))  # Two terms: c₁† c₁ and identity
+julia> length(terms(m))  # Two terms: c₁† c₁ and identity
 2
 ```
 """
 
-# Note: Helper functions (_is_creation, _operator_mode, normal_order_key,
-# find_first_out_of_order, is_normal_ordered) are in utils.jl
-
 """
-    simplify(m::Monomial{BosonicAlgebra,T}) where T -> Polynomial{BosonicAlgebra,T,Float64}
+    simplify!(::Type{BosonicAlgebra}, word::Vector{T}) where {T<:Signed} -> Vector{Tuple{Int,Vector{T}}}
 
-Simplify and normal-order a bosonic algebra monomial.
+Low-level in-place normal ordering of a bosonic word.
 
-Returns a Polynomial (potentially with multiple terms) due to delta corrections from commutation.
-The original monomial is unchanged.
+Returns a vector of `(coefficient, normal_ordered_word)` pairs representing the
+PBW expansion as a sum. Each word in the result is unique (coefficients are
+accumulated for identical words). Modifies `word` in-place (filters zeros, sorts by mode).
 
-Uses a group-based algorithm with closed-form formulas (rook numbers on Ferrers boards)
-based on arXiv:quant-ph/0507206. This is more efficient than iterative expansion,
-especially for expressions with multiple modes.
+This is the internal workhorse; most users should call `simplify(BosonicAlgebra, word)`.
 
-# Algebraic Rules
-- Commutation: [cᵢ, cⱼ†] = δᵢⱼ (swapping creates delta term when modes match)
-- Bosons commute: [cᵢ, cⱼ] = 0, [cᵢ†, cⱼ†] = 0 (no sign change)
-- Normal ordering: c† on left, c on right
-- **NOT nilpotent**: cᵢ cᵢ ≠ 0 (unlike fermions)
+# Algorithm
+Uses rook numbers on Ferrers boards (arXiv:quant-ph/0507206):
+1. Sort by mode (preserving relative order within each mode)
+2. Find mode boundaries
+3. Compute single-mode normal forms using rook number formula
+4. Expand Cartesian product across all modes
+5. Combine like terms by final word and construct result pairs
 
-# Examples
-```jldoctest
-julia> using NCTSSoS
-
-julia> m = Monomial{BosonicAlgebra}(Int32[2, -1]);  # c₂ c₁†
-
-julia> poly = simplify(m);
-
-julia> length(terms(poly))  # Just one term (different modes, no delta)
-1
-
-julia> monomials(poly)[1].word
-2-element Vector{Int32}:
- -1
-  2
-```
-
-# Note
-Unlike other algebra types, bosonic simplification returns a `Polynomial` (not a `Monomial`)
-because commutation creates multiple terms. There is no `simplify!` variant since the
-return type differs from the input type.
+# Throws
+- `ErrorException` if simplification produces an empty result (should not happen for valid input)
 """
-function simplify(m::Monomial{BosonicAlgebra,T}) where {T}
-    # Create a copy of the word to work with
-    word_copy = copy(m.word)
-    m_copy = Monomial{BosonicAlgebra,T}(word_copy)
-    term_vec = simplify_bosonic_grouped!(m_copy)
-    return Polynomial(term_vec)
+function simplify!(::Type{BosonicAlgebra}, word::Vector{T}) where {T<:Signed}
+    filter!(!iszero, word)
+
+    # Handle empty word (identity)
+    if isempty(word)
+        return [(1, T[])]
+    end
+
+    _stable_sort_by_site!(word)
+
+    # Step 1: Group by mode (stable sort)
+    sep = find_site_separation(word)
+    n_modes = length(sep) - 1
+
+    # Step 2: Compute single-mode normal forms
+    modes = Vector{Int}(undef, n_modes)
+    mode_results = Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}}(undef, n_modes)
+    for i in 1:n_modes
+        modes[i] = _operator_mode(word[sep[i]+1])
+        ops = @view word[sep[i]+1:sep[i+1]]
+        mode_results[i] = (i, single_mode_normal_form(ops))
+    end
+
+    # Step 3: Expand product - but return (Int, Vector{T}) pairs instead of Terms
+    term_lists = [terms for (_, terms) in mode_results]
+
+    # Cartesian product of all mode terms, combine like terms by final word
+    word_coeffs = Dict{Vector{T},Int}()
+    for combo in Iterators.product(term_lists...)
+        coef = prod(t[1] for t in combo)
+        coef == 0 && continue
+
+        # Build the normal-ordered word
+        new_word = T[]
+        for i in reverse(eachindex(modes))
+            m = modes[i]
+            append!(new_word, fill(T(-m), combo[i][2]))
+        end
+        for (i, m) in enumerate(modes)
+            append!(new_word, fill(T(m), combo[i][3]))
+        end
+
+        word_coeffs[new_word] = get(word_coeffs, new_word, 0) + coef
+    end
+
+    # Construct final (coef, word) pairs, filtering zero coefficients
+    result = Tuple{Int,Vector{T}}[]
+    for (w, coef) in word_coeffs
+        coef == 0 && continue
+        push!(result, (coef, w))
+    end
+
+    isempty(result) && return [(0, T[])]
+
+    return result
 end
+
+"""
+    simplify(::Type{BosonicAlgebra}, word::Vector{T}) where {T<:Signed}
+
+Simplify a raw bosonic word into normal-ordered form.
+
+This is the primary entry point for bosonic simplification. Takes a raw word vector
+and returns a vector of `(coefficient, word)` pairs representing the PBW expansion.
+"""
+simplify(::Type{BosonicAlgebra}, word::Vector{T}) where {T<:Signed} = simplify!(BosonicAlgebra, copy(word))
 
 # =============================================================================
 # Group-Based Algorithm with Closed-Form Formulas (Rook Numbers)
@@ -125,32 +162,28 @@ end
 # =============================================================================
 
 """
-    group_by_mode!(word::Vector{T}) -> Vector{Int}
+    find_site_separation(word::Vector{T}) -> Vector{Int}
 
-Group operators by mode in-place using stable partitioning.
-Preserves the relative order of operators within each mode.
+Find mode boundaries in a pre-sorted word.
 
-Returns separation indices [0, end_mode1, end_mode2, ...] where
-operators for mode m are at indices sep[m]+1:sep[m+1].
+Assumes `word` is already sorted by mode (via `_stable_sort_by_site!`).
+Returns separation indices `[0, end_mode1, end_mode2, ...]` where
+operators for mode i are at indices `sep[i]+1:sep[i+1]`.
 
 # Example
 ```julia
-word = Int32[1, -2, -1, 2]  # a₁ a₂† a₁† a₂
-sep = group_by_mode!(word)
-# word becomes [1, -1, -2, 2] (mode 1 ops, then mode 2 ops)
+word = Int32[1, -1, -2, 2]  # Already sorted: mode 1 ops, then mode 2 ops
+sep = find_site_separation(word)
 # sep = [0, 2, 4]
 ```
 """
-function group_by_mode!(word::Vector{T})::Vector{Int} where {T}
+function find_site_separation(word::Vector{T})::Vector{Int} where {T<:Signed}
     isempty(word) && return [0]
-
-    # Stable sort by mode - groups operators while preserving relative order
-    sort!(word; by=_operator_mode, alg=Base.InsertionSort)
 
     # Single sweep to find partition boundaries
     sep = [0]
     current_mode = _operator_mode(word[1])
-    for i in 2:length(word)
+    @inbounds for i in 2:length(word)
         m = _operator_mode(word[i])
         if m != current_mode
             push!(sep, i - 1)
@@ -280,7 +313,7 @@ result = single_mode_normal_form(ops)
 # result = [(1, 1, 1), (1, 0, 0)]  # a† a + 1
 ```
 """
-function single_mode_normal_form(ops::V)::Vector{Tuple{Int,Int,Int}} where {T, V<:AbstractVector{T}}
+function single_mode_normal_form(ops::V)::Vector{Tuple{Int,Int,Int}} where {T<:Signed, V<:AbstractVector{T}}
     # Count creations and annihilations
     m = count(_is_creation, ops)
     n = length(ops) - m  # annihilations
@@ -309,99 +342,29 @@ function single_mode_normal_form(ops::V)::Vector{Tuple{Int,Int,Int}} where {T, V
     return result
 end
 
-"""
-    expand_and_construct(mode_results, modes, ::Type{T}) -> Vector{Term}
-
-Expand the product of normal-ordered terms across all modes and construct final Terms.
-
-# Arguments
-- `mode_results`: Vector of (mode_idx, terms) where terms = [(coef, num_creations, num_annihilations), ...]
-- `modes`: Sorted vector of actual mode indices
-- `T`: Integer type for the monomial word
-
-# Example
-```julia
-mode_results = [(1, [(1, 1, 1), (1, 0, 0)]), (2, [(1, 1, 0)])]  # (a₁†a₁ + 1) × a₂†
-modes = [1, 2]
-result = expand_and_construct(mode_results, modes, Int32)
-# Returns terms for: a₁†a₂†a₁ + a₂†
-```
-"""
-function expand_and_construct(
-    mode_results::Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}},
-    modes::Vector{Int},
-    ::Type{T}
-)::Vector{Term{Monomial{BosonicAlgebra,T},Float64}} where {T}
-    @assert !isempty(mode_results) "mode_results must be non-empty (caller handles empty case)"
-    @assert length(modes) == length(mode_results) "modes and mode_results must have same length"
-
-    n_modes = length(modes)
-    term_lists = [terms for (_, terms) in mode_results]
-
-    # Cartesian product of all mode terms, combine like terms
-    combined = Dict{Tuple{Vector{Int},Vector{Int}},Int}()
-    for combo in Iterators.product(term_lists...)
-        coef = prod(t[1] for t in combo)
-        coef == 0 && continue
-        cre = [combo[i][2] for i in 1:n_modes]
-        ann = [combo[i][3] for i in 1:n_modes]
-        key = (cre, ann)
-        combined[key] = get(combined, key, 0) + coef
-    end
-
-    # Construct final Term vector
-    result = Term{Monomial{BosonicAlgebra,T},Float64}[]
-    for ((cre, ann), coef) in combined
-        coef == 0 && continue
-        word = T[]
-        for (i, m) in enumerate(modes)
-            append!(word, fill(T(-m), cre[i]))
-        end
-        for (i, m) in enumerate(modes)
-            append!(word, fill(T(m), ann[i]))
-        end
-        push!(result, Term(Float64(coef), Monomial{BosonicAlgebra}(word)))
-    end
-
-    return result
-end
+# =============================================================================
+# Validation (for NormalMonomial constructor)
+# =============================================================================
 
 """
-    simplify_bosonic_grouped!(m::Monomial{BosonicAlgebra,T}) -> Vector{Term}
+    _validate_word(::Type{BosonicAlgebra}, word::Vector{T}) where {T<:Signed}
 
-Simplify a bosonic monomial using the group-based algorithm with rook numbers.
+Validate that a bosonic word is in normal-ordered form.
 
-Algorithm:
-1. Group operators by mode (preserving relative order within each mode)
-2. For each mode, compute normal form using rook number formula
-3. Expand product across all modes
-4. Construct final terms
+Throws `ArgumentError` if the word violates normal ordering. Called by the
+`NormalMonomial{BosonicAlgebra,T}` constructor to enforce invariants.
 
-This is more efficient than iterative expansion for multi-mode expressions.
+Normal order requirements:
+- Creation operators (negative indices) before annihilation operators (positive)
+- Creators sorted by mode descending; annihilators sorted by mode ascending
 """
-function simplify_bosonic_grouped!(
-    m::Monomial{BosonicAlgebra,T}
-)::Vector{Term{Monomial{BosonicAlgebra,T},Float64}} where {T}
-    word = m.word
+function _validate_word(::Type{BosonicAlgebra}, word::Vector{T}) where {T<:Signed}
+    isempty(word) && return nothing
 
-    # Handle empty monomial
-    if isempty(word)
-        return [Term(1.0, m)]
-    end
-
-    # Step 1: Group by mode (stable sort)
-    sep = group_by_mode!(word)
-    n_modes = length(sep) - 1
-
-    # Step 2: Compute single-mode normal forms
-    modes = Vector{Int}(undef, n_modes)
-    mode_results = Vector{Tuple{Int,Vector{Tuple{Int,Int,Int}}}}(undef, n_modes)
-    for i in 1:n_modes
-        modes[i] = _operator_mode(word[sep[i]+1])
-        ops = @view word[sep[i]+1:sep[i+1]]
-        mode_results[i] = (i, single_mode_normal_form(ops))
-    end
-
-    # Step 3: Expand product and construct terms
-    return expand_and_construct(mode_results, modes, T)
+    is_normal_ordered(word) ||
+        throw(ArgumentError(
+            "Bosonic word is not normal-ordered. " *
+            "Use simplify(BosonicAlgebra, word) for auto-normal-ordering."
+        ))
+    return nothing
 end

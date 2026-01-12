@@ -7,7 +7,7 @@
 #       further investigation for basis ordering issues.
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 using LinearAlgebra
 using NCTSSoS: neat_dot, get_ncbasis, degree
 
@@ -16,8 +16,15 @@ function extract_basis_monomials(basis_polys)
     return [first(monomials(p)) for p in basis_polys]
 end
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "standalone_setup.jl"))
+# SOLVER fallback for standalone/REPL execution
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
 #=
 @testset "GNS Construction" begin

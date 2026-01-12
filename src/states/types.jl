@@ -60,6 +60,5 @@ true
 """
 struct MaxEntangled <: StateType end
 
-# Show methods for clean output
-Base.show(io::IO, ::Arbitrary) = print(io, "Arbitrary()")
-Base.show(io::IO, ::MaxEntangled) = print(io, "MaxEntangled()")
+# Show method for clean output
+Base.show(io::IO, s::StateType) = print(io, nameof(typeof(s)), "()")

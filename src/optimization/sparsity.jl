@@ -1,13 +1,14 @@
 """
-    CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Monomial{A,T}}
+    CorrelativeSparsity{A<:AlgebraType, T<:Integer, P, M, ST}
 
 Structure representing the correlative sparsity pattern of a polynomial optimization problem.
 
 # Type Parameters
 - `A<:AlgebraType`: The algebra type (PauliAlgebra, NonCommutativeAlgebra, etc.)
 - `T<:Integer`: The index type used in the registry
-- `P<:Polynomial{A,T}`: The polynomial type
-- `M<:Monomial{A,T}`: The monomial type
+- `P`: The polynomial type (Polynomial{A,T} or NCStatePolynomial)
+- `M`: The monomial/basis type (NormalMonomial{A,T} or NCStateWord)
+- `ST`: State type - `Nothing` for regular polynomials, `StateType` subtype for state polynomials
 
 # Fields
 - `cliques::Vector{Vector{T}}`: Groups of variable indices that form cliques in the sparsity graph
@@ -15,15 +16,15 @@ Structure representing the correlative sparsity pattern of a polynomial optimiza
 - `cons::Vector{P}`: All constraints in the problem
 - `clq_cons::Vector{Vector{Int}}`: Constraint indices assigned to each clique, regardless of equality or inequality
 - `global_cons::Vector{Int}`: Constraint indices not captured by any single clique
-- `clq_mom_mtx_bases::Vector{Vector{M}}`: Monomial bases for moment matrices within each clique
-- `clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}`: Monomial bases for localizing matrices within each clique
+- `clq_mom_mtx_bases::Vector{Vector{M}}`: NormalMonomial bases for moment matrices within each clique
+- `clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}`: NormalMonomial bases for localizing matrices within each clique
 
 # Notes
 - Cliques store variable indices (type `T`), not symbols
 - Use `subregistry(cs.registry, cs.cliques[i])` to get a clique-local registry
 - Use `cs.registry[idx]` to look up symbol names for indices
 """
-struct CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Monomial{A,T}}
+struct CorrelativeSparsity{A<:AlgebraType, T<:Integer, P, M, ST}
     cliques::Vector{Vector{T}}
     registry::VariableRegistry{A,T}
     cons::Vector{P}
@@ -33,20 +34,29 @@ struct CorrelativeSparsity{A<:AlgebraType, T<:Integer, P<:Polynomial{A,T}, M<:Mo
     clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}
 end
 
-function Base.show(io::IO, cs::CorrelativeSparsity{A,T,P,M}) where {A,T,P,M}
+# Show for regular polynomials (ST = Nothing)
+function Base.show(io::IO, cs::CorrelativeSparsity{A,T,P,M,Nothing}) where {A,T,P,M}
+    _show_correlative_sparsity(io, cs, "Correlative Sparsity ($(nameof(A)))", "monomials")
+end
+
+# Show for state polynomials (ST <: StateType)
+function Base.show(io::IO, cs::CorrelativeSparsity{A,T,P,M,ST}) where {A,T,P,M,ST<:StateType}
+    _show_correlative_sparsity(io, cs, "Correlative Sparsity ($(nameof(A)), $(nameof(ST)))", "NCStateWords")
+end
+
+function _show_correlative_sparsity(io::IO, cs::CorrelativeSparsity, header::String, basis_name::String)
     max_size = isempty(cs.cliques) ? 0 : maximum(length.(cs.cliques))
-    println(io, "Correlative Sparsity ($(nameof(A))): \n")
+    println(io, "$header: \n")
     println(io, "   maximum clique size: $max_size")
     println(io, "   number of cliques: $(length(cs.cliques))")
     for clique_i in 1:length(cs.cliques)
         println(io, "   Clique $clique_i: ")
-        # Display variable symbols from registry
         clique_syms = [cs.registry[idx] for idx in cs.cliques[clique_i]]
         println(io, "       Variables: ", clique_syms)
         println(io, "       Bases length: ", length(cs.clq_mom_mtx_bases[clique_i]))
         println(io, "       Constraints: ")
         for (local_j, cons_idx) in enumerate(cs.clq_cons[clique_i])
-            println(io, "           ", cs.cons[cons_idx], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][local_j])) basis monomials")
+            println(io, "           ", cs.cons[cons_idx], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][local_j])) basis $basis_name")
         end
     end
     println(io, "   Global Constraints: ")
@@ -107,21 +117,10 @@ function get_correlative_graph(
         return [idx_to_node[idx] for idx in idxs]
     end
 
-    # Helper to get graph positions from a monomial
-    function get_positions(m::Monomial{A,T}) where {A,T}
-        positions = Int[]
-        seen = Set{T}()
-        for idx in m.word
-            abs_idx = T(abs(idx))
-            if abs_idx in seen
-                continue
-            end
-            push!(seen, abs_idx)
-            if haskey(idx_to_node, abs_idx)
-                push!(positions, idx_to_node[abs_idx])
-            end
-        end
-        return positions
+    # Helper to get graph positions from a monomial element
+    function get_positions(m::NormalMonomial{A,T}) where {A,T}
+        idxs = variable_indices(m)
+        return sort([idx_to_node[idx] for idx in idxs])
     end
 
     # Add cliques from objective monomials
@@ -181,37 +180,6 @@ function assign_constraint(
 end
 
 """
-    extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A,T,C}
-
-Extract monomials from basis polynomials for use in moment matrix construction.
-
-For "simple" algebras (NonCommutative, Pauli, Projector, Unipotent), each basis polynomial
-is a single-term polynomial, so we extract the monomial directly.
-
-For "multi-term" algebras (Fermionic, Bosonic), basis polynomials may have multiple terms
-due to normal ordering. In this case, we use the leading monomial.
-
-# Arguments
-- `basis_polys::Vector{Polynomial{A,T,C}}`: Basis polynomials from `get_ncbasis`
-
-# Returns
-- `Vector{Monomial{A,T}}`: Extracted monomials for moment matrix indexing
-"""
-function extract_monomials_from_basis(basis_polys::Vector{Polynomial{A,T,C}}) where {A<:AlgebraType, T<:Integer, C<:Number}
-    result = Monomial{A,T}[]
-    for p in basis_polys
-        if isempty(p.terms)
-            # Zero polynomial - shouldn't happen but handle gracefully
-            continue
-        end
-        # Use the first (leading) monomial from the polynomial
-        # For simple algebras, this is the only monomial
-        push!(result, p.terms[1].monomial)
-    end
-    return result
-end
-
-"""
     correlative_sparsity(pop::OP, order::Int, elim_algo::EliminationAlgorithm) where {A<:AlgebraType, T, P<:Polynomial{A,T}, OP<:OptimizationProblem{A,P}}
 
 Decomposes a polynomial optimization problem into a correlative sparsity pattern by identifying
@@ -229,8 +197,8 @@ variable cliques and assigning constraints to cliques, enabling block-structured
   - `cons`: All constraints
   - `clq_cons`: Constraint indices assigned to each clique
   - `global_cons`: Constraint indices not captured by any single clique
-  - `clq_mom_mtx_bases`: Monomial bases for moment matrices
-  - `clq_localizing_mtx_bases`: Monomial bases for localizing matrices
+  - `clq_mom_mtx_bases`: NormalMonomial bases for moment matrices
+  - `clq_localizing_mtx_bases`: NormalMonomial bases for localizing matrices
 
 # Notes
 - Uses `subregistry()` and `get_ncbasis()` for basis generation
@@ -260,19 +228,15 @@ function correlative_sparsity(
     cliques_cons, global_cons = assign_constraint(cliques, all_cons, registry)
 
     # Generate moment matrix bases for each clique using subregistry + get_ncbasis
-    M = Monomial{A,T}
-    cliques_moment_matrix_bases = Vector{Vector{M}}()
-
-    for clique_indices in cliques
-        # Create sub-registry for this clique
+    # get_ncbasis returns Vector{NormalMonomial{A,T}} directly
+    cliques_moment_matrix_bases = map(cliques) do clique_indices
         sub_reg = subregistry(registry, clique_indices)
-        # Generate basis polynomials
-        basis_polys = get_ncbasis(sub_reg, order)
-        # Extract monomials from polynomials
-        basis_monos = extract_monomials_from_basis(basis_polys)
-        # Sort and deduplicate
-        push!(cliques_moment_matrix_bases, sorted_unique(basis_monos))
+        basis = get_ncbasis(sub_reg, order)
+        sorted_unique!(basis)
     end
+
+    # Infer M type from first non-empty clique basis
+    M = eltype(first(filter(!isempty, cliques_moment_matrix_bases)))
 
     # Compute degrees for localizing matrix basis truncation
     cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]
@@ -298,7 +262,7 @@ function correlative_sparsity(
         end
     end
 
-    return CorrelativeSparsity{A,T,P,M}(
+    return CorrelativeSparsity{A,T,P,M,Nothing}(
         cliques,
         registry,
         all_cons,
@@ -315,7 +279,7 @@ end
 Structure representing term sparsity information for polynomial optimization.
 
 # Type Parameters
-- `M`: Monomial type
+- `M`: NormalMonomial type
 
 # Fields
 - `term_sparse_graph_supp::Vector{M}`: Support of the term sparsity graph
@@ -324,69 +288,6 @@ Structure representing term sparsity information for polynomial optimization.
 struct TermSparsity{M}
     term_sparse_graph_supp::Vector{M}
     block_bases::Vector{Vector{M}}
-end
-
-# =============================================================================
-# State Correlative Sparsity
-# =============================================================================
-
-"""
-    StateCorrelativeSparsity{A<:AlgebraType, ST<:StateType, T<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
-
-Structure representing the correlative sparsity pattern for state polynomial optimization.
-
-Similar to `CorrelativeSparsity` but for NCStatePolynomial problems.
-
-# Type Parameters
-- `A<:AlgebraType`: The algebra type
-- `ST<:StateType`: The state type (Arbitrary or MaxEntangled)
-- `T<:Integer`: The index type used in the registry
-- `P<:NCStatePolynomial`: The state polynomial type
-- `M<:NCStateWord`: The state word type
-
-# Fields
-- `cliques::Vector{Vector{T}}`: Groups of variable indices that form cliques
-- `registry::VariableRegistry{A,T}`: Variable registry for symbol lookups
-- `cons::Vector{P}`: All constraints in the problem
-- `clq_cons::Vector{Vector{Int}}`: Constraint indices assigned to each clique
-- `global_cons::Vector{Int}`: Constraint indices not captured by any single clique
-- `clq_mom_mtx_bases::Vector{Vector{M}}`: NCStateWord bases for moment matrices
-- `clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}`: NCStateWord bases for localizing matrices
-"""
-struct StateCorrelativeSparsity{A<:AlgebraType, ST<:StateType, T<:Integer, P<:NCStatePolynomial, M<:NCStateWord}
-    cliques::Vector{Vector{T}}
-    registry::VariableRegistry{A,T}
-    cons::Vector{P}
-    clq_cons::Vector{Vector{Int}}
-    global_cons::Vector{Int}
-    clq_mom_mtx_bases::Vector{Vector{M}}
-    clq_localizing_mtx_bases::Vector{Vector{Vector{M}}}
-end
-
-function Base.show(io::IO, cs::StateCorrelativeSparsity{A,ST,T,P,M}) where {A,ST,T,P,M}
-    max_size = isempty(cs.cliques) ? 0 : maximum(length.(cs.cliques))
-    println(io, "State Correlative Sparsity ($(nameof(A)), $(nameof(ST))): \n")
-    println(io, "   maximum clique size: $max_size")
-    println(io, "   number of cliques: $(length(cs.cliques))")
-    for clique_i in 1:length(cs.cliques)
-        println(io, "   Clique $clique_i: ")
-        clique_syms = [cs.registry[idx] for idx in cs.cliques[clique_i]]
-        println(io, "       Variables: ", clique_syms)
-        println(io, "       Bases length: ", length(cs.clq_mom_mtx_bases[clique_i]))
-        println(io, "       Constraints: ")
-        for (local_j, cons_idx) in enumerate(cs.clq_cons[clique_i])
-            println(io, "           ", cs.cons[cons_idx], " :  with $(length(cs.clq_localizing_mtx_bases[clique_i][local_j])) basis NCStateWords")
-        end
-    end
-    println(io, "   Global Constraints: ")
-    for geq_cons in cs.global_cons
-        println(io, "     $(geq_cons)")
-    end
-end
-
-function debug(ts::TermSparsity)
-    println("Term Sparse Graph Support", ts.term_sparse_graph_supp)
-    println("Block bases", ts.block_bases)
 end
 
 function Base.show(io::IO, sparsity::TermSparsity)
@@ -402,41 +303,45 @@ Initialize the activated support for term sparsity iteration.
 # Arguments
 - `partial_obj::P`: Partial objective polynomial for this clique
 - `cons::Vector{P}`: Constraint polynomials assigned to this clique
-- `mom_mtx_bases::Vector{M}`: Moment matrix basis monomials
+- `mom_mtx_bases::Vector{M}`: Moment matrix basis NormalMonomials
 
 # Returns
-- `Vector{M}`: Sorted union of symmetric-canonicalized objective monomials,
+- `Vector{NormalMonomial{A,T}}`: Sorted union of symmetric-canonicalized objective monomials,
   constraint monomials, and diagonal moment entries
 """
 function init_activated_supp(
     partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
-    # Compute diagonal entries b†b and simplify them using algebra-specific rules
-    # (e.g., for ProjectorAlgebra, x†x = x*x simplifies to x)
-    diagonal_entries = M[]
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
+    # Compute diagonal entries b†b with bilinear expansion for NormalMonomial bases
+    # For each basis NormalMonomial b, expand: Σ_{k,l} conj(c_k) * c_l * (word_k)† * word_l
+    NM = NormalMonomial{A,T}
+    diagonal_entries = NM[]
     for b in mom_mtx_bases
-        diag_mono = neat_dot(b, b)
-        # Simplify and extract monomials (may produce multiple terms)
-        simplified_poly = Polynomial(simplify(diag_mono))
-        append!(diagonal_entries, monomials(simplified_poly))
+        for (c1, word1) in b
+            for (c2, word2) in b
+                diag_word = neat_dot(word1.word, word2.word)
+                simplified_poly = Polynomial(simplify(A, diag_word))
+                append!(diagonal_entries, last.(simplified_poly.terms))
+            end
+        end
     end
     return sorted_union(
-        symmetric_canon.(monomials(partial_obj)),
-        mapreduce(monomials, vcat, cons; init=M[]),
+        symmetric_canon.(last.(partial_obj.terms)),
+        mapreduce(p -> last.(p.terms), vcat, cons; init=NM[]),
         diagonal_entries
     )
 end
 
 """
-    term_sparsities(initial_activated_supp::Vector{M}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm) where {A,T,C,P,M}
+    term_sparsities(initial_activated_supp::Vector{NormalMonomial{A,T}}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm)
 
 Computes term sparsity structures for the moment matrix and all localizing matrices.
 
 # Arguments
-- `initial_activated_supp::Vector{M}`: Initial set of activated support monomials
+- `initial_activated_supp::Vector{NormalMonomial}`: Initial set of activated support NormalMonomials
 - `cons::Vector{P}`: Vector of constraint polynomials
-- `mom_mtx_bases::Vector{M}`: Basis monomials for the moment matrix
-- `localizing_mtx_bases::Vector{Vector{M}}`: Basis monomials for each localizing matrix corresponding to constraints
+- `mom_mtx_bases::Vector{M}`: Basis NormalMonomials for the moment matrix
+- `localizing_mtx_bases::Vector{Vector{M}}`: Basis Monomials for each localizing matrix corresponding to constraints
 - `ts_algo::EliminationAlgorithm`: Algorithm for clique tree elimination in term sparsity graphs
 
 # Returns
@@ -444,12 +349,12 @@ Computes term sparsity structures for the moment matrix and all localizing matri
   corresponding to the moment matrix and subsequent elements corresponding to localizing matrices
 """
 function term_sparsities(
-    initial_activated_supp::Vector{M},
+    initial_activated_supp::Vector{NormalMonomial{A,T}},
     cons::Vector{P},
     mom_mtx_bases::Vector{M},
     localizing_mtx_bases::Vector{Vector{M}},
     ts_algo::EliminationAlgorithm
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     [
         [iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo)];
         map(zip(cons, localizing_mtx_bases)) do (poly, basis)
@@ -459,38 +364,49 @@ function term_sparsities(
 end
 
 """
-    get_term_sparsity_graph(cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}) where {A,T,M}
+    get_term_sparsity_graph(cons_support::Vector{NormalMonomial{A,T}}, activated_supp::Vector{NormalMonomial{A,T}}, bases::Vector{M}) where {A,T,M}
 
 Constructs a term sparsity graph for polynomial constraints.
 
 # Arguments
-- `cons_support::Vector{M}`: Support monomials of constraints
-- `activated_supp::Vector{M}`: Support from previous iterations
-- `bases::Vector{M}`: Basis used to index the moment matrix
+- `cons_support::Vector{NormalMonomial}`: Support NormalMonomials of constraints
+- `activated_supp::Vector{NormalMonomial}`: Support from previous iterations
+- `bases::Vector{M}`: Basis Monomials used to index the moment matrix
 
 # Returns
 - `SimpleGraph`: Term sparsity graph where edges connect basis elements
   whose products have support in the activated support set
 """
 function get_term_sparsity_graph(
-    cons_support::Vector{M}, activated_supp::Vector{M}, bases::Vector{M}
-) where {A<:AlgebraType, T<:Integer, M<:Monomial{A,T}}
+    cons_support::Vector{NormalMonomial{A,T}}, activated_supp::Vector{NormalMonomial{A,T}}, bases::Vector{M}
+) where {A<:AlgebraType, T<:Integer, M<:NormalMonomial{A,T}}
     nterms = length(bases)
     G = SimpleGraph(nterms)
     sorted_activated_supp = sort(activated_supp)
 
     for i in 1:nterms, j in i+1:nterms
-        for supp in cons_support
-            # _neat_dot3 returns Monomial, simplify to get Polynomial with algebra-specific rules
-            connected_poly_lr = Polynomial(simplify(_neat_dot3(bases[i], supp, bases[j])))
-            connected_poly_rl = Polynomial(simplify(_neat_dot3(bases[j], supp, bases[i])))
-            # Check if any monomial from the simplified result is in activated support
-            monos_lr = monomials(connected_poly_lr)
-            monos_rl = monomials(connected_poly_rl)
-            if any(m in sorted_activated_supp for m in monos_lr) ||
-               any(m in sorted_activated_supp for m in monos_rl)
-                add_edge!(G, i, j)
-                break  # Edge already added, no need to continue checking supports
+        edge_found = false
+        # Expand bilinear form over all term pairs from NormalMonomial bases
+        for (_, word_i) in bases[i]
+            edge_found && break
+            for (_, word_j) in bases[j]
+                edge_found && break
+                for supp in cons_support
+                    # _neat_dot3 on NormalMonomials returns Vector{T}
+                    word_lr = _neat_dot3(word_i, supp, word_j)
+                    word_rl = _neat_dot3(word_j, supp, word_i)
+                    connected_poly_lr = Polynomial(simplify(A, word_lr))
+                    connected_poly_rl = Polynomial(simplify(A, word_rl))
+                    # Check if any result monomial is in activated support
+                    monos_lr = last.(connected_poly_lr.terms)
+                    monos_rl = last.(connected_poly_rl.terms)
+                    if any(m in sorted_activated_supp for m in monos_lr) ||
+                       any(m in sorted_activated_supp for m in monos_rl)
+                        add_edge!(G, i, j)
+                        edge_found = true
+                        break
+                    end
+                end
             end
         end
     end
@@ -498,23 +414,24 @@ function get_term_sparsity_graph(
 end
 
 """
-    iterate_term_sparse_supp(activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm) where {A,T,C,P,M}
+    iterate_term_sparse_supp(activated_supp::Vector{NormalMonomial{A,T}}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm) where {A,T,C,P,M}
 
 Iteratively computes term sparsity support for a polynomial.
 
 # Arguments
-- `activated_supp::Vector{M}`: Currently activated support monomials
+- `activated_supp::Vector{NormalMonomial}`: Currently activated support NormalMonomials
 - `poly::P`: Input polynomial
-- `basis::Vector{M}`: Basis monomials
+- `basis::Vector{M}`: Basis Monomials
 - `elim_algo::EliminationAlgorithm`: Elimination algorithm for clique decomposition
 
 # Returns
 - `TermSparsity{M}`: Term sparsity structure containing graph support and block bases
 """
 function iterate_term_sparse_supp(
-    activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
-    F = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
+    activated_supp::Vector{NormalMonomial{A,T}}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
+    # poly.terms contains (coef, NormalMonomial) tuples
+    F = get_term_sparsity_graph(last.(poly.terms), activated_supp, basis)
     blocks = clique_decomp(F, elim_algo)
     map(block -> add_clique!(F, block), blocks)
     return TermSparsity(term_sparsity_graph_supp(F, basis, poly), map(x -> basis[x], blocks))
@@ -529,18 +446,30 @@ Implements equation (10.4) from "Sparse Polynomial Optimization: Theory and Prac
 
 # Arguments
 - `G::SimpleGraph`: Term sparsity graph
-- `basis::Vector{M}`: Basis monomials
+- `basis::Vector{M}`: Basis Monomials
 - `g::P`: Input polynomial
 
 # Returns
-- `Vector{M}`: Support monomials for the term sparsity graph
+- `Vector{NormalMonomial{A,T}}`: Support NormalMonomials for the term sparsity graph
 """
 function term_sparsity_graph_supp(
     G::SimpleGraph, basis::Vector{M}, g::P
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:Monomial{A,T}}
-    # Compute products basis[a]† * g_support * basis[b] for all graph edges
-    # _neat_dot3 returns Monomial, simplify then extract monomials
-    gsupp(a, b) = reduce(vcat, [monomials(Polynomial(simplify(_neat_dot3(a, g_supp, b)))) for g_supp in monomials(g)])
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
+    NM = NormalMonomial{A,T}
+    # Compute products with bilinear expansion over Monomial terms
+    function gsupp(a::M, b::M)
+        out = NM[]
+        for (_, word_a) in a
+            for (_, word_b) in b
+                for g_supp in last.(g.terms)
+                    word = _neat_dot3(word_a, g_supp, word_b)
+                    p = Polynomial(simplify(A, word))
+                    append!(out, last.(p.terms))
+                end
+            end
+        end
+        return out
+    end
     return union(
         [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
         [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...
@@ -608,12 +537,13 @@ function get_state_correlative_graph(
         add_clique!(G, positions)
     end
 
-    # Add cliques from constraints
+    # Add cliques from constraints (whole constraint, not per-monomial)
+    # All variables in a constraint must be connected to ensure the constraint
+    # can be assigned to a single clique in assign_state_constraint()
     for con in cons
-        for ncsw in monomials(con)
-            positions = get_positions(ncsw)
-            add_clique!(G, positions)
-        end
+        con_indices = variable_indices(con)
+        positions = [idx_to_node[idx] for idx in con_indices if haskey(idx_to_node, idx)]
+        add_clique!(G, positions)
     end
 
     return G, sorted_indices, idx_to_node
@@ -700,20 +630,20 @@ function _extract_compound_state_words(
 end
 
 """
-    correlative_sparsity(pop::StatePolyOpt, order, elim_algo) -> StateCorrelativeSparsity
+    correlative_sparsity(pop::PolyOpt, order, elim_algo) -> CorrelativeSparsity
 
 Decomposes a state polynomial optimization problem into a correlative sparsity pattern.
 
 # Arguments
-- `pop::StatePolyOpt{A,T,ST,P}`: State polynomial optimization problem
+- `pop::PolyOpt{A,T,P}`: Polynomial optimization problem with NCStatePolynomial objective
 - `order::Int`: Order of the moment relaxation
 - `elim_algo::EliminationAlgorithm`: Algorithm for clique tree elimination
 
 # Returns
-- `StateCorrelativeSparsity{A,ST,T,P,M}`: State correlative sparsity structure
+- `CorrelativeSparsity{A,T,P,M,ST}`: Correlative sparsity structure for state polynomials
 """
 function correlative_sparsity(
-    pop::StatePolyOpt{A,T,ST,P},
+    pop::PolyOpt{A,T,P},
     order::Int,
     elim_algo::EliminationAlgorithm
 ) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
@@ -774,7 +704,7 @@ function correlative_sparsity(
         end
     end
 
-    return StateCorrelativeSparsity{A,ST,T,P,M}(
+    return CorrelativeSparsity{A,T,P,M,ST}(
         cliques,
         registry,
         all_cons,
@@ -814,7 +744,7 @@ basis elements, making the graph fully connected.
   constraint monomials
 """
 function init_activated_supp(
-    partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
+    partial_obj::P, cons::Vector{P}, _mom_mtx_bases::Vector{M}
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
     # Only include objective and constraint monomials (no monosquare/diagonal terms)
     # This matches NCTSSOS's default monosquare=false behavior

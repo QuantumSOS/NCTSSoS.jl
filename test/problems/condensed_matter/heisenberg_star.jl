@@ -11,11 +11,18 @@
 # Results verified against NCTSSOS oracles.
 # =============================================================================
 
-using Test, NCTSSoS
+using Test, NCTSSoS, JuMP
 using Graphs
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__DIR__), "..", "standalone_setup.jl"))
+# SOLVER fallback for standalone/REPL execution
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
 # Load oracle values
 include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "heisenberg_star_oracles.jl"))

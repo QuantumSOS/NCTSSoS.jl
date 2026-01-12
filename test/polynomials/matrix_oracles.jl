@@ -49,11 +49,12 @@ end
             for b in idxs
                 for c in idxs
                     word = [a, b, c]
-                    m = Monomial{PauliAlgebra}(word)
-                    t = simplify(m)
+                    terms = NCTSSoS._simplified_to_terms(PauliAlgebra, simplify(PauliAlgebra, word), Int)
+                    @test length(terms) == 1
+                    coef, mono = terms[1]
 
                     lhs = _pauli_word_oracle(word, nsites)
-                    rhs = ComplexF64(t.coefficient) * _pauli_word_oracle(t.monomial.word, nsites)
+                    rhs = coef * _pauli_word_oracle(mono.word, nsites)
                     @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
                 end
             end
@@ -104,30 +105,49 @@ function _fermion_poly_oracle(p::Polynomial{FermionicAlgebra,T,C}, nmodes::Int) 
     return acc
 end
 
+function _fermion_poly_oracle(pairs::AbstractVector{Tuple{Int,NormalMonomial{FermionicAlgebra,T}}}, nmodes::Int) where {T<:Integer}
+    dim = 2^nmodes
+    acc = zeros(ComplexF64, dim, dim)
+    for (coef, mono) in pairs
+        coef == 0 && continue
+        acc .+= ComplexF64(coef) * _fermion_word_oracle(mono.word, nmodes)
+    end
+    return acc
+end
+
+function _fermion_poly_oracle(pairs::AbstractVector{Tuple{Int,Vector{T}}}, nmodes::Int) where {T<:Integer}
+    dim = 2^nmodes
+    acc = zeros(ComplexF64, dim, dim)
+    for (coef, word) in pairs
+        coef == 0 && continue
+        acc .+= ComplexF64(coef) * _fermion_word_oracle(word, nmodes)
+    end
+    return acc
+end
+
 @testset "Matrix Oracles" begin
     @testset "FermionicAlgebra: simplify matches Jordan–Wigner model" begin
         nmodes = 3
 
         # Nilpotency: a₁a₁ = 0, a₁†a₁† = 0
         for word in (Int32[1, 1], Int32[-1, -1])
-            m = Monomial{FermionicAlgebra}(word)
-            p = simplify(m)
+            p = simplify(FermionicAlgebra, word)
             lhs = _fermion_word_oracle(word, nmodes)
             rhs = _fermion_poly_oracle(p, nmodes)
             @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
         end
 
         # CAR: a₁ a₁† = 1 - a₁† a₁
-        m = Monomial{FermionicAlgebra}(Int32[1, -1])
-        p = simplify(m)
-        lhs = _fermion_word_oracle(m.word, nmodes)
+        word = Int32[1, -1]
+        p = simplify(FermionicAlgebra, word)
+        lhs = _fermion_word_oracle(word, nmodes)
         rhs = _fermion_poly_oracle(p, nmodes)
         @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
 
         # Cross-mode: a₁ a₂† = -a₂† a₁
-        m = Monomial{FermionicAlgebra}(Int32[1, -2])
-        p = simplify(m)
-        lhs = _fermion_word_oracle(m.word, nmodes)
+        word = Int32[1, -2]
+        p = simplify(FermionicAlgebra, word)
+        lhs = _fermion_word_oracle(word, nmodes)
         rhs = _fermion_poly_oracle(p, nmodes)
         @test isapprox(lhs, rhs; atol=1e-12, rtol=0)
     end

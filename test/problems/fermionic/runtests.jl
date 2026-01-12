@@ -1,19 +1,14 @@
 # =============================================================================
-# Fermionic Systems Tests Runner
+# test/problems/fermionic/runtests.jl
 # =============================================================================
-# Tests for fermionic system optimization:
-#   - General fermionic systems
-#   - Fermionic chains
-#
-# NOTE: These tests are commented out as they take too long or are not
-#       yet validated.
+# Tests: Fermionic systems (parity superselection, fermionic chains)
+# Dependencies: SOLVER
+# Requires --local: yes (parent runtests.jl guards with `if USE_LOCAL`)
 # =============================================================================
 
 using Test
 
-#=
 @testset "Fermionic Systems" begin
     include("fermionic.jl")
     include("fermionic_chain.jl")
 end
-=#

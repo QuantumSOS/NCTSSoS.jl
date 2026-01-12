@@ -3,90 +3,96 @@
 # Internal (not exported): NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
 using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
 
+_sym(::Type{ST}, m::NormalMonomial{A,T}) where {ST<:NCTSSoS.StateType,A<:NCTSSoS.AlgebraType,T<:Integer} =
+    StateSymbol{ST}(m)
+
+_sw(::Type{ST}, monos::Vector{NormalMonomial{A,T}}) where {ST<:NCTSSoS.StateType,A<:NCTSSoS.AlgebraType,T<:Integer} =
+    StateWord{ST,A,T}([_sym(ST, m) for m in monos])
+
 @testset "StateWord{MaxEntangled} (Tracial)" begin
     @testset "Creation and Equality" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw = StateWord{MaxEntangled}([m1, m2])
+        sw = _sw(MaxEntangled, [m1, m2])
         @test sw isa StateWord{MaxEntangled}
         @test length(sw.state_syms) == 2
 
         # StateWords are sorted by monomial ordering
-        sw_sorted = StateWord{MaxEntangled}([m2, m1])
+        sw_sorted = _sw(MaxEntangled, [m2, m1])
         @test sw == sw_sorted  # Order doesn't matter, they get sorted
 
-        # tr() convenience constructor
-        sw_tr = tr(m1)
-        @test sw_tr isa StateWord{MaxEntangled}
+        # Single expectation symbol
+        sym_tr = _sym(MaxEntangled, m1)
+        @test sym_tr isa StateSymbol{MaxEntangled}
     end
 
     @testset "Cyclic Canonicalization for Trace" begin
         # For MaxEntangled (trace) states, cyclic permutations should be equivalent
         # tr(ABC) = tr(BCA) = tr(CAB)
-        m_abc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        m_bca = Monomial{NonCommutativeAlgebra}([2, 3, 1])
-        m_cab = Monomial{NonCommutativeAlgebra}([3, 1, 2])
+        m_abc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2, 3))
+        m_bca = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2, 3, 1))
+        m_cab = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 1, 2))
 
-        sw_abc = tr(m_abc)
-        sw_bca = tr(m_bca)
-        sw_cab = tr(m_cab)
+        sym_abc = _sym(MaxEntangled, m_abc)
+        sym_bca = _sym(MaxEntangled, m_bca)
+        sym_cab = _sym(MaxEntangled, m_cab)
 
-        @test sw_abc == sw_bca
-        @test sw_bca == sw_cab
-        @test sw_abc == sw_cab
-        @test hash(sw_abc) == hash(sw_bca) == hash(sw_cab)
+        @test sym_abc == sym_bca
+        @test sym_bca == sym_cab
+        @test sym_abc == sym_cab
+        @test hash(sym_abc) == hash(sym_bca) == hash(sym_cab)
 
         # Also test with reversal (tr(ABC) = tr(C†B†A†))
         # For NonCommutativeAlgebra, adjoint reverses the word
-        m_cba = Monomial{NonCommutativeAlgebra}([3, 2, 1])
-        sw_cba = tr(m_cba)
-        @test sw_abc == sw_cba
+        m_cba = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 2, 1))
+        sym_cba = _sym(MaxEntangled, m_cba)
+        @test sym_abc == sym_cba
 
         # Test with longer words
-        m_12345 = Monomial{NonCommutativeAlgebra}([1, 2, 3, 4, 5])
-        m_23451 = Monomial{NonCommutativeAlgebra}([2, 3, 4, 5, 1])
-        m_34512 = Monomial{NonCommutativeAlgebra}([3, 4, 5, 1, 2])
+        m_12345 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2, 3, 4, 5))
+        m_23451 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2, 3, 4, 5, 1))
+        m_34512 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 4, 5, 1, 2))
 
-        @test tr(m_12345) == tr(m_23451)
-        @test tr(m_12345) == tr(m_34512)
+        @test _sym(MaxEntangled, m_12345) == _sym(MaxEntangled, m_23451)
+        @test _sym(MaxEntangled, m_12345) == _sym(MaxEntangled, m_34512)
     end
 
     @testset "Degree" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
-        m2 = Monomial{NonCommutativeAlgebra}([3])     # degree 1
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))  # degree 2
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))     # degree 1
 
-        sw = StateWord{MaxEntangled}([m1, m2])
+        sw = _sw(MaxEntangled, [m1, m2])
         @test degree(sw) == 3  # sum of degrees
     end
 
     @testset "Variables" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([2, 3])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2, 3))
 
-        sw = StateWord{MaxEntangled}([m1, m2])
+        sw = _sw(MaxEntangled, [m1, m2])
         vars = variables(sw)
 
-        @test 1 in vars
-        @test 2 in vars
-        @test 3 in vars
+        @test nc_idx(1) in vars
+        @test nc_idx(2) in vars
+        @test nc_idx(3) in vars
     end
 
     @testset "One and IsOne" begin
-        sw_one = one(StateWord{MaxEntangled,NonCommutativeAlgebra,Int64})
+        sw_one = one(StateWord{MaxEntangled,NonCommutativeAlgebra,UInt16})
         @test isone(sw_one)
 
-        m = Monomial{NonCommutativeAlgebra}([1])
-        sw_not_one = StateWord{MaxEntangled}([m])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        sw_not_one = _sw(MaxEntangled, [m])
         @test !isone(sw_not_one)
     end
 
     @testset "Multiplication" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw1 = StateWord{MaxEntangled}([m1])
-        sw2 = StateWord{MaxEntangled}([m2])
+        sw1 = _sw(MaxEntangled, [m1])
+        sw2 = _sw(MaxEntangled, [m2])
 
         # Multiplication returns StateWord (commutative, no phase)
         result = sw1 * sw2
@@ -95,11 +101,11 @@ using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
     end
 
     @testset "Comparison" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
 
-        sw1 = StateWord{MaxEntangled}([m1])
-        sw2 = StateWord{MaxEntangled}([m2])
+        sw1 = _sw(MaxEntangled, [m1])
+        sw2 = _sw(MaxEntangled, [m2])
 
         # Degree-first ordering
         @test isless(sw1, sw2)
@@ -110,11 +116,11 @@ using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
     end
 
     @testset "Hash and Uniqueness" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw1 = StateWord{MaxEntangled}([m1, m2])
-        sw2 = StateWord{MaxEntangled}([m2, m1])  # Same content, different order
+        sw1 = _sw(MaxEntangled, [m1, m2])
+        sw2 = _sw(MaxEntangled, [m2, m1])  # Same content, different order
 
         @test sw1 == sw2
         @test hash(sw1) == hash(sw2)
@@ -123,55 +129,93 @@ using NCTSSoS: NCStateWord, Arbitrary, MaxEntangled, expval, neat_dot
     end
 end
 
+@testset "expval" begin
+    @testset "NormalMonomial -> StateSymbol{Arbitrary}" begin
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        ev = expval(m)
+        @test ev isa StateSymbol{Arbitrary}
+        @test ev == StateSymbol{Arbitrary}(m)
+    end
+
+    @testset "TwistedGroupAlgebra -> StatePolynomial" begin
+        _, (σx, σy, _) = create_pauli_variables(1:1)
+        p = σx[1] * σy[1]  # i*σz₁
+        ev = expval(p)
+
+        expected = StatePolynomial(coefficients(p), [_sw(Arbitrary, [mono]) for (_, mono) in p.terms])
+
+        @test ev isa StatePolynomial
+        @test ev == expected
+    end
+
+    @testset "PBWAlgebra -> StatePolynomial" begin
+        _, (a, a_dag) = create_fermionic_variables(1:1)
+        p = a[1] * a_dag[1]  # 1 - a₁†a₁
+        ev = expval(p)
+
+        expected = StatePolynomial(coefficients(p), [_sw(Arbitrary, [mono]) for (_, mono) in p.terms])
+
+        @test ev isa StatePolynomial
+        @test ev == expected
+    end
+end
+
 @testset "StateWord{Arbitrary}" begin
     @testset "Creation with ς" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
 
-        sw = ς(m)
-        @test sw isa StateWord{Arbitrary}
-        @test length(sw.state_syms) == 1
+        sym = _sym(Arbitrary, m)
+        @test sym isa StateSymbol{Arbitrary}
     end
 
     @testset "Multiplication of Arbitrary StateWords" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw1 = ς(m1)
-        sw2 = ς(m2)
+        sym1 = _sym(Arbitrary, m1)
+        sym2 = _sym(Arbitrary, m2)
 
         # Multiplication returns StateWord (commutative, no phase)
-        result = sw1 * sw2
+        result = sym1 * sym2
         @test result isa StateWord
         @test length(result.state_syms) == 2
     end
 
     @testset "Involution (not Cyclic) Canonicalization for Arbitrary" begin
-        # For Arbitrary states, only involution canonicalization is applied
-        # <M> = <M†> but <ABC> ≠ <BCA> in general
+        # For Arbitrary states (supported real monoid algebras), symmetric canonicalization is used.
+        # Cyclic permutations are NOT identified, but reversal is.
 
-        m_abc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        m_bca = Monomial{NonCommutativeAlgebra}([2, 3, 1])
-        # adjoint([1, 2, 3]) = [-3, -2, -1] for NonCommutativeAlgebra
-        m_abc_adj = Monomial{NonCommutativeAlgebra}([-3, -2, -1])
+        # Odd degree (3): involution NOT applied
+        m_abc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2, 3))
+        m_bca = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2, 3, 1))
+        m_abc_adj = adjoint(m_abc)
 
-        sw_abc = ς(m_abc)
-        sw_bca = ς(m_bca)
-        sw_abc_adj = ς(m_abc_adj)
+        sym_abc = _sym(Arbitrary, m_abc)
+        sym_bca = _sym(Arbitrary, m_bca)
+        sym_abc_adj = _sym(Arbitrary, m_abc_adj)
 
         # Cyclic permutations should NOT be equal for Arbitrary states
-        @test sw_abc != sw_bca
+        @test sym_abc != sym_bca
 
-        # But m and adjoint(m) should be equal (involution symmetry)
-        @test sw_abc == sw_abc_adj
+        # Reversal is identified under symmetric canonicalization
+        @test sym_abc == sym_abc_adj
+
+        # Even degree (2): involution IS applied, so m == adjoint(m)
+        # For NonCommutativeAlgebra: adjoint([1, 2]) = [2, 1] (reverse, no negation)
+        m_ab = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_ab_adj = adjoint(m_ab)  # [2, 1]
+        sym_ab = _sym(Arbitrary, m_ab)
+        sym_ab_adj = _sym(Arbitrary, m_ab_adj)
+        @test sym_ab == sym_ab_adj
     end
 end
 
 @testset "NCStateWord{MaxEntangled}" begin
     @testset "Creation" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw = StateWord{MaxEntangled}([m_state])
+        sw = _sw(MaxEntangled, [m_state])
         ncsw = NCStateWord(sw, m_nc)
 
         @test ncsw isa NCStateWord{MaxEntangled}
@@ -180,33 +224,33 @@ end
     end
 
     @testset "Degree" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
-        m_nc = Monomial{NonCommutativeAlgebra}([3, 4])      # degree 2
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))  # degree 2
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 4))      # degree 2
 
-        sw = StateWord{MaxEntangled}([m_state])
+        sw = _sw(MaxEntangled, [m_state])
         ncsw = NCStateWord(sw, m_nc)
 
         @test degree(ncsw) == 4  # 2 + 2
     end
 
     @testset "Variables" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3, 4])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 4))
 
-        sw = StateWord{MaxEntangled}([m_state])
+        sw = _sw(MaxEntangled, [m_state])
         ncsw = NCStateWord(sw, m_nc)
 
         vars = variables(ncsw)
-        @test all(i in vars for i in 1:4)
+        @test all(nc_idx(i) in vars for i in 1:4)
     end
 
     @testset "Multiplication" begin
-        # Use UInt8 monomials - multiplication is only defined for Unsigned types
-        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
-        m2 = Monomial{NonCommutativeAlgebra}(UInt8[2])
+        # Multiplication is only defined for unsigned (site-encoded) indices.
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw1 = StateWord{MaxEntangled}([m1])
-        sw2 = StateWord{MaxEntangled}([m2])
+        sw1 = _sw(MaxEntangled, [m1])
+        sw2 = _sw(MaxEntangled, [m2])
 
         ncsw1 = NCStateWord(sw1, m1)
         ncsw2 = NCStateWord(sw2, m2)
@@ -216,10 +260,10 @@ end
     end
 
     @testset "Adjoint" begin
-        m_state = Monomial{NonCommutativeAlgebra}(UInt8[1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}(UInt8[3, 4])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 4))
 
-        sw = StateWord{MaxEntangled}([m_state])
+        sw = _sw(MaxEntangled, [m_state])
         ncsw = NCStateWord(sw, m_nc)
 
         ncsw_adj = adjoint(ncsw)
@@ -227,9 +271,8 @@ end
     end
 
     @testset "neat_dot" begin
-        # Use UInt8 monomials for multiplication support
-        m = Monomial{NonCommutativeAlgebra}(UInt8[1])
-        sw = StateWord{MaxEntangled}([m])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        sw = _sw(MaxEntangled, [m])
         ncsw = NCStateWord(sw, m)
 
         nd = neat_dot(ncsw, ncsw)
@@ -237,10 +280,10 @@ end
     end
 
     @testset "expval" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw = StateWord{MaxEntangled}([m_state])
+        sw = _sw(MaxEntangled, [m_state])
         ncsw = NCStateWord(sw, m_nc)
 
         ev = expval(ncsw)
@@ -249,28 +292,28 @@ end
     end
 
     @testset "One and IsOne" begin
-        ncsw_one = one(NCStateWord{MaxEntangled,NonCommutativeAlgebra,Int64})
+        ncsw_one = one(NCStateWord{MaxEntangled,NonCommutativeAlgebra,UInt16})
         @test isone(ncsw_one)
     end
 end
 
 @testset "NCStateWord{Arbitrary}" begin
     @testset "Creation" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw = ς(m_state)
+        sw = _sw(Arbitrary, [m_state])
         ncsw = NCStateWord(sw, m_nc)
 
         @test ncsw isa NCStateWord{Arbitrary}
     end
 
     @testset "Comparison" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
 
-        sw1 = ς(m1)
-        sw2 = ς(m2)
+        sw1 = _sw(Arbitrary, [m1])
+        sw2 = _sw(Arbitrary, [m2])
 
         ncsw1 = NCStateWord(sw1, m1)
         ncsw2 = NCStateWord(sw2, m2)
@@ -279,12 +322,12 @@ end
     end
 
     @testset "Hash and Uniqueness" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
-        sw = ς(m)
-        nc_word = Monomial{NonCommutativeAlgebra}([3])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        sw = _sw(Arbitrary, [m])
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        ncsw1 = NCStateWord(sw, nc_word)
-        ncsw2 = NCStateWord(sw, nc_word)
+        ncsw1 = NCStateWord(sw, m_nc)
+        ncsw2 = NCStateWord(sw, m_nc)
 
         @test ncsw1 == ncsw2
         @test hash(ncsw1) == hash(ncsw2)
@@ -292,9 +335,16 @@ end
 end
 
 @testset "StateSymbol Canonicalization" begin
-    @testset "StateSymbol{Arbitrary} - Involution Canon" begin
-        # For Arbitrary states: <M> = <M†>, so StateSymbol{Arbitrary}(m) == StateSymbol{Arbitrary}(adjoint(m))
-        m = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+    @testset "StateSymbol{Arbitrary} - Symmetric Canon (real monoid algebras)" begin
+        # Symmetric canonicalization identifies reversal for all degrees.
+        m_odd = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2, 3))
+        m_odd_adj = adjoint(m_odd)
+        sym_odd1 = StateSymbol{Arbitrary}(m_odd)
+        sym_odd2 = StateSymbol{Arbitrary}(m_odd_adj)
+        @test sym_odd1 == sym_odd2
+
+        # Even degree (2): involution IS applied, so <M> = <M†>
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
         m_adj = adjoint(m)
         
         sym1 = StateSymbol{Arbitrary}(m)
@@ -306,13 +356,18 @@ end
         # Both should canonicalize to the same monomial (min of m, adjoint(m))
         @test sym1.mono == sym2.mono
     end
+
+    @testset "StateSymbol{Arbitrary} - No canon (complex / PBW algebras)" begin
+        _, (a, a_dag) = create_fermionic_variables(1:1)
+        @test StateSymbol{Arbitrary}(a[1]) != StateSymbol{Arbitrary}(a_dag[1])
+    end
     
     @testset "StateSymbol{MaxEntangled} - Cyclic Symmetric Canon" begin
         # For MaxEntangled states: tr(ABC) = tr(BCA) = tr(CAB) = tr(CBA) = ...
-        m_abc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        m_bca = Monomial{NonCommutativeAlgebra}([2, 3, 1])
-        m_cab = Monomial{NonCommutativeAlgebra}([3, 1, 2])
-        m_cba = Monomial{NonCommutativeAlgebra}([3, 2, 1])  # reverse (adjoint for NC)
+        m_abc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2, 3))
+        m_bca = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2, 3, 1))
+        m_cab = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 1, 2))
+        m_cba = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 2, 1))  # reverse (adjoint for NC)
         
         sym_abc = StateSymbol{MaxEntangled}(m_abc)
         sym_bca = StateSymbol{MaxEntangled}(m_bca)
@@ -331,7 +386,7 @@ end
     end
     
     @testset "StateSymbol - Basic Properties" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
         sym = StateSymbol{Arbitrary}(m)
         
         # degree
@@ -339,11 +394,11 @@ end
         
         # variables
         vars = variables(sym)
-        @test 1 in vars
-        @test 2 in vars
+        @test nc_idx(1) in vars
+        @test nc_idx(2) in vars
         
         # one and isone
-        sym_one = one(StateSymbol{Arbitrary,NonCommutativeAlgebra,Int64})
+        sym_one = one(StateSymbol{Arbitrary,NonCommutativeAlgebra,UInt16})
         @test isone(sym_one)
         @test !isone(sym)
         
@@ -351,7 +406,7 @@ end
         @test adjoint(sym) === sym
         
         # isless (degree-first)
-        m_longer = Monomial{NonCommutativeAlgebra}([1, 2, 3])
+        m_longer = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2, 3))
         sym_longer = StateSymbol{Arbitrary}(m_longer)
         @test isless(sym, sym_longer)
     end

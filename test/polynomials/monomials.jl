@@ -1,535 +1,349 @@
 # NCTSSoS is loaded by parent runtests.jl
 using Test, NCTSSoS
-using NCTSSoS: variable_indices, expval
+using NCTSSoS: variable_indices, expval, encode_index
 
 @testset "Monomials" begin
-    @testset "Creation" begin
-        # Create monomials directly with word representation
-        mono1 = Monomial{NonCommutativeAlgebra}([1, 2, 1, 3])
-        @test mono1.word == [1, 2, 1, 3]
-        @test degree(mono1) == 4
+    # =============================================================================
+    # Setup: 4 variables (2 operators × 2 sites) for proper commutativity testing
+    # =============================================================================
+    nc_s1_op1 = encode_index(UInt, 1, 1)  # operator 1 @ site 1
+    nc_s1_op2 = encode_index(UInt, 2, 1)  # operator 2 @ site 1
+    nc_s2_op1 = encode_index(UInt, 1, 2)  # operator 1 @ site 2
+    nc_s2_op2 = encode_index(UInt, 2, 2)  # operator 2 @ site 2
 
-        # Empty monomial (identity)
-        mono_identity = Monomial{NonCommutativeAlgebra}(Int[])
-        @test isone(mono_identity)
-        @test degree(mono_identity) == 0
+    @testset "NormalMonomial Properties" begin
+        # Data-driven tests: single construction tests multiple properties
+        test_cases = [
+            # (word, degree, isone, var_count, description)
+            (UInt[], 0, true, 0, "identity"),
+            ([nc_s1_op1], 1, false, 1, "single operator"),
+            ([nc_s1_op1, nc_s1_op2], 2, false, 2, "two ops same site"),
+            ([nc_s1_op1, nc_s2_op1], 2, false, 2, "two ops different sites"),
+            ([nc_s1_op1, nc_s1_op2, nc_s2_op1, nc_s2_op2], 4, false, 4, "degree-4 all vars"),
+        ]
 
-        # Single element monomial
-        mono_single = Monomial{NonCommutativeAlgebra}([5])
-        @test mono_single.word == [5]
-        @test degree(mono_single) == 1
-
-        # Monomial with zeros should filter them out
-        mono_with_zero = Monomial{NonCommutativeAlgebra}([1, 0, 2, 0, 3])
-        @test mono_with_zero.word == [1, 2, 3]
-        @test degree(mono_with_zero) == 3
-
-        # one(Monomial) should return identity
-        mono_one = one(Monomial{NonCommutativeAlgebra,Int64})
-        @test isone(mono_one)
-    end
-
-    @testset "Degree" begin
-        mono1 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        mono2 = Monomial{NonCommutativeAlgebra}(Int[])
-        mono3 = Monomial{NonCommutativeAlgebra}([1, 1, 1, 1, 1])
-
-        @test degree(mono1) == 3
-        @test degree(mono2) == 0
-        @test degree(mono3) == 5
-    end
-
-    @testset "Hash" begin
-        mono1 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        mono2 = Monomial{NonCommutativeAlgebra}([1, 3, 3])
-        mono3 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-
-        @test hash(mono1) != hash(mono2)
-        @test hash(mono1) == hash(mono3)
-
-        mono_empty = Monomial{NonCommutativeAlgebra}(Int[])
-        mono_zero_filtered = Monomial{NonCommutativeAlgebra}([0])
-        @test hash(mono_empty) == hash(mono_zero_filtered)
-    end
-
-    @testset "Adjoint Operation" begin
-        # Adjoint reverses word for self-adjoint algebras (unsigned types)
-        mono1 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
-        mono1_adj = adjoint(mono1)
-        @test mono1_adj.word == [3, 2, 1]
-
-        # Empty monomial adjoint should be empty
-        mono_empty = Monomial{NonCommutativeAlgebra}(UInt8[])
-        @test isone(adjoint(mono_empty))
-
-        # Single element adjoint
-        mono_single = Monomial{NonCommutativeAlgebra}(UInt8[5])
-        @test adjoint(mono_single).word == [5]
-
-        # Adjoint is involution: adjoint(adjoint(m)) == m
-        mono2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3, 4])
-        @test adjoint(adjoint(mono2)) == mono2
-
-        # Julia syntax shorthand
-        @test mono1' == adjoint(mono1)
-
-        mono_grouped = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 20, 21, 3])
-        # simplification are done separately from adjoint in this version
-        @test adjoint(mono_grouped).word == UInt8[3, 21, 20, 2, 1]
-    end
-
-    @testset "Multiplication" begin
-        # Note: Multiplication now returns Monomial (word concatenation only)
-        # Callers should apply simplify! explicitly if needed
-        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
-
-        # Same variable multiplication produces longer word (concatenation)
-        result = x[1] * x[1]
-        @test result isa Monomial
-        @test degree(result) == 2
-
-        # Different variables
-        result2 = x[1] * x[2]
-        @test degree(result2) == 2
-
-        # Identity multiplication
-        mono_id = one(Monomial{NonCommutativeAlgebra,UInt8})
-        mono_x = Monomial{NonCommutativeAlgebra}(UInt8[1])
-        result3 = mono_id * mono_x
-        @test result3 == mono_x
-
-        result4 = mono_x * mono_id
-        @test result4 == mono_x
-    end
-
-    @testset "Comparison" begin
-        mono1 = Monomial{NonCommutativeAlgebra}([1])
-        mono2 = Monomial{NonCommutativeAlgebra}([1, 2])
-        mono3 = Monomial{NonCommutativeAlgebra}([2])
-
-        # Degree-first ordering
-        @test isless(mono1, mono2)  # degree 1 < degree 2
-
-        # Same degree: lexicographic
-        @test isless(mono1, mono3)  # [1] < [2]
-
-        # Sorting works
-        monos = [mono2, mono3, mono1]
-        sorted_monos = sort(monos)
-        @test sorted_monos == [mono1, mono3, mono2]
-    end
-
-    @testset "Equality" begin
-        mono1 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        mono2 = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        mono3 = Monomial{NonCommutativeAlgebra}([1, 3, 2])
-
-        @test mono1 == mono2
-        @test mono1 != mono3
-
-        # Different algebra types are never equal
-        mono_pauli = Monomial{PauliAlgebra}([1, 2, 3])
-        mono_nc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        @test mono_pauli != mono_nc
-    end
-
-    @testset "Algebra Type Preservation" begin
-        # Monomials preserve their algebra type
-        mono_pauli = Monomial{PauliAlgebra}([1, 2])
-        mono_fermi = Monomial{FermionicAlgebra}(Int32[1, 2])
-        mono_unipotent = Monomial{UnipotentAlgebra}([1, 2])
-
-        @test mono_pauli isa Monomial{PauliAlgebra}
-        @test mono_fermi isa Monomial{FermionicAlgebra}
-        @test mono_unipotent isa Monomial{UnipotentAlgebra}
-    end
-
-    @testset "Adjoint for Fermionic/Signed Types" begin
-        # Test FermionicAlgebra adjoint (reverses AND negates)
-        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2, 3])
-        m_adj = adjoint(m_ferm)
-        @test m_adj.word == Int32[-3, 2, -1]
-
-        # Verify involution property for signed types: adjoint(adjoint(m)) == m
-        m_ferm2 = Monomial{FermionicAlgebra}(Int32[1, -2, 3, -4])
-        @test adjoint(adjoint(m_ferm2)) == m_ferm2
-
-        # Empty fermionic monomial
-        m_empty = Monomial{FermionicAlgebra}(Int32[])
-        @test isone(adjoint(m_empty))
-
-        # Single element
-        m_single = Monomial{FermionicAlgebra}(Int32[5])
-        @test adjoint(m_single).word == Int32[-5]
-
-        # Julia syntax shorthand
-        @test m_ferm' == m_adj
-    end
-
-    @testset "one(m::Monomial) Instance Method" begin
-        # Test instance method preserves algebra type
-        m_pauli = Monomial{PauliAlgebra}(UInt16[1, 2, 3])
-        @test one(m_pauli) == Monomial{PauliAlgebra}(UInt16[])
-        @test typeof(one(m_pauli)) == Monomial{PauliAlgebra,UInt16}
-
-        # Test with FermionicAlgebra
-        m_ferm = Monomial{FermionicAlgebra}(Int32[1, -2])
-        @test one(m_ferm) == Monomial{FermionicAlgebra}(Int32[])
-        @test typeof(one(m_ferm)) == Monomial{FermionicAlgebra,Int32}
-
-        # Test that one(m) returns identity
-        @test isone(one(m_pauli))
-        @test isone(one(m_ferm))
-
-        # Verify one(type) and one(instance) return same result
-        @test one(Monomial{PauliAlgebra,UInt16}) == one(m_pauli)
-    end
-
-    @testset "Monomial Default Constructor" begin
-        # Test default constructor uses NonCommutativeAlgebra
-        m = Monomial([1, 2, 3])
-        @test m isa Monomial{NonCommutativeAlgebra}
-        @test m.word == [1, 2, 3]
-
-        # Test with different integer types
-        m_int32 = Monomial(Int32[1, 2])
-        @test m_int32 isa Monomial{NonCommutativeAlgebra,Int32}
-
-        m_uint16 = Monomial(UInt16[1, 2])
-        @test m_uint16 isa Monomial{NonCommutativeAlgebra,UInt16}
-
-        # Test zero filtering in default constructor
-        m_zeros = Monomial([1, 0, 2, 0])
-        @test m_zeros.word == [1, 2]
-
-        # Empty default constructor
-        m_empty = Monomial(Int[])
-        @test isone(m_empty)
-    end
-
-    @testset "Zero Filtering Edge Cases" begin
-        # Leading zeros
-        m1 = Monomial{NonCommutativeAlgebra}([0, 0, 1, 2])
-        @test m1.word == [1, 2]
-
-        # Trailing zeros
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 0, 0])
-        @test m2.word == [1, 2]
-
-        # All zeros -> identity
-        m3 = Monomial{NonCommutativeAlgebra}([0, 0, 0])
-        @test isone(m3)
-
-        # Mixed zeros throughout
-        m4 = Monomial{NonCommutativeAlgebra}([0, 1, 0, 2, 0, 3, 0])
-        @test m4.word == [1, 2, 3]
-
-        # Single zero
-        m5 = Monomial{NonCommutativeAlgebra}([0])
-        @test isone(m5)
-    end
-
-    @testset "Cross-Algebra Type Equality" begin
-        # Same word, different algebras should never be equal
-        word = [1, 2, 3]
-        m_pauli = Monomial{PauliAlgebra}(word)
-        m_unipotent = Monomial{UnipotentAlgebra}(word)
-        m_projector = Monomial{ProjectorAlgebra}(word)
-
-        @test m_pauli != m_unipotent
-        @test m_pauli != m_projector
-        @test m_unipotent != m_projector
-
-        # Different algebras with different integer types
-        m_fermi = Monomial{FermionicAlgebra}(Int32.(word))
-        @test m_pauli != m_fermi
-        @test m_unipotent != m_fermi
-    end
-
-    @testset "Cross-Algebra Safety" begin
-        # Test that hash/equality contract is maintained across algebras
-        m_pauli = Monomial{PauliAlgebra}([1, 2, 3])
-        m_nc = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-
-        # Same word, different algebra = different hash (ensures Dict safety)
-        @test hash(m_pauli) != hash(m_nc)
-
-        # Verify isless throws descriptive error for cross-algebra comparison
-        @test_throws ArgumentError isless(m_pauli, m_nc)
-        @test_throws ArgumentError m_pauli < m_nc
-
-        # Verify error message is informative
-        try
-            isless(m_pauli, m_nc)
-            @test false  # Should not reach here
-        catch e
-            @test e isa ArgumentError
-            @test occursin("PauliAlgebra", string(e))
-            @test occursin("NonCommutativeAlgebra", string(e))
+        for (word, exp_degree, exp_isone, exp_var_count, desc) in test_cases
+            @testset "$desc" begin
+                m = NormalMonomial{NonCommutativeAlgebra,UInt}(word)
+                @test degree(m) == exp_degree
+                @test isone(m) == exp_isone
+                @test length(variable_indices(m)) == exp_var_count
+                @test isone(one(m))
+                @test typeof(one(m)) == typeof(m)
+            end
         end
     end
 
+    @testset "Simplify Site Reordering" begin
+        # Degree-4 monomial with interleaved sites and reversed intra-site order
+        # Tests: (1) cross-site commutativity, (2) intra-site order preservation
+        raw_word = [nc_s2_op2, nc_s1_op1, nc_s2_op1, nc_s1_op2]
+        result = simplify(NonCommutativeAlgebra, raw_word)
+
+        # Sites grouped (s1 before s2), intra-site order preserved
+        expected = [nc_s1_op1, nc_s1_op2, nc_s2_op2, nc_s2_op1]
+        @test result == expected
+    end
+
+    @testset "Hash Contract" begin
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s1_op2])
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s1_op2])
+        m3 = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s2_op1])
+
+        @test hash(m1) == hash(m2)  # equal monomials have equal hashes
+        @test hash(m1) != hash(m3)  # different monomials have different hashes
+    end
+
+    @testset "Equality" begin
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s1_op2])
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s1_op2])
+        m3 = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op2, nc_s1_op1])
+
+        @test m1 == m2
+        @test m1 != m3  # order preserved within same site
+    end
+
+    @testset "Comparison and Sorting" begin
+        m_deg1 = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1])
+        m_deg2a = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s1_op2])
+        m_deg2b = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s2_op1])
+
+        # Degree-first ordering
+        @test isless(m_deg1, m_deg2a)
+
+        # Sorting works
+        monos = [m_deg2b, m_deg1, m_deg2a]
+        sorted = sort(monos)
+        @test sorted[1] == m_deg1
+        @test degree(sorted[2]) == 2
+        @test degree(sorted[3]) == 2
+    end
+
+    @testset "Zero Rejection" begin
+        @test_throws ArgumentError NormalMonomial{NonCommutativeAlgebra,UInt}(UInt[0, 1, 2])
+        @test_throws ArgumentError NormalMonomial{NonCommutativeAlgebra,UInt}(UInt[0])
+    end
+
+    @testset "Normal Form Validation" begin
+        # Uses 4 variables (2 per site) to test both site-sorting and simplification
+
+        # --- NonCommutativeAlgebra: requires site-sorted ---
+        nc16_s1_op1 = encode_index(UInt16, 1, 1)
+        nc16_s1_op2 = encode_index(UInt16, 2, 1)
+        nc16_s2_op1 = encode_index(UInt16, 1, 2)
+        nc16_s2_op2 = encode_index(UInt16, 2, 2)
+
+        @test_throws ArgumentError NormalMonomial{NonCommutativeAlgebra,UInt16}(
+            UInt16[nc16_s2_op1, nc16_s1_op1, nc16_s2_op2, nc16_s1_op2]
+        )
+
+        # --- PauliAlgebra: requires site-sorted, ≤1 operator per site ---
+        pauli_s1_x, pauli_s1_y = UInt16(1), UInt16(2)
+        pauli_s2_x = UInt16(4)
+
+        @test_throws ArgumentError NormalMonomial{PauliAlgebra,UInt16}(
+            UInt16[pauli_s1_x, pauli_s1_y]  # multiple ops same site
+        )
+        @test_throws ArgumentError NormalMonomial{PauliAlgebra,UInt16}(
+            UInt16[pauli_s2_x, pauli_s1_x]  # non-site-sorted
+        )
+
+        # --- FermionicAlgebra: requires normal-ordered, no duplicates ---
+        fermi_c1, fermi_c2 = Int32(-1), Int32(-2)
+        fermi_a1, fermi_a2 = Int32(1), Int32(2)
+
+        @test_throws ArgumentError NormalMonomial{FermionicAlgebra,Int32}(
+            Int32[fermi_a1, fermi_c1]  # annihilator before creator
+        )
+        @test_throws ArgumentError NormalMonomial{FermionicAlgebra,Int32}(
+            Int32[fermi_c1, fermi_c1]  # duplicate (nilpotent)
+        )
+
+        # --- BosonicAlgebra: requires normal-ordered (duplicates allowed) ---
+        bos_c1, bos_a1 = Int32(-1), Int32(1)
+
+        @test_throws ArgumentError NormalMonomial{BosonicAlgebra,Int32}(
+            Int32[bos_a1, bos_c1]  # annihilator before creator
+        )
+
+        # --- UnipotentAlgebra: site-sorted, no consecutive duplicates (U² = I) ---
+        uni_s1_op1 = encode_index(UInt16, 1, 1)
+        uni_s2_op1 = encode_index(UInt16, 1, 2)
+
+        @test_throws ArgumentError NormalMonomial{UnipotentAlgebra,UInt16}(
+            UInt16[uni_s1_op1, uni_s1_op1]  # consecutive identical
+        )
+        @test_throws ArgumentError NormalMonomial{UnipotentAlgebra,UInt16}(
+            UInt16[uni_s2_op1, uni_s1_op1]  # non-site-sorted
+        )
+
+        # --- ProjectorAlgebra: site-sorted, no consecutive duplicates (P² = P) ---
+        proj_s1_op1 = encode_index(UInt16, 1, 1)
+        proj_s2_op1 = encode_index(UInt16, 1, 2)
+
+        @test_throws ArgumentError NormalMonomial{ProjectorAlgebra,UInt16}(
+            UInt16[proj_s1_op1, proj_s1_op1]  # consecutive identical
+        )
+        @test_throws ArgumentError NormalMonomial{ProjectorAlgebra,UInt16}(
+            UInt16[proj_s2_op1, proj_s1_op1]  # non-site-sorted
+        )
+    end
+
+    @testset "Cross-Algebra Safety" begin
+        # Pauli requires Unsigned types
+        m_pauli = NormalMonomial{PauliAlgebra,UInt}(UInt[1, 4, 7])
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt}(UInt[1, 4, 7])
+
+        # Different algebras are never equal
+        @test m_pauli != m_nc
+
+        # Different algebra = different hash
+        @test hash(m_pauli) != hash(m_nc)
+
+        # Cross-algebra comparison throws
+        @test_throws ArgumentError isless(m_pauli, m_nc)
+
+        # Error message is informative
+        try
+            isless(m_pauli, m_nc)
+        catch e
+            @test occursin("PauliAlgebra", string(e))
+            @test occursin("NonCommutativeAlgebra", string(e))
+        end
+
+    end
+
+    @testset "Algebra Type Preservation" begin
+        algebras_and_words = [
+            (PauliAlgebra, UInt16, UInt16[1, 4]),  # Pauli requires Unsigned
+            (FermionicAlgebra, Int32, Int32[-1, 1]),
+            (BosonicAlgebra, Int32, Int32[-1, 1]),
+            (UnipotentAlgebra, UInt16, UInt16[1, 2]),
+            (ProjectorAlgebra, UInt16, UInt16[1, 2]),
+        ]
+
+        for (A, T, word) in algebras_and_words
+            m = NormalMonomial{A,T}(word)
+            @test m isa NormalMonomial{A,T}
+            @test one(m) isa NormalMonomial{A,T}
+            @test isone(one(m))
+        end
+    end
+
+    @testset "Multiplication" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+
+        # Multiplication returns Polynomial
+        result = x[1] * x[2]
+        @test result isa Polynomial
+        @test degree(result) == 2
+
+        # Identity multiplication: result is Polynomial containing the same monomial
+        mono_id = one(x[1])
+        prod = mono_id * x[1]
+        @test prod isa Polynomial
+        @test length(terms(prod)) == 1
+        @test monomials(prod)[1] == x[1]
+    end
+
     @testset "Power Operator" begin
-        # Basic power operations
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s1_op2])
 
-        # m^0 should be identity
-        m0 = m^0
-        @test isone(m0)
-        @test degree(m0) == 0
+        # m^0 returns identity Polynomial
+        p0 = m^0
+        @test p0 isa Polynomial
+        @test length(terms(p0)) == 1
+        @test isone(monomials(p0)[1])
 
-        # m^1 should equal m
-        m1 = m^1
-        @test m1 == m
-        @test degree(m1) == 2
+        # m^1 returns Polynomial with same monomial
+        p1 = m^1
+        @test monomials(p1)[1] == m
 
-        # m^2 should repeat word twice
-        m2 = m^2
-        @test m2.word == [1, 2, 1, 2]
-        @test degree(m2) == 4
+        # m^2 concatenates word
+        p2 = m^2
+        expected_word = [nc_s1_op1, nc_s1_op2, nc_s1_op1, nc_s1_op2]
+        @test monomials(p2)[1].word == expected_word
 
-        # m^3 should repeat word three times
-        m3 = m^3
-        @test m3.word == [1, 2, 1, 2, 1, 2]
-        @test degree(m3) == 6
-
-        # Power of single variable
-        x = Monomial{NonCommutativeAlgebra}([3])
-        x5 = x^5
-        @test x5.word == [3, 3, 3, 3, 3]
-        @test degree(x5) == 5
+        @test degree(m^3) == 6
 
         # Power of identity stays identity
-        id = one(m)
-        @test isone(id^10)
-
-        # Different integer types
-        m_uint8 = Monomial{PauliAlgebra}(UInt8[1, 3])
-        m_sq = m_uint8^2
-        @test m_sq.word == UInt8[1, 3, 1, 3]
-        @test typeof(m_sq) == Monomial{PauliAlgebra,UInt8}
-
-        m_int32 = Monomial{FermionicAlgebra}(Int32[1, -2])
-        m_cubed = m_int32^3
-        @test m_cubed.word == Int32[1, -2, 1, -2, 1, -2]
+        p_id = one(m)^10
+        @test length(terms(p_id)) == 1
+        @test isone(monomials(p_id)[1])
 
         # Power distribution: m^(a+b) = m^a * m^b
-        m_test = Monomial{NonCommutativeAlgebra}([1, 2, 3])
-        left = m_test^3
-        right = m_test^2 * m_test
-        @test left == right
+        @test m^3 == m^2 * m
+        @test m^3 == m * m^2
 
-        right2 = m_test * m_test^2
-        @test left == right2
+        # Pauli power: (σx⊗σx)² = I
+        m_pauli = NormalMonomial{PauliAlgebra,UInt8}(UInt8[1, 4])
+        p_pauli_sq = m_pauli^2
+        @test isone(monomials(p_pauli_sq)[1])
+
+        # Fermionic number operator: n² = n
+        m_num = NormalMonomial{FermionicAlgebra,Int32}(Int32[-1, 1])
+        p_num_sq = m_num^2
+        @test monomials(p_num_sq)[1] == m_num
     end
 
-    @testset "Monomial addition" begin
-        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1])
-        m2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2])
+    @testset "Addition and Subtraction" begin
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt8}(UInt8[1])
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt8}(UInt8[1, 2])
 
-        # Test monomial + monomial
-        p = m1 + m2
-        @test p isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
-        @test length(terms(p)) == 2
-        @test coefficients(p) == [1.0, 1.0]
+        p_add = m1 + m2
+        @test p_add isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
+        @test length(terms(p_add)) == 2
 
-        # Test subtraction
-        p2 = m1 - m2
-        @test p2 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
-        @test length(terms(p2)) == 2
-        coeffs = coefficients(p2)
-        @test coeffs[1] == 1.0
-        @test coeffs[2] == -1.0
+        p_sub = m1 - m2
+        @test coefficients(p_sub) == [1.0, -1.0]
 
-        # Test negation
-        t = -m1
-        @test t isa Term{Monomial{NonCommutativeAlgebra,UInt8},Float64}
-        @test t.coefficient == -1.0
-        @test t.monomial === m1
+        # Negation returns Polynomial with -1 coefficient
+        p_neg = -m1
+        @test p_neg isa Polynomial
+        @test length(terms(p_neg)) == 1
+        @test coefficients(p_neg)[1] == -1.0
+        @test monomials(p_neg)[1] == m1
 
-        # Test scalar addition
-        p3 = m1 + 2.0
-        @test p3 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
-        @test length(terms(p3)) == 2
-
-        # Test scalar subtraction
-        p4 = m1 - 3.0
-        @test p4 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
-
-        p5 = 4.0 - m2
-        @test p5 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
-
-        # Test with powers
-        m_sq = m1^2
-        p6 = m1 + m_sq
-        @test p6 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
-        @test length(terms(p6)) == 2
-
-        # Test that monomial + monomial handles different monomials
-        mono_diff = Monomial{NonCommutativeAlgebra}(UInt8[3, 4])
-        p7 = m2 + mono_diff
-        @test p7 isa Polynomial{NonCommutativeAlgebra,UInt8,Float64}
-        @test length(terms(p7)) == 2
+        # Scalar arithmetic
+        @test (m1 + 2.0) isa Polynomial
+        @test (m1 - 3.0) isa Polynomial
+        @test (4.0 - m2) isa Polynomial
     end
 
-    @testset "Iteration Protocol" begin
-        # Monomial iteration yields single (coefficient, monomial) pair
-        m = Monomial{PauliAlgebra}([1, 2])
-        pairs = collect(m)
-        @test length(pairs) == 1
-        @test pairs[1] == (1.0 + 0.0im, m)  # ComplexF64 for Pauli
+    @testset "Simplify Word Protocol" begin
+        # simplify(AlgebraType, word) returns simplified word/result
 
-        # Float64 coefficient for non-Pauli algebras
-        m_nc = Monomial{NonCommutativeAlgebra}([1, 2])
-        pairs_nc = collect(m_nc)
-        @test length(pairs_nc) == 1
-        @test pairs_nc[1][1] isa Float64
-        @test pairs_nc[1][1] == 1.0
-        @test pairs_nc[1][2] == m_nc
+        # NonCommutative: returns sorted word
+        raw_nc = [nc_s2_op1, nc_s1_op1]  # site2 before site1
+        result_nc = simplify(NonCommutativeAlgebra, raw_nc)
+        @test result_nc == [nc_s1_op1, nc_s2_op1]  # sorted by site
 
-        # Fermionic algebra also uses Float64
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, 2])
-        pairs_fermi = collect(m_fermi)
-        @test pairs_fermi[1][1] isa Float64
-        @test pairs_fermi[1][1] == 1.0
+        # Pauli: returns (word, phase) where phase is accumulated
+        pauli_word = UInt16[1, 4]  # σx on sites 1,2
+        result_pauli = simplify(PauliAlgebra, pauli_word)
+        @test result_pauli[1] == pauli_word  # already canonical
+        @test result_pauli[2] == UInt8(0)    # no phase
 
-        # Destructuring pattern
-        (coef, mono), = m_nc
-        @test coef == 1.0
-        @test mono == m_nc
-
-        # eltype
-        @test eltype(typeof(m)) == Tuple{ComplexF64,Monomial{PauliAlgebra,Int64}}
-        @test eltype(typeof(m_nc)) == Tuple{Float64,Monomial{NonCommutativeAlgebra,Int64}}
-
-        # Manual iteration
-        iter = iterate(m)
-        @test iter !== nothing
-        @test iter[1] == (1.0 + 0.0im, m)
-        @test iterate(m, iter[2]) === nothing
-
-        # Identity monomial
-        m_id = one(Monomial{PauliAlgebra,Int64})
-        pairs_id = collect(m_id)
-        @test length(pairs_id) == 1
-        @test pairs_id[1][1] == 1.0 + 0.0im
-        @test isone(pairs_id[1][2])
+        # Fermionic: returns Vector{Tuple{Int, word}} for PBW expansion
+        fermi_word = Int32[-2, 1]  # creation then annihilation (normal-ordered)
+        result_fermi = simplify(FermionicAlgebra, fermi_word)
+        @test result_fermi[1][1] == 1  # coefficient
+        @test result_fermi[1][2] == fermi_word  # already normal-ordered
     end
 
-    @testset "Display with Registry and Exponents" begin
-        # Create a simple test registry
+    @testset "Display" begin
         struct TestRegistry
             idx_to_variables::Dict{UInt8,Symbol}
         end
 
-        reg = TestRegistry(Dict(
-            UInt8(1) => :x,
-            UInt8(2) => :y,
-            UInt8(3) => :z
-        ))
+        reg = TestRegistry(Dict(UInt8(1) => :x, UInt8(2) => :y, UInt8(3) => :z))
 
-        function test_display(m::Monomial, expected_contains::Vector{String};
-            expected_not_contains::Vector{String}=String[])
+        display_cases = [
+            (UInt8[1, 1, 1], ["x³"], ["xxx"]),
+            (UInt8[1, 2, 2], ["x", "y²"], String[]),
+            (UInt8[1], ["x"], ["²", "³"]),
+            (UInt8[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2], ["x^10", "y"], String[]),
+        ]
+
+        for (word, must_contain, must_not_contain) in display_cases
+            m = NormalMonomial{NonCommutativeAlgebra,UInt8}(word)
             buf = IOBuffer()
             show(IOContext(buf, :registry => reg), m)
             str = String(take!(buf))
-
-            for expected in expected_contains
-                @test occursin(expected, str)
+            for s in must_contain
+                @test occursin(s, str)
             end
-            for not_expected in expected_not_contains
-                @test !occursin(not_expected, str)
+            for s in must_not_contain
+                @test !occursin(s, str)
             end
-            return str
         end
 
-        # Test x^3 displays with exponent
-        m1 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 1])
-        str1 = test_display(m1, ["x³"], expected_not_contains=["xxx", "x^3", "^[", ","])
-
-        # Test x*y^2
-        m2 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 2])
-        str2 = test_display(m2, ["x", "y²"], expected_not_contains=["[2, 2]", "^2", "^3"])
-
-        # Test x^2*y^3
-        m3 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 2, 2, 2])
-        str3 = test_display(m3, ["x²", "y³"], expected_not_contains=["[1, 1]", "[2, 2, 2]"])
-
-        # Test single variable no exponent
-        m4 = Monomial{NonCommutativeAlgebra}(UInt8[1])
-        str4 = test_display(m4, ["x"], expected_not_contains=["^", "²", "³"])
-
-        # Test three different variables, no repetition
-        m5 = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
-        str5 = test_display(m5, ["x", "y", "z"], expected_not_contains=["^", "²", "³"])
-
-        # Test large exponent (10) - should use ^10 syntax
-        m6 = Monomial{NonCommutativeAlgebra}(UInt8[fill(1, 10)..., 2])
-        str6 = test_display(m6, ["x^10", "y"], expected_not_contains=["xxxxxxxxxx"])
-
-        # Test exponent 4-9 for superscript coverage
-        m7 = Monomial{NonCommutativeAlgebra}(UInt8[1, 1, 1, 1])  # 4 x's
-        str7 = test_display(m7, ["x⁴"], expected_not_contains=["^4"])
-
-        m8 = Monomial{NonCommutativeAlgebra}(UInt8[fill(1, 9)..., 2])  # 9 x's
-        str8 = test_display(m8, ["x⁹", "y"], expected_not_contains=["^9"])
-
-        # Test identity displays as 𝟙 symbol
-        m_identity = Monomial{NonCommutativeAlgebra}(UInt8[])
+        # Identity displays as 𝟙
+        m_id = NormalMonomial{NonCommutativeAlgebra,UInt8}(UInt8[])
         buf = IOBuffer()
-        show(IOContext(buf, :registry => reg), m_identity)
-        str_identity = String(take!(buf))
-        @test contains(str_identity, "𝟙")
+        show(IOContext(buf, :registry => reg), m_id)
+        @test contains(String(take!(buf)), "𝟙")
     end
 
     @testset "variable_indices" begin
-        # Basic case: unique indices
-        m1 = Monomial{PauliAlgebra}([1, 2, 3])
-        @test variable_indices(m1) == Set([1, 2, 3])
+        # Pauli: unique indices (requires Unsigned)
+        m_pauli = NormalMonomial{PauliAlgebra,UInt16}(UInt16[1, 4, 7])
+        @test variable_indices(m_pauli) == Set(UInt16[1, 4, 7])
 
-        # Repeated indices -> deduplicated in Set
-        m2 = Monomial{NonCommutativeAlgebra}([1, 2, 1, 3, 2])
-        @test variable_indices(m2) == Set([1, 2, 3])
-        @test length(variable_indices(m2)) == 3
+        # NonCommutative: repeated indices deduplicated (use site-sorted word)
+        # Same-site indices can repeat: [s1_op1, s1_op2, s1_op1, s1_op2]
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt}([nc_s1_op1, nc_s1_op2, nc_s1_op1, nc_s1_op2])
+        @test variable_indices(m_nc) == Set([nc_s1_op1, nc_s1_op2])
 
-        # Identity monomial -> empty set
-        m_id = one(Monomial{PauliAlgebra,Int64})
-        @test isempty(variable_indices(m_id))
+        # Identity: empty set
+        @test isempty(variable_indices(one(NormalMonomial{PauliAlgebra,UInt16})))
 
-        # Single index
-        m_single = Monomial{UnipotentAlgebra}([42])
-        @test variable_indices(m_single) == Set([42])
+        # Fermionic: abs() normalization (creation=-1, annihilation=1 → same mode)
+        m_fermi = NormalMonomial{FermionicAlgebra,Int32}(Int32[-3, -2, -1, 1, 3])
+        @test variable_indices(m_fermi) == Set(Int32[1, 2, 3])
 
-        # Signed types (Fermionic): abs() normalization
-        # Creation (-1) and annihilation (1) refer to same mode
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -2, 3, -1])
-        var_set = variable_indices(m_fermi)
-        @test var_set == Set(Int32[1, 2, 3])
-        @test length(var_set) == 3  # -1 and 1 both map to 1
-
-        # Bosonic also uses signed indices
-        m_bos = Monomial{BosonicAlgebra}(Int32[-1, 1, -2, 2])
-        @test variable_indices(m_bos) == Set(Int32[1, 2])
-
-        # Different integer types preserve type in Set
-        m_uint8 = Monomial{ProjectorAlgebra}(UInt8[1, 2, 3])
+        # Type preservation
+        m_uint8 = NormalMonomial{ProjectorAlgebra,UInt8}(UInt8[1, 2, 3])
         @test eltype(variable_indices(m_uint8)) == UInt8
-    end
-
-    @testset "expval (identity for Monomial)" begin
-        # expval is identity for regular Monomials
-        # (exists for API compatibility with NCStateWord)
-        m = Monomial{NonCommutativeAlgebra}(UInt8[1, 2, 3])
-        @test expval(m) === m
-
-        m_pauli = Monomial{PauliAlgebra}([1, 2])
-        @test expval(m_pauli) === m_pauli
-
-        m_fermi = Monomial{FermionicAlgebra}(Int32[1, -2])
-        @test expval(m_fermi) === m_fermi
-
-        # Identity monomial
-        m_id = one(Monomial{PauliAlgebra,Int64})
-        @test expval(m_id) === m_id
     end
 end

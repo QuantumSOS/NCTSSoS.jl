@@ -11,14 +11,14 @@ multiple dispatch for simplification algorithms.
 - `NonCommutativeAlgebra`: Standard non-commutative variables (xy ≠ yx)
 - `PauliAlgebra`: Pauli spin matrices satisfying σᵢ² = I and {σᵢ, σⱼ} = 2δᵢⱼ
 - `FermionicAlgebra`: Fermionic creation/annihilation operators with {aᵢ, aⱼ†} = δᵢⱼ
-- `BosonicAlgebra`: Bosonic creation/annihilation operators with [aᵢ, cⱼ†] = δᵢⱼ
+- `BosonicAlgebra`: Bosonic creation/annihilation operators with [cᵢ, cⱼ†] = δᵢⱼ
 - `ProjectorAlgebra`: Projector operators satisfying Pᵢ² = Pᵢ (idempotent)
 - `UnipotentAlgebra`: Unipotent operators satisfying P² = I
 
 # Design
 Singleton types enable zero-cost dispatch on algebra operations:
 ```julia
-simplify(::Type{PauliAlgebra}, m::Monomial) = ...
+simplify(::Type{PauliAlgebra}, m::NormalMonomial) = ...
 ```
 
 # Examples
@@ -33,17 +33,72 @@ true
 abstract type AlgebraType end
 
 """
-    NonCommutativeAlgebra <: AlgebraType
+    MonoidAlgebra <: AlgebraType
 
-Generic non-commutative algebra with no specific simplification rules.
-Used as the default algebra type when no specific algebra is specified.
+Algebra category where the **normal form of a monomial is still a single monomial**
+(i.e. closed on monomials).
 
-Word order is preserved exactly as given.
+This matches a *monoid algebra / monoid ring* viewpoint: basis elements are indexed
+by elements of a monoid, and multiplying basis elements yields another basis element
+in the same basis (extended linearly to polynomials). [@monoidRing]
+
+In `NCTSSoS.jl`, this category includes:
+- `NonCommutativeAlgebra` (free/noncommutative words)
+- `ProjectorAlgebra` (idempotency P² = P)
+- `UnipotentAlgebra` (involution U² = I)
 """
-struct NonCommutativeAlgebra <: AlgebraType end
+abstract type MonoidAlgebra <: AlgebraType end
 
 """
-    PauliAlgebra <: AlgebraType
+    TwistedGroupAlgebra <: AlgebraType
+
+Algebra category where the **normal form of a monomial is a scalar/phase times a single monomial**.
+
+This matches a *twisted group algebra* viewpoint: basis elements are indexed by a group,
+but multiplication is twisted by a scalar 2-cocycle, so products satisfy
+`u_g * u_h = α(g,h) u_{gh}`. [@twistedGroupAlgebra]
+
+In `NCTSSoS.jl`, this category includes:
+- `PauliAlgebra` (Pauli products generate phases {±1, ±i})
+"""
+abstract type TwistedGroupAlgebra <: AlgebraType end
+
+"""
+    PBWAlgebra <: AlgebraType
+
+Algebra category where the **normal form of a monomial expands to a sum of monomials**.
+
+This matches the computational noncommutative algebra pattern of *PBW algebras*: there is
+an ordered monomial basis and a rewriting/normal-ordering procedure, but reordering introduces
+lower terms, so a product may expand into multiple normal-form monomials. [@pbwAlgebraOscar]
+
+In `NCTSSoS.jl`, this category includes:
+- `FermionicAlgebra` (CAR / anticommutation)
+- `BosonicAlgebra` (CCR / commutation)
+"""
+abstract type PBWAlgebra <: AlgebraType end
+
+"""
+    NonCommutativeAlgebra <: MonoidAlgebra
+
+Generic non-commutative algebra used when no specific algebra is specified.
+
+This algebra is *site-aware*: operators on different sites commute, while operators on the
+same site remain non-commutative.
+
+# Algebraic Rules
+- **Within a site**: no simplification rules; operator order is preserved exactly.
+- **Across sites**: operators commute; the canonical word is **stable-sorted by site**
+  (stable sort preserves within-site order).
+
+# Index Encoding
+Variable indices must be **unsigned** and include bit-packed site information; see
+`encode_index` / `decode_site`.
+"""
+struct NonCommutativeAlgebra <: MonoidAlgebra end
+
+"""
+    PauliAlgebra <: TwistedGroupAlgebra
 
 Pauli spin matrix algebra.
 
@@ -62,10 +117,10 @@ For index `idx`: site = `(idx - 1) ÷ 3 + 1`, pauli_type = `(idx - 1) % 3`
 Typically uses unsigned integer types (self-adjoint operators).
 Concrete type determined by VariableRegistry.
 """
-struct PauliAlgebra <: AlgebraType end
+struct PauliAlgebra <: TwistedGroupAlgebra end
 
 """
-    FermionicAlgebra <: AlgebraType
+    FermionicAlgebra <: PBWAlgebra
 
 Fermionic creation/annihilation operator algebra.
 
@@ -85,10 +140,10 @@ of all annihilation operators (a).
 Uses signed integer types (sign distinguishes creation/annihilation).
 Concrete type determined by VariableRegistry.
 """
-struct FermionicAlgebra <: AlgebraType end
+struct FermionicAlgebra <: PBWAlgebra end
 
 """
-    BosonicAlgebra <: AlgebraType
+    BosonicAlgebra <: PBWAlgebra
 
 Bosonic creation/annihilation operator algebra.
 
@@ -112,10 +167,10 @@ multiple terms.
 Uses signed integer types (sign distinguishes creation/annihilation).
 Concrete type determined by VariableRegistry.
 """
-struct BosonicAlgebra <: AlgebraType end
+struct BosonicAlgebra <: PBWAlgebra end
 
 """
-    ProjectorAlgebra <: AlgebraType
+    ProjectorAlgebra <: MonoidAlgebra
 
 Projector operator algebra.
 
@@ -131,10 +186,10 @@ Projectors are self-adjoint.
 Typically uses unsigned integer types (self-adjoint operators).
 Concrete type determined by VariableRegistry.
 """
-struct ProjectorAlgebra <: AlgebraType end
+struct ProjectorAlgebra <: MonoidAlgebra end
 
 """
-    UnipotentAlgebra <: AlgebraType
+    UnipotentAlgebra <: MonoidAlgebra
 
 Unipotent operator algebra.
 
@@ -149,7 +204,7 @@ cyclic product rules. Unipotent only removes consecutive pairs.
 Typically uses unsigned integer types (self-adjoint operators).
 Concrete type determined by VariableRegistry.
 """
-struct UnipotentAlgebra <: AlgebraType end
+struct UnipotentAlgebra <: MonoidAlgebra end
 
 # =============================================================================
 # Default Coefficient Types
@@ -164,7 +219,7 @@ Different algebras naturally work with different coefficient types:
 - `PauliAlgebra`: `ComplexF64` (Pauli products generate complex phases)
 - All others: `Float64` (real coefficients suffice)
 
-This is used by constructors like `Polynomial(m::Monomial)` to infer
+This is used by constructors like `Polynomial(m::NormalMonomial)` to infer
 the appropriate coefficient type when not explicitly specified.
 
 # Examples
@@ -181,51 +236,8 @@ Float64
 coeff_type(::Type{<:AlgebraType}) = Float64
 coeff_type(::Type{PauliAlgebra}) = ComplexF64
 
-# Show methods for clean output
-Base.show(io::IO, ::NonCommutativeAlgebra) = print(io, "NonCommutativeAlgebra()")
-Base.show(io::IO, ::PauliAlgebra) = print(io, "PauliAlgebra()")
-Base.show(io::IO, ::FermionicAlgebra) = print(io, "FermionicAlgebra()")
-Base.show(io::IO, ::BosonicAlgebra) = print(io, "BosonicAlgebra()")
-Base.show(io::IO, ::ProjectorAlgebra) = print(io, "ProjectorAlgebra()")
-Base.show(io::IO, ::UnipotentAlgebra) = print(io, "UnipotentAlgebra()")
-
-# =============================================================================
-# Coefficient Type Introspection
-# =============================================================================
-
-"""
-    coeff_type(::Type{T}) -> Type{<:Number}
-    coeff_type(x) -> Type{<:Number}
-
-Return the coefficient type for a simplify result type.
-
-This enables compile-time determination of coefficient types for type-stable
-processing of simplification results. Used by `ComposedMonomial` simplification
-to determine appropriate coefficient types for the Cartesian product of terms.
-
-For `Monomial{A,T}`, returns `coeff_type(A)` (the algebra's default).
-For `Term{M,C}` and `Polynomial{A,T,C}`, returns `C` (the explicit coefficient type).
-
-# Examples
-```jldoctest
-julia> using NCTSSoS
-
-julia> coeff_type(Monomial{PauliAlgebra,Int64})
-ComplexF64
-
-julia> coeff_type(Monomial{FermionicAlgebra,Int32})
-Float64
-
-julia> coeff_type(Term{Monomial{PauliAlgebra,Int64},ComplexF64})
-ComplexF64
-
-julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64})
-Float64
-```
-"""
-# Instance method: delegate to type method
-# Note: coeff_type methods for specific types (Monomial, Term, Polynomial)
-# are defined in their respective source files.
+# Show method for singleton algebra types
+Base.show(io::IO, a::AlgebraType) = print(io, nameof(typeof(a)), "()")
 
 # =============================================================================
 # Site-Based Index Encoding
@@ -244,14 +256,16 @@ Float64
     site_bits(::Type{T}) where {T<:Unsigned} -> Int
 
 Number of bits used for site encoding. Fixed at n/4 where n is bit width.
+Equivalently: `sizeof(T) * 8 ÷ 4 = sizeof(T) * 2`.
 
 # Examples
 ```julia
+site_bits(UInt8)   # 2
 site_bits(UInt16)  # 4
 site_bits(UInt32)  # 8
 ```
 """
-@inline site_bits(::Type{T}) where {T<:Unsigned} = sizeof(T) * 2
+@inline site_bits(::Type{T}) where {T<:Unsigned} = sizeof(T) * 8 ÷ 4
 
 """
     max_sites(::Type{T}) where {T<:Unsigned} -> Int
@@ -301,13 +315,16 @@ decode_site(idx)                   # 3
 decode_operator_id(idx)            # 1
 ```
 """
-@inline function encode_index(::Type{T}, operator_id::Int, site::Int) where {T<:Unsigned}
-    # TODO: if this takes too long, we could remove it
+@inline function encode_index(::Type{T}, operator_id::Integer, site::Integer) where {T<:Unsigned}
     k = site_bits(T)
     ms = max_sites(T)
     mo = max_operators(T)
-    @assert site >= 1 && site <= ms "Site $site out of range for $T (max $ms)"
-    @assert operator_id >= 1 && operator_id <= mo "Operator $operator_id out of range for $T (max $mo)"
+    @boundscheck if site < 1 || site > ms
+        throw(ArgumentError("Site $site out of range for $T (valid: 1-$ms)"))
+    end
+    @boundscheck if operator_id < 1 || operator_id > mo
+        throw(ArgumentError("Operator $operator_id out of range for $T (valid: 1-$mo)"))
+    end
     return T((T(operator_id) << k) | site)  # 1-indexed site storage
 end
 
@@ -331,11 +348,21 @@ Extract operator ID from encoded index.
     return Int(idx >> k)
 end
 
+
 """
     select_uint_type(n_operators::Integer, n_sites::Integer) -> Type{<:Unsigned}
 
 Select the smallest unsigned integer type that can encode the given number
 of operators and sites.
+
+!!! note "Type Stability"
+    This function returns a `Type`, not a value. The returned type depends on
+    runtime values, so callers should use a function barrier or type annotation
+    to maintain type stability in performance-critical code:
+    ```julia
+    T = select_uint_type(n_ops, n_sites)
+    _inner_loop(T, data)  # function barrier
+    ```
 
 # Arguments
 - `n_operators`: Number of distinct operators per site
@@ -358,5 +385,5 @@ function select_uint_type(n_operators::Integer, n_sites::Integer)
             return T
         end
     end
-    return error("Cannot fit $n_operators operators × $n_sites sites in any UInt type")
+    throw(ArgumentError("Cannot fit $n_operators operators × $n_sites sites in any UInt type"))
 end

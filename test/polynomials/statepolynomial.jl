@@ -5,11 +5,11 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
 
 @testset "StatePolynomial{MaxEntangled}" begin
     @testset "Creation" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw1 = tr(m1)
-        sw2 = tr(m2)
+        sw1 = StateWord{MaxEntangled}(tr(m1))
+        sw2 = StateWord{MaxEntangled}(tr(m2))
 
         sp = StatePolynomial([1.0, 2.0], [sw1, sw2])
 
@@ -18,8 +18,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Automatic Deduplication" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
-        sw = tr(m)
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        sw = StateWord{MaxEntangled}(tr(m))
 
         # Same state word appears twice with different coefficients
         sp = StatePolynomial([1.0, 2.0], [sw, sw])
@@ -29,11 +29,11 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Zero Coefficient Removal" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw1 = tr(m1)
-        sw2 = tr(m2)
+        sw1 = StateWord{MaxEntangled}(tr(m1))
+        sw2 = StateWord{MaxEntangled}(tr(m2))
 
         # Zero coefficient should be removed
         sp = StatePolynomial([0.0, 1.0], [sw1, sw2])
@@ -45,31 +45,31 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Degree" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
-        m2 = Monomial{NonCommutativeAlgebra}([3, 4, 5])  # degree 3
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))  # degree 2
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 4, 5))  # degree 3
 
-        sw1 = tr(m1)
-        sw2 = tr(m2)
+        sw1 = StateWord{MaxEntangled}(tr(m1))
+        sw2 = StateWord{MaxEntangled}(tr(m2))
 
         sp = StatePolynomial([1.0, 1.0], [sw1, sw2])
         @test degree(sp) == 3  # max degree
     end
 
     @testset "Variables" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3, 4])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 4))
 
-        sw1 = tr(m1)
-        sw2 = tr(m2)
+        sw1 = StateWord{MaxEntangled}(tr(m1))
+        sw2 = StateWord{MaxEntangled}(tr(m2))
 
         sp = StatePolynomial([1.0, 1.0], [sw1, sw2])
         vars = variables(sp)
 
-        @test all(i in vars for i in 1:4)
+        @test all(nc_idx(i) in vars for i in 1:4)
     end
 
     @testset "Zero and One" begin
-        T = StatePolynomial{Float64,MaxEntangled,NonCommutativeAlgebra,Int64}
+        T = StatePolynomial{Float64,MaxEntangled,NonCommutativeAlgebra,UInt16}
 
         sp_zero = zero(T)
         @test iszero(sp_zero)
@@ -79,11 +79,11 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Addition" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw1 = tr(m1)
-        sw2 = tr(m2)
+        sw1 = StateWord{MaxEntangled}(tr(m1))
+        sw2 = StateWord{MaxEntangled}(tr(m2))
 
         sp1 = StatePolynomial([1.0], [sw1])
         sp2 = StatePolynomial([2.0], [sw2])
@@ -93,8 +93,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Subtraction" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
-        sw = tr(m)
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        sw = StateWord{MaxEntangled}(tr(m))
 
         sp1 = StatePolynomial([3.0], [sw])
         sp2 = StatePolynomial([1.0], [sw])
@@ -104,8 +104,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Unary Negation" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
-        sw = tr(m)
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        sw = StateWord{MaxEntangled}(tr(m))
 
         # Negate a StateWord directly
         neg_sw = -sw
@@ -120,8 +120,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Scalar Multiplication" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
-        sw = tr(m)
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        sw = StateWord{MaxEntangled}(tr(m))
 
         sp = StatePolynomial([2.0], [sw])
 
@@ -133,11 +133,11 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Polynomial Multiplication" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw1 = tr(m1)
-        sw2 = tr(m2)
+        sw1 = StateWord{MaxEntangled}(tr(m1))
+        sw2 = StateWord{MaxEntangled}(tr(m2))
 
         sp1 = StatePolynomial([1.0], [sw1])
         sp2 = StatePolynomial([2.0], [sw2])
@@ -148,8 +148,8 @@ using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
     end
 
     @testset "Equality" begin
-        m = Monomial{NonCommutativeAlgebra}([1, 2])
-        sw = tr(m)
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        sw = StateWord{MaxEntangled}(tr(m))
 
         sp1 = StatePolynomial([1.0], [sw])
         sp2 = StatePolynomial([1.0], [sw])
@@ -162,11 +162,11 @@ end
 
 @testset "StatePolynomial{Arbitrary}" begin
     @testset "Creation with ς" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1, 2])
-        m2 = Monomial{NonCommutativeAlgebra}([3])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw1 = ς(m1)
-        sw2 = ς(m2)
+        sw1 = StateWord{Arbitrary}(ς(m1))
+        sw2 = StateWord{Arbitrary}(ς(m2))
 
         sp = StatePolynomial([1.0, 2.0], [sw1, sw2])
 
@@ -174,12 +174,12 @@ end
     end
 
     @testset "Arithmetic" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
         # Create polynomials
-        sp1 = StatePolynomial([1.0], [ς(m1)])
-        sp2 = StatePolynomial([2.0], [ς(m2)])
+        sp1 = StatePolynomial([1.0], [StateWord{Arbitrary}(ς(m1))])
+        sp2 = StatePolynomial([2.0], [StateWord{Arbitrary}(ς(m2))])
 
         # Addition
         sp_sum = sp1 + sp2
@@ -193,11 +193,10 @@ end
 
 @testset "NCStatePolynomial{MaxEntangled}" begin
     @testset "Creation" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw = tr(m_state)
-        ncsw = NCStateWord(sw, m_nc)
+        ncsw = NCStateWord(tr(m_state), m_nc)
 
         ncsp = NCStatePolynomial([1.0], [ncsw])
 
@@ -205,11 +204,10 @@ end
     end
 
     @testset "Automatic Deduplication" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1])
-        m_nc = Monomial{NonCommutativeAlgebra}([2])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw = tr(m_state)
-        ncsw = NCStateWord(sw, m_nc)
+        ncsw = NCStateWord(tr(m_state), m_nc)
 
         ncsp = NCStatePolynomial([1.0, 2.0], [ncsw, ncsw])
         @test length(ncsp.nc_state_words) == 1
@@ -217,22 +215,20 @@ end
     end
 
     @testset "Degree" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])  # degree 2
-        m_nc = Monomial{NonCommutativeAlgebra}([3])        # degree 1
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))  # degree 2
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))        # degree 1
 
-        sw = tr(m_state)
-        ncsw = NCStateWord(sw, m_nc)
+        ncsw = NCStateWord(tr(m_state), m_nc)
 
         ncsp = NCStatePolynomial([1.0], [ncsw])
         @test degree(ncsp) == 3
     end
 
     @testset "Monomials Accessor" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1])
-        m_nc = Monomial{NonCommutativeAlgebra}([2])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
-        sw = tr(m_state)
-        ncsw = NCStateWord(sw, m_nc)
+        ncsw = NCStateWord(tr(m_state), m_nc)
 
         ncsp = NCStatePolynomial([1.0], [ncsw])
         monos = monomials(ncsp)
@@ -242,7 +238,7 @@ end
     end
 
     @testset "Zero and One" begin
-        T = NCStatePolynomial{Float64,MaxEntangled,NonCommutativeAlgebra,Int64}
+        T = NCStatePolynomial{Float64,MaxEntangled,NonCommutativeAlgebra,UInt16}
 
         ncsp_zero = zero(T)
         @test iszero(ncsp_zero)
@@ -252,8 +248,8 @@ end
     end
 
     @testset "Addition" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
         ncsw1 = NCStateWord(tr(m1), m1)
         ncsw2 = NCStateWord(tr(m2), m2)
@@ -266,7 +262,7 @@ end
     end
 
     @testset "Scalar Multiplication" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
         ncsw = NCStateWord(tr(m), m)
 
         ncsp = NCStatePolynomial([2.0], [ncsw])
@@ -276,7 +272,7 @@ end
     end
 
     @testset "Equality" begin
-        m = Monomial{NonCommutativeAlgebra}([1])
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
         ncsw = NCStateWord(tr(m), m)
 
         ncsp1 = NCStatePolynomial([1.0], [ncsw])
@@ -290,11 +286,10 @@ end
 
 @testset "NCStatePolynomial{Arbitrary}" begin
     @testset "Creation" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
 
-        sw = ς(m_state)
-        ncsw = NCStateWord(sw, m_nc)
+        ncsw = NCStateWord(ς(m_state), m_nc)
 
         ncsp = NCStatePolynomial([1.0], [ncsw])
 
@@ -302,8 +297,8 @@ end
     end
 
     @testset "Arithmetic" begin
-        m1 = Monomial{NonCommutativeAlgebra}([1])
-        m2 = Monomial{NonCommutativeAlgebra}([2])
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))
 
         ncsw1 = NCStateWord(ς(m1), m1)
         ncsw2 = NCStateWord(ς(m2), m2)
@@ -321,16 +316,16 @@ end
     end
 
     @testset "Variables" begin
-        m_state = Monomial{NonCommutativeAlgebra}([1, 2])
-        m_nc = Monomial{NonCommutativeAlgebra}([3, 4])
+        m_state = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3, 4))
 
         ncsw = NCStateWord(ς(m_state), m_nc)
         ncsp = NCStatePolynomial([1.0], [ncsw])
 
         vars = variables(ncsp)
         # NCStatePolynomial.variables() returns Set{T} of indices (new API)
-        # Check that we have 4 variables with indices 1-4
+        # Check that we have 4 variables with indices 1-4 (site-encoded)
         @test length(vars) == 4
-        @test all(v in 1:4 for v in vars)
+        @test all(nc_idx(i) in vars for i in 1:4)
     end
 end

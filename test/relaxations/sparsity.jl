@@ -14,9 +14,17 @@
 
 using Test, NCTSSoS
 using Graphs, CliqueTrees
+using JuMP
 
-# Load solver configuration if running standalone
-@isdefined(SOLVER) || include(joinpath(dirname(@__FILE__), "..", "standalone_setup.jl"))
+# SOLVER fallback for standalone/REPL execution
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0
+    )
+end
 
 using NCTSSoS:
     assign_constraint,
@@ -36,9 +44,9 @@ using NCTSSoS:
 # Helper to create NC polynomials from registry variables
 function nc_poly(registry::VariableRegistry{NonCommutativeAlgebra,T}, indices::Vector{T}) where T
     if isempty(indices)
-        return Polynomial{NonCommutativeAlgebra,T,Float64}([Term(1.0, Monomial{NonCommutativeAlgebra}(T[]))])
+        return Polynomial{NonCommutativeAlgebra,T,Float64}([Term(1.0, NormalMonomial{NonCommutativeAlgebra}(T[]))])
     end
-    m = Monomial{NonCommutativeAlgebra}(indices)
+    m = NormalMonomial{NonCommutativeAlgebra}(indices)
     return Polynomial{NonCommutativeAlgebra,T,Float64}([Term(1.0, m)])
 end
 
@@ -154,7 +162,7 @@ end
             T = eltype(indices(registry))
 
             # Get actual indices for each variable
-            x_idx = [x[i].word[1] for i in 1:n]
+            x_idx = [x[i].words.word[1] for i in 1:n]
 
             # f = sum(x[i] * x[i+1]) for ring
             f = sum(x[i] * x[mod1(i + 1, n)] for i = 1:n)
@@ -176,7 +184,7 @@ end
             T = eltype(indices(registry))
 
             # Get actual indices for each variable
-            x_idx = [x[i].word[1] for i in 1:n]
+            x_idx = [x[i].words.word[1] for i in 1:n]
 
             f = x[1]^2 - x[1] * x[2] - x[2] * x[1] + 3.0 * x[2]^2 - 2.0 * x[1] * x[2] * x[1] +
                 2.0 * x[1] * x[2]^2 * x[1] - x[2] * x[3] - x[3] * x[2] +
@@ -199,7 +207,7 @@ end
             T = eltype(indices(registry))
 
             # Get actual indices for each variable
-            x_idx = [x[i].word[1] for i in 1:n]
+            x_idx = [x[i].words.word[1] for i in 1:n]
 
             P = typeof(x[1] + x[2])  # Get the polynomial type
             f = zero(P)
@@ -238,7 +246,7 @@ end
             T = eltype(indices(registry))
 
             # Get actual indices for each variable
-            x_idx = [x[i].word[1] for i in 1:n]
+            x_idx = [x[i].words.word[1] for i in 1:n]
 
             f = x[1]^2 - x[1] * x[2] - x[2] * x[1] + 3.0 * x[2]^2 - 2.0 * x[1] * x[2] * x[1] +
                 2.0 * x[1] * x[2]^2 * x[1] - x[2] * x[3] - x[3] * x[2] +
@@ -264,8 +272,8 @@ end
             T = eltype(indices(registry))
 
             # Get actual indices for each variable
-            x_idx = [x[i].word[1] for i in 1:3]
-            y_idx = [y[i].word[1] for i in 1:3]
+            x_idx = [x[i].words.word[1] for i in 1:3]
+            y_idx = [y[i].words.word[1] for i in 1:3]
 
             f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
                 x[3] * (y[1] - y[2]) - x[1] - 2.0 * y[1] - y[2]
@@ -331,7 +339,7 @@ end
         T = eltype(indices(registry))
 
         # Get actual variable indices
-        x_idx = [x[i].word[1] for i in 1:n]
+        x_idx = [x[i].words.word[1] for i in 1:n]
 
         # Cliques as index vectors - use actual variable indices
         cliques = [T[x_idx[1], x_idx[2], x_idx[4]], T[x_idx[2], x_idx[3], x_idx[4]]]
@@ -347,7 +355,7 @@ end
         T2 = eltype(indices(registry2))
 
         # Get actual variable indices
-        x2_idx = [x2[i].word[1] for i in 1:n]
+        x2_idx = [x2[i].words.word[1] for i in 1:n]
 
         g = 4.0 - x2[1]^2 - x2[2]^2
         h1 = x2[1] * x2[2] + x2[2] * x2[1] - 2.0
@@ -365,11 +373,11 @@ end
     @testset "Init Activated Support" begin
         registry, (x,) = create_noncommutative_variables([("x", 1:2)])
         T = eltype(indices(registry))
-        M = Monomial{NonCommutativeAlgebra,T}
+        M = NormalMonomial{NonCommutativeAlgebra,T}
         P = Polynomial{NonCommutativeAlgebra,T,Float64}
 
         # Get actual variable indices
-        x_idx = [x[i].word[1] for i in 1:2]
+        x_idx = [x[i].words.word[1] for i in 1:2]
 
         # Simple objective and empty constraints
         obj = x[1] + x[2]
@@ -377,7 +385,7 @@ end
 
         # Simple basis with actual variable indices
         one_mono = one(M)
-        basis = M[one_mono, Monomial{NonCommutativeAlgebra}(T[x_idx[1]]), Monomial{NonCommutativeAlgebra}(T[x_idx[2]])]
+        basis = M[one_mono, NormalMonomial{NonCommutativeAlgebra}(T[x_idx[1]]), NormalMonomial{NonCommutativeAlgebra}(T[x_idx[2]])]
 
         supp = init_activated_supp(obj, cons, basis)
         @test !isempty(supp)

@@ -18,22 +18,26 @@ include("types/registry.jl")
 # Monomial type (depends on algebra types and registry)
 include("types/monomial.jl")
 
-# Term type (depends on monomial)
-include("types/term.jl")
-
-# Polynomial type (depends on term)
+# Polynomial type (depends on monomial)
 include("types/polynomial.jl")
 
 # ============================================================================
 # Simplification Algorithms (algebra-specific)
 # ============================================================================
 
+include("simplification/site_helpers.jl")
 include("simplification/projector.jl")
 include("simplification/unipotent.jl")
 include("simplification/noncommutative.jl")
 include("simplification/pauli.jl")
 include("simplification/fermionic.jl")
 include("simplification/bosonic.jl")
+
+# ============================================================================
+# Arithmetic Operations (depends on simplification for NormalMonomial × NormalMonomial)
+# ============================================================================
+
+include("types/arithmetic.jl")
 
 # ============================================================================
 # Composed Types (depends on Polynomial for type checking in simplify)
@@ -45,6 +49,9 @@ include("types/composed.jl")
 # Algorithms (canonicalization, basis generation)
 # ============================================================================
 
+# State type tags are needed by canonicalization (defines Arbitrary/MaxEntangled)
+include("states/types.jl")
+
 include("algorithms/canonicalization.jl")
 include("algorithms/basis.jl")
 
@@ -52,7 +59,6 @@ include("algorithms/basis.jl")
 # State Polynomial Types
 # ============================================================================
 
-include("states/types.jl")
 include("states/word.jl")
 include("states/polynomial.jl")
 
@@ -80,6 +86,7 @@ include("optimization/interface.jl")
 
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
+export SparsityResult, compute_sparsity
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, reconstruct
@@ -92,16 +99,18 @@ export create_pauli_variables, create_fermionic_variables, create_bosonic_variab
 export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
 
 # Core Types (users need these for type annotations and construction)
-export Monomial, Polynomial, Term, VariableRegistry
+export NormalMonomial, Polynomial, VariableRegistry
 export ComposedMonomial
+export AbstractTensorMonomial, AbstractMonomial
 
 # Algebra Types (users need for dispatch)
 export AlgebraType
+export MonoidAlgebra, TwistedGroupAlgebra, PBWAlgebra
 export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra
 export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
 
 # State Polynomial Operations
-export ς, tr
+export ς, varsigma, tr
 export StateSymbol, StateWord, StatePolynomial
 export NCStateWord, MaxEntangled, Arbitrary
 
@@ -109,6 +118,7 @@ export NCStateWord, MaxEntangled, Arbitrary
 export degree, monomials, coefficients, terms, variables
 export simplify, simplify!
 export variable_indices
+export validate
 
 # Canonicalization (user-facing)
 export symmetric_canon, cyclic_canon, canonicalize

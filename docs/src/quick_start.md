@@ -159,4 +159,4 @@ To summarize, the workflow for solving polynomial optimization can be summarized
 
 ![`Workflow for solving Polynomial Optimization problem`](assets/overall_workflow.typ.svg)
 
-If you would like to understand more please refer to [examples section](@ref bell-inequalities) in the document.
+If you would like to understand more please refer to [examples section](@ref "bell-inequalities") in the document.

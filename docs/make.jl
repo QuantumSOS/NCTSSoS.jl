@@ -6,10 +6,11 @@ bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style=:authory
 
 makedocs(;
     sitename="NCTSSoS.jl",
+    doctest=false,
     pages=Any[
         "Home"=>"index.md",
         "Quick Start"=>"quick_start.md",
-        "Manual"=>Any["Polynomials"=>"manual/polynomials.md", "Polynomial Optimization"=>"manual/polynomial_optimization.md", "Sparsities"=>"manual/sparsities.md", "SDP Relaxation"=>"manual/sdp_relaxation.md", "Optimizers"=>"manual/optimizers.md"],
+        "Manual"=>Any["Polynomials"=>"manual/polynomials.md", "Monomials"=>"manual/monomials.md", "Polynomial Optimization"=>"manual/polynomial_optimization.md", "Sparsities"=>"manual/sparsities.md", "SDP Relaxation"=>"manual/sdp_relaxation.md", "Optimizers"=>"manual/optimizers.md"],
         "Examples"=>Any["Bell inequalities"=>"examples/generated/bell.md", "Trace Polynomial"=>"examples/generated/trace_poly.md",
         "Ground State Energy"=>"examples/generated/ground_state_energy.md",
         "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
@@ -20,7 +21,7 @@ makedocs(;
         "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "SDP Relaxation" => "apis/relaxations.md"]
     ],
     plugins=[bib],
-    # modules=[NCTSSoS, NCTSSoS.FastPolynomials],
+    # modules=[NCTSSoS],
     format=Documenter.HTML(; prettyurls=get(ENV, "CI", nothing) == "true", assets=String["assets/citations.css"], size_threshold=10^6),
 )
 

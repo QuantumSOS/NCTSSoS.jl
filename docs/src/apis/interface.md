@@ -5,13 +5,17 @@
 ```@docs
 NCTSSoS.PolyOpt
 NCTSSoS.polyopt
-NCTSSoS.cpolyopt
 ```
 
-## Algebra Constructors
+## Variable Creation
 
 ```@docs
-NCTSSoS.pauli_algebra
+NCTSSoS.create_pauli_variables
+NCTSSoS.create_fermionic_variables
+NCTSSoS.create_bosonic_variables
+NCTSSoS.create_projector_variables
+NCTSSoS.create_unipotent_variables
+NCTSSoS.create_noncommutative_variables
 ```
 
 ## Solver Interface

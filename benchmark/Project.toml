@@ -1,4 +1,0 @@
-[deps]
-DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
-NCTSSoS = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
-PkgBenchmark = "32113eaa-f34f-5b0d-bd6c-c81e245fc73d"

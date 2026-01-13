@@ -44,11 +44,11 @@ pkg> add NCTSSoS#master
 [main-ci-img]: https://github.com/wangjie212/NCTSSoS.jl/actions/workflows/CI.yml/badge.svg
 [main-ci-url]: https://github.com/wangjie212/NCTSSoS.jl/actions/workflows/CI.yml
 
-[codecov-img]: https://codecov.io/gh/wangjie212/NCTSSoS.jl/branch/main/graph/badge.svg
-[codecov-url]: https://codecov.io/gh/wangjie212/NCTSSoS.jl
+[codecov-img]: https://codecov.io/github/QuantumSOS/NCTSSoS.jl/branch/main/graph/badge.svg
+[codecov-url]: https://app.codecov.io/gh/QuantumSOS/NCTSSoS.jl
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-stable-url]: https://wangjie212.github.io/NCTSSoS.jl/stable
+[docs-stable-url]: https://quantumsos.github.io/NCTSSoS.jl/
 
 ## Supporting and Citing
 

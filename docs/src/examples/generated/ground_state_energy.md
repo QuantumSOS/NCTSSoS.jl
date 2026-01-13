@@ -1,8 +1,6 @@
-```@meta
-EditURL = "../literate/ground_state_energy.jl"
-```
+<!-- nctssos-literate-source: ground_state_energy.jl sha256: c75962c88365d76213648c29139f7596dbb89556758a82d37b9965d2120aab37 -->
 
-# [Obtaining Ground State Energy Lower Bound](@id ground-state-energy)
+# Obtaining Ground State Energy Lower Bound
 
 Finding the ground state of a quantum system is a fundamental problem in quantum
 mechanics [wang2024Certifying](@cite). Variational methods are commonly used to
@@ -24,22 +22,25 @@ neighbor interaction and periodic boundary condition.
 ````julia
 using NCTSSoS, MosekTools
 N = 6
-@ncpolyvar x[1:N] y[1:N] z[1:N]
+````
 
-ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [x, y, z] for i in 1:N)
+Create Pauli variables using the typed algebra system
+This automatically encodes all Pauli commutation relations
 
-eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
+````julia
+registry, (σx, σy, σz) = create_pauli_variables(1:N)
 
-pop = cpolyopt(
-            ham;                                        # the Hamiltonian
-            eq_constraints=eq_cons,                     # anti-commutation relation between Pauli Operators
-            comm_gps=[[x[i], y[i], z[i]] for i in 1:N], # commutation relation between Pauli Operators
-            is_unipotent=true                           # Pauli operators square to identity
-            )
+ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σz] for i in 1:N)
+````
+
+No need to manually specify constraints - they're encoded in the algebra type!
+
+````julia
+pop = polyopt(ham, registry)
 
 solver_config = SolverConfig(
                     optimizer=Mosek.Optimizer,          # the solver backend
-                    order=2,                        # moment matrix order
+                    order=2,                            # moment matrix order
                     ts_algo = MMD(),                    # term sparsity algorithm
                     )
 
@@ -51,10 +52,6 @@ res = cs_nctssos_higher(
             solver_config                               # Solver Configuration
         )
 res.objective / N
-````
-
-````
--0.4671292729371477
 ````
 
 The returned result matches the actual ground state energy $-0.467129$ to $6$
@@ -71,24 +68,19 @@ using NCTSSoS, MosekTools
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
 J2 = 0.2                            # Next Nearest Neighbor Interaction
-@ncpolyvar x[1:N] y[1:N] z[1:N]
 
-ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) * op[i] * op[mod1(i + 2, N)] for op in [x, y, z] for i in 1:N)
+registry, (σx, σy, σz) = create_pauli_variables(1:N)
 
-eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
+ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) * op[i] * op[mod1(i + 2, N)] for op in [σx, σy, σz] for i in 1:N)
 
-pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+pop = polyopt(ham, registry)
 
 solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2, ts_algo = MMD())
 
 res = cs_nctssos(pop, solver_config)
 
-res = cs_nctssos_higher(pop,res,solver_config)
-res.objective/N
-````
-
-````
--0.4270083216637759
+res = cs_nctssos_higher(pop, res, solver_config)
+res.objective / N
 ````
 
 We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
@@ -98,35 +90,30 @@ to $6$ digits!
 
 Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
+````julia
 using NCTSSoS, MosekTools
 Nx = 3
 Ny = 3
 N = Nx * Ny
 J1 = 1.0
 J2 = 0.0
-@ncpolyvar x[1:N] y[1:N] z[1:N]
+
+registry, (σx, σy, σz) = create_pauli_variables(1:N)
 
 LI = LinearIndices((1:Nx, 1:Ny))
 
-ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(i, mod1(j + 1, Ny))]] + ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), j)]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j + 1, Ny))]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j - 1, Ny))]] for op in [x, y, z] for i in 1:Nx for j in 1:Ny)
+ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(i, mod1(j + 1, Ny))]] + ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), j)]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j + 1, Ny))]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j - 1, Ny))]] for op in [σx, σy, σz] for i in 1:Nx for j in 1:Ny)
 
-eq_cons = reduce(vcat, [[x[i] * y[i] - im * z[i], y[i] * x[i] + im * z[i], y[i] * z[i] - im * x[i], z[i] * y[i] + im * x[i], z[i] * x[i] - im * y[i], x[i] * z[i] + im * y[i]] for i in 1:N])
-
-pop = cpolyopt(ham; eq_constraints=eq_cons, comm_gps=[[x[i], y[i], z[i]] for i in 1:N], is_unipotent=true)
+pop = polyopt(ham, registry)
 
 solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
-
-res = cs_nctssos(pop, solver_config)
-
-res = cs_nctssos_higher(pop,res,solver_config)
-
-res.objective / N
+````
 
 ## Next step
 
 With such lower bounds, estimates of properties of the ground
 state, correlations functions, structure factors and order parameters, can also
-be obtained. We provide examples in another [section](@ref certify-property).
+be obtained. We provide examples in another section.
 
 ---
 

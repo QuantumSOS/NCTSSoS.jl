@@ -1,6 +1,4 @@
-```@meta
-EditURL = "../literate/pauli_gns_construction.jl"
-```
+<!-- nctssos-literate-source: pauli_gns_construction.jl sha256: 2ae77edfb12c32e290ccb8e94a1b928cf80d658f03568ad4fa8ab67591a10405 -->
 
 # GNS Construction for Pauli Operator Reconstruction
 
@@ -44,16 +42,21 @@ These satisfy the fundamental Pauli algebra:
 
 ````julia
 using NCTSSoS
-using NCTSSoS.FastPolynomials
 using LinearAlgebra
 using LinearAlgebra: tr
 ````
 
 In `NCTSSoS.jl`, we represent Pauli operators as non-commuting polynomial variables:
-Declare non-commuting variables for Pauli operators
+Create non-commuting variables using the typed algebra system
 
 ````julia
-@ncpolyvar x y z;
+registry, (x, y, z) = create_noncommutative_variables([("x", 1:1), ("y", 1:1), ("z", 1:1)])
+````
+
+Extract single variables from arrays
+
+````julia
+x, y, z = x[1], y[1], z[1]
 ````
 
 These variables x, y, z will represent σₓ, σᵧ, σ_z respectively
@@ -74,12 +77,6 @@ For clear reconstruction, use a pure state
 
 ````julia
 ρ =  zero_state * zero_state'
-````
-
-````
-2×2 Matrix{ComplexF64}:
- 1.0+0.0im  0.0+0.0im
- 0.0+0.0im  0.0+0.0im
 ````
 
 ## Step 3: Compute Expectation Values
@@ -118,10 +115,6 @@ function expval_pauli(mono::Monomial, ρ::Matrix)
 end
 ````
 
-````
-expval_pauli (generic function with 1 method)
-````
-
 ## Step 4: Build the Moment (Hankel) Matrix
 
 The moment matrix encodes all expectation values of products of our basis operators:
@@ -141,132 +134,6 @@ println("Basis operators (monomials):")
 for (i, b) in enumerate(basis)
     println("$i: $b")
 end
-````
-
-````
-Basis operators (monomials):
-1: 1
-2: x¹
-3: y¹
-4: z¹
-5: x¹y¹
-6: x¹z¹
-7: x²
-8: y¹x¹
-9: y¹z¹
-10: y²
-11: z¹x¹
-12: z¹y¹
-13: z²
-14: x¹y¹x¹
-15: x¹y¹z¹
-16: x¹y²
-17: x¹z¹x¹
-18: x¹z¹y¹
-19: x¹z²
-20: x²y¹
-21: x²z¹
-22: x³
-23: y¹x¹y¹
-24: y¹x¹z¹
-25: y¹x²
-26: y¹z¹x¹
-27: y¹z¹y¹
-28: y¹z²
-29: y²x¹
-30: y²z¹
-31: y³
-32: z¹x¹y¹
-33: z¹x¹z¹
-34: z¹x²
-35: z¹y¹x¹
-36: z¹y¹z¹
-37: z¹y²
-38: z²x¹
-39: z²y¹
-40: z³
-41: x¹y¹x¹y¹
-42: x¹y¹x¹z¹
-43: x¹y¹x²
-44: x¹y¹z¹x¹
-45: x¹y¹z¹y¹
-46: x¹y¹z²
-47: x¹y²x¹
-48: x¹y²z¹
-49: x¹y³
-50: x¹z¹x¹y¹
-51: x¹z¹x¹z¹
-52: x¹z¹x²
-53: x¹z¹y¹x¹
-54: x¹z¹y¹z¹
-55: x¹z¹y²
-56: x¹z²x¹
-57: x¹z²y¹
-58: x¹z³
-59: x²y¹x¹
-60: x²y¹z¹
-61: x²y²
-62: x²z¹x¹
-63: x²z¹y¹
-64: x²z²
-65: x³y¹
-66: x³z¹
-67: x⁴
-68: y¹x¹y¹x¹
-69: y¹x¹y¹z¹
-70: y¹x¹y²
-71: y¹x¹z¹x¹
-72: y¹x¹z¹y¹
-73: y¹x¹z²
-74: y¹x²y¹
-75: y¹x²z¹
-76: y¹x³
-77: y¹z¹x¹y¹
-78: y¹z¹x¹z¹
-79: y¹z¹x²
-80: y¹z¹y¹x¹
-81: y¹z¹y¹z¹
-82: y¹z¹y²
-83: y¹z²x¹
-84: y¹z²y¹
-85: y¹z³
-86: y²x¹y¹
-87: y²x¹z¹
-88: y²x²
-89: y²z¹x¹
-90: y²z¹y¹
-91: y²z²
-92: y³x¹
-93: y³z¹
-94: y⁴
-95: z¹x¹y¹x¹
-96: z¹x¹y¹z¹
-97: z¹x¹y²
-98: z¹x¹z¹x¹
-99: z¹x¹z¹y¹
-100: z¹x¹z²
-101: z¹x²y¹
-102: z¹x²z¹
-103: z¹x³
-104: z¹y¹x¹y¹
-105: z¹y¹x¹z¹
-106: z¹y¹x²
-107: z¹y¹z¹x¹
-108: z¹y¹z¹y¹
-109: z¹y¹z²
-110: z¹y²x¹
-111: z¹y²z¹
-112: z¹y³
-113: z²x¹y¹
-114: z²x¹z¹
-115: z²x²
-116: z²y¹x¹
-117: z²y¹z¹
-118: z²y²
-119: z³x¹
-120: z³y¹
-121: z⁴
-
 ````
 
 Build the moment matrix H where H[i,j] = ⟨b_i† * b_j⟩
@@ -295,11 +162,6 @@ Verify that H is Hermitian (as required by quantum mechanics)
 println("Moment matrix H is Hermitian: ", H ≈ H')
 ````
 
-````
-Moment matrix H is Hermitian: true
-
-````
-
 ## Step 5: GNS Reconstruction
 
 Now we use the `reconstruct` function to perform the GNS construction and obtain
@@ -309,23 +171,10 @@ concrete matrix representations of our abstract operators:
 X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree; atol=0.001)
 ````
 
-````
-3-element Vector{Matrix{ComplexF64}}:
- [0.0 + 0.0im 3.574334513209998e-48 + 1.0000000000000004im; 2.753963633492892e-48 - 1.0000000000000004im -8.310098917615953e-33 + 6.366149832128084e-51im]
- [0.0 + 0.0im 1.0000000000000004 - 3.574334513209998e-48im; 1.0000000000000004 + 2.753963633492892e-48im -2.347184397671815e-50 - 6.1530573799022466e-33im]
- [1.0000000000000002 + 0.0im -2.353834293849223e-50 - 5.7353166945488984e-33im; -2.51012310344404e-50 + 4.651031097596431e-33im -1.0000000000000009 + 2.3381282238640562e-48im]
-````
-
 ````julia
 println("Reconstructed Pauli operators:")
 println("σₓ (reconstructed):")
 round.(X_recon, digits=6)
-````
-
-````
-2×2 Matrix{ComplexF64}:
- 0.0+0.0im   0.0+1.0im
- 0.0-1.0im  -0.0+0.0im
 ````
 
 ````julia
@@ -333,21 +182,9 @@ println("σᵧ (reconstructed):")
 round.(Y_recon, digits=6)
 ````
 
-````
-2×2 Matrix{ComplexF64}:
- 0.0+0.0im   1.0-0.0im
- 1.0+0.0im  -0.0-0.0im
-````
-
 ````julia
 println("σ_z (reconstructed):")
 round.(Z_recon, digits=6)
-````
-
-````
-2×2 Matrix{ComplexF64}:
-  1.0+0.0im  -0.0-0.0im
- -0.0+0.0im  -1.0+0.0im
 ````
 
 ## Step 6: Verify Pauli Algebra
@@ -367,13 +204,6 @@ println("   ||Y² - I|| = $(norm(Y2 - I))")
 println("   ||Z² - I|| = $(norm(Z2 - I))")
 ````
 
-````
-   ||X² - I|| = 1.2560739669470201e-15
-   ||Y² - I|| = 1.2560739669470201e-15
-   ||Z² - I|| = 1.831026719408895e-15
-
-````
-
 ### Test 2: Anti-commutation relations ({σᵢ, σⱼ} = 0 for i ≠ j)
 
 ````julia
@@ -386,13 +216,6 @@ println("||{Y,Z}|| = $(norm(anticomm_YZ))")
 println("||{Z,X}|| = $(norm(anticomm_ZX))")
 ````
 
-````
-||{X,Y}|| = 1.4623122726759252e-32
-||{Y,Z}|| = 9.42055475210265e-16
-||{Z,X}|| = 9.42055475210265e-16
-
-````
-
 ### Test 3: Commutation relations ([σᵢ, σⱼ] = 2iε_ijkσₖ)
 
 ````julia
@@ -403,13 +226,6 @@ comm_ZX = Z_recon * X_recon - X_recon * Z_recon
 println("||[X,Y] - 2iZ|| = $(norm(comm_XY - 2im * Z_recon))")
 println("||[Y,Z] - 2iX|| = $(norm(comm_YZ - 2im * X_recon))")
 println("||[Z,X] - 2iY|| = $(norm(comm_ZX - 2im * Y_recon))")
-````
-
-````
-||[X,Y] - 2iZ|| = 1.3322676295501878e-15
-||[Y,Z] - 2iX|| = 1.2560739669470201e-15
-||[Z,X] - 2iY|| = 1.2560739669470201e-15
-
 ````
 
 ## Understanding Unitary Freedom in GNS Reconstruction
@@ -445,11 +261,6 @@ Random.seed!(42)  # For reproducibility
 @show ψ_random;
 ````
 
-````
-ψ_random = ComplexF64[0.48005951599229074 - 0.5357791469433075im, -0.532085869997182 - 0.44650665589136673im]
-
-````
-
 Build moment matrix and reconstruct
 
 ````julia
@@ -465,49 +276,18 @@ X_rand, Y_rand, Z_rand = reconstruct(H_random, vars, degree; atol=0.001)
 @show size(X_rand);
 ````
 
-````
-Rank of full Hankel matrix H: 2 (using atol=0.001)
-Rank of hankel_block (degree 3): 2 (using atol=0.001)
-✓ Flatness condition satisfied: rank(H) = rank(hankel_block) = 2
-GNS reconstruction: keeping 2 singular values > 0.001, reconstructed matrices will be 2×2
-Variable x: constructed (2, 2) matrix representation
-Variable y: constructed (2, 2) matrix representation
-Variable z: constructed (2, 2) matrix representation
-rank(H_random, atol = 1.0e-6) = 2
-size(X_rand) = (2, 2)
-
-````
-
 The reconstructed operators look very different from standard Pauli matrices:
 
 ````julia
 X_rand
 ````
 
-````
-2×2 Matrix{ComplexF64}:
- -0.0324079+1.23262e-19im   0.994615-0.0984462im
-   0.994615+0.0984462im    0.0324079-3.68775e-18im
-````
-
 ````julia
 Y_rand
 ````
 
-````
-2×2 Matrix{ComplexF64}:
-  -0.998861-1.45507e-19im  -0.0356829-0.0316907im
- -0.0356829+0.0316907im      0.998861+1.01064e-17im
-````
-
 ````julia
 Z_rand
-````
-
-````
-2×2 Matrix{ComplexF64}:
- 0.0350329-3.53414e-18im   -0.097307-0.994638im
- -0.097307+0.994638im     -0.0350329-8.01641e-18im
 ````
 
 The reconstructed operators are not in the familar form but still satisfy the Pauli algebra:
@@ -516,13 +296,6 @@ The reconstructed operators are not in the familar form but still satisfy the Pa
 @show norm(X_rand * X_rand - I);
 @show norm(X_rand * Y_rand + Y_rand * X_rand);
 @show norm((X_rand * Y_rand - Y_rand * X_rand) - 2im * Z_rand);
-````
-
-````
-norm(X_rand * X_rand - I) = 4.9544522472129334e-17
-norm(X_rand * Y_rand + Y_rand * X_rand) = 9.504511772915181e-16
-norm((X_rand * Y_rand - Y_rand * X_rand) - (2im) * Z_rand) = 5.162078360867593e-16
-
 ````
 
 Now, let's diagonalize Z_rand and use its eigenvectors to transform all three operators:
@@ -538,11 +311,6 @@ F_rand = eigen(Z_rand)  # Diagonalize Z, not Y!
 @show F_rand.values;
 ````
 
-````
-F_rand.values = ComplexF64[-1.0 - 1.672081166228218e-17im, 1.0 + 6.247779567868549e-18im]
-
-````
-
 Important: eigen() may return eigenvectors in any order. The standard Pauli Z matrix
 is σ_z = diag(1, -1), so we want eigenvalue +1 first and -1 second.
 
@@ -554,11 +322,6 @@ if real(F_rand.values[1]) < real(F_rand.values[2])
 else
     U_rand = F_rand.vectors
 end
-````
-
-````
-[ Info: Reordered eigenvectors to match σ_z = diag(1, -1) convention
-
 ````
 
 Apply the unitary transformation U_rand† · (operator) · U_rand to all three operators:
@@ -576,32 +339,14 @@ println("\nZ after transformation (should be diagonal):")
 round.(Z_transformed, digits=4)
 ````
 
-````
-2×2 Matrix{ComplexF64}:
- 1.0+0.0im   0.0+0.0im
- 0.0+0.0im  -1.0-0.0im
-````
-
 ````julia
 println("\nX after transformation:")
 round.(X_transformed, digits=4)
 ````
 
-````
-2×2 Matrix{ComplexF64}:
-    0.0+0.0im     0.9916-0.1296im
- 0.9916+0.1296im     0.0-0.0im
-````
-
 ````julia
 println("\nY after transformation:")
 round.(Y_transformed, digits=4)
-````
-
-````
-2×2 Matrix{ComplexF64}:
-     0.0+0.0im     -0.1296-0.9916im
- -0.1296+0.9916im      0.0+0.0im
 ````
 
 ## Second Unitary Transformation to Fix X and Y
@@ -698,37 +443,6 @@ if abs(Z_transformed[1,1] - 1) < 0.1 || abs(Z_transformed[1,1] + 1) < 0.1  # Z i
 end
 ````
 
-````
-
-Phases determined: α = 0.0, β = 0.12995470935070005
-This should make X_transformed[1,2] real and positive: 0.9999999999999997 + 2.7755575615628914e-17im
-
-=== After Systematic Phase Correction ===
-
-Z (should remain unchanged since U₂ is diagonal):
-ComplexF64[1.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im -1.0 - 0.0im]
-Verification: ||Z_corrected - Z_transformed|| = 2.4360324397437158e-17
-
-X (should now match σ_x):
-ComplexF64[0.0 + 0.0im 1.0 + 0.0im; 1.0 - 0.0im 0.0 - 0.0im]
-
-Y (should now match σ_y):
-ComplexF64[0.0 + 0.0im 0.0 - 1.0im; 0.0 + 1.0im 0.0 + 0.0im]
-
-=== Final Verification ===
-Distance from standard Pauli matrices:
-||Z_corrected - σ_z|| = 2.8052198857519395e-16
-||X_corrected - σ_x|| = 4.922826142722048e-16
-||Y_corrected - σ_y|| = 6.521822047694349e-16
-
-=== Verify Pauli Algebra Still Holds ===
-||X² - I|| = 9.499064443774055e-16
-||Y² - I|| = 1.2948801525946436e-15
-||Z² - I|| = 4.478422697720281e-16
-||[X,Y] - 2iZ|| = 1.1309194191732256e-15
-
-````
-
 ## Example 3: Mixed State with Higher Rank
 
 Now let's see what happens with a mixed state that is not a pure state.
@@ -737,12 +451,6 @@ Mixed state: ½|0⟩⟨0| + ½|+⟩⟨+| where |+⟩ = (|0⟩ + |1⟩)/√2
 ````julia
 plus_state = normalize(ComplexF64[1; 1])
 ρ_mixed = 0.5 * (zero_state * zero_state') + 0.5 * (plus_state * plus_state')
-````
-
-````
-2×2 Matrix{ComplexF64}:
- 0.75+0.0im  0.25+0.0im
- 0.25+0.0im  0.25+0.0im
 ````
 
 Build moment matrix and reconstruct
@@ -760,19 +468,6 @@ X_mixed, Y_mixed, Z_mixed = reconstruct(H_mixed, vars, degree; atol=0.001)
 @show size(X_mixed);
 ````
 
-````
-Rank of full Hankel matrix H: 4 (using atol=0.001)
-Rank of hankel_block (degree 3): 4 (using atol=0.001)
-✓ Flatness condition satisfied: rank(H) = rank(hankel_block) = 4
-GNS reconstruction: keeping 4 singular values > 0.001, reconstructed matrices will be 4×4
-Variable x: constructed (4, 4) matrix representation
-Variable y: constructed (4, 4) matrix representation
-Variable z: constructed (4, 4) matrix representation
-rank(H_mixed, atol = 1.0e-6) = 4
-size(X_mixed) = (4, 4)
-
-````
-
 For a mixed state, the rank can be higher! The reconstructed operators now act on a
 **direct sum** of smaller Hilbert spaces. But remarkably, they still satisfy the
 Pauli algebra:
@@ -783,23 +478,12 @@ Pauli algebra:
 dim_mixed = size(X_mixed, 1)
 ````
 
-````
-4
-````
-
 **Test 1: Squares should equal identity (σᵢ² = I)**
 
 ````julia
 println("||X² - I|| = $(norm(X_mixed * X_mixed - I(dim_mixed)))")
 println("||Y² - I|| = $(norm(Y_mixed * Y_mixed - I(dim_mixed)))")
 println("||Z² - I|| = $(norm(Z_mixed * Z_mixed - I(dim_mixed)))")
-````
-
-````
-||X² - I|| = 2.4124410454036057e-15
-||Y² - I|| = 2.7614386208727306e-15
-||Z² - I|| = 2.6211266463523374e-15
-
 ````
 
 **Test 2: Anti-commutation relations ({σᵢ, σⱼ} = 0 for i ≠ j)**
@@ -814,13 +498,6 @@ println("||{Y,Z}|| = $(norm(anticomm_YZ_mixed))")
 println("||{Z,X}|| = $(norm(anticomm_ZX_mixed))")
 ````
 
-````
-||{X,Y}|| = 1.81421523891841e-15
-||{Y,Z}|| = 2.6164352461025136e-15
-||{Z,X}|| = 2.5553316515572013e-15
-
-````
-
 **Test 3: Commutation relations ([σᵢ, σⱼ] = 2iε_ijkσₖ)**
 
 ````julia
@@ -831,13 +508,6 @@ comm_ZX_mixed = Z_mixed * X_mixed - X_mixed * Z_mixed
 println("||[X,Y] - 2iZ|| = $(norm(comm_XY_mixed - 2im * Z_mixed))")
 println("||[Y,Z] - 2iX|| = $(norm(comm_YZ_mixed - 2im * X_mixed))")
 println("||[Z,X] - 2iY|| = $(norm(comm_ZX_mixed - 2im * Y_mixed))")
-````
-
-````
-||[X,Y] - 2iZ|| = 3.560277133665956e-15
-||[Y,Z] - 2iX|| = 3.5287866252028285e-15
-||[Z,X] - 2iY|| = 2.4546810564734144e-15
-
 ````
 
 This demonstrates that GNS reconstruction can handle both pure and mixed states,

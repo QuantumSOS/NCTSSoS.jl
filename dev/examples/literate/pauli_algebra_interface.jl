@@ -1,18 +1,23 @@
-# # [Simplified Quantum Spin Models with Pauli Algebra Interface](@id pauli-algebra-interface)
+# # [Simplified Quantum Spin Models with Pauli Algebra](@id pauli-algebra-interface)
 
 # `NCTSSoS.jl` provides a convenient interface for working with common quantum algebras,
 # eliminating the need to manually specify commutation relations and constraints.
-# This tutorial demonstrates the [`pauli_algebra`](@ref) constructor for quantum spin systems,
+# This tutorial demonstrates the [`create_pauli_variables`](@ref) function for quantum spin systems,
 # which significantly simplifies the problem setup for [polynomial optimization](@ref polynomials)
 # problems in quantum many-body physics [wang2024Certifying](@cite).
 
-# ## The Problem: Manual Constraint Specification
+# ## The Problem: Manual Constraint Specification (Legacy API - Deprecated)
 
-# When working with quantum spin systems, the standard approach requires manually
-# defining all Pauli operator commutation relations. This is tedious, error-prone,
-# and obscures the physics of the problem. Let's see this with a concrete example.
+# !!! warning "Deprecated API"
+#     The following example demonstrates the **legacy API** using `@ncpolyvar` and manual
+#     constraint specification. This API is deprecated and will be removed in a future version.
+#     Please use the new typed algebra API demonstrated in the next section.
 
-# ### Traditional Approach: Heisenberg XXX Model
+# When working with quantum spin systems, the old approach required manually
+# defining all Pauli operator commutation relations. This was tedious, error-prone,
+# and obscured the physics of the problem. Let's see this with a concrete example.
+
+# ### Traditional Approach: Heisenberg XXX Model (Deprecated)
 
 # The Heisenberg XXX Hamiltonian for a 1D chain with periodic boundary conditions is:
 #
@@ -20,63 +25,65 @@
 # H = \frac{1}{4} \sum_{i=1}^{N} \left( \sigma_i^x \sigma_{i+1}^x + \sigma_i^y \sigma_{i+1}^y + \sigma_i^z \sigma_{i+1}^z \right)
 # ```
 #
-# where $\sigma_i^{x,y,z}$ are the Pauli operators at site $i$. To solve for the
-# [ground state energy](@ref ground-state-energy) using polynomial optimization,
-# we traditionally need to:
+# where $\sigma_i^{x,y,z}$ are the Pauli operators at site $i$. In the legacy API,
+# solving for the [ground state energy](@ref ground-state-energy) using polynomial
+# optimization required:
+
+# ```julia
+# # DEPRECATED - Do not use in new code
+# using NCTSSoS, MosekTools
+# N = 6  # Number of spins in the chain
+#
+# # Step 1: Declare non-commutative variables for Pauli operators
+# @ncpolyvar x[1:N] y[1:N] z[1:N]  # Requires DynamicPolynomials
+#
+# # Step 2: Construct the Hamiltonian
+# ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)] for op in [x, y, z] for i in 1:N)
+#
+# # Step 3: Manually specify all 36 Pauli commutation relations (!)
+# eq_cons = reduce(vcat, [
+#     [x[i] * y[i] - im * z[i],   # sigma_x * sigma_y = i*sigma_z
+#      y[i] * x[i] + im * z[i],   # sigma_y * sigma_x = -i*sigma_z
+#      ...  # and so on for all 6 relations at each site
+#     ]
+#     for i in 1:N
+# ])
+#
+# # Step 4: Create the optimization problem with all constraints
+# pop_old = cpolyopt(ham;
+#     eq_constraints=eq_cons,                     # Pauli commutation relations
+#     comm_gps=[[x[i], y[i], z[i]] for i in 1:N], # Operators on different sites commute
+#     is_unipotent=true                           # Pauli operators square to identity
+# )
+# ```
+
+# This approach required **36 constraint equations** for just 6 spins! As the system
+# size grew, this became increasingly cumbersome and error-prone.
+
+# ## The Solution: Typed Algebra Variables (Recommended API)
+
+# The [`create_pauli_variables`](@ref) function encapsulates all these constraints
+# automatically through Julia's type system, allowing you to focus on the physics
+# rather than the algebra.
+
+# ### Simplified Approach with `create_pauli_variables`
+
+# The same problem can be solved much more concisely:
 
 using NCTSSoS, MosekTools
 N = 6  # Number of spins in the chain
 
-# **Step 1**: Declare non-commutative variables for Pauli operators
-@ncpolyvar x[1:N] y[1:N] z[1:N]
+registry, (σx, σy, σz) = create_pauli_variables(1:N)
 
-# **Step 2**: Construct the Hamiltonian
-ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)] for op in [x, y, z] for i in 1:N)
+# Construct the Hamiltonian (same formula, cleaner variables)
+ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
+          for op in [σx, σy, σz] for i in 1:N)
 
-# **Step 3**: Manually specify all Pauli commutation relations
-# For each site i, we need to encode:
-# [σ^x_i, σ^y_i] = iσ^z_i, [σ^y_i, σ^z_i] = iσ^x_i, [σ^z_i, σ^x_i] = iσ^y_i
-eq_cons = reduce(vcat, [
-    [x[i] * y[i] - im * z[i],   # σ^x_i σ^y_i = iσ^z_i
-     y[i] * x[i] + im * z[i],   # σ^y_i σ^x_i = -iσ^z_i
-     y[i] * z[i] - im * x[i],   # σ^y_i σ^z_i = iσ^x_i
-     z[i] * y[i] + im * x[i],   # σ^z_i σ^y_i = -iσ^x_i
-     z[i] * x[i] - im * y[i],   # σ^z_i σ^x_i = iσ^y_i
-     x[i] * z[i] + im * y[i]]   # σ^x_i σ^z_i = -iσ^y_i
-    for i in 1:N
-])
+# Create the optimization problem - constraints are handled automatically by the algebra type!
+pop = polyopt(ham, registry)
 
-# **Step 4**: Create the optimization problem with all constraints
-pop_old = cpolyopt(ham;
-    eq_constraints=eq_cons,                     # Pauli commutation relations
-    comm_gps=[[x[i], y[i], z[i]] for i in 1:N], # Operators on different sites commute
-    is_unipotent=true                           # Pauli operators square to identity
-)
-
-# This approach requires **36 constraint equations** for just 6 spins! As the system
-# size grows, this becomes increasingly cumbersome and error-prone.
-
-# ## The Solution: Algebra Constructors
-
-# The [`pauli_algebra`](@ref) constructor encapsulates all these constraints
-# automatically, allowing you to focus on the physics rather than the algebra.
-
-# ### Simplified Approach with `pauli_algebra`
-
-# The same problem can be solved much more concisely:
-
-sys = pauli_algebra(N)
-x_new, y_new, z_new = sys.variables
-
-# Construct the Hamiltonian (same formula, different variables)
-ham_new = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
-              for op in [x_new, y_new, z_new] for i in 1:N)
-
-# Create the optimization problem - constraints are automatic!
-pop_new = cpolyopt(ham_new, sys)
-
-# Both approaches produce identical optimization problems, but the new interface is
-# **10 lines shorter** and eliminates the possibility of typos in constraint equations.
+# The new interface is much cleaner: just 4 lines instead of 40+, and eliminates
+# the possibility of typos in constraint equations.
 
 # ## Computing Ground State Energy
 
@@ -89,7 +96,7 @@ solver_config = SolverConfig(
     order=2                     # Relaxation order (higher = tighter bound)
 )
 
-res = cs_nctssos(pop_new, solver_config)
+res = cs_nctssos(pop, solver_config)
 energy_per_site = res.objective / N
 
 # The result provides a certified lower bound on the ground state energy per site.
@@ -97,16 +104,16 @@ energy_per_site = res.objective / N
 # which matches the exact value to high precision [wang2024Certifying](@cite).
 
 
-# ## Advantages of Algebra Constructors
+# ## Advantages of Typed Algebra Variables
 
-# The [`pauli_algebra`](@ref) interface provides several key benefits:
+# The [`create_pauli_variables`](@ref) interface provides several key benefits:
 
 # 1. **Automatic constraint generation**: All Pauli commutation relations are
-#    encoded correctly without manual specification.
+#    encoded correctly through the `PauliAlgebra` type without manual specification.
 #
 # 2. **Error prevention**: Eliminates typos and sign errors in constraint equations.
 #
-# 3. **Code clarity**: The physics intent is immediately clear from `pauli_algebra(N)`.
+# 3. **Code clarity**: The physics intent is immediately clear from the function name.
 #
 # 4. **Scalability**: Works seamlessly for any system size without code modification.
 #
@@ -114,6 +121,16 @@ energy_per_site = res.objective / N
 #
 # 6. **Extensibility**: Can still add custom constraints when needed for specific
 #    physical scenarios.
+
+# ## Other Algebra Types
+
+# Similar functions exist for other quantum algebras:
+#
+# - [`create_fermionic_variables`](@ref): Fermionic operators with anticommutation relations
+# - [`create_bosonic_variables`](@ref): Bosonic operators with commutation relations
+# - [`create_projector_variables`](@ref): Projector operators (P² = P)
+# - [`create_unipotent_variables`](@ref): Unipotent operators (U² = I)
+# - [`create_noncommutative_variables`](@ref): Generic non-commutative variables
 
 # ## Next Steps
 
@@ -123,6 +140,6 @@ energy_per_site = res.objective / N
 # - For correlation function bounds, see [certifying ground state properties](@ref certify-property)
 # - For non-local correlations, explore [Bell inequalities](@ref bell-inequalities)
 #
-# The algebra constructor approach demonstrates how `NCTSSoS.jl` bridges the gap
+# The typed algebra approach demonstrates how `NCTSSoS.jl` bridges the gap
 # between physical intuition and mathematical formalism, making quantum many-body
 # optimization more accessible and reliable.

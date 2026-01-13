@@ -40,13 +40,15 @@
 # ## Step 1: Define Non-commuting Variables
 
 using NCTSSoS
-using NCTSSoS.FastPolynomials
 using LinearAlgebra
 using LinearAlgebra: tr
 
 # In `NCTSSoS.jl`, we represent Pauli operators as non-commuting polynomial variables:
-# Declare non-commuting variables for Pauli operators
-@ncpolyvar x y z;
+# Create non-commuting variables using the typed algebra system
+registry, (x, y, z) = create_noncommutative_variables([("x", 1:1), ("y", 1:1), ("z", 1:1)])
+
+# Extract single variables from arrays
+x, y, z = x[1], y[1], z[1]
 
 # These variables x, y, z will represent σₓ, σᵧ, σ_z respectively
 vars = [x, y, z];

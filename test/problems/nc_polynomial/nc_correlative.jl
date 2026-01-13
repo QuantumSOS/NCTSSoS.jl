@@ -1,12 +1,7 @@
-# =============================================================================
 # test/problems/nc_polynomial/nc_correlative.jl
-# =============================================================================
 # Tests: NC Correlative Sparsity - Constrained example (3 variables)
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Tests correlative sparsity exploitation with constraints.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -26,7 +21,9 @@ const NC_CORRELATIVE_ORACLES = (
     TS_d3 = (opt=0.9975305666745705, nuniq=123),  # sides vary
 )
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 @testset "NC Correlative Sparsity" begin
     n = 3

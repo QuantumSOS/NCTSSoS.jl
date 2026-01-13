@@ -7,9 +7,7 @@ function _kron_all(mats::AbstractVector{<:AbstractMatrix})
     return reduce(LinearAlgebra.kron, mats)
 end
 
-# -----------------------------------------------------------------------------
 # Pauli oracle (exact 2^n representation)
-# -----------------------------------------------------------------------------
 
 const _PAULI_X = ComplexF64[0 1; 1 0]
 const _PAULI_Y = ComplexF64[0 -im; im 0]
@@ -62,9 +60,7 @@ end
     end
 end
 
-# -----------------------------------------------------------------------------
 # Fermionic oracle (exact Jordan–Wigner representation on (C^2)^⊗n)
-# -----------------------------------------------------------------------------
 
 const _JW_I = _PAULI_I
 const _JW_Z = _PAULI_Z

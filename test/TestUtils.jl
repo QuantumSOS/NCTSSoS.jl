@@ -1,15 +1,8 @@
-# =============================================================================
 # test/TestUtils.jl - Shared Test Infrastructure
-# =============================================================================
 # Provides:
 #   - SOLVER constant (COSMO default, Mosek with --local)
 #   - USE_LOCAL flag
 #   - flatten_sizes helper
-#
-# Usage:
-#   - Suite runs: runtests.jl includes this file
-#   - REPL/standalone: files have inline Mosek fallback (see test file headers)
-# =============================================================================
 
 using JuMP
 
@@ -45,9 +38,7 @@ if !@isdefined(SOLVER_NAME)
     const SOLVER_NAME = USE_LOCAL ? :mosek : :cosmo
 end
 
-# =============================================================================
 # Shared Helpers
-# =============================================================================
 
 """
     flatten_sizes(sizes)

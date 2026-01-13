@@ -1,6 +1,4 @@
-# =============================================================================
 # Bilocal Network Tests
-# =============================================================================
 # Tests for quantum bilocal network optimization from Example 8.1.1 in the
 # state polynomial paper.
 #
@@ -22,8 +20,6 @@
 #
 # Expected result: Quantum bound of -4
 #
-# NOTE: This test requires --local (Mosek license) and order=3.
-# =============================================================================
 
 using NCTSSoS, Test
 using JuMP
@@ -38,13 +34,11 @@ if !@isdefined(SOLVER)
     )
 end
 
-# =============================================================================
 # Expected values from NCTSSOS
 # Format: (opt, sides, nuniq)
 #   opt   = optimal value (minimization → -4.0 quantum bound)
 #   sides = moment matrix block sizes
 #   nuniq = unique moment indices (affine constraints)
-# =============================================================================
 const EXPECTED_BILOCAL = (
     # Dense: single block of size 637, 15867 constraints
     Dense_d3 = (opt=-3.9999999896685883, sides=[637], nuniq=15867),
@@ -53,7 +47,9 @@ const EXPECTED_BILOCAL = (
 )
 
 # Helper: flatten moment_matrix_sizes for comparison
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 @testset "Bilocal Networks" begin
 

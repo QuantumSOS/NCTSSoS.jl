@@ -1,9 +1,6 @@
-# =============================================================================
 # Sparsity Algorithm Variants Tests
-# =============================================================================
 # Tests different term sparsity algorithms on trace polynomial optimization.
 # Uses CHSH trace polynomial (expected: -2√2 ≈ -2.8284).
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 

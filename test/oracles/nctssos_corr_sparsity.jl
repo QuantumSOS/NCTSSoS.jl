@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: Correlative Sparsity Example
-# =====================================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_corr_sparsity.jl
 #

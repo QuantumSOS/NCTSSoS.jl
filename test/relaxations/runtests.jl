@@ -1,9 +1,5 @@
-# =============================================================================
 # test/relaxations/runtests.jl
-# =============================================================================
 # Tests: Relaxation algorithm components
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Coverage:
 # - interface.jl: PolyOpt constructors (Polynomial and NCStatePolynomial)
@@ -11,7 +7,6 @@
 # - sparsity.jl: Correlative/term sparsity components
 # - gns.jl: GNS reconstruction
 # - dualization.jl: SOS ≈ Moment equivalence
-# =============================================================================
 
 using Test
 

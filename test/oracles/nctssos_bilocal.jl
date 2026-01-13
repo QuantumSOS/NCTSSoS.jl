@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: Bilocal Network (Example 8.1.1)
-# ======================================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_bilocal.jl
 #

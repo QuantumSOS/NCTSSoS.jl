@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: State Polynomial Optimization
-# =====================================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_state_poly.jl
 #
@@ -10,9 +9,7 @@
 
 include("oracle_utils.jl")
 
-# =============================================================================
 # 7.2.0: CHSH State Polynomial (basic, linear in expectations)
-# =============================================================================
 # Variables: x[1:2], y[1:2] (unipotent, U²=I)
 # Variable mapping: x1=1, x2=2, y1=3, y2=4
 # Objective: sp = -ς(x₁y₁) - ς(x₁y₂) - ς(x₂y₁) + ς(x₂y₂)
@@ -47,9 +44,7 @@ results_7_2_0 = map(STATE_7_2_0_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # 7.2.1: Squared Expectations
-# =============================================================================
 # Variables: x[1:2], y[1:2] (unipotent, U²=I)
 # Variable mapping: x1=1, x2=2, y1=3, y2=4
 # Objective: sp = -(ς(x₁y₂) + ς(x₂y₁))² - (ς(x₁y₁) - ς(x₂y₂))²
@@ -98,9 +93,7 @@ results_7_2_1 = map(STATE_7_2_1_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # 7.2.2: Covariance Expression
-# =============================================================================
 # Variables: x[1:3], y[1:3] (unipotent)
 # Variable mapping: x1=1, x2=2, x3=3, y1=4, y2=5, y3=6
 # cov(a,b) = ς(xₐyᵦ) - ς(xₐ)ς(yᵦ)
@@ -170,9 +163,7 @@ results_7_2_2 = map(STATE_7_2_2_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # 7.2.3: Mixed State Polynomial
-# =============================================================================
 # Variables: x[1:2], y[1:2] (unipotent)
 # Variable mapping: x1=1, x2=2, y1=3, y2=4
 # From NCTSSOS stateopt.jl example
@@ -225,8 +216,6 @@ results_7_2_3 = map(STATE_7_2_3_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Summary
-# =============================================================================
 all_results = vcat(results_7_2_0, results_7_2_1, results_7_2_2, results_7_2_3)
 print_summary("STATE_POLY", all_results)

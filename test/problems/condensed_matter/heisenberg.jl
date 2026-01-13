@@ -1,5 +1,4 @@
 # Heisenberg Model Tests
-# =======================
 # Tests ground state energy bounds for Heisenberg spin chains.
 
 using Test, NCTSSoS, JuMP

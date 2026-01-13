@@ -1,6 +1,4 @@
-# =============================================================================
 # State Polynomial Optimization Tests (Examples 7.2.x)
-# =============================================================================
 # Consolidates state polynomial tests using the ς() operator:
 #   - 7.2.1: Squared expectations (products of state values)
 #   - 7.2.2: Covariance Bell inequality
@@ -8,12 +6,13 @@
 #
 # Note: Basic CHSH state polynomial tests are in chsh.jl
 # Results verified against NCTSSOS.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
 # Helper: flatten moment_matrix_sizes for comparison
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 # Solver: use Mosek if available, otherwise error
 if !@isdefined(SOLVER)
@@ -26,23 +25,21 @@ if !@isdefined(SOLVER)
     const SOLVER_NAME = :mosek
 end
 
-# =============================================================================
 # Expected values: mosek (reference) and cosmo (CI)
 # Format: (opt, sides, nuniq)
 #   opt   = optimal value (minimization)
 #   sides = moment matrix block sizes
 #   nuniq = unique moment indices (affine constraints)
-# =============================================================================
 const EXPECTED_STATE_POLY = (
     mosek = (
-        Ex_7_2_1_Dense_d3 = (opt=-3.9999999914666895, sides=[209], nuniq=1887),
+        Ex_7_2_1_Dense_d3 = (opt=-3.9999999914666895, sides=[213], nuniq=1887),
         Ex_7_2_2_Dense_d2 = (opt=-4.999999999824081, sides=[106], nuniq=1098),
         Ex_7_2_2_TS_d2    = (opt=-4.99999999745226, sides=[9, 9, 9, 9, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], nuniq=93),
         Ex_7_2_3_Dense_d2 = (opt=-3.511480225797076, sides=[49], nuniq=233),
         Ex_7_2_3_TS_d2    = (opt=-3.582132180463948, sides=[7, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1], nuniq=41),
     ),
     cosmo = (
-        Ex_7_2_1_Dense_d3 = (opt=-4.000000008371047, sides=[213], nuniq=1887),
+        Ex_7_2_1_Dense_d3 = (opt=-4.000000008371047, sides=[209], nuniq=1887),
         Ex_7_2_2_Dense_d2 = (opt=-5.00000032294447, sides=[106], nuniq=1098),
         Ex_7_2_2_TS_d2    = (opt=-4.999999722040697, sides=[5, 5, 5, 8, 5, 5, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 6, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 6, 7, 9, 5, 9, 9, 9, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], nuniq=92),
         Ex_7_2_3_Dense_d2 = (opt=-3.5114802313179263, sides=[49], nuniq=233),

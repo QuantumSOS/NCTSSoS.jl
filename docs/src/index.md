@@ -20,11 +20,7 @@ using Pkg
 Pkg.add("NCTSSoS")
 ```
 To make sure everything works, you can execute the test suite.
-
-```julia
-using Pkg
-Pkg.test("NCTSSoS")
-```
+See `TESTING.md` in the repository root.
 
 Can't wait to try NCTSSoS.jl in action? Hop to [Quick Start](@ref quick-start).
 

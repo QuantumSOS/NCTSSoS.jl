@@ -3,7 +3,6 @@ JL = julia --project
 # Comma variable for escaping in macro calls
 , := ,
 
-# Macro for Pkg.test calls - usage: $(call pkg_test,["--flag1"$(,)"--flag2"])
 define pkg_test
 	$(JL) -e 'using Pkg; Pkg.test($(if $(1),test_args=$(1)))'
 endef
@@ -29,43 +28,16 @@ update-docs:
 # =============================================================================
 # Testing
 # =============================================================================
-# Test structure:
-#   polynomials/  - Core algebra (no solver)
-#   quality/      - Code quality checks
-#   solvers/      - SDP solver integration
-#   physics/      - Physics models (--local only, requires Mosek)
-#
-# Flags:
-#   --local        Use Mosek solver (required for physics tests)
-#   --minimal      Fast smoke test (5 cases) for relaxation correctness
-#   --polynomials  Run polynomial algebra tests
-#   --quality      Run code quality checks
-#   --solvers      Run SDP solver tests
-#   --physics      Run physics model tests
-#
-# Usage:
-#   make test              - Full suite with Mosek
-#   make test-ci           - CI suite (no physics, uses COSMO)
-#   make test-minimal      - Fast smoke test (5 cases, ~30s) for relaxation correctness
-#   make test-minimal-local - Minimal with Mosek
-#   make test-polynomials  - Just polynomial algebra
-#   make test-solvers      - Just SDP solver tests
-#   make test-physics      - Just physics models (needs Mosek)
-#   make test-quality      - Just code quality checks
-#
-# Direct Pkg.test usage:
-#   Pkg.test("NCTSSoS"; test_args=["--polynomials"])
-#   Pkg.test("NCTSSoS"; test_args=["--solvers", "--local"])
-#   Pkg.test("NCTSSoS"; test_args=["--local"])  # Full suite with Mosek
+# Canonical testing documentation: TESTING.md (repo root).
 # =============================================================================
 
-# Full test suite with Mosek (includes physics)
+# Full test suite with Mosek
 test:
 	$(call pkg_test,["--local"])
 
-# CI test suite (no physics, uses COSMO)
+# CI test suite (fast feedback; COSMO)
 test-ci:
-	$(call pkg_test,)
+	$(call pkg_test,["--polynomials"$(,)"--minimal"])
 
 # Individual test groups
 test-polynomials:
@@ -74,11 +46,11 @@ test-polynomials:
 test-quality:
 	$(call pkg_test,["--quality"])
 
-test-solvers:
-	$(call pkg_test,["--solvers"])
+test-relaxations:
+	$(call pkg_test,["--relaxations"])
 
-test-physics:
-	$(call pkg_test,["--physics"$(,)"--local"])
+test-problems:
+	$(call pkg_test,["--problems"$(,)"--local"])
 
 # Minimal correctness smoke test (5 cases covering critical algorithm paths)
 # Covers: Dense, CS, TS, CS+TS, Dualization - ~30s with COSMO
@@ -89,17 +61,16 @@ test-minimal-local:
 	$(call pkg_test,["--minimal"$(,)"--local"])
 
 # Combination targets
-test-no-physics:
-	$(call pkg_test,["--polynomials"$(,)"--quality"$(,)"--solvers"])
+test-no-problems:
+	$(call pkg_test,["--polynomials"$(,)"--quality"$(,)"--relaxations"])
 
 test-core:
-	$(call pkg_test,["--polynomials"$(,)"--solvers"])
+	$(call pkg_test,["--polynomials"$(,)"--relaxations"])
 
 # Run a single test file with Mosek
-# Usage: make test-file FILE=test/relaxations/sparsity.jl
 test-file:
 ifndef FILE
-	$(error FILE is required. Usage: make test-file FILE=test/relaxations/sparsity.jl)
+	$(error FILE is required. See TESTING.md.)
 endif
 	$(JL) -e 'include("$(FILE)")'
 
@@ -193,7 +164,7 @@ clean:
 	find . -name "*.cov" -delete
 
 .PHONY: init init-docs update update-docs \
-        test test-ci test-polynomials test-quality test-solvers test-physics \
-        test-minimal test-minimal-local test-no-physics test-core test-file \
+        test test-ci test-polynomials test-quality test-relaxations test-problems \
+        test-minimal test-minimal-local test-no-problems test-core test-file \
         sync-start sync-status sync-stop sync-pause sync-resume sync-flush \
         servedocs examples clean

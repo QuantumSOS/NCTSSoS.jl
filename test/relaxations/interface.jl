@@ -1,13 +1,10 @@
-# =============================================================================
 # High-Level API Interface Tests
-# =============================================================================
 # Tests the user-facing API: polyopt, cs_nctssos, cs_nctssos_higher
 # Includes:
 #   - PolyOpt constructor tests (Polynomial and NCStatePolynomial)
 #   - Basic dualization tests
 #
 # Note: Problem-specific optimization tests are in problems/ subdirectory.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -21,9 +18,7 @@ if !@isdefined(SOLVER)
     )
 end
 
-# =============================================================================
 # PolyOpt Constructor Tests
-# =============================================================================
 
 @testset "PolyOpt Constructor" begin
     @testset "Pauli Algebra Example" begin
@@ -215,9 +210,7 @@ end
     end
 end
 
-# =============================================================================
 # Basic Dualization Tests
-# =============================================================================
 
 @testset "Dualization" begin
     @testset "Naive Example" begin
@@ -288,9 +281,7 @@ end
     end
 end
 
-# =============================================================================
 # Unit Tests for Extracted Helper Functions
-# =============================================================================
 
 @testset "compute_relaxation_order" begin
     @testset "Auto-compute from polynomial degree" begin
@@ -480,7 +471,7 @@ end
 
         # initial_activated_supps should be accessible
         for (i, supp) in enumerate(sparsity.initial_activated_supps)
-            @test supp isa Vector{<:Monomial}
+            @test supp isa Vector{<:NormalMonomial}
         end
     end
 
@@ -512,7 +503,7 @@ end
 
         @test sparsity isa SparsityResult
         # Verify it's a state polynomial sparsity (ST != Nothing)
-        @test sparsity isa SparsityResult{<:AlgebraType, <:Integer, <:Any, <:Any, <:StateType}
+        @test sparsity isa SparsityResult{<:AlgebraType, <:Integer, <:Any, <:Any, <:NCTSSoS.StateType}
         @test !isempty(sparsity.initial_activated_supps)
     end
 end

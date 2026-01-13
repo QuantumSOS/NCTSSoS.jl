@@ -1,13 +1,10 @@
-# =============================================================================
 # Bell Inequalities Tests
-# =============================================================================
 # Tests for computing quantum bounds on Bell inequalities using SDP relaxation.
 #
 # Bell inequalities test local hidden variable theories against quantum mechanics.
 # Uses ProjectorAlgebra since Bell inequalities involve projective measurements (P² = P).
 #
 # These tests validate against known quantum bounds from the literature.
-# =============================================================================
 
 using NCTSSoS, Test
 using JuMP
@@ -165,22 +162,14 @@ end
     # These pass with close-enough values but may have slight numerical differences.
     skip_instances = Set()
 
-    # SKIPPED: RAM exceeded 60% (reached ~64% on 1Ti system running full suite)
-    # This test runs 88 Bell inequality instances sequentially which accumulates memory
-    @test_skip "Full Bell inequality suite skipped - RAM exceeded 60%"
-    #=
     for i in 1:length(instance)
         @testset "$(instance[i])" begin
             if instance[i] in skip_instances
-                @test_skip obj = tester(i,instance, equations, d, github_filenames, ms,ns)  # Skipped pending investigation
+                @test_skip "Skipped pending investigation"
             else
-                obj = tester(i,instance, equations, d, github_filenames,ms,ns)  # Skipped pending investigation
-                @test isapprox(obj,λd[i]; atol = 1e-6)
-                if ! isapprox(obj,λd[i]; atol = 1e-6)
-                    @show "$(instance[i]) failed with $obj, expecting $(λd[i])"
-                end
+                obj = tester(i, instance, equations, d, github_filenames, ms, ns)
+                @test isapprox(obj, λd[i]; atol=1e-6)
             end
         end
     end
-    =#
 end

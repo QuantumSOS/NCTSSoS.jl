@@ -1,5 +1,4 @@
 # XY Model Tests
-# ===============
 # XY model ground state energy tests using Pauli algebra.
 
 using Test, NCTSSoS, JuMP

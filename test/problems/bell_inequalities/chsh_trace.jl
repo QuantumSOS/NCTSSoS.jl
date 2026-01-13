@@ -1,12 +1,7 @@
-# =============================================================================
 # test/problems/bell_inequalities/chsh_trace.jl
-# =============================================================================
 # Tests: CHSH Bell inequality - Trace Polynomial formulation
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Uses trace polynomial formulation with NCTSSoS.tr().
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -26,7 +21,9 @@ const CHSH_TRACE_ORACLES = (
     TS    = (opt=-2.8284271247321175, nuniq=10),  # sides vary by implementation
 )
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 @testset "CHSH Trace Polynomial" begin
     reg, (vars,) = create_unipotent_variables([("v", 1:4)])

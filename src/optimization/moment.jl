@@ -88,7 +88,7 @@ function _build_constraint_matrix(
             # For each (c_row, row_word) in row_mono and (c_col, col_word) in col_mono,
             # compute conj(c_row) * c_col * sum over poly terms
             element_poly = sum(
-                _conj_coef(A, c_row) * c_col * coef * Polynomial(simplify(A, _neat_dot3(row_word, mono, col_word)))
+                _conj_coef(A, c_row) * c_col * coef * Polynomial(_simplified_to_terms(A, simplify(A, _neat_dot3(row_word, mono, col_word)), T))
                 for (c_row, row_word) in row_mono
                 for (c_col, col_word) in col_mono
                 for (coef, mono) in poly.terms
@@ -171,7 +171,7 @@ function moment_relax(
                 for col_mono in basis
                 for (_, row_word) in row_mono  # Iterate over terms in row Monomial
                 for (_, col_word) in col_mono  # Iterate over terms in col Monomial
-                for (_, mono) in Polynomial(simplify(A, _neat_dot3(row_word, one_word, col_word))).terms
+                for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, one_word, col_word)), TI)
             ]
             for basis in term_sparsities[1].block_bases
         ])
@@ -186,7 +186,7 @@ function moment_relax(
              for m in last.(poly.terms)
              for (_, row_word) in row_mono  # Iterate over terms in row Monomial
              for (_, col_word) in col_mono  # Iterate over terms in col Monomial
-             for (_, mono) in Polynomial(simplify(A, _neat_dot3(row_word, m, col_word))).terms]
+             for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, m, col_word)), TI)]
             for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
             for basis in term_sparsity.block_bases
             for row_mono in basis
@@ -321,7 +321,7 @@ function _solve_real_moment_problem(
 
     @variable(model, y[1:length(basis)], set_string_name=false)
 
-    one_sym = expval(one(M))
+    one_sym = symmetric_canon(expval(one(M)))
     idx_one = findfirst(==(one_sym), basis)
     idx_one === nothing && error("Expected identity moment to be present in basis")
     @constraint(model, y[idx_one] == 1)  # Normalization
@@ -385,7 +385,7 @@ function _solve_complex_moment_problem(
     @variable(model, y_re[1:n_basis], set_string_name=false)
     @variable(model, y_im[1:n_basis], set_string_name=false)
 
-    one_sym = expval(one(M))
+    one_sym = symmetric_canon(expval(one(M)))
     idx_one = findfirst(==(one_sym), basis)
     idx_one === nothing && error("Expected identity moment to be present in basis")
 

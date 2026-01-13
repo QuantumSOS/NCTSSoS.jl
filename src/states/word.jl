@@ -50,6 +50,9 @@ struct StateSymbol{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial{
     end
 end
 
+# StateSymbol stores already-canonicalized word, so symmetric_canon just returns a copy
+symmetric_canon(m::StateSymbol) = copy(m.mono)
+
 # =============================================================================
 # StateSymbol - Identity and One
 # =============================================================================
@@ -711,6 +714,19 @@ function expval(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra
 end
 
 # =============================================================================
+# Symmetric Canonicalization for StateWord and NCStateWord
+# =============================================================================
+
+# StateWord: return a StateWord (StateSymbols are already canonicalized at construction)
+function symmetric_canon(sw::StateWord{ST,A,T}) where {ST<:StateType,A<:AlgebraType,T<:Integer}
+    # StateSymbols are already canonicalized at construction, so just return the StateWord as-is
+    return sw
+end
+
+# NCStateWord: convert to StateWord via expval, then get symmetric canonical form
+symmetric_canon(ncsw::NCStateWord) = symmetric_canon(expval(ncsw))
+
+# =============================================================================
 # NCStateWord - Display
 # =============================================================================
 
@@ -788,6 +804,12 @@ julia> result isa NCStatePolynomial
 true
 ```
 """
+# NCStateWord is effectively immutable, so copy just returns the same object
+Base.copy(ncsw::NCStateWord) = ncsw
+
+# NCStateWord as a singleton collection (analogous to NormalMonomial)
+monomials(ncsw::NCStateWord) = [ncsw]
+
 simplify(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer} = simplify!(copy(ncsw))
 simplify!(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer} = ncsw
 
@@ -798,10 +820,10 @@ simplify!(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:In
 """
     ς(m::NormalMonomial{A,T}) where {A,T}
 
-Create a StateSymbol{Arbitrary} from a monomial.
+Create a StateWord{Arbitrary} from a monomial.
 
 This is a convenience function for creating state expectations in the
-arbitrary state formalism. Equivalent to `StateSymbol{Arbitrary}(m)`.
+arbitrary state formalism. Equivalent to `StateWord{Arbitrary}(m)`.
 
 # Examples
 ```jldoctest
@@ -811,15 +833,14 @@ julia> m = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
 
 julia> sym = ς(m);
 
-julia> sym isa StateSymbol{Arbitrary}
+julia> sym isa StateWord{Arbitrary}
 true
 ```
-ς(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateSymbol{Arbitrary}(m)
-ς(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer} = StateSymbol{Arbitrary}(pairs)
-
-varsigma(args...) = ς(args...)
 """
 ς(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{Arbitrary}(m)
+
+# varsigma is an ASCII alias for the Greek letter ς
+varsigma(args...) = ς(args...)
 
 """
     tr(m::NormalMonomial{A,T}) where {A,T}

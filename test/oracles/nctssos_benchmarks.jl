@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: NC Polynomial Benchmarks
-# ================================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_benchmarks.jl
 #
@@ -13,9 +12,7 @@
 
 include("oracle_utils.jl")
 
-# =============================================================================
 # Broyden Banded (n=4, d=3)
-# =============================================================================
 # f = n + Σᵢ₌₁ⁿ [ 4xᵢ + 4xᵢ² + 10xᵢ³ + 20xᵢ⁴ + 25xᵢ⁶
 #                 + Σⱼ∈Jᵢ (-2xⱼ - 2xⱼ² - 4xᵢxⱼ - 4xᵢxⱼ² - 10xᵢ³xⱼ - 10xᵢ³xⱼ²)
 #                 + Σⱼ,ₖ∈Jᵢ (xⱼxₖ + 2xⱼ²xₖ + xⱼ²xₖ²) ]
@@ -76,9 +73,7 @@ results_broyden_banded = map(BROYDEN_BANDED_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Broyden Tridiagonal (n=6, d=2)
-# =============================================================================
 # f = n + Σᵢ₌₁ⁿ gᵢ(x)
 # Global minimum: 0 at origin
 # Degree: 4, so d=2 is sufficient
@@ -133,9 +128,7 @@ results_broyden_tridiagonal = map(BROYDEN_TRIDIAGONAL_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Chained Singular (n=8, d=2)
-# =============================================================================
 # f = Σᵢ₌₁,₃,₅,...,ₙ₋₃ [ (xᵢ + 10xᵢ₊₁)² + 5(xᵢ₊₂ - xᵢ₊₃)²
 #                        + (xᵢ₊₁ - 2xᵢ₊₂)⁴ + 10(xᵢ - 10xᵢ₊₃)⁴ ]
 # Global minimum: 0 at origin
@@ -199,9 +192,7 @@ results_chained_singular = map(CHAINED_SINGULAR_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Chained Wood (n=8, d=2)
-# =============================================================================
 # f = (21n - 41) + Σᵢ₌₁,₃,₅,...,ₙ₋₃ gᵢ(x)
 # Global minimum: ≈1
 # Degree: 4, so d=2 is sufficient
@@ -247,9 +238,7 @@ results_chained_wood = map(CHAINED_WOOD_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Summary
-# =============================================================================
 all_results = vcat(
     results_broyden_banded,
     results_broyden_tridiagonal,

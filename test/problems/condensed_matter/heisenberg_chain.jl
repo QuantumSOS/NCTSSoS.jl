@@ -1,9 +1,5 @@
-# =============================================================================
 # 1D Heisenberg Chain Tests
-# =============================================================================
 # Tests polynomial optimization on the 1D Heisenberg chain model.
-# Requires --local flag (Mosek) for sufficient precision.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 

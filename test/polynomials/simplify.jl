@@ -770,11 +770,9 @@ end
     end
 end
 
-# =============================================================================
 # NCTSSOS Oracle Comparison Tests
 # These tests verify NCTSSoS simplification matches NCTSSOS behavior.
 # Oracle reference: /Users/yushengzhao/projects/NCTSSOS/src/utils.jl
-# =============================================================================
 
 @testset "NCTSSOS Oracle: constraint_reduce! equivalence" begin
     @testset "UnipotentAlgebra matches NCTSSOS constraint_reduce!(unipotent)" begin
@@ -1012,14 +1010,11 @@ end
     end
 end
 
-# =============================================================================
 # NCTSSOS Oracle: Word-Level Canonicalization
-# =============================================================================
 #
 # Expected values generated from NCTSSOS oracle script (see end of file).
 # Use signed Int16 to test generic algorithms without site-aware specializations.
 #
-# =============================================================================
 
 # NCTSSOS _sym_canon: min(word, reverse(word))
 SYM_CANON_ORACLE = [
@@ -1306,9 +1301,7 @@ end
     @test c2 == [x1i, x2i, y1i, y2i]
 end
 
-# =============================================================================
 # NCTSSOS Oracle Generation Script
-# =============================================================================
 #
 # Run this in NCTSSOS to regenerate expected values:
 #
@@ -1360,11 +1353,8 @@ end
 # end
 # '
 # ```
-# =============================================================================
 
-# =============================================================================
 # NCTSSOS Oracle: Basis Generation with Constraint Reduction
-# =============================================================================
 #
 # Oracle generation script for basis counts with constraint reduction:
 #
@@ -1434,7 +1424,6 @@ end
 # (n=4, d=1): proj=5, unip=5
 # (n=4, d=2): proj=17, unip=17
 # (n=4, d=3): proj=53, unip=53
-# =============================================================================
 
 # NCTSSOS Oracle: unique word counts after constraint reduction
 # (n, d, projector_count, unipotent_count)
@@ -1522,9 +1511,7 @@ end
     end
 end
 
-# =============================================================================
 # Multi-site simplification tests
-# =============================================================================
 
 @testset "Multi-site simplification" begin
     # Setup: 2 variables per site, 2 sites
@@ -1600,9 +1587,7 @@ end
     end
 end
 
-# =============================================================================
 # Constructor validation tests
-# =============================================================================
 
     @testset "Constructor validation" begin
         @testset "Pauli constructor rejects non-canonical" begin

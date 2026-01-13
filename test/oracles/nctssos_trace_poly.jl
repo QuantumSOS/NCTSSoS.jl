@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: Trace Polynomial Optimization
-# =====================================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_trace_poly.jl
 #
@@ -10,9 +9,7 @@
 
 include("oracle_utils.jl")
 
-# =============================================================================
 # Example 6.1: Projector Algebra (Toy Example)
-# =============================================================================
 # Variables: x[1:3] (projector, P²=P)
 # Objective: p = tr(x₁x₂x₃) + tr(x₁x₂)·tr(x₃)
 # Expected: ≈ -0.0467 (order 2), ≈ -0.03125 (order 3)
@@ -51,9 +48,7 @@ results_6_1 = map(TRACE_6_1_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Example 6.2.0: CHSH Trace Polynomial
-# =============================================================================
 # Variables: x[1:2], y[1:2] (unipotent, U²=I)
 # Variable mapping: x1=1, x2=2, y1=3, y2=4
 # Objective: p = -tr(x₁y₁) - tr(x₁y₂) - tr(x₂y₁) + tr(x₂y₂)
@@ -92,9 +87,7 @@ results_6_2_0 = map(TRACE_6_2_0_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Example 6.2.1: Squared Trace Expressions
-# =============================================================================
 # Variables: x[1:2], y[1:2] (unipotent)
 # Variable mapping: x1=1, x2=2, y1=3, y2=4
 # Objective: -(tr(x₁y₂) + tr(x₂y₁))² - (tr(x₁y₁) - tr(x₂y₂))²
@@ -136,9 +129,7 @@ results_6_2_1 = map(TRACE_6_2_1_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Example 6.2.2: Covariance Trace Polynomial
-# =============================================================================
 # Variables: x[1:3], y[1:3] (unipotent)
 # Variable mapping: x1=1, x2=2, x3=3, y1=4, y2=5, y3=6
 # cov(a,b) = tr(xₐyᵦ) - tr(xₐ)tr(yᵦ)
@@ -200,8 +191,6 @@ results_6_2_2 = map(TRACE_6_2_2_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Summary
-# =============================================================================
 all_results = vcat(results_6_1, results_6_2_0, results_6_2_1, results_6_2_2)
 print_summary("TRACE_POLY", all_results)

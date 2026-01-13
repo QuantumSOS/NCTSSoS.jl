@@ -793,7 +793,6 @@ Coefficient: 1.0 + 0.0im, Degree: 1
 Coefficient: 2.0 + 0.0im, Degree: 1
 ```
 """
-Base.IteratorEltype(::Type{<:Polynomial}) = Base.HasEltype()
 Base.eltype(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number} =
     Tuple{C,NormalMonomial{A,T}}
 

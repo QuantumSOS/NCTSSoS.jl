@@ -1,11 +1,8 @@
-# =============================================================================
 # GNS Construction Tests
-# =============================================================================
 # Tests for GNS reconstruction from moment matrices.
 #
 # NOTE: These tests are commented out as they take too long or require
 #       further investigation for basis ordering issues.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 using LinearAlgebra

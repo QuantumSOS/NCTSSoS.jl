@@ -1,3 +1,45 @@
+"""
+    NCTSSoS
+
+Non-Commutative Term-Sparsity Sum-of-Squares optimization in Julia.
+
+This package provides tools for polynomial optimization over non-commutative
+algebras using semidefinite programming (SDP) relaxations with term sparsity
+exploitation.
+
+# Supported Algebras
+
+NCTSSoS supports multiple algebra types organized by their normal form structure:
+
+- **MonoidAlgebra**: Normal form is a single monomial
+  - `NonCommutativeAlgebra`: Free algebra with no simplification rules
+  - `ProjectorAlgebra`: Projectors satisfying P² = P
+  - `UnipotentAlgebra`: Operators satisfying X² = X (shift operators)
+
+- **TwistedGroupAlgebra**: Normal form is scalar × monomial
+  - `PauliAlgebra`: Pauli spin operators with σ² = I and cyclic products
+
+- **PBWAlgebra**: Normal form is a sum of monomials (Poincaré-Birkhoff-Witt)
+  - `FermionicAlgebra`: Fermionic creation/annihilation operators
+  - `BosonicAlgebra`: Bosonic creation/annihilation operators
+
+# Quick Start
+
+```julia
+using NCTSSoS
+
+# Create variables
+reg, (σ,) = create_pauli_variables([("σ", 1:3)])
+
+# Define objective
+obj = σ[1,1] * σ[2,1] + σ[1,2] * σ[2,2] + σ[1,3] * σ[2,3]
+
+# Solve
+result = cs_nctssos(PolyOpt(obj, -obj), 1)
+```
+
+See also: [`PolyOpt`](@ref), [`cs_nctssos`](@ref), [`create_pauli_variables`](@ref)
+"""
 module NCTSSoS
 
 using SparseArrays, LinearAlgebra, JuMP
@@ -118,7 +160,6 @@ export NCStateWord, MaxEntangled, Arbitrary
 export degree, monomials, coefficients, terms, variables
 export simplify, simplify!
 export variable_indices
-export validate
 
 # Canonicalization (user-facing)
 export symmetric_canon, cyclic_canon, canonicalize

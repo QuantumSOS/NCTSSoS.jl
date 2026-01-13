@@ -1,6 +1,4 @@
-# =============================================================================
 # Fermionic Parity Superselection Rule Tests
-# =============================================================================
 # Tests for the fermionic parity superselection rule.
 #
 # Physical basis: In fermionic systems, parity superselection forbids observables
@@ -12,7 +10,6 @@
 #   {a_i, a†_j} = δ_{ij}
 #   {a_i, a_j} = 0
 #   {a†_i, a†_j} = 0
-# =============================================================================
 
 using NCTSSoS, Test
 using JuMP

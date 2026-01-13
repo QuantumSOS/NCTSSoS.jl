@@ -1,6 +1,4 @@
-# =============================================================================
 # NCTSSOS Oracle Utilities
-# =============================================================================
 # Shared helpers for oracle generation scripts.
 #
 # ENVIRONMENT SETUP:
@@ -33,7 +31,6 @@
 #   for v in VARIANTS
 #       result = run_oracle(...)
 #   end
-# =============================================================================
 
 # Detect NCTSSOS path for informational purposes
 const NCTSSOS_PATH = get(ENV, "NCTSSOS_PATH",

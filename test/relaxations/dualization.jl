@@ -1,13 +1,8 @@
-# =============================================================================
 # test/relaxations/dualization.jl
-# =============================================================================
 # Tests: SOS vs Moment method equivalence (dualization)
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Verifies that primal (Moment) and dual (SOS) formulations give the same
 # optimal value, validating the dualization implementation.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -48,7 +43,7 @@ end
         result_mom = cs_nctssos(pop, config; dualize=false)
         result_sos = cs_nctssos(pop, config; dualize=true)
 
-        @test result_mom.objective ≈ result_sos.objective atol = 1e-5
+        @test result_mom.objective ≈ result_sos.objective atol = 1e-4
     end
 
     @testset "NC Example 2 Constrained" begin

@@ -1,13 +1,8 @@
-# =============================================================================
 # test/problems/bell_inequalities/chsh_simple.jl
-# =============================================================================
 # Tests: CHSH Bell inequality - basic sparsity configurations (order=1)
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Coverage: Dense, Correlative Sparsity (MF), Term Sparsity (MMD)
 # Expected optimal value: -2sqrt(2) ≈ -2.8284 (quantum bound)
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -28,7 +23,9 @@ const CHSH_SIMPLE_ORACLES = (
     TS_d1    = (opt=-2.8284271247321175, sides=[3, 3, 1], nuniq=6),
 )
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 function create_chsh_problem()
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])

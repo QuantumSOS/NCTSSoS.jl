@@ -4,25 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Test Commands
 
-```bash
-# Testing (use Makefile targets)
-make test              # Full suite with Mosek (~5min)
-make test-ci           # CI suite: polynomials + minimal (~35s)
-make test-minimal      # Fast smoke test: 5 critical paths (~25s)
-make test-polynomials  # Core algebra only, no solver (~10s)
-make test-quality      # Aqua, ExplicitImports, Doctest
-make test-file FILE=test/relaxations/sparsity.jl  # Single file
+Testing: see `TESTING.md`.
 
+```bash
 # Documentation
 make servedocs         # Live-reload docs server
 make init-docs         # Setup docs environment first
-
-# Direct Julia usage
-julia --project -e 'using Pkg; Pkg.test(test_args=["--minimal"])'
-julia --project -e 'using Pkg; Pkg.test(test_args=["--local"])'  # With Mosek
 ```
-
-Test flags: `--minimal`, `--polynomials`, `--quality`, `--relaxations`, `--problems`, `--local` (Mosek)
 
 ## Architecture
 
@@ -71,4 +59,4 @@ polyopt() → cs_nctssos() → compute_sparsity() → moment/sos relaxation → 
 ## Solvers
 
 - **CI**: COSMO (free, slower)
-- **Local**: Mosek (requires license, faster) - use `--local` flag or `make test`
+- **Local**: Mosek (requires license, faster)

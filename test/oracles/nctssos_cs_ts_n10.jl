@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: CS TS Example (n=10)
-# =============================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_cs_ts_n10.jl
 #

@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: CHSH Bell Inequality (All Formulations)
-# ===============================================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_chsh.jl
 #
@@ -16,9 +15,7 @@
 
 include("oracle_utils.jl")
 
-# =============================================================================
 # PART 1: Basic NC Polynomial Formulation
-# =============================================================================
 # Uses nctssos_first / cs_nctssos_first with @ncpolyvar
 
 const CHSH_NC_VARIANTS = [
@@ -64,9 +61,7 @@ results_nc = map(CHSH_NC_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # PART 2: State Polynomial Formulation
-# =============================================================================
 # Uses pstateopt_first with support/coefficient format
 # State polynomial: sp = -ς(x₁y₁) - ς(x₁y₂) - ς(x₂y₁) + ς(x₂y₂)
 # Variable mapping: x₁=1, x₂=2, y₁=3, y₂=4
@@ -103,9 +98,7 @@ results_state = map(CHSH_STATE_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # PART 3: Trace Polynomial Formulation
-# =============================================================================
 # Uses ptraceopt_first with support/coefficient format
 # Trace polynomial: p = -tr(x₁y₁) - tr(x₁y₂) - tr(x₂y₁) + tr(x₂y₂)
 # Variable mapping: x₁=1, x₂=2, y₁=3, y₂=4
@@ -141,8 +134,6 @@ results_trace = map(CHSH_TRACE_VARIANTS) do v
     result
 end
 
-# =============================================================================
 # Summary
-# =============================================================================
 all_results = vcat(results_nc, results_state, results_trace)
 print_summary("CHSH", all_results)

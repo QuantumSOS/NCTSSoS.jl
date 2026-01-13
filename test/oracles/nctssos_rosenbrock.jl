@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: Generalized Rosenbrock
-# ==============================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_rosenbrock.jl
 #

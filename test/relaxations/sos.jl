@@ -1,11 +1,8 @@
-# =============================================================================
 # SOS (Sum of Squares) Dualization Tests
-# =============================================================================
 # Tests specific to SOS dualization components:
 #   - Cαj coefficient extraction
 #
 # Note: Problem-specific SOS tests are in problems/ subdirectory.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 using SparseArrays

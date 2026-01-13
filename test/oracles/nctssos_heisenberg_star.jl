@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: Heisenberg Star Graph
-# =============================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_heisenberg_star.jl
 #

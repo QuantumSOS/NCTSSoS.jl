@@ -320,13 +320,14 @@ function init_activated_supp(
         for (c1, word1) in b
             for (c2, word2) in b
                 diag_word = neat_dot(word1.word, word2.word)
-                simplified_poly = Polynomial(simplify(A, diag_word))
-                append!(diagonal_entries, last.(simplified_poly.terms))
+                simplified = simplify(A, diag_word)
+                terms = _simplified_to_terms(A, simplified, T)
+                append!(diagonal_entries, last.(terms))
             end
         end
     end
     return sorted_union(
-        symmetric_canon.(last.(partial_obj.terms)),
+        NM.(symmetric_canon.(last.(partial_obj.terms))),
         mapreduce(p -> last.(p.terms), vcat, cons; init=NM[]),
         diagonal_entries
     )
@@ -395,11 +396,11 @@ function get_term_sparsity_graph(
                     # _neat_dot3 on NormalMonomials returns Vector{T}
                     word_lr = _neat_dot3(word_i, supp, word_j)
                     word_rl = _neat_dot3(word_j, supp, word_i)
-                    connected_poly_lr = Polynomial(simplify(A, word_lr))
-                    connected_poly_rl = Polynomial(simplify(A, word_rl))
+                    terms_lr = _simplified_to_terms(A, simplify(A, word_lr), T)
+                    terms_rl = _simplified_to_terms(A, simplify(A, word_rl), T)
                     # Check if any result monomial is in activated support
-                    monos_lr = last.(connected_poly_lr.terms)
-                    monos_rl = last.(connected_poly_rl.terms)
+                    monos_lr = last.(terms_lr)
+                    monos_rl = last.(terms_rl)
                     if any(m in sorted_activated_supp for m in monos_lr) ||
                        any(m in sorted_activated_supp for m in monos_rl)
                         add_edge!(G, i, j)
@@ -463,8 +464,8 @@ function term_sparsity_graph_supp(
             for (_, word_b) in b
                 for g_supp in last.(g.terms)
                     word = _neat_dot3(word_a, g_supp, word_b)
-                    p = Polynomial(simplify(A, word))
-                    append!(out, last.(p.terms))
+                    terms = _simplified_to_terms(A, simplify(A, word), T)
+                    append!(out, last.(terms))
                 end
             end
         end
@@ -748,9 +749,10 @@ function init_activated_supp(
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
     # Only include objective and constraint monomials (no monosquare/diagonal terms)
     # This matches NCTSSOS's default monosquare=false behavior
+    # Note: NCStateWord objects are already in canonical form, so we just union without symmetric_canon
     return sorted_union(
-        symmetric_canon.(monomials(partial_obj)),
-        symmetric_canon.(mapreduce(monomials, vcat, cons; init=M[]))
+        monomials(partial_obj),
+        mapreduce(monomials, vcat, cons; init=M[])
     )
 end
 

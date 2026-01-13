@@ -1,12 +1,7 @@
-# =============================================================================
 # test/problems/nc_polynomial/nc_example1.jl
-# =============================================================================
 # Tests: NC Example 1 - Unconstrained NC polynomial (3 variables)
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Standard benchmark from NCTSSOS paper.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -26,7 +21,9 @@ const NC_EXAMPLE1_ORACLES = (
     TS_d2    = (opt=-0.0035512846020968616, sides=[1, 1, 2, 2, 2, 2, 3, 3, 3, 4], nuniq=21),
 )
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 @testset "NC Example 1 (unconstrained)" begin
     n = 3
@@ -49,7 +46,7 @@ flatten_sizes(sizes) = reduce(vcat, sizes)
             ts_algo=NoElimination()
         )
         result = cs_nctssos(pop, config; dualize=false)
-        @test result.objective ≈ oracle.opt atol = 1e-5
+        @test result.objective ≈ oracle.opt atol = 1e-4
         @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
         @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end

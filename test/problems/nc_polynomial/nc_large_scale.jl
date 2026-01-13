@@ -1,12 +1,7 @@
-# =============================================================================
 # test/problems/nc_polynomial/nc_large_scale.jl
-# =============================================================================
 # Tests: NC Large-scale sparsity example (n=10 variables)
-# Dependencies: SOLVER
-# Requires --local: yes (large SDP, needs Mosek for performance)
 #
 # Validates CS+TS on large-scale problems.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -28,7 +23,9 @@ const NC_LARGE_SCALE_ORACLES = (
     CS_TS_d3 = (opt=3.011288353315061, nblocks=1544, nuniq=1165),
 )
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 if USE_LOCAL
     @testset "NC Large Scale (n=10)" begin

@@ -1,5 +1,4 @@
 # NCTSSOS Oracle Script: I_3322 Bell Inequality
-# ===============================================
 # Run on server with NCTSSOS + MosekTools:
 #   cd ~/NCTSSOS && julia --project path/to/nctssos_i3322.jl
 #

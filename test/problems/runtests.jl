@@ -1,24 +1,4 @@
-# =============================================================================
-# Problem-Based Tests Runner
-# =============================================================================
-# Runs all problem-based tests organized by domain:
-#
-# 1. Bell Inequalities: CHSH, I_3322, general Bell inequalities
-# 2. Condensed Matter: Heisenberg, Ising, XY, Bose-Hubbard, PXP
-# 3. NC Polynomial: Example 1, 2, correlative sparsity
-# 4. State Polynomial: Section 7.2.x examples
-# 5. Trace Polynomial: Section 6.x examples
-# 6. Quantum Networks: Bilocal networks
-# 7. Fermionic: Fermionic systems and chains
-# 8. Benchmarks: Classical optimization benchmarks (Rosenbrock, etc.)
-#
-# Prerequisites:
-#   - SOLVER must be defined (from test/TestUtils.jl or parent runtests.jl)
-#   - USE_LOCAL determines whether Mosek or COSMO is used
-#
-# NOTE: Many tests require --local flag (Mosek license) for sufficient
-#       precision on larger SDP problems.
-# =============================================================================
+# Problem-based tests runner.
 
 using Test
 

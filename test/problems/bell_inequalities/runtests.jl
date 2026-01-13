@@ -1,9 +1,5 @@
-# =============================================================================
 # test/problems/bell_inequalities/runtests.jl
-# =============================================================================
 # Tests: Bell inequality optimization problems
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Coverage:
 # - chsh_simple.jl: CHSH Dense, CS, TS (order=1)
@@ -11,8 +7,7 @@
 # - chsh_state.jl: CHSH State Polynomial formulation
 # - chsh_trace.jl: CHSH Trace Polynomial formulation
 # - i3322.jl: I_3322 inequality
-# - bell_inequalities.jl: General Bell inequalities
-# =============================================================================
+# - bell_inequalities.jl: 88 Bell inequality instances from literature
 
 using Test
 

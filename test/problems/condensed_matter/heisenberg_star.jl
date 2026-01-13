@@ -1,6 +1,4 @@
-# =============================================================================
 # Heisenberg Model on Star Graph Tests
-# =============================================================================
 # Consolidates all Heisenberg star graph tests:
 #   - Moment method
 #   - SOS dualization
@@ -9,7 +7,6 @@
 # The Heisenberg model on a star graph with singlet projection constraints.
 # Expected optimal value: -1.0 (ground state energy per edge)
 # Results verified against NCTSSOS oracles.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 using Graphs
@@ -28,7 +25,9 @@ end
 include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "heisenberg_star_oracles.jl"))
 
 # Helper: flatten moment_matrix_sizes for comparison with oracle
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 const HEISENBERG_STAR_EXPECTED = -1.0
 

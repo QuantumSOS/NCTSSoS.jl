@@ -1,6 +1,4 @@
-# =============================================================================
 # I_3322 Bell Inequality Tests
-# =============================================================================
 # Tests I_3322 Bell inequality optimization with various sparsity configurations.
 # Results verified against NCTSSOS.
 #
@@ -9,7 +7,6 @@
 #
 # NOTE: For Bell inequalities with partition parameter, correlative sparsity (CS)
 # is NOT applicable - partition already exploits bipartite structure.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -24,13 +21,11 @@ if !@isdefined(SOLVER)
     const SOLVER_NAME = :mosek
 end
 
-# =============================================================================
 # Expected values from NCTSSOS (mosek) and COSMO (CI)
 # Format: (opt, sides, nuniq)
 #   opt   = optimal value (minimization → opt ≈ -0.2509)
 #   sides = moment matrix block sizes
 #   nuniq = unique moment indices (affine constraints)
-# =============================================================================
 const EXPECTED_I3322 = (
     mosek = (
         Dense_d2 = (opt=-0.25093979763955865, sides=[28], nuniq=154),
@@ -45,7 +40,9 @@ const EXPECTED_I3322 = (
 )
 
 # Helper: flatten moment_matrix_sizes for comparison
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 select_oracle(oracles) = getproperty(oracles, SOLVER_NAME)
 solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_tol
 

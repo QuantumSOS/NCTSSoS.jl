@@ -1,14 +1,9 @@
-# =============================================================================
 # test/problems/bell_inequalities/chsh_high_order.jl
-# =============================================================================
 # Tests: CHSH Bell inequality - higher order relaxations (order=2+)
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # WARNING: Combined CS+TS does NOT converge to -2sqrt(2) for CHSH!
 # This gives opt=-4.0, a much looser bound than the quantum value -2.828.
 # This is consistent with NCTSSOS behavior - it's an inherent limitation.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -27,7 +22,9 @@ const CHSH_HIGH_ORDER_ORACLES = (
     CS_TS_d2 = (opt=-3.999999999803662, sides=[3, 3, 3, 3, 2, 2, 3, 3, 3, 3, 2, 2], nuniq=5),
 )
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
+if !isdefined(@__MODULE__, :flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
 
 function create_chsh_problem()
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])

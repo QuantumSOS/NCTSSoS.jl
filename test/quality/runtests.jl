@@ -1,6 +1,4 @@
-# =============================================================================
-# test/quality/runtests.jl - Code Quality Checks (Pkg.test entry)
-# =============================================================================
+# test/quality/runtests.jl - Code Quality Checks
 
 using Test
 
@@ -9,4 +7,3 @@ using Test
     include("ExplicitImports.jl")
     include("Doctest.jl")
 end
-

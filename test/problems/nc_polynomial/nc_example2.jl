@@ -1,13 +1,8 @@
-# =============================================================================
 # test/problems/nc_polynomial/nc_example2.jl
-# =============================================================================
 # Tests: NC Example 2 - Constrained NC polynomial (2 variables)
-# Dependencies: SOLVER
-# Requires --local: no
 #
 # Standard benchmark from NCTSSOS paper.
 # Expected optimal value: -1.0
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 

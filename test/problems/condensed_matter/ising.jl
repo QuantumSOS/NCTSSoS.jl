@@ -1,9 +1,5 @@
-# =============================================================================
 # 1D Transverse Field Ising Model Tests
-# =============================================================================
 # Tests polynomial optimization on the transverse field Ising model.
-# Requires --local flag (Mosek) for sufficient precision.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 

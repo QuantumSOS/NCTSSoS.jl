@@ -48,6 +48,7 @@ julia> sorted_unique!([3, 1, 2, 1, 3])
 ```
 """
 sorted_unique!(v::Vector) = sort!(unique!(v))
+sorted_unique(v::Vector) = sorted_unique!(copy(v))
 
 """
     _neat_dot3(a::NCStateWord, m::NCStateWord, b::NCStateWord) -> NCStateWord
@@ -68,8 +69,11 @@ function _neat_dot3(
     # Concatenate state word parts directly (adjoint is identity due to Hermitian invariance)
     sw_prod = adjoint(a.sw) * m.sw * b.sw
 
-    # Compute nc_word part via _neat_dot3 on NormalMonomials (no simplification)
-    nc_mono = _neat_dot3(a.nc_word, m.nc_word, b.nc_word)
+    # Compute nc_word part via _neat_dot3 on the word vectors
+    # For MonoidAlgebras like UnipotentAlgebra, the raw dot product needs simplification
+    nc_word_vec = _neat_dot3(a.nc_word.word, m.nc_word.word, b.nc_word.word)
+    simplified_word = simplify(A, nc_word_vec)
+    nc_mono = NormalMonomial{A,T}(simplified_word)
 
     return NCStateWord(sw_prod, nc_mono)
 end
@@ -305,10 +309,12 @@ false
 is_normal_ordered(word::AbstractVector{T}) where {T<:Signed} = iszero(find_first_out_of_order(word))
 
 @inline _sorted_symmetric_basis!(xs) = sorted_unique!(symmetric_canon.(xs))
+@inline _sorted_symmetric_basis(xs) = _sorted_symmetric_basis!(copy(xs))
 
 @inline function _sorted_stateword_basis_from_ncsw!(xs)
     return sorted_unique!([symmetric_canon(expval(ncsw)) for ncsw in xs])
 end
+@inline _sorted_stateword_basis_from_ncsw(xs) = _sorted_stateword_basis_from_ncsw!(collect(xs))
 
 """
     combine_like_terms(terms::Vector{Tuple{C,NormalMonomial{A,T}}}) where {A,T,C} -> Vector{Tuple{C,NormalMonomial{A,T}}}

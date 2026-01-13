@@ -1,3 +1,87 @@
+# =============================================================================
+# Shared Helper Functions
+# =============================================================================
+
+"""
+    _process_state_terms(coeffs::Vector{C}, words::Vector{W}) where {C<:Number, W}
+
+Sort, combine duplicates, and filter zeros for state polynomial construction.
+Returns (processed_coeffs, processed_words).
+
+This is shared logic between StatePolynomial and NCStatePolynomial constructors.
+"""
+function _process_state_terms(coeffs::Vector{C}, words::Vector{W}) where {C<:Number, W}
+    isempty(words) && return (C[], W[])
+
+    perm = sortperm(words)
+    sorted_words = words[perm]
+    sorted_coeffs = coeffs[perm]
+
+    result_coeffs = C[]
+    result_words = W[]
+
+    current_word = sorted_words[1]
+    current_coef = sorted_coeffs[1]
+
+    for i in 2:length(sorted_words)
+        if sorted_words[i] == current_word
+            current_coef += sorted_coeffs[i]
+        else
+            if !iszero(current_coef)
+                push!(result_coeffs, current_coef)
+                push!(result_words, current_word)
+            end
+            current_word = sorted_words[i]
+            current_coef = sorted_coeffs[i]
+        end
+    end
+    if !iszero(current_coef)
+        push!(result_coeffs, current_coef)
+        push!(result_words, current_word)
+    end
+
+    return (result_coeffs, result_words)
+end
+
+"""
+    _show_poly_coeff(io::IO, c::Number, ::Type{C}, is_first::Bool) where {C<:Number}
+
+Format and print a polynomial term's coefficient with proper sign handling.
+Returns false (for next iteration's is_first flag).
+
+Handles special cases:
+- +1: prints nothing (first term) or " + " (subsequent)
+- -1: prints "-" (first term) or " - " (subsequent)
+- negative: prints value (first term) or " - abs(value)" (subsequent)
+- positive: prints value (first term) or " + value" (subsequent)
+"""
+function _show_poly_coeff(io::IO, c::Number, ::Type{C}, is_first::Bool) where {C<:Number}
+    if is_first
+        if c == one(C)
+            # Don't print coefficient for +1
+        elseif c == -one(C)
+            print(io, "-")
+        else
+            print(io, c)
+        end
+    else
+        if c == one(C)
+            print(io, " + ")
+        elseif c == -one(C)
+            print(io, " - ")
+        elseif real(c) < 0
+            print(io, " - ", -c)
+        else
+            print(io, " + ", c)
+        end
+    end
+    return false
+end
+
+# =============================================================================
+# StatePolynomial
+# =============================================================================
+
 """
     StatePolynomial{C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer}
 
@@ -42,37 +126,7 @@ struct StatePolynomial{C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer} <: Abs
     function StatePolynomial(
         coeffs::Vector{C}, state_words::Vector{StateWord{ST,A,T}}
     ) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
-        # Handle empty case
-        isempty(state_words) && return new{C,ST,A,T}(C[], StateWord{ST,A,T}[])
-
-        # Sort, combine duplicates, filter zeros
-        perm = sortperm(state_words)
-        sorted_sws = state_words[perm]
-        sorted_coeffs = coeffs[perm]
-
-        result_coeffs = C[]
-        result_sws = StateWord{ST,A,T}[]
-
-        current_sw = sorted_sws[1]
-        current_coef = sorted_coeffs[1]
-
-        for i in 2:length(sorted_sws)
-            if sorted_sws[i] == current_sw
-                current_coef += sorted_coeffs[i]
-            else
-                if !iszero(current_coef)
-                    push!(result_coeffs, current_coef)
-                    push!(result_sws, current_sw)
-                end
-                current_sw = sorted_sws[i]
-                current_coef = sorted_coeffs[i]
-            end
-        end
-        if !iszero(current_coef)
-            push!(result_coeffs, current_coef)
-            push!(result_sws, current_sw)
-        end
-
+        result_coeffs, result_sws = _process_state_terms(coeffs, state_words)
         new{C,ST,A,T}(result_coeffs, result_sws)
     end
 end
@@ -641,30 +695,8 @@ function Base.show(io::IO, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
     first_term = true
     for (c, sw) in zip(sp.coeffs, sp.state_words)
-        # Handle sign and coefficient display
-        if first_term
-            if c == one(C)
-                # Don't print coefficient for +1
-            elseif c == -one(C)
-                print(io, "-")
-            else
-                print(io, c)
-            end
-        else
-            if c == one(C)
-                print(io, " + ")
-            elseif c == -one(C)
-                print(io, " - ")
-            elseif real(c) < 0
-                print(io, " - ", -c)
-            else
-                print(io, " + ", c)
-            end
-        end
-
-        # Print the state word (will use registry from context)
+        first_term = _show_poly_coeff(io, c, C, first_term)
         show(io, sw)
-        first_term = false
     end
 end
 
@@ -757,37 +789,7 @@ struct NCStatePolynomial{C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} <:
     function NCStatePolynomial(
         coeffs::Vector{C}, nc_state_words::Vector{NCStateWord{ST,A,T}}
     ) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
-        # Handle empty case
-        isempty(nc_state_words) && return new{C,ST,A,T}(C[], NCStateWord{ST,A,T}[])
-
-        # Sort, combine duplicates, filter zeros
-        perm = sortperm(nc_state_words)
-        sorted_ncsws = nc_state_words[perm]
-        sorted_coeffs = coeffs[perm]
-
-        result_coeffs = C[]
-        result_ncsws = NCStateWord{ST,A,T}[]
-
-        current_ncsw = sorted_ncsws[1]
-        current_coef = sorted_coeffs[1]
-
-        for i in 2:length(sorted_ncsws)
-            if sorted_ncsws[i] == current_ncsw
-                current_coef += sorted_coeffs[i]
-            else
-                if !iszero(current_coef)
-                    push!(result_coeffs, current_coef)
-                    push!(result_ncsws, current_ncsw)
-                end
-                current_ncsw = sorted_ncsws[i]
-                current_coef = sorted_coeffs[i]
-            end
-        end
-        if !iszero(current_coef)
-            push!(result_coeffs, current_coef)
-            push!(result_ncsws, current_ncsw)
-        end
-
+        result_coeffs, result_ncsws = _process_state_terms(coeffs, nc_state_words)
         new{C,ST,A,T}(result_coeffs, result_ncsws)
     end
 end
@@ -1014,6 +1016,125 @@ Scalar multiplication (scalar on right).
 """
 Base.:(*)(ncsp::NCStatePolynomial, c::Number) = c * ncsp
 
+"""
+    Base.:(*)(c::Number, ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Multiply a scalar with an NCStateWord, creating an NCStatePolynomial.
+"""
+function Base.:(*)(c::Number, ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    C = promote_type(typeof(c), Float64)
+    NCStatePolynomial(C[C(c)], [ncsw])
+end
+Base.:(*)(ncsw::NCStateWord, c::Number) = c * ncsw
+
+"""
+    Base.:(+)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Add two NCStateWords to create an NCStatePolynomial.
+"""
+function Base.:(+)(
+    a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCStatePolynomial([1.0, 1.0], [a, b])
+end
+
+"""
+    Base.:(-)(a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Subtract two NCStateWords to create an NCStatePolynomial.
+"""
+function Base.:(-)(
+    a::NCStateWord{ST,A,T}, b::NCStateWord{ST,A,T}
+) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCStatePolynomial([1.0, -1.0], [a, b])
+end
+
+"""
+    Base.:(-)(ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Negate an NCStateWord to create an NCStatePolynomial with coefficient -1.0.
+"""
+function Base.:(-)(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCStatePolynomial([-1.0], [ncsw])
+end
+
+"""
+    Base.:(+)(c::Number, ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Add a scalar to an NCStateWord, creating an NCStatePolynomial.
+"""
+function Base.:(+)(c::Number, ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    id_ncsw = one(NCStateWord{ST,A,T})
+    C = promote_type(typeof(c), Float64)
+    NCStatePolynomial(C[C(c), one(C)], [id_ncsw, ncsw])
+end
+Base.:(+)(ncsw::NCStateWord, c::Number) = c + ncsw
+
+"""
+    Base.:(-)(c::Number, ncsw::NCStateWord{ST,A,T}) where {ST,A,T}
+
+Subtract an NCStateWord from a scalar.
+"""
+function Base.:(-)(c::Number, ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    id_ncsw = one(NCStateWord{ST,A,T})
+    C = promote_type(typeof(c), Float64)
+    NCStatePolynomial(C[C(c), -one(C)], [id_ncsw, ncsw])
+end
+
+"""
+    Base.:(-)(ncsw::NCStateWord{ST,A,T}, c::Number) where {ST,A,T}
+
+Subtract a scalar from an NCStateWord.
+"""
+function Base.:(-)(ncsw::NCStateWord{ST,A,T}, c::Number) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    id_ncsw = one(NCStateWord{ST,A,T})
+    C = promote_type(typeof(c), Float64)
+    NCStatePolynomial(C[one(C), -C(c)], [ncsw, id_ncsw])
+end
+
+"""
+    Base.:(+)(ncsp::NCStatePolynomial{C,ST,A,T}, ncsw::NCStateWord{ST,A,T}) where {C,ST,A,T}
+
+Add an NCStateWord to an NCStatePolynomial.
+"""
+function Base.:(+)(
+    ncsp::NCStatePolynomial{C,ST,A,T}, ncsw::NCStateWord{ST,A,T}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCStatePolynomial(
+        C[C.(ncsp.coeffs); one(C)],
+        [ncsp.nc_state_words; ncsw]
+    )
+end
+Base.:(+)(ncsw::NCStateWord{ST,A,T}, ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T} = ncsp + ncsw
+
+"""
+    Base.:(-)(ncsp::NCStatePolynomial{C,ST,A,T}, ncsw::NCStateWord{ST,A,T}) where {C,ST,A,T}
+
+Subtract an NCStateWord from an NCStatePolynomial.
+"""
+function Base.:(-)(
+    ncsp::NCStatePolynomial{C,ST,A,T}, ncsw::NCStateWord{ST,A,T}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCStatePolynomial(
+        C[C.(ncsp.coeffs); -one(C)],
+        [ncsp.nc_state_words; ncsw]
+    )
+end
+
+"""
+    Base.:(-)(ncsw::NCStateWord{ST,A,T}, ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T}
+
+Subtract an NCStatePolynomial from an NCStateWord.
+"""
+function Base.:(-)(
+    ncsw::NCStateWord{ST,A,T}, ncsp::NCStatePolynomial{C,ST,A,T}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCStatePolynomial(
+        C[one(C); -C.(ncsp.coeffs)],
+        [ncsw; ncsp.nc_state_words]
+    )
+end
+
 # =============================================================================
 # NCStatePolynomial - expval
 # =============================================================================
@@ -1050,29 +1171,7 @@ function Base.show(io::IO, ncsp::NCStatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
     first_term = true
     for (c, ncsw) in zip(ncsp.coeffs, ncsp.nc_state_words)
-        # Handle sign and coefficient display
-        if first_term
-            if c == one(C)
-                # Don't print coefficient for +1
-            elseif c == -one(C)
-                print(io, "-")
-            else
-                print(io, c)
-            end
-        else
-            if c == one(C)
-                print(io, " + ")
-            elseif c == -one(C)
-                print(io, " - ")
-            elseif real(c) < 0
-                print(io, " - ", -c)
-            else
-                print(io, " + ", c)
-            end
-        end
-
-        # Print the NC state word (will use registry from context)
+        first_term = _show_poly_coeff(io, c, C, first_term)
         show(io, ncsw)
-        first_term = false
     end
 end

@@ -1,6 +1,4 @@
-# =============================================================================
 # Trace Polynomial Optimization Tests (Examples 6.x)
-# =============================================================================
 # Consolidates trace polynomial tests using the tr() operator:
 #   - Example 6.1: Projector algebra with product of traces
 #   - Example 6.2.0: CHSH trace polynomial with term sparsity variants
@@ -8,7 +6,6 @@
 #   - Example 6.2.2: Covariance trace inequality
 #
 # Results verified against NCTSSOS.
-# =============================================================================
 
 using Test, NCTSSoS, JuMP
 
@@ -23,13 +20,11 @@ if !@isdefined(SOLVER)
     const SOLVER_NAME = :mosek
 end
 
-# =============================================================================
 # Expected values: mosek (reference) and cosmo (CI)
 # Format: (opt, sides, nuniq)
 #   opt   = optimal value (minimization)
 #   sides = moment matrix block sizes
 #   nuniq = unique moment indices (affine constraints)
-# =============================================================================
 const EXPECTED_TRACE_POLY = (
     mosek = (
         Ex_6_1_Dense_d2   = (opt=-0.04671737845552321, sides=[31], nuniq=81),

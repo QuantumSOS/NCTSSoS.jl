@@ -1,55 +1,10 @@
-# =============================================================================
-# NCTSSoS.jl Test Suite
-# =============================================================================
-#
-# Quick Reference:
-# ----------------
-# | Command              | What                        | Time   |
-# |----------------------|-----------------------------|--------|
-# | make test-minimal    | Minimal suite (5 paths)     | ~25s   |
-# | make test-polynomials| Algebra only (no solver)    | ~10s   |
-# | make test-ci         | CI default (minimal + poly) | ~35s   |
-# | make test            | Full suite (Mosek)          | ~5min  |
-#
-# Test Structure:
-# ---------------
-# test/
-# ├── runtests.jl        - This file (entry point, parses flags)
-# ├── test_minimal.jl    - Minimal test suite (includes from problems/)
-# ├── TestUtils.jl       - SOLVER config + helpers
-# ├── polynomials/       - --polynomials (no solver needed)
-# ├── relaxations/       - --relaxations
-# │   └── dualization.jl - SOS ≈ Moment equivalence
-# ├── problems/          - --problems
-# │   ├── bell_inequalities/
-# │   │   ├── chsh_simple.jl      - Dense, CS, TS (order=1)
-# │   │   ├── chsh_high_order.jl  - CS+TS (order=2)
-# │   │   ├── chsh_state.jl       - State polynomial
-# │   │   └── chsh_trace.jl       - Trace polynomial
-# │   ├── nc_polynomial/
-# │   │   ├── nc_example1.jl      - Unconstrained (3 vars)
-# │   │   ├── nc_example2.jl      - Constrained (2 vars)
-# │   │   └── nc_correlative.jl   - Correlative sparsity
-# │   └── ...
-# └── quality/           - --quality (Aqua, ExplicitImports, Doctest)
-#
-# Flags:
-# ------
-# --minimal      Fast correctness check (5 algorithm paths)
-# --polynomials  Core algebra (no solver)
-# --relaxations  SOS, sparsity components
-# --problems     Problem-based tests
-# --quality      Code quality checks
-# --local        Use Mosek instead of COSMO
-#
-# CI Default: --minimal + --polynomials (no flags = full suite)
-# =============================================================================
+# NCTSSoS.jl test entrypoint. Canonical commands/flags: see TESTING.md.
 
 using NCTSSoS, Test
 
-# =============================================================================
 # Parse test arguments
-# =============================================================================
+const IS_CI = lowercase(get(ENV, "CI", "")) in ("1", "true", "yes", "on")
+
 const RUN_POLYNOMIALS = "--polynomials" in ARGS
 const RUN_QUALITY = "--quality" in ARGS
 const RUN_RELAXATIONS = "--relaxations" in ARGS
@@ -57,22 +12,26 @@ const RUN_PROBLEMS = "--problems" in ARGS
 const RUN_MINIMAL = "--minimal" in ARGS
 const USE_LOCAL = "--local" in ARGS
 
-# If no specific test group flags, run all (some problem tests only with --local)
-const RUN_ALL = !(RUN_POLYNOMIALS || RUN_QUALITY || RUN_RELAXATIONS || RUN_PROBLEMS || RUN_MINIMAL)
+const HAS_ANY_SELECTOR = RUN_POLYNOMIALS || RUN_QUALITY || RUN_RELAXATIONS || RUN_PROBLEMS || RUN_MINIMAL
+
+# If no specific test group flags:
+# - Local: run all (some problem tests only with --local)
+# - CI: run minimal + polynomials for fast feedback
+const RUN_ALL = !HAS_ANY_SELECTOR && !IS_CI
+const USE_CI_DEFAULT = !HAS_ANY_SELECTOR && IS_CI
 
 # Determine which test groups to run
-const SHOULD_RUN_POLYNOMIALS = RUN_ALL || RUN_POLYNOMIALS
+const SHOULD_RUN_POLYNOMIALS = RUN_ALL || RUN_POLYNOMIALS || USE_CI_DEFAULT
 const SHOULD_RUN_QUALITY = RUN_ALL || RUN_QUALITY
 const SHOULD_RUN_RELAXATIONS = RUN_ALL || RUN_RELAXATIONS
 const SHOULD_RUN_PROBLEMS = RUN_ALL || RUN_PROBLEMS
+const SHOULD_RUN_MINIMAL = RUN_MINIMAL || USE_CI_DEFAULT
 
 # Print test plan
-@info "Test configuration" USE_LOCAL ARGS
-@info "Running tests" polynomials=SHOULD_RUN_POLYNOMIALS quality=SHOULD_RUN_QUALITY relaxations=SHOULD_RUN_RELAXATIONS problems=SHOULD_RUN_PROBLEMS minimal=RUN_MINIMAL
+@info "Test configuration" IS_CI USE_LOCAL ARGS
+@info "Running tests" polynomials=SHOULD_RUN_POLYNOMIALS quality=SHOULD_RUN_QUALITY relaxations=SHOULD_RUN_RELAXATIONS problems=SHOULD_RUN_PROBLEMS minimal=SHOULD_RUN_MINIMAL
 
-# =============================================================================
 # Run selected test groups
-# =============================================================================
 @testset "NCTSSoS.jl" begin
 
     # =========================================================================
@@ -122,10 +81,22 @@ const SHOULD_RUN_PROBLEMS = RUN_ALL || RUN_PROBLEMS
     # =========================================================================
     # 5. Minimal Suite (fast smoke test for critical algorithm paths)
     # =========================================================================
-    # Covers: Dense, CS, TS, constrained, dualization - DRY via includes
+    # Coverage:
+    # | # | Test                  | Algorithm Path              | Source File          |
+    # |---|-----------------------|-----------------------------|----------------------|
+    # | 1 | Dense baseline        | No sparsity (baseline)      | chsh_simple.jl       |
+    # | 2 | Correlative sparsity  | MF clique decomposition     | chsh_simple.jl       |
+    # | 3 | Term sparsity         | MMD block reduction         | nc_example1.jl       |
+    # | 4 | Combined CS+TS        | Both + constraints          | nc_example2.jl       |
+    # | 5 | Dualization           | SOS ≈ Moment equivalence    | dualization.jl       |
     # =========================================================================
-    if RUN_MINIMAL
+    if SHOULD_RUN_MINIMAL
         include("TestUtils.jl")
-        include("test_minimal.jl")
+        @testset "Minimal Suite" begin
+            include("problems/bell_inequalities/chsh_simple.jl")
+            include("problems/nc_polynomial/nc_example1.jl")
+            include("problems/nc_polynomial/nc_example2.jl")
+            include("relaxations/dualization.jl")
+        end
     end
 end

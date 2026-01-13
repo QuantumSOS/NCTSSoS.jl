@@ -533,9 +533,21 @@ end
 
 Raise a Polynomial to a non-negative integer power.
 
-Uses Julia's built-in power_by_squaring for efficiency.
+Uses exponentiation by squaring for efficiency.
 """
 function Base.:(^)(p::Polynomial{A,T,C}, n::Int) where {A<:AlgebraType,T<:Integer,C<:Number}
     n < 0 && throw(DomainError(n, "Polynomial exponent must be non-negative"))
-    return Base.power_by_squaring(p, n)
+    n == 0 && return one(p)
+    n == 1 && return copy(p)
+    # Exponentiation by squaring
+    result = one(p)
+    base = copy(p)
+    while n > 0
+        if isodd(n)
+            result = result * base
+        end
+        base = base * base
+        n >>= 1
+    end
+    return result
 end

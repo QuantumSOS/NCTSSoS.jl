@@ -1,10 +1,5 @@
-# =============================================================================
 # test/problems/condensed_matter/runtests.jl
-# =============================================================================
 # Tests: Condensed matter physics models (Heisenberg, Ising, XY, Bose-Hubbard, PXP)
-# Dependencies: SOLVER
-# Requires --local: yes (parent runtests.jl guards with `if USE_LOCAL`)
-# =============================================================================
 
 using Test
 

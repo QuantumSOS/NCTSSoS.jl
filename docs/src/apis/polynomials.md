@@ -26,7 +26,7 @@ Pages = ["types/registry.jl"]
 
 ```@autodocs
 Modules = [NCTSSoS]
-Pages = ["types/monomial.jl"]
+Pages = ["types/monomial.jl", "types/composed.jl"]
 ```
 
 ## Polynomials
@@ -54,5 +54,5 @@ Pages = ["simplification/pauli.jl", "simplification/fermionic.jl", "simplificati
 
 ```@autodocs
 Modules = [NCTSSoS]
-Pages = ["utils.jl"]
+Pages = ["algorithms/basis.jl", "utils.jl"]
 ```

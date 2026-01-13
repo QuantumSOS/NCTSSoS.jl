@@ -1,8 +1,4 @@
-<!-- nctssos-literate-source: pauli_gns_construction.jl sha256: b76158188e144f8ef743079f82a0ea66d63fe0ab1ecd60c95e1d7602e5d04423 -->
-
-```@meta
-EditURL = "../literate/pauli_gns_construction.jl"
-```
+<!-- nctssos-literate-source: pauli_gns_construction.jl sha256: 2ae77edfb12c32e290ccb8e94a1b928cf80d658f03568ad4fa8ab67591a10405 -->
 
 # GNS Construction for Pauli Operator Reconstruction
 
@@ -44,7 +40,7 @@ These satisfy the fundamental Pauli algebra:
 
 ## Step 1: Define Non-commuting Variables
 
-````@example pauli_gns_construction
+````julia
 using NCTSSoS
 using LinearAlgebra
 using LinearAlgebra: tr
@@ -53,35 +49,33 @@ using LinearAlgebra: tr
 In `NCTSSoS.jl`, we represent Pauli operators as non-commuting polynomial variables:
 Create non-commuting variables using the typed algebra system
 
-````@example pauli_gns_construction
+````julia
 registry, (x, y, z) = create_noncommutative_variables([("x", 1:1), ("y", 1:1), ("z", 1:1)])
 ````
 
 Extract single variables from arrays
 
-````@example pauli_gns_construction
+````julia
 x, y, z = x[1], y[1], z[1]
 ````
 
 These variables x, y, z will represent σₓ, σᵧ, σ_z respectively
 
-````@example pauli_gns_construction
+````julia
 vars = [x, y, z];
-nothing #hide
 ````
 
 ## Step 2: Choose a Quantum State
 
-````@example pauli_gns_construction
+````julia
 zero_state = ComplexF64[1; 0];    # |0⟩
 one_state = ComplexF64[0; 1];
-nothing #hide
 ````
 
 Define quantum states for testing
 For clear reconstruction, use a pure state
 
-````@example pauli_gns_construction
+````julia
 ρ =  zero_state * zero_state'
 ````
 
@@ -89,7 +83,7 @@ For clear reconstruction, use a pure state
 
 We need a function to compute the expectation value of any monomial in our variables:
 
-````@example pauli_gns_construction
+````julia
 function expval_pauli(mono::Monomial, ρ::Matrix)
     if isone(mono)
         return 1.0 + 0.0im  # ⟨I⟩ = 1 for normalized states
@@ -127,14 +121,13 @@ The moment matrix encodes all expectation values of products of our basis operat
 
 Choose the degree of our polynomial basis
 
-````@example pauli_gns_construction
+````julia
 degree = 4;
-nothing #hide
 ````
 
 Generate the basis of monomials up to the specified degree
 
-````@example pauli_gns_construction
+````julia
 basis = NCTSSoS.get_basis(vars, degree)
 
 println("Basis operators (monomials):")
@@ -145,7 +138,7 @@ end
 
 Build the moment matrix H where H[i,j] = ⟨b_i† * b_j⟩
 
-````@example pauli_gns_construction
+````julia
 n = length(basis)
 H = zeros(ComplexF64, n, n)
 
@@ -165,7 +158,7 @@ end
 
 Verify that H is Hermitian (as required by quantum mechanics)
 
-````@example pauli_gns_construction
+````julia
 println("Moment matrix H is Hermitian: ", H ≈ H')
 ````
 
@@ -174,22 +167,22 @@ println("Moment matrix H is Hermitian: ", H ≈ H')
 Now we use the `reconstruct` function to perform the GNS construction and obtain
 concrete matrix representations of our abstract operators:
 
-````@example pauli_gns_construction
+````julia
 X_recon, Y_recon, Z_recon = reconstruct(H, vars, degree; atol=0.001)
 ````
 
-````@example pauli_gns_construction
+````julia
 println("Reconstructed Pauli operators:")
 println("σₓ (reconstructed):")
 round.(X_recon, digits=6)
 ````
 
-````@example pauli_gns_construction
+````julia
 println("σᵧ (reconstructed):")
 round.(Y_recon, digits=6)
 ````
 
-````@example pauli_gns_construction
+````julia
 println("σ_z (reconstructed):")
 round.(Z_recon, digits=6)
 ````
@@ -201,7 +194,7 @@ the Pauli algebra relations:
 
 ### Test 1: Squares should equal identity (X² = Y² = Z² = I)
 
-````@example pauli_gns_construction
+````julia
 X2 = X_recon * X_recon
 Y2 = Y_recon * Y_recon
 Z2 = Z_recon * Z_recon
@@ -213,7 +206,7 @@ println("   ||Z² - I|| = $(norm(Z2 - I))")
 
 ### Test 2: Anti-commutation relations ({σᵢ, σⱼ} = 0 for i ≠ j)
 
-````@example pauli_gns_construction
+````julia
 anticomm_XY = X_recon * Y_recon + Y_recon * X_recon
 anticomm_YZ = Y_recon * Z_recon + Z_recon * Y_recon
 anticomm_ZX = Z_recon * X_recon + X_recon * Z_recon
@@ -225,7 +218,7 @@ println("||{Z,X}|| = $(norm(anticomm_ZX))")
 
 ### Test 3: Commutation relations ([σᵢ, σⱼ] = 2iε_ijkσₖ)
 
-````@example pauli_gns_construction
+````julia
 comm_XY = X_recon * Y_recon - Y_recon * X_recon
 comm_YZ = Y_recon * Z_recon - Z_recon * Y_recon
 comm_ZX = Z_recon * X_recon - X_recon * Z_recon
@@ -259,19 +252,18 @@ Let's verify that GNS reconstruction works for an arbitrary pure state:
 
 Create a random normalized pure state (not aligned with computational basis)
 
-````@example pauli_gns_construction
+````julia
 using Random  # For reproducibility in random state example
 Random.seed!(42)  # For reproducibility
 ψ_random = normalize(randn(ComplexF64, 2))
 ρ_random = ψ_random * ψ_random'
 
 @show ψ_random;
-nothing #hide
 ````
 
 Build moment matrix and reconstruct
 
-````@example pauli_gns_construction
+````julia
 H_random = zeros(ComplexF64, n, n)
 for i in 1:n, j in 1:n
     product = NCTSSoS.neat_dot(basis[i], basis[j])
@@ -282,30 +274,28 @@ X_rand, Y_rand, Z_rand = reconstruct(H_random, vars, degree; atol=0.001)
 
 @show rank(H_random, atol=1e-6);
 @show size(X_rand);
-nothing #hide
 ````
 
 The reconstructed operators look very different from standard Pauli matrices:
 
-````@example pauli_gns_construction
+````julia
 X_rand
 ````
 
-````@example pauli_gns_construction
+````julia
 Y_rand
 ````
 
-````@example pauli_gns_construction
+````julia
 Z_rand
 ````
 
 The reconstructed operators are not in the familar form but still satisfy the Pauli algebra:
 
-````@example pauli_gns_construction
+````julia
 @show norm(X_rand * X_rand - I);
 @show norm(X_rand * Y_rand + Y_rand * X_rand);
 @show norm((X_rand * Y_rand - Y_rand * X_rand) - 2im * Z_rand);
-nothing #hide
 ````
 
 Now, let's diagonalize Z_rand and use its eigenvectors to transform all three operators:
@@ -315,17 +305,16 @@ Now, let's diagonalize Z_rand and use its eigenvectors to transform all three op
 The key insight: If we diagonalize Z_rand, the resulting unitary transformation
 will bring X, Y, and Z into the standard Pauli matrix form (up to ordering and phases).
 
-````@example pauli_gns_construction
+````julia
 F_rand = eigen(Z_rand)  # Diagonalize Z, not Y!
 
 @show F_rand.values;
-nothing #hide
 ````
 
 Important: eigen() may return eigenvectors in any order. The standard Pauli Z matrix
 is σ_z = diag(1, -1), so we want eigenvalue +1 first and -1 second.
 
-````@example pauli_gns_construction
+````julia
 if real(F_rand.values[1]) < real(F_rand.values[2])
     # Need to swap eigenvectors to get correct ordering (eigenvalue +1 first)
     U_rand = F_rand.vectors[:, [2, 1]]
@@ -337,26 +326,25 @@ end
 
 Apply the unitary transformation U_rand† · (operator) · U_rand to all three operators:
 
-````@example pauli_gns_construction
+````julia
 Z_transformed = U_rand' * Z_rand * U_rand;
 X_transformed = U_rand' * X_rand * U_rand;
 Y_transformed = U_rand' * Y_rand * U_rand;
-nothing #hide
 ````
 
 Display the transformed operators:
 
-````@example pauli_gns_construction
+````julia
 println("\nZ after transformation (should be diagonal):")
 round.(Z_transformed, digits=4)
 ````
 
-````@example pauli_gns_construction
+````julia
 println("\nX after transformation:")
 round.(X_transformed, digits=4)
 ````
 
-````@example pauli_gns_construction
+````julia
 println("\nY after transformation:")
 round.(Y_transformed, digits=4)
 ````
@@ -392,7 +380,7 @@ We can choose α = 0, then β = -arg(a)
 
 Let's compute this systematically:
 
-````@example pauli_gns_construction
+````julia
 σ_x = ComplexF64[0 1; 1 0]
 σ_y = ComplexF64[0 -im; im 0]
 σ_z = ComplexF64[1 0; 0 -1]
@@ -460,14 +448,14 @@ end
 Now let's see what happens with a mixed state that is not a pure state.
 Mixed state: ½|0⟩⟨0| + ½|+⟩⟨+| where |+⟩ = (|0⟩ + |1⟩)/√2
 
-````@example pauli_gns_construction
+````julia
 plus_state = normalize(ComplexF64[1; 1])
 ρ_mixed = 0.5 * (zero_state * zero_state') + 0.5 * (plus_state * plus_state')
 ````
 
 Build moment matrix and reconstruct
 
-````@example pauli_gns_construction
+````julia
 H_mixed = zeros(ComplexF64, n, n)
 for i in 1:n, j in 1:n
     product = NCTSSoS.neat_dot(basis[i], basis[j])
@@ -478,7 +466,6 @@ X_mixed, Y_mixed, Z_mixed = reconstruct(H_mixed, vars, degree; atol=0.001)
 
 @show rank(H_mixed, atol=1e-6);
 @show size(X_mixed);
-nothing #hide
 ````
 
 For a mixed state, the rank can be higher! The reconstructed operators now act on a
@@ -487,13 +474,13 @@ Pauli algebra:
 
 ### Complete Pauli Algebra Verification
 
-````@example pauli_gns_construction
+````julia
 dim_mixed = size(X_mixed, 1)
 ````
 
 **Test 1: Squares should equal identity (σᵢ² = I)**
 
-````@example pauli_gns_construction
+````julia
 println("||X² - I|| = $(norm(X_mixed * X_mixed - I(dim_mixed)))")
 println("||Y² - I|| = $(norm(Y_mixed * Y_mixed - I(dim_mixed)))")
 println("||Z² - I|| = $(norm(Z_mixed * Z_mixed - I(dim_mixed)))")
@@ -501,7 +488,7 @@ println("||Z² - I|| = $(norm(Z_mixed * Z_mixed - I(dim_mixed)))")
 
 **Test 2: Anti-commutation relations ({σᵢ, σⱼ} = 0 for i ≠ j)**
 
-````@example pauli_gns_construction
+````julia
 anticomm_XY_mixed = X_mixed * Y_mixed + Y_mixed * X_mixed
 anticomm_YZ_mixed = Y_mixed * Z_mixed + Z_mixed * Y_mixed
 anticomm_ZX_mixed = Z_mixed * X_mixed + X_mixed * Z_mixed
@@ -513,7 +500,7 @@ println("||{Z,X}|| = $(norm(anticomm_ZX_mixed))")
 
 **Test 3: Commutation relations ([σᵢ, σⱼ] = 2iε_ijkσₖ)**
 
-````@example pauli_gns_construction
+````julia
 comm_XY_mixed = X_mixed * Y_mixed - Y_mixed * X_mixed
 comm_YZ_mixed = Y_mixed * Z_mixed - Z_mixed * Y_mixed
 comm_ZX_mixed = Z_mixed * X_mixed - X_mixed * Z_mixed

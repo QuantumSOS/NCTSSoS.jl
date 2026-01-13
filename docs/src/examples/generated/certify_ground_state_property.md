@@ -1,10 +1,6 @@
-<!-- nctssos-literate-source: certify_ground_state_property.jl sha256: 6e489371eed6f533f5f6b7203283e7033529cd4377969b3fffcf930a326f2841 -->
+<!-- nctssos-literate-source: certify_ground_state_property.jl sha256: 0854cdf3d8fba5c83c27b153b329f5755b5872fde596cd9f7e7c6d3598ffb6d3 -->
 
-```@meta
-EditURL = "../literate/certify_ground_state_property.jl"
-```
-
-# [Certifying Ground State Properties](@id certify-property)
+# Certifying Ground State Properties
 
 Understanding ground-state properties of quantum many-body systems represents
 a **fundamental challenge in quantum physics** [wang2024Certifying](@cite).
@@ -30,7 +26,7 @@ As a demonstration, we consider the quantum Heisenberg model:
 
 where we will certify both the ground-state energy and correlation functions.
 
-````@example certify_ground_state_property
+````julia
 using Yao
 using LinearAlgebra
 
@@ -76,7 +72,7 @@ The NCTSSoS API provides type-safe Pauli algebra with automatic
 simplification. No explicit commutation constraints are needed - the
 `PauliAlgebra` type handles the Pauli operator relations automatically.
 
-````@example certify_ground_state_property
+````julia
 using NCTSSoS
 using MosekTools
 using JuMP
@@ -134,7 +130,7 @@ To accomplish this, we need a custom solver that can handle additional
 constraints on correlation functions. The following function extends
 the standard NCTSSoS solver to incorporate entry constraints.
 
-````@example certify_ground_state_property
+````julia
 """
     cs_nctssos_with_entry(pop, solver_config, entry_constraints; dualize=true)
 
@@ -151,30 +147,11 @@ function cs_nctssos_with_entry(
     dualize::Bool=true
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, OP<:NCTSSoS.OptimizationProblem{P}}
 
-   # Determine the order of moment relaxation (automatic if not specified)
-   order = iszero(solver_config.order) ?
-       maximum([ceil(Int, degree(poly) / 2) for poly in [pop.objective; pop.eq_constraints; pop.ineq_constraints]]) :
-       solver_config.order
-
-   # Exploit correlative sparsity to reduce problem size
-   corr_sparsity = NCTSSoS.correlative_sparsity(pop, order, solver_config.cs_algo)
-
-   # Decompose objective function across cliques (sparse subproblems)
-   cliques_objective = [reduce(+, [issubset(sort!(variables(mono)), clique) ? coef * mono : zero(coef) * one(mono) for (coef, mono) in zip(coefficients(pop.objective), monomials(pop.objective))]) for clique in corr_sparsity.cliques]
-
-   # Initialize support patterns for term sparsity
-   # Note: SimplifyAlgorithm is no longer needed - algebra type dispatch handles simplification
-   initial_activated_supps = map(zip(cliques_objective, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases)) do (partial_obj, cons_idx, mom_mtx_base)
-        NCTSSoS.init_activated_supp(partial_obj, corr_sparsity.cons[cons_idx], mom_mtx_base)
-   end
-
-   # Apply term sparsity to further reduce problem size
-   cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
-        NCTSSoS.term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
-   end
+   # Compute sparsity structure (correlative + term sparsity)
+   sparsity = NCTSSoS.compute_sparsity(pop, solver_config)
 
    # Build the moment relaxation problem
-   moment_problem = NCTSSoS.moment_relax(pop, corr_sparsity, cliques_term_sparsities)
+   moment_problem = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
 
    # Add entry constraints for correlation function bounds
    # These are semidefinite constraints that ensure physical validity
@@ -182,15 +159,11 @@ function cs_nctssos_with_entry(
        push!(moment_problem.constraints,(:HPSD, [c;;]))
    end
 
-   # Dualize and solve
-   problem_to_solve = !dualize ? moment_problem : NCTSSoS.sos_dualize(moment_problem)
-
-   # Solve the semidefinite program
-   set_optimizer(problem_to_solve.model, solver_config.optimizer)
-   optimize!(problem_to_solve.model)
+   # Dualize and solve (using the same solve_sdp helper as cs_nctssos)
+   result = NCTSSoS.solve_sdp(moment_problem, solver_config.optimizer; dualize)
 
    # Return optimization results
-   return NCTSSoS.PolyOptResult(objective_value(problem_to_solve.model), corr_sparsity, cliques_term_sparsities, problem_to_solve.model)
+   return NCTSSoS.PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end
 ````
 
@@ -205,7 +178,7 @@ We use reference energy bounds (computed via high-precision DMRG) to
 constrain the optimization problem, ensuring our correlation function
 bounds are physically meaningful.
 
-````@example certify_ground_state_property
+````julia
 # Initialize arrays to store correlation function bounds
 lower_bounds = Float64[]
 upper_bounds = Float64[]
@@ -256,7 +229,7 @@ certified bounds. The polynomial optimization approach provides rigorous
 upper and lower bounds that closely bracket the exact correlation function
 values, validating the effectiveness of our certification method.
 
-````@example certify_ground_state_property
+````julia
 using CairoMakie
 
 # Create the visualization

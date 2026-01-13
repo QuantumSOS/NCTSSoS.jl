@@ -1,10 +1,6 @@
-<!-- nctssos-literate-source: bell.jl sha256: 248c58fb9a99b51ec536483222cb5cfaec1c72c7a8ef291741b500ea97b56ab8 -->
+<!-- nctssos-literate-source: bell.jl sha256: 04ba269955778adef5157ca6280c173d239160ec1a3e03fd9a50c8abc5a1f984 -->
 
-```@meta
-EditURL = "../literate/bell.jl"
-```
-
-# [Bell inequalities](@id bell-inequalities)
+# Bell inequalities
 
 Bell inequalities are mathematical expressions that test whether the predictions of quantum mechanics can be explained by local hidden variable theories. They were first introduced by John Stewart Bell in 1964 and have since become fundamental tools in quantum information theory and quantum foundations.
 A Bell inequality is typically expressed as a linear combination of expectation values of observables, with bounds that differ between classical and quantum theories. In the classical case, these inequalities must be satisfied if the system can be described by local hidden variables. However, quantum mechanics can violate these inequalities, demonstrating the non-local nature of quantum correlations.
@@ -30,21 +26,21 @@ The CHSH inequality is particularly important because it is the simplest non-tri
 
 An upper bound on the maximal quantum violation of the CHSH inequality can be computed using the following code:
 
-````@example bell
+````julia
 using NCTSSoS, MosekTools
 ````
 
 Create unipotent variables (operators that square to identity)
 x = (A_1, A_2), y = (B_1, B_2)
 
-````@example bell
+````julia
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]  # objective function
 ````
 
 The registry encodes all algebra constraints automatically!
 
-````@example bell
+````julia
 pop = polyopt(f, registry)
 
 solver_config = SolverConfig(optimizer=Mosek.Optimizer,  # solver backend
@@ -79,13 +75,13 @@ In classical mechanics, the inequality $f(A_1, A_2, A_3, B_1, B_2, B_3) \leq 0$ 
 
 An upper bound on the maximal quantum violation of the $I_{3322}$ inequality can be computed using the following code:
 
-````@example bell
+````julia
 using NCTSSoS, MosekTools
 ````
 
 Create projector variables (operators that square to themselves: P^2 = P)
 
-````@example bell
+````julia
 registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
 f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
     x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
@@ -108,7 +104,7 @@ The resulting upper bound is close to the theoretically exact value $0.25$. By i
 
 To reach the theoretically exact value $0.25$, one may increase the relaxation order [magronSparsePolynomialOptimization2023](@cite).
 
-````@example bell
+````julia
 using NCTSSoS, MosekTools
 
 registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
@@ -133,7 +129,7 @@ However, keep increasing the order leads to large-scale SDPs that are computatio
 
 To take advantage of these sparsity patterns:
 
-````@example bell
+````julia
 using NCTSSoS, MosekTools
 
 registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
@@ -175,27 +171,27 @@ It was shown that $f(A_1,A_2,A_3,B_1,B_2,B_3) \leq \frac{9}{2}$ in classical mod
 
 An *open question* is: what is the maximal quantum violation that the covariance Bell inequality can attain in spatial quantum models. We can tackle this question using state polynomial optimization [klep2024State](@cite).
 
-````@example bell
+````julia
 using NCTSSoS, MosekTools
 using NCTSSoS: Monomial
 ````
 
 Create unipotent variables for Alice's and Bob's observables
 
-````@example bell
+````julia
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 ````
 
 covariance function
 
-````@example bell
+````julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
             1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
 ````
 
 objective function
 
-````@example bell
+````julia
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
 spop = polyopt(sp, registry)
@@ -209,8 +205,9 @@ result = cs_nctssos(spop, solver_config)
 result.objective
 ````
 
-!!! note "Typing Unicodes"
-    You can type the unicode characters in the code by using `\varsigma` and pressing `Tab` to get the unicode character `ς`.
+> **Typing Unicodes**
+>
+> You can type the unicode characters in the code by using `\varsigma` and pressing `Tab` to get the unicode character `ς`.
 
 ```julia
 -5.000271541108556
@@ -220,7 +217,7 @@ The resulting upper bound is very close to the previously known best value $5$ (
 
 We can use sparsity to further improve the bound.
 
-````@example bell
+````julia
 using NCTSSoS, MosekTools
 using NCTSSoS: Monomial
 
@@ -229,14 +226,14 @@ registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 
 covariance function
 
-````@example bell
+````julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
             1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
 ````
 
 objective function
 
-````@example bell
+````julia
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
 
 spop = polyopt(sp, registry)

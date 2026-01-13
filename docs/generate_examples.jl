@@ -71,10 +71,12 @@ println("Generating markdown files from Literate.jl examples...")
 println("Source directory: $EXAMPLES_DIR")
 println("Output directory: $GENERATED_DIR")
 
-# Configure to generate regular Julia code blocks instead of @example blocks
-# Note: execute=false because examples require Mosek license to run
-# The generated markdown will contain code without output
-config = Dict("execute" => false)
+# Generate fenced `julia` code blocks (NOT Documenter `@example` blocks), so the
+# docs build won't try to execute examples (CI has no Mosek license).
+config = Dict(
+    "execute" => false,
+    "flavor" => Literate.CommonMarkFlavor(),
+)
 
 # Convert Literate.jl scripts to markdown
 for file in readdir(EXAMPLES_DIR)

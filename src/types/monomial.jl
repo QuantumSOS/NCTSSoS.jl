@@ -416,7 +416,7 @@ julia> [m.word for m in monos]
  [1, 2]
 ```
 
-See also: [`cmp`](@ref), [`degree`](@ref)
+See also: [`degree`](@ref)
 """
 function Base.isless(m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     # Compare by degree first (graded ordering)

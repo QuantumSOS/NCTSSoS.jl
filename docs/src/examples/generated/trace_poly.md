@@ -1,8 +1,4 @@
-<!-- nctssos-literate-source: trace_poly.jl sha256: 1bd8bf6852d26205b9c7994e622f7da4756968bdd6936bd41aeb858655bbb36f -->
-
-```@meta
-EditURL = "../literate/trace_poly.jl"
-```
+<!-- nctssos-literate-source: trace_poly.jl sha256: 56e026f7add96967b7bb7c6c195c22afe5d0ca774d9782dcf036f4669f86d3eb -->
 
 # Tracial Polynomial Optimization
 
@@ -10,17 +6,17 @@ EditURL = "../literate/trace_poly.jl"
 Let's learn how to do [tracial polynomial optimization](@ref
 tracial-polynomial) from a toy example.
 
-We use [`NCTSSoS.tr`](@ref) to declare a part of a term in
+We use `NCTSSoS.tr` to declare a part of a term in
 tracial polynomial.
 
-````@example trace_poly
+````julia
 using NCTSSoS, MosekTools
 using NCTSSoS: tr, Monomial
 ````
 
 Create projector variables using the typed algebra system
 
-````@example trace_poly
+````julia
 registry, (x,) = create_projector_variables([("x", 1:3)])
 
 p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * one(Monomial)
@@ -30,7 +26,7 @@ Polynomial Optimization declaration and solving interface is the same as regular
 polynomial optimization. No need for is_projective or comm_gps - the registry
 encodes all algebra constraints!
 
-````@example trace_poly
+````julia
 spop = polyopt(p, registry)
 
 solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=2)
@@ -62,14 +58,14 @@ following examples illustrate how tracial polynomial optimization can be used to
 compute the maximum violation of specific Bell inequalities, revealing the
 extent to which quantum mechanics transcends classical limitations.
 
-````@example trace_poly
+````julia
 using NCTSSoS, MosekTools
 using NCTSSoS: tr, Monomial
 ````
 
 Create unipotent variables (operators that square to identity)
 
-````@example trace_poly
+````julia
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
 p = -1.0 * tr(x[1] * y[1]) - 1.0 * tr(x[1] * y[2]) - 1.0 * tr(x[2] * y[1]) + 1.0 * tr(x[2] * y[2])
@@ -88,11 +84,11 @@ bipartite state with $10^{-6}$ absolute tolerance [klep2022Optimization](@cite)!
 
 ## Covariance of quantum correlation
 
-As introduced in [Bell Inequalities example](@ref bell-inequalities), we may
+As introduced in Bell Inequalities example, we may
 also compute the covariance of quantum correlations while limiting the state to
 maximally entangled bipartite state.
 
-````@example trace_poly
+````julia
 using NCTSSoS, MosekTools
 using NCTSSoS: tr, Monomial
 

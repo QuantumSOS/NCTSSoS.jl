@@ -1,10 +1,6 @@
-<!-- nctssos-literate-source: ground_state_energy.jl sha256: a492770f0baafb4cce50ce6108bc0852285f3c993e5c3d9b5169bce9c5c80e9c -->
+<!-- nctssos-literate-source: ground_state_energy.jl sha256: c75962c88365d76213648c29139f7596dbb89556758a82d37b9965d2120aab37 -->
 
-```@meta
-EditURL = "../literate/ground_state_energy.jl"
-```
-
-# [Obtaining Ground State Energy Lower Bound](@id ground-state-energy)
+# Obtaining Ground State Energy Lower Bound
 
 Finding the ground state of a quantum system is a fundamental problem in quantum
 mechanics [wang2024Certifying](@cite). Variational methods are commonly used to
@@ -23,7 +19,7 @@ H = \frac{1}{4} \sum_{i \u003c j} J_{ij} \sum_{ a \in \{x,y,z\}} \sigma_i^a \sig
 Firstly, let's consider the simplest case of 1D Heisenberg chain with nearest
 neighbor interaction and periodic boundary condition.
 
-````@example ground_state_energy
+````julia
 using NCTSSoS, MosekTools
 N = 6
 ````
@@ -31,7 +27,7 @@ N = 6
 Create Pauli variables using the typed algebra system
 This automatically encodes all Pauli commutation relations
 
-````@example ground_state_energy
+````julia
 registry, (σx, σy, σz) = create_pauli_variables(1:N)
 
 ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σz] for i in 1:N)
@@ -39,7 +35,7 @@ ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σ
 
 No need to manually specify constraints - they're encoded in the algebra type!
 
-````@example ground_state_energy
+````julia
 pop = polyopt(ham, registry)
 
 solver_config = SolverConfig(
@@ -67,7 +63,7 @@ Polynomial Optimization framework is quite general. Almost no modification is
 required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
 frustration induced by next nearest neighbor interaction can be solved as:
 
-````@example ground_state_energy
+````julia
 using NCTSSoS, MosekTools
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
@@ -94,7 +90,7 @@ to $6$ digits!
 
 Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
-````@example ground_state_energy
+````julia
 using NCTSSoS, MosekTools
 Nx = 3
 Ny = 3
@@ -117,7 +113,7 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), t
 
 With such lower bounds, estimates of properties of the ground
 state, correlations functions, structure factors and order parameters, can also
-be obtained. We provide examples in another [section](@ref certify-property).
+be obtained. We provide examples in another section.
 
 ---
 

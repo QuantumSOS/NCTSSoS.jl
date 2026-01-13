@@ -1,7 +1,34 @@
-"""
+@inline function _unwrap_unionall(T)
+    while T isa UnionAll
+        T = T.body
+    end
+    return T
+end
+
+@generated function _composed_signature(::Type{Ts}) where {Ts<:Tuple}
+    comps = Ts.parameters
+    isempty(comps) && return :(Tuple{})
+
+    algs = Any[]
+    for C in comps
+        sup = _unwrap_unionall(supertype(C))
+        if !(sup <: AbstractMonomial)
+            error("ComposedMonomial components must be subtypes of AbstractMonomial{A,T}, got $(C)")
+        end
+        push!(algs, sup.parameters[1])
+    end
+
+    return :(Tuple{$(algs...)})
+end
+
+# -----------------------------------------------------------------------------
+# Type definition + constructors
+# -----------------------------------------------------------------------------
+
+const _COMPOSED_MONOMIAL_DOC = """
     ComposedMonomial{As<:Tuple,Ts<:Tuple} <: AbstractTensorMonomial{As}
 
-Represents a product of monomials from DIFFERENT algebra types.
+Represents a product of monomials from different algebra types.
 
 Each component is a `NormalMonomial{A,T}` with its own algebra type in the type parameter.
 This enables tensor products of operators from different algebraic structures.
@@ -15,7 +42,7 @@ This enables tensor products of operators from different algebraic structures.
 
 # Design
 Algebra types are compile-time information (in each monomial's type parameter),
-so ComposedMonomial has zero runtime overhead for algebra type storage.
+so `ComposedMonomial` has zero runtime overhead for algebra type storage.
 
 # Examples
 ```jldoctest
@@ -61,32 +88,6 @@ julia> terms[1][2][2].word == [encode_index(UInt16, 2, 1)]  # Unipotent: [1,1,2]
 true
 ```
 """
-@inline function _unwrap_unionall(T)
-    while T isa UnionAll
-        T = T.body
-    end
-    return T
-end
-
-@generated function _composed_signature(::Type{Ts}) where {Ts<:Tuple}
-    comps = Ts.parameters
-    isempty(comps) && return :(Tuple{})
-
-    algs = Any[]
-    for C in comps
-        sup = _unwrap_unionall(supertype(C))
-        if !(sup <: AbstractMonomial)
-            error("ComposedMonomial components must be subtypes of AbstractMonomial{A,T}, got $(C)")
-        end
-        push!(algs, sup.parameters[1])
-    end
-
-    return :(Tuple{$(algs...)})
-end
-
-# -----------------------------------------------------------------------------
-# Type definition + constructors
-# -----------------------------------------------------------------------------
 
 struct ComposedMonomial{As<:Tuple,Ts<:Tuple} <: AbstractTensorMonomial{As}
     components::Ts
@@ -100,6 +101,8 @@ struct ComposedMonomial{As<:Tuple,Ts<:Tuple} <: AbstractTensorMonomial{As}
         return new{As,Ts}(components)
     end
 end
+
+@doc _COMPOSED_MONOMIAL_DOC ComposedMonomial
 
 function ComposedMonomial(components::Ts) where {Ts<:Tuple}
     return ComposedMonomial{_composed_signature(Ts),Ts}(components)

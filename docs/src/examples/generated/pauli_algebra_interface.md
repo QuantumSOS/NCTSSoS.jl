@@ -1,23 +1,20 @@
-<!-- nctssos-literate-source: pauli_algebra_interface.jl sha256: 79016d7b75af66c1746c5d74c3a5bc7fb33d9c57e915c6006f15c746c5b42a75 -->
+<!-- nctssos-literate-source: pauli_algebra_interface.jl sha256: 5fa51843e8c9b076dc2003205993b4a70e1712d21823acb540587d476db36f50 -->
 
-```@meta
-EditURL = "../literate/pauli_algebra_interface.jl"
-```
-
-# [Simplified Quantum Spin Models with Pauli Algebra](@id pauli-algebra-interface)
+# Simplified Quantum Spin Models with Pauli Algebra
 
 `NCTSSoS.jl` provides a convenient interface for working with common quantum algebras,
 eliminating the need to manually specify commutation relations and constraints.
-This tutorial demonstrates the [`create_pauli_variables`](@ref) function for quantum spin systems,
-which significantly simplifies the problem setup for [polynomial optimization](@ref polynomials)
+This tutorial demonstrates the `create_pauli_variables` function for quantum spin systems,
+which significantly simplifies the problem setup for polynomial optimization
 problems in quantum many-body physics [wang2024Certifying](@cite).
 
 ## The Problem: Manual Constraint Specification (Legacy API - Deprecated)
 
-!!! warning "Deprecated API"
-    The following example demonstrates the **legacy API** using `@ncpolyvar` and manual
-    constraint specification. This API is deprecated and will be removed in a future version.
-    Please use the new typed algebra API demonstrated in the next section.
+> **Deprecated API**
+>
+> The following example demonstrates the **legacy API** using `@ncpolyvar` and manual
+> constraint specification. This API is deprecated and will be removed in a future version.
+> Please use the new typed algebra API demonstrated in the next section.
 
 When working with quantum spin systems, the old approach required manually
 defining all Pauli operator commutation relations. This was tedious, error-prone,
@@ -32,7 +29,7 @@ H = \frac{1}{4} \sum_{i=1}^{N} \left( \sigma_i^x \sigma_{i+1}^x + \sigma_i^y \si
 ```
 
 where $\sigma_i^{x,y,z}$ are the Pauli operators at site $i$. In the legacy API,
-solving for the [ground state energy](@ref ground-state-energy) using polynomial
+solving for the ground state energy using polynomial
 optimization required:
 
 ```julia
@@ -68,7 +65,7 @@ size grew, this became increasingly cumbersome and error-prone.
 
 ## The Solution: Typed Algebra Variables (Recommended API)
 
-The [`create_pauli_variables`](@ref) function encapsulates all these constraints
+The `create_pauli_variables` function encapsulates all these constraints
 automatically through Julia's type system, allowing you to focus on the physics
 rather than the algebra.
 
@@ -76,7 +73,7 @@ rather than the algebra.
 
 The same problem can be solved much more concisely:
 
-````@example pauli_algebra_interface
+````julia
 using NCTSSoS, MosekTools
 N = 6  # Number of spins in the chain
 
@@ -85,14 +82,14 @@ registry, (σx, σy, σz) = create_pauli_variables(1:N)
 
 Construct the Hamiltonian (same formula, cleaner variables)
 
-````@example pauli_algebra_interface
+````julia
 ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
           for op in [σx, σy, σz] for i in 1:N)
 ````
 
 Create the optimization problem - constraints are handled automatically by the algebra type!
 
-````@example pauli_algebra_interface
+````julia
 pop = polyopt(ham, registry)
 ````
 
@@ -102,10 +99,10 @@ the possibility of typos in constraint equations.
 ## Computing Ground State Energy
 
 Now we can solve for the ground state energy lower bound using the
-[`cs_nctssos`](@ref) solver. We configure it to use a second-order
-[moment relaxation](@ref moment-sohs-hierarchy) [wang2024Certifying](@cite).
+`cs_nctssos` solver. We configure it to use a second-order
+moment relaxation [wang2024Certifying](@cite).
 
-````@example pauli_algebra_interface
+````julia
 solver_config = SolverConfig(
     optimizer=Mosek.Optimizer,  # SDP solver backend
     order=2                     # Relaxation order (higher = tighter bound)
@@ -121,7 +118,7 @@ which matches the exact value to high precision [wang2024Certifying](@cite).
 
 ## Advantages of Typed Algebra Variables
 
-The [`create_pauli_variables`](@ref) interface provides several key benefits:
+The `create_pauli_variables` interface provides several key benefits:
 
 1. **Automatic constraint generation**: All Pauli commutation relations are
    encoded correctly through the `PauliAlgebra` type without manual specification.
@@ -141,19 +138,19 @@ The [`create_pauli_variables`](@ref) interface provides several key benefits:
 
 Similar functions exist for other quantum algebras:
 
-- [`create_fermionic_variables`](@ref): Fermionic operators with anticommutation relations
-- [`create_bosonic_variables`](@ref): Bosonic operators with commutation relations
-- [`create_projector_variables`](@ref): Projector operators (P² = P)
-- [`create_unipotent_variables`](@ref): Unipotent operators (U² = I)
-- [`create_noncommutative_variables`](@ref): Generic non-commutative variables
+- `create_fermionic_variables`: Fermionic operators with anticommutation relations
+- `create_bosonic_variables`: Bosonic operators with commutation relations
+- `create_projector_variables`: Projector operators (P² = P)
+- `create_unipotent_variables`: Unipotent operators (U² = I)
+- `create_noncommutative_variables`: Generic non-commutative variables
 
 ## Next Steps
 
 This interface extends naturally to other quantum systems:
 
-- For systems with more complex geometries, see the [2D lattice examples](@ref ground-state-energy)
-- For correlation function bounds, see [certifying ground state properties](@ref certify-property)
-- For non-local correlations, explore [Bell inequalities](@ref bell-inequalities)
+- For systems with more complex geometries, see the 2D lattice examples
+- For correlation function bounds, see certifying ground state properties
+- For non-local correlations, explore Bell inequalities
 
 The typed algebra approach demonstrates how `NCTSSoS.jl` bridges the gap
 between physical intuition and mathematical formalism, making quantum many-body

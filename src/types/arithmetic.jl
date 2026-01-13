@@ -423,8 +423,8 @@ function Base.:(+)(
     p1::Polynomial{A,T,C1}, p2::Polynomial{A,T,C2}
 ) where {A<:AlgebraType,T<:Integer,C1<:Number,C2<:Number}
     C = promote_type(C1, C2)
-    terms1 = [(C(c), m) for (c, m) in p1.terms]
-    terms2 = [(C(c), m) for (c, m) in p2.terms]
+    terms1 = Tuple{C,NormalMonomial{A,T}}[(C(c), m) for (c, m) in p1.terms]
+    terms2 = Tuple{C,NormalMonomial{A,T}}[(C(c), m) for (c, m) in p2.terms]
     return Polynomial(vcat(terms1, terms2))
 end
 
@@ -445,7 +445,7 @@ end
 Negate a Polynomial (negate all coefficients).
 """
 function Base.:(-)(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    negated_terms = [(-c, m) for (c, m) in p.terms]
+    negated_terms = Tuple{C,NormalMonomial{A,T}}[(-c, m) for (c, m) in p.terms]
     return Polynomial{A,T,C}(negated_terms)
 end
 
@@ -462,10 +462,10 @@ function Base.:(+)(
     p::Polynomial{A,T,C}, c::Number
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     NC = promote_type(typeof(c), C)
-    iszero(c) && return Polynomial([(NC(coef), m) for (coef, m) in p.terms])
+    iszero(c) && return Polynomial(Tuple{NC,NormalMonomial{A,T}}[(NC(coef), m) for (coef, m) in p.terms])
     const_term = (NC(c), one(NormalMonomial{A,T}))
     const_poly = Polynomial([const_term])
-    p_converted = Polynomial([(NC(coef), m) for (coef, m) in p.terms])
+    p_converted = Polynomial(Tuple{NC,NormalMonomial{A,T}}[(NC(coef), m) for (coef, m) in p.terms])
     return p_converted + const_poly
 end
 
@@ -506,7 +506,7 @@ function Base.:(*)(
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     NC = promote_type(typeof(c), C)
     iszero(c) && return zero(Polynomial{A,T,NC})
-    scaled_terms = [(NC(c * coef), m) for (coef, m) in p.terms]
+    scaled_terms = Tuple{NC,NormalMonomial{A,T}}[(NC(c * coef), m) for (coef, m) in p.terms]
     return Polynomial{A,T,NC}(scaled_terms)
 end
 

@@ -38,7 +38,7 @@ julia> degree(sym)
 2
 ```
 
-See also: [`StateWord`](@ref), [`_state_canon`](@ref)
+See also: [`StateWord`](@ref)
 """
 struct StateSymbol{ST<:StateType,A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     mono::Vector{T}

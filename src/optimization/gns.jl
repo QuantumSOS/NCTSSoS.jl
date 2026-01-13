@@ -222,8 +222,9 @@ function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:NormalMonomial})
     for (i, row_mono) in enumerate(basis)
         for (j, col_mono) in enumerate(basis)
             # neat_dot returns Vector{T}, simplify to get canonical NormalMonomial for dict key
-            word = neat_dot(row_mono, col_mono)
-            key = simplify(A, word)
+            word = neat_dot(row_mono.word, col_mono.word)
+            simplified_word = simplify!(A, word)
+            key = NormalMonomial{A,eltype(word)}(simplified_word)
             if !haskey(dict, key)
                 dict[key] = hankel[i, j]
             end

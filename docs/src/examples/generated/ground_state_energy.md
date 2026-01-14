@@ -1,5 +1,3 @@
-<!-- nctssos-literate-source: ground_state_energy.jl sha256: c75962c88365d76213648c29139f7596dbb89556758a82d37b9965d2120aab37 -->
-
 # Obtaining Ground State Energy Lower Bound
 
 Finding the ground state of a quantum system is a fundamental problem in quantum

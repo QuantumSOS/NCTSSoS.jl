@@ -1,5 +1,3 @@
-<!-- nctssos-literate-source: pauli_gns_construction.jl sha256: 55492c608bf270ade6696d918b56570c94c0796806104ecacbd9bbc24a536cea -->
-
 # GNS Construction for Operator Reconstruction
 
 The Gelfand-Naimark-Segal (GNS) construction is a fundamental mathematical tool

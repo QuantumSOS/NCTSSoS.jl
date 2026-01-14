@@ -17,6 +17,49 @@
 
 It is a successor to [NCTSSOS](https://github.com/wangjie212/NCTSSOS).
 
+## Features
+
+### Supported Algebras
+
+| Algebra | Type | Relations | Status |
+|---------|------|-----------|--------|
+| Non-commutative | `MonoidAlgebra` | Free algebra (no relations) | :white_check_mark: |
+| Projector | `MonoidAlgebra` | P² = P (idempotent) | :white_check_mark: |
+| Unipotent | `MonoidAlgebra` | U² = I (involution) | :white_check_mark: |
+| Pauli | `TwistedGroupAlgebra` | σ² = I, cyclic products | :white_check_mark: |
+| Fermionic | `PBWAlgebra` | {aᵢ, aⱼ†} = δᵢⱼ (CAR) | :white_check_mark: |
+| Bosonic | `PBWAlgebra` | [cᵢ, cⱼ†] = δᵢⱼ (CCR) | :white_check_mark: |
+
+### Optimization Features
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Moment-SOS hierarchy | SDP relaxation for polynomial optimization | :white_check_mark: |
+| Correlative sparsity | Clique-based decomposition | :white_check_mark: |
+| Term sparsity | Block structure exploitation | :white_check_mark: |
+| Equality constraints | Linear and polynomial | :white_check_mark: |
+| Inequality constraints | Localizing matrices | :white_check_mark: |
+| Higher-order relaxations | Iterative refinement | :white_check_mark: |
+
+### State Polynomial Optimization
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| Tracial optimization | tr(·) for cyclic traces | :white_check_mark: |
+| State polynomials | Products of expectations ⟨A⟩⟨B⟩ | :white_check_mark: |
+| Maximally entangled states | Bipartite optimization | :white_check_mark: |
+| Arbitrary states | General state optimization | :white_check_mark: |
+| GNS construction | State reconstruction | :construction: |
+
+### Elimination Algorithms
+
+| Algorithm | Description |
+|-----------|-------------|
+| `MF` | Maximum fill-in |
+| `MMD` | Minimum degree ordering |
+| `MaximalElimination` | Maximal cliques |
+| `AsIsElimination` | No reordering |
+
 ## Installation
 
 <p>

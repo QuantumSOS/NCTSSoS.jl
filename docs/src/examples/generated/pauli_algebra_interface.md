@@ -1,5 +1,3 @@
-<!-- nctssos-literate-source: pauli_algebra_interface.jl sha256: 5fa51843e8c9b076dc2003205993b4a70e1712d21823acb540587d476db36f50 -->
-
 # Simplified Quantum Spin Models with Pauli Algebra
 
 `NCTSSoS.jl` provides a convenient interface for working with common quantum algebras,

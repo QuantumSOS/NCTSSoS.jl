@@ -1,5 +1,3 @@
-<!-- nctssos-literate-source: bell.jl sha256: 04ba269955778adef5157ca6280c173d239160ec1a3e03fd9a50c8abc5a1f984 -->
-
 # Bell inequalities
 
 Bell inequalities are mathematical expressions that test whether the predictions of quantum mechanics can be explained by local hidden variable theories. They were first introduced by John Stewart Bell in 1964 and have since become fundamental tools in quantum information theory and quantum foundations.
@@ -173,7 +171,6 @@ An *open question* is: what is the maximal quantum violation that the covariance
 
 ````julia
 using NCTSSoS, MosekTools
-using NCTSSoS: Monomial
 ````
 
 Create unipotent variables for Alice's and Bob's observables
@@ -182,11 +179,16 @@ Create unipotent variables for Alice's and Bob's observables
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 ````
 
+Identity monomial for converting StatePolynomial to NCStatePolynomial
+
+````julia
+const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
+````
+
 covariance function
 
 ````julia
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
-            1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
+cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
 ````
 
 objective function
@@ -219,16 +221,20 @@ We can use sparsity to further improve the bound.
 
 ````julia
 using NCTSSoS, MosekTools
-using NCTSSoS: Monomial
 
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+````
+
+Identity monomial for converting StatePolynomial to NCStatePolynomial
+
+````julia
+const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
 ````
 
 covariance function
 
 ````julia
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
-            1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
+cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
 ````
 
 objective function

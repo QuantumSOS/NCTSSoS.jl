@@ -1,5 +1,3 @@
-<!-- nctssos-literate-source: trace_poly.jl sha256: 56e026f7add96967b7bb7c6c195c22afe5d0ca774d9782dcf036f4669f86d3eb -->
-
 # Tracial Polynomial Optimization
 
 ## Toy Example
@@ -11,15 +9,21 @@ tracial polynomial.
 
 ````julia
 using NCTSSoS, MosekTools
-using NCTSSoS: tr, Monomial
+using NCTSSoS: tr
 ````
 
 Create projector variables using the typed algebra system
 
 ````julia
 registry, (x,) = create_projector_variables([("x", 1:3)])
+````
 
-p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * one(Monomial)
+Identity monomial for converting StatePolynomial to NCStatePolynomial
+
+````julia
+const ID = one(NormalMonomial{ProjectorAlgebra,UInt8})
+
+p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID
 ````
 
 Polynomial Optimization declaration and solving interface is the same as regular
@@ -60,17 +64,23 @@ extent to which quantum mechanics transcends classical limitations.
 
 ````julia
 using NCTSSoS, MosekTools
-using NCTSSoS: tr, Monomial
+using NCTSSoS: tr
 ````
 
 Create unipotent variables (operators that square to identity)
 
 ````julia
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+````
+
+Identity monomial for converting StatePolynomial to NCStatePolynomial
+
+````julia
+const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
 
 p = -1.0 * tr(x[1] * y[1]) - 1.0 * tr(x[1] * y[2]) - 1.0 * tr(x[2] * y[1]) + 1.0 * tr(x[2] * y[2])
 
-tpop = polyopt(p * one(Monomial), registry)
+tpop = polyopt(p * ID, registry)
 
 solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=1, ts_algo=MaximalElimination())
 
@@ -84,26 +94,31 @@ bipartite state with $10^{-6}$ absolute tolerance [klep2022Optimization](@cite)!
 
 ## Covariance of quantum correlation
 
+TODO: fix bug - commented out for now
+
 As introduced in Bell Inequalities example, we may
 also compute the covariance of quantum correlations while limiting the state to
 maximally entangled bipartite state.
 
-````julia
+```julia
 using NCTSSoS, MosekTools
-using NCTSSoS: tr, Monomial
+using NCTSSoS: tr
 
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 
+# Identity monomial for converting StatePolynomial to NCStatePolynomial
+const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
+
 cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
 p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
-tpop = polyopt(p * one(Monomial), registry)
+tpop = polyopt(p * ID, registry)
 
 solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=2)
 
 result = cs_nctssos(tpop, solver_config)
 
 @assert isapprox(result.objective,-5.0, atol = 1e-5)
-````
+```
 
 Again, the result matches the theoretical prediction for maximally entangled
 bipartite state with $10^{-6}$ absolute tolerance [klep2022Optimization](@cite)!

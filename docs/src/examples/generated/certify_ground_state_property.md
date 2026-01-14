@@ -1,5 +1,3 @@
-<!-- nctssos-literate-source: certify_ground_state_property.jl sha256: 0854cdf3d8fba5c83c27b153b329f5755b5872fde596cd9f7e7c6d3598ffb6d3 -->
-
 # Certifying Ground State Properties
 
 Understanding ground-state properties of quantum many-body systems represents

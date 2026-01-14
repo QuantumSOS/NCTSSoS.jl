@@ -23,7 +23,7 @@ solvers](https://clarabel.org/stable/user_guide_linsolvers/).
 
 ```julia
 using Clarabel
-SolverConfig(optimizer=Clarabel.Optimizer) # using Mosek as the optimizer
+SolverConfig(optimizer=Clarabel.Optimizer) # using Clarabel as the optimizer
 ```
 
 ## [COSMO](@id cosmo)

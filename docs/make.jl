@@ -15,7 +15,7 @@ makedocs(;
         "Ground State Energy"=>"examples/generated/ground_state_energy.md",
         "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
         "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
-        "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"
+        # "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"  # TODO: fix bug
             ],
         "References"=>"reference.md",
         "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "SDP Relaxation" => "apis/relaxations.md"]

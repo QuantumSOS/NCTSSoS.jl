@@ -153,14 +153,15 @@ result.objective
 # An *open question* is: what is the maximal quantum violation that the covariance Bell inequality can attain in spatial quantum models. We can tackle this question using state polynomial optimization [klep2024State](@cite).
 
 using NCTSSoS, MosekTools
-using NCTSSoS: Monomial
 
 # Create unipotent variables for Alice's and Bob's observables
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 
+# Identity monomial for converting StatePolynomial to NCStatePolynomial
+const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
+
 # covariance function
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
-            1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
+cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
 
 # objective function
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
@@ -187,13 +188,14 @@ result.objective
 # We can use sparsity to further improve the bound.
 
 using NCTSSoS, MosekTools
-using NCTSSoS: Monomial
 
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 
+# Identity monomial for converting StatePolynomial to NCStatePolynomial
+const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
+
 # covariance function
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * one(Monomial) -
-            1.0 * ς(x[a]) * ς(y[b]) * one(Monomial)
+cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
 
 # objective function
 sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)

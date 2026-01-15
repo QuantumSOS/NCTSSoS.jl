@@ -517,6 +517,26 @@ function Base.:(*)(
 end
 
 """
+    Base.:(*)(sp::StatePolynomial{C,ST,A,T}, m::NormalMonomial{A2,T2}) where {C,ST,A,T,A2,T2}
+
+Multiply a StatePolynomial by an identity NormalMonomial of any type.
+This enables `sp * one(Monomial)` syntax where one(Monomial) returns a generic identity.
+Only works when the monomial is the identity (empty word).
+"""
+function Base.:(*)(
+    sp::StatePolynomial{C,ST,A,T}, m::NormalMonomial{A2,T2}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer,A2<:AlgebraType,T2<:Integer}
+    # Only allow if m is identity (empty word)
+    if !isempty(m.word)
+        throw(ArgumentError("Cannot multiply StatePolynomial{$A,$T} by non-identity NormalMonomial{$A2,$T2}. Use one(typeof(x[1])) instead of one(Monomial)."))
+    end
+    # Create identity monomial with correct type parameters
+    identity_m = NormalMonomial{A,T}(T[])
+    nc_sws = [NCStateWord(sw, identity_m) for sw in sp.state_words]
+    NCStatePolynomial(copy(sp.coeffs), nc_sws)
+end
+
+"""
     Base.:(*)(m::NormalMonomial{A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T}
 
 Multiply a NormalMonomial by a StatePolynomial (on the left).
@@ -527,6 +547,26 @@ function Base.:(*)(
     # Convert to NCStatePolynomial - but with monomial on left
     # NCStateWord stores nc_word first, so m * sw means nc_word = m, state_part = sw
     nc_sws = [NCStateWord(sw, m) for sw in sp.state_words]
+    NCStatePolynomial(copy(sp.coeffs), nc_sws)
+end
+
+"""
+    Base.:(*)(m::NormalMonomial{A2,T2}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T,A2,T2}
+
+Multiply an identity NormalMonomial of any type by a StatePolynomial.
+This enables `one(Monomial) * sp` syntax where one(Monomial) returns a generic identity.
+Only works when the monomial is the identity (empty word).
+"""
+function Base.:(*)(
+    m::NormalMonomial{A2,T2}, sp::StatePolynomial{C,ST,A,T}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer,A2<:AlgebraType,T2<:Integer}
+    # Only allow if m is identity (empty word)
+    if !isempty(m.word)
+        throw(ArgumentError("Cannot multiply non-identity NormalMonomial{$A2,$T2} by StatePolynomial{$A,$T}. Use one(typeof(x[1])) instead of one(Monomial)."))
+    end
+    # Create identity monomial with correct type parameters
+    identity_m = NormalMonomial{A,T}(T[])
+    nc_sws = [NCStateWord(sw, identity_m) for sw in sp.state_words]
     NCStatePolynomial(copy(sp.coeffs), nc_sws)
 end
 

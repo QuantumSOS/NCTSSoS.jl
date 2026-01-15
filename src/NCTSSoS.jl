@@ -139,11 +139,21 @@ export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
 # Variable Creation (primary user entry point)
 export create_pauli_variables, create_fermionic_variables, create_bosonic_variables
 export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
+export @unipotent_variables, @noncommutative_variables, @projector_variables
+export @create_unipotent_variables, @create_noncommutative_variables, @create_projector_variables
+
+# Placeholder variable names for use in create_*_variables
+# Import these to use syntax like: create_unipotent_variables([(x, 1:3), (y, 1:3)])
+export VariablePlaceholder
+export x, y, z, a, b, c, u, v, w, P, Q, R, A, B, C, X, Y, Z
 
 # Core Types (users need these for type annotations and construction)
-export NormalMonomial, Polynomial, VariableRegistry
+export NormalMonomial, Monomial, Polynomial, VariableRegistry
 export ComposedMonomial
 export AbstractTensorMonomial, AbstractMonomial
+
+# Monomial is an alias for NormalMonomial (for convenience)
+const Monomial = NormalMonomial
 
 # Algebra Types (users need for dispatch)
 export AlgebraType

@@ -1,49 +1,3 @@
-# ============================================================================
-# Placeholder variable names for use in create_*_variables
-# ============================================================================
-
-"""
-    VariablePlaceholder{name}
-
-A singleton type representing a placeholder variable name.
-Used to enable syntax like `create_unipotent_variables([(x, 1:3), (y, 1:3)])`
-where `x` and `y` are pre-defined placeholders.
-
-# Usage
-```julia
-using NCTSSoS: x, y, z, a, b, c  # Import placeholders
-registry, (xvars, yvars) = create_unipotent_variables([(x, 1:3), (y, 1:3)])
-```
-"""
-struct VariablePlaceholder{name} end
-
-# Define common placeholder variables
-const x = VariablePlaceholder{:x}()
-const y = VariablePlaceholder{:y}()
-const z = VariablePlaceholder{:z}()
-const a = VariablePlaceholder{:a}()
-const b = VariablePlaceholder{:b}()
-const c = VariablePlaceholder{:c}()
-const u = VariablePlaceholder{:u}()
-const v = VariablePlaceholder{:v}()
-const w = VariablePlaceholder{:w}()
-const P = VariablePlaceholder{:P}()
-const Q = VariablePlaceholder{:Q}()
-const R = VariablePlaceholder{:R}()
-const A = VariablePlaceholder{:A}()
-const B = VariablePlaceholder{:B}()
-const C = VariablePlaceholder{:C}()
-const X = VariablePlaceholder{:X}()
-const Y = VariablePlaceholder{:Y}()
-const Z = VariablePlaceholder{:Z}()
-
-# Get the name from a placeholder
-placeholder_name(::VariablePlaceholder{name}) where {name} = String(name)
-
-# ============================================================================
-# VariableRegistry
-# ============================================================================
-
 """
     VariableRegistry
 
@@ -558,20 +512,6 @@ function create_projector_variables(
     _create_noncommutative_variables(ProjectorAlgebra, prefix_subscripts)
 end
 
-# Symbol prefix overload: convert (:P, 1:3) to ("P", 1:3)
-function create_projector_variables(
-    prefix_subscripts::Vector{Tuple{Symbol, VT}}
-) where {T<:Integer, VT<:AbstractVector{T}}
-    create_projector_variables([(String(p), s) for (p, s) in prefix_subscripts])
-end
-
-# VariablePlaceholder overload
-function create_projector_variables(
-    prefix_subscripts::Vector{<:Tuple{VariablePlaceholder, AbstractVector}}
-)
-    create_projector_variables([(placeholder_name(p), collect(s)) for (p, s) in prefix_subscripts])
-end
-
 # Note: Use select_uint_type from algebra.jl for site-based index type selection
 
 """
@@ -615,27 +555,6 @@ function create_unipotent_variables(
     _create_noncommutative_variables(UnipotentAlgebra, prefix_subscripts)
 end
 
-# Symbol prefix overload: convert (:x, 1:3) to ("x", 1:3)
-function create_unipotent_variables(
-    prefix_subscripts::Vector{Tuple{Symbol, VT}}
-) where {T<:Integer, VT<:AbstractVector{T}}
-    create_unipotent_variables([(String(p), s) for (p, s) in prefix_subscripts])
-end
-
-# VariablePlaceholder overload: convert (x, 1:3) to ("x", 1:3) where x is a placeholder
-function create_unipotent_variables(
-    prefix_subscripts::Vector{Tuple{VariablePlaceholder{name}, VT}}
-) where {name, T<:Integer, VT<:AbstractVector{T}}
-    create_unipotent_variables([(placeholder_name(p), s) for (p, s) in prefix_subscripts])
-end
-
-# Mixed placeholder types - use Any and convert at runtime
-function create_unipotent_variables(
-    prefix_subscripts::Vector{<:Tuple{VariablePlaceholder, AbstractVector}}
-)
-    create_unipotent_variables([(placeholder_name(p), collect(s)) for (p, s) in prefix_subscripts])
-end
-
 """
     create_noncommutative_variables(prefix_subscripts::Vector{Tuple{String, VT}})
 
@@ -674,20 +593,6 @@ function create_noncommutative_variables(
     _create_noncommutative_variables(NonCommutativeAlgebra, prefix_subscripts)
 end
 
-# Symbol prefix overload: convert (:x, 1:3) to ("x", 1:3)
-function create_noncommutative_variables(
-    prefix_subscripts::Vector{Tuple{Symbol, VT}}
-) where {T<:Integer, VT<:AbstractVector{T}}
-    create_noncommutative_variables([(String(p), s) for (p, s) in prefix_subscripts])
-end
-
-# VariablePlaceholder overload
-function create_noncommutative_variables(
-    prefix_subscripts::Vector{<:Tuple{VariablePlaceholder, AbstractVector}}
-)
-    create_noncommutative_variables([(placeholder_name(p), collect(s)) for (p, s) in prefix_subscripts])
-end
-
 """
     _create_noncommutative_variables(::Type{A}, prefix_subscripts::Vector{Tuple{String, VT}})
 
@@ -715,20 +620,17 @@ function _create_noncommutative_variables(
     prefix_subscripts::Vector{Tuple{String, VT}}
 ) where {A<:AlgebraType, T<:Integer, VT<:AbstractVector{T}}
     n_operators = sum(x -> length(x[2]), prefix_subscripts)
-    # Use a single site for all variables regardless of how many prefix groups.
-    # This ensures the SDP formulation is independent of variable grouping,
-    # matching the behavior of NCTSSOS Python reference implementation.
-    n_sites = 1
+    n_sites = length(prefix_subscripts)
     IndexT = select_uint_type(n_operators, n_sites)
 
     all_symbols = Vector{Symbol}(undef, n_operators)
     all_indices = Vector{IndexT}(undef, n_operators)
 
     global_idx = 1
-    for (prefix, subscript_gp) in prefix_subscripts
+    for (physical_site, (prefix, subscript_gp)) in enumerate(prefix_subscripts)
         for subscript in subscript_gp
             subscript_str = _subscript_string(subscript)
-            encoded_idx = encode_index(IndexT, global_idx, n_sites)
+            encoded_idx = encode_index(IndexT, global_idx, physical_site)
             all_symbols[global_idx] = Symbol(prefix * subscript_str)
             all_indices[global_idx] = encoded_idx
             global_idx += 1
@@ -754,187 +656,4 @@ function _create_noncommutative_variables(
     end
 
     return (reg, Tuple(monomial_groups))
-end
-
-# ============================================================================
-# Macro-based variable creation (allows bare identifiers as prefixes)
-# ============================================================================
-
-"""
-    _parse_prefix_subscripts(expr)
-
-Parse a vector expression like `[(x, 1:3), (y, 1:3)]` where `x` and `y` are
-bare identifiers (not yet defined), extracting them as symbol strings.
-
-Returns a tuple of:
-- Vector of (prefix_string, subscripts) tuples for the function call
-- Vector of prefix symbols for the destructuring assignment
-"""
-function _parse_prefix_subscripts(expr)
-    if expr.head != :vect
-        error("Expected vector literal like [(x, 1:3), (y, 1:3)]")
-    end
-
-    prefix_subscripts = []
-    prefix_symbols = []
-
-    for item in expr.args
-        if item isa Expr && item.head == :tuple && length(item.args) == 2
-            prefix_expr = item.args[1]
-            subscripts_expr = item.args[2]
-
-            # Handle both bare symbols and string literals
-            if prefix_expr isa Symbol
-                push!(prefix_subscripts, (String(prefix_expr), subscripts_expr))
-                push!(prefix_symbols, prefix_expr)
-            elseif prefix_expr isa String
-                push!(prefix_subscripts, (prefix_expr, subscripts_expr))
-                push!(prefix_symbols, Symbol(prefix_expr))
-            elseif prefix_expr isa Expr && prefix_expr.head == :string
-                # String literal
-                str = prefix_expr.args[1]
-                push!(prefix_subscripts, (str, subscripts_expr))
-                push!(prefix_symbols, Symbol(str))
-            else
-                error("Prefix must be a bare identifier or string, got: $prefix_expr")
-            end
-        else
-            error("Expected tuple like (x, 1:3), got: $item")
-        end
-    end
-
-    return prefix_subscripts, prefix_symbols
-end
-
-"""
-    @unipotent_variables(prefix_subscripts)
-
-Create unipotent variables using bare identifiers as prefixes.
-
-This macro allows the natural syntax:
-```julia
-registry, (x, y) = @unipotent_variables [(x, 1:3), (y, 1:3)]
-```
-
-where `x` and `y` on the right side are interpreted as symbol names,
-not as existing variables.
-
-# Examples
-```julia
-registry, (x, y) = @unipotent_variables [(x, 1:3), (y, 1:3)]
-# Equivalent to:
-registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
-```
-"""
-macro unipotent_variables(expr)
-    prefix_subscripts, _ = _parse_prefix_subscripts(expr)
-
-    # Build the vector of tuples for the function call
-    tuples_expr = Expr(:vect)
-    for (prefix, subscripts) in prefix_subscripts
-        push!(tuples_expr.args, Expr(:tuple, prefix, subscripts))
-    end
-
-    return esc(:(create_unipotent_variables($tuples_expr)))
-end
-
-"""
-    @noncommutative_variables(prefix_subscripts)
-
-Create non-commutative variables using bare identifiers as prefixes.
-
-# Examples
-```julia
-registry, (x, y) = @noncommutative_variables [(x, 1:3), (y, 1:3)]
-```
-"""
-macro noncommutative_variables(expr)
-    prefix_subscripts, _ = _parse_prefix_subscripts(expr)
-
-    tuples_expr = Expr(:vect)
-    for (prefix, subscripts) in prefix_subscripts
-        push!(tuples_expr.args, Expr(:tuple, prefix, subscripts))
-    end
-
-    return esc(:(create_noncommutative_variables($tuples_expr)))
-end
-
-"""
-    @projector_variables(prefix_subscripts)
-
-Create projector variables using bare identifiers as prefixes.
-
-# Examples
-```julia
-registry, (P, Q) = @projector_variables [(P, 1:3), (Q, 1:3)]
-```
-"""
-macro projector_variables(expr)
-    prefix_subscripts, _ = _parse_prefix_subscripts(expr)
-
-    tuples_expr = Expr(:vect)
-    for (prefix, subscripts) in prefix_subscripts
-        push!(tuples_expr.args, Expr(:tuple, prefix, subscripts))
-    end
-
-    return esc(:(create_projector_variables($tuples_expr)))
-end
-
-# ============================================================================
-# Macro versions with create_* names (allows function-like syntax with bare identifiers)
-# ============================================================================
-
-"""
-    @create_unipotent_variables(prefix_subscripts)
-
-Macro version of `create_unipotent_variables` that allows bare identifiers as prefixes.
-
-This enables the syntax:
-```julia
-registry, (x, y) = @create_unipotent_variables [(x, 1:3), (y, 1:3)]
-```
-
-where `x` and `y` on the right side are interpreted as symbol names.
-"""
-macro create_unipotent_variables(expr)
-    prefix_subscripts, _ = _parse_prefix_subscripts(expr)
-
-    tuples_expr = Expr(:vect)
-    for (prefix, subscripts) in prefix_subscripts
-        push!(tuples_expr.args, Expr(:tuple, prefix, subscripts))
-    end
-
-    return esc(:(NCTSSoS.create_unipotent_variables($tuples_expr)))
-end
-
-"""
-    @create_noncommutative_variables(prefix_subscripts)
-
-Macro version of `create_noncommutative_variables` that allows bare identifiers.
-"""
-macro create_noncommutative_variables(expr)
-    prefix_subscripts, _ = _parse_prefix_subscripts(expr)
-
-    tuples_expr = Expr(:vect)
-    for (prefix, subscripts) in prefix_subscripts
-        push!(tuples_expr.args, Expr(:tuple, prefix, subscripts))
-    end
-
-    return esc(:(NCTSSoS.create_noncommutative_variables($tuples_expr)))
-end
-
-"""
-    @create_projector_variables(prefix_subscripts)
-
-Macro version of `create_projector_variables` that allows bare identifiers.
-"""
-macro create_projector_variables(expr)
-    prefix_subscripts, _ = _parse_prefix_subscripts(expr)
-
-    tuples_expr = Expr(:vect)
-    for (prefix, subscripts) in prefix_subscripts
-        push!(tuples_expr.args, Expr(:tuple, prefix, subscripts))
-    end
-
-    return esc(:(NCTSSoS.create_projector_variables($tuples_expr)))
 end

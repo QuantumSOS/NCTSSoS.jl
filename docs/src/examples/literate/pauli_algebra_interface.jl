@@ -71,6 +71,9 @@
 # The same problem can be solved much more concisely:
 
 using NCTSSoS, MosekTools
+
+const MOI = NCTSSoS.MOI
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
 N = 6  # Number of spins in the chain
 
 registry, (σx, σy, σz) = create_pauli_variables(1:N)
@@ -92,12 +95,13 @@ pop = polyopt(ham, registry)
 # [moment relaxation](@ref moment-sohs-hierarchy) [wang2024Certifying](@cite).
 
 solver_config = SolverConfig(
-    optimizer=Mosek.Optimizer,  # SDP solver backend
+    optimizer=SILENT_MOSEK,  # SDP solver backend
     order=2                     # Relaxation order (higher = tighter bound)
 )
 
 res = cs_nctssos(pop, solver_config)
 energy_per_site = res.objective / N
+@show energy_per_site
 
 # The result provides a certified lower bound on the ground state energy per site.
 # For the 6-site XXX Heisenberg chain, this yields approximately **-0.467129**,

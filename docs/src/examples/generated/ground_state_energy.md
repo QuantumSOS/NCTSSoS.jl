@@ -19,7 +19,14 @@ neighbor interaction and periodic boundary condition.
 
 ````julia
 using NCTSSoS, MosekTools
+
+const MOI = NCTSSoS.MOI
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
 N = 6
+````
+
+````
+6
 ````
 
 Create Pauli variables using the typed algebra system
@@ -31,13 +38,17 @@ registry, (σx, σy, σz) = create_pauli_variables(1:N)
 ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σz] for i in 1:N)
 ````
 
+````
+0.25 + 0.0im * UInt8[0x01, 0x04] + 0.25 + 0.0im * UInt8[0x01, 0x10] + 0.25 + 0.0im * UInt8[0x02, 0x05] + 0.25 + 0.0im * UInt8[0x02, 0x11] + 0.25 + 0.0im * UInt8[0x03, 0x06] + 0.25 + 0.0im * UInt8[0x03, 0x12] + 0.25 + 0.0im * UInt8[0x04, 0x07] + 0.25 + 0.0im * UInt8[0x05, 0x08] + 0.25 + 0.0im * UInt8[0x06, 0x09] + 0.25 + 0.0im * UInt8[0x07, 0x0a] + 0.25 + 0.0im * UInt8[0x08, 0x0b] + 0.25 + 0.0im * UInt8[0x09, 0x0c] + 0.25 + 0.0im * UInt8[0x0a, 0x0d] + 0.25 + 0.0im * UInt8[0x0b, 0x0e] + 0.25 + 0.0im * UInt8[0x0c, 0x0f] + 0.25 + 0.0im * UInt8[0x0d, 0x10] + 0.25 + 0.0im * UInt8[0x0e, 0x11] + 0.25 + 0.0im * UInt8[0x0f, 0x12]
+````
+
 No need to manually specify constraints - they're encoded in the algebra type!
 
 ````julia
 pop = polyopt(ham, registry)
 
 solver_config = SolverConfig(
-                    optimizer=Mosek.Optimizer,          # the solver backend
+                    optimizer=SILENT_MOSEK,          # the solver backend
                     order=2,                            # moment matrix order
                     ts_algo = MMD(),                    # term sparsity algorithm
                     )
@@ -49,7 +60,12 @@ res = cs_nctssos_higher(
             res,                                        # Solution of First Order Term Sparsity Iteration
             solver_config                               # Solver Configuration
         )
-res.objective / N
+energy_per_site = res.objective / N
+@show energy_per_site
+````
+
+````
+-0.4671292719994368
 ````
 
 The returned result matches the actual ground state energy $-0.467129$ to $6$
@@ -73,16 +89,22 @@ ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) *
 
 pop = polyopt(ham, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2, ts_algo = MMD())
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=2, ts_algo = MMD())
 
 res = cs_nctssos(pop, solver_config)
 
 res = cs_nctssos_higher(pop, res, solver_config)
-res.objective / N
+energy_per_site = res.objective / N
+@show energy_per_site
 ````
 
-We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
-to $6$ digits!
+````
+-0.4270083217760736
+````
+
+The literature value for this $J_1=1$, $J_2=0.2$ chain is
+$-0.4270083225302217$, and the output above matches it to $6$ digits
+[wang2024Certifying](@cite).
 
 ## 2D Square Lattice
 
@@ -104,7 +126,11 @@ ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianInd
 
 pop = polyopt(ham, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=3, cs_algo=MF(), ts_algo=MMD())
+````
+
+````
+NCTSSoS.SolverConfig(MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.Silent() => true]), 3, CliqueTrees.MF(), CliqueTrees.MMD(0))
 ````
 
 ## Next step

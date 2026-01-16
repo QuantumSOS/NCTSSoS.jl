@@ -48,11 +48,20 @@ Create two non-commutative variables
 registry, (x,) = create_noncommutative_variables([("x", 1:2)])
 ````
 
+````
+(VariableRegistry with 2 variables: x₁, x₂, (NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]],))
+````
+
 Generate a basis of monomials up to degree 2
 
 ````julia
 basis = get_ncbasis(registry, 2)
 println("Basis monomials (degree ≤ 2): ", length(basis))
+````
+
+````
+Basis monomials (degree ≤ 2): 7
+
 ````
 
 For GNS reconstruction, we need a moment matrix that encodes expectation values
@@ -63,6 +72,17 @@ Here we'll use a simple positive definite moment matrix as an example:
 ````julia
 n = length(basis)
 H = zeros(Float64, n, n)
+````
+
+````
+7×7 Matrix{Float64}:
+ 0.0  0.0  0.0  0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0  0.0  0.0  0.0
 ````
 
 Create a simple valid moment matrix (identity-like with some correlations)
@@ -81,6 +101,10 @@ H[1,3] = H[3,1] = 0.3
 H[2,3] = H[3,2] = 0.2
 ````
 
+````
+0.2
+````
+
 The moment matrix should be positive semidefinite
 
 ````julia
@@ -91,6 +115,12 @@ Perform GNS reconstruction
 
 ````julia
 matrices = reconstruct(H, registry, 2; atol=0.001)
+````
+
+````
+Dict{UInt8, Matrix{Float64}} with 2 entries:
+  0x05 => [0.0 0.0 0.0; -0.0 0.0 0.0; -0.0 0.0 0.0]
+  0x09 => [0.0 0.0 0.0; -0.0 0.0 0.0; -0.0 0.0 0.0]
 ````
 
 Access the reconstructed matrix for each variable
@@ -107,6 +137,13 @@ println("\nReconstructed X₂ matrix:")
 display(round.(X2, digits=4))
 ````
 
+````
+Reconstructed X₁ matrix:
+
+Reconstructed X₂ matrix:
+
+````
+
 ## Verifying the Reconstruction
 
 The reconstructed matrices should be consistent with the moment data.
@@ -116,6 +153,10 @@ the algebraic relations encoded by the algebra type.
 ````julia
 @show size(X1)
 @show size(X2)
+````
+
+````
+(3, 3)
 ````
 
 ## Key Properties of GNS Reconstruction

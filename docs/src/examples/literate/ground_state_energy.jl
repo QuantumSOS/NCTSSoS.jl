@@ -18,6 +18,9 @@
 # neighbor interaction and periodic boundary condition.
 
 using NCTSSoS, MosekTools
+
+const MOI = NCTSSoS.MOI
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
 N = 6
 
 # Create Pauli variables using the typed algebra system
@@ -30,7 +33,7 @@ ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σ
 pop = polyopt(ham, registry)
 
 solver_config = SolverConfig(
-                    optimizer=Mosek.Optimizer,          # the solver backend
+                    optimizer=SILENT_MOSEK,          # the solver backend
                     order=2,                            # moment matrix order
                     ts_algo = MMD(),                    # term sparsity algorithm
                     )
@@ -42,7 +45,8 @@ res = cs_nctssos_higher(
             res,                                        # Solution of First Order Term Sparsity Iteration
             solver_config                               # Solver Configuration
         )
-res.objective / N
+energy_per_site = res.objective / N
+@show energy_per_site
 
 # The returned result matches the actual ground state energy $-0.467129$ to $6$
 # digits. [wang2024Certifying](@cite)
@@ -64,15 +68,17 @@ ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) *
 
 pop = polyopt(ham, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2, ts_algo = MMD())
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=2, ts_algo = MMD())
 
 res = cs_nctssos(pop, solver_config)
 
 res = cs_nctssos_higher(pop, res, solver_config)
-res.objective / N
+energy_per_site = res.objective / N
+@show energy_per_site
 
-# We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
-# to $6$ digits!
+# The literature value for this $J_1=1$, $J_2=0.2$ chain is
+# $-0.4270083225302217$, and the output above matches it to $6$ digits
+# [wang2024Certifying](@cite).
 
 # ## 2D Square Lattice
 
@@ -93,7 +99,7 @@ ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianInd
 
 pop = polyopt(ham, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=3, cs_algo=MF(), ts_algo=MMD())
 
 
 # ## Next step

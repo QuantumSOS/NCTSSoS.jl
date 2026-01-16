@@ -104,8 +104,10 @@ energy_per_site = res.objective / N
 @show energy_per_site
 
 # The result provides a certified lower bound on the ground state energy per site.
-# For the 6-site XXX Heisenberg chain, this yields approximately **-0.467129**,
-# which matches the exact value to high precision [wang2024Certifying](@cite).
+# For the 6-site XXX Heisenberg chain, the literature value (with the same
+# normalization) is approximately **-0.467129** [wang2024Certifying](@cite). The
+# order-2 relaxation yields a lower bound close to this value; exact digits
+# depend on solver tolerances.
 
 
 # ## Advantages of Typed Algebra Variables

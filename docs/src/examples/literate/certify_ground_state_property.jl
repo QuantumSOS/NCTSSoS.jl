@@ -202,9 +202,9 @@ end
 # This showcases how polynomial optimization can certify physical properties
 # beyond just the ground-state energy.
 #
-# We use reference energy bounds (computed via high-precision DMRG) to
-# constrain the optimization problem, ensuring our correlation function
-# bounds are physically meaningful.
+# We use reference energy bounds computed above via exact diagonalization for
+# this small system to constrain the optimization problem, ensuring our
+# correlation function bounds are physically meaningful.
 
 ## Initialize arrays to store correlation function bounds
 lower_bounds = Float64[]

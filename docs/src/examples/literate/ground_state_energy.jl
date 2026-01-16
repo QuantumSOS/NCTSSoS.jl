@@ -48,8 +48,9 @@ res = cs_nctssos_higher(
 energy_per_site = res.objective / N
 @show energy_per_site
 
-# The returned result matches the actual ground state energy $-0.467129$ to $6$
-# digits. [wang2024Certifying](@cite)
+# The literature value for this $N=6$ chain (with the normalization above) is
+# $-0.467129$ [wang2024Certifying](@cite). The order-2 relaxation provides a
+# lower bound close to this value; exact agreement depends on solver tolerances.
 
 # ## 1D Heisenberg Model with next nearest neighbor interaction
 
@@ -77,8 +78,9 @@ energy_per_site = res.objective / N
 @show energy_per_site
 
 # The literature value for this $J_1=1$, $J_2=0.2$ chain is
-# $-0.4270083225302217$, and the output above matches it to $6$ digits
-# [wang2024Certifying](@cite).
+# $-0.4270083225302217$ [wang2024Certifying](@cite). The relaxation bound should
+# be close; compare against the printed `energy_per_site` (solver tolerances may
+# affect the last digits).
 
 # ## 2D Square Lattice
 

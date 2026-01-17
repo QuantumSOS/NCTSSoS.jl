@@ -10,6 +10,9 @@
 using NCTSSoS, MosekTools
 using NCTSSoS: tr
 
+const MOI = NCTSSoS.MOI
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
+
 # Create projector variables using the typed algebra system
 registry, (x,) = create_projector_variables([("x", 1:3)])
 
@@ -24,20 +27,25 @@ p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID
 
 spop = polyopt(p, registry)
 
-solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=2)
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2)
 
 result = cs_nctssos(spop, solver_config)
+
+@show result.objective
 
 @assert isapprox(result.objective , -0.046717378455438933, atol = 1e-6)
 
-solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=3)
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3)
 
 result = cs_nctssos(spop, solver_config)
 
+@show result.objective
+
 @assert isapprox(result.objective, -0.03124998978001017, atol = 1e-6)
 
-# The results matches within $10^{-6}$ absolute tolerance comparing to answer in
-# [klep2022Optimization](@cite)!
+# The literature values are $-0.046717378455438933$ (order 2) and
+# $-0.03124998978001017$ (order 3), and the outputs above match within
+# $10^{-6}$ absolute tolerance [klep2022Optimization](@cite).
 
 # ## Polynomial Bell Inequalities
 
@@ -65,11 +73,45 @@ p = -1.0 * tr(x[1] * y[1]) - 1.0 * tr(x[1] * y[2]) - 1.0 * tr(x[2] * y[1]) + 1.0
 
 tpop = polyopt(p * ID, registry)
 
-solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=1, ts_algo=MaximalElimination())
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=1, ts_algo=MaximalElimination())
 
 result = cs_nctssos(tpop, solver_config)
 
+@show result.objective
+
 @assert isapprox(result.objective, -2.8284271157283083, atol = 1e-5)
 
-# Our computation matches with the theoretical prediction for maximally entangled
-# bipartite state with $10^{-6}$ absolute tolerance [klep2022Optimization](@cite)!
+# Our computation matches the theoretical prediction $-2.8284271247461903$ to
+# within $10^{-6}$ absolute tolerance [klep2022Optimization](@cite).
+
+# ## Covariance of quantum correlation
+
+# As introduced in [Bell Inequalities example](@ref bell-inequalities), we may
+# also compute the covariance of quantum correlations while limiting the state to
+# maximally entangled bipartite state.
+
+using NCTSSoS, MosekTools
+using NCTSSoS: tr
+
+registry, (vars,) = create_unipotent_variables([("vars", 1:6)])
+x = vars[1:3]
+y = vars[4:6]
+
+# Identity monomial for converting StatePolynomial to NCStatePolynomial
+const ID_UNIPOTENT = one(NormalMonomial{UnipotentAlgebra,UInt8})
+
+cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
+p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
+tpop = polyopt(p * ID_UNIPOTENT, registry)
+
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2)
+
+result = cs_nctssos(tpop, solver_config)
+
+@show result.objective
+abs_error = abs(result.objective + 5.0)
+@show abs_error
+@assert abs_error < 1e-3
+
+# Again, the literature value is $-5$, and the printed absolute error above
+# shows the match [klep2022Optimization](@cite).

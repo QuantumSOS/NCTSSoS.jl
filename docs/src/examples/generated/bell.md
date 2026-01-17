@@ -26,6 +26,13 @@ An upper bound on the maximal quantum violation of the CHSH inequality can be co
 
 ````julia
 using NCTSSoS, MosekTools
+
+const MOI = NCTSSoS.MOI
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
+````
+
+````
+MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.Silent() => true])
 ````
 
 Create unipotent variables (operators that square to identity)
@@ -36,16 +43,24 @@ registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]  # objective function
 ````
 
+````
+UInt8[0x05, 0x0e] + UInt8[0x05, 0x12] + UInt8[0x09, 0x0e] + -UInt8[0x09, 0x12]
+````
+
 The registry encodes all algebra constraints automatically!
 
 ````julia
 pop = polyopt(f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer,  # solver backend
+solver_config = SolverConfig(optimizer=SILENT_MOSEK,  # solver backend
     order=1                    # relaxation order
 )
 result = cs_nctssos(pop, solver_config)
-result.objective  # upper bound on the maximal quantum violation
+@show result.objective  # upper bound on the maximal quantum violation
+````
+
+````
+-2.82842713216232
 ````
 
 The resulting upper bound is very close to the theoretical exact value $2\sqrt{2} \approx 2.8284271247461903$ (accurate up to 7 decimals!!).
@@ -86,10 +101,14 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
 
 pop = polyopt(-f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=2)
 
 result = cs_nctssos(pop, solver_config)
-result.objective
+@show result.objective
+````
+
+````
+-0.2509397976352535
 ````
 
 The `create_projector_variables` function creates variables with the ProjectorAlgebra type,
@@ -111,13 +130,17 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
 
 pop = polyopt(-f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3)
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=3)
 
 @time result = cs_nctssos(pop, solver_config)
 @show result.objective
 ````
 
-Indeed, by increasing the relaxation order to 3, we have improved the upper bound from $-0.25093972222278366$ to $-0.2508755502587585$.
+````
+-0.2508757549955246
+````
+
+Indeed, by increasing the relaxation order to 3, we tighten the upper bound toward the theoretical value $0.25$ [pal2010maximal](@cite).
 
 However, keep increasing the order leads to large-scale SDPs that are computationally expensive. To reduce the SDP size, we may exploit the sparsity of the problem [magronSparsePolynomialOptimization2023](@cite). There are two types of sparsities:
 
@@ -136,10 +159,14 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
 
 pop = polyopt(-f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=6, cs_algo=MF())
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=6, cs_algo=MF())
 
 @time result = cs_nctssos(pop, solver_config)
-result.objective
+@show result.objective
+````
+
+````
+-0.2508754080902566
 ````
 
 Using almost half of the time, we are able to improve the $7$-th digit of the upper bound!
@@ -179,16 +206,28 @@ Create unipotent variables for Alice's and Bob's observables
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 ````
 
+````
+(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x05], UInt8[0x09], UInt8[0x0d]], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x12], UInt8[0x16], UInt8[0x1a]]))
+````
+
 Identity monomial for converting StatePolynomial to NCStatePolynomial
 
 ````julia
 const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
 ````
 
+````
+𝟙
+````
+
 covariance function
 
 ````julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
+````
+
+````
+cov (generic function with 1 method)
 ````
 
 objective function
@@ -199,21 +238,21 @@ sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) 
 spop = polyopt(sp, registry)
 
 solver_config = SolverConfig(
-    optimizer=Mosek.Optimizer,          # solver backend
+    optimizer=SILENT_MOSEK,          # solver backend
     order=2                             # relaxation order
 )
 
 result = cs_nctssos(spop, solver_config)
-result.objective
+@show result.objective
+````
+
+````
+-4.999999999618061
 ````
 
 > **Typing Unicodes**
 >
 > You can type the unicode characters in the code by using `\varsigma` and pressing `Tab` to get the unicode character `ς`.
-
-```julia
--5.000271541108556
-```
 
 The resulting upper bound is very close to the previously known best value $5$ (accurate up to 3 decimals!!).
 
@@ -225,16 +264,28 @@ using NCTSSoS, MosekTools
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 ````
 
+````
+(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x05], UInt8[0x09], UInt8[0x0d]], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x12], UInt8[0x16], UInt8[0x1a]]))
+````
+
 Identity monomial for converting StatePolynomial to NCStatePolynomial
 
 ````julia
 const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
 ````
 
+````
+𝟙
+````
+
 covariance function
 
 ````julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
+````
+
+````
+cov (generic function with 1 method)
 ````
 
 objective function
@@ -245,7 +296,7 @@ sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) 
 spop = polyopt(sp, registry)
 
 solver_config = SolverConfig(
-    optimizer=Mosek.Optimizer,
+    optimizer=SILENT_MOSEK,
     order=3,
     ts_algo=MF()
 )
@@ -253,14 +304,14 @@ solver_config = SolverConfig(
 result = cs_nctssos(spop, solver_config)
 
 result_higher = cs_nctssos_higher(spop, result, solver_config)
-result_higher.objective
+@show result_higher.objective
 ````
 
-```julia
--4.999999981821947
-```
+````
+-4.999999998288536
+````
 
-This is accurate up to $10$ decimals.
+This is accurate to high precision relative to the literature value $5$ [pozsgay2017Covariance](@cite).
 
 ---
 

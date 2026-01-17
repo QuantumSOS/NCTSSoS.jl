@@ -57,6 +57,23 @@ for h in 0.1:0.2:2.0
     ground_state = eigves[:, ground_state_idx]
     push!(s1s2values, real(ground_state' * s1s2 * ground_state))
 end
+
+@show ground_state_energy_upper_bounds
+@show s1s2values
+````
+
+````
+10-element Vector{Float64}:
+ -0.08130486019121026
+ -0.07142857142857142
+ -0.06100423396407307
+ -0.05235872373966302
+ -0.0455165059721001
+ -0.040102149441921225
+ -0.03576253848356319
+ -0.032229207546922496
+ -0.029307555889062233
+ -0.02685718187532521
 ````
 
 ## Computing Lower Bounds with Semidefinite Programming
@@ -75,8 +92,11 @@ using NCTSSoS
 using MosekTools
 using JuMP
 
+const MOI = NCTSSoS.MOI
+
 # Configure Mosek solver with high precision settings
 SOLVER = optimizer_with_attributes(Mosek.Optimizer,
+    MOI.Silent() => true,
     "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8,  # Primal feasibility tolerance
     "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8,  # Dual feasibility tolerance
     "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8,  # Relative gap tolerance
@@ -116,6 +136,22 @@ for (i, h) in enumerate(0.1:0.2:2.0)
     # Store energy per site (divide by system size)
     push!(ground_state_energy_lower_bounds, res.objective / N)
 end
+
+@show ground_state_energy_lower_bounds
+````
+
+````
+10-element Vector{Float64}:
+ -0.11892547755494536
+ -0.19999999945335933
+ -0.2886751314444827
+ -0.38134354675667037
+ -0.4762735233502286
+ -0.5725815616273993
+ -0.6697825640460963
+ -0.7675918769385336
+ -0.8658328067461576
+ -0.9643904056311824
 ````
 
 ## Bounding Ground-State Correlation Functions
@@ -138,12 +174,29 @@ for bounding specific correlation functions in quantum systems.
 This function builds the moment matrix relaxation with sparsity patterns
 and adds semidefinite constraints to bound specific operator expectations.
 """
+function _check_solver_status_allow_slow(model)
+    status = termination_status(model)
+    status in (MOI.OPTIMAL, MOI.ALMOST_OPTIMAL, MOI.LOCALLY_SOLVED, MOI.ALMOST_LOCALLY_SOLVED) &&
+        return status
+
+    primal = primal_status(model)
+    dual = dual_status(model)
+
+    if status in (MOI.ITERATION_LIMIT, MOI.SLOW_PROGRESS) &&
+       (primal in (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT) ||
+        dual in (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT))
+        return status
+    end
+
+    error("Solver failed: termination=$status, primal=$primal, dual=$dual")
+end
+
 function cs_nctssos_with_entry(
     pop::OP,
     solver_config::SolverConfig,
     entry_constraints::Vector{P};
     dualize::Bool=true
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, OP<:NCTSSoS.OptimizationProblem{P}}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, OP<:NCTSSoS.OptimizationProblem{A,P}}
 
    # Compute sparsity structure (correlative + term sparsity)
    sparsity = NCTSSoS.compute_sparsity(pop, solver_config)
@@ -157,12 +210,27 @@ function cs_nctssos_with_entry(
        push!(moment_problem.constraints,(:HPSD, [c;;]))
    end
 
-   # Dualize and solve (using the same solve_sdp helper as cs_nctssos)
-   result = NCTSSoS.solve_sdp(moment_problem, solver_config.optimizer; dualize)
-
-   # Return optimization results
-   return NCTSSoS.PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
+   if dualize
+       sos_problem = NCTSSoS.sos_dualize(moment_problem)
+       set_optimizer(sos_problem.model, solver_config.optimizer)
+       optimize!(sos_problem.model)
+       _check_solver_status_allow_slow(sos_problem.model)
+       return NCTSSoS.PolyOptResult(
+           objective_value(sos_problem.model),
+           sparsity,
+           sos_problem.model,
+           moment_problem.n_unique_moment_matrix_elements
+       )
+   else
+       result = NCTSSoS.solve_moment_problem(moment_problem, solver_config.optimizer)
+       _check_solver_status_allow_slow(result.model)
+       return NCTSSoS.PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
+   end
 end
+````
+
+````
+cs_nctssos_with_entry (generic function with 1 method)
 ````
 
 ## Computing Rigorous Bounds on Correlation Functions
@@ -211,13 +279,30 @@ for (i, h) in enumerate(0.1:0.2:2.0)
     single_ineq_cons = [ground_state_energy_upper_bounds[i] * N - ham]
 
     # Solve for lower and upper bounds on correlation function
-    res_l = cs_nctssos_with_entry(pop_l, solver_config, single_ineq_cons; dualize=true)
-    res_u = cs_nctssos_with_entry(pop_u, solver_config, single_ineq_cons; dualize=true)
+    res_l = cs_nctssos_with_entry(pop_l, solver_config, single_ineq_cons; dualize=false)
+    res_u = cs_nctssos_with_entry(pop_u, solver_config, single_ineq_cons; dualize=false)
 
     # Store bounds (divide by 4 to convert from Pauli to spin operators)
     push!(lower_bounds, res_l.objective / 4)
     push!(upper_bounds, -res_u.objective / 4)
 end
+
+@show lower_bounds
+@show upper_bounds
+````
+
+````
+10-element Vector{Float64}:
+ -0.08120979498324334
+ -0.07140047853602843
+ -0.06096728835961617
+ -0.052321590709037566
+ -0.04546582348722004
+ -0.040034231938621566
+ -0.03571551444339808
+ -0.03218670662813423
+ -0.02927581079182089
+ -0.026823381437579685
 ````
 
 ## Visualizing Certified Correlation Function Bounds
@@ -256,6 +341,7 @@ ax.ygridcolor = (:gray, 0.2)
 
 f
 ````
+![](certify_ground_state_property-11.png)
 
 ## Summary
 

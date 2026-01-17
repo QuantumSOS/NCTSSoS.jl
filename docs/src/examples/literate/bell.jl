@@ -19,12 +19,15 @@
 # f(A_1, A_2, B_1, B_2) = \langle A_1B_1 \rangle + \langle A_1B_2 \rangle + \langle A_2B_1 \rangle - \langle A_2B_2 \rangle
 # ```
 #
-# The CHSH inequality is then given by $$f(A_1, A_2, B_1, B_2) \leq 2,$$ which must be satisfied by any local hidden variable theory. However, quantum mechanics can violate this inequality up to the value $2\sqrt{2}$, known as Tsirelson's bound. This violation demonstrates that quantum mechanics cannot be described by any local hidden variable theory.
+# The CHSH inequality is then given by $$f(A_1, A_2, B_1, B_2) \leq 2,$$ which must be satisfied by any local hidden variable theory [chsh1969](@cite). However, quantum mechanics can violate this inequality up to the value $2\sqrt{2}$, known as Tsirelson's bound [tsirelson1980Quantum](@cite).
 # The CHSH inequality is particularly important because it is the simplest non-trivial Bell inequality and has been experimentally verified numerous times, providing strong evidence for the non-local nature of quantum mechanics.
 
 # An upper bound on the maximal quantum violation of the CHSH inequality can be computed using the following code:
 
 using NCTSSoS, MosekTools
+
+const MOI = NCTSSoS.MOI
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
 
 # Create unipotent variables (operators that square to identity)
 # x = (A_1, A_2), y = (B_1, B_2)
@@ -34,13 +37,13 @@ f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]  # objective fun
 # The registry encodes all algebra constraints automatically!
 pop = polyopt(f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer,  # solver backend
+solver_config = SolverConfig(optimizer=SILENT_MOSEK,  # solver backend
     order=1                    # relaxation order
 )
 result = cs_nctssos(pop, solver_config)
-result.objective  # upper bound on the maximal quantum violation
+@show result.objective  # upper bound on the maximal quantum violation
 
-# The resulting upper bound is very close to the theoretical exact value $2\sqrt{2} \approx 2.8284271247461903$ (accurate up to 7 decimals!!).
+# The theoretical quantum maximum is $2\sqrt{2} \approx 2.8284271247461903$ [tsirelson1980Quantum](@cite). The order-1 relaxation should return an upper bound close to this value (up to solver tolerances).
 
 # The `create_unipotent_variables` function creates variables with the UnipotentAlgebra type,
 # which automatically encodes that these operators square to the identity (U^2 = I).
@@ -61,7 +64,7 @@ result.objective  # upper bound on the maximal quantum violation
 # - \langle A_1 \rangle - 2\langle B_1 \rangle - \langle B_2 \rangle.
 # ```
 #
-# In classical mechanics, the inequality $f(A_1, A_2, A_3, B_1, B_2, B_3) \leq 0$ must be satisfied. However, quantum mechanics can violate this inequality up to the value $0.25$. This violation demonstrates that quantum mechanics cannot be described by any local hidden variable theory.
+# In classical mechanics, the inequality $f(A_1, A_2, A_3, B_1, B_2, B_3) \leq 0$ must be satisfied. Quantum mechanics can violate this inequality up to the value $0.25$ [pal2010maximal](@cite).
 
 # An upper bound on the maximal quantum violation of the $I_{3322}$ inequality can be computed using the following code:
 
@@ -74,16 +77,16 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
 
 pop = polyopt(-f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=2)
 
 result = cs_nctssos(pop, solver_config)
-result.objective
+@show result.objective
 
 # The `create_projector_variables` function creates variables with the ProjectorAlgebra type,
 # which automatically encodes that these operators are idempotent (P^2 = P).
 # This is appropriate for projection operators like $|0\rangle\langle 0|$ and $|1\rangle\langle 1|$.
 #
-# The resulting upper bound is close to the theoretically exact value $0.25$. By increasing the relaxation order, this upper bound could be further improved.
+# The resulting upper bound is close to the literature value $0.25$ [pal2010maximal](@cite). By increasing the relaxation order, this upper bound could be further improved.
 
 # #### Reducing the SDP Size by exploiting sparsity
 
@@ -97,12 +100,11 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
 
 pop = polyopt(-f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3)
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=3)
 
 @time result = cs_nctssos(pop, solver_config)
 @show result.objective
-
-# Indeed, by increasing the relaxation order to 3, we have improved the upper bound from $-0.25093972222278366$ to $-0.2508755502587585$.
+# Indeed, by increasing the relaxation order to 3, we tighten the upper bound toward the theoretical value $0.25$ [pal2010maximal](@cite).
 #
 # However, keep increasing the order leads to large-scale SDPs that are computationally expensive. To reduce the SDP size, we may exploit the sparsity of the problem [magronSparsePolynomialOptimization2023](@cite). There are two types of sparsities:
 #
@@ -120,12 +122,12 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
 
 pop = polyopt(-f, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=6, cs_algo=MF())
+solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=6, cs_algo=MF())
 
 @time result = cs_nctssos(pop, solver_config)
-result.objective
+@show result.objective
 
-# Using almost half of the time, we are able to improve the $7$-th digit of the upper bound!
+# In practice, exploiting sparsity can reduce runtime for higher-order relaxations while still tightening the upper bound; the exact speedup depends on solver settings and hardware.
 
 # ## Nonlinear Bell Inequalities
 
@@ -169,21 +171,17 @@ sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) 
 spop = polyopt(sp, registry)
 
 solver_config = SolverConfig(
-    optimizer=Mosek.Optimizer,          # solver backend
+    optimizer=SILENT_MOSEK,          # solver backend
     order=2                             # relaxation order
 )
 
 result = cs_nctssos(spop, solver_config)
-result.objective
+@show result.objective
 
 # !!! note "Typing Unicodes"
 #     You can type the unicode characters in the code by using `\varsigma` and pressing `Tab` to get the unicode character `ς`.
 #
-# ```julia
-# -5.000271541108556
-# ```
-#
-# The resulting upper bound is very close to the previously known best value $5$ (accurate up to 3 decimals!!).
+# The relaxation bound can be compared against the literature value $5$ [pozsgay2017Covariance](@cite); the closeness depends on solver tolerances.
 
 # We can use sparsity to further improve the bound.
 
@@ -203,7 +201,7 @@ sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) 
 spop = polyopt(sp, registry)
 
 solver_config = SolverConfig(
-    optimizer=Mosek.Optimizer,
+    optimizer=SILENT_MOSEK,
     order=3,
     ts_algo=MF()
 )
@@ -211,10 +209,6 @@ solver_config = SolverConfig(
 result = cs_nctssos(spop, solver_config)
 
 result_higher = cs_nctssos_higher(spop, result, solver_config)
-result_higher.objective
+@show result_higher.objective
 
-# ```julia
-# -4.999999981821947
-# ```
-#
-# This is accurate up to $10$ decimals.
+# The higher-order relaxation tightens the bound toward the literature value $5$ [pozsgay2017Covariance](@cite).

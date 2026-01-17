@@ -56,13 +56,15 @@ Handles special cases:
 - positive: prints value (first term) or " + value" (subsequent)
 """
 function _show_poly_coeff(io::IO, c::Number, ::Type{C}, is_first::Bool) where {C<:Number}
+    format_coeff(val) = isreal(val) ? string(val) : "(" * string(val) * ")"
+
     if is_first
         if c == one(C)
             # Don't print coefficient for +1
         elseif c == -one(C)
             print(io, "-")
         else
-            print(io, c)
+            print(io, format_coeff(c))
         end
     else
         if c == one(C)
@@ -70,14 +72,13 @@ function _show_poly_coeff(io::IO, c::Number, ::Type{C}, is_first::Bool) where {C
         elseif c == -one(C)
             print(io, " - ")
         elseif real(c) < 0
-            print(io, " - ", -c)
+            print(io, " - ", format_coeff(-c))
         else
-            print(io, " + ", c)
+            print(io, " + ", format_coeff(c))
         end
     end
     return false
 end
-
 # =============================================================================
 # StatePolynomial
 # =============================================================================

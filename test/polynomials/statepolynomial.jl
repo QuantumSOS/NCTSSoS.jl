@@ -189,6 +189,18 @@ end
         sp_prod = sp1 * sp2
         @test sp_prod.coeffs == [2.0]
     end
+
+    @testset "Display" begin
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        sw = StateWord{Arbitrary}(ς(m))
+        sp = StatePolynomial([1 + 2im], [sw])
+
+        buf = IOBuffer()
+        show(buf, sp)
+        str = String(take!(buf))
+
+        @test startswith(str, "(1 + 2im)")
+    end
 end
 
 @testset "NCStatePolynomial{MaxEntangled}" begin
@@ -313,6 +325,18 @@ end
         # Subtraction
         ncsp_diff = ncsp1 - ncsp2
         @test length(ncsp_diff.nc_state_words) == 2
+    end
+
+    @testset "Display" begin
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        ncsw = NCStateWord(ς(m), m)
+        ncsp = NCStatePolynomial([1 + 2im], [ncsw])
+
+        buf = IOBuffer()
+        show(buf, ncsp)
+        str = String(take!(buf))
+
+        @test startswith(str, "(1 + 2im)")
     end
 
     @testset "Variables" begin

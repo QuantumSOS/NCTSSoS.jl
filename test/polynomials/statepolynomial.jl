@@ -194,12 +194,18 @@ end
         m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
         sw = StateWord{Arbitrary}(ς(m))
         sp = StatePolynomial([1 + 2im], [sw])
+        @test startswith(sprint(show, sp), "(1 + 2im)")
 
-        buf = IOBuffer()
-        show(buf, sp)
-        str = String(take!(buf))
+        # Cover additional coefficient sign branches in _show_poly_coeff
+        sp_one = StatePolynomial([1.0], [sw])
+        @test sprint(show, sp_one) == sprint(show, sw)
 
-        @test startswith(str, "(1 + 2im)")
+        sp_minus_one = StatePolynomial([-1.0], [sw])
+        @test sprint(show, sp_minus_one) == "-" * sprint(show, sw)
+
+        sp_neg = StatePolynomial([2.0, -3.0], [sw, StateWord{Arbitrary}(ς(NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))))])
+        str_neg = sprint(show, sp_neg)
+        @test occursin(" - 3", str_neg)
     end
 end
 

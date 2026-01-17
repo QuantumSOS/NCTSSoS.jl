@@ -421,6 +421,12 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         @test occursin("2.5", s_general)
         @test occursin("*", s_general)
         @test occursin("ComposedMonomial", s_general)
+
+        # Complex coefficient should be parenthesized
+        t_complex = (1 + 2im, cm)
+        s_complex = sprint(show, t_complex)
+        @test occursin("(1 + 2im)", s_complex)
+        @test occursin("*", s_complex)
     end
 
     @testset "Integration - Pauli + Fermionic composition" begin

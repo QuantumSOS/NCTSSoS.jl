@@ -189,6 +189,30 @@ end
         sp_prod = sp1 * sp2
         @test sp_prod.coeffs == [2.0]
     end
+
+    @testset "Display" begin
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        sw = StateWord{Arbitrary}(ς(m))
+        sp = StatePolynomial([1 + 2im], [sw])
+        @test startswith(sprint(show, sp), "(1 + 2im)")
+
+        # Cover additional coefficient sign branches in _show_poly_coeff
+        sp_one = StatePolynomial([1.0], [sw])
+        @test sprint(show, sp_one) == sprint(show, sw)
+
+        sp_minus_one = StatePolynomial([-1.0], [sw])
+        @test sprint(show, sp_minus_one) == "-" * sprint(show, sw)
+
+        sp_plus_one_nonfirst = StatePolynomial([2.0, 1.0], [sw, StateWord{Arbitrary}(ς(NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))))])
+        @test occursin(" + ", sprint(show, sp_plus_one_nonfirst))
+
+        sp_minus_one_nonfirst = StatePolynomial([2.0, -1.0], [sw, StateWord{Arbitrary}(ς(NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))))])
+        @test occursin(" - ", sprint(show, sp_minus_one_nonfirst))
+
+        sp_neg = StatePolynomial([2.0, -3.0], [sw, StateWord{Arbitrary}(ς(NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))))])
+        str_neg = sprint(show, sp_neg)
+        @test occursin(" - 3", str_neg)
+    end
 end
 
 @testset "NCStatePolynomial{MaxEntangled}" begin
@@ -313,6 +337,18 @@ end
         # Subtraction
         ncsp_diff = ncsp1 - ncsp2
         @test length(ncsp_diff.nc_state_words) == 2
+    end
+
+    @testset "Display" begin
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
+        ncsw = NCStateWord(ς(m), m)
+        ncsp = NCStatePolynomial([1 + 2im], [ncsw])
+
+        buf = IOBuffer()
+        show(buf, ncsp)
+        str = String(take!(buf))
+
+        @test startswith(str, "(1 + 2im)")
     end
 
     @testset "Variables" begin

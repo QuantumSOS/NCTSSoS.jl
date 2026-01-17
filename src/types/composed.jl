@@ -379,6 +379,10 @@ function Base.show(io::IO, t::Tuple{C,<:ComposedMonomial}) where {C<:Number}
     elseif coef == one(C)
         print(io, mono)
     else
-        print(io, coef, " * ", mono)
+        if isreal(coef)
+            print(io, coef, " * ", mono)
+        else
+            print(io, "(", coef, ") * ", mono)
+        end
     end
 end

@@ -12,6 +12,7 @@ nc_word(ids::Integer...; site::Integer=1) = nc_word(NC_INDEX_T, ids...; site=sit
 
 @testset "Polynomials" begin
     include("algebra_types.jl")
+    include("monoid_algebras_showcase.jl")
     include("variables.jl")
     include("monomials.jl")
     include("composed_monomial.jl")

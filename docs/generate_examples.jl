@@ -40,7 +40,7 @@ if isfile(CHECKSUM_FILE)
     previous = strip(read(CHECKSUM_FILE, String))
     if previous == checksum
         println("No changes detected in Literate examples; skipping regeneration.")
-        exit()
+        exit(0)
     end
 end
 

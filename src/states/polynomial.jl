@@ -71,7 +71,7 @@ function _show_poly_coeff(io::IO, c::Number, ::Type{C}, is_first::Bool) where {C
             print(io, " + ")
         elseif c == -one(C)
             print(io, " - ")
-        elseif real(c) < 0
+        elseif isreal(c) && real(c) < 0
             print(io, " - ", format_coeff(-c))
         else
             print(io, " + ", format_coeff(c))

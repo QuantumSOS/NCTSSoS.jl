@@ -65,4 +65,32 @@ using NCTSSoS: decode_site, decode_operator_id
         @test monomials(V[2] * U[1]) == monomials(U[1] * V[2])
         @test !isempty(indices(reg))
     end
+
+    @testset "Polynomial building" begin
+        reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
+
+        # Coefficients create polynomials from monomials
+        poly = 1.0 * x[1] * x[2] + 2.0 * y[1] - 3.0 * x[1] * y[1]
+        @test length(monomials(poly)) == 3
+
+        # Site commutation is automatic in polynomial arithmetic
+        # y₁ * x₁ and x₁ * y₁ are the same due to site commutation
+        poly2 = 1.0 * y[1] * x[1] - 3.0 * x[1] * y[1]
+        @test length(monomials(poly2)) == 1  # terms combine
+
+        # Verify coefficient is correct after combining
+        @test coefficients(poly2)[1] == -2.0  # 1.0 - 3.0 = -2.0
+    end
+
+    @testset "Basis generation" begin
+        reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
+
+        # Degree 1: identity + 4 generators
+        basis_d1 = get_ncbasis(reg, 1)
+        @test length(basis_d1) == 5
+
+        # Degree 2 includes all degree-2 words
+        basis_d2 = get_ncbasis(reg, 2)
+        @test length(basis_d2) > length(basis_d1)
+    end
 end

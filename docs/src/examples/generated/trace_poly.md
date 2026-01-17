@@ -92,37 +92,6 @@ result = cs_nctssos(tpop, solver_config)
 Our computation matches with the theoretical prediction for maximally entangled
 bipartite state with $10^{-6}$ absolute tolerance [klep2022Optimization](@cite)!
 
-## Covariance of quantum correlation
-
-TODO: fix bug - commented out for now
-
-As introduced in Bell Inequalities example, we may
-also compute the covariance of quantum correlations while limiting the state to
-maximally entangled bipartite state.
-
-```julia
-using NCTSSoS, MosekTools
-using NCTSSoS: tr
-
-registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
-
-# Identity monomial for converting StatePolynomial to NCStatePolynomial
-const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
-
-cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
-p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
-tpop = polyopt(p * ID, registry)
-
-solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=2)
-
-result = cs_nctssos(tpop, solver_config)
-
-@assert isapprox(result.objective,-5.0, atol = 1e-5)
-```
-
-Again, the result matches the theoretical prediction for maximally entangled
-bipartite state with $10^{-6}$ absolute tolerance [klep2022Optimization](@cite)!
-
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*

@@ -203,6 +203,12 @@ end
         sp_minus_one = StatePolynomial([-1.0], [sw])
         @test sprint(show, sp_minus_one) == "-" * sprint(show, sw)
 
+        sp_plus_one_nonfirst = StatePolynomial([2.0, 1.0], [sw, StateWord{Arbitrary}(ς(NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))))])
+        @test occursin(" + ", sprint(show, sp_plus_one_nonfirst))
+
+        sp_minus_one_nonfirst = StatePolynomial([2.0, -1.0], [sw, StateWord{Arbitrary}(ς(NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))))])
+        @test occursin(" - ", sprint(show, sp_minus_one_nonfirst))
+
         sp_neg = StatePolynomial([2.0, -3.0], [sw, StateWord{Arbitrary}(ς(NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2))))])
         str_neg = sprint(show, sp_neg)
         @test occursin(" - 3", str_neg)

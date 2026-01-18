@@ -98,7 +98,7 @@ pop = polyopt(f, registry)
 # #### Step 4: Configure and run the SDP solver
 
 solver_config = SolverConfig(
-    optimizer = COSMO.Optimizer,  # SDP solver backend
+    optimizer = Mosek.Optimizer,  # SDP solver backend
     order = 1                      # relaxation order (hierarchy level)
 )
 # solver_config: specifies solver and relaxation parameters
@@ -154,7 +154,7 @@ length(monomials(f))  # number of monomials
 pop = polyopt(-f, registry)
 # pop: minimize -f (equivalent to maximize f)
 
-solver_config = SolverConfig(optimizer=COSMO.Optimizer, order=2)
+solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
 # order=2: second level of the moment hierarchy
 
 result = cs_nctssos(pop, solver_config)
@@ -181,7 +181,7 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
     x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
 pop = polyopt(-f, registry)
 
-solver_config_dense = SolverConfig(optimizer=COSMO.Optimizer, order=3)
+solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
 # solver_config_dense: no sparsity exploitation
 
 @time result_dense = cs_nctssos(pop, solver_config_dense)
@@ -193,7 +193,7 @@ bound_dense
 # #### With correlative sparsity (order=6)
 
 solver_config_sparse = SolverConfig(
-    optimizer = COSMO.Optimizer,
+    optimizer = Mosek.Optimizer,
     order = 6,             # higher order for better bound
     cs_algo = MF()         # use MaxFlow algorithm for correlative sparsity
 )
@@ -270,7 +270,7 @@ spop = polyopt(sp, registry)
 # spop: state polynomial optimization problem
 
 solver_config = SolverConfig(
-    optimizer = COSMO.Optimizer,
+    optimizer = Mosek.Optimizer,
     order = 2
 )
 
@@ -286,7 +286,7 @@ abs(cov_bound - 5.0)  # difference from theoretical value
 # #### Step 6: Improve bound using term sparsity and higher-order iteration
 
 solver_config_ts = SolverConfig(
-    optimizer = COSMO.Optimizer,
+    optimizer = Mosek.Optimizer,
     order = 3,
     ts_algo = MF()  # term sparsity
 )

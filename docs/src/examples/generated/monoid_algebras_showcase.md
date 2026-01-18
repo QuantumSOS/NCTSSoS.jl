@@ -1,8 +1,4 @@
-```@meta
-EditURL = "../literate/monoid_algebras_showcase.jl"
-```
-
-# [Monoid Algebra Showcase (NonCommutative / Projector / Unipotent)](@id monoid-algebras-showcase)
+# Monoid Algebra Showcase (NonCommutative / Projector / Unipotent)
 
 This page showcases the three `MonoidAlgebra` variants supported by `NCTSSoS.jl`.
 These algebras provide the building blocks for modeling noncommutative polynomial
@@ -26,9 +22,9 @@ canonicalization, while the order of operators on the same site is preserved.
 ## Key Public APIs
 
 Variable creation is done through these functions:
-- [`create_noncommutative_variables`](@ref): Create free noncommutative generators
-- [`create_projector_variables`](@ref): Create idempotent (P² = P) generators
-- [`create_unipotent_variables`](@ref): Create involutory (U² = 𝟙) generators
+- `create_noncommutative_variables`: Create free noncommutative generators
+- `create_projector_variables`: Create idempotent (P² = P) generators
+- `create_unipotent_variables`: Create involutory (U² = 𝟙) generators
 
 Each function returns a `(registry, variable_groups)` tuple, where the registry
 manages symbol ↔ index mappings and the variable groups provide convenient access
@@ -56,20 +52,20 @@ to the created monomials.
 
 ## Setup
 
-````@example monoid_algebras_showcase
+````julia
 using NCTSSoS
 using NCTSSoS: decode_site, decode_operator_id
 ````
 
 Helper: extract the single monomial from a *single-term* polynomial.
 
-````@example monoid_algebras_showcase
+````julia
 mono1(p) = monomials(p)[1]
 ````
 
 Pretty-print a `NormalMonomial` using the registry's symbols.
 
-````@example monoid_algebras_showcase
+````julia
 repr_with_registry(reg, m) = sprint(show, m; context=:registry => reg)
 ````
 
@@ -84,7 +80,7 @@ Use `create_noncommutative_variables` with a vector of `(prefix, subscripts)` tu
 Each prefix group is assigned to a distinct **site**, enabling automatic commutation
 between groups.
 
-````@example monoid_algebras_showcase
+````julia
 reg_nc, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
 ````
 
@@ -94,7 +90,7 @@ This creates:
 
 A single generator is a `NormalMonomial` (immutable canonical form):
 
-````@example monoid_algebras_showcase
+````julia
 typeof(x[1])
 ````
 
@@ -103,7 +99,7 @@ typeof(x[1])
 Operators on different sites commute automatically. The canonical form groups
 operators by site, preserving intra-site order:
 
-````@example monoid_algebras_showcase
+````julia
 lhs = x[2] * y[1] * x[1] * y[2]
 rhs = x[2] * x[1] * y[1] * y[2]  # same canonical form
 
@@ -116,13 +112,13 @@ repr_with_registry(reg_nc, mono1(lhs))  # "x₂x₁y₁y₂"
 
 Within a single site, operators do NOT commute (no relations are imposed):
 
-````@example monoid_algebras_showcase
+````julia
 @assert x[1] * x[2] != x[2] * x[1]
 ````
 
 Show both representations to see they differ:
 
-````@example monoid_algebras_showcase
+````julia
 (repr_with_registry(reg_nc, mono1(x[1] * x[2])),  # "x₁x₂"
  repr_with_registry(reg_nc, mono1(x[2] * x[1])))  # "x₂x₁"
 ````
@@ -131,7 +127,7 @@ Show both representations to see they differ:
 
 Each index encodes both operator identity and site. You can decode them:
 
-````@example monoid_algebras_showcase
+````julia
 word = mono1(lhs).word
 ````
 
@@ -141,7 +137,7 @@ Decode each index as (operator_id, site):
 - operator_id: which variable (1=x₁, 2=x₂, 3=y₁, 4=y₂)
 - site: which physical site (1 or 2)
 
-````@example monoid_algebras_showcase
+````julia
 [(decode_operator_id(i), decode_site(i)) for i in word]
 ````
 
@@ -163,7 +159,7 @@ application of the same projector collapses to a single instance.
 
 ### Creating Projector Variables
 
-````@example monoid_algebras_showcase
+````julia
 reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
 ````
 
@@ -174,7 +170,7 @@ reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
 
 Repeated projectors automatically collapse:
 
-````@example monoid_algebras_showcase
+````julia
 @assert monomials(P[1] * P[1]) == [P[1]]        # P² = P
 @assert monomials(P[1] * P[1] * P[1]) == [P[1]] # P³ = P
 ````
@@ -183,14 +179,14 @@ Repeated projectors automatically collapse:
 
 Cross-site operators commute, and idempotency is applied after canonicalization:
 
-````@example monoid_algebras_showcase
+````julia
 @assert monomials(Q[2] * P[1]) == monomials(P[1] * Q[2])  # site commutation
 ````
 
 More complex example: commutation brings same-site operators together,
 then idempotency collapses repeated factors:
 
-````@example monoid_algebras_showcase
+````julia
 result = mono1(Q[1] * P[1] * Q[1] * P[1])
 repr_with_registry(reg_proj, result)  # "P₁Q₁" (both collapse)
 ````
@@ -211,7 +207,7 @@ Pauli matrices σₓ, σᵧ, σᵤ. This is the natural algebra for ±1-valued o
 
 ### Creating Unipotent Variables
 
-````@example monoid_algebras_showcase
+````julia
 reg_unip, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 1:2)])
 const ID_UNIP = one(NormalMonomial{UnipotentAlgebra, eltype(indices(reg_unip))})
 ````
@@ -223,7 +219,7 @@ const ID_UNIP = one(NormalMonomial{UnipotentAlgebra, eltype(indices(reg_unip))})
 
 Squared operators simplify to the identity:
 
-````@example monoid_algebras_showcase
+````julia
 @assert monomials(U[1] * U[1]) == [ID_UNIP]     # U² = 𝟙
 @assert monomials(U[1] * U[1] * U[1]) == [U[1]] # U³ = U
 ````
@@ -232,7 +228,7 @@ Squared operators simplify to the identity:
 
 Cross-site commutation works as expected:
 
-````@example monoid_algebras_showcase
+````julia
 @assert monomials(V[2] * U[1]) == monomials(U[1] * V[2])
 ````
 
@@ -242,13 +238,13 @@ Site-based canonicalization can bring paired operators together, enabling cancel
 
 V₁ U₁ V₁ U₁ → (after site sort) → V₁ V₁ U₁ U₁ = 𝟙
 
-````@example monoid_algebras_showcase
+````julia
 @assert monomials(V[1] * U[1] * V[1] * U[1]) == [ID_UNIP]
 ````
 
 Simpler case: U₁² U₂ = U₂
 
-````@example monoid_algebras_showcase
+````julia
 @assert monomials(U[1] * U[1] * U[2]) == monomials(U[2])
 ````
 
@@ -258,7 +254,7 @@ The function `get_ncbasis(registry, degree)` returns all distinct monomials up t
 the specified degree. This is useful for constructing moment matrices in SDP
 relaxations.
 
-````@example monoid_algebras_showcase
+````julia
 basis_d1 = get_ncbasis(reg_nc, 1)
 ````
 
@@ -266,11 +262,11 @@ basis_d1: all monomials up to degree 1
 
 Pretty-print the basis using the registry:
 
-````@example monoid_algebras_showcase
+````julia
 [repr_with_registry(reg_nc, m) for m in basis_d1]
 ````
 
-````@example monoid_algebras_showcase
+````julia
 basis_d2 = get_ncbasis(reg_nc, 2)
 ````
 
@@ -278,13 +274,13 @@ basis_d2: all monomials up to degree 2
 
 Show count and a few examples:
 
-````@example monoid_algebras_showcase
+````julia
 length(basis_d2)  # total count
 ````
 
 Pretty-print all degree-2 basis elements:
 
-````@example monoid_algebras_showcase
+````julia
 [repr_with_registry(reg_nc, m) for m in basis_d2]
 ````
 
@@ -295,13 +291,13 @@ pipeline. Here's a simple example of building a polynomial objective:
 
 Coefficients create polynomials from monomials
 
-````@example monoid_algebras_showcase
+````julia
 poly = 1.0 * x[1] * x[2] + 2.0 * y[1] - 3.0 * x[1] * y[1]
 ````
 
 Site commutation is automatic in polynomial arithmetic:
 
-````@example monoid_algebras_showcase
+````julia
 poly2 = 1.0 * y[1] * x[1] - 3.0 * x[1] * y[1]  # y₁ and x₁ commute!
 monomials(poly2)  # simplified: terms combine if they have the same canonical form
 ````

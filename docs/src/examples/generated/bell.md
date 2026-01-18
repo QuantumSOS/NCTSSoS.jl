@@ -1,8 +1,4 @@
-```@meta
-EditURL = "../literate/bell.jl"
-```
-
-# [Bell inequalities](@id bell-inequalities)
+# Bell inequalities
 
 Bell inequalities test whether quantum mechanics can be explained by local hidden variable
 theories. They are linear combinations of expectation values with bounds that differ between
@@ -19,10 +15,10 @@ and $C$ is the classical bound. Quantum mechanics can exceed this bound.
 
 ## Setup
 
-We use `NCTSSoS.jl` for polynomial optimization and `MosekTools` as the SDP solver backend.
+We use `NCTSSoS.jl` for polynomial optimization and `COSMO` as the SDP solver backend.
 
-````@example bell
-using NCTSSoS, MosekTools
+````julia
+using NCTSSoS, COSMO
 ````
 
 ## Key Concepts: Unipotent and Projector Variables
@@ -38,7 +34,7 @@ Let's demonstrate both:
 
 Create operators that square to identity:
 
-````@example bell
+````julia
 reg_unip, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)])
 ````
 
@@ -48,13 +44,13 @@ B: Bob's measurement operators [B₁, B₂] on site 2
 
 Verify the unipotent property (U² = I):
 
-````@example bell
+````julia
 A[1] * A[1]  # should simplify to identity
 ````
 
 Check that operators on different sites commute:
 
-````@example bell
+````julia
 A[1] * B[1] == B[1] * A[1]  # true: different sites commute
 ````
 
@@ -62,7 +58,7 @@ A[1] * B[1] == B[1] * A[1]  # true: different sites commute
 
 Create operators that are idempotent:
 
-````@example bell
+````julia
 reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
 ````
 
@@ -72,7 +68,7 @@ Q: Bob's projectors [Q₁, Q₂] on site 2
 
 Verify the idempotent property (P² = P):
 
-````@example bell
+````julia
 monomials(P[1] * P[1])  # should be [P[1]]
 ````
 
@@ -93,7 +89,7 @@ Classical bound: $f \leq 2$. Quantum bound (Tsirelson): $f \leq 2\sqrt{2} \appro
 
 #### Step 1: Create unipotent variables for CHSH
 
-````@example bell
+````julia
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 ````
 
@@ -103,7 +99,7 @@ y: Bob's observables [y₁, y₂] = [B₁, B₂]
 
 #### Step 2: Define the CHSH objective function
 
-````@example bell
+````julia
 f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
     1.0 * x[1] * y[2] +  # ⟨A₁B₂⟩ term
     1.0 * x[2] * y[1] -  # ⟨A₂B₁⟩ term
@@ -114,14 +110,14 @@ f: polynomial representing the CHSH Bell operator
 
 Inspect the polynomial structure:
 
-````@example bell
+````julia
 (monomials(f),      # list of monomials in f
  coefficients(f))   # corresponding coefficients
 ````
 
 #### Step 3: Create the optimization problem
 
-````@example bell
+````julia
 pop = polyopt(f, registry)
 ````
 
@@ -130,16 +126,16 @@ pop: polynomial optimization problem maximizing f
 
 #### Step 4: Configure and run the SDP solver
 
-````@example bell
+````julia
 solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,  # SDP solver backend
+    optimizer = COSMO.Optimizer,  # SDP solver backend
     order = 1                      # relaxation order (hierarchy level)
 )
 ````
 
 solver_config: specifies solver and relaxation parameters
 
-````@example bell
+````julia
 result = cs_nctssos(pop, solver_config)
 ````
 
@@ -147,7 +143,7 @@ result: optimization result containing objective value and solver info
 
 #### Step 5: Extract the upper bound
 
-````@example bell
+````julia
 chsh_bound = result.objective
 ````
 
@@ -155,13 +151,13 @@ chsh_bound: upper bound on maximal quantum violation
 
 Compare with Tsirelson's bound:
 
-````@example bell
+````julia
 tsirelson_bound = 2 * sqrt(2)
 ````
 
 tsirelson_bound: theoretical maximum = 2√2 ≈ 2.828
 
-````@example bell
+````julia
 abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
 ````
 
@@ -179,7 +175,7 @@ Classical bound: $f \leq 0$. Quantum bound: $f \leq 0.25$.
 
 #### Step 1: Create projector variables
 
-````@example bell
+````julia
 registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
 ````
 
@@ -189,7 +185,7 @@ y: Bob's projectors [y₁, y₂, y₃] = [B₁, B₂, B₃]
 
 #### Step 2: Define the I₃₃₂₂ objective function
 
-````@example bell
+````julia
 f = 1.0 * x[1] * (y[1] + y[2] + y[3]) +  # A₁(B₁+B₂+B₃)
     1.0 * x[2] * (y[1] + y[2] - y[3]) +  # A₂(B₁+B₂-B₃)
     1.0 * x[3] * (y[1] - y[2]) -         # A₃(B₁-B₂)
@@ -202,32 +198,32 @@ f: I₃₃₂₂ Bell polynomial
 
 Check the number of terms:
 
-````@example bell
+````julia
 length(monomials(f))  # number of monomials
 ````
 
 #### Step 3: Solve (minimizing -f to find maximum of f)
 
-````@example bell
+````julia
 pop = polyopt(-f, registry)
 ````
 
 pop: minimize -f (equivalent to maximize f)
 
-````@example bell
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
+````julia
+solver_config = SolverConfig(optimizer=COSMO.Optimizer, order=2)
 ````
 
 order=2: second level of the moment hierarchy
 
-````@example bell
+````julia
 result = cs_nctssos(pop, solver_config)
 i3322_bound = -result.objective
 ````
 
 i3322_bound: upper bound on I₃₃₂₂ violation (negate since we minimized -f)
 
-````@example bell
+````julia
 i3322_bound  # should be close to 0.25
 ````
 
@@ -244,33 +240,33 @@ Let's solve I₃₃₂₂ at order=6 using correlative sparsity:
 
 #### Without sparsity (for comparison, order=3)
 
-````@example bell
+````julia
 registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
 f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
     x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
 pop = polyopt(-f, registry)
 
-solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
+solver_config_dense = SolverConfig(optimizer=COSMO.Optimizer, order=3)
 ````
 
 solver_config_dense: no sparsity exploitation
 
-````@example bell
+````julia
 @time result_dense = cs_nctssos(pop, solver_config_dense)
 bound_dense = -result_dense.objective
 ````
 
 bound_dense: bound without sparsity
 
-````@example bell
+````julia
 bound_dense
 ````
 
 #### With correlative sparsity (order=6)
 
-````@example bell
+````julia
 solver_config_sparse = SolverConfig(
-    optimizer = Mosek.Optimizer,
+    optimizer = COSMO.Optimizer,
     order = 6,             # higher order for better bound
     cs_algo = MF()         # use MaxFlow algorithm for correlative sparsity
 )
@@ -278,20 +274,20 @@ solver_config_sparse = SolverConfig(
 
 cs_algo=MF(): enables correlative sparsity via chordal graph decomposition
 
-````@example bell
+````julia
 @time result_sparse = cs_nctssos(pop, solver_config_sparse)
 bound_sparse = -result_sparse.objective
 ````
 
 bound_sparse: improved bound using sparsity
 
-````@example bell
+````julia
 bound_sparse  # closer to theoretical 0.25
 ````
 
 Improvement in bound:
 
-````@example bell
+````julia
 bound_dense - bound_sparse  # positive = improvement
 ````
 
@@ -321,7 +317,7 @@ with signs $s_{ij} \in \{+1, -1\}$. Classical bound: $f \leq 4.5$. Quantum bound
 
 #### Step 1: Create unipotent variables
 
-````@example bell
+````julia
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 ````
 
@@ -330,13 +326,13 @@ y: Bob's observables [B₁, B₂, B₃]
 
 #### Step 2: Define the identity monomial
 
-````@example bell
+````julia
 ID = one(NormalMonomial{UnipotentAlgebra, UInt8})
 ````
 
 ID: identity element (𝟙) needed for state polynomial arithmetic
 
-````@example bell
+````julia
 ID  # display the identity
 ````
 
@@ -344,7 +340,7 @@ ID  # display the identity
 
 State polynomials use `ς(·)` to denote expectation values ⟨·⟩.
 
-````@example bell
+````julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID -  # ⟨AᵢBⱼ⟩
             1.0 * ς(x[a]) * ς(y[b]) * ID  # -⟨Aᵢ⟩⟨Bⱼ⟩
 ````
@@ -354,13 +350,13 @@ cov(a,b): covariance Cov(Aₐ, Bᵦ) as a state polynomial
 
 Example: Cov(A₁, B₁)
 
-````@example bell
+````julia
 cov(1, 1)
 ````
 
 #### Step 4: Build the objective function
 
-````@example bell
+````julia
 sp = cov(1,1) + cov(1,2) + cov(1,3) +  # Cov(A₁, B₁) + Cov(A₁, B₂) + Cov(A₁, B₃)
      cov(2,1) + cov(2,2) - cov(2,3) +  # Cov(A₂, B₁) + Cov(A₂, B₂) - Cov(A₂, B₃)
      cov(3,1) - cov(3,2)               # Cov(A₃, B₁) - Cov(A₃, B₂)
@@ -370,15 +366,15 @@ sp: state polynomial for covariance Bell inequality
 
 #### Step 5: Create optimization problem and solve
 
-````@example bell
+````julia
 spop = polyopt(sp, registry)
 ````
 
 spop: state polynomial optimization problem
 
-````@example bell
+````julia
 solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,
+    optimizer = COSMO.Optimizer,
     order = 2
 )
 
@@ -388,21 +384,21 @@ cov_bound = -result.objective
 
 cov_bound: upper bound on covariance Bell violation
 
-````@example bell
+````julia
 cov_bound  # should be close to 5.0
 ````
 
 Compare with known quantum value:
 
-````@example bell
+````julia
 abs(cov_bound - 5.0)  # difference from theoretical value
 ````
 
 #### Step 6: Improve bound using term sparsity and higher-order iteration
 
-````@example bell
+````julia
 solver_config_ts = SolverConfig(
-    optimizer = Mosek.Optimizer,
+    optimizer = COSMO.Optimizer,
     order = 3,
     ts_algo = MF()  # term sparsity
 )
@@ -410,25 +406,25 @@ solver_config_ts = SolverConfig(
 
 ts_algo=MF(): enables term sparsity exploitation
 
-````@example bell
+````julia
 result_ts = cs_nctssos(spop, solver_config_ts)
 ````
 
 result_ts: first iteration with term sparsity
 
-````@example bell
+````julia
 result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
 ````
 
 result_higher: higher-order iteration refining the bound
 
-````@example bell
+````julia
 improved_bound = -result_higher.objective
 ````
 
 improved_bound: refined upper bound
 
-````@example bell
+````julia
 (improved_bound,               # closer to 5.0
  abs(improved_bound - 5.0))    # very small difference from theoretical value
 ````

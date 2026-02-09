@@ -10,16 +10,30 @@
 using NCTSSoS, MosekTools
 using NCTSSoS: tr
 
+# We use MathOptInterface (MOI) to configure the SDP solver backend (here: Mosek)
+# and silence its output.
 const MOI = NCTSSoS.MOI
 const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
 
-# Create projector variables using the typed algebra system
+# Create projector variables using the typed algebra system.
+#
+# - `registry` stores the variable mapping and the algebra constraints.
+# - `x` is a length-3 vector of noncommutative projector variables satisfying
+#   `x[i]^2 = x[i]` (idempotency is enforced by the `ProjectorAlgebra` type).
 registry, (x,) = create_projector_variables([("x", 1:3)])
 
-# Identity monomial for converting StatePolynomial to NCStatePolynomial
-const ID = one(NormalMonomial{ProjectorAlgebra,UInt8})
+# `tr(·)` constructs a *tracial state polynomial* (a symbolic moment in a tracial
+# state).
+#
+# Internally, NCTSSoS represents noncommutative words using `NormalMonomial{A,T}`
+# (where `A` is the algebra type and `T` is the index integer type). To pass a
+# tracial state polynomial to `polyopt`, we multiply by the identity monomial to
+# embed it as a noncommutative polynomial objective.
+#
+# Identity monomial for converting StatePolynomial to NCStatePolynomial.
+const ID_PROJECTOR = one(NormalMonomial{ProjectorAlgebra,UInt8})
 
-p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID
+p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID_PROJECTOR
 
 # Polynomial Optimization declaration and solving interface is the same as regular
 # polynomial optimization. No need for is_projective or comm_gps - the registry
@@ -27,6 +41,13 @@ p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID
 
 spop = polyopt(p, registry)
 
+# The SDP relaxation is configured via `SolverConfig`.
+#
+# `order` is the moment/SOS relaxation order: higher order typically yields a
+# tighter bound at the cost of a larger SDP.
+#
+# We solve the relaxation with `cs_nctssos`; the returned `result.objective` is a
+# certified bound from the SDP relaxation.
 solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2)
 
 result = cs_nctssos(spop, solver_config)
@@ -63,16 +84,23 @@ result = cs_nctssos(spop, solver_config)
 using NCTSSoS, MosekTools
 using NCTSSoS: tr
 
-# Create unipotent variables (operators that square to identity)
+# Create unipotent variables (operators that square to identity).
+#
+# Here we model Alice's observables as `x[1:2]` and Bob's observables as
+# `y[1:2]`. Variables from different labels ("x" vs "y") commute by construction,
+# which encodes the bipartite/spatial separation assumption.
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 
 # Identity monomial for converting StatePolynomial to NCStatePolynomial
-const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
+const ID_UNIPOTENT = one(NormalMonomial{UnipotentAlgebra,UInt8})
 
+# `cs_nctssos` minimizes the objective by default. To compute the *maximum*
+# quantum value of the CHSH expression, we minimize its negative.
 p = -1.0 * tr(x[1] * y[1]) - 1.0 * tr(x[1] * y[2]) - 1.0 * tr(x[2] * y[1]) + 1.0 * tr(x[2] * y[2])
 
-tpop = polyopt(p * ID, registry)
+tpop = polyopt(p * ID_UNIPOTENT, registry)
 
+# `ts_algo` selects a term-sparsity heuristic to reduce SDP size (optional).
 solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=1, ts_algo=MaximalElimination())
 
 result = cs_nctssos(tpop, solver_config)
@@ -86,21 +114,29 @@ result = cs_nctssos(tpop, solver_config)
 
 # ## Covariance of quantum correlation
 
-# As introduced in [Bell Inequalities example](@ref bell-inequalities), we may
-# also compute the covariance of quantum correlations while limiting the state to
-# maximally entangled bipartite state.
+# This section follows the "covariance Bell inequality" setup: the covariance of
+# two observables is
+# ```math
+# \operatorname{Cov}(A, B) = \langle AB \rangle - \langle A \rangle\langle B \rangle.
+# ```
+# We construct a linear combination of such covariances and compute its optimum
+# via tracial polynomial optimization.
+#
+# As in the Bell example, we use unipotent variables to represent $\pm 1$ valued
+# observables.
+#
+# Here we introduce two commuting groups of variables, Alice `x[1:3]` and Bob
+# `y[1:3]`.
 
 using NCTSSoS, MosekTools
 using NCTSSoS: tr
 
-registry, (vars,) = create_unipotent_variables([("vars", 1:6)])
-x = vars[1:3]
-y = vars[4:6]
-
-# Identity monomial for converting StatePolynomial to NCStatePolynomial
-const ID_UNIPOTENT = one(NormalMonomial{UnipotentAlgebra,UInt8})
+registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 
 cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
+
+# As above, we minimize the negative of the covariance Bell expression to obtain
+# the maximum quantum value.
 p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
 tpop = polyopt(p * ID_UNIPOTENT, registry)
 

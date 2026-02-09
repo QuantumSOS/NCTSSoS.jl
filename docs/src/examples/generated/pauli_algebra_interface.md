@@ -73,16 +73,9 @@ The same problem can be solved much more concisely:
 
 ````julia
 using NCTSSoS, MosekTools
-
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
 N = 6  # Number of spins in the chain
 
 registry, (σx, σy, σz) = create_pauli_variables(1:N)
-````
-
-````
-(VariableRegistry with 18 variables: σx₁, σy₁, σz₁, σx₂, σy₂, ..., σx₆, σy₆, σz₆, (NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[UInt8[0x01], UInt8[0x04], UInt8[0x07], UInt8[0x0a], UInt8[0x0d], UInt8[0x10]], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[UInt8[0x02], UInt8[0x05], UInt8[0x08], UInt8[0x0b], UInt8[0x0e], UInt8[0x11]], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[UInt8[0x03], UInt8[0x06], UInt8[0x09], UInt8[0x0c], UInt8[0x0f], UInt8[0x12]]))
 ````
 
 Construct the Hamiltonian (same formula, cleaner variables)
@@ -92,31 +85,10 @@ ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
           for op in [σx, σy, σz] for i in 1:N)
 ````
 
-````
-0.25 + 0.0im * UInt8[0x01, 0x04] + 0.25 + 0.0im * UInt8[0x01, 0x10] + 0.25 + 0.0im * UInt8[0x02, 0x05] + 0.25 + 0.0im * UInt8[0x02, 0x11] + 0.25 + 0.0im * UInt8[0x03, 0x06] + 0.25 + 0.0im * UInt8[0x03, 0x12] + 0.25 + 0.0im * UInt8[0x04, 0x07] + 0.25 + 0.0im * UInt8[0x05, 0x08] + 0.25 + 0.0im * UInt8[0x06, 0x09] + 0.25 + 0.0im * UInt8[0x07, 0x0a] + 0.25 + 0.0im * UInt8[0x08, 0x0b] + 0.25 + 0.0im * UInt8[0x09, 0x0c] + 0.25 + 0.0im * UInt8[0x0a, 0x0d] + 0.25 + 0.0im * UInt8[0x0b, 0x0e] + 0.25 + 0.0im * UInt8[0x0c, 0x0f] + 0.25 + 0.0im * UInt8[0x0d, 0x10] + 0.25 + 0.0im * UInt8[0x0e, 0x11] + 0.25 + 0.0im * UInt8[0x0f, 0x12]
-````
-
 Create the optimization problem - constraints are handled automatically by the algebra type!
 
 ````julia
 pop = polyopt(ham, registry)
-````
-
-````
-Optimization Problem (PauliAlgebra)
-────────────────────────────────────
-Objective:
-    0.25 + 0.0im * σx₁σx₂ + 0.25 + 0.0im * σx₁σx₆ + 0.25 + 0.0im * σy₁σy₂ + 0.25 + 0.0im * σy₁σy₆ + 0.25 + 0.0im * σz₁σz₂ + 0.25 + 0.0im * σz₁σz₆ + 0.25 + 0.0im * σx₂σx₃ + 0.25 + 0.0im * σy₂σy₃ + 0.25 + 0.0im * σz₂σz₃ + 0.25 + 0.0im * σx₃σx₄ + 0.25 + 0.0im * σy₃σy₄ + 0.25 + 0.0im * σz₃σz₄ + 0.25 + 0.0im * σx₄σx₅ + 0.25 + 0.0im * σy₄σy₅ + 0.25 + 0.0im * σz₄σz₅ + 0.25 + 0.0im * σx₅σx₆ + 0.25 + 0.0im * σy₅σy₆ + 0.25 + 0.0im * σz₅σz₆
-
-Equality constraints (0):
-    (none)
-
-Inequality constraints (0):
-    (none)
-
-Variables (18):
-    σx₁, σy₁, σz₁, σx₂, σy₂, ..., σx₆, σy₆, σz₆
-
 ````
 
 The new interface is much cleaner: just 4 lines instead of 40+, and eliminates
@@ -130,17 +102,12 @@ moment relaxation [wang2024Certifying](@cite).
 
 ````julia
 solver_config = SolverConfig(
-    optimizer=SILENT_MOSEK,  # SDP solver backend
+    optimizer=Mosek.Optimizer,  # SDP solver backend
     order=2                     # Relaxation order (higher = tighter bound)
 )
 
 res = cs_nctssos(pop, solver_config)
 energy_per_site = res.objective / N
-@show energy_per_site
-````
-
-````
--0.46712927288850276
 ````
 
 The result provides a certified lower bound on the ground state energy per site.

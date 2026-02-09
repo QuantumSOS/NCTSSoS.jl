@@ -19,5 +19,5 @@ using Test, Documenter, NCTSSoS
     #   reg, x = create_noncommutative_variables([("x", 1:3)])
     #
     # Run `doctest(NCTSSoS; fix=true)` after updating examples to auto-fix outputs.
-    @test true
+    @test_skip "Doctests disabled pending API migration (see comment above)"
 end

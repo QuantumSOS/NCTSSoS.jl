@@ -10,23 +10,12 @@ tracial polynomial.
 ````julia
 using NCTSSoS, MosekTools
 using NCTSSoS: tr
-
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
-````
-
-````
-MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.Silent() => true])
 ````
 
 Create projector variables using the typed algebra system
 
 ````julia
 registry, (x,) = create_projector_variables([("x", 1:3)])
-````
-
-````
-(VariableRegistry with 3 variables: x₁, x₂, x₃, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x05], UInt8[0x09], UInt8[0x0d]],))
 ````
 
 Identity monomial for converting StatePolynomial to NCStatePolynomial
@@ -37,10 +26,6 @@ const ID = one(NormalMonomial{ProjectorAlgebra,UInt8})
 p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID
 ````
 
-````
-tr(UInt8[0x0d])tr(UInt8[0x05, 0x09]) + tr(UInt8[0x05, 0x09, 0x0d])
-````
-
 Polynomial Optimization declaration and solving interface is the same as regular
 polynomial optimization. No need for is_projective or comm_gps - the registry
 encodes all algebra constraints!
@@ -48,32 +33,21 @@ encodes all algebra constraints!
 ````julia
 spop = polyopt(p, registry)
 
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2)
+solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=2)
 
 result = cs_nctssos(spop, solver_config)
-
-@show result.objective
 
 @assert isapprox(result.objective , -0.046717378455438933, atol = 1e-6)
 
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3)
+solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=3)
 
 result = cs_nctssos(spop, solver_config)
-
-@show result.objective
 
 @assert isapprox(result.objective, -0.03124998978001017, atol = 1e-6)
 ````
 
-````
-result.objective = -0.046717378455481205
-result.objective = -0.03124998978003755
-
-````
-
-The literature values are $-0.046717378455438933$ (order 2) and
-$-0.03124998978001017$ (order 3), and the outputs above match within
-$10^{-6}$ absolute tolerance [klep2022Optimization](@cite).
+The results matches within $10^{-6}$ absolute tolerance comparing to answer in
+[klep2022Optimization](@cite)!
 
 ## Polynomial Bell Inequalities
 
@@ -99,10 +73,6 @@ Create unipotent variables (operators that square to identity)
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 ````
 
-````
-(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
-````
-
 Identity monomial for converting StatePolynomial to NCStatePolynomial
 
 ````julia
@@ -112,72 +82,15 @@ p = -1.0 * tr(x[1] * y[1]) - 1.0 * tr(x[1] * y[2]) - 1.0 * tr(x[2] * y[1]) + 1.0
 
 tpop = polyopt(p * ID, registry)
 
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=1, ts_algo=MaximalElimination())
+solver_config = SolverConfig(; optimizer=Mosek.Optimizer, order=1, ts_algo=MaximalElimination())
 
 result = cs_nctssos(tpop, solver_config)
-
-@show result.objective
 
 @assert isapprox(result.objective, -2.8284271157283083, atol = 1e-5)
 ````
 
-````
-result.objective = -2.8284271321623193
-
-````
-
-Our computation matches the theoretical prediction $-2.8284271247461903$ to
-within $10^{-6}$ absolute tolerance [klep2022Optimization](@cite).
-
-## Covariance of quantum correlation
-
-As introduced in Bell Inequalities example, we may
-also compute the covariance of quantum correlations while limiting the state to
-maximally entangled bipartite state.
-
-````julia
-using NCTSSoS, MosekTools
-using NCTSSoS: tr
-
-registry, (vars,) = create_unipotent_variables([("vars", 1:6)])
-x = vars[1:3]
-y = vars[4:6]
-````
-
-````
-3-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}}:
- UInt8[0x11]
- UInt8[0x15]
- UInt8[0x19]
-````
-
-Identity monomial for converting StatePolynomial to NCStatePolynomial
-
-````julia
-const ID2 = one(NormalMonomial{UnipotentAlgebra,UInt8})
-
-cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
-p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
-tpop = polyopt(p * ID2, registry)
-
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2)
-
-result = cs_nctssos(tpop, solver_config)
-
-@show result.objective
-abs_error = abs(result.objective + 5.0)
-@show abs_error
-@assert abs_error < 1e-3
-````
-
-````
-result.objective = -4.999999995209357
-abs_error = 4.79064343750224e-9
-
-````
-
-Again, the literature value is $-5$, and the printed absolute error above
-shows the match [klep2022Optimization](@cite).
+Our computation matches with the theoretical prediction for maximally entangled
+bipartite state with $10^{-6}$ absolute tolerance [klep2022Optimization](@cite)!
 
 ---
 

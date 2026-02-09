@@ -1,214 +1,322 @@
 # # [Bell inequalities](@id bell-inequalities)
-
-# Bell inequalities are mathematical expressions that test whether the predictions of quantum mechanics can be explained by local hidden variable theories. They were first introduced by John Stewart Bell in 1964 and have since become fundamental tools in quantum information theory and quantum foundations.
-# A Bell inequality is typically expressed as a linear combination of expectation values of observables, with bounds that differ between classical and quantum theories. In the classical case, these inequalities must be satisfied if the system can be described by local hidden variables. However, quantum mechanics can violate these inequalities, demonstrating the non-local nature of quantum correlations.
-# The general form of a Bell inequality can be written as:
+#
+# Bell inequalities test whether quantum mechanics can be explained by local hidden variable
+# theories. They are linear combinations of expectation values with bounds that differ between
+# classical and quantum theories.
+#
+# The general form of a Bell inequality is:
 #
 # ```math
 # \sum_{i,j} c_{ij} \langle A_i B_j \rangle \leq C
 # ```
 #
-# where $A_i$ and $B_j$ are observables measured by two parties (traditionally called Alice and Bob), $c_{ij}$ are real coefficients, and $C$ is the classical bound. Quantum mechanics can violate this inequality, with the maximum violation known as the quantum bound.
+# where $A_i$ and $B_j$ are observables measured by Alice and Bob, $c_{ij}$ are coefficients,
+# and $C$ is the classical bound. Quantum mechanics can exceed this bound.
 
-# ## Linear Bell inequalities
+# ## Setup
+#
+# We use `NCTSSoS.jl` for polynomial optimization and `COSMO` as the SDP solver backend.
 
-# ### CHSH inequality
-# The most famous Bell inequality is the CHSH (Clauser-Horne-Shimony-Holt) inequality, which involves two parties, each measuring two observables. For unipotent (squared to 1) observables $A_1, A_2$ measured by Alice and $B_1, B_2$ measured by Bob. We define the objective function as:
+using NCTSSoS, COSMO
+
+# ## Key Concepts: Unipotent and Projector Variables
+#
+# Bell inequalities use two types of measurement operators:
+#
+# 1. **Unipotent operators** ($U^2 = I$): Model ±1-valued observables like Pauli matrices
+# 2. **Projector operators** ($P^2 = P$): Model projection measurements like $|0\rangle\langle 0|$
+#
+# Let's demonstrate both:
+
+# ### Unipotent Variables (U² = I)
+#
+# Create operators that square to identity:
+
+reg_unip, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)])
+# reg_unip: registry storing variable names and algebra type
+# A: Alice's measurement operators [A₁, A₂] on site 1
+# B: Bob's measurement operators [B₁, B₂] on site 2
+
+# Verify the unipotent property (U² = I):
+A[1] * A[1]  # should simplify to identity
+
+# Check that operators on different sites commute:
+A[1] * B[1] == B[1] * A[1]  # true: different sites commute
+
+# ### Projector Variables (P² = P)
+#
+# Create operators that are idempotent:
+
+reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
+# reg_proj: registry for projector algebra
+# P: Alice's projectors [P₁, P₂] on site 1
+# Q: Bob's projectors [Q₁, Q₂] on site 2
+
+# Verify the idempotent property (P² = P):
+monomials(P[1] * P[1])  # should be [P[1]]
+
+# ---
+# ## Linear Bell Inequalities
+# ---
+
+# ### CHSH Inequality
+#
+# The CHSH inequality involves two parties with two ±1-valued observables each.
+# The objective function is:
 #
 # ```math
-# f(A_1, A_2, B_1, B_2) = \langle A_1B_1 \rangle + \langle A_1B_2 \rangle + \langle A_2B_1 \rangle - \langle A_2B_2 \rangle
+# f(A_1, A_2, B_1, B_2) = \langle A_1 B_1 \rangle + \langle A_1 B_2 \rangle + \langle A_2 B_1 \rangle - \langle A_2 B_2 \rangle
 # ```
 #
-# The CHSH inequality is then given by $$f(A_1, A_2, B_1, B_2) \leq 2,$$ which must be satisfied by any local hidden variable theory [chsh1969](@cite). However, quantum mechanics can violate this inequality up to the value $2\sqrt{2}$, known as Tsirelson's bound [tsirelson1980Quantum](@cite).
-# The CHSH inequality is particularly important because it is the simplest non-trivial Bell inequality and has been experimentally verified numerous times, providing strong evidence for the non-local nature of quantum mechanics.
+# Classical bound: $f \leq 2$. Quantum bound (Tsirelson): $f \leq 2\sqrt{2} \approx 2.828$.
 
-# An upper bound on the maximal quantum violation of the CHSH inequality can be computed using the following code:
+# #### Step 1: Create unipotent variables for CHSH
 
-using NCTSSoS, MosekTools
-
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
-
-# Create unipotent variables (operators that square to identity)
-# x = (A_1, A_2), y = (B_1, B_2)
 registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]  # objective function
+# registry: variable registry encoding U² = I constraint
+# x: Alice's observables [x₁, x₂] = [A₁, A₂]
+# y: Bob's observables [y₁, y₂] = [B₁, B₂]
 
-# The registry encodes all algebra constraints automatically!
+# #### Step 2: Define the CHSH objective function
+
+f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
+    1.0 * x[1] * y[2] +  # ⟨A₁B₂⟩ term
+    1.0 * x[2] * y[1] -  # ⟨A₂B₁⟩ term
+    1.0 * x[2] * y[2]    # -⟨A₂B₂⟩ term
+# f: polynomial representing the CHSH Bell operator
+
+# Inspect the polynomial structure:
+(monomials(f),      # list of monomials in f
+ coefficients(f))   # corresponding coefficients
+
+# #### Step 3: Create the optimization problem
+
 pop = polyopt(f, registry)
+# pop: polynomial optimization problem maximizing f
+#      subject to the algebraic constraints in registry (U² = I)
 
-solver_config = SolverConfig(optimizer=SILENT_MOSEK,  # solver backend
-    order=1                    # relaxation order
+# #### Step 4: Configure and run the SDP solver
+
+solver_config = SolverConfig(
+    optimizer = Mosek.Optimizer,  # SDP solver backend
+    order = 1                      # relaxation order (hierarchy level)
 )
+# solver_config: specifies solver and relaxation parameters
+
 result = cs_nctssos(pop, solver_config)
-@show result.objective  # upper bound on the maximal quantum violation
+# result: optimization result containing objective value and solver info
 
-# The theoretical quantum maximum is $2\sqrt{2} \approx 2.8284271247461903$ [tsirelson1980Quantum](@cite). The order-1 relaxation should return an upper bound close to this value (up to solver tolerances).
+# #### Step 5: Extract the upper bound
 
-# The `create_unipotent_variables` function creates variables with the UnipotentAlgebra type,
-# which automatically encodes that these operators square to the identity (U^2 = I).
-# This is appropriate for Pauli operators and other self-inverse observables.
+chsh_bound = result.objective
+# chsh_bound: upper bound on maximal quantum violation
+
+# Compare with Tsirelson's bound:
+tsirelson_bound = 2 * sqrt(2)
+# tsirelson_bound: theoretical maximum = 2√2 ≈ 2.828
+
+abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
+
+# ---
+# ### $I_{3322}$ Inequality
 #
-# The registry groups variables by their labels ("x" and "y"), and variables with different
-# labels automatically commute with each other. This replaces the old `comm_gps` parameter.
-#
-# In the solver configuration, we use [Mosek](https://www.mosek.com/) as the SDP solver backend.
-
-# ### $I_{3322}$ inequality
-
-# The $I_{3322}$ inequality is a more complex inequality that involves two parties, each measuring three observables. Let $A_1, A_2, A_3$ be the projective (squared to itself) observables measured by Alice and $B_1, B_2, B_3$ be the projective observables measured by Bob. We define the objective function as [pal2010maximal](@cite):
+# The $I_{3322}$ inequality uses **projector** observables (P² = P) with three measurements
+# per party [pal2010maximal](@cite).
 #
 # ```math
-# f(A_1, A_2, A_3, B_1, B_2, B_3) = \langle A_1(B_1+B_2+B_3) \rangle + \langle A_2(B_1+B_2-B_3) \rangle\\
-# + \langle A_3(B_1-B_2) \rangle
-# - \langle A_1 \rangle - 2\langle B_1 \rangle - \langle B_2 \rangle.
+# f = \langle A_1(B_1+B_2+B_3) \rangle + \langle A_2(B_1+B_2-B_3) \rangle + \langle A_3(B_1-B_2) \rangle - \langle A_1 \rangle - 2\langle B_1 \rangle - \langle B_2 \rangle
 # ```
 #
-# In classical mechanics, the inequality $f(A_1, A_2, A_3, B_1, B_2, B_3) \leq 0$ must be satisfied. Quantum mechanics can violate this inequality up to the value $0.25$ [pal2010maximal](@cite).
+# Classical bound: $f \leq 0$. Quantum bound: $f \leq 0.25$.
 
-# An upper bound on the maximal quantum violation of the $I_{3322}$ inequality can be computed using the following code:
+# #### Step 1: Create projector variables
 
-using NCTSSoS, MosekTools
-
-# Create projector variables (operators that square to themselves: P^2 = P)
 registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
-f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
-    x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
+# registry: variable registry encoding P² = P constraint
+# x: Alice's projectors [x₁, x₂, x₃] = [A₁, A₂, A₃]
+# y: Bob's projectors [y₁, y₂, y₃] = [B₁, B₂, B₃]
+
+# #### Step 2: Define the I₃₃₂₂ objective function
+
+f = 1.0 * x[1] * (y[1] + y[2] + y[3]) +  # A₁(B₁+B₂+B₃)
+    1.0 * x[2] * (y[1] + y[2] - y[3]) +  # A₂(B₁+B₂-B₃)
+    1.0 * x[3] * (y[1] - y[2]) -         # A₃(B₁-B₂)
+    1.0 * x[1] -                          # -A₁
+    2.0 * y[1] -                          # -2B₁
+    1.0 * y[2]                            # -B₂
+# f: I₃₃₂₂ Bell polynomial
+
+# Check the number of terms:
+length(monomials(f))  # number of monomials
+
+# #### Step 3: Solve (minimizing -f to find maximum of f)
 
 pop = polyopt(-f, registry)
+# pop: minimize -f (equivalent to maximize f)
 
-solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=2)
+solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
+# order=2: second level of the moment hierarchy
 
 result = cs_nctssos(pop, solver_config)
-@show result.objective
+i3322_bound = -result.objective
+# i3322_bound: upper bound on I₃₃₂₂ violation (negate since we minimized -f)
 
-# The `create_projector_variables` function creates variables with the ProjectorAlgebra type,
-# which automatically encodes that these operators are idempotent (P^2 = P).
-# This is appropriate for projection operators like $|0\rangle\langle 0|$ and $|1\rangle\langle 1|$.
+i3322_bound  # should be close to 0.25
+
+# ---
+# ### Exploiting Sparsity for Larger Problems
 #
-# The resulting upper bound is close to the literature value $0.25$ [pal2010maximal](@cite). By increasing the relaxation order, this upper bound could be further improved.
+# Higher relaxation orders improve bounds but increase SDP size.
+# **Sparsity exploitation** reduces computational cost:
+#
+# 1. **Correlative Sparsity (CS)**: Decomposes problem by variable interactions
+# 2. **Term Sparsity (TS)**: Removes unnecessary monomials from moment matrices
+#
+# Let's solve I₃₃₂₂ at order=6 using correlative sparsity:
 
-# #### Reducing the SDP Size by exploiting sparsity
-
-# To reach the theoretically exact value $0.25$, one may increase the relaxation order [magronSparsePolynomialOptimization2023](@cite).
-
-using NCTSSoS, MosekTools
+# #### Without sparsity (for comparison, order=3)
 
 registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
 f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
     x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
-
 pop = polyopt(-f, registry)
 
-solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=3)
+solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
+# solver_config_dense: no sparsity exploitation
 
-@time result = cs_nctssos(pop, solver_config)
-@show result.objective
-# Indeed, by increasing the relaxation order to 3, we tighten the upper bound toward the theoretical value $0.25$ [pal2010maximal](@cite).
-#
-# However, keep increasing the order leads to large-scale SDPs that are computationally expensive. To reduce the SDP size, we may exploit the sparsity of the problem [magronSparsePolynomialOptimization2023](@cite). There are two types of sparsities:
-#
-# 1. **Correlative Sparsity**: exploiting the fact that few variable products appear in the objective function. Therefore, we could break down the objective function into smaller parts, each involving fewer variables. This reduces the matrix size and the number of constraints of the SDP, making it more tractable.
-#
-# 2. **Term Sparsity**: exploiting the fact that few monomials appear in the objective function. By identifying and removing unnecessary monomials, we can further reduce the matrix size and the number of constraints of the SDP.
+@time result_dense = cs_nctssos(pop, solver_config_dense)
+bound_dense = -result_dense.objective
+# bound_dense: bound without sparsity
 
-# To take advantage of these sparsity patterns:
+bound_dense
 
-using NCTSSoS, MosekTools
+# #### With correlative sparsity (order=6)
 
-registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
-f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
-    x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
+solver_config_sparse = SolverConfig(
+    optimizer = Mosek.Optimizer,
+    order = 6,             # higher order for better bound
+    cs_algo = MF()         # use MaxFlow algorithm for correlative sparsity
+)
+# cs_algo=MF(): enables correlative sparsity via chordal graph decomposition
 
-pop = polyopt(-f, registry)
+@time result_sparse = cs_nctssos(pop, solver_config_sparse)
+bound_sparse = -result_sparse.objective
+# bound_sparse: improved bound using sparsity
 
-solver_config = SolverConfig(optimizer=SILENT_MOSEK, order=6, cs_algo=MF())
+bound_sparse  # closer to theoretical 0.25
 
-@time result = cs_nctssos(pop, solver_config)
-@show result.objective
+# Improvement in bound:
+bound_dense - bound_sparse  # positive = improvement
 
-# In practice, exploiting sparsity can reduce runtime for higher-order relaxations while still tightening the upper bound; the exact speedup depends on solver settings and hardware.
-
+# ---
 # ## Nonlinear Bell Inequalities
-
-# Nonlinear Bell inequalities are extensions of the standard linear Bell inequalities. Instead of being linear combinations of expectation values, they involve polynomial functions of these expectation values. These inequalities arise naturally when considering more complex scenarios, such as multi-party settings or when the parties can perform sequences of measurements.
 #
-# The significance of nonlinear Bell inequalities in quantum information lies in their ability to detect non-locality in situations where linear inequalities might fail. They can provide tighter bounds on classical correlations and reveal quantum non-locality in a broader range of experimental setups. Furthermore, studying nonlinear Bell inequalities helps in understanding the structure of quantum correlations and the boundary between classical and quantum physics more deeply. They are also relevant in the context of quantum cryptography and communication complexity, where understanding the limits of classical and quantum correlations is crucial.
-
+# Nonlinear Bell inequalities involve polynomial functions of expectation values,
+# not just linear combinations. They can detect non-locality where linear inequalities fail.
+#
 # ### Covariance Bell Inequality
-
-# The covariance Bell inequality is a nonlinear Bell inequality that involves the covariance of measurements. It can be expressed as:
+#
+# The covariance between observables A and B is:
 #
 # ```math
-# \text{Cov}(A, B) = \langle A B \rangle - \langle A \rangle \langle B \rangle,
+# \text{Cov}(A, B) = \langle AB \rangle - \langle A \rangle \langle B \rangle
 # ```
 #
-# where $A$ and $B$ are observables measured by two parties. The covariance Bell inequality is nonlinear because it involves the product of expectation values of two observables.
+# This is **nonlinear** because it involves products of expectation values.
 #
-# Let us define the objective function as:
+# The covariance Bell inequality [pozsgay2017Covariance](@cite):
+#
 # ```math
-# f(A_1,A_2,A_3, B_1,B_2,B_3) = \text{Cov}(A_1, B_1) + \text{Cov}(A_1, B_2) + \text{Cov}(A_1,B_3)  + \\ \text{Cov}(A_2, B_1) + \text{Cov}(A_2, B_2) - \text{Cov}(A_2, B_3) + \text{Cov}(A_3, B_1) - \text{Cov}(A_3,B_2).
+# f = \sum_{i,j} s_{ij} \text{Cov}(A_i, B_j)
 # ```
 #
-# It was shown that $f(A_1,A_2,A_3,B_1,B_2,B_3) \leq \frac{9}{2}$ in classical models, while it attains the quantum violation $5$ with a maximally entangled state in a spatial quantum model [pozsgay2017Covariance](@cite).
-#
-# An *open question* is: what is the maximal quantum violation that the covariance Bell inequality can attain in spatial quantum models. We can tackle this question using state polynomial optimization [klep2024State](@cite).
+# with signs $s_{ij} \in \{+1, -1\}$. Classical bound: $f \leq 4.5$. Quantum bound: $f = 5$.
 
-using NCTSSoS, MosekTools
+# #### Step 1: Create unipotent variables
 
-# Create unipotent variables for Alice's and Bob's observables
 registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+# x: Alice's observables [A₁, A₂, A₃]
+# y: Bob's observables [B₁, B₂, B₃]
 
-# Identity monomial for converting StatePolynomial to NCStatePolynomial
-const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
+# #### Step 2: Define the identity monomial
 
-# covariance function
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
+ID = one(NormalMonomial{UnipotentAlgebra, UInt8})
+# ID: identity element (𝟙) needed for state polynomial arithmetic
 
-# objective function
-sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
+ID  # display the identity
+
+# #### Step 3: Define the covariance function using state polynomials
+#
+# State polynomials use `ς(·)` to denote expectation values ⟨·⟩.
+
+cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID -  # ⟨AᵢBⱼ⟩
+            1.0 * ς(x[a]) * ς(y[b]) * ID  # -⟨Aᵢ⟩⟨Bⱼ⟩
+# cov(a,b): covariance Cov(Aₐ, Bᵦ) as a state polynomial
+# ς (varsigma): expectation value operator, type \varsigma + Tab
+
+# Example: Cov(A₁, B₁)
+cov(1, 1)
+
+# #### Step 4: Build the objective function
+
+sp = cov(1,1) + cov(1,2) + cov(1,3) +  # Cov(A₁, B₁) + Cov(A₁, B₂) + Cov(A₁, B₃)
+     cov(2,1) + cov(2,2) - cov(2,3) +  # Cov(A₂, B₁) + Cov(A₂, B₂) - Cov(A₂, B₃)
+     cov(3,1) - cov(3,2)               # Cov(A₃, B₁) - Cov(A₃, B₂)
+# sp: state polynomial for covariance Bell inequality
+
+# #### Step 5: Create optimization problem and solve
 
 spop = polyopt(sp, registry)
+# spop: state polynomial optimization problem
 
 solver_config = SolverConfig(
-    optimizer=SILENT_MOSEK,          # solver backend
-    order=2                             # relaxation order
+    optimizer = Mosek.Optimizer,
+    order = 2
 )
 
 result = cs_nctssos(spop, solver_config)
-@show result.objective
+cov_bound = -result.objective
+# cov_bound: upper bound on covariance Bell violation
 
-# !!! note "Typing Unicodes"
-#     You can type the unicode characters in the code by using `\varsigma` and pressing `Tab` to get the unicode character `ς`.
-#
-# The relaxation bound can be compared against the literature value $5$ [pozsgay2017Covariance](@cite); the closeness depends on solver tolerances.
+cov_bound  # should be close to 5.0
 
-# We can use sparsity to further improve the bound.
+# Compare with known quantum value:
+abs(cov_bound - 5.0)  # difference from theoretical value
 
-using NCTSSoS, MosekTools
+# #### Step 6: Improve bound using term sparsity and higher-order iteration
 
-registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
-
-# Identity monomial for converting StatePolynomial to NCStatePolynomial
-const ID = one(NormalMonomial{UnipotentAlgebra,UInt8})
-
-# covariance function
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID - 1.0 * ς(x[a]) * ς(y[b]) * ID
-
-# objective function
-sp = cov(1,1) + cov(1,2) + cov(1,3) + cov(2,1) + cov(2,2) - cov(2,3) + cov(3,1) - cov(3,2)
-
-spop = polyopt(sp, registry)
-
-solver_config = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    order=3,
-    ts_algo=MF()
+solver_config_ts = SolverConfig(
+    optimizer = Mosek.Optimizer,
+    order = 3,
+    ts_algo = MF()  # term sparsity
 )
+# ts_algo=MF(): enables term sparsity exploitation
 
-result = cs_nctssos(spop, solver_config)
+result_ts = cs_nctssos(spop, solver_config_ts)
+# result_ts: first iteration with term sparsity
 
-result_higher = cs_nctssos_higher(spop, result, solver_config)
-@show result_higher.objective
+result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
+# result_higher: higher-order iteration refining the bound
 
-# The higher-order relaxation tightens the bound toward the literature value $5$ [pozsgay2017Covariance](@cite).
+improved_bound = -result_higher.objective
+# improved_bound: refined upper bound
+
+(improved_bound,               # closer to 5.0
+ abs(improved_bound - 5.0))    # very small difference from theoretical value
+
+# ---
+# ## Summary
+#
+# | Inequality | Operator Type | Classical Bound | Quantum Bound | API |
+# |:-----------|:--------------|:----------------|:--------------|:----|
+# | CHSH | Unipotent (U²=I) | 2 | 2√2 ≈ 2.828 | `create_unipotent_variables` |
+# | I₃₃₂₂ | Projector (P²=P) | 0 | 0.25 | `create_projector_variables` |
+# | Covariance | Unipotent + State | 4.5 | 5 | `ς(·)` state polynomials |
+#
+# Key functions:
+# - `create_unipotent_variables`: Create U² = I operators
+# - `create_projector_variables`: Create P² = P operators
+# - `polyopt`: Create optimization problem
+# - `SolverConfig`: Configure solver and sparsity options
+# - `cs_nctssos`: Solve using moment-SOS hierarchy
+# - `ς(·)`: Expectation value for state polynomials

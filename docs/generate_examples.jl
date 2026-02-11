@@ -13,10 +13,10 @@ println("Generating markdown files from Literate.jl examples...")
 println("Source directory: $EXAMPLES_DIR")
 println("Output directory: $GENERATED_DIR")
 
-# Generate fenced `julia` code blocks (NOT Documenter `@example` blocks), so the
-# docs build won't try to execute examples (CI has no Mosek license).
+# Execute examples locally (requires Mosek license) and commit the generated
+# markdown with outputs.  CI serves the pre-generated files directly.
 config = Dict(
-    "execute" => false,
+    "execute" => true,
     "flavor" => Literate.CommonMarkFlavor(),
 )
 

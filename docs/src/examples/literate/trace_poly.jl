@@ -1,153 +1,242 @@
-# # Tracial Polynomial Optimization
-
-# ## Toy Example
-# Let's learn how to do [tracial polynomial optimization](@ref
-# tracial-polynomial) from a toy example.
+# # [Tracial Polynomial Optimization](@id tracial-polynomial-optimization)
 #
-# We use [`NCTSSoS.tr`](@ref) to declare a part of a term in
-# tracial polynomial.
+# Tracial polynomial optimization minimizes polynomial expressions involving
+# traces of noncommutative operators. This arises naturally in quantum
+# information when optimizing over quantum states via the moment-SOS
+# hierarchy [klep2022Optimization](@cite).
+#
+# This example covers three problems of increasing complexity:
+#
+# 1. A **toy problem** with projector variables — minimal setup to learn the API.
+# 2. The **CHSH Bell inequality** — finding the Tsirelson bound $2\sqrt{2}$.
+# 3. A **covariance Bell inequality** — nonlinear tracial objective involving
+#    products of expectation values.
+#
+# **Prerequisites**: familiarity with
+# [tracial polynomial concepts](@ref tracial-polynomial) and
+# the basic [polynomial optimization API](@ref).
+
+# ## Setup
+#
+# We use MosekTools as the SDP solver backend. To silence solver output,
+# we wrap it with `MOI.OptimizerWithAttributes`.
 
 using NCTSSoS, MosekTools
-using NCTSSoS: tr
 
-# We use MathOptInterface (MOI) to configure the SDP solver backend (here: Mosek)
-# and silence its output.
 const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true);
+nothing #hide
 
-# Create projector variables using the typed algebra system.
+# ---
+# ## Toy Example: Projector Trace Polynomial
 #
-# - `registry` stores the variable mapping and the algebra constraints.
-# - `x` is a length-3 vector of noncommutative projector variables satisfying
-#   `x[i]^2 = x[i]` (idempotency is enforced by the `ProjectorAlgebra` type).
-registry, (x,) = create_projector_variables([("x", 1:3)])
-
-# `tr(·)` constructs a *tracial state polynomial* (a symbolic moment in a tracial
-# state).
+# We minimize a tracial polynomial over three projector variables $P_1, P_2, P_3$
+# satisfying $P_i^2 = P_i$.
 #
-# Internally, NCTSSoS represents noncommutative words using `NormalMonomial{A,T}`
-# (where `A` is the algebra type and `T` is the index integer type). To pass a
-# tracial state polynomial to `polyopt`, we multiply by the identity monomial to
-# embed it as a noncommutative polynomial objective.
-#
-# Identity monomial for converting StatePolynomial to NCStatePolynomial.
-const ID_PROJECTOR = one(NormalMonomial{ProjectorAlgebra,UInt8})
-
-p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID_PROJECTOR
-
-# Polynomial Optimization declaration and solving interface is the same as regular
-# polynomial optimization. No need for is_projective or comm_gps - the registry
-# encodes all algebra constraints!
-
-spop = polyopt(p, registry)
-
-# The SDP relaxation is configured via `SolverConfig`.
-#
-# `order` is the moment/SOS relaxation order: higher order typically yields a
-# tighter bound at the cost of a larger SDP.
-#
-# We solve the relaxation with `cs_nctssos`; the returned `result.objective` is a
-# certified bound from the SDP relaxation.
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2)
-
-result = cs_nctssos(spop, solver_config)
-
-@show result.objective
-
-@assert isapprox(result.objective , -0.046717378455438933, atol = 1e-6)
-
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3)
-
-result = cs_nctssos(spop, solver_config)
-
-@show result.objective
-
-@assert isapprox(result.objective, -0.03124998978001017, atol = 1e-6)
-
-# The literature values are $-0.046717378455438933$ (order 2) and
-# $-0.03124998978001017$ (order 3), and the outputs above match within
-# $10^{-6}$ absolute tolerance [klep2022Optimization](@cite).
-
-# ## Polynomial Bell Inequalities
-
-# Polynomial Bell inequalities provide a powerful framework for detecting quantum
-# entanglement and non-locality in bipartite quantum systems. These inequalities
-# impose constraints on the correlations that can be achieved by local hidden
-# variable models, and their violation serves as a signature of quantum mechanical
-# behavior. For maximally entangled bipartite states, such as Bell states, the
-# quantum correlations can exceed the classical bounds imposed by these polynomial
-# inequalities, demonstrating the non-local nature of quantum entanglement. The
-# following examples illustrate how tracial polynomial optimization can be used to
-# compute the maximum violation of specific Bell inequalities, revealing the
-# extent to which quantum mechanics transcends classical limitations.
-
-using NCTSSoS, MosekTools
-using NCTSSoS: tr
-
-# Create unipotent variables (operators that square to identity).
-#
-# Here we model Alice's observables as `x[1:2]` and Bob's observables as
-# `y[1:2]`. Variables from different labels ("x" vs "y") commute by construction,
-# which encodes the bipartite/spatial separation assumption.
-registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-
-# Identity monomial for converting StatePolynomial to NCStatePolynomial
-const ID_UNIPOTENT = one(NormalMonomial{UnipotentAlgebra,UInt8})
-
-# `cs_nctssos` minimizes the objective by default. To compute the *maximum*
-# quantum value of the CHSH expression, we minimize its negative.
-p = -1.0 * tr(x[1] * y[1]) - 1.0 * tr(x[1] * y[2]) - 1.0 * tr(x[2] * y[1]) + 1.0 * tr(x[2] * y[2])
-
-tpop = polyopt(p * ID_UNIPOTENT, registry)
-
-# `ts_algo` selects a term-sparsity heuristic to reduce SDP size (optional).
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=1, ts_algo=MaximalElimination())
-
-result = cs_nctssos(tpop, solver_config)
-
-@show result.objective
-
-@assert isapprox(result.objective, -2.8284271157283083, atol = 1e-5)
-
-# Our computation matches the theoretical prediction $-2.8284271247461903$ to
-# within $10^{-6}$ absolute tolerance [klep2022Optimization](@cite).
-
-# ## Covariance of quantum correlation
-
-# This section follows the "covariance Bell inequality" setup: the covariance of
-# two observables is
+# The objective is:
 # ```math
-# \operatorname{Cov}(A, B) = \langle AB \rangle - \langle A \rangle\langle B \rangle.
+# f = \operatorname{tr}(P_1 P_2 P_3) + \operatorname{tr}(P_1 P_2)\,\operatorname{tr}(P_3)
 # ```
-# We construct a linear combination of such covariances and compute its optimum
-# via tracial polynomial optimization.
+
+# #### Step 1: Create projector variables
+
+registry, (x,) = create_projector_variables([("x", 1:3)]);
+# registry: stores variable-to-index mapping and the ProjectorAlgebra constraint
+# x: length-3 vector of NormalMonomial{ProjectorAlgebra, UInt8}
+nothing #hide
+
+# #### Step 2: Build the tracial objective
 #
-# As in the Bell example, we use unipotent variables to represent $\pm 1$ valued
-# observables.
+# [`tr`](@ref) converts a `Polynomial` into a `StatePolynomial` — a symbolic
+# expression of trace moments.  To pass it to [`polyopt`](@ref), we embed it as
+# an `NCStatePolynomial` by multiplying with the identity monomial.
+
+ID_PROJ = one(NormalMonomial{ProjectorAlgebra, UInt8})
+# ID_PROJ: identity element 𝟙 — the multiplication converts StatePolynomial → NCStatePolynomial
+
+p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * ID_PROJ;
+nothing #hide
+
+# #### Step 3: Create the optimization problem
+
+spop = polyopt(p, registry);
+# spop: PolyOpt wrapping objective + registry (algebra constraints encoded automatically)
+nothing #hide
+
+# #### Step 4: Solve at relaxation order 2
 #
-# Here we introduce two commuting groups of variables, Alice `x[1:3]` and Bob
-# `y[1:3]`.
+# [`SolverConfig`](@ref) specifies the SDP backend and the moment/SOS hierarchy
+# `order`. Higher order yields tighter bounds at the cost of larger SDPs.
 
-using NCTSSoS, MosekTools
-using NCTSSoS: tr
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2);
 
-registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+result = cs_nctssos(spop, solver_config);
+# result.objective: certified SDP lower bound on f
 
-cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
+@show result.objective
+@assert isapprox(result.objective, -0.046717378455438933, atol=1e-6)
 
-# As above, we minimize the negative of the covariance Bell expression to obtain
-# the maximum quantum value.
-p = -1.0 * (cov(1, 1) + cov(1, 2) + cov(1, 3) + cov(2, 1) + cov(2, 2) - cov(2, 3) + cov(3, 1) - cov(3, 2))
-tpop = polyopt(p * ID_UNIPOTENT, registry)
+# #### Step 5: Tighten the bound at order 3
 
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2)
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3);
 
-result = cs_nctssos(tpop, solver_config)
+result = cs_nctssos(spop, solver_config);
+
+@show result.objective
+@assert isapprox(result.objective, -0.03124998978001017, atol=1e-6)
+
+# The literature values are $-0.0467$ (order 2) and $-0.0312$ (order 3); our
+# results match within $10^{-6}$ absolute tolerance [klep2022Optimization](@cite).
+
+# ---
+# ## CHSH Bell Inequality (Tracial Form)
+#
+# The CHSH inequality bounds correlations between two parties with $\pm 1$-valued
+# observables $A_1, A_2$ (Alice) and $B_1, B_2$ (Bob):
+#
+# ```math
+# \mathcal{B}_{\text{CHSH}}
+#   = \operatorname{tr}(A_1 B_1) + \operatorname{tr}(A_1 B_2)
+#   + \operatorname{tr}(A_2 B_1) - \operatorname{tr}(A_2 B_2).
+# ```
+#
+# Classical bound: $\mathcal{B} \leq 2$. Quantum bound (Tsirelson):
+# $\mathcal{B} \leq 2\sqrt{2} \approx 2.828$.
+#
+# Here we use `UnipotentAlgebra` ($U^2 = I$) to model the observables. Since
+# `cs_nctssos` *minimizes*, we minimize $-\mathcal{B}$ and expect
+# $\approx -2\sqrt{2}$.
+
+# #### Step 1: Create unipotent variables
+#
+# Variables from different labels (`"x"` vs `"y"`) commute, encoding the
+# bipartite/spatial-separation assumption.
+
+registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)]);
+# x: Alice's observables [A₁, A₂]
+# y: Bob's observables [B₁, B₂]
+nothing #hide
+
+ID_UNIP = one(NormalMonomial{UnipotentAlgebra, UInt8});
+# ID_UNIP: identity element for StatePolynomial → NCStatePolynomial conversion
+nothing #hide
+
+# #### Step 2: Define the (negated) CHSH tracial expression
+
+p = -1.0 * tr(x[1] * y[1]) +  ## −tr(A₁B₁)
+    -1.0 * tr(x[1] * y[2]) +  ## −tr(A₁B₂)
+    -1.0 * tr(x[2] * y[1]) +  ## −tr(A₂B₁)
+     1.0 * tr(x[2] * y[2]);   ## +tr(A₂B₂)
+nothing #hide
+
+# #### Step 3: Solve with term-sparsity exploitation
+#
+# `ts_algo = MaximalElimination()` decomposes the SDP into independent blocks
+# via connected components of the variable interaction graph.
+
+tpop = polyopt(p * ID_UNIP, registry);
+
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=1, ts_algo=MaximalElimination());
+
+result = cs_nctssos(tpop, solver_config);
+
+@show result.objective
+@assert isapprox(result.objective, -2 * sqrt(2), atol=1e-5)
+
+# The result matches the Tsirelson bound $-2\sqrt{2} \approx -2.828$
+# [klep2022Optimization](@cite).
+
+# ---
+# ## Covariance Bell Inequality
+#
+# Nonlinear Bell inequalities involve products of expectation values, not just
+# single traces. The covariance of observables $A_i, B_j$ is:
+#
+# ```math
+# \operatorname{Cov}(A_i, B_j)
+#   = \langle A_i B_j \rangle
+#   - \langle A_i \rangle\,\langle B_j \rangle.
+# ```
+#
+# We compute the maximum quantum value of the covariance Bell expression
+# [pozsgay2017Covariance](@cite):
+#
+# ```math
+# f = \sum_{(i,j)\in S^+} \operatorname{Cov}(A_i, B_j)
+#   - \sum_{(i,j)\in S^-} \operatorname{Cov}(A_i, B_j)
+# ```
+#
+# where $S^+ = \{(1,1),(1,2),(1,3),(2,1),(2,2),(3,1)\}$ and
+# $S^- = \{(2,3),(3,2)\}$.
+# Classical bound: $f \leq 4.5$.  Quantum bound: $f = 5$.
+#
+# !!! note "tr vs ς"
+#     [`tr`](@ref) builds a `StatePolynomial{MaxEntangled}` — a moment in the
+#     maximally entangled (tracial) state.  [`ς`](@ref) (type `\varsigma` + Tab)
+#     builds a `StatePolynomial{Arbitrary}` — a moment optimized over all states.
+#     The covariance Bell inequality requires optimizing over arbitrary states,
+#     so we use `ς` here.
+
+# #### Step 1: Create unipotent variables (3 per party)
+
+registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)]);
+# x: Alice's observables [A₁, A₂, A₃]
+# y: Bob's observables [B₁, B₂, B₃]
+nothing #hide
+
+ID_UNIP = one(NormalMonomial{UnipotentAlgebra, UInt8});
+nothing #hide
+
+# #### Step 2: Define covariance using arbitrary-state expectation values
+#
+# Each factor `ς(·) * ID_UNIP` embeds one expectation value as an
+# `NCStatePolynomial`.  Their product captures the nonlinear structure
+# $\langle\cdot\rangle - \langle\cdot\rangle\langle\cdot\rangle$ symbolically.
+
+cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID_UNIP -
+            1.0 * ς(x[a]) * ς(y[b]) * ID_UNIP;
+nothing #hide
+
+# #### Step 3: Build and solve the (negated) objective
+
+p = -1.0 * (
+    cov(1, 1) + cov(1, 2) + cov(1, 3) +   ## Cov(A₁,B₁) + Cov(A₁,B₂) + Cov(A₁,B₃)
+    cov(2, 1) + cov(2, 2) - cov(2, 3) +   ## Cov(A₂,B₁) + Cov(A₂,B₂) − Cov(A₂,B₃)
+    cov(3, 1) - cov(3, 2)                  ## Cov(A₃,B₁) − Cov(A₃,B₂)
+);
+nothing #hide
+
+tpop = polyopt(p, registry);
+
+solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2);
+
+result = cs_nctssos(tpop, solver_config);
 
 @show result.objective
 abs_error = abs(result.objective + 5.0)
 @show abs_error
 @assert abs_error < 1e-3
 
-# Again, the literature value is $-5$, and the printed absolute error above
-# shows the match [klep2022Optimization](@cite).
+# The quantum value $-5$ is recovered within $10^{-3}$ absolute tolerance
+# [pozsgay2017Covariance](@cite).
+
+# ---
+# ## Summary
+#
+# | Problem | Algebra | Key function | Classical bound | Quantum bound |
+# |:--------|:--------|:-------------|:----------------|:--------------|
+# | Toy trace polynomial | `ProjectorAlgebra` ($P^2 = P$) | `tr` | — | −0.0312 (order 3) |
+# | CHSH (tracial) | `UnipotentAlgebra` ($U^2 = I$) | `tr` | 2 | $2\sqrt{2} \approx 2.828$ |
+# | Covariance Bell | `UnipotentAlgebra` ($U^2 = I$) | `ς(·) − ς(·)·ς(·)` | 4.5 | 5 |
+#
+# Key API:
+# - [`create_projector_variables`](@ref): create $P^2 = P$ operators
+# - [`create_unipotent_variables`](@ref): create $U^2 = I$ operators
+# - [`tr`](@ref): build tracial (maximally entangled) state polynomials
+# - [`ς`](@ref) / [`varsigma`](@ref): build arbitrary-state polynomials
+# - [`polyopt`](@ref): formulate optimization problem
+# - [`SolverConfig`](@ref): configure solver and sparsity options
+# - [`cs_nctssos`](@ref): solve via moment-SOS hierarchy
+#
+# For linear (non-tracial) Bell inequalities, see the
+# [Bell inequalities example](@ref bell-inequalities).

@@ -102,12 +102,28 @@ result = cs_nctssos(spop, solver_config);
 # [`cs_nctssos`](@ref) *minimizes*, we negate the Bell expression and expect
 # $\approx -2\sqrt{2}$.
 
-# #### Step 1 — Create unipotent variables
+# #### Step 1 — Create unipotent variables (single group)
 #
-# Separate label groups (`"x"` vs `"y"`) commute, encoding the bipartite
-# locality assumption.
+# Variables in the same label group do **not** commute. We place all four
+# observables in one group, then split into Alice/Bob symbols.
+#
+# !!! note "Why non-commuting? The transpose trick"
+#     In the tracial formulation, bipartite expectations over a maximally
+#     entangled state are rewritten via the identity
+#     ``\langle\phi^+|A\otimes B|\phi^+\rangle = \tfrac{1}{k}\operatorname{Tr}(A\,B^{\mathsf T})``
+#     [klep2022Optimization](@cite).
+#     When we write `tr(xᵢ * yⱼ)`, the variable `yⱼ` represents the
+#     **transposed** Bob operator ``B_j^{\mathsf T}``. Placing Alice and Bob
+#     in separate label groups would impose ``[A_i, B_j^{\mathsf T}] = 0``,
+#     which is **stronger** than the physical tensor-product commutation
+#     ``[A_i \otimes I,\, I \otimes B_j] = 0``. Using a single group leaves
+#     the variables non-commuting, matching the correct constraint set.
+#     See the [Bell inequalities example](@ref bell-inequalities) for the
+#     state-polynomial formulation, where separate groups *are* appropriate.
 
-registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)]);
+registry, (vars,) = create_unipotent_variables([("v", 1:4)]);
+x = vars[1:2];  # Alice: A₁, A₂
+y = vars[3:4];  # Bob:   B₁, B₂
 nothing #hide
 
 # #### Step 2 — Define the negated CHSH expression
@@ -162,8 +178,9 @@ result = cs_nctssos(tpop, solver_config);
 
 # #### Step 1 — Create unipotent variables (single group)
 #
-# Variables within the same label group do **not** commute. To keep all six
-# observables non-commuting, we place them in one group and split afterward.
+# As with CHSH above, the tracial formulation requires non-commuting
+# variables (see the note on the transpose trick). We place all six
+# observables in one group and split afterward.
 
 registry, (vars,) = create_unipotent_variables([("v", 1:6)]);
 x = vars[1:3];  # Alice: A₁, A₂, A₃

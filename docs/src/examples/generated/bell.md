@@ -1,4 +1,4 @@
-# [Bell inequalities](@id bell-inequalities)
+# Bell inequalities
 
 Bell inequalities test whether quantum mechanics can be explained by local hidden variable
 theories. They are linear combinations of expectation values with bounds that differ between
@@ -128,7 +128,7 @@ pop: polynomial optimization problem maximizing f
 
 ````julia
 solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,  # SDP solver backend
+    optimizer = COSMO.Optimizer,  # SDP solver backend
     order = 1                      # relaxation order (hierarchy level)
 )
 ````
@@ -211,7 +211,7 @@ pop = polyopt(-f, registry)
 pop: minimize -f (equivalent to maximize f)
 
 ````julia
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
+solver_config = SolverConfig(optimizer=COSMO.Optimizer, order=2)
 ````
 
 order=2: second level of the moment hierarchy
@@ -246,7 +246,7 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
     x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
 pop = polyopt(-f, registry)
 
-solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
+solver_config_dense = SolverConfig(optimizer=COSMO.Optimizer, order=3)
 ````
 
 solver_config_dense: no sparsity exploitation
@@ -266,7 +266,7 @@ bound_dense
 
 ````julia
 solver_config_sparse = SolverConfig(
-    optimizer = Mosek.Optimizer,
+    optimizer = COSMO.Optimizer,
     order = 6,             # higher order for better bound
     cs_algo = MF()         # use MaxFlow algorithm for correlative sparsity
 )
@@ -374,7 +374,7 @@ spop: state polynomial optimization problem
 
 ````julia
 solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,
+    optimizer = COSMO.Optimizer,
     order = 2
 )
 
@@ -398,7 +398,7 @@ abs(cov_bound - 5.0)  # difference from theoretical value
 
 ````julia
 solver_config_ts = SolverConfig(
-    optimizer = Mosek.Optimizer,
+    optimizer = COSMO.Optimizer,
     order = 3,
     ts_algo = MF()  # term sparsity
 )

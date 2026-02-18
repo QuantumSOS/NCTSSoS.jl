@@ -3,10 +3,14 @@ name: Droid Auto Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
 
 jobs:
   prepare:
-    if: github.event.pull_request.draft == false
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@droid') && contains(github.event.comment.body, 'review'))
     runs-on: ubuntu-latest
     permissions:
       contents: read

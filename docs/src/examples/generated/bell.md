@@ -1,4 +1,4 @@
-# Bell inequalities
+# [Bell inequalities](@id bell-inequalities)
 
 Bell inequalities test whether quantum mechanics can be explained by local hidden variable
 theories. They are linear combinations of expectation values with bounds that differ between

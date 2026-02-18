@@ -17,7 +17,7 @@ println("Output directory: $GENERATED_DIR")
 # markdown with outputs.  CI serves the pre-generated files directly.
 config = Dict(
     "execute" => true,
-    "flavor" => Literate.CommonMarkFlavor(),
+    "flavor" => Literate.DocumenterFlavor(),
 )
 
 # Convert Literate.jl scripts to markdown

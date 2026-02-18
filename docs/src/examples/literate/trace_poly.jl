@@ -39,6 +39,12 @@ nothing #hide
 # ```
 
 # #### Step 1 — Create projector variables
+#
+# Each tuple `("x", 1:3)` declares a **label group**: the string is a name
+# prefix and the range gives the indices, producing variables `x[1], x[2], x[3]`.
+# The returned `registry` stores the symbol ↔ index mapping and algebra
+# constraints; it is passed to [`polyopt`](@ref) so the solver knows the
+# variable structure.
 
 registry, (x,) = create_projector_variables([("x", 1:3)]);
 nothing #hide

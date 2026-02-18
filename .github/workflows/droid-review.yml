@@ -12,6 +12,7 @@ jobs:
       contents: read
       pull-requests: write
       issues: write
+      id-token: write
     outputs:
       comment_id: ${{ steps.tracking.outputs.comment_id }}
       run_code_review: ${{ steps.tracking.outputs.run_code_review }}

@@ -86,14 +86,16 @@ const SHOULD_RUN_MINIMAL = RUN_MINIMAL || USE_CI_DEFAULT
     # |---|-----------------------|-----------------------------|----------------------|
     # | 1 | Dense baseline        | No sparsity (baseline)      | chsh_simple.jl       |
     # | 2 | Correlative sparsity  | MF clique decomposition     | chsh_simple.jl       |
-    # | 3 | Term sparsity         | MMD block reduction         | nc_example1.jl       |
-    # | 4 | Combined CS+TS        | Both + constraints          | nc_example2.jl       |
-    # | 5 | Dualization           | SOS ≈ Moment equivalence    | dualization.jl       |
+    # | 3 | Correlative sparsity  | Graph/cliques/assignment    | correlative_sparsity_structural.jl |
+    # | 4 | Term sparsity         | MMD block reduction         | nc_example1.jl       |
+    # | 5 | Combined CS+TS        | Both + constraints          | nc_example2.jl       |
+    # | 6 | Dualization           | SOS ≈ Moment equivalence    | dualization.jl       |
     # =========================================================================
     if SHOULD_RUN_MINIMAL
         include("TestUtils.jl")
         @testset "Minimal Suite" begin
             include("problems/bell_inequalities/chsh_simple.jl")
+            include("relaxations/correlative_sparsity_structural.jl")
             include("problems/nc_polynomial/nc_example1.jl")
             include("problems/nc_polynomial/nc_example2.jl")
             include("relaxations/dualization.jl")

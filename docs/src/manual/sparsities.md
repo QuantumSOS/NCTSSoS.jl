@@ -23,6 +23,29 @@ to a maximal clique.
 
 ![Hand waving effect of Correlative Sparsity](../assets/sub_problem.typ.svg)
 
+### Usage (inspect cliques)
+
+You can inspect the correlative sparsity pattern without solving an SDP:
+
+```julia
+using NCTSSoS
+
+# Example: CHSH Bell inequality (unipotent algebra)
+reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
+pop = polyopt(-f, reg)
+
+# Compute sparsity only (no solve). The optimizer is not used by `compute_sparsity`.
+config = SolverConfig(optimizer=nothing, order=1, cs_algo=MF(), ts_algo=NoElimination())
+sparsity = compute_sparsity(pop, config)
+
+# Variable cliques (stored as registry indices)
+sparsity.corr_sparsity.cliques
+
+# Pretty-printed summary (variables, bases, assigned constraints)
+println(sparsity.corr_sparsity)
+```
+
 ## [Term Sparsity](@id term-sparsity)
 
 Term sparsity, also known as ideal sparsity, is a more direct way of exploiting

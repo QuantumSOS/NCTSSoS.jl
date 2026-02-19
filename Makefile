@@ -102,7 +102,7 @@ oracle-%:
 # =============================================================================
 
 servedocs:
-	$(JL) -e 'using Pkg; Pkg.activate("docs"); using LiveServer; servedocs(;skip_dirs=["docs/src/assets","docs/src/generated"])'
+	$(JL) -e 'using Pkg; Pkg.activate("docs"); Pkg.develop(path="."); using LiveServer; servedocs(;skip_dirs=["docs/src/assets","docs/src/generated"])'
 
 examples:
 	$(JL) docs/generate_examples.jl

@@ -163,7 +163,6 @@ end
             f = sum(x[i] * x[mod1(i + 1, n)] for i = 1:n)
 
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, typeof(f)[])
-            savegraph("example1.lgz", G)
 
             adj = graph_adjacency_by_index(G, sorted_indices)
             # x[1] connects to x[2], x[4]; x[2] to x[1], x[3]; etc.
@@ -188,7 +187,6 @@ end
                 9.0 * x[3] * x[2]^2 - 54.0 * x[3] * x[2] * x[3] + 142.0 * x[3] * x[2]^2 * x[3]
 
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, typeof(f)[])
-            savegraph("example2.lgz", G)
 
             adj = graph_adjacency_by_index(G, sorted_indices)
             @test adj[x_idx[1]] == [x_idx[2]]
@@ -225,8 +223,6 @@ end
 
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, typeof(f)[])
 
-            savegraph("example3.lgz", G)
-
             expected_neighbors = [[2, 3, 4, 5, 6, 7], [1, 3, 4, 5, 6, 7, 8], [1, 2, 4, 5, 6, 7, 8, 9], [1, 2, 3, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 8, 9, 10], [2, 3, 4, 5, 6, 7, 9, 10], [3, 4, 5, 6, 7, 8, 10], [4, 5, 6, 7, 8, 9]]
 
             adj = graph_adjacency_by_index(G, sorted_indices)
@@ -251,7 +247,6 @@ end
 
             cons = vcat([1.0 - x[i]^2 for i = 1:n], [x[i] - 1.0 / 3 for i = 1:n])
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, cons)
-            savegraph("example4.lgz", G)
 
             expected_neighbors = [[2], [1, 3], [2]]
 
@@ -274,7 +269,6 @@ end
                 x[3] * (y[1] - y[2]) - x[1] - 2.0 * y[1] - y[2]
 
             G, sorted_indices, idx_to_node = get_correlative_graph(registry, f, typeof(f)[])
-            savegraph("example5.lgz", G)
 
             adj = graph_adjacency_by_index(G, sorted_indices)
 
@@ -295,37 +289,82 @@ end
     end
 
     @testset "Clique Decomposition" begin
-        G = loadgraph("example1.lgz")
-        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:4)]
-        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [1, 4], [2, 3], [3, 4]]
-        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2, 4], [2, 3, 4]]
-        rm("example1.lgz")
+        @testset "Ring graph (n=4)" begin
+            G = SimpleGraph(4)
+            add_edge!(G, 1, 2)
+            add_edge!(G, 2, 3)
+            add_edge!(G, 3, 4)
+            add_edge!(G, 4, 1)
 
-        G = loadgraph("example2.lgz")
-        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:3)]
-        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [2, 3]]
-        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2], [2, 3]]
-        rm("example2.lgz")
+            @test sort.(clique_decomp(G, NoElimination())) == [collect(1:4)]
+            @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [1, 4], [2, 3], [3, 4]]
+            @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2, 4], [2, 3, 4]]
+        end
 
-        G = loadgraph("example3.lgz")
-        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:10)]
-        @test sort(sort.(clique_decomp(G, AsIsElimination()))) ==  [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
-        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
-        rm("example3.lgz")
+        @testset "Chain graph (n=3)" begin
+            G = SimpleGraph(3)
+            add_edge!(G, 1, 2)
+            add_edge!(G, 2, 3)
 
-        G = loadgraph("example4.lgz")
-        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:3)]
-        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [2, 3]]
-        @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2], [2, 3]]
-        rm("example4.lgz")
+            @test sort.(clique_decomp(G, NoElimination())) == [collect(1:3)]
+            @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [2, 3]]
+            @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2], [2, 3]]
+        end
 
-        G = loadgraph("example5.lgz")
-        @test sort.(clique_decomp(G, NoElimination())) == [collect(1:6)]
-        @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [2, 6], [3, 4], [3, 5]]
-        @test sort(sort.(clique_decomp(G, MF()))) == [
-            [1, 2, 4, 5], [1, 2, 6], [3, 4, 5]
-        ]
-        rm("example5.lgz")
+        @testset "Dense graph (n=10)" begin
+            n = 10
+            expected_neighbors = [
+                [2, 3, 4, 5, 6, 7],
+                [1, 3, 4, 5, 6, 7, 8],
+                [1, 2, 4, 5, 6, 7, 8, 9],
+                [1, 2, 3, 5, 6, 7, 8, 9, 10],
+                [1, 2, 3, 4, 6, 7, 8, 9, 10],
+                [1, 2, 3, 4, 5, 7, 8, 9, 10],
+                [1, 2, 3, 4, 5, 6, 8, 9, 10],
+                [2, 3, 4, 5, 6, 7, 9, 10],
+                [3, 4, 5, 6, 7, 8, 10],
+                [4, 5, 6, 7, 8, 9],
+            ]
+
+            G = SimpleGraph(n)
+            for i in 1:n
+                for j in expected_neighbors[i]
+                    i < j && add_edge!(G, i, j)
+                end
+            end
+
+            @test sort.(clique_decomp(G, NoElimination())) == [collect(1:10)]
+            @test sort(sort.(clique_decomp(G, AsIsElimination()))) ==
+                  [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
+            @test sort(sort.(clique_decomp(G, MF()))) ==
+                  [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
+        end
+
+        @testset "Chain with constraints (n=3)" begin
+            G = SimpleGraph(3)
+            add_edge!(G, 1, 2)
+            add_edge!(G, 2, 3)
+
+            @test sort.(clique_decomp(G, NoElimination())) == [collect(1:3)]
+            @test sort(sort.(clique_decomp(G, AsIsElimination()))) == [[1, 2], [2, 3]]
+            @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2], [2, 3]]
+        end
+
+        @testset "Bipartite (x[1:3], y[1:3])" begin
+            G = SimpleGraph(6)
+            for (u, v) in [
+                (1, 4), (1, 5), (1, 6),
+                (2, 4), (2, 5), (2, 6),
+                (3, 4), (3, 5),
+            ]
+                add_edge!(G, u, v)
+            end
+
+            @test sort.(clique_decomp(G, NoElimination())) == [collect(1:6)]
+            @test sort(sort.(clique_decomp(G, AsIsElimination()))) ==
+                  [[1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [2, 6], [3, 4], [3, 5]]
+            @test sort(sort.(clique_decomp(G, MF()))) == [[1, 2, 4, 5], [1, 2, 6], [3, 4, 5]]
+        end
     end
 
     @testset "Assign Constraint" begin

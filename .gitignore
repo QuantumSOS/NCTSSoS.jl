@@ -40,3 +40,6 @@ benchmark/result.json
 # Local Julia environment
 .julia_depot/
 .juliaup/
+
+# Local reference papers
+/2006.12510v4.pdf

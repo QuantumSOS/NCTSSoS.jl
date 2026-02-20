@@ -4,35 +4,36 @@ EditURL = "../literate/trace_poly.jl"
 
 # [Tracial Polynomial Optimization](@id tracial-polynomial-optimization)
 
-Can quantum mechanics really outperform classical physics in a
-*provable*, *quantitative* way?  Bell inequalities answer yes:
-they define sharp thresholds that separate classical correlations from
-quantum ones.  Computing these quantum bounds is, at heart, a
-**tracial polynomial optimization** problem — minimize a polynomial in
-noncommutative operators under a trace (expectation) functional
+Can quantum mechanics outperform classical physics in a *provable*,
+*quantitative* way?  Bell inequalities answer yes: they set sharp
+thresholds separating classical from quantum correlations.  Computing
+quantum bounds is a **tracial polynomial optimization** problem —
+minimize a polynomial in noncommutative operators under a
+[tracial state](@ref tracial-polynomial) (normalized trace).
+For a maximally entangled bipartite state
+$\psi_k = \tfrac{1}{\sqrt{k}}\sum_{i=1}^k |ii\rangle$,
+``\langle\psi_k|X\otimes Y|\psi_k\rangle = \tfrac{1}{k}\operatorname{Tr}(X\,Y^{\mathsf T})``,
+so Bell-inequality optimization over such states reduces to tracial form
 [klep2022Optimization](@cite).
 
-In this tutorial we build up to that punchline in three stages:
+This tutorial covers three problems of increasing complexity:
 
-1. **Warm-up** — a toy projector problem to learn the API in isolation.
-2. **CHSH inequality** — the most celebrated Bell test, where quantum
-   mechanics beats the classical limit by a factor of $\sqrt{2}$.
-3. **Covariance Bell inequality** — a *nonlinear* generalization that
-   shows the quantum advantage persists even when we strip away marginal
-   biases.
+1. **Warm-up** — a toy projector ($P^2 = P$) problem to learn the API.
+2. **CHSH inequality** — a two-party Bell test where quantum beats
+   classical by $\sqrt{2}$.
+3. **Covariance Bell inequality** — a *nonlinear* generalization using
+   bias-corrected correlations.
 
-Each section first tells the *physics story* (what we measure, what
-classical and quantum theory predict), then shows how NCTSSoS turns
-that story into code.
-
-**Prerequisites**: familiarity with
-[tracial polynomial concepts](@ref tracial-polynomial) and the
-[polynomial optimization API](@ref polynomial-optimization).
+!!! note "Prerequisites"
+    [Trace polynomials](@ref tracial-polynomial),
+    [polynomial optimization](@ref polynomial-optimization), and the
+    [moment-SOHS hierarchy](@ref moment-sohs-hierarchy).
+    For the same inequalities in *state-polynomial* form (bipartite,
+    separate sites), see [Bell inequalities](@ref bell-inequalities).
 
 ## Setup
 
-We use Mosek as the SDP solver. The `MOI.Silent()` attribute suppresses
-solver output.
+We use [Mosek](@ref mosek) as the SDP solver, silenced via MathOptInterface.
 
 ````julia
 using NCTSSoS, MosekTools
@@ -42,45 +43,45 @@ const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() =
 ````
 
 ---
-## Warm-up: Projector Trace Polynomial
+## Warm-up: Three Projectors ($P^2 = P$)
 
-Before we tackle Bell inequalities, let us get comfortable with the API
-on a small, self-contained problem.
-
-**Physical picture.**  Projectors ($P^2 = P$) appear everywhere in
-quantum mechanics — they represent yes/no measurement outcomes.
-A trace polynomial in projectors, such as
+A [projector](@ref monoid-algebras-showcase) ($P^2 = P$) models a yes/no
+measurement in quantum mechanics.
+Given three projectors $P_1, P_2, P_3$, define
 
 ```math
 f = \operatorname{tr}(P_1 P_2 P_3)
-  + \operatorname{tr}(P_1 P_2)\,\operatorname{tr}(P_3),
+  + \operatorname{tr}(P_1 P_2)\,\operatorname{tr}(P_3).
 ```
 
-measures how three projective measurements interact.  The first term
-captures a *joint* three-body correlation; the second is a product of
-two lower-order moments.  We want the minimum of $f$ over *all*
-possible quantum realizations of $P_1, P_2, P_3$.
+The first term is a three-body trace moment; the second mixes a pairwise
+moment with a single-body moment.  If the projectors commuted (a classical
+model), both terms would be nonnegative joint probabilities and $f \ge 0$.
+A negative value witnesses genuinely noncommuting structure.
 
-**Goal.**  Find the tightest lower bound on $f$ using the moment-SOS
-hierarchy, and see how the bound improves as we increase the
-relaxation order.
+How negative can $f$ get over all quantum realizations?
+We approximate this minimum with the
+[moment-SOHS hierarchy](@ref moment-sohs-hierarchy): a sequence of
+[SDP](@ref semidefinite-programming) relaxations whose bounds tighten
+with increasing **order**.
 
-We declare three projector variables.  Each tuple `("x", 1:3)` creates
-a **label group**: the string is a name prefix and the range gives the
-indices.  The `registry` stores symbol ↔ index mappings and algebra
-constraints, which [`polyopt`](@ref) needs later to build the SDP.
+Each tuple `("P", 1:3)` creates one **label group** (one physical site):
+operators across groups commute; within a group they need not.
+The `registry` stores symbol ↔ index mappings and the constraint
+$P_i^2 = P_i$.
 
 ````julia
-registry, (x,) = create_projector_variables([("x", 1:3)]);
+registry, (P,) = create_projector_variables([("P", 1:3)]);
 ````
 
-Translating the math into code is direct: [`tr`](@ref) wraps a
-polynomial into a trace moment, and multiplying by the identity
-monomial `𝟙` produces the `NCStatePolynomial` that [`polyopt`](@ref) expects.
+[`tr`](@ref) wraps an operator word in the trace functional, producing a
+scalar trace moment.  Since the objective is purely tracial (no remaining
+operator word), we multiply by the identity `𝟙` to form a state
+polynomial that [`polyopt`](@ref) can optimize.
 
 ````julia
-𝟙 = one(NormalMonomial{ProjectorAlgebra, UInt8})
-p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * 𝟙;
+𝟙 = one(typeof(P[1]))
+p = (tr(P[1] * P[2] * P[3]) + tr(P[1] * P[2]) * tr(P[3])) * 𝟙;
 ````
 
 At **order 2** the SDP is small and fast:
@@ -100,8 +101,7 @@ result.objective = -0.046717378455481205
 
 ````
 
-Raising the order to **3** adds more moment constraints and tightens
-the bound:
+Raising to **order 3** tightens the bound:
 
 ````julia
 solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3);
@@ -116,23 +116,15 @@ result.objective = -0.03124998978003755
 
 ````
 
-The literature values are $-0.0467$ (order 2) and $-0.0312$ (order 3);
-our results match within $10^{-6}$ [klep2022Optimization](@cite).
-With the API under our belt, we are ready for physics.
+Literature values: $-0.0467$ (order 2) and $-0.0312$ (order 3); our
+results match within $10^{-6}$ [klep2022Optimization](@cite).
 
 ---
 ## CHSH Bell Inequality (Tracial Form)
 
-### The physics: a tale of two parties
-
-The CHSH inequality [clauser1969Proposed](@cite) is the most famous
-Bell test.  The setup is deceptively simple:
-
-> Alice and Bob share a bipartite state.  Each independently chooses
-> one of two measurements with outcomes $\pm 1$.
-
-Denote Alice's observables $A_1, A_2$ and Bob's $B_1, B_2$.
-The CHSH score is the combination
+The [CHSH inequality](@ref bell-inequalities) [clauser1969Proposed](@cite)
+is the most famous Bell test: Alice and Bob each choose one of two $\pm 1$
+measurements.  The CHSH score is
 
 ```math
 \mathcal{B}_{\text{CHSH}}
@@ -140,51 +132,44 @@ The CHSH score is the combination
   + \operatorname{tr}(A_2 B_1) - \operatorname{tr}(A_2 B_2).
 ```
 
-What makes this remarkable:
-- **Classical prediction.**  If outcomes are governed by shared
-  randomness (local hidden variables), then
-  $\mathcal{B}_{\text{CHSH}} \leq 2$ — always.
-- **Quantum prediction.**  Tsirelson showed that entangled quantum
-  states can reach $\mathcal{B}_{\text{CHSH}} = 2\sqrt{2} \approx 2.828$,
-  violating the classical limit by a factor of $\sqrt{2}$
-  [tsirelson2007Extremal](@cite).
+Classically $\mathcal{B}_{\text{CHSH}} \leq 2$; quantum mechanics reaches
+the Tsirelson bound $2\sqrt{2} \approx 2.828$
+[cirelson1980Quantum](@cite).
 
-This gap is not a rounding error — it is a *proof* that quantum
-correlations are fundamentally stronger than classical ones.
-Let us verify the Tsirelson bound with NCTSSoS.
+Any correlation above $2$ rules out a local hidden-variable (shared-randomness)
+model. We now recover the quantum maximum with NCTSSoS.
 
-### Encoding observables as code
+### The transpose trick
 
-Observables with outcomes $\pm 1$ satisfy $A_i^2 = I$, which is
-exactly the `UnipotentAlgebra` constraint.  We create four variables
-— $A_1, A_2, B_1, B_2$ — in a **single label group**.
+In the tracial formulation, a maximally entangled state of local dimension
+$k$ converts bipartite expectations to single-system traces:
+``\langle\psi_k|A\otimes B|\psi_k\rangle = \tfrac{1}{k}\operatorname{Tr}(A\,B^{\mathsf T})``.
+Each `Bⱼ` below therefore represents the *transposed* operator
+$B_j^{\mathsf T}$, and all four variables share **one label group** —
+they act on the same space and need not commute
+[klep2022Optimization](@cite).
 
-!!! note "Why one label group? The transpose trick"
-    In the standard bipartite picture, correlations are expectations like
-    ``\langle A_i \otimes B_j\rangle``. In the tracial formulation, for a
-    maximally entangled state these become
-    ``\langle\phi^+|A\otimes B|\phi^+\rangle = \tfrac{1}{k}\operatorname{Tr}(A\,B^{\mathsf T})``
-    [klep2022Optimization](@cite).
-    When we write `tr(Aᵢ * Bⱼ)`, the symbol `Bⱼ` represents the
-    **transposed** Bob operator ``B_j^{\mathsf T}``. Placing Alice and Bob
-    in separate label groups would impose ``[A_i, B_j^{\mathsf T}] = 0``,
-    which is **stronger** than the physical tensor-product commutation
-    ``[A_i \otimes I,\, I \otimes B_j] = 0``. Using a single group leaves
-    the variables non-commuting, matching the intended relaxation.
-    See the [Bell inequalities example](@ref bell-inequalities) for the
-    state-polynomial formulation, where separate groups *are* appropriate.
+!!! tip "Tracial vs. state-polynomial formulation"
+    Separate label groups would enforce
+    ``[A_i, B_j^{\mathsf T}] = 0``, changing the feasible set.
+    For that bipartite formulation, see
+    [Bell inequalities](@ref bell-inequalities).
+
+Observables with $\pm 1$ outcomes satisfy $U^2 = I$
+([UnipotentAlgebra](@ref monoid-algebras-showcase)):
 
 ````julia
 registry, (vars,) = create_unipotent_variables([("v", 1:4)]);
 A1, A2, B1, B2 = vars
 ````
 
-The code variable `A1` is Alice's $A_1$, `B2` is Bob's $B_2$, and so
-on — the mapping to the math is one-to-one.  Now we write the
-**negated** CHSH expression (since [`cs_nctssos`](@ref) minimizes):
+In code, `A1`/`A2` represent $A_1$/$A_2$ and `B1`/`B2` represent
+$B_1^{\mathsf T}$/$B_2^{\mathsf T}$ (transpose trick).
+
+Negate for minimization ([`cs_nctssos`](@ref) minimizes):
 
 ````julia
-𝟙 = one(NormalMonomial{UnipotentAlgebra, UInt8})
+𝟙 = one(typeof(A1))
 
 p = -1.0 * (
     tr(A1 * B1) + tr(A1 * B2) +
@@ -192,9 +177,8 @@ p = -1.0 * (
 );
 ````
 
-Finally, we solve.  Setting `ts_algo = MaximalElimination()` exploits
-term sparsity — the SDP decomposes into smaller blocks, which is
-faster while giving the same bound.
+`MaximalElimination()` exploits [term sparsity](@ref term-sparsity)
+to decompose the SDP into smaller independent blocks:
 
 ````julia
 tpop = polyopt(p * 𝟙, registry);
@@ -211,21 +195,15 @@ result.objective = -2.8284271321623193
 
 ````
 
-The optimum is $-2\sqrt{2} \approx -2.828$ — the Tsirelson bound,
-recovered at the *first* level of the hierarchy.  Quantum mechanics
-really does beat the classical limit of $2$.
+The optimum $-2\sqrt{2} \approx -2.828$ recovers the Tsirelson bound
+at the first hierarchy level.
 
 ---
-## Covariance Bell Inequality
+## Covariance Bell Inequality (Bias-Corrected Correlations)
 
-### Beyond linear correlations
-
-CHSH captures *linear* correlations: each term is a single
-$\operatorname{tr}(A_i B_j)$.  But what if Alice's and Bob's
-individual marginals are biased — what if
-$\operatorname{tr}(A_i) \neq 0$?  A biased coin can fake correlation.
-
-**Covariance** strips away that marginal bias:
+CHSH uses *linear* correlations $\operatorname{tr}(A_i B_j)$.  When
+marginals are biased ($\operatorname{tr}(A_i) \neq 0$), the
+**covariance** removes that bias:
 
 ```math
 \operatorname{Cov}(A_i, B_j)
@@ -233,32 +211,21 @@ $\operatorname{tr}(A_i) \neq 0$?  A biased coin can fake correlation.
   - \operatorname{tr}(A_i)\,\operatorname{tr}(B_j).
 ```
 
-This is a *nonlinear* function of trace moments (it involves a
-product of two traces), making the optimization harder.
-Pozsgay *et al.* [pozsgay2017Covariance](@cite) constructed a
-covariance Bell inequality for three measurements per party:
+This involves a *product of two traces* — a nonlinear trace-moment
+expression.  Pozsgay *et al.* [pozsgay2017Covariance](@cite)
+constructed a covariance Bell inequality for three measurements per
+party with sign sets
+$S^+ = \{(1,1),(1,2),(1,3),(2,1),(2,2),(3,1)\}$ and
+$S^- = \{(2,3),(3,2)\}$:
 
-```math
-f = \sum_{(i,j)\in S^+} \operatorname{Cov}(A_i, B_j)
-  - \sum_{(i,j)\in S^-} \operatorname{Cov}(A_i, B_j)
-```
+- **Classical bound:** $f \leq 4.5$
+- **Quantum bound:** $f = 5$
 
-where $S^+ = \{(1,1),(1,2),(1,3),(2,1),(2,2),(3,1)\}$ and
-$S^- = \{(2,3),(3,2)\}$.
+See [Bell inequalities](@ref bell-inequalities) for an alternative
+implementation using [state polynomials](@ref state-polynomial).
 
-The result is striking:
-- **Classical bound:** $f \leq 4.5$.
-- **Quantum bound:** $f = 5$.
-
-Even after removing marginal bias, quantum correlations still exceed
-the classical limit.  Let us verify this with NCTSSoS.
-
-### From math to code
-
-As with CHSH, we use `UnipotentAlgebra` for $\pm 1$ observables.
-The six variables split into Alice ($A_1, A_2, A_3$) and Bob
-($B_1, B_2, B_3$), all in a single label group (same transpose-trick
-reasoning as above).
+Six unipotent variables in a single label group (same transpose-trick
+reasoning as CHSH):
 
 ````julia
 registry, (vars,) = create_unipotent_variables([("v", 1:6)]);
@@ -268,20 +235,19 @@ B = vars[4:6];  # Bob:   B₁, B₂, B₃
 𝟙 = one(typeof(A[1]));
 ````
 
-The covariance helper translates the formula directly — note the
-product of two trace moments in the second term:
+Covariance helper — note the product of two trace moments:
 
 ````julia
 cov(i, j) = 1.0 * tr(A[i] * B[j]) - 1.0 * tr(A[i]) * tr(B[j]);
 ````
 
-We negate the objective (minimization) and solve at order 2:
+Negate and solve at order 2:
 
 ````julia
 p = -1.0 * (
-    cov(1, 1) + cov(1, 2) + cov(1, 3) +   ## S⁺ terms
-    cov(2, 1) + cov(2, 2) - cov(2, 3) +   ## mixed signs
-    cov(3, 1) - cov(3, 2)                  ## S⁻ term: −Cov(A₃,B₂)
+    cov(1, 1) + cov(1, 2) + cov(1, 3) +   ## (1,·) ∈ S⁺
+    cov(2, 1) + cov(2, 2) - cov(2, 3) +   ## (2,1),(2,2) ∈ S⁺; (2,3) ∈ S⁻
+    cov(3, 1) - cov(3, 2)                  ## (3,1) ∈ S⁺; (3,2) ∈ S⁻
 );
 
 tpop = polyopt(p * 𝟙, registry);
@@ -301,36 +267,33 @@ abs_error = 4.79064343750224e-9
 
 ````
 
-The quantum value $-5$ is recovered within $10^{-3}$
-[pozsgay2017Covariance](@cite).  NCTSSoS handles the nonlinear
-trace-moment products without any special treatment — the same
-`tr` / `polyopt` / `cs_nctssos` pipeline works for both linear
-and nonlinear Bell inequalities.
+Quantum value $-5$ recovered within $10^{-3}$
+[pozsgay2017Covariance](@cite).  The same
+[`tr`](@ref) / [`polyopt`](@ref) / [`cs_nctssos`](@ref) pipeline handles
+both linear and nonlinear trace-moment objectives.
 
 ---
 ## Summary
 
-We told three stories of increasing complexity, all solved by the
-same pipeline:
+Three problems of increasing complexity, all solved by the same pipeline:
 
 | Problem | Algebra | Classical | Quantum |
 |:--------|:--------|:----------|:--------|
-| Toy trace polynomial | `ProjectorAlgebra` ($P^2 = P$) | — | −0.0312 (order 3) |
-| CHSH (tracial) | `UnipotentAlgebra` ($U^2 = I$) | 2 | $2\sqrt{2} \approx 2.828$ |
-| Covariance Bell | `UnipotentAlgebra` ($U^2 = I$) | 4.5 | 5 |
+| Toy trace polynomial | [ProjectorAlgebra](@ref monoid-algebras-showcase) ($P^2 = P$) | — | −0.0312 (order 3) |
+| CHSH (tracial) | [UnipotentAlgebra](@ref monoid-algebras-showcase) ($U^2 = I$) | 2 | $2\sqrt{2} \approx 2.828$ |
+| Covariance Bell | [UnipotentAlgebra](@ref monoid-algebras-showcase) ($U^2 = I$) | 4.5 | 5 |
 
-**Key API**:
-- [`create_projector_variables`](@ref) / [`create_unipotent_variables`](@ref):
-  create operators with $P^2 = P$ or $U^2 = I$ constraints
-- [`tr`](@ref): build trace moments (tracial state)
-- [`polyopt`](@ref): formulate the optimization problem
-- [`SolverConfig`](@ref): set solver backend, hierarchy order, and sparsity options
-- [`cs_nctssos`](@ref): solve via the moment-SOS hierarchy
+**API pipeline**:
+[`create_projector_variables`](@ref) /
+[`create_unipotent_variables`](@ref) →
+[`tr`](@ref) →
+[`polyopt`](@ref) →
+[`SolverConfig`](@ref) →
+[`cs_nctssos`](@ref)
 
-For linear (non-tracial) Bell inequalities, see the
-[Bell inequalities example](@ref bell-inequalities).
+For the *state-polynomial* formulation (bipartite, separate sites), see
+[Bell inequalities](@ref bell-inequalities).
 
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
-

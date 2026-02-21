@@ -1,4 +1,4 @@
-# test/problems/nc_polynomial/nc_example1_structural.jl
+# test/term_sparsity/vanilla/nc_example1_structural.jl
 # Structural tests: NC Example 1 - Term sparsity without solving
 #
 # Purpose: verify term sparsity block structure + unique moment indexing are correct
@@ -6,7 +6,7 @@
 
 using Test, NCTSSoS
 
-include(joinpath(@__DIR__, "..", "..", "SparsityAsserts.jl"))
+include(joinpath(@__DIR__, "..", "SparsityAsserts.jl"))
 
 const NC_EXAMPLE1_STRUCT_ORACLES = (
     Dense_d2 = (sides=[13], nuniq=73),
@@ -61,4 +61,3 @@ const NC_EXAMPLE1_STRUCT_ORACLES = (
         @test max_moment_block_size(ts_sp) ≤ max_moment_block_size(dense_sp)
     end
 end
-

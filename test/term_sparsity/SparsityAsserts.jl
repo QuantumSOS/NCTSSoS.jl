@@ -4,10 +4,6 @@ using NCTSSoS
 # Shared test helpers for solver-free structural validation of sparsity results.
 # Safe to include multiple times (guards against method overwrite warnings).
 
-if !isdefined(@__MODULE__, :flatten_sizes)
-    flatten_sizes(sizes) = reduce(vcat, sizes; init=Int[])
-end
-
 if !isdefined(@__MODULE__, :moment_block_sizes)
     moment_block_sizes(sparsity::NCTSSoS.SparsityResult) =
         map(sparsity.cliques_term_sparsities) do ts
@@ -16,7 +12,8 @@ if !isdefined(@__MODULE__, :moment_block_sizes)
 end
 
 if !isdefined(@__MODULE__, :flatten_moment_block_sizes)
-    flatten_moment_block_sizes(sparsity::NCTSSoS.SparsityResult) = flatten_sizes(moment_block_sizes(sparsity))
+    flatten_moment_block_sizes(sparsity::NCTSSoS.SparsityResult) =
+        reduce(vcat, moment_block_sizes(sparsity); init=Int[])
 end
 
 if !isdefined(@__MODULE__, :max_moment_block_size)
@@ -62,4 +59,3 @@ if !isdefined(@__MODULE__, :assert_term_sparsity_alignment)
         return nothing
     end
 end
-

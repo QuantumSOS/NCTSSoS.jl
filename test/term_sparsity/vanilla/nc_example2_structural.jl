@@ -1,9 +1,9 @@
-# test/problems/nc_polynomial/nc_example2_structural.jl
+# test/term_sparsity/vanilla/nc_example2_structural.jl
 # Structural tests: NC Example 2 - Correlative + term sparsity without solving
 
 using Test, NCTSSoS
 
-include(joinpath(@__DIR__, "..", "..", "SparsityAsserts.jl"))
+include(joinpath(@__DIR__, "..", "SparsityAsserts.jl"))
 
 @testset "NC Example 2 (structural, constrained)" begin
     n = 2
@@ -30,4 +30,3 @@ include(joinpath(@__DIR__, "..", "..", "SparsityAsserts.jl"))
     @test sparse_mp.n_unique_moment_matrix_elements ≤ dense_mp.n_unique_moment_matrix_elements
     @test max_moment_block_size(sparse_sp) ≤ max_moment_block_size(dense_sp)
 end
-

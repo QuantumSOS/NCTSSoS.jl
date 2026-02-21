@@ -86,22 +86,16 @@ const SHOULD_RUN_MINIMAL = RUN_MINIMAL || USE_CI_DEFAULT
     # |---|-----------------------|-----------------------------|----------------------|
     # | 1 | Dense baseline        | No sparsity (baseline)      | chsh_simple.jl       |
     # | 2 | Correlative sparsity  | MF clique decomposition     | chsh_simple.jl       |
-    # | 3 | Term sparsity         | Structural (no solve)       | nc_example1_structural.jl |
-    # | 4 | Term sparsity         | MMD block reduction         | nc_example1.jl       |
-    # | 5 | Combined CS+TS        | Structural (no solve)       | nc_example2_structural.jl |
-    # | 6 | Combined CS+TS        | Both + constraints          | nc_example2.jl       |
-    # | 7 | State term sparsity   | Structural (no solve)       | state_polynomial_structural.jl |
-    # | 8 | Dualization           | SOS ≈ Moment equivalence    | dualization.jl       |
+    # | 3 | Term sparsity         | MMD block reduction         | nc_example1.jl       |
+    # | 4 | Combined CS+TS        | Both + constraints          | nc_example2.jl       |
+    # | 5 | Dualization           | SOS ≈ Moment equivalence    | dualization.jl       |
     # =========================================================================
     if SHOULD_RUN_MINIMAL
         include("TestUtils.jl")
         @testset "Minimal Suite" begin
             include("problems/bell_inequalities/chsh_simple.jl")
-            include("problems/nc_polynomial/nc_example1_structural.jl")
             include("problems/nc_polynomial/nc_example1.jl")
-            include("problems/nc_polynomial/nc_example2_structural.jl")
             include("problems/nc_polynomial/nc_example2.jl")
-            include("problems/state_polynomial/state_polynomial_structural.jl")
             include("relaxations/dualization.jl")
         end
     end

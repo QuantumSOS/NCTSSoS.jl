@@ -1,7 +1,6 @@
 using Test, NCTSSoS
 
-flatten_moment_block_sizes(sparsity::NCTSSoS.SparsityResult) =
-    reduce(vcat, [length.(ts_vec[1].block_bases) for ts_vec in sparsity.cliques_term_sparsities]; init=Int[])
+include(joinpath(@__DIR__, "..", "SparsityAsserts.jl"))
 
 function _chsh_unipotent_pop()
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])

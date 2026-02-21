@@ -22,7 +22,6 @@ nc_word(ids::Integer...; site::Integer=1) = nc_word(NC_INDEX_T, ids...; site=sit
     include("simplify.jl")
     include("matrix_oracles.jl")
     include("basis.jl")
-    include("../term_sparsity/vanilla/runtests.jl")
     include("state_word.jl")
     include("statepolynomial.jl")
     include("state_basis.jl")

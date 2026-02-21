@@ -35,9 +35,9 @@ update-docs:
 test:
 	$(call pkg_test,["--local"])
 
-# CI test suite (fast feedback; COSMO)
+# CI test suite (fast feedback; COSMO). Includes TS layer-1 + layer-2 coverage.
 test-ci:
-	$(call pkg_test,["--polynomials"$(,)"--minimal"])
+	$(call pkg_test,["--polynomials"$(,)"--relaxations"$(,)"--minimal"])
 
 # Individual test groups
 test-polynomials:

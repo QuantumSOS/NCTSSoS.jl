@@ -5,7 +5,7 @@ Single source of truth for running the test suite.
 ## Quick start (preferred: Makefile)
 
 - `make init` — precompile (first run)
-- `make test-ci` — CI default: `--polynomials` + `--minimal` (COSMO; fast)
+- `make test-ci` — CI default: `--polynomials` + `--relaxations` + `--minimal` (COSMO; fast)
 - `make test-minimal` — smoke suite (5 critical paths)
 - `make test-polynomials` — algebra only (no solver)
 - `make test-relaxations` — relaxation components
@@ -15,7 +15,7 @@ Single source of truth for running the test suite.
 ## Direct Julia (`Pkg.test`)
 
 - Minimal (fast): `julia --project -e 'using Pkg; Pkg.test(test_args=["--minimal"])'`
-- CI default: `julia --project -e 'using Pkg; Pkg.test(test_args=["--polynomials","--minimal"])'`
+- CI default: `julia --project -e 'using Pkg; Pkg.test(test_args=["--polynomials","--relaxations","--minimal"])'`
 - Full suite (Mosek): `julia --project -e 'using Pkg; Pkg.test(test_args=["--local"])'`
 
 ## Flags
@@ -32,7 +32,7 @@ Passed via `Pkg.test(test_args=[...])`:
 ## Defaults (no flags)
 
 - Local `Pkg.test()` (no flags): run all test groups; some heavy problem suites only run when `--local` is enabled.
-- CI `Pkg.test()` (no flags, `ENV["CI"]=true`): `--polynomials` + `--minimal`.
+- CI `Pkg.test()` (no flags, `ENV["CI"]=true`): `--polynomials` + `--relaxations` + `--minimal`.
 
 ## Solvers
 

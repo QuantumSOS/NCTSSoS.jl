@@ -14,6 +14,7 @@ using Test
     include("interface.jl")
     include("sos.jl")
     include("sparsity.jl")
+    include("../term_sparsity/vanilla/runtests.jl")
     include("gns.jl")
     include("dualization.jl")
 end

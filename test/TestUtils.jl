@@ -40,14 +40,16 @@ end
 
 # Shared Helpers
 
-"""
-    flatten_sizes(sizes)
+if !@isdefined(flatten_sizes)
+    """
+        flatten_sizes(sizes)
 
-Flatten nested moment matrix sizes for comparison with oracle values.
+    Flatten nested moment matrix sizes for comparison with oracle values.
 
-# Example
-```julia
-flatten_sizes([[3, 3], [2]]) == [3, 3, 2]
-```
-"""
-flatten_sizes(sizes) = reduce(vcat, sizes)
+    # Example
+    ```julia
+    flatten_sizes([[3, 3], [2]]) == [3, 3, 2]
+    ```
+    """
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end

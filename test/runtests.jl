@@ -16,14 +16,14 @@ const HAS_ANY_SELECTOR = RUN_POLYNOMIALS || RUN_QUALITY || RUN_RELAXATIONS || RU
 
 # If no specific test group flags:
 # - Local: run all (some problem tests only with --local)
-# - CI: run minimal + polynomials for fast feedback
+# - CI: run polynomials + relaxations + minimal for fast feedback
 const RUN_ALL = !HAS_ANY_SELECTOR && !IS_CI
 const USE_CI_DEFAULT = !HAS_ANY_SELECTOR && IS_CI
 
 # Determine which test groups to run
 const SHOULD_RUN_POLYNOMIALS = RUN_ALL || RUN_POLYNOMIALS || USE_CI_DEFAULT
 const SHOULD_RUN_QUALITY = RUN_ALL || RUN_QUALITY
-const SHOULD_RUN_RELAXATIONS = RUN_ALL || RUN_RELAXATIONS
+const SHOULD_RUN_RELAXATIONS = RUN_ALL || RUN_RELAXATIONS || USE_CI_DEFAULT
 const SHOULD_RUN_PROBLEMS = RUN_ALL || RUN_PROBLEMS
 const SHOULD_RUN_MINIMAL = RUN_MINIMAL || USE_CI_DEFAULT
 

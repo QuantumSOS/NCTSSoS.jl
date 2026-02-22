@@ -252,7 +252,7 @@ end
     end
 
     # This test requires high precision solver - COSMO gives Inf for one method
-    if USE_LOCAL
+    if @isdefined(USE_LOCAL) && USE_LOCAL
         @testset "With Constraints" begin
             n = 2
             true_min = 3.0

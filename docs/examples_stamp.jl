@@ -86,11 +86,6 @@ function verify_stamp(root::AbstractString = repo_root(); path::AbstractString =
 end
 
 function main(args::Vector{String} = ARGS)::Nothing
-    if "--write" in args
-        write_stamp!()
-        return nothing
-    end
-
     verify_stamp()
     return nothing
 end

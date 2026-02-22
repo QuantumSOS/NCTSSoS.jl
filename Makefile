@@ -1,4 +1,5 @@
-JL = julia --project
+JULIA ?= julia
+JL = $(JULIA) --project
 
 # Comma variable for escaping in macro calls
 , := ,
@@ -38,6 +39,11 @@ test:
 # CI test suite (fast feedback; COSMO)
 test-ci:
 	$(call pkg_test,["--polynomials"$(,)"--minimal"])
+
+# CI-style coverage (lcov.info), matching julia-actions/julia-runtest + julia-processcoverage.
+coverage-ci:
+	CI=true $(JULIA) --color=yes -e 'using Pkg; Pkg.activate(; temp=true); Pkg.develop(path="."); Pkg.instantiate(); Pkg.test("NCTSSoS"; coverage=true)'
+	$(JULIA) --color=yes -e 'using Pkg; Pkg.activate("coveragetempenv", shared=true); Pkg.add(PackageSpec(name="CoverageTools")); using CoverageTools; directories = get(ENV, "INPUT_DIRECTORIES", "src,ext"); dirs = filter!(!isempty, split(directories, ",")); for dir in dirs; if dir == "ext"; continue; elseif !isdir(dir); error("directory \\\"" * dir * "\\\" not found!"); end; end; filter!(isdir, dirs); pfs = mapreduce(process_folder, vcat, dirs); LCOV.writefile("lcov.info", pfs)'
 
 # Individual test groups
 test-polynomials:
@@ -164,7 +170,7 @@ clean:
 	find . -name "*.cov" -delete
 
 .PHONY: init init-docs update update-docs \
-        test test-ci test-polynomials test-quality test-relaxations test-problems \
+        test test-ci coverage-ci test-polynomials test-quality test-relaxations test-problems \
         test-minimal test-minimal-local test-no-problems test-core test-file \
         sync-start sync-status sync-stop sync-pause sync-resume sync-flush \
         servedocs examples clean

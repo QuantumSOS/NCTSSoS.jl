@@ -6,6 +6,7 @@ Single source of truth for running the test suite.
 
 - `make init` — precompile (first run)
 - `make test-ci` — CI default: `--polynomials` + `--minimal` (COSMO; fast)
+- `make coverage-ci` — CI/Codecov-style coverage (`lcov.info`)
 - `make test-minimal` — smoke suite (5 critical paths)
 - `make test-polynomials` — algebra only (no solver)
 - `make test-relaxations` — relaxation components

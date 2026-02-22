@@ -5,25 +5,11 @@
 
 using Test, NCTSSoS, JuMP
 
-# SOLVER fallback for standalone/REPL execution
-if !@isdefined(SOLVER)
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
-        "MSK_IPAR_LOG" => 0
-    )
-end
-
 # Oracle values from NCTSSOS
 const NC_EXAMPLE1_ORACLES = (
     Dense_d2 = (opt=-3.936210849199504e-10, sides=[13], nuniq=73),
     TS_d2    = (opt=-0.0035512846020968616, sides=[1, 1, 2, 2, 2, 2, 3, 3, 3, 4], nuniq=21),
 )
-
-if !isdefined(@__MODULE__, :flatten_sizes)
-    flatten_sizes(sizes) = reduce(vcat, sizes)
-end
 
 @testset "NC Example 1 (unconstrained)" begin
     n = 3

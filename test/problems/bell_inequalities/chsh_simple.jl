@@ -6,26 +6,12 @@
 
 using Test, NCTSSoS, JuMP
 
-# SOLVER fallback for standalone/REPL execution
-if !@isdefined(SOLVER)
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
-        "MSK_IPAR_LOG" => 0
-    )
-end
-
 # Oracle values from NCTSSOS
 const CHSH_SIMPLE_ORACLES = (
     Dense_d1 = (opt=-2.8284271321623193, sides=[5], nuniq=11),
     CS_d1    = (opt=-2.8284271247170496, sides=[4, 4], nuniq=10),
     TS_d1    = (opt=-2.8284271247321175, sides=[3, 3, 1], nuniq=6),
 )
-
-if !isdefined(@__MODULE__, :flatten_sizes)
-    flatten_sizes(sizes) = reduce(vcat, sizes)
-end
 
 function create_chsh_problem()
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])

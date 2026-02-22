@@ -1,4 +1,8 @@
-# Monoid Algebra Showcase (NonCommutative / Projector / Unipotent)
+```@meta
+EditURL = "../literate/monoid_algebras_showcase.jl"
+```
+
+# [Monoid Algebra Showcase (NonCommutative / Projector / Unipotent)](@id monoid-algebras-showcase)
 
 This page showcases the three `MonoidAlgebra` variants supported by `NCTSSoS.jl`.
 These algebras provide the building blocks for modeling noncommutative polynomial
@@ -22,9 +26,9 @@ canonicalization, while the order of operators on the same site is preserved.
 ## Key Public APIs
 
 Variable creation is done through these functions:
-- `create_noncommutative_variables`: Create free noncommutative generators
-- `create_projector_variables`: Create idempotent (P² = P) generators
-- `create_unipotent_variables`: Create involutory (U² = 𝟙) generators
+- [`create_noncommutative_variables`](@ref): Create free noncommutative generators
+- [`create_projector_variables`](@ref): Create idempotent (P² = P) generators
+- [`create_unipotent_variables`](@ref): Create involutory (U² = 𝟙) generators
 
 Each function returns a `(registry, variable_groups)` tuple, where the registry
 manages symbol ↔ index mappings and the variable groups provide convenient access
@@ -63,10 +67,18 @@ Helper: extract the single monomial from a *single-term* polynomial.
 mono1(p) = monomials(p)[1]
 ````
 
+````
+mono1 (generic function with 1 method)
+````
+
 Pretty-print a `NormalMonomial` using the registry's symbols.
 
 ````julia
 repr_with_registry(reg, m) = sprint(show, m; context=:registry => reg)
+````
+
+````
+repr_with_registry (generic function with 1 method)
 ````
 
 ## 1) NonCommutativeAlgebra: Free Noncommutative Words
@@ -84,6 +96,10 @@ between groups.
 reg_nc, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
 ````
 
+````
+(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
+````
+
 This creates:
 - Variables `x[1], x[2]` on **site 1**
 - Variables `y[1], y[2]` on **site 2**
@@ -92,6 +108,10 @@ A single generator is a `NormalMonomial` (immutable canonical form):
 
 ````julia
 typeof(x[1])
+````
+
+````
+NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}
 ````
 
 ### Site-Based Commutation
@@ -106,6 +126,10 @@ rhs = x[2] * x[1] * y[1] * y[2]  # same canonical form
 @assert lhs == rhs  # true: sites are sorted
 
 repr_with_registry(reg_nc, mono1(lhs))  # "x₂x₁y₁y₂"
+````
+
+````
+"x₂x₁y₁y₂"
 ````
 
 ### Intra-Site Non-Commutativity
@@ -123,12 +147,24 @@ Show both representations to see they differ:
  repr_with_registry(reg_nc, mono1(x[2] * x[1])))  # "x₂x₁"
 ````
 
+````
+("x₁x₂", "x₂x₁")
+````
+
 ### Inspecting the Canonical Word
 
 Each index encodes both operator identity and site. You can decode them:
 
 ````julia
 word = mono1(lhs).word
+````
+
+````
+4-element Vector{UInt8}:
+ 0x09
+ 0x05
+ 0x0e
+ 0x12
 ````
 
 word: the raw indices of the canonical monomial
@@ -139,6 +175,14 @@ Decode each index as (operator_id, site):
 
 ````julia
 [(decode_operator_id(i), decode_site(i)) for i in word]
+````
+
+````
+4-element Vector{Tuple{Int64, Int64}}:
+ (2, 1)
+ (1, 1)
+ (3, 2)
+ (4, 2)
 ````
 
 Output: [(2,1), (1,1), (3,2), (4,2)] means x₂x₁y₁y₂ with x's on site 1, y's on site 2
@@ -161,6 +205,10 @@ application of the same projector collapses to a single instance.
 
 ````julia
 reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
+````
+
+````
+(VariableRegistry with 4 variables: P₁, P₂, Q₁, Q₂, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
 ````
 
 - `P[1], P[2]` on **site 1** (with P² = P)
@@ -191,6 +239,10 @@ result = mono1(Q[1] * P[1] * Q[1] * P[1])
 repr_with_registry(reg_proj, result)  # "P₁Q₁" (both collapse)
 ````
 
+````
+"P₁Q₁"
+````
+
 ## 3) UnipotentAlgebra: Involutory Operators (U² = 𝟙)
 
 The `UnipotentAlgebra` models operators that square to the identity, such as
@@ -210,6 +262,10 @@ Pauli matrices σₓ, σᵧ, σᵤ. This is the natural algebra for ±1-valued o
 ````julia
 reg_unip, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 1:2)])
 const ID_UNIP = one(NormalMonomial{UnipotentAlgebra, eltype(indices(reg_unip))})
+````
+
+````
+𝟙
 ````
 
 - `U[1], U[2]` on **site 1** (with U² = 𝟙)
@@ -258,6 +314,15 @@ relaxations.
 basis_d1 = get_ncbasis(reg_nc, 1)
 ````
 
+````
+5-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
+ 𝟙
+ UInt8[0x05]
+ UInt8[0x09]
+ UInt8[0x0e]
+ UInt8[0x12]
+````
+
 basis_d1: all monomials up to degree 1
 
 Pretty-print the basis using the registry:
@@ -266,8 +331,38 @@ Pretty-print the basis using the registry:
 [repr_with_registry(reg_nc, m) for m in basis_d1]
 ````
 
+````
+5-element Vector{String}:
+ "𝟙"
+ "x₁"
+ "x₂"
+ "y₁"
+ "y₂"
+````
+
 ````julia
 basis_d2 = get_ncbasis(reg_nc, 2)
+````
+
+````
+17-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
+ 𝟙
+ UInt8[0x05]
+ UInt8[0x09]
+ UInt8[0x0e]
+ UInt8[0x12]
+ UInt8[0x05, 0x05]
+ UInt8[0x05, 0x09]
+ UInt8[0x05, 0x0e]
+ UInt8[0x05, 0x12]
+ UInt8[0x09, 0x05]
+ UInt8[0x09, 0x09]
+ UInt8[0x09, 0x0e]
+ UInt8[0x09, 0x12]
+ UInt8[0x0e, 0x0e]
+ UInt8[0x0e, 0x12]
+ UInt8[0x12, 0x0e]
+ UInt8[0x12, 0x12]
 ````
 
 basis_d2: all monomials up to degree 2
@@ -278,10 +373,35 @@ Show count and a few examples:
 length(basis_d2)  # total count
 ````
 
+````
+17
+````
+
 Pretty-print all degree-2 basis elements:
 
 ````julia
 [repr_with_registry(reg_nc, m) for m in basis_d2]
+````
+
+````
+17-element Vector{String}:
+ "𝟙"
+ "x₁"
+ "x₂"
+ "y₁"
+ "y₂"
+ "x₁²"
+ "x₁x₂"
+ "x₁y₁"
+ "x₁y₂"
+ "x₂x₁"
+ "x₂²"
+ "x₂y₁"
+ "x₂y₂"
+ "y₁²"
+ "y₁y₂"
+ "y₂y₁"
+ "y₂²"
 ````
 
 ## 5) Practical Example: Building Polynomials
@@ -295,11 +415,20 @@ Coefficients create polynomials from monomials
 poly = 1.0 * x[1] * x[2] + 2.0 * y[1] - 3.0 * x[1] * y[1]
 ````
 
+````
+2.0 * UInt8[0x0e] + UInt8[0x05, 0x09] + -3.0 * UInt8[0x05, 0x0e]
+````
+
 Site commutation is automatic in polynomial arithmetic:
 
 ````julia
 poly2 = 1.0 * y[1] * x[1] - 3.0 * x[1] * y[1]  # y₁ and x₁ commute!
 monomials(poly2)  # simplified: terms combine if they have the same canonical form
+````
+
+````
+1-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
+ UInt8[0x05, 0x0e]
 ````
 
 ## Summary: Choosing the Right Algebra

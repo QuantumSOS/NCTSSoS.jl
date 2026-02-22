@@ -14,6 +14,7 @@ using Test
         :LOCALLY_SOLVED,
         :ALMOST_LOCALLY_SOLVED,
         :ITERATION_LIMIT,
+        :SLOW_PROGRESS,
         :FEASIBLE_POINT,
         :NEARLY_FEASIBLE_POINT,
     ))

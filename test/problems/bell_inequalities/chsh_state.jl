@@ -5,25 +5,11 @@
 
 using Test, NCTSSoS, JuMP
 
-# SOLVER fallback for standalone/REPL execution
-if !@isdefined(SOLVER)
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
-        "MSK_IPAR_LOG" => 0
-    )
-end
-
 # Oracle values from NCTSSOS
 const CHSH_STATE_ORACLES = (
     Dense = (opt=-2.828427124746234, sides=[9], nuniq=21),
     TS    = (opt=-2.8284271247321175, nuniq=10),  # sides vary by implementation
 )
-
-if !isdefined(@__MODULE__, :flatten_sizes)
-    flatten_sizes(sizes) = reduce(vcat, sizes)
-end
 
 @testset "CHSH State Polynomial" begin
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])

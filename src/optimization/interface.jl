@@ -163,10 +163,10 @@ function _check_solver_status(model)
     primal = primal_status(model)
     dual = dual_status(model)
 
-    # COSMO (and other first-order solvers) can hit iteration/time limits while still
+    # Some solvers can terminate early (e.g. iteration limit, slow progress) while still
     # returning a usable (nearly) feasible point. Treat those as acceptable so that
-    # downstream tests can validate objective values against known tolerances.
-    if status == MOI.ITERATION_LIMIT &&
+    # downstream callers can validate objective values against known tolerances.
+    if status in (MOI.ITERATION_LIMIT, MOI.SLOW_PROGRESS) &&
        (primal ∈ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT) ||
         dual ∈ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT))
         return status

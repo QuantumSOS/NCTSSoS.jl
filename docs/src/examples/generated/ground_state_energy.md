@@ -1,4 +1,8 @@
-# Obtaining Ground State Energy Lower Bound
+```@meta
+EditURL = "../literate/ground_state_energy.jl"
+```
+
+# [Obtaining Ground State Energy Lower Bound](@id ground-state-energy)
 
 Finding the ground state of a quantum system is a fundamental problem in quantum
 mechanics [wang2024Certifying](@cite). Variational methods are commonly used to
@@ -22,6 +26,10 @@ using NCTSSoS, MosekTools
 N = 6
 ````
 
+````
+6
+````
+
 Create Pauli variables using the typed algebra system
 This automatically encodes all Pauli commutation relations
 
@@ -29,6 +37,10 @@ This automatically encodes all Pauli commutation relations
 registry, (σx, σy, σz) = create_pauli_variables(1:N)
 
 ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σz] for i in 1:N)
+````
+
+````
+0.25 + 0.0im * UInt8[0x01, 0x04] + 0.25 + 0.0im * UInt8[0x01, 0x10] + 0.25 + 0.0im * UInt8[0x02, 0x05] + 0.25 + 0.0im * UInt8[0x02, 0x11] + 0.25 + 0.0im * UInt8[0x03, 0x06] + 0.25 + 0.0im * UInt8[0x03, 0x12] + 0.25 + 0.0im * UInt8[0x04, 0x07] + 0.25 + 0.0im * UInt8[0x05, 0x08] + 0.25 + 0.0im * UInt8[0x06, 0x09] + 0.25 + 0.0im * UInt8[0x07, 0x0a] + 0.25 + 0.0im * UInt8[0x08, 0x0b] + 0.25 + 0.0im * UInt8[0x09, 0x0c] + 0.25 + 0.0im * UInt8[0x0a, 0x0d] + 0.25 + 0.0im * UInt8[0x0b, 0x0e] + 0.25 + 0.0im * UInt8[0x0c, 0x0f] + 0.25 + 0.0im * UInt8[0x0d, 0x10] + 0.25 + 0.0im * UInt8[0x0e, 0x11] + 0.25 + 0.0im * UInt8[0x0f, 0x12]
 ````
 
 No need to manually specify constraints - they're encoded in the algebra type!
@@ -50,6 +62,10 @@ res = cs_nctssos_higher(
             solver_config                               # Solver Configuration
         )
 res.objective / N
+````
+
+````
+-0.4671292719994368
 ````
 
 The returned result matches the actual ground state energy $-0.467129$ to $6$
@@ -81,6 +97,10 @@ res = cs_nctssos_higher(pop, res, solver_config)
 res.objective / N
 ````
 
+````
+-0.4270083217760736
+````
+
 We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
 to $6$ digits!
 
@@ -107,11 +127,15 @@ pop = polyopt(ham, registry)
 solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
 ````
 
+````
+NCTSSoS.SolverConfig(Mosek.Optimizer, 3, CliqueTrees.MF(), CliqueTrees.MMD(0))
+````
+
 ## Next step
 
 With such lower bounds, estimates of properties of the ground
 state, correlations functions, structure factors and order parameters, can also
-be obtained. We provide examples in another section.
+be obtained. We provide examples in another [section](@ref certify-property).
 
 ---
 

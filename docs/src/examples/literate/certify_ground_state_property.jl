@@ -72,12 +72,10 @@ using NCTSSoS
 using MosekTools
 using JuMP
 
-## Configure Mosek solver with high precision settings
+## Configure Mosek solver (quiet; stable defaults)
 SOLVER = optimizer_with_attributes(Mosek.Optimizer,
-    "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8,  # Primal feasibility tolerance
-    "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8,  # Dual feasibility tolerance
-    "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8,  # Relative gap tolerance
-    "MSK_IPAR_NUM_THREADS" => 0)            # Use all available threads
+    "MSK_IPAR_LOG" => 0,            # Silence solver output
+    "MSK_IPAR_NUM_THREADS" => 0)    # Use all available threads
 
 ## Initialize array to store energy lower bounds
 ground_state_energy_lower_bounds = Float64[]
@@ -125,7 +123,7 @@ end
 # the standard NCTSSoS solver to incorporate entry constraints.
 
 """
-    cs_nctssos_with_entry(pop, solver_config, entry_constraints; dualize=true)
+    cs_nctssos_with_entry(pop, solver_config, entry_constraints; dualize=false)
 
 Extended NCTSSoS solver that incorporates additional entry constraints
 for bounding specific correlation functions in quantum systems.
@@ -137,8 +135,8 @@ function cs_nctssos_with_entry(
     pop::OP,
     solver_config::SolverConfig,
     entry_constraints::Vector{P};
-    dualize::Bool=true
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, OP<:NCTSSoS.OptimizationProblem{P}}
+    dualize::Bool=false
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, OP<:NCTSSoS.OptimizationProblem{A,P}}
 
    ## Compute sparsity structure (correlative + term sparsity)
    sparsity = NCTSSoS.compute_sparsity(pop, solver_config)
@@ -204,8 +202,8 @@ for (i, h) in enumerate(0.1:0.2:2.0)
     single_ineq_cons = [ground_state_energy_upper_bounds[i] * N - ham]
 
     ## Solve for lower and upper bounds on correlation function
-    res_l = cs_nctssos_with_entry(pop_l, solver_config, single_ineq_cons; dualize=true)
-    res_u = cs_nctssos_with_entry(pop_u, solver_config, single_ineq_cons; dualize=true)
+    res_l = cs_nctssos_with_entry(pop_l, solver_config, single_ineq_cons; dualize=false)
+    res_u = cs_nctssos_with_entry(pop_u, solver_config, single_ineq_cons; dualize=false)
 
     ## Store bounds (divide by 4 to convert from Pauli to spin operators)
     push!(lower_bounds, res_l.objective / 4)

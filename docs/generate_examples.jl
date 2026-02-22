@@ -36,3 +36,7 @@ for file in readdir(EXAMPLES_DIR)
 end
 
 println("\nMarkdown generation complete!")
+
+# Update regen stamp for CI gate (no MOSEK needed; hashes tracked inputs only).
+include(joinpath(@__DIR__, "examples_stamp.jl"))
+ExamplesStamp.write_stamp!()

@@ -7,8 +7,10 @@ DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
+MosekTools = "1ec41992-ff65-5c91-ac43-2df89e9693a4"
 NCTSSoS = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
 Yao = "5872b779-8223-5990-8dd0-5abbb0748c8c"
 
 [compat]
 Documenter = "1.13.0"
+MosekTools = "0.15.9"

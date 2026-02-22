@@ -15,9 +15,9 @@
 
 # ## Setup
 #
-# We use `NCTSSoS.jl` for polynomial optimization and `COSMO` as the SDP solver backend.
+# We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver backend.
 
-using NCTSSoS, COSMO
+using NCTSSoS, MosekTools
 
 # ## Key Concepts: Unipotent and Projector Variables
 #

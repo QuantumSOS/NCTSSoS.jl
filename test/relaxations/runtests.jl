@@ -4,7 +4,7 @@
 # Coverage:
 # - interface.jl: PolyOpt constructors (Polynomial and NCStatePolynomial)
 # - sos.jl: SOS dualization components (Cαj)
-# - sparsity.jl: Correlative/term sparsity components
+# - sparsity.jl: Term sparsity + result-structure checks (non-correlated)
 # - gns.jl: GNS reconstruction
 # - dualization.jl: SOS ≈ Moment equivalence
 

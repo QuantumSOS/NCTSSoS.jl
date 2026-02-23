@@ -558,11 +558,10 @@ function _has_odd_parity_only(
 ) where {T<:Integer,C<:Number}
     has_nonzero_term = false
 
-    for t in terms(poly)
-        if !iszero(t.coefficient)
+    for (coef, mono) in terms(poly)
+        if !iszero(coef)
             has_nonzero_term = true
-            canon_sym = symmetric_canon(expval(t.monomial))
-            if has_even_parity(canon_sym.mono)
+            if has_even_parity(mono)
                 return false  # Found even-parity term
             end
         end

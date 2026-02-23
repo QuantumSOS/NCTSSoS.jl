@@ -14,7 +14,10 @@ using NCTSSoS, Test
     # 4. Relaxation components
     include("relaxations/runtests.jl")
 
-    # 5. Curated problems
+    # 5. Correlated sparsity suite
+    include("correlated_sparsity/runtests.jl")
+
+    # 6. Curated problems
     @testset "Problems" begin
         include("problems/bell_inequalities/chsh_simple.jl")
         include("problems/nc_polynomial/nc_example1.jl")

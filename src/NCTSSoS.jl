@@ -38,6 +38,10 @@ obj = 0.25 * (σx[1] * σx[2] + σy[1] * σy[2] + σz[1] * σz[2])
 pop = polyopt(obj, reg)
 ```
 
+For worked examples including solving and extracting bounds, see the
+[Examples](@ref "Bell inequalities") section — in particular
+[Ground State Energy](@ref) and [Pauli Algebra Interface](@ref).
+
 See also: [`polyopt`](@ref), [`SolverConfig`](@ref), [`cs_nctssos`](@ref)
 """
 module NCTSSoS

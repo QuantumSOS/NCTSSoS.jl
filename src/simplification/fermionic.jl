@@ -83,24 +83,24 @@ they cannot all be contracted away and the result is zero.
 
 !!! note "Nilpotency and normal form"
     `NormalMonomial{FermionicAlgebra}` stores **normal-ordered basis monomials**.
-    Nilpotent words like `a₁a₁` are rejected by the constructor and instead appear
-    as the zero `Polynomial` when you multiply/simplify operators.
+    Nilpotent words like `a₁a₁` are rejected by the constructor, so every valid
+    `NormalMonomial{FermionicAlgebra}` is non-zero.  Nilpotent products surface as
+    the zero `Polynomial` when you multiply operators (e.g. `a[1] * a[1]`).
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> reg, (a, a_dag) = create_fermionic_variables(1:1);
+julia> reg, (a, a_dag) = create_fermionic_variables(1:2);
 
-julia> m = monomials(a_dag[1] * a[1])[1];  # canonical monomial a₁†a₁
+julia> m1 = monomials(a_dag[1] * a[1])[1];  # a₁†a₁
 
-julia> iszero(m)
+julia> iszero(m1)
 false
 
-julia> iszero(a[1] * a[1])  # a₁ a₁ = 0
-true
+julia> m2 = monomials(a_dag[2] * a_dag[1])[1];  # a₂†a₁†
 
-julia> iszero(a[1] * a_dag[1] * a[1] * a_dag[1])  # ≠ 0
+julia> iszero(m2)
 false
 ```
 """

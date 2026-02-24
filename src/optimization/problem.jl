@@ -196,6 +196,9 @@ Returns false for "real" algebras:
 This trait is used by interface.jl to dispatch between real and Hermitian
 constraint handling in moment_relax.
 """
+# @noinline: one-liner trait methods are inlined away by the compiler, making them
+# invisible to Julia's code-coverage instrumentation. The runtime cost is negligible
+# because these only gate SDP-solver calls.
 @noinline function _is_complex_problem(::Type{PauliAlgebra})
     return true
 end

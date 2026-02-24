@@ -29,16 +29,19 @@ JuMP.dual_status(model::_StatusStub) = model.dual
     @testset "_check_solver_status throws with status details" begin
         model = _StatusStub(MOI.NUMERICAL_ERROR, MOI.NO_SOLUTION, MOI.NO_SOLUTION)
 
-        message = try
+        @test_throws NCTSSoS.SolverStatusError NCTSSoS._check_solver_status(model)
+
+        err = try
             NCTSSoS._check_solver_status(model)
-            ""
-        catch err
-            sprint(showerror, err)
+            nothing
+        catch e
+            e
         end
 
-        @test occursin("termination=NUMERICAL_ERROR", message)
-        @test occursin("primal=NO_SOLUTION", message)
-        @test occursin("dual=NO_SOLUTION", message)
+        @test err isa NCTSSoS.SolverStatusError
+        @test err.termination == MOI.NUMERICAL_ERROR
+        @test err.primal == MOI.NO_SOLUTION
+        @test err.dual == MOI.NO_SOLUTION
     end
 
     @testset "polyopt rejects integer coefficients" begin

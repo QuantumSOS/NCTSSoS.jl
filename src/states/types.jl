@@ -13,6 +13,8 @@ distinguish between different state semantics at the type level.
 
 # Examples
 ```jldoctest
+julia> using NCTSSoS: StateType
+
 julia> Arbitrary <: StateType
 true
 
@@ -32,6 +34,8 @@ Expectations with respect to Arbitrary states are displayed using angle brackets
 
 # Examples
 ```jldoctest
+julia> using NCTSSoS: StateType
+
 julia> Arbitrary()
 Arbitrary()
 
@@ -51,6 +55,8 @@ Displayed as `tr(M1)tr(M2)...` for a product of expectations.
 
 # Examples
 ```jldoctest
+julia> using NCTSSoS: StateType
+
 julia> MaxEntangled()
 MaxEntangled()
 

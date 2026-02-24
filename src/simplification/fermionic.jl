@@ -54,7 +54,9 @@ true
 julia> has_even_parity(a[1])  # Single annihilation: 1 operator (odd)
 false
 
-julia> has_even_parity(a_dag[1] * a[1])  # Number operator: 2 operators (even)
+julia> n1 = NormalMonomial{FermionicAlgebra}(Int8[-1, 1]);  # a₁† a₁
+
+julia> has_even_parity(n1)  # Number operator: 2 operators (even)
 true
 ```
 
@@ -81,24 +83,19 @@ they cannot all be contracted away and the result is zero.
 
 # Examples
 ```jldoctest
-julia> m = NormalMonomial{FermionicAlgebra}(Int32[1, 1]);  # a₁ a₁ = 0 (surplus 2)
+julia> # Nilpotent words are rejected by the NormalMonomial constructor:
+
+julia> try
+           NormalMonomial{FermionicAlgebra}(Int8[1, 1])  # a₁ a₁ = 0
+           false
+       catch e
+           e isa ArgumentError
+       end
+true
+
+julia> m = NormalMonomial{FermionicAlgebra}(Int8[-1, 1]);  # a₁† a₁ (valid normal form)
 
 julia> iszero(m)
-true
-
-julia> m2 = NormalMonomial{FermionicAlgebra}(Int32[1, 2, 1]);  # a₁ a₂ a₁ = -a₁ a₁ a₂ = 0
-
-julia> iszero(m2)
-true
-
-julia> m3 = NormalMonomial{FermionicAlgebra}(Int32[1, 1, -1]);  # a₁ a₁ a₁† (surplus 1, not zero yet)
-
-julia> iszero(m3)
-false
-
-julia> m4 = NormalMonomial{FermionicAlgebra}(Int32[1, -1, 1, -1]);  # a₁ a₁† a₁ a₁† ≠ 0
-
-julia> iszero(m4)
 false
 ```
 """

@@ -17,12 +17,14 @@ using NCTSSoS, Test
     # 5. Correlated sparsity suite
     include("correlated_sparsity/runtests.jl")
 
-    # 6. Curated problems
+    # 6. Trace polynomial suite
+    include("trace_poly/runtests.jl")
+
+    # 7. Curated problems
     @testset "Problems" begin
         include("problems/bell_inequalities/chsh_simple.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
-        include("problems/bell_inequalities/chsh_trace.jl")
         include("problems/bell_inequalities/chsh_state.jl")
     end
 end

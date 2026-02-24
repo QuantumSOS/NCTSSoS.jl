@@ -196,11 +196,27 @@ Returns false for "real" algebras:
 This trait is used by interface.jl to dispatch between real and Hermitian
 constraint handling in moment_relax.
 """
-_is_complex_problem(::Type{PauliAlgebra}) = true
-_is_complex_problem(::Type{FermionicAlgebra}) = true
-_is_complex_problem(::Type{BosonicAlgebra}) = true
-_is_complex_problem(::Type{NonCommutativeAlgebra}) = false
-_is_complex_problem(::Type{ProjectorAlgebra}) = false
-_is_complex_problem(::Type{UnipotentAlgebra}) = false
+@noinline function _is_complex_problem(::Type{PauliAlgebra})
+    return true
+end
 
+@noinline function _is_complex_problem(::Type{FermionicAlgebra})
+    return true
+end
+
+@noinline function _is_complex_problem(::Type{BosonicAlgebra})
+    return true
+end
+
+@noinline function _is_complex_problem(::Type{NonCommutativeAlgebra})
+    return false
+end
+
+@noinline function _is_complex_problem(::Type{ProjectorAlgebra})
+    return false
+end
+
+@noinline function _is_complex_problem(::Type{UnipotentAlgebra})
+    return false
+end
 

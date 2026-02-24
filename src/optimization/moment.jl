@@ -571,7 +571,9 @@ function _has_odd_parity_only(
 end
 
 # Fallback for non-fermionic algebras (always returns false)
-_has_odd_parity_only(poly::Polynomial) = false
+@noinline function _has_odd_parity_only(poly::Polynomial)
+    return false
+end
 
 """
     _add_parity_constraints!(mp::MomentProblem{A,T,M,P})

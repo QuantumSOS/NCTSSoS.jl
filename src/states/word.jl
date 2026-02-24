@@ -886,10 +886,10 @@ varsigma(args...) = ς(args...)
 """
     tr(m::NormalMonomial{A,T}) where {A,T}
 
-Create a StateSymbol{MaxEntangled} from a monomial.
+Create a StateWord{MaxEntangled} from a monomial.
 
 This is a convenience function for creating trace expressions in the
-maximally entangled state formalism. Equivalent to `StateSymbol{MaxEntangled}(m)`.
+maximally entangled state formalism. Equivalent to `StateWord{MaxEntangled}(m)`.
 
 # Examples
 ```jldoctest
@@ -906,8 +906,8 @@ julia> sym = tr(m);
 julia> sym isa StateWord{MaxEntangled}
 true
 ```
-tr(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateSymbol{MaxEntangled}(m)
-tr(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer} = StateSymbol{MaxEntangled}(pairs)
+tr(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(m)
+tr(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(pairs)
 """
 tr(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(m)
 

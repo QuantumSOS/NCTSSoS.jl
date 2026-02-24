@@ -81,11 +81,17 @@ The key insight is that anticommutation `{aᵢ, aⱼ} = 0` allows reordering,
 but if there's a net surplus of ≥2 same-type operators for any mode,
 they cannot all be contracted away and the result is zero.
 
+!!! note
+    The `NormalMonomial{FermionicAlgebra}` constructor rejects nilpotent words,
+    so all valid instances satisfy `iszero(m) == false`. This function is used
+    internally during simplification of raw operator products.
+
 # Examples
 ```jldoctest
-julia> # Nilpotent words are rejected by the NormalMonomial constructor:
+julia> using NCTSSoS
 
-julia> try
+julia> # Nilpotent words are rejected by the NormalMonomial constructor:
+       try
            NormalMonomial{FermionicAlgebra}(Int8[1, 1])  # a₁ a₁ = 0
            false
        catch e

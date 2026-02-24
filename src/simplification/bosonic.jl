@@ -58,11 +58,11 @@ A vector of `(coefficient, word)` pairs representing the PBW expansion.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> word = Int32[1, -1];  # c₁ c₁† (raw word; not in Bosonic normal form)
+julia> reg, (c, c_dag) = create_bosonic_variables(1:1);
 
-julia> m = simplify(BosonicAlgebra, word);
+julia> p = c[1] * c_dag[1];  # c₁c₁† = c₁†c₁ + 1
 
-julia> length(terms(m))  # Two terms: c₁† c₁ and identity
+julia> length(terms(p))
 2
 ```
 """

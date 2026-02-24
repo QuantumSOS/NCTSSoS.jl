@@ -30,11 +30,9 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = NormalMonomial{UnipotentAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
+julia> word = simplify(UnipotentAlgebra, UInt16[idx1_s2, idx1_s1, idx1_s2]);
 
-julia> result = simplify(m);
-
-julia> result.word == [idx1_s1]
+julia> word == UInt16[idx1_s1]
 true
 ```
 
@@ -46,11 +44,9 @@ julia> using NCTSSoS: encode_index
 
 julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
-julia> m = NormalMonomial{UnipotentAlgebra}([idx1_s1, idx1_s1]);
+julia> word = simplify(UnipotentAlgebra, UInt16[idx1_s1, idx1_s1]);
 
-julia> result = simplify(m);
-
-julia> isempty(result.word)
+julia> isempty(word)
 true
 ```
 """

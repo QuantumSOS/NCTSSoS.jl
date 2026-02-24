@@ -54,9 +54,9 @@ true
 julia> has_even_parity(a[1])  # Single annihilation: 1 operator (odd)
 false
 
-julia> n1 = NormalMonomial{FermionicAlgebra}(Int8[-1, 1]);  # a₁† a₁
+julia> m_num = monomials(a_dag[1] * a[1])[1];  # number operator a₁†a₁
 
-julia> has_even_parity(n1)  # Number operator: 2 operators (even)
+julia> has_even_parity(m_num)  # 2 operators (even)
 true
 ```
 
@@ -81,27 +81,26 @@ The key insight is that anticommutation `{aᵢ, aⱼ} = 0` allows reordering,
 but if there's a net surplus of ≥2 same-type operators for any mode,
 they cannot all be contracted away and the result is zero.
 
-!!! note
-    The `NormalMonomial{FermionicAlgebra}` constructor rejects nilpotent words,
-    so all valid instances satisfy `iszero(m) == false`. This function is used
-    internally during simplification of raw operator products.
+!!! note "Nilpotency and normal form"
+    `NormalMonomial{FermionicAlgebra}` stores **normal-ordered basis monomials**.
+    Nilpotent words like `a₁a₁` are rejected by the constructor, so every valid
+    `NormalMonomial{FermionicAlgebra}` is non-zero.  Nilpotent products surface as
+    the zero `Polynomial` when you multiply operators (e.g. `a[1] * a[1]`).
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> # Nilpotent words are rejected by the NormalMonomial constructor:
-       try
-           NormalMonomial{FermionicAlgebra}(Int8[1, 1])  # a₁ a₁ = 0
-           false
-       catch e
-           e isa ArgumentError
-       end
-true
+julia> reg, (a, a_dag) = create_fermionic_variables(1:2);
 
-julia> m = NormalMonomial{FermionicAlgebra}(Int8[-1, 1]);  # a₁† a₁ (valid normal form)
+julia> m1 = monomials(a_dag[1] * a[1])[1];  # a₁†a₁
 
-julia> iszero(m)
+julia> iszero(m1)
+false
+
+julia> m2 = monomials(a_dag[2] * a_dag[1])[1];  # a₂†a₁†
+
+julia> iszero(m2)
 false
 ```
 """

@@ -44,11 +44,13 @@ Maintains sorted, unique monomials with non-zero coefficients.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{PauliAlgebra}([1, 4]);
+julia> reg, (x,) = create_noncommutative_variables([("x", 1:2)]);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([3]);
+julia> m1 = monomials(x[1] * x[2])[1];
 
-julia> p = Polynomial([(1.0 + 0.0im, m1), (2.0 + 0.0im, m2)]);
+julia> m2 = x[1];
+
+julia> p = Polynomial([(1.0, m1), (2.0, m2)]);
 
 julia> length(terms(p))
 2
@@ -61,15 +63,15 @@ Construction with automatic deduplication:
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{PauliAlgebra}([1]);
+julia> reg, (x,) = create_noncommutative_variables([("x", 1:1)]);
 
-julia> p = Polynomial([(1.0+0im, m), (2.0+0im, m)]);  # Same monomial twice
+julia> p = Polynomial([(1.0, x[1]), (2.0, x[1])]);  # Same monomial twice
 
 julia> length(terms(p))  # Combined into one term
 1
 
 julia> coefficients(p)[1]  # Coefficients added
-3.0 + 0.0im
+3.0
 ```
 
 See also: [`NormalMonomial`](@ref), [`coefficients`](@ref), [`monomials`](@ref)
@@ -151,9 +153,9 @@ Construct a polynomial from a single term.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{PauliAlgebra}([1, 4]);
+julia> reg, (x,) = create_noncommutative_variables([("x", 1:1)]);
 
-julia> p = Polynomial((3.0 + 0.0im, m));
+julia> p = Polynomial((3.0, x[1]));
 
 julia> length(terms(p))
 1
@@ -187,9 +189,9 @@ The coefficient type is determined by `coeff_type(A)`:
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{PauliAlgebra}([1, 4]);
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:1);
 
-julia> p = Polynomial(m);
+julia> p = Polynomial(σx[1]);
 
 julia> coefficients(p)[1]
 1.0 + 0.0im
@@ -217,7 +219,8 @@ The phase encoding: 0=1, 1=i, 2=-1, 3=-i (representing (im)^phase).
 ```jldoctest
 julia> using NCTSSoS
 
-julia> result = (Int64[3], UInt8(1));  # word with phase i
+julia> # Result from simplify(PauliAlgebra, word)
+julia> result = simplify(PauliAlgebra, Int64[1, 2]);  # σx₁σy₁ = iσz₁
 
 julia> p = Polynomial(result);
 
@@ -302,11 +305,9 @@ converting between different coefficient types during computation.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> using NCTSSoS: encode_index
+julia> reg, (x,) = create_noncommutative_variables([("x", 1:1)]);
 
-julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[encode_index(UInt8, 1, 1)]);
-
-julia> p_int = Polynomial([(2, m)]);  # Int coefficients
+julia> p_int = Polynomial([(2, x[1])]);  # Int coefficients
 
 julia> p_float = convert(Polynomial{NonCommutativeAlgebra,UInt8,Float64}, p_int);
 
@@ -539,7 +540,7 @@ julia> using NCTSSoS
 
 julia> m1 = NormalMonomial{PauliAlgebra}([1]);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([2, 5, 8]);
+julia> m2 = NormalMonomial{PauliAlgebra}([1, 4, 7]);
 
 julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
 
@@ -567,15 +568,13 @@ Returns a Set of integer indices.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{PauliAlgebra}([1]);
+julia> m1 = NormalMonomial{PauliAlgebra}(Int[1, 4]);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([2]);
+julia> m2 = NormalMonomial{PauliAlgebra}(Int[4, 7]);
 
 julia> m3 = NormalMonomial{PauliAlgebra}([3]);
 
-julia> p = Polynomial([(1.0+0im, m1), (1.0+0im, m2), (1.0+0im, m3)]);
-
-julia> variable_indices(p) == Set([1, 2, 3])
+julia> variable_indices(p) == Set(Int[1, 4, 7])
 true
 ```
 """
@@ -606,9 +605,11 @@ which is the correct behavior for correlative sparsity analysis.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{FermionicAlgebra}(Int8[-2, -1, 1]);
+julia> reg, (a, a⁺) = create_fermionic_variables(1:2);
 
-julia> variable_indices(m) == Set(Int8[1, 2])
+julia> m = monomials(a⁺[1] * a[1])[1];
+
+julia> variable_indices(m) == Set([1])
 true
 ```
 """

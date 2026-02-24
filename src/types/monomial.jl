@@ -187,7 +187,11 @@ const SUPERSCRIPT_EXPONENTS = Dict(
     NormalMonomial{A<:AlgebraType, T<:Integer} <: AbstractMonomial{A,T}
 
 Represents an immutable monomial in word representation for non-commutative algebras.
-The word vector represents a product of operators (e.g., [1,3,1,3] = xzxz).
+
+The `word` is an algebra-dependent integer encoding of a product of generators.
+Most users should construct monomials via `create_*_variables` (recommended) or by
+canonicalizing raw words with `simplify(A, word)` before calling the `NormalMonomial`
+constructor.
 
 # Fields
 - `word::Vector{T}`: The monomial representation word
@@ -209,40 +213,43 @@ rather than mutating existing ones.
 
 # Examples
 ```jldoctest
-julia> m1 = NormalMonomial{PauliAlgebra}([1, 4, 7, 10]);
+julia> using NCTSSoS
 
-julia> m1.word == [1, 4, 7, 10]
+julia> using NCTSSoS: encode_index
+
+julia> i1 = encode_index(UInt16, 1, 1);  # operator 1 on site 1
+
+julia> j1 = encode_index(UInt16, 1, 2);  # operator 1 on site 2
+
+julia> w = simplify(NonCommutativeAlgebra, UInt16[j1, i1, j1]);
+
+julia> m = NormalMonomial{NonCommutativeAlgebra,UInt16}(w);
+
+julia> m isa NormalMonomial{NonCommutativeAlgebra,UInt16}
 true
-
-julia> typeof(m1)
-NormalMonomial{PauliAlgebra, Int64}
 ```
 
 Different algebra types:
 ```jldoctest
-julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7]);
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:2);
 
-julia> typeof(m_pauli)
-NormalMonomial{PauliAlgebra, UInt16}
+julia> σx[1] isa NormalMonomial{PauliAlgebra}
+true
 
-julia> m_fermi = NormalMonomial{FermionicAlgebra}(Int32[-3, -1, 2]);
+julia> regf, (a, a⁺) = create_fermionic_variables(1:2);
 
-julia> typeof(m_fermi)
-NormalMonomial{FermionicAlgebra, Int32}
+julia> a⁺[2] isa NormalMonomial{FermionicAlgebra}
+true
 ```
 
 Equality comparison:
 ```jldoctest
-julia> m1 = NormalMonomial{PauliAlgebra}([1, 4, 7]);
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:2);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([1, 4, 8]);
-
-julia> m1 == m2
+julia> σx[1] == σx[2]
 false
 
-julia> m3 = NormalMonomial{PauliAlgebra}([1, 4, 7]);
-
-julia> m1 == m3
+julia> σx[1] == σx[1]
 true
 ```
 """
@@ -294,19 +301,19 @@ For non-commutative monomials in word representation, this is the number of oper
 
 # Examples
 ```jldoctest
-julia> m1 = NormalMonomial{PauliAlgebra}([1, 4, 7, 10]);
+julia> using NCTSSoS
 
-julia> degree(m1)
-4
+julia> reg, (x,) = create_noncommutative_variables([("x", 1:3)]);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([2, 5, 8]);
+julia> degree(x[1])
+1
 
-julia> degree(m2)
+julia> m = monomials(x[1] * x[2] * x[3])[1];
+
+julia> degree(m)
 3
 
-julia> m_zero = NormalMonomial{PauliAlgebra}(Int[]);
-
-julia> degree(m_zero)
+julia> degree(one(typeof(x[1])))
 0
 ```
 """
@@ -324,7 +331,7 @@ julia> m_identity = NormalMonomial{PauliAlgebra}(Int[]);
 julia> isone(m_identity)
 true
 
-julia> m_not_identity = NormalMonomial{PauliAlgebra}([1]);
+julia> m_not_identity = NormalMonomial{PauliAlgebra}(Int[1, 4]);
 
 julia> isone(m_not_identity)
 false
@@ -451,20 +458,21 @@ When using a registry, consecutive identical variables are displayed with expone
 # Examples
 ```julia
 # Without registry (raw indices)
-julia> m = NormalMonomial{PauliAlgebra}([1, 2, 3]);
+julia> m = NormalMonomial{PauliAlgebra,Int}(Int[1, 4, 7]);
 julia> show(stdout, m)
-[1, 2, 3]
+[1, 4, 7]
 
 # With registry (symbolic names)
-julia> reg, (σx, σy, σz) = create_pauli_variables(1:2);
-julia> m = σx[1] * σy[1];
+julia> reg, (σx, σy, σz) = create_pauli_variables(1:3);
+julia> m = monomials(σx[1] * σy[2] * σz[3])[1];
 julia> show(IOContext(stdout, :registry => reg), m)
-σx₁σy₁
+σx₁σy₂σz₃
 
-# With exponents for repeated variables
-julia> m = NormalMonomial{PauliAlgebra}([1, 1, 1]);
-julia> show(IOContext(stdout, :registry => reg), m)
-σx₁³
+# With exponents for repeated variables (NonCommutativeAlgebra)
+julia> reg_nc, (x,) = create_noncommutative_variables([("x", 1:1)]);
+julia> m = monomials(x[1] * x[1] * x[1])[1];
+julia> show(IOContext(stdout, :registry => reg_nc), m)
+x₁³
 ```
 
 See also: [`VariableRegistry`](@ref)
@@ -526,7 +534,7 @@ allowing uniform iteration over monomials regardless of input type.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{PauliAlgebra}([1, 4]);
+julia> m = NormalMonomial{PauliAlgebra,Int}(Int[1, 4]);
 
 julia> monomials(m) == [m]
 true
@@ -553,7 +561,7 @@ that process bases of monomials.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{PauliAlgebra}([1, 4]);
+julia> m = NormalMonomial{PauliAlgebra}(Int[1, 4]);
 
 julia> for (coef, mono) in m
            println("Coefficient: \$coef, Word: \$(mono.word)")

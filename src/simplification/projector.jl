@@ -29,11 +29,9 @@ julia> idx1_s1 = encode_index(UInt16, 1, 1);
 
 julia> idx1_s2 = encode_index(UInt16, 1, 2);
 
-julia> m = NormalMonomial{ProjectorAlgebra}([idx1_s2, idx1_s1, idx1_s2]);
+julia> word = simplify(ProjectorAlgebra, UInt16[idx1_s2, idx1_s1, idx1_s2]);
 
-julia> result = simplify(m);
-
-julia> result.word == [idx1_s1, idx1_s2]
+julia> word == UInt16[idx1_s1, idx1_s2]
 true
 ```
 """

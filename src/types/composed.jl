@@ -72,7 +72,9 @@ julia> using NCTSSoS: encode_index
 
 julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4]);  # σx on sites 1,2
 
-julia> m_unip = NormalMonomial{UnipotentAlgebra}(UInt16[encode_index(UInt16, 1, 1), encode_index(UInt16, 1, 1), encode_index(UInt16, 2, 1)]);
+julia> raw_unip = UInt16[encode_index(UInt16, 1, 1), encode_index(UInt16, 1, 1), encode_index(UInt16, 2, 1)];
+
+julia> m_unip = NormalMonomial{UnipotentAlgebra}(simplify(UnipotentAlgebra, raw_unip));
 
 julia> cm = ComposedMonomial((m_pauli, m_unip));
 
@@ -151,7 +153,7 @@ julia> using NCTSSoS
 
 julia> m1 = NormalMonomial{PauliAlgebra}(UInt16[1]);
 
-julia> m2 = NormalMonomial{PauliAlgebra}(UInt16[1, 2]);
+julia> m2 = NormalMonomial{PauliAlgebra}(UInt16[1, 4]);
 
 julia> m3 = NormalMonomial{FermionicAlgebra}(Int32[1]);
 
@@ -198,7 +200,7 @@ Total degree across all components.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{PauliAlgebra}(UInt16[1, 2, 3]);
+julia> m1 = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7]);
 
 julia> m2 = NormalMonomial{FermionicAlgebra}(Int32[1, 2]);
 
@@ -272,7 +274,7 @@ julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[]);  # identity
 
 julia> u2 = encode_index(UInt16, 2, 1);
 
-julia> m_unip = NormalMonomial{UnipotentAlgebra}(UInt16[u2, u2]);
+julia> m_unip = NormalMonomial{UnipotentAlgebra}(simplify(UnipotentAlgebra, UInt16[u2, u2]));
 
 julia> cm = ComposedMonomial((m_pauli, m_unip));
 

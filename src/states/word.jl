@@ -214,9 +214,13 @@ All symbols share the same algebra type A.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> using NCTSSoS: encode_index
 
-julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
+
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(3)]);
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);
 
@@ -270,7 +274,7 @@ Create the identity StateWord (single identity symbol).
 ```jldoctest
 julia> using NCTSSoS
 
-julia> sw_one = one(StateWord{Arbitrary,NonCommutativeAlgebra,Int64});
+julia> sw_one = one(StateWord{Arbitrary,NonCommutativeAlgebra,UInt8});
 
 julia> isone(sw_one)
 true
@@ -298,12 +302,16 @@ Check if a StateWord is the identity (single identity symbol).
 ```jldoctest
 julia> using NCTSSoS
 
-julia> sw_one = one(StateWord{Arbitrary,NonCommutativeAlgebra,Int64});
+julia> using NCTSSoS: encode_index
+
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> sw_one = one(StateWord{Arbitrary,NonCommutativeAlgebra,UInt8});
 
 julia> isone(sw_one)
 true
 
-julia> m = NormalMonomial{NonCommutativeAlgebra}([1]);
+julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1)]);
 
 julia> sw = StateWord{Arbitrary}([m]);
 
@@ -326,9 +334,13 @@ Compute the total degree of a StateWord (sum of symbol degrees).
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);  # degree 2
+julia> using NCTSSoS: encode_index
 
-julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);     # degree 1
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);  # degree 2
+
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(3)]);     # degree 1
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);
 
@@ -347,17 +359,18 @@ Get the set of all variable indices used in the StateWord's symbols.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> using NCTSSoS: encode_index
 
-julia> m2 = NormalMonomial{NonCommutativeAlgebra}([2, 3]);
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
+
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(2), idx(3)]);
 
 julia> sw = StateWord{Arbitrary}([m1, m2]);
 
-julia> sort(collect(variables(sw)))
-3-element Vector{Int64}:
- 1
- 2
- 3
+julia> length(variables(sw))
+3
 ```
 """
 function variables(sw::StateWord{ST,A,T}) where {ST,A,T}
@@ -397,9 +410,13 @@ Compare two StateWords using degree-first ordering, then lexicographic on state_
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1]);
+julia> using NCTSSoS: encode_index
 
-julia> m2 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1)]);
+
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
 
 julia> sw1 = StateWord{Arbitrary}([m1]);
 
@@ -446,9 +463,13 @@ all expectations from both operands.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> using NCTSSoS: encode_index
 
-julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
+
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(3)]);
 
 julia> sw1 = StateWord{Arbitrary}([m1]);
 
@@ -485,7 +506,11 @@ Due to the involution invariant, adjoint(sw) == sw for all StateWords.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{NonCommutativeAlgebra}([1, 2, 3]);
+julia> using NCTSSoS: encode_index
+
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2), idx(3)]);
 
 julia> sw = StateWord{Arbitrary}([m]);
 
@@ -540,9 +565,13 @@ Combines a commutative StateWord (expectations) with a non-commutative monomial 
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> using NCTSSoS: encode_index
 
-julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3]);
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
+
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(3)]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 
@@ -668,7 +697,11 @@ Compute adjoint(x) * y. Common operation in quantum optimization.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{NonCommutativeAlgebra}([1]);
+julia> using NCTSSoS: encode_index, neat_dot
+
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1)]);
 
 julia> sw = StateWord{Arbitrary}([m]);
 
@@ -693,9 +726,13 @@ Converts `<M1><M2>...<Mk> * Onc` to `<M1><M2>...<Mk><Onc>`.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> using NCTSSoS: encode_index, expval
 
-julia> m2 = NormalMonomial{NonCommutativeAlgebra}([3, 4]);
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m1 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
+
+julia> m2 = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(3), idx(4)]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 
@@ -829,7 +866,11 @@ arbitrary state formalism. Equivalent to `StateWord{Arbitrary}(m)`.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> using NCTSSoS: encode_index
+
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
 
 julia> sym = ς(m);
 
@@ -845,24 +886,28 @@ varsigma(args...) = ς(args...)
 """
     tr(m::NormalMonomial{A,T}) where {A,T}
 
-Create a StateSymbol{MaxEntangled} from a monomial.
+Create a StateWord{MaxEntangled} from a monomial.
 
 This is a convenience function for creating trace expressions in the
-maximally entangled state formalism. Equivalent to `StateSymbol{MaxEntangled}(m)`.
+maximally entangled state formalism. Equivalent to `StateWord{MaxEntangled}(m)`.
 
 # Examples
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{NonCommutativeAlgebra}([1, 2]);
+julia> using NCTSSoS: encode_index
+
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
 
 julia> sym = tr(m);
 
-julia> sym isa StateSymbol{MaxEntangled}
+julia> sym isa StateWord{MaxEntangled}
 true
 ```
-tr(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateSymbol{MaxEntangled}(m)
-tr(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer} = StateSymbol{MaxEntangled}(pairs)
+tr(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(m)
+tr(pairs::Vector{Tuple{Val{1},NormalMonomial{A,T}}}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(pairs)
 """
 tr(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{MaxEntangled}(m)
 

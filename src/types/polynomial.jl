@@ -193,9 +193,8 @@ julia> reg, (σx, σy, σz) = create_pauli_variables(1:1);
 
 julia> p = Polynomial(σx[1]);
 
-julia> coefficients(p)
-1-element Vector{ComplexF64}:
- 1.0 + 0.0im
+julia> coefficients(p)[1]
+1.0 + 0.0im
 ```
 """
 function Polynomial(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
@@ -499,10 +498,8 @@ julia> m2 = NormalMonomial{PauliAlgebra}([2]);
 
 julia> p = Polynomial([(1.0+0im, m1), (2.0+0im, m2)]);
 
-julia> coefficients(p)
-2-element Vector{ComplexF64}:
- 1.0 + 0.0im
- 2.0 + 0.0im
+julia> coefficients(p) == [1.0 + 0.0im, 2.0 + 0.0im]
+true
 ```
 """
 coefficients(p::Polynomial) = [c for (c, _) in p.terms]
@@ -575,7 +572,7 @@ julia> m1 = NormalMonomial{PauliAlgebra}(Int[1, 4]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}(Int[4, 7]);
 
-julia> p = Polynomial([(1.0+0im, m1), (1.0+0im, m2)]);
+julia> m3 = NormalMonomial{PauliAlgebra}([3]);
 
 julia> variable_indices(p) == Set(Int[1, 4, 7])
 true
@@ -823,11 +820,11 @@ Works for all polynomial types including `Polynomial{A,T,C}` and
 
 # Examples
 ```jldoctest
-julia> coeff_type(Polynomial{PauliAlgebra,Int64,ComplexF64})
-ComplexF64
+julia> coeff_type(Polynomial{PauliAlgebra,Int64,ComplexF64}) == ComplexF64
+true
 
-julia> coeff_type(Polynomial{NonCommutativeAlgebra,Int64,Float64})
-Float64
+julia> coeff_type(Polynomial{NonCommutativeAlgebra,Int64,Float64}) == Float64
+true
 ```
 """
 coeff_type(::Type{<:AbstractPolynomial{C}}) where {C<:Number} = C

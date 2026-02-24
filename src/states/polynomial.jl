@@ -769,7 +769,9 @@ Same as StatePolynomial: sorted, unique, non-zero coefficients.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m1 = NormalMonomial{ProjectorAlgebra}(UInt8[1]);
+julia> using NCTSSoS: NCStatePolynomial, encode_index
+
+julia> m1 = NormalMonomial{ProjectorAlgebra}(UInt8[encode_index(UInt8, 1, 1)]);
 
 julia> sw = StateWord{Arbitrary}([m1]);
 

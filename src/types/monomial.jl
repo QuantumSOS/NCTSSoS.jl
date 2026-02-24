@@ -120,14 +120,14 @@ state monomials (`StateSymbol`, `StateWord`) that carry the same algebra type pa
 ```jldoctest
 julia> using NCTSSoS
 
-julia> coeff_type(NormalMonomial{PauliAlgebra,Int64})
-ComplexF64
+julia> coeff_type(NormalMonomial{PauliAlgebra,Int64}) == ComplexF64
+true
 
-julia> coeff_type(NormalMonomial{FermionicAlgebra,Int32})
-Float64
+julia> coeff_type(NormalMonomial{FermionicAlgebra,Int32}) == Float64
+true
 
-julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64})
-Float64
+julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64}) == Float64
+true
 ```
 """
 coeff_type(::Type{<:AbstractMonomial{A}}) where {A<:AlgebraType} = coeff_type(A)
@@ -264,6 +264,13 @@ struct NormalMonomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     end
 
 end
+
+"""
+    NormalMonomial{A}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
+
+Convenience constructor that infers the integer type `T` from the provided word vector.
+"""
+NormalMonomial{A}(word::Vector{T}) where {A<:AlgebraType,T<:Integer} = NormalMonomial{A,T}(word)
 
 """
     Base.:(==)(m1::NormalMonomial, m2::NormalMonomial) -> Bool

@@ -14,7 +14,7 @@ NCTSSoS supports multiple algebra types organized by their normal form structure
 - **MonoidAlgebra**: Normal form is a single monomial
   - `NonCommutativeAlgebra`: Free algebra with no simplification rules
   - `ProjectorAlgebra`: Projectors satisfying P² = P
-  - `UnipotentAlgebra`: Operators satisfying X² = X (shift operators)
+  - `UnipotentAlgebra`: Involutory operators satisfying U² = 𝟙
 
 - **TwistedGroupAlgebra**: Normal form is scalar × monomial
   - `PauliAlgebra`: Pauli spin operators with σ² = I and cyclic products
@@ -28,17 +28,17 @@ NCTSSoS supports multiple algebra types organized by their normal form structure
 ```julia
 using NCTSSoS
 
-# Create variables
-reg, (σ,) = create_pauli_variables([("σ", 1:3)])
+# Create Pauli variables on 2 sites
+reg, (σx, σy, σz) = create_pauli_variables(1:2)
 
-# Define objective
-obj = σ[1,1] * σ[2,1] + σ[1,2] * σ[2,2] + σ[1,3] * σ[2,3]
+# Define an objective (auto-simplified by PauliAlgebra)
+obj = 0.25 * (σx[1] * σx[2] + σy[1] * σy[2] + σz[1] * σz[2])
 
-# Solve
-result = cs_nctssos(PolyOpt(obj, -obj), 1)
+# Build the optimization problem (add constraints as needed)
+pop = polyopt(obj, reg)
 ```
 
-See also: [`PolyOpt`](@ref), [`cs_nctssos`](@ref), [`create_pauli_variables`](@ref)
+See also: [`polyopt`](@ref), [`SolverConfig`](@ref), [`cs_nctssos`](@ref)
 """
 module NCTSSoS
 

@@ -226,11 +226,11 @@ the appropriate coefficient type when not explicitly specified.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> coeff_type(PauliAlgebra)
-ComplexF64
+julia> coeff_type(PauliAlgebra) == ComplexF64
+true
 
-julia> coeff_type(NonCommutativeAlgebra)
-Float64
+julia> coeff_type(NonCommutativeAlgebra) == Float64
+true
 ```
 """
 coeff_type(::Type{<:AlgebraType}) = Float64

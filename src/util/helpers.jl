@@ -16,6 +16,8 @@ containing all unique elements from the input vectors.
 
 # Examples
 ```jldoctest
+julia> using NCTSSoS: sorted_union
+
 julia> sorted_union([3, 1], [2, 1])
 3-element Vector{Int64}:
  1
@@ -40,6 +42,8 @@ Modifies `v` in-place.
 
 # Examples
 ```jldoctest
+julia> using NCTSSoS: sorted_unique!
+
 julia> sorted_unique!([3, 1, 2, 1, 3])
 3-element Vector{Int64}:
  1
@@ -229,7 +233,7 @@ julia> _operator_mode(2)   # a₂ → mode 2
 @inline _operator_mode(op::T) where {T<:Signed} = abs(op)
 
 """
-    normal_order_key(op::T) where T<:Integer -> Tuple{Int, T}
+    normal_order_key(op::T) where T<:Integer -> Tuple{Bool, T}
 
 Compute the sort key for normal ordering of fermionic/bosonic operators.
 
@@ -245,10 +249,10 @@ introducing extra signs from re-sorting.
 julia> using NCTSSoS: normal_order_key
 
 julia> normal_order_key(-3)  # a₃† (creation)
-(0, -3)
+(false, -3)
 
 julia> normal_order_key(2)   # a₂ (annihilation)
-(1, 2)
+(true, 2)
 ```
 """
 @inline normal_order_key(op::T) where {T<:Signed} = (!_is_creation(op), op)

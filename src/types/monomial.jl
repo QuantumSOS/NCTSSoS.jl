@@ -120,14 +120,14 @@ state monomials (`StateSymbol`, `StateWord`) that carry the same algebra type pa
 ```jldoctest
 julia> using NCTSSoS
 
-julia> coeff_type(NormalMonomial{PauliAlgebra,Int64})
-ComplexF64
+julia> coeff_type(NormalMonomial{PauliAlgebra,Int64}) == ComplexF64
+true
 
-julia> coeff_type(NormalMonomial{FermionicAlgebra,Int32})
-Float64
+julia> coeff_type(NormalMonomial{FermionicAlgebra,Int32}) == Float64
+true
 
-julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64})
-Float64
+julia> coeff_type(Polynomial{BosonicAlgebra,Int32,Float64}) == Float64
+true
 ```
 """
 coeff_type(::Type{<:AbstractMonomial{A}}) where {A<:AlgebraType} = coeff_type(A)
@@ -209,14 +209,10 @@ rather than mutating existing ones.
 
 # Examples
 ```jldoctest
-julia> m1 = NormalMonomial{PauliAlgebra}([1, 3, 1, 3]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1, 4, 7, 10]);
 
-julia> m1.word
-4-element Vector{Int64}:
- 1
- 3
- 1
- 3
+julia> m1.word == [1, 4, 7, 10]
+true
 
 julia> typeof(m1)
 NormalMonomial{PauliAlgebra, Int64}
@@ -224,12 +220,12 @@ NormalMonomial{PauliAlgebra, Int64}
 
 Different algebra types:
 ```jldoctest
-julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 2, 3]);
+julia> m_pauli = NormalMonomial{PauliAlgebra}(UInt16[1, 4, 7]);
 
 julia> typeof(m_pauli)
 NormalMonomial{PauliAlgebra, UInt16}
 
-julia> m_fermi = NormalMonomial{FermionicAlgebra}(Int32[-1, 2, -3]);
+julia> m_fermi = NormalMonomial{FermionicAlgebra}(Int32[-3, -1, 2]);
 
 julia> typeof(m_fermi)
 NormalMonomial{FermionicAlgebra, Int32}
@@ -237,14 +233,14 @@ NormalMonomial{FermionicAlgebra, Int32}
 
 Equality comparison:
 ```jldoctest
-julia> m1 = NormalMonomial{PauliAlgebra}([1, 3, 1, 3]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1, 4, 7]);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([1, 3, 1, 2]);
+julia> m2 = NormalMonomial{PauliAlgebra}([1, 4, 8]);
 
 julia> m1 == m2
 false
 
-julia> m3 = NormalMonomial{PauliAlgebra}([1, 3, 1, 3]);
+julia> m3 = NormalMonomial{PauliAlgebra}([1, 4, 7]);
 
 julia> m1 == m3
 true
@@ -261,6 +257,13 @@ struct NormalMonomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     end
 
 end
+
+"""
+    NormalMonomial{A}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
+
+Convenience constructor that infers the integer type `T` from the provided word vector.
+"""
+NormalMonomial{A}(word::Vector{T}) where {A<:AlgebraType,T<:Integer} = NormalMonomial{A,T}(word)
 
 """
     Base.:(==)(m1::NormalMonomial, m2::NormalMonomial) -> Bool
@@ -291,17 +294,17 @@ For non-commutative monomials in word representation, this is the number of oper
 
 # Examples
 ```jldoctest
-julia> m1 = NormalMonomial([1, 3, 1, 3]);
+julia> m1 = NormalMonomial{PauliAlgebra}([1, 4, 7, 10]);
 
 julia> degree(m1)
 4
 
-julia> m2 = NormalMonomial([2, 2, 2]);
+julia> m2 = NormalMonomial{PauliAlgebra}([2, 5, 8]);
 
 julia> degree(m2)
 3
 
-julia> m_zero = NormalMonomial(Int[]);
+julia> m_zero = NormalMonomial{PauliAlgebra}(Int[]);
 
 julia> degree(m_zero)
 0
@@ -321,7 +324,7 @@ julia> m_identity = NormalMonomial{PauliAlgebra}(Int[]);
 julia> isone(m_identity)
 true
 
-julia> m_not_identity = NormalMonomial{PauliAlgebra}([1, 2]);
+julia> m_not_identity = NormalMonomial{PauliAlgebra}([1]);
 
 julia> isone(m_not_identity)
 false
@@ -389,7 +392,7 @@ Attempting to compare monomials of different algebra types will result in a `Met
 ```jldoctest
 julia> m1 = NormalMonomial{PauliAlgebra}([1]);
 
-julia> m2 = NormalMonomial{PauliAlgebra}([1, 2]);
+julia> m2 = NormalMonomial{PauliAlgebra}([1, 4]);
 
 julia> isless(m1, m2)  # degree 1 < degree 2
 true
@@ -405,7 +408,7 @@ false
 
 Sorting works correctly:
 ```jldoctest
-julia> monos = [NormalMonomial{PauliAlgebra}([2]), NormalMonomial{PauliAlgebra}([1, 2]), NormalMonomial{PauliAlgebra}([1])];
+julia> monos = [NormalMonomial{PauliAlgebra}([2]), NormalMonomial{PauliAlgebra}([1, 4]), NormalMonomial{PauliAlgebra}([1])];
 
 julia> sort!(monos);
 
@@ -413,7 +416,7 @@ julia> [m.word for m in monos]
 3-element Vector{Vector{Int64}}:
  [1]
  [2]
- [1, 2]
+ [1, 4]
 ```
 
 See also: [`degree`](@ref)
@@ -523,11 +526,10 @@ allowing uniform iteration over monomials regardless of input type.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{PauliAlgebra}([1, 2]);
+julia> m = NormalMonomial{PauliAlgebra}([1, 4]);
 
-julia> monomials(m)
-1-element Vector{NormalMonomial{PauliAlgebra, Int64}}:
- NormalMonomial{PauliAlgebra, Int64}([1, 2])
+julia> monomials(m) == [m]
+true
 ```
 """
 monomials(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = [m]
@@ -551,12 +553,12 @@ that process bases of monomials.
 ```jldoctest
 julia> using NCTSSoS
 
-julia> m = NormalMonomial{PauliAlgebra}([1, 2]);
+julia> m = NormalMonomial{PauliAlgebra}([1, 4]);
 
 julia> for (coef, mono) in m
            println("Coefficient: \$coef, Word: \$(mono.word)")
        end
-Coefficient: 1.0 + 0.0im, Word: [1, 2]
+Coefficient: 1.0 + 0.0im, Word: [1, 4]
 ```
 """
 function Base.iterate(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}

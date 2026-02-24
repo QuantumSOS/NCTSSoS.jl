@@ -10,7 +10,9 @@ Supports both contiguous (Vector-like) and sparse (Dict-based) indices.
 
 # Examples
 ```jldoctest
-julia> reg = create_pauli_variables(1:2)
+julia> reg, _ = create_pauli_variables(1:2);
+
+julia> reg
 VariableRegistry with 6 variables: σx₁, σy₁, σz₁, σx₂, σy₂, σz₂
 
 julia> length(reg)
@@ -162,7 +164,9 @@ Return all symbols in index-sorted order.
 
 # Examples
 ```jldoctest
-julia> reg = create_projector_variables(1:3)
+julia> reg, _ = create_projector_variables([("P", 1:3)]);
+
+julia> reg
 VariableRegistry with 3 variables: P₁, P₂, P₃
 
 julia> symbols(reg)
@@ -184,14 +188,13 @@ Return all indices in sorted order.
 
 # Examples
 ```jldoctest
-julia> reg = create_projector_variables(1:3)
+julia> reg, _ = create_projector_variables([("P", 1:3)]);
+
+julia> reg
 VariableRegistry with 3 variables: P₁, P₂, P₃
 
-julia> indices(reg)
-3-element Vector{UInt8}:
- 0x01
- 0x02
- 0x03
+julia> indices(reg) == UInt8[0x05, 0x09, 0x0d]
+true
 ```
 """
 indices(reg::VariableRegistry) = sort(collect(keys(reg.idx_to_variables)))
@@ -251,8 +254,8 @@ julia> reg, (σx, σy, σz) = create_pauli_variables(1:2);
 julia> length(σx)  # One σx per site
 2
 
-julia> σx[1]  # monomial for σx₁
-NormalMonomial{PauliAlgebra, UInt8}(...)
+julia> typeof(σx[1])  # monomial for σx₁
+NormalMonomial{PauliAlgebra, UInt8}
 
 julia> :σx₁ in reg
 true
@@ -351,8 +354,8 @@ julia> reg, (a, a⁺) = create_fermionic_variables(1:2);
 julia> length(a)  # One annihilation per mode
 2
 
-julia> a[1]  # monomial for a₁
-NormalMonomial{FermionicAlgebra, Int8}(...)
+julia> typeof(a[1])  # monomial for a₁
+NormalMonomial{FermionicAlgebra, Int8}
 
 julia> :a₁ in reg  # annihilation operator
 true
@@ -449,8 +452,8 @@ julia> reg, (c, c⁺) = create_bosonic_variables(1:2);
 julia> length(c)  # One annihilation per mode
 2
 
-julia> c[1]  # monomial for c₁
-NormalMonomial{BosonicAlgebra, Int8}(...)
+julia> typeof(c[1])  # monomial for c₁
+NormalMonomial{BosonicAlgebra, Int8}
 
 julia> :c₁ in reg  # annihilation operator
 true
@@ -497,8 +500,8 @@ julia> reg, (P,) = create_projector_variables([("P", 1:3)]);
 julia> length(P)
 3
 
-julia> P[1]  # monomial for P₁
-NormalMonomial{ProjectorAlgebra, UInt8}(...)
+julia> typeof(P[1])  # monomial for P₁
+NormalMonomial{ProjectorAlgebra, UInt8}
 
 julia> reg, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 3:4)]);
 
@@ -540,8 +543,8 @@ julia> reg, (U,) = create_unipotent_variables([("U", 1:3)]);
 julia> length(U)
 3
 
-julia> U[1]  # monomial for U₁
-NormalMonomial{UnipotentAlgebra, UInt8}(...)
+julia> typeof(U[1])  # monomial for U₁
+NormalMonomial{UnipotentAlgebra, UInt8}
 
 julia> reg, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 3:4)]);
 
@@ -578,8 +581,8 @@ julia> reg, (x,) = create_noncommutative_variables([("x", 1:3)]);
 julia> length(x)
 3
 
-julia> x[1]  # monomial for x₁
-NormalMonomial{NonCommutativeAlgebra, UInt8}(...)
+julia> typeof(x[1])  # monomial for x₁
+NormalMonomial{NonCommutativeAlgebra, UInt8}
 
 julia> reg, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 3:4)]);
 

@@ -219,7 +219,6 @@ The phase encoding: 0=1, 1=i, 2=-1, 3=-i (representing (im)^phase).
 ```jldoctest
 julia> using NCTSSoS
 
-julia> # Result from simplify(PauliAlgebra, word)
 julia> result = simplify(PauliAlgebra, Int64[1, 2]);  # σx₁σy₁ = iσz₁
 
 julia> p = Polynomial(result);
@@ -572,7 +571,7 @@ julia> m1 = NormalMonomial{PauliAlgebra}(Int[1, 4]);
 
 julia> m2 = NormalMonomial{PauliAlgebra}(Int[4, 7]);
 
-julia> m3 = NormalMonomial{PauliAlgebra}([3]);
+julia> p = Polynomial([(1.0 + 0.0im, m1), (2.0 + 0.0im, m2)]);
 
 julia> variable_indices(p) == Set(Int[1, 4, 7])
 true

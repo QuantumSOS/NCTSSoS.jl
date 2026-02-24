@@ -25,6 +25,13 @@ We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver ba
 using NCTSSoS, MosekTools
 ````
 
+````
+Precompiling packages...
+   2171.7 ms  ✓ NCTSSoS
+  1 dependency successfully precompiled in 2 seconds. 70 already precompiled.
+
+````
+
 ## Key Concepts: Unipotent and Projector Variables
 
 Bell inequalities use two types of measurement operators:

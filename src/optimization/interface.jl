@@ -151,6 +151,23 @@ const _ACCEPTABLE_STATUSES = Set([
 ])
 
 """
+    SolverStatusError
+
+Exception thrown when the solver termination/result statuses are unacceptable.
+Stores structured status codes so tests and callers can inspect them without
+depending on message formatting.
+"""
+struct SolverStatusError <: Exception
+    termination
+    primal
+    dual
+end
+
+function Base.showerror(io::IO, err::SolverStatusError)
+    print(io, "Solver failed: termination=$(err.termination), primal=$(err.primal), dual=$(err.dual)")
+end
+
+"""
     _check_solver_status(model)
 
 Check that the solver terminated successfully. Throws an error if the solver
@@ -172,7 +189,7 @@ function _check_solver_status(model)
         return status
     end
 
-    error("Solver failed: termination=$status, primal=$primal, dual=$dual")
+    throw(SolverStatusError(status, primal, dual))
 end
 
 """

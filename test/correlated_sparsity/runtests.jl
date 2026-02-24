@@ -9,7 +9,9 @@ using NCTSSoS:
     correlative_sparsity,
     get_correlative_graph
 
-const MOI = JuMP.MOI
+if !@isdefined(MOI)
+    const MOI = JuMP.MOI
+end
 
 # SOLVER fallback for standalone/REPL execution
 if !@isdefined(SOLVER)

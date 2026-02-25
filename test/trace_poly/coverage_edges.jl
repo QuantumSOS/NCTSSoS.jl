@@ -2,6 +2,8 @@ using Graphs
 using JuMP
 const MOI = JuMP.MOI
 
+# UInt16 chosen to match test/polynomials/ convention (NC_INDEX_T);
+# create_noncommutative_variables may select UInt8 for small counts.
 _idx(op_id::Integer, site::Integer=1) = NCTSSoS.encode_index(UInt16, op_id, site)
 _mono(ids::Integer...; site::Integer=1) =
     NormalMonomial{NonCommutativeAlgebra,UInt16}(UInt16[_idx(i, site) for i in ids])
@@ -155,12 +157,6 @@ end
     @test !NCTSSoS._is_complex_problem(NonCommutativeAlgebra)
     @test !NCTSSoS._is_complex_problem(ProjectorAlgebra)
     @test !NCTSSoS._is_complex_problem(UnipotentAlgebra)
-    @test Base.invokelatest(NCTSSoS._is_complex_problem, PauliAlgebra)
-    @test Base.invokelatest(NCTSSoS._is_complex_problem, FermionicAlgebra)
-    @test Base.invokelatest(NCTSSoS._is_complex_problem, BosonicAlgebra)
-    @test !Base.invokelatest(NCTSSoS._is_complex_problem, NonCommutativeAlgebra)
-    @test !Base.invokelatest(NCTSSoS._is_complex_problem, ProjectorAlgebra)
-    @test !Base.invokelatest(NCTSSoS._is_complex_problem, UnipotentAlgebra)
 
     reg_many, (x_many,) = create_noncommutative_variables([("x", 1:11)])
     pop_many = polyopt(
@@ -178,7 +174,7 @@ end
     G = SimpleGraph(4)
     add_edge!(G, 1, 2)
     add_edge!(G, 3, 4)
-    max_cliques = clique_decomp(G, MaximalElimination())
+    max_cliques = NCTSSoS.clique_decomp(G, MaximalElimination())
     @test sort(length.(max_cliques)) == [2, 2]
 
     err = NCTSSoS.SolverStatusError(MOI.OTHER_ERROR, MOI.NO_SOLUTION, MOI.NO_SOLUTION)
@@ -217,13 +213,13 @@ end
 @testset "Sparsity and Moment Edge Branches" begin
     reg_nc, (x_nc,) = create_noncommutative_variables([("x", 1:2)])
     pop_nc = polyopt(1.0 * x_nc[1], reg_nc; eq_constraints=[1.0 * x_nc[1] * x_nc[1] * x_nc[2]])
-    corr_nc = correlative_sparsity(pop_nc, 1, NoElimination())
+    corr_nc = NCTSSoS.correlative_sparsity(pop_nc, 1, NoElimination())
     @test isempty(corr_nc.clq_localizing_mtx_bases[1][1])
 
     objective_state = (1.0 * tr(x_nc[1] * x_nc[2])) * one(typeof(x_nc[1]))
     eq_state = (1.0 * tr(x_nc[1] * x_nc[1] * x_nc[2])) * one(typeof(x_nc[1]))
     pop_state = polyopt(objective_state, reg_nc; eq_constraints=[eq_state])
-    corr_state = correlative_sparsity(pop_state, 1, NoElimination())
+    corr_state = NCTSSoS.correlative_sparsity(pop_state, 1, NoElimination())
     @test isempty(corr_state.clq_localizing_mtx_bases[1][1])
 
     compound_obj = (1.0 * (tr(x_nc[1]) * tr(x_nc[2]))) * one(typeof(x_nc[1]))
@@ -300,7 +296,7 @@ end
         reg_nc;
         eq_constraints=[(1.0 * tr(x_nc[1] * x_nc[1] * x_nc[1])) * one(typeof(x_nc[1]))]
     )
-    corr_state_len0 = correlative_sparsity(pop_state_len0, 1, NoElimination())
+    corr_state_len0 = NCTSSoS.correlative_sparsity(pop_state_len0, 1, NoElimination())
     @test isempty(corr_state_len0.clq_localizing_mtx_bases[1][1])
 
     M_state = eltype(corr_state.clq_mom_mtx_bases[1])

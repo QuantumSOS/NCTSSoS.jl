@@ -541,6 +541,8 @@ function get_state_correlative_graph(
     end
 
     # Add cliques from constraints (whole constraint, not per-monomial)
+    # All variables in a constraint must be connected to ensure the constraint
+    # can be assigned to a single clique in assign_state_constraint()
     for con in cons
         con_indices = variable_indices(con)
         positions = [idx_to_node[idx] for idx in con_indices if haskey(idx_to_node, idx)]

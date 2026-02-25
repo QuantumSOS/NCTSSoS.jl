@@ -235,8 +235,8 @@ function correlative_sparsity(
         sorted_unique!(basis)
     end
 
-    # Monomial element type for regular polynomial bases
-    M = NormalMonomial{A,T}
+    # Infer M type from first non-empty clique basis
+    M = eltype(first(filter(!isempty, cliques_moment_matrix_bases)))
 
     # Compute degrees for localizing matrix basis truncation
     cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]

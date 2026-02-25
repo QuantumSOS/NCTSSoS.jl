@@ -471,10 +471,12 @@ function term_sparsity_graph_supp(
         end
         return out
     end
-    return union(
-        [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
-        [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...
+    supp_sets = vcat(
+        [gsupp(basis[v], basis[v]) for v in vertices(G)],
+        [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]
     )
+    isempty(supp_sets) && return NM[]
+    return union(supp_sets...)
 end
 
 # =============================================================================
@@ -690,19 +692,20 @@ function correlative_sparsity(
             return Vector{M}[]
         end
 
-        # For each constraint, compute the reduced order basis
         cur_orders = order .- cld.(degree.(all_cons[clique_cons_indices]), 2)
         cur_lengths = map(cur_orders) do o
             searchsortedfirst(cliques_moment_matrix_bases_dg[clique_idx], o + 1) - 1
         end
 
-        map(cur_lengths) do len
+        localizing_bases = Vector{M}[]
+        for len in cur_lengths
             if iszero(len)
-                M[]
+                push!(localizing_bases, M[])
             else
-                cliques_moment_matrix_bases[clique_idx][1:len]
+                push!(localizing_bases, cliques_moment_matrix_bases[clique_idx][1:len])
             end
         end
+        return localizing_bases
     end
 
     return CorrelativeSparsity{A,T,P,M,ST}(
@@ -778,12 +781,11 @@ function term_sparsities(
     localizing_mtx_bases::Vector{Vector{M}},
     ts_algo::EliminationAlgorithm
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
-    [
-        [iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo)];
-        map(zip(cons, localizing_mtx_bases)) do (poly, basis)
-            iterate_term_sparse_supp(initial_activated_supp, poly, basis, ts_algo)
-        end
-    ]
+    term_sparse_list = TermSparsity{M}[iterate_term_sparse_supp(initial_activated_supp, one(P), mom_mtx_bases, ts_algo)]
+    for (poly, basis) in zip(cons, localizing_mtx_bases)
+        push!(term_sparse_list, iterate_term_sparse_supp(initial_activated_supp, poly, basis, ts_algo))
+    end
+    return term_sparse_list
 end
 
 """
@@ -860,8 +862,10 @@ function term_sparsity_graph_supp(
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
     # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
     gsupp(a, b) = reduce(vcat, [monomials(simplify(_neat_dot3(a, g_supp, b))) for g_supp in monomials(g)])
-    return union(
-        [gsupp(basis[v], basis[v]) for v in vertices(G)]...,
-        [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]...
+    supp_sets = vcat(
+        [gsupp(basis[v], basis[v]) for v in vertices(G)],
+        [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]
     )
+    isempty(supp_sets) && return M[]
+    return union(supp_sets...)
 end

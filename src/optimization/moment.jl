@@ -570,8 +570,11 @@ function _has_odd_parity_only(
     return has_nonzero_term  # true only if all terms are odd parity
 end
 
-# Fallback for non-fermionic algebras (always returns false)
-_has_odd_parity_only(poly::Polynomial) = false
+# Fallback for non-fermionic algebras (always returns false).
+# @noinline: prevents inlining so Julia's code-coverage instrumentation can track this method.
+@noinline function _has_odd_parity_only(poly::Polynomial)
+    return false
+end
 
 """
     _add_parity_constraints!(mp::MomentProblem{A,T,M,P})

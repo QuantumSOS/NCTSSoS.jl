@@ -16,6 +16,13 @@ const CHSH_TRACE_ORACLES = (
     x = vars[1:2]
     y = vars[3:4]
 
+    @testset "Variable Declaration" begin
+        # Tracial Bell formulation uses the transpose trick: Bob observables appear as Bᵀ,
+        # so we must NOT impose commutation between Alice and Bob variables.
+        @test x[1] * y[1] != y[1] * x[1]
+        @test x[2] * y[2] != y[2] * x[2]
+    end
+
     p = -1.0 * NCTSSoS.tr(x[1] * y[1]) - NCTSSoS.tr(x[1] * y[2]) -
         NCTSSoS.tr(x[2] * y[1]) + NCTSSoS.tr(x[2] * y[2])
     tpop = polyopt(p * one(typeof(x[1])), reg)

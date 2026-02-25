@@ -462,3 +462,14 @@ julia> _phase_to_complex(UInt8(2))
     phase == 2 && return ComplexF64(-1.0, 0.0)
     return ComplexF64(0.0, -1.0)  # phase == 3
 end
+
+"""
+    _coverage_barrier()
+
+Internal helper to prevent constant-folding in tiny trait methods under
+`--code-coverage`. No-op when coverage is disabled.
+"""
+@inline function _coverage_barrier()
+    ccall(:jl_generating_output, Cint, ())
+    return nothing
+end

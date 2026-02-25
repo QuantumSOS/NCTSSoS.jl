@@ -14,17 +14,19 @@ using NCTSSoS, Test
     # 4. Relaxation components
     include("relaxations/runtests.jl")
 
-    # 5. Correlated sparsity suite
+    # 5. State polynomials suite
+    include("state_poly/runtests.jl")
+
+    # 6. Correlated sparsity suite
     include("correlated_sparsity/runtests.jl")
 
-    # 6. Trace polynomial suite
+    # 7. Trace polynomial suite
     include("trace_poly/runtests.jl")
 
-    # 7. Curated problems
+    # 8. Curated problems
     @testset "Problems" begin
         include("problems/bell_inequalities/chsh_simple.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
-        include("problems/bell_inequalities/chsh_state.jl")
     end
 end

@@ -441,6 +441,7 @@ function Base.:(+)(
     )
 end
 Base.:(+)(sw::StateWord{ST,A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T} = sp + sw
+Base.:(-)(sw::StateWord{ST,A,T}, sp::StatePolynomial{C,ST,A,T}) where {C,ST,A,T} = sw + (-sp)
 
 """
     Base.:(-)(sp::StatePolynomial{C,ST,A,T}, sw::StateWord{ST,A,T}) where {C,ST,A,T}
@@ -953,8 +954,7 @@ end
     Base.hash(ncsp::NCStatePolynomial, h::UInt) -> UInt
 
 Hash function for NCStatePolynomial.
-"""
-function Base.hash(ncsp::NCStatePolynomial, h::UInt)
+""" function Base.hash(ncsp::NCStatePolynomial, h::UInt)
     h = hash(:NCStatePolynomial, h)
     for (c, ncsw) in zip(ncsp.coeffs, ncsp.nc_state_words)
         h = hash(c, hash(ncsw, h))

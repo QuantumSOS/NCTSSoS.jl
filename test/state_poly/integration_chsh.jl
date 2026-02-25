@@ -1,4 +1,4 @@
-# test/problems/bell_inequalities/chsh_state.jl
+# test/state_poly/integration_chsh.jl
 # Tests: CHSH Bell inequality - State Polynomial formulation
 #
 # Uses state polynomial formulation with ς() state function.

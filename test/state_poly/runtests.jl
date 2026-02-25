@@ -18,9 +18,6 @@ if !isdefined(@__MODULE__, :nc_word)
 end
 
 @testset "State Polynomials" begin
-    include("state_word.jl")
-    include("statepolynomial.jl")
-    include("state_basis.jl")
     include("polyopt_constructor.jl")
     include("integration_chsh.jl")
     include("coverage_edges.jl")

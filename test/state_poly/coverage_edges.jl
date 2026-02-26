@@ -34,8 +34,9 @@ using Graphs
         @test one(sw_from_sym) == one(StateWord{Arbitrary,NonCommutativeAlgebra,UInt16})
 
         # StateSymbol <-> StateWord multiplication overloads
-        @test sym * sw_from_sym isa StateWord
-        @test sw_from_sym * sym isa StateWord
+        sw_double = StateWord{Arbitrary}([sym, sym])
+        @test sym * sw_from_sym == sw_double
+        @test sw_from_sym * sym == sw_double
 
         # NCStateWord canonicalization + one(ncsw)
         ncsw = NCStateWord(one(StateWord{Arbitrary,NonCommutativeAlgebra,UInt16}), m)
@@ -59,7 +60,7 @@ using Graphs
         @test collect(terms(sp)) == collect(zip(sp.coeffs, sp.state_words))
 
         # expval(::Type{ST}, ::NormalMonomial) is rejected (use expval(m) / tr(m))
-        @test_throws ArgumentError expval(MaxEntangled, m1)
+        @test_throws ArgumentError NCTSSoS.expval(MaxEntangled, m1)
 
         # instance zero/one
         @test zero(sp) == zero(typeof(sp))
@@ -67,51 +68,54 @@ using Graphs
 
         # StateWord +/- Tuple and Tuple +/- StateWord
         t = (2.0, sw2)
-        @test sw1 + t isa StatePolynomial
-        @test t + sw1 isa StatePolynomial
-        @test sw1 - t isa StatePolynomial
-        @test t - sw1 isa StatePolynomial
+        @test sw1 + t == StatePolynomial([1.0, 2.0], [sw1, sw2])
+        @test t + sw1 == StatePolynomial([1.0, 2.0], [sw1, sw2])
+        @test sw1 - t == StatePolynomial([1.0, -2.0], [sw1, sw2])
+        @test t - sw1 == StatePolynomial([-1.0, 2.0], [sw1, sw2])
 
         # StatePolynomial +/- Tuple and Tuple + StatePolynomial
-        @test sp + t isa StatePolynomial
-        @test t + sp isa StatePolynomial
-        @test sp - t isa StatePolynomial
+        @test sp + t == StatePolynomial([1.0, 4.0], [sw1, sw2])
+        @test t + sp == StatePolynomial([1.0, 4.0], [sw1, sw2])
+        @test sp - t == StatePolynomial([1.0], [sw1])
 
         # StateWord + StatePolynomial
-        @test sw1 + sp isa StatePolynomial
+        @test sw1 + sp == StatePolynomial([2.0, 2.0], [sw1, sw2])
 
         # Monomial * StatePolynomial (lifts to NCStatePolynomial)
-        @test m1 * sp isa NCStatePolynomial
+        @test m1 * sp == NCStatePolynomial([1.0, 2.0], [NCStateWord(sw1, m1), NCStateWord(sw2, m1)])
 
         # Scalar +/-/* StateWord
-        @test (2 + sw1) isa StatePolynomial
-        @test (sw1 + 2) isa StatePolynomial
-        @test (2 - sw1) isa StatePolynomial
-        @test (2 * sw1) isa StatePolynomial
-        @test (sw1 * 2) isa StatePolynomial
+        id_sw = one(StateWord{Arbitrary,NonCommutativeAlgebra,UInt16})
+        @test 2 + sw1 == StatePolynomial([2.0, 1.0], [id_sw, sw1])
+        @test sw1 + 2 == StatePolynomial([2.0, 1.0], [id_sw, sw1])
+        @test 2 - sw1 == StatePolynomial([2.0, -1.0], [id_sw, sw1])
+        @test 2 * sw1 == StatePolynomial([2.0], [sw1])
+        @test sw1 * 2 == StatePolynomial([2.0], [sw1])
 
         # StateSymbol lifting helpers
         sym1 = StateSymbol{Arbitrary}(m1)
         sym2 = StateSymbol{Arbitrary}(m2)
-        @test (2 * sym1) isa StatePolynomial
-        @test (sym1 * 2) isa StatePolynomial
-        @test (sym1 + sym2) isa StatePolynomial
-        @test (sym1 - sym2) isa StatePolynomial
-        @test (-sym1) isa StatePolynomial
-        @test (2 + sym1) isa StatePolynomial
-        @test (sym1 + 2) isa StatePolynomial
-        @test (2 - sym1) isa StatePolynomial
-        @test (sym1 - 2) isa StatePolynomial
-        @test (sym1 + sw1) isa StatePolynomial
-        @test (sw1 + sym1) isa StatePolynomial
-        @test (sym1 - sw1) isa StatePolynomial
-        @test (sw1 - sym1) isa StatePolynomial
-        @test (sp + sym1) isa StatePolynomial
-        @test (sym1 + sp) isa StatePolynomial
-        @test (sp - sym1) isa StatePolynomial
-        @test (sym1 - sp) isa StatePolynomial
-        @test (sym1 * sp) isa StatePolynomial
-        @test (sp * sym1) isa StatePolynomial
+        @test 2 * sym1 == StatePolynomial([2.0], [sw1])
+        @test sym1 * 2 == StatePolynomial([2.0], [sw1])
+        @test sym1 + sym2 == StatePolynomial([1.0, 1.0], [sw1, sw2])
+        @test sym1 - sym2 == StatePolynomial([1.0, -1.0], [sw1, sw2])
+        @test -sym1 == StatePolynomial([-1.0], [sw1])
+        @test 2 + sym1 == StatePolynomial([2.0, 1.0], [id_sw, sw1])
+        @test sym1 + 2 == StatePolynomial([2.0, 1.0], [id_sw, sw1])
+        @test 2 - sym1 == StatePolynomial([2.0, -1.0], [id_sw, sw1])
+        @test sym1 - 2 == StatePolynomial([-2.0, 1.0], [id_sw, sw1])
+        @test sym1 + sw1 == StatePolynomial([2.0], [sw1])
+        @test sw1 + sym1 == StatePolynomial([2.0], [sw1])
+        @test iszero(sym1 - sw1)
+        @test iszero(sw1 - sym1)
+        @test sp + sym1 == StatePolynomial([2.0, 2.0], [sw1, sw2])
+        @test sym1 + sp == StatePolynomial([2.0, 2.0], [sw1, sw2])
+        @test sp - sym1 == StatePolynomial([2.0], [sw2])
+        @test sym1 - sp == StatePolynomial([-2.0], [sw2])
+        sw1sw1 = sw1 * sw1
+        sw1sw2 = sw1 * sw2
+        @test sym1 * sp == StatePolynomial([1.0, 2.0], [sw1sw1, sw1sw2])
+        @test sp * sym1 == StatePolynomial([1.0, 2.0], [sw1sw1, sw1sw2])
 
         # show: cover non-first, non-unit, positive coefficient branch
         str = sprint(show, sp)
@@ -129,25 +133,26 @@ using Graphs
         @test hash(ncsp) == hash(ncsp)
 
         # NCStateWord scalar/arith helpers
-        @test (ncsw * 2) isa NCStatePolynomial
-        @test (ncsw + ncsw) isa NCStatePolynomial
-        @test (ncsw - ncsw) isa NCStatePolynomial
-        @test (-ncsw) isa NCStatePolynomial
-        @test (2 + ncsw) isa NCStatePolynomial
-        @test (ncsw + 2) isa NCStatePolynomial
-        @test (2 - ncsw) isa NCStatePolynomial
-        @test (ncsw - 2) isa NCStatePolynomial
-        @test (ncsp + ncsw) isa NCStatePolynomial
-        @test (ncsw + ncsp) isa NCStatePolynomial
-        @test (ncsp - ncsw) isa NCStatePolynomial
-        @test (ncsw - ncsp) isa NCStatePolynomial
-        @test expval(ncsp) isa StatePolynomial
+        id_ncsw = one(typeof(ncsw))
+        @test ncsw * 2 == NCStatePolynomial([2.0], [ncsw])
+        @test ncsw + ncsw == NCStatePolynomial([2.0], [ncsw])
+        @test iszero(ncsw - ncsw)
+        @test -ncsw == NCStatePolynomial([-1.0], [ncsw])
+        @test 2 + ncsw == NCStatePolynomial([2.0, 1.0], [id_ncsw, ncsw])
+        @test ncsw + 2 == NCStatePolynomial([2.0, 1.0], [id_ncsw, ncsw])
+        @test 2 - ncsw == NCStatePolynomial([2.0, -1.0], [id_ncsw, ncsw])
+        @test ncsw - 2 == NCStatePolynomial([-2.0, 1.0], [id_ncsw, ncsw])
+        @test ncsp + ncsw == NCStatePolynomial([2.0], [ncsw])
+        @test ncsw + ncsp == NCStatePolynomial([2.0], [ncsw])
+        @test iszero(ncsp - ncsw)
+        @test iszero(ncsw - ncsp)
+        @test NCTSSoS.expval(ncsp) == StatePolynomial([1.0], [NCTSSoS.expval(ncsw)])
 
         # show: empty NCStatePolynomial prints 0
         @test sprint(show, zero(typeof(ncsp))) == "0"
 
         # Scalar on right: ensure `*(ncsp::NCStatePolynomial, c::Number)` is exercised
-        @test Base.invokelatest(*, ncsp, 2.0) isa NCStatePolynomial
+        @test Base.invokelatest(*, ncsp, 2.0) == NCStatePolynomial([2.0], [ncsw])
     end
 
     @testset "optimization/problem.jl show + traits" begin

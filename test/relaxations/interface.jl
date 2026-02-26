@@ -1,7 +1,7 @@
 # High-Level API Interface Tests
 # Tests the user-facing API: polyopt, cs_nctssos, cs_nctssos_higher
 # Includes:
-#   - PolyOpt constructor tests (Polynomial and NCStatePolynomial)
+#   - PolyOpt constructor tests (Polynomial only; NCStatePolynomial tests moved to test/state_poly/)
 #   - Basic dualization tests
 #
 # Note: Problem-specific optimization tests are in problems/ subdirectory.

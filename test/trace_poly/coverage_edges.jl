@@ -100,7 +100,7 @@ end
     @test (sp + sym1) isa StatePolynomial
     @test (sym1 + sp) isa StatePolynomial
     @test (sp - sym1) isa StatePolynomial
-    @test_throws MethodError sym1 - sp
+    @test (sym1 - sp) isa StatePolynomial
     @test (sym1 * sp) isa StatePolynomial
     @test (sp * sym1) isa StatePolynomial
     @test (sw1 * sp) == (sp * sw1)

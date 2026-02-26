@@ -954,7 +954,8 @@ end
     Base.hash(ncsp::NCStatePolynomial, h::UInt) -> UInt
 
 Hash function for NCStatePolynomial.
-""" function Base.hash(ncsp::NCStatePolynomial, h::UInt)
+"""
+function Base.hash(ncsp::NCStatePolynomial, h::UInt)
     h = hash(:NCStatePolynomial, h)
     for (c, ncsw) in zip(ncsp.coeffs, ncsp.nc_state_words)
         h = hash(c, hash(ncsw, h))

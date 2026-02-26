@@ -2,7 +2,7 @@
 # Tests: Relaxation algorithm components
 #
 # Coverage:
-# - interface.jl: PolyOpt constructors (Polynomial and NCStatePolynomial)
+# - interface.jl: PolyOpt constructors (Polynomial)
 # - sos.jl: SOS dualization components (Cαj)
 # - sparsity.jl: Term sparsity + result-structure checks (non-correlated)
 # - gns.jl: GNS reconstruction

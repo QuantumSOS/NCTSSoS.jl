@@ -122,6 +122,69 @@ JuMP.dual_status(model::_StatusStub) = model.dual
         @test occursin("Unexpected cone type", sprint(showerror, err))
     end
 
+    @testset "term_sparsity_graph_supp empty-basis guard (non-state)" begin
+        expected = correlated_structure_case("term_sparsity_empty_basis_nonstate")
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+        basis0 = get_ncbasis(reg, 1)
+        empty_basis = eltype(basis0)[]
+        g = 1.0 * x[1]
+
+        supp = NCTSSoS.term_sparsity_graph_supp(SimpleGraph(0), empty_basis, g)
+        @test length(supp) == json_int(expected["supp_length"])
+        @test isempty(supp)
+    end
+
+    @testset "term_sparsity_graph_supp empty-basis guard (state)" begin
+        expected = correlated_structure_case("term_sparsity_empty_basis_state")
+        reg, (x,) = create_unipotent_variables([("x", 1:1)])
+        one_mono = one(typeof(x[1]))
+        g = (1.0 * ς(x[1])) * one_mono
+        basis0 = get_state_basis(reg, 1)
+        empty_basis = eltype(basis0)[]
+
+        supp = NCTSSoS.term_sparsity_graph_supp(SimpleGraph(0), empty_basis, g)
+        @test length(supp) == json_int(expected["supp_length"])
+        @test isempty(supp)
+    end
+
+    @testset "get_term_sparsity_graph edge detection (state)" begin
+        expected_lr = correlated_structure_case("term_sparsity_connected_lr_state")
+        expected_rl = correlated_structure_case("term_sparsity_connected_rl_state")
+
+        # connected_lr branch
+        reg_lr, (x_lr,) = create_unipotent_variables([("x", 1:1)])
+        basis_lr = get_state_basis(reg_lr, 1)
+        id_lr = one(eltype(basis_lr))
+        w_lr = first(filter(b -> !isone(b), basis_lr))
+
+        graph_lr = NCTSSoS.get_term_sparsity_graph([id_lr], [w_lr], [id_lr, w_lr])
+        @test has_edge(graph_lr, 1, 2) == Bool(expected_lr["has_edge_1_2"])
+
+        # connected_rl branch: activated support matches only swapped product
+        reg_rl, (x_rl,) = create_unipotent_variables([("x", 1:2)])
+        idx1 = x_rl[1].word[1]
+        idx2 = x_rl[2].word[1]
+        mono1 = typeof(x_rl[1])([idx1])
+        mono12 = typeof(x_rl[1])([idx1, idx2])
+        mono2 = typeof(x_rl[1])([idx2])
+
+        basis_rl = get_state_basis(reg_rl, 2)
+        id_rl = one(eltype(basis_rl))
+        i_w = findfirst(b -> isone(b.sw) && b.nc_word == mono1, basis_rl)
+        i_m = findfirst(b -> isone(b.sw) && b.nc_word == mono12, basis_rl)
+        i_t = findfirst(b -> isone(b.sw) && b.nc_word == mono2, basis_rl)
+        @test i_w !== nothing
+        @test i_m !== nothing
+        @test i_t !== nothing
+
+        w = basis_rl[i_w]
+        m = basis_rl[i_m]
+        target = basis_rl[i_t]
+
+        graph_rl = NCTSSoS.get_term_sparsity_graph([m], [target], [id_rl, w])
+        @test has_edge(graph_rl, 1, 2) == Bool(expected_rl["has_edge_1_2"])
+    end
+
     @testset "show(::CorrelativeSparsity) prints global constraints" begin
         _pop, _sparsity, corr_with_global = build_global_constraint_fixture()
 

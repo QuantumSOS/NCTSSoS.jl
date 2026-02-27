@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "get_correlative_graph_ring_n4",
+      "expected": {
+        "adjacency_by_position": [
+          [2, 4],
+          [1, 3],
+          [2, 4],
+          [1, 3]
+        ]
+      },
+      "notes": "Provenance: issue #254 (ring adjacency)."
+    },
+    {
+      "id": "get_correlative_graph_chain_n3",
+      "expected": {
+        "adjacency_by_position": [
+          [2],
+          [1, 3],
+          [2]
+        ]
+      },
+      "notes": "Provenance: issue #254 (chain adjacency)."
+    },
+    {
+      "id": "get_correlative_graph_dense_n10",
+      "expected": {
+        "adjacency_by_position": [
+          [2, 3, 4, 5, 6, 7],
+          [1, 3, 4, 5, 6, 7, 8],
+          [1, 2, 4, 5, 6, 7, 8, 9],
+          [1, 2, 3, 5, 6, 7, 8, 9, 10],
+          [1, 2, 3, 4, 6, 7, 8, 9, 10],
+          [1, 2, 3, 4, 5, 7, 8, 9, 10],
+          [1, 2, 3, 4, 5, 6, 8, 9, 10],
+          [2, 3, 4, 5, 6, 7, 9, 10],
+          [3, 4, 5, 6, 7, 8, 10],
+          [4, 5, 6, 7, 8, 9]
+        ]
+      },
+      "notes": "Provenance: issue #254 (dense adjacency table)."
+    },
+    {
+      "id": "get_correlative_graph_chain_constraints_n3",
+      "expected": {
+        "adjacency_by_position": [
+          [2],
+          [1, 3],
+          [2]
+        ]
+      },
+      "notes": "Provenance: issue #254 (chain + constraints)."
+    },
+    {
+      "id": "get_correlative_graph_bipartite_x3y3",
+      "expected": {
+        "adjacency_by_position": [
+          [4, 5, 6],
+          [4, 5, 6],
+          [4, 5],
+          [1, 2, 3],
+          [1, 2, 3],
+          [1, 2]
+        ]
+      },
+      "notes": "Provenance: issue #254 (bipartite adjacency)."
+    },
+    {
+      "id": "clique_decomp_ring_n4",
+      "expected": {
+        "no_elimination": [[1, 2, 3, 4]],
+        "as_is_elimination": [[1, 2], [1, 4], [2, 3], [3, 4]],
+        "mf": [[1, 2, 4], [2, 3, 4]]
+      },
+      "notes": "Provenance: issue #255 (ring cliques)."
+    },
+    {
+      "id": "clique_decomp_chain_n3",
+      "expected": {
+        "no_elimination": [[1, 2, 3]],
+        "as_is_elimination": [[1, 2], [2, 3]],
+        "mf": [[1, 2], [2, 3]]
+      },
+      "notes": "Provenance: issue #255 (chain cliques)."
+    },
+    {
+      "id": "clique_decomp_dense_n10",
+      "expected": {
+        "no_elimination": [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+        "as_is_elimination": [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]],
+        "mf": [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
+      },
+      "notes": "Provenance: issue #255 (dense cliques)."
+    },
+    {
+      "id": "clique_decomp_chain_constraints_n3",
+      "expected": {
+        "no_elimination": [[1, 2, 3]],
+        "as_is_elimination": [[1, 2], [2, 3]],
+        "mf": [[1, 2], [2, 3]]
+      },
+      "notes": "Provenance: issue #255 (chain + constraints cliques)."
+    },
+    {
+      "id": "clique_decomp_bipartite_x3y3",
+      "expected": {
+        "no_elimination": [[1, 2, 3, 4, 5, 6]],
+        "as_is_elimination": [[1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [2, 6], [3, 4], [3, 5]],
+        "mf": [[1, 2, 4, 5], [1, 2, 6], [3, 4, 5]]
+      },
+      "notes": "Provenance: issue #255 (bipartite cliques)."
+    },
+    {
+      "id": "clique_decomp_disconnected_maximal",
+      "expected": {
+        "maximal_elimination": [[1, 2], [3, 4]]
+      },
+      "notes": "Provenance: issue #255 (disconnected graph with maximal elimination)."
+    },
+    {
+      "id": "assign_constraint_partition_across_cliques",
+      "expected": {
+        "clique_constraints": [[1, 4], [2, 3]],
+        "global_constraints": []
+      },
+      "notes": "Provenance: issue #256 (partition across cliques)."
+    },
+    {
+      "id": "assign_constraint_single_clique",
+      "expected": {
+        "clique_constraints": [[1, 2, 3]],
+        "global_constraints": []
+      },
+      "notes": "Provenance: issue #256 (single clique assignment)."
+    },
+    {
+      "id": "correlative_sparsity_example2_order3",
+      "expected": {
+        "max_clique_by_algo": {
+          "no_elimination": 6,
+          "mf": 4,
+          "as_is_elimination": 2
+        }
+      },
+      "notes": "Provenance: issue #257 (Example 2 structural expectations)."
+    },
+    {
+      "id": "correlative_sparsity_example1_n10_order3",
+      "expected": {
+        "max_clique_by_algo": {
+          "no_elimination": 10,
+          "mf": 7,
+          "as_is_elimination": 7
+        }
+      },
+      "notes": "Provenance: issue #257 (Example 1 structural expectations)."
+    },
+    {
+      "id": "correlative_sparsity_constrained_n2_order2",
+      "expected": {
+        "no_elimination": {
+          "max_clique": 2,
+          "moment_basis_lengths": [7],
+          "localizing_basis_lengths": [3, 3]
+        },
+        "mf": {
+          "max_clique": 2,
+          "moment_basis_lengths": [7],
+          "localizing_basis_lengths": [3, 3]
+        },
+        "as_is_elimination": {
+          "max_clique": 2,
+          "moment_basis_lengths": [7],
+          "localizing_basis_lengths": [3, 3]
+        }
+      },
+      "notes": "Provenance: issue #257 (constrained n=2 structure expectations)."
+    },
+    {
+      "id": "term_sparsity_empty_basis_nonstate",
+      "expected": {
+        "supp_length": 0
+      },
+      "notes": "Provenance: issue #259 (empty-basis non-state support)."
+    },
+    {
+      "id": "term_sparsity_empty_basis_state",
+      "expected": {
+        "supp_length": 0
+      },
+      "notes": "Provenance: issue #259 (empty-basis state support)."
+    },
+    {
+      "id": "term_sparsity_connected_lr_state",
+      "expected": {
+        "has_edge_1_2": true
+      },
+      "notes": "Provenance: issue #259 (connected_lr branch)."
+    },
+    {
+      "id": "term_sparsity_connected_rl_state",
+      "expected": {
+        "has_edge_1_2": true
+      },
+      "notes": "Provenance: issue #259 (connected_rl branch)."
+    }
+  ]
+}

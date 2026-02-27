@@ -1,6 +1,11 @@
 using NCTSSoS, Test
 
+include("Expectations.jl")
+using .TestExpectations: expectations_oracle
+
 @testset "NCTSSoS.jl" begin
+
+    include("expectations_loader.jl")
 
     # 1. Polynomial algebra (no solver)
     include("polynomials/runtests.jl")

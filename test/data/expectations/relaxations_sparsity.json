@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "unipotent_n2_order1_dense",
+      "expected": {
+        "objective": -1.0,
+        "sides": [3],
+        "nuniq": 4
+      }
+    },
+    {
+      "id": "unipotent_n1_order1_dense",
+      "expected": {
+        "objective": -1.0,
+        "sides": [2],
+        "nuniq": 2
+      }
+    }
+  ]
+}
+

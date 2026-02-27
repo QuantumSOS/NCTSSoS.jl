@@ -37,6 +37,7 @@ end
 
 @testset "PolyOptResult Fields" begin
     @testset "moment_matrix_sizes and n_unique_moment_matrix_elements" begin
+        oracle = expectations_oracle("expectations/relaxations_sparsity.json", "unipotent_n2_order1_dense")
         reg, (u,) = create_unipotent_variables([("u", 1:2)])
         objective = 1.0 * u[1] * u[2]
         pop = polyopt(objective, reg)
@@ -49,11 +50,12 @@ end
         )
         result = cs_nctssos(pop, config)
 
-        @test result.moment_matrix_sizes == [[3]]
-        @test result.n_unique_moment_matrix_elements == 4
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     @testset "minimal single variable" begin
+        oracle = expectations_oracle("expectations/relaxations_sparsity.json", "unipotent_n1_order1_dense")
         reg, (u,) = create_unipotent_variables([("u", 1:1)])
         objective = 1.0 * u[1]
         pop = polyopt(objective, reg)
@@ -66,7 +68,7 @@ end
         )
         result = cs_nctssos(pop, config)
 
-        @test result.moment_matrix_sizes == [[2]]
-        @test result.n_unique_moment_matrix_elements == 2
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 end

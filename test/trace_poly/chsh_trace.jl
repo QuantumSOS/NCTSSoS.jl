@@ -5,11 +5,7 @@
 
 using Test, NCTSSoS, JuMP
 
-# Oracle values from NCTSSOS
-const CHSH_TRACE_ORACLES = (
-    Dense = (opt=-2.828427124746234, sides=[9], nuniq=21),
-    TS    = (opt=-2.8284271247321175, nuniq=10),  # sides vary by implementation
-)
+# Expectations in test/data/expectations/chsh_trace.json
 
 @testset "CHSH Trace Polynomial" begin
     reg, (vars,) = create_unipotent_variables([("v", 1:4)])
@@ -28,6 +24,7 @@ const CHSH_TRACE_ORACLES = (
     tpop = polyopt(p * one(typeof(x[1])), reg)
 
     @testset "Dense" begin
+        oracle = expectations_oracle("expectations/chsh_trace.json", "Dense")
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,
@@ -35,12 +32,13 @@ const CHSH_TRACE_ORACLES = (
             ts_algo=NoElimination()
         )
         result = cs_nctssos(tpop, config)
-        @test result.objective ≈ CHSH_TRACE_ORACLES.Dense.opt atol = 1e-5
-        @test flatten_sizes(result.moment_matrix_sizes) == CHSH_TRACE_ORACLES.Dense.sides
-        @test result.n_unique_moment_matrix_elements == CHSH_TRACE_ORACLES.Dense.nuniq
+        @test result.objective ≈ oracle.opt atol = 1e-5
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     @testset "Term Sparsity (MMD)" begin
+        oracle = expectations_oracle("expectations/chsh_trace.json", "TS")
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,
@@ -48,7 +46,7 @@ const CHSH_TRACE_ORACLES = (
             ts_algo=MMD()
         )
         result = cs_nctssos(tpop, config)
-        @test result.objective ≈ CHSH_TRACE_ORACLES.TS.opt atol = 1e-5
-        @test result.n_unique_moment_matrix_elements == CHSH_TRACE_ORACLES.TS.nuniq
+        @test result.objective ≈ oracle.opt atol = 1e-5
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 end

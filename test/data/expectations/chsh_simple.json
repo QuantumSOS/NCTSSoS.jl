@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "Dense_d1",
+      "expected": {
+        "objective": -2.8284271321623193,
+        "sides": [5],
+        "nuniq": 11
+      }
+    },
+    {
+      "id": "CS_d1",
+      "expected": {
+        "objective": -2.8284271247170496,
+        "sides": [4, 4],
+        "nuniq": 10
+      }
+    },
+    {
+      "id": "TS_d1",
+      "expected": {
+        "objective": -2.8284271247321175,
+        "sides": [3, 3, 1],
+        "nuniq": 6
+      }
+    }
+  ]
+}
+

@@ -30,6 +30,10 @@ benchmark/result.json
 *.json
 *.json.tmp
 
+# JSON fixtures (tracked)
+!test/data/**/*.json
+!docs/src/examples/literate/data/**/*.json
+
 # Garbage Generate by MacOS and VSCode
 */.DS_Store
 .DS_Store

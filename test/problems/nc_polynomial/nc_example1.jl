@@ -5,11 +5,7 @@
 
 using Test, NCTSSoS, JuMP
 
-# Oracle values from NCTSSOS
-const NC_EXAMPLE1_ORACLES = (
-    Dense_d2 = (opt=-3.936210849199504e-10, sides=[13], nuniq=73),
-    TS_d2    = (opt=-0.0035512846020968616, sides=[1, 1, 2, 2, 2, 2, 3, 3, 3, 4], nuniq=21),
-)
+# Expectations in test/data/expectations/nc_example1.json
 
 @testset "NC Example 1 (unconstrained)" begin
     n = 3
@@ -24,7 +20,7 @@ const NC_EXAMPLE1_ORACLES = (
     pop = polyopt(f, reg)
 
     @testset "Dense (order=2)" begin
-        oracle = NC_EXAMPLE1_ORACLES.Dense_d2
+        oracle = expectations_oracle("expectations/nc_example1.json", "Dense_d2")
         config = SolverConfig(
             optimizer=SOLVER,
             order=2,
@@ -38,13 +34,14 @@ const NC_EXAMPLE1_ORACLES = (
     end
 
     @testset "Dense (SOS)" begin
+        oracle = expectations_oracle("expectations/nc_example1.json", "SOS_d2")
         config = SolverConfig(optimizer=SOLVER, order=2)
         result = cs_nctssos(pop, config; dualize=true)
-        @test result.objective ≈ 0.0 atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 1e-6
     end
 
     @testset "Term Sparsity MMD (order=2)" begin
-        oracle = NC_EXAMPLE1_ORACLES.TS_d2
+        oracle = expectations_oracle("expectations/nc_example1.json", "TS_d2")
         config = SolverConfig(
             optimizer=SOLVER,
             order=2,

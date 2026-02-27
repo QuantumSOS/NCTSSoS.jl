@@ -6,12 +6,7 @@
 
 using Test, NCTSSoS, JuMP
 
-# Oracle values from NCTSSOS
-const CHSH_SIMPLE_ORACLES = (
-    Dense_d1 = (opt=-2.8284271321623193, sides=[5], nuniq=11),
-    CS_d1    = (opt=-2.8284271247170496, sides=[4, 4], nuniq=10),
-    TS_d1    = (opt=-2.8284271247321175, sides=[3, 3, 1], nuniq=6),
-)
+# Expectations in test/data/expectations/chsh_simple.json
 
 function create_chsh_problem()
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
@@ -23,6 +18,7 @@ end
 @testset "CHSH Simple (order=1)" begin
 
     @testset "Dense" begin
+        oracle = expectations_oracle("expectations/chsh_simple.json", "Dense_d1")
         pop, _ = create_chsh_problem()
         config = SolverConfig(
             optimizer=SOLVER,
@@ -32,12 +28,13 @@ end
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ CHSH_SIMPLE_ORACLES.Dense_d1.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == CHSH_SIMPLE_ORACLES.Dense_d1.sides
-        @test result.n_unique_moment_matrix_elements == CHSH_SIMPLE_ORACLES.Dense_d1.nuniq
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     @testset "Correlative Sparsity (MF)" begin
+        oracle = expectations_oracle("expectations/chsh_simple.json", "CS_d1")
         pop, _ = create_chsh_problem()
         config = SolverConfig(
             optimizer=SOLVER,
@@ -47,12 +44,13 @@ end
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ CHSH_SIMPLE_ORACLES.CS_d1.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == CHSH_SIMPLE_ORACLES.CS_d1.sides
-        @test result.n_unique_moment_matrix_elements == CHSH_SIMPLE_ORACLES.CS_d1.nuniq
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     @testset "Term Sparsity (MMD)" begin
+        oracle = expectations_oracle("expectations/chsh_simple.json", "TS_d1")
         pop, _ = create_chsh_problem()
         config = SolverConfig(
             optimizer=SOLVER,
@@ -62,9 +60,9 @@ end
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ CHSH_SIMPLE_ORACLES.TS_d1.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == CHSH_SIMPLE_ORACLES.TS_d1.sides
-        @test result.n_unique_moment_matrix_elements == CHSH_SIMPLE_ORACLES.TS_d1.nuniq
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
 end

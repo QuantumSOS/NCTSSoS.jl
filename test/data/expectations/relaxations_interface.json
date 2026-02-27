@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "dualization_naive_pauli_d1",
+      "expected": {
+        "objective": -0.8660254037844387
+      }
+    },
+    {
+      "id": "dualization_trivial_true_min",
+      "expected": {
+        "objective": 3.0
+      }
+    },
+    {
+      "id": "check_solver_status_min",
+      "expected": {
+        "objective": 1.0
+      }
+    }
+  ]
+}
+

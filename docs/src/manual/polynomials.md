@@ -34,6 +34,15 @@ fields.
 
 ### Mathematical Framework
 
+In this documentation, `tr(\cdot)` denotes a **tracial state**: a linear functional
+on operators (or operator polynomials) satisfying
+
+- **Normalization:** `tr(1) = 1`
+- **Trace property (cyclicity):** `tr(XY) = tr(YX)`
+
+For matrices of size `k`, the canonical example is the **normalized matrix trace**
+`tr(A) = (1/k) * Tr(A)`, where `Tr` is the usual (unnormalized) matrix trace.
+
 In the context of tracial polynomial optimization, we consider polynomials of the form:
 
 ```

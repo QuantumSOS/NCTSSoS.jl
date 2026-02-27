@@ -20,6 +20,7 @@ CliqueTrees = "1"
 Documenter = "1.13.0"
 ExplicitImports = "1.11.3"
 Graphs = "1.5"
+JSON3 = "1"
 JuMP = "1.26.0"
 LinearAlgebra = "1.12"
 SparseArrays = "1.12"
@@ -32,7 +33,8 @@ COSMO = "1e616198-aa4e-51ec-90a2-23f7fbd31d8d"
 Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Clarabel", "COSMO", "Aqua", "Documenter", "ExplicitImports"]
+test = ["Test", "Clarabel", "COSMO", "Aqua", "Documenter", "ExplicitImports", "JSON3"]

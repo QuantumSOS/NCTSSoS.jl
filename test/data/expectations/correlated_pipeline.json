@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "CS_d3",
+      "expected": {
+        "objective": 0.9975308091952613,
+        "sides": [15, 15],
+        "nuniq": 149
+      }
+    },
+    {
+      "id": "TS_d3",
+      "expected": {
+        "objective": 0.9975305666745705,
+        "nuniq": 123
+      }
+    }
+  ]
+}
+

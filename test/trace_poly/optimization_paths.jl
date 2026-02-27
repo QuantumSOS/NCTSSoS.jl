@@ -1,7 +1,5 @@
 using NCTSSoS: CorrelativeSparsity
 
-const CHSH_TRACE_OPT = -2.8284271247461903
-
 function _build_chsh_trace_problem()
     reg, (vars,) = create_unipotent_variables([("v", 1:4)])
     x = vars[1:2]
@@ -14,6 +12,8 @@ end
 
 @testset "Trace Optimization Paths" begin
     tpop = _build_chsh_trace_problem()
+    dense_oracle = expectations_oracle("expectations/trace_optimization_paths.json", "dense_auto_order")
+    mmd_oracle = expectations_oracle("expectations/trace_optimization_paths.json", "mmd_order1")
 
     dense_cfg = SolverConfig(
         optimizer=SOLVER,
@@ -23,13 +23,13 @@ end
     )
 
     dense_dual = cs_nctssos(tpop, dense_cfg; dualize=true)
-    @test dense_dual.objective ≈ CHSH_TRACE_OPT atol = 1e-5
-    @test flatten_sizes(dense_dual.moment_matrix_sizes) == [9]
-    @test dense_dual.n_unique_moment_matrix_elements == 21
+    @test dense_dual.objective ≈ dense_oracle.opt atol = 1e-5
+    @test flatten_sizes(dense_dual.moment_matrix_sizes) == dense_oracle.sides
+    @test dense_dual.n_unique_moment_matrix_elements == dense_oracle.nuniq
 
     dense_moment = cs_nctssos(tpop, dense_cfg; dualize=false)
-    @test dense_moment.objective ≈ CHSH_TRACE_OPT atol = 1e-5
-    @test dense_moment.n_unique_moment_matrix_elements == 21
+    @test dense_moment.objective ≈ dense_oracle.opt atol = 1e-5
+    @test dense_moment.n_unique_moment_matrix_elements == dense_oracle.nuniq
 
     mmd_cfg = SolverConfig(
         optimizer=SOLVER,
@@ -38,8 +38,8 @@ end
         ts_algo=MMD()
     )
     sparse_dual = cs_nctssos(tpop, mmd_cfg; dualize=true)
-    @test sparse_dual.objective ≈ CHSH_TRACE_OPT atol = 1e-5
-    @test sparse_dual.n_unique_moment_matrix_elements == 10
+    @test sparse_dual.objective ≈ mmd_oracle.opt atol = 1e-5
+    @test sparse_dual.n_unique_moment_matrix_elements == mmd_oracle.nuniq
 
     @test occursin("State Optimization Result", sprint(show, dense_dual))
     @test occursin("Correlative Sparsity", sprint(show, dense_dual.sparsity.corr_sparsity))

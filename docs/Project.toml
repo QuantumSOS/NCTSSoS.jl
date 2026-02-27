@@ -5,6 +5,7 @@ Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
 JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
 MosekTools = "1ec41992-ff65-5c91-ac43-2df89e9693a4"
@@ -13,4 +14,5 @@ Yao = "5872b779-8223-5990-8dd0-5abbb0748c8c"
 
 [compat]
 Documenter = "1.13.0"
+JSON3 = "1"
 MosekTools = "0.15.9"

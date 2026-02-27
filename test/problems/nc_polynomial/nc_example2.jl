@@ -7,6 +7,7 @@
 using Test, NCTSSoS, JuMP
 
 @testset "NC Example 2 (constrained)" begin
+    opt_oracle = expectations_oracle("expectations/nc_example2.json", "opt")
     n = 2
     reg, (x,) = create_noncommutative_variables([("x", 1:n)])
 
@@ -19,13 +20,13 @@ using Test, NCTSSoS, JuMP
     @testset "Dense (Moment)" begin
         config = SolverConfig(optimizer=SOLVER, order=2)
         result = cs_nctssos(pop, config; dualize=false)
-        @test result.objective ≈ -1.0 atol = 1e-6
+        @test result.objective ≈ opt_oracle.opt atol = 1e-6
     end
 
     @testset "Dense (SOS)" begin
         config = SolverConfig(optimizer=SOLVER, order=2)
         result = cs_nctssos(pop, config; dualize=true)
-        @test result.objective ≈ -1.0 atol = 1e-6
+        @test result.objective ≈ opt_oracle.opt atol = 1e-6
     end
 
     @testset "Term Sparsity (Moment)" begin
@@ -36,7 +37,7 @@ using Test, NCTSSoS, JuMP
             ts_algo=MMD()
         )
         result = cs_nctssos(pop, config; dualize=false)
-        @test result.objective ≈ -1.0 atol = 1e-6
+        @test result.objective ≈ opt_oracle.opt atol = 1e-6
     end
 
     @testset "Term Sparsity (SOS)" begin
@@ -46,7 +47,7 @@ using Test, NCTSSoS, JuMP
             ts_algo=MMD()
         )
         result = cs_nctssos(pop, config; dualize=true)
-        @test result.objective ≈ -1.0 atol = 1e-6
+        @test result.objective ≈ opt_oracle.opt atol = 1e-6
     end
 
     @testset "cs_nctssos_higher" begin

@@ -22,6 +22,9 @@
 # solver output.
 
 using NCTSSoS, MosekTools
+using JSON3
+
+const TRACE_POLY_REFS = JSON3.read(read(joinpath(@__DIR__, "data", "trace_poly_refs.json"), String))
 
 const MOI = NCTSSoS.MOI
 const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true);
@@ -70,7 +73,7 @@ solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2);
 result = cs_nctssos(spop, solver_config);
 
 @show result.objective
-@assert isapprox(result.objective, -0.046717378455438933, atol=1e-6)
+@assert isapprox(result.objective, TRACE_POLY_REFS["toy_projector_order2_objective"], atol=1e-6)
 
 # #### Step 4 — Tighten the bound at order 3
 
@@ -78,7 +81,7 @@ solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3);
 result = cs_nctssos(spop, solver_config);
 
 @show result.objective
-@assert isapprox(result.objective, -0.03124998978001017, atol=1e-6)
+@assert isapprox(result.objective, TRACE_POLY_REFS["toy_projector_order3_objective"], atol=1e-6)
 
 # The literature values are $-0.0467$ (order 2) and $-0.0312$ (order 3); our
 # results match within $10^{-6}$ [klep2022Optimization](@cite).

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "dense_auto_order",
+      "expected": {
+        "objective": -2.8284271247461903,
+        "sides": [9],
+        "nuniq": 21
+      }
+    },
+    {
+      "id": "mmd_order1",
+      "expected": {
+        "objective": -2.8284271247461903,
+        "nuniq": 10
+      }
+    }
+  ]
+}
+

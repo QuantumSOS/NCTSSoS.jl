@@ -24,8 +24,8 @@ if !@isdefined(SOLVER)
 end
 
 const CORRELATED_PIPELINE_ORACLES = (
-    CS_d3 = (opt=0.9975308091952613, sides=[15, 15], nuniq=149),
-    TS_d3 = (opt=0.9975305666745705, nuniq=123),  # sides vary
+    CS_d3 = expectations_oracle("expectations/correlated_pipeline.json", "CS_d3"),
+    TS_d3 = expectations_oracle("expectations/correlated_pipeline.json", "TS_d3"),  # sides vary
 )
 
 if !isdefined(@__MODULE__, :flatten_sizes)

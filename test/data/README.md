@@ -20,10 +20,10 @@ Each case:
   - `objective` (Number): expected objective value
   - `sides` (Array[Int], optional): expected flattened moment-matrix block sizes
   - `nuniq` (Int, optional): expected `n_unique_moment_matrix_elements`
+  - suite-specific structural fields are allowed (for non-numeric oracle tests)
 - `notes` (String, optional): provenance / verification notes
 
 ## Update workflow
 
 - When a verified expectation changes, update the corresponding JSON file and keep `id`s stable.
 - Prefer one JSON file per test suite (e.g. CHSH, NC examples, correlated sparsity).
-

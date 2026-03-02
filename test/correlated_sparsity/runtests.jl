@@ -28,6 +28,19 @@ const CORRELATED_PIPELINE_ORACLES = (
     TS_d3 = expectations_oracle("expectations/correlated_pipeline.json", "TS_d3"),  # sides vary
 )
 
+const CORRELATED_STRUCTURE_EXPECTATIONS =
+    TestExpectations.expectations_load("expectations/correlated_structure.json")
+
+function correlated_structure_case(id::AbstractString)
+    case = TestExpectations.expectations_case(CORRELATED_STRUCTURE_EXPECTATIONS, id)
+    haskey(case, "expected") || error("Missing key `expected` for case $(repr(id)).")
+    return case["expected"]
+end
+
+json_int(v) = Int(v)
+json_int_vec(values) = [Int(v) for v in values]
+json_int_vec_vec(values) = [json_int_vec(row) for row in values]
+
 if !isdefined(@__MODULE__, :flatten_sizes)
     flatten_sizes(sizes) = reduce(vcat, sizes)
 end

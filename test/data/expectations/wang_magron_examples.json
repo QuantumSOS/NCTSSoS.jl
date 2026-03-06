@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "Example_3_4_Dense_d2",
+      "expected": {
+        "objective": 0.0,
+        "sides": [13],
+        "nuniq": 73
+      }
+    },
+    {
+      "id": "Example_3_4_TS_d2",
+      "expected": {
+        "objective": -0.00355,
+        "sides": [1, 1, 2, 2, 2, 2, 3, 3, 3, 4],
+        "nuniq": 21
+      }
+    },
+    {
+      "id": "Example_3_8_Dense_d2",
+      "expected": {
+        "objective": -1.0,
+        "sides": [7],
+        "nuniq": 22
+      }
+    },
+    {
+      "id": "Example_3_8_TS_d2",
+      "expected": {
+        "objective": -1.0,
+        "sides": [2, 2, 2, 2, 2],
+        "nuniq": 8
+      }
+    },
+    {
+      "id": "Example_5_3_Dense_d2",
+      "expected": {
+        "objective": -1.0,
+        "sides": [19],
+        "nuniq": 57
+      }
+    },
+    {
+      "id": "Example_5_3_TS_d2",
+      "expected": {
+        "objective": -1.0,
+        "nuniq": 19
+      }
+    }
+  ]
+}

@@ -3,9 +3,14 @@
 
 Elimination strategy that treats the entire problem as a single dense block.
 
-This strategy ignores sparsity structure and solves the full SDP without
-clique decomposition. Use when the problem is dense or small enough that
-sparsity exploitation provides no benefit.
+This strategy replaces the sparsity graph by a complete graph on all vertices,
+so clique decomposition returns a single clique containing every variable. Use
+when the problem is dense or small enough that sparsity exploitation provides
+no benefit.
+
+This is not the maximal chordal extension in the TSSOS sense: disconnected
+components are merged into one dense block. For the component-wise dense
+extension, use [`MaximalElimination`](@ref).
 
 See also: [`MF`](@ref), [`MMD`](@ref), [`AsIsElimination`](@ref)
 """
@@ -33,6 +38,8 @@ Elimination strategy that decomposes the graph into connected components.
 
 Each connected component becomes a separate SDP block. This is the most
 aggressive sparsity exploitation, useful when variables form disjoint groups.
+In the TSSOS literature, this matches the maximal chordal extension obtained by
+completing each connected component to a clique.
 
 See also: [`MF`](@ref), [`MMD`](@ref), [`NoElimination`](@ref)
 """

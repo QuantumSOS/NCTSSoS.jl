@@ -1,0 +1,984 @@
+OpenAI Codex v0.110.0 (research preview)
+--------
+workdir: /Users/exaclior/QuantumSOS/NCTSSoS.jl
+model: gpt-5.2
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019cc0ca-a8f4-7bf2-8803-316f6056a747
+--------
+user
+You are in repository: /Users/exaclior/QuantumSOS/NCTSSoS.jl
+
+Goal:
+Create an LLM-oriented markdown brief that explains branch changes from the provided diff-context file.
+
+Input:
+- Diff context file: /Users/exaclior/QuantumSOS/NCTSSoS.jl/review/explain-changes-diff-issue-275-20260306-023708.md
+
+Required workflow:
+1) Read the diff-context file completely.
+2) Use file paths from the diff-context file to inspect touched files for behavior details.
+3) Read top-level docs/configs (README, AGENTS, Makefile, package/build configs) as needed.
+4) Produce markdown for a section-by-section walkthrough.
+
+Output constraints:
+- Return markdown only.
+- Use concrete file paths.
+- Do not invent facts.
+- Quote exact command errors when blocked.
+- Keep section headings stable and explicit.
+- Keep every markdown table under 80 characters wide; use line breaks within cells to shorten rows if needed.
+
+Require these sections in the markdown brief:
+- `# Change Brief`
+- `## Repo Purpose`
+- `## Diff Baseline`
+- `## Site Index`
+- `## Site: <name>` (repeat per logical site)
+- `## Cross-Site Notes`
+- `## Suggested Walkthrough Order`
+- `## Unknowns`
+
+For each `Site` section include:
+- `Files`
+- `Change Summary`
+- `Why It Matters`
+- `Behavior/Risk`
+- `Evidence`
+- `Open Questions`
+mcp: exa starting
+mcp: zotero starting
+mcp: arxiv-1 starting
+mcp: arxiv-1 ready
+mcp: zotero ready
+mcp: exa ready
+mcp startup: ready: arxiv-1, zotero, exa
+Plan update
+  → Read diff-context file fully
+  • Inspect touched files for behavior
+  • Read top-level docs/configs as needed
+  • Write markdown change brief
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && ls -la review && wc -l review/explain-changes-diff-issue-275-20260306-023708.md' in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 51ms:
+total 24
+drwxr-xr-x   4 exaclior  staff   128 Mar  6 02:37 .
+drwxr-xr-x  18 exaclior  staff   576 Mar  6 02:37 ..
+-rw-r--r--   1 exaclior  staff  1876 Mar  6 02:37 explain-changes-brief-20260306-023712.log
+-rw-r--r--   1 exaclior  staff  5081 Mar  6 02:37 explain-changes-diff-issue-275-20260306-023708.md
+     136 review/explain-changes-diff-issue-275-20260306-023708.md
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && sed -n '1,200p' review/explain-changes-diff-issue-275-20260306-023708.md" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+# Diff Context
+
+## Repo
+
+- Path: /Users/exaclior/QuantumSOS/NCTSSoS.jl
+- Base: origin/main (6556c5680ca59460460b9ace951426a881574651)
+- Head: 29dbbdc9553caac6086347e748d42daf03ed2ed9
+
+## Name Status
+
+```text
+M	test/correlated_sparsity/graph_and_cliques.jl
+M	test/data/expectations/correlated_structure.json
+```
+
+## Diff Stat
+
+```text
+test/correlated_sparsity/graph_and_cliques.jl    | 58 ++++++++++++++++++++++++
+ test/data/expectations/correlated_structure.json | 17 +++++++
+
+thinking
+**Updating project progress**
+
+I should check the Project.toml file to identify what's needed next. Once I do that, I can mark this step as done. It feels good to confirm I've read the entire diff file, so I can move on and update the plan accordingly. This process is all about ensuring clarity in next steps, so let’s keep everything organized! I think I’m on the right track here.
+Plan update
+  ✓ Read diff-context file fully
+  → Inspect touched files for behavior
+  • Read top-level docs/configs as needed
+  • Write markdown change brief
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && cat test/data/expectations/correlated_structure.json' in /Users/exaclior/QuantumSOS/NCTSSoS.jlexec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && sed -n '1,260p' test/correlated_sparsity/graph_and_cliques.jl" in /Users/exaclior/QuantumSOS/NCTSSoS.jlexec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n \"correlated_structure_case\\(\" -S test | head" in /Users/exaclior/QuantumSOS/NCTSSoS.jlexec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n "get_term_sparsity_graph" -S src test | head -n 50' in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "get_correlative_graph_ring_n4",
+      "expected": {
+        "adjacency_by_position": [
+          [2, 4],
+          [1, 3],
+          [2, 4],
+          [1, 3]
+        ]
+      },
+      "notes": "Provenance: issue #254 (ring adjacency)."
+    },
+    {
+      "id": "get_correlative_graph_chain_n3",
+      "expected": {
+        "adjacency_by_position": [
+          [2],
+ succeeded in 52ms:
+# test/correlated_sparsity/graph_and_cliques.jl
+
+function _normalized_edge_pairs(graph::SimpleGraph)
+    sort([(min(src(e), dst(e)), max(src(e), dst(e))) for e in edges(graph)])
+end
+
+function _graph_support(edges_uv::Vector{Tuple{Int,Int}}, basis::Vector{NormalMonomial{A,T}}) where {A<:AlgebraType,T<:Integer}
+    support = NormalMonomial{A,T}[]
+    for (u, v) in edges_uv
+        append!(support, monomials(basis[u] * basis[v]))
+    end
+    return sort(unique(support))
+end
+
+@testset "Graph and Cliques" begin
+    @testset "get_correlative_graph" begin
+        @testset "Ring graph (n=4)" begin
+            expected = correlated_structure_case("get_correlative_graph_ring_n4")
+            expected_neighbors = json_int_vec_vec(expected["adjacency_by_position"])
+            n = 4
+ succeeded in 51ms:
+test/correlated_sparsity/graph_and_cliques.jl:18:            expected = correlated_structure_case("get_correlative_graph_ring_n4")
+test/correlated_sparsity/graph_and_cliques.jl:34:            expected = correlated_structure_case("get_correlative_graph_chain_n3")
+test/correlated_sparsity/graph_and_cliques.jl:49:            expected = correlated_structure_case("get_correlative_graph_dense_n10")
+test/correlated_sparsity/graph_and_cliques.jl:65:            expected = correlated_structure_case("get_correlative_graph_chain_constraints_n3")
+test/correlated_sparsity/graph_and_cliques.jl:81:            expected = correlated_structure_case("get_correlative_graph_bipartite_x3y3")
+test/correlated_sparsity/graph_and_cliques.jl:100:            expected = correlated_structure_case("clique_decomp_ring_n4")
+test/correlated_sparsity/graph_and_cliques.jl:114:            expected = correlated_structure_case("clique_decomp_chain_n3")
+test/correlated_sparsity/graph_and_cliques.jl:128:            expected = correlated_structure_case("clique_decomp_dense_n10")
+test/correlated_sparsity/graph_and_cliques.jl:142:            expected = correlated_structure_case("clique_decomp_chain_constraints_n3")
+test/correlated_sparsity/graph_and_cliques.jl:157:            expected = correlated_structure_case("clique_decomp_bipartite_x3y3")
+ succeeded in 50ms:
+test/correlated_sparsity/graph_and_cliques.jl:218:            extended_graph = NCTSSoS.get_term_sparsity_graph([one_mono], activated_supp, basis)
+test/correlated_sparsity/coverage_edges.jl:150:    @testset "get_term_sparsity_graph edge detection (state)" begin
+test/correlated_sparsity/coverage_edges.jl:160:        graph_lr = NCTSSoS.get_term_sparsity_graph([id_lr], [w_lr], [id_lr, w_lr])
+test/correlated_sparsity/coverage_edges.jl:184:        graph_rl = NCTSSoS.get_term_sparsity_graph([m], [target], [id_rl, w])
+test/trace_poly/coverage_edges.jl:253:    graph_rl = NCTSSoS.get_term_sparsity_graph([supp_case], [activated_case], [a_case, b_case])
+test/state_poly/coverage_edges.jl:333:        # get_term_sparsity_graph: force connected_rl path (lines 825-826)
+test/state_poly/coverage_edges.jl:340:        G = NCTSSoS.get_term_sparsity_graph([supp], [target], [b1, b2])
+src/optimization/sparsity.jl:368:    get_term_sparsity_graph(cons_support::Vector{NormalMonomial{A,T}}, activated_supp::Vector{NormalMonomial{A,T}}, bases::Vector{M}) where {A,T,M}
+src/optimization/sparsity.jl:381:function get_term_sparsity_graph(
+src/optimization/sparsity.jl:435:    F = get_term_sparsity_graph(last.(poly.terms), activated_supp, basis)
+src/optimization/sparsity.jl:792:    get_term_sparsity_graph(cons_support, activated_supp, bases) for NCStateWord
+src/optimization/sparsity.jl:801:function get_term_sparsity_graph(
+src/optimization/sparsity.jl:849:    F = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
+
+thinking
+**Opening more sections**
+
+I want to open more sections for the test file since I’ve already printed lines 1-260. However, it got truncated at a dense part due to the command output token limit. My plan is to re-run it using `sed` on smaller segments around that truncated area. I think using `nl -ba` and `sed -n '1,120p'` would work well for that. Let’s get started with this approach!
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba test/correlated_sparsity/graph_and_cliques.jl | sed -n '1,140p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+     1	# test/correlated_sparsity/graph_and_cliques.jl
+     2	
+     3	function _normalized_edge_pairs(graph::SimpleGraph)
+     4	    sort([(min(src(e), dst(e)), max(src(e), dst(e))) for e in edges(graph)])
+     5	end
+     6	
+     7	function _graph_support(edges_uv::Vector{Tuple{Int,Int}}, basis::Vector{NormalMonomial{A,T}}) where {A<:AlgebraType,T<:Integer}
+     8	    support = NormalMonomial{A,T}[]
+     9	    for (u, v) in edges_uv
+    10	        append!(support, monomials(basis[u] * basis[v]))
+    11	    end
+    12	    return sort(unique(support))
+    13	end
+    14	
+    15	@testset "Graph and Cliques" begin
+    16	    @testset "get_correlative_graph" begin
+    17	        @testset "Ring graph (n=4)" begin
+    18	            expected = correlated_structure_case("get_correlative_graph_ring_n4")
+    19	            expected_neighbors = json_int_vec_vec(expected["adjacency_by_position"])
+    20	            n = 4
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba test/correlated_sparsity/graph_and_cliques.jl | sed -n '140,320p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+   140	
+   141	        @testset "Chain with constraints (n=3)" begin
+   142	            expected = correlated_structure_case("clique_decomp_chain_constraints_n3")
+   143	            reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+   144	            objective = nc_chain_objective(x)
+   145	            constraints = vcat([1.0 - x[i]^2 for i = 1:3], [x[i] - 1.0 / 3 for i = 1:3])
+   146	            graph, _, _ = get_correlative_graph(reg, objective, constraints)
+   147	
+   148	            @test normalize_cliques(clique_decomp(graph, NoElimination())) ==
+   149	                json_int_vec_vec(expected["no_elimination"])
+   150	            @test normalize_cliques(clique_decomp(graph, AsIsElimination())) ==
+   151	                json_int_vec_vec(expected["as_is_elimination"])
+   152	            @test normalize_cliques(clique_decomp(graph, MF())) ==
+   153	                json_int_vec_vec(expected["mf"])
+   154	        end
+   155	
+   156	        @testset "Bipartite graph (x[1:3], y[1:3])" begin
+   157	            expected = correlated_structure_case("clique_decomp_bipartite_x3y3")
+   158	            reg, (x, y) = create_noncommutative_variables([("x", 1:3), ("y", 1:3)])
+   159	            objective = nc_bipartite_objective(x, y)
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n "function correlated_structure_case" -S test && rg -n "correlated_structure_case" test/TestUtils.jl test/runtests.jl' in /Users/exaclior/QuantumSOS/NCTSSoS.jl exited 1 in 52ms:
+test/correlated_sparsity/runtests.jl:34:function correlated_structure_case(id::AbstractString)
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba test/correlated_sparsity/runtests.jl | sed -n '1,120p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 51ms:
+     1	# test/correlated_sparsity/runtests.jl
+     2	# Correlated sparsity test entrypoint and shared helpers.
+     3	
+     4	using Test, NCTSSoS, JuMP, Graphs
+     5	
+     6	using NCTSSoS:
+     7	    assign_constraint,
+     8	    clique_decomp,
+     9	    correlative_sparsity,
+    10	    get_correlative_graph
+    11	
+    12	if !@isdefined(MOI)
+    13	    const MOI = JuMP.MOI
+    14	end
+    15	
+    16	# SOLVER fallback for standalone/REPL execution
+    17	if !@isdefined(SOLVER)
+    18	    using MosekTools
+    19	    const SOLVER = optimizer_with_attributes(
+    20	        Mosek.Optimizer,
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n \"include\\(\\\"graph_and_cliques\\.jl\\\"\\)\" -S test/correlated_sparsity/runtests.jl && tail -n 40 test/correlated_sparsity/runtests.jl" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+129:    include("graph_and_cliques.jl")
+    n = 3
+    reg, (x,) = create_noncommutative_variables([("x", 1:n)])
+    objective = nc_chain_objective(x)
+    constraints = vcat([1.0 - x[i]^2 for i = 1:n], [x[i] - 1.0 / 3 for i = 1:n])
+    pop = polyopt(objective, reg; ineq_constraints=constraints)
+    return pop
+end
+
+function build_global_constraint_fixture()
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 1.0 * x[2]^2 + 0.5 * x[1] * x[2] + 0.5 * x[2] * x[1]
+    constraint = 1.0 * x[1] + x[2]
+    pop = polyopt(objective, reg; ineq_constraints=[constraint])
+    config = SolverConfig(
+        optimizer=SOLVER,
+        order=1,
+        cs_algo=NoElimination(),
+        ts_algo=NoElimination()
+    )
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba src/optimization/sparsity.jl | sed -n '330,520p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 51ms:
+   330	        NM.(symmetric_canon.(last.(partial_obj.terms))),
+   331	        mapreduce(p -> last.(p.terms), vcat, cons; init=NM[]),
+   332	        diagonal_entries
+   333	    )
+   334	end
+   335	
+   336	"""
+   337	    term_sparsities(initial_activated_supp::Vector{NormalMonomial{A,T}}, cons::Vector{P}, mom_mtx_bases::Vector{M}, localizing_mtx_bases::Vector{Vector{M}}, ts_algo::EliminationAlgorithm)
+   338	
+   339	Computes term sparsity structures for the moment matrix and all localizing matrices.
+   340	
+   341	# Arguments
+   342	- `initial_activated_supp::Vector{NormalMonomial}`: Initial set of activated support NormalMonomials
+   343	- `cons::Vector{P}`: Vector of constraint polynomials
+   344	- `mom_mtx_bases::Vector{M}`: Basis NormalMonomials for the moment matrix
+   345	- `localizing_mtx_bases::Vector{Vector{M}}`: Basis Monomials for each localizing matrix corresponding to constraints
+   346	- `ts_algo::EliminationAlgorithm`: Algorithm for clique tree elimination in term sparsity graphs
+   347	
+   348	# Returns
+   349	- `Vector{TermSparsity{M}}`: Vector containing term sparsity structures, with the first element
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n "function clique_decomp" -S src/optimization/sparsity.jl src | head -n 50' in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 50ms:
+src/optimization/elimination.jl:57:function clique_decomp(G::SimpleGraph, clique_alg::EliminationAlgorithm)
+src/optimization/elimination.jl:62:function clique_decomp(G::SimpleGraph, ::MaximalElimination)
+src/optimization/elimination.jl:77:function clique_decomp(G::SimpleGraph, ::AsIsElimination)
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba src/optimization/elimination.jl | sed -n '1,200p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+     1	"""
+     2	    NoElimination <: EliminationAlgorithm
+     3	
+     4	Elimination strategy that treats the entire problem as a single dense block.
+     5	
+     6	This strategy ignores sparsity structure and solves the full SDP without
+     7	clique decomposition. Use when the problem is dense or small enough that
+     8	sparsity exploitation provides no benefit.
+     9	
+    10	See also: [`MF`](@ref), [`MMD`](@ref), [`AsIsElimination`](@ref)
+    11	"""
+    12	struct NoElimination <: EliminationAlgorithm end
+    13	
+    14	"""
+    15	    AsIsElimination <: EliminationAlgorithm
+    16	
+    17	Elimination strategy that uses maximal cliques without triangulation.
+    18	
+    19	!!! warning
+    20	    Assumes the correlative sparsity graph is already chordal. If the graph
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n \"\\bMF\\b\\(\" -S src test | head -n 50" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+test/relaxations/interface.jl:344:        solver_config = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF())
+test/correlated_sparsity/graph_and_cliques.jl:109:            @test normalize_cliques(clique_decomp(graph, MF())) ==
+test/correlated_sparsity/graph_and_cliques.jl:123:            @test normalize_cliques(clique_decomp(graph, MF())) ==
+test/correlated_sparsity/graph_and_cliques.jl:137:            @test normalize_cliques(clique_decomp(graph, MF())) ==
+test/correlated_sparsity/graph_and_cliques.jl:152:            @test normalize_cliques(clique_decomp(graph, MF())) ==
+test/correlated_sparsity/graph_and_cliques.jl:166:            @test normalize_cliques(clique_decomp(graph, MF())) ==
+test/correlated_sparsity/graph_and_cliques.jl:186:            cliques_mf = clique_decomp(graph, MF())
+src/optimization/elimination.jl:23:    `MF()` or `MMD()` for automatic chordal completion.
+src/optimization/elimination.jl:74:    which could lead to invalid SOS relaxation bounds. Use `MF()` or `MMD()` for
+test/correlated_sparsity/core_pipeline_structure.jl:15:            @test maximum(length.(correlative_sparsity(pop, order, MF()).cliques)) ==
+test/correlated_sparsity/core_pipeline_structure.jl:31:            @test maximum(length.(correlative_sparsity(pop, order, MF()).cliques)) ==
+test/correlated_sparsity/core_pipeline_structure.jl:48:                ("mf", MF()),
+test/correlated_sparsity/core_pipeline_numeric.jl:14:            cs_algo=MF(),
+test/correlated_sparsity/core_pipeline_numeric.jl:25:        config = SolverConfig(optimizer=SOLVER, order=3, cs_algo=MF())
+test/problems/benchmarks/ncpop_benchmarks.jl:165:                cs_algo=MF(),
+test/problems/benchmarks/ncpop_benchmarks.jl:178:                cs_algo=MF(),
+test/problems/benchmarks/ncpop_benchmarks.jl:245:                cs_algo=MF(),
+test/problems/benchmarks/ncpop_benchmarks.jl:258:                cs_algo=MF(),
+test/problems/benchmarks/ncpop_benchmarks.jl:322:                cs_algo=MF(),
+test/problems/benchmarks/ncpop_benchmarks.jl:335:                cs_algo=MF(),
+
+thinking
+**Searching for definitions**
+
+I'm trying to figure out why "MF" isn't defined in the repository. It might come from the "SimpleGraphs" in Graphs, or maybe there's a `MinimumFill()` function in Graphs. To clarify, I think I should search for `struct MF` or `const MF` to find any relevant declarations or definitions. This should help me understand where the confusion is coming from! Let's see what I can find by looking into that.
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n "struct MF" -S src test || true' in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n "export" -S src/NCTSSoS.jl src | head -n 60' in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+src/NCTSSoS.jl:130:# Exports - User-Facing API Only
+src/NCTSSoS.jl:134:export PolyOpt, polyopt, PolyOptResult, SolverConfig
+src/NCTSSoS.jl:135:export SparsityResult, compute_sparsity
+src/NCTSSoS.jl:138:export cs_nctssos, cs_nctssos_higher, reconstruct
+src/NCTSSoS.jl:141:export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
+src/NCTSSoS.jl:144:export create_pauli_variables, create_fermionic_variables, create_bosonic_variables
+src/NCTSSoS.jl:145:export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
+src/NCTSSoS.jl:148:export NormalMonomial, Polynomial, VariableRegistry
+src/NCTSSoS.jl:149:export ComposedMonomial
+src/NCTSSoS.jl:150:export AbstractTensorMonomial, AbstractMonomial
+src/NCTSSoS.jl:153:export AlgebraType
+src/NCTSSoS.jl:154:export MonoidAlgebra, TwistedGroupAlgebra, PBWAlgebra
+src/NCTSSoS.jl:155:export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra
+src/NCTSSoS.jl:156:export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
+src/NCTSSoS.jl:159:export ς, varsigma, tr
+src/NCTSSoS.jl:160:export StateSymbol, StateWord, StatePolynomial
+src/NCTSSoS.jl:161:export NCStateWord, MaxEntangled, Arbitrary
+src/NCTSSoS.jl:164:export degree, monomials, coefficients, terms, variables
+src/NCTSSoS.jl:165:export simplify, simplify!
+src/NCTSSoS.jl:166:export variable_indices
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba src/NCTSSoS.jl | sed -n '90,170p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+    90	# ============================================================================
+    91	
+    92	include("types/composed.jl")
+    93	
+    94	# ============================================================================
+    95	# Algorithms (canonicalization, basis generation)
+    96	# ============================================================================
+    97	
+    98	# State type tags are needed by canonicalization (defines Arbitrary/MaxEntangled)
+    99	include("states/types.jl")
+   100	
+   101	include("algorithms/canonicalization.jl")
+   102	include("algorithms/basis.jl")
+   103	
+   104	# ============================================================================
+   105	# State Polynomial Types
+   106	# ============================================================================
+   107	
+   108	include("states/word.jl")
+   109	include("states/polynomial.jl")
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && sed -n '1,120p' README.md" in /Users/exaclior/QuantumSOS/NCTSSoS.jlexec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && sed -n '1,220p' Makefile" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/src/assets/dark_logo.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/src/assets/light_logo.png">
+  <img alt="NCTSSoS Logo">
+</picture>
+</div>
+
+---
+[![][docs-stable-img]][docs-stable-url]
+[![CI][main-ci-img]][main-ci-url]
+[![codecov][codecov-img]][codecov-url]
+[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
+[NCTSSoS.jl](https://github.com/wangjie212/NCTSSoS) aims to provide a *efficient* tool for solving sparse noncommutative polynomial optimization problems which is based on the structured moment-SOHS hierarchy.
+
+It is a successor to [NCTSSOS](https://github.com/wangjie212/NCTSSOS).
+
+## Features
+ succeeded in 52ms:
+JULIA ?= julia
+JL = $(JULIA) --project
+
+# Comma variable for escaping in macro calls
+, := ,
+
+define pkg_test
+	$(JL) -e 'using Pkg; Pkg.test($(if $(1),test_args=$(1)))'
+endef
+
+default: init test
+
+# =============================================================================
+# Setup
+# =============================================================================
+
+init:
+	$(JL) -e 'using Pkg; Pkg.precompile()'
+
+init-docs:
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba test/runtests.jl | sed -n '1,200p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jlexec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba test/TestUtils.jl | sed -n '1,220p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+     1	using NCTSSoS, Test
+     2	
+     3	include("Expectations.jl")
+     4	using .TestExpectations: expectations_oracle
+     5	
+     6	@testset "NCTSSoS.jl" begin
+     7	
+     8	    include("expectations_loader.jl")
+     9	
+    10	    # 1. Polynomial algebra (no solver)
+    11	    include("polynomials/runtests.jl")
+    12	
+    13	    # 2. Code quality (Aqua, ExplicitImports, doctests)
+    14	    include("quality/runtests.jl")
+    15	
+    16	    # 3. Solver-dependent tests
+    17	    include("TestUtils.jl")
+    18	
+    19	    # 4. Relaxation components
+    20	    include("relaxations/runtests.jl")
+ succeeded in 52ms:
+     1	using JuMP, COSMO
+     2	
+     3	const SOLVER = optimizer_with_attributes(
+     4	    COSMO.Optimizer,
+     5	    "verbose" => false,
+     6	    "eps_abs" => 1e-7,
+     7	    "eps_rel" => 1e-7,
+     8	)
+     9	
+    10	"""
+    11	    flatten_sizes(sizes)
+    12	
+    13	Flatten nested moment matrix sizes for comparison with oracle values.
+    14	
+    15	# Example
+    16	```julia
+    17	flatten_sizes([[3, 3], [2]]) == [3, 3, 2]
+    18	```
+    19	"""
+    20	flatten_sizes(sizes) = reduce(vcat, sizes)
+
+
+
+thinking
+**Planning documentation structure**
+
+I'll list the changed files in the "Files" section and mention the referenced code under Evidence. I need to do a section-by-section walkthrough in markdown, using stable and explicit section headings like `### Files` for each site. Although subheadings aren't required, I believe they'll add clarity. I'll ensure to format them with bullet points and bold labels, including concrete file paths like `test/correlated_sparsity/graph_and_cliques.jl`. I must also prepare to quote exact command errors if needed and provide the "Suggested Walkthrough Order."
+thinking
+**Identifying unknowns in tests**
+
+I need to consider what we can't confirm without running tests, like the exact cliques output for the cycle graph. While expectations are in JSON, we haven't run it yet. I also want to address unknowns about whether the behavior of Graphs.MF is stable across versions, noting that the README mentions "Maximum fill-in," but I suspect it could be “minimum fill.” In Graphs.jl, I think "MF" means "Minimum Fill," but I need to verify that. Additionally, I want to check if `monomials(x[2] * x[3])[1]` returns the expected output. Running targeted tests with `Pkg.test("NCTSSoS"; test_args=["correlated_sparsity"])` might be a good way to verify things before handoff.
+thinking
+**Planning to run tests**
+
+In my current environment, there aren't any constraints, so I want to run the tests using Julia. I'm deciding between two command formats: `julia --project -e 'using Pkg; Pkg.test("NCTSSoS"; test_args=["correlated_sparsity"])'` and `julia --project -e 'using Pkg; Pkg.test(; test_args=["correlated_sparsity"])'`. I know it might take some time to complete. However, since the task is to create a markdown brief and not run tests, I could also check the `review/explain-changes-brief-20260306-023712.log` for previous run outputs or errors to see if tests were already executed.
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && cat review/explain-changes-brief-20260306-023712.log' in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+OpenAI Codex v0.110.0 (research preview)
+--------
+workdir: /Users/exaclior/QuantumSOS/NCTSSoS.jl
+model: gpt-5.2
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: high
+reasoning summaries: none
+session id: 019cc0ca-a8f4-7bf2-8803-316f6056a747
+--------
+user
+You are in repository: /Users/exaclior/QuantumSOS/NCTSSoS.jl
+
+Goal:
+Create an LLM-oriented markdown brief that explains branch changes from the provided diff-context file.
+
+Input:
+- Diff context file: /Users/exaclior/QuantumSOS/NCTSSoS.jl/review/explain-changes-diff-issue-275-20260306-023708.md
+
+exec
+/bin/zsh -lc 'cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && rg -n "ARGS" test | head -n 50' in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+test/oracles/nctssos_bell_template.jl:25:if isempty(ARGS)
+test/oracles/nctssos_bell_template.jl:34:instance = ARGS[1]
+test/oracles/nctssos_bell_template.jl:43:order = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : BELL_ORDERS[idx]
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba test/expectations_loader.jl | sed -n '1,220p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+     1	using Test
+     2	
+     3	@testset "Expectations JSON Fixtures" begin
+     4	    data = TestExpectations.expectations_load("expectations/chsh_simple.json")
+     5	    @test data["schema_version"] == 1
+     6	
+     7	    case = TestExpectations.expectations_case(data, "Dense_d1")
+     8	    @test haskey(case, "expected")
+     9	    @test haskey(case["expected"], "objective")
+    10	
+    11	    oracle = expectations_oracle("expectations/chsh_simple.json", "Dense_d1")
+    12	    @test oracle.opt isa Float64
+    13	    @test oracle.nuniq isa Int
+    14	    @test oracle.sides isa Vector{Int}
+    15	end
+    16	
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && julia --project -e 'using NCTSSoS, Test; include(\"test/Expectations.jl\"); using .TestExpectations: expectations_oracle; include(\"test/expectations_loader.jl\"); include(\"test/TestUtils.jl\"); include(\"test/correlated_sparsity/runtests.jl\")'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl exited 1 in 2.00s:
+  Activating project at `~/QuantumSOS/NCTSSoS.jl`
+ERROR: LoadError: ArgumentError: Package JSON3 not found in current path.
+- Run `import Pkg; Pkg.add("JSON3")` to install the JSON3 package.
+Stacktrace:
+  [1] macro expansion
+    @ ./loading.jl:2403 [inlined]
+  [2] macro expansion
+    @ ./lock.jl:376 [inlined]
+  [3] __require(into::Module, mod::Symbol)
+    @ Base ./loading.jl:2386
+  [4] require(into::Module, mod::Symbol)
+    @ Base ./loading.jl:2362
+  [5] top-level scope
+    @ ~/QuantumSOS/NCTSSoS.jl/test/Expectations.jl:3
+  [6] include(mapexpr::Function, mod::Module, _path::String)
+    @ Base ./Base.jl:307
+  [7] top-level scope
+    @ none:1
+  [8] eval(m::Module, e::Any)
+    @ Core ./boot.jl:489
+
+
+
+thinking
+**Troubleshooting Test Run**
+
+It looks like the test run failed because it can't find the JSON3 package in the current environment. I'm wondering if JSON3 is just a test dependency that isn't installed. Maybe we need to run `Pkg.instantiate()` or `Pkg.develop`. It's possible that `Project.toml` is missing this dependency, especially since the tests require JSON3. 
+
+Oh, it seems like I can mention this error, but we were blocked from verifying it. The user didn't specifically ask to run tests, but we tried. To resolve this, we could either run `julia --project -e 'using Pkg; Pkg.instantiate()'` or add JSON3 to dependencies.
+thinking
+**Checking Dependency Issues**
+
+It seems like there's a missing dependency in the project, specifically JSON3, which should be listed in `test/Project.toml` or other extras. The issue might stem from not activating the test environment properly because running `Pkg.test()` sets up that specific environment. We could bypass this issue by running `Pkg.test()` normally, as it would manage JSON3 correctly. 
+
+Alternatively, I could try `julia --project -e 'using Pkg; Pkg.test()'`, which might take a bit longer but should work well. There's also `make test` as a wrapper. Verifying "just changes tests" might suffice, but end-to-end verification could be better!
+thinking
+**Running Package Tests**
+
+I'm planning to run the command `julia --project -e 'using Pkg; Pkg.test()'` to execute the tests. It might take a while, but I can allow for that. There’s a possibility it will require a solver, and I think COSMO is a dependency that should already be installed in this environment. 
+
+If the process takes too long, I can always stop it, although that's not ideal. I'll go ahead and execute the command now!
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && julia --project -e 'using Pkg; Pkg.test()'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 1m 38s:
+  Activating project at `~/QuantumSOS/NCTSSoS.jl`
+┌ Warning: The project dependencies or compat requirements have changed since the manifest was last resolved.
+│ It is recommended to `Pkg.resolve()` or consider `Pkg.update()` if necessary.
+└ @ Pkg.API ~/.julia/juliaup/julia-1.12.3+0.aarch64.apple.darwin14/share/julia/stdlib/v1.12/Pkg/src/API.jl:1280
+     Testing NCTSSoS
+        Test Could not use exact versions of packages in manifest. Re-resolving dependencies
+    Updating `/private/var/folders/q_/7327zt1d6vs45hhvrxkly7dm0000gn/T/jl_CXcaYf/Project.toml`
+  [4c88cf16] + Aqua v0.8.14
+  [1e616198] + COSMO v0.8.9
+  [61c947e1] + Clarabel v0.11.0
+  [60701a23] ↑ CliqueTrees v1.13.1 ⇒ v1.16.3
+  [e30172f5] + Documenter v1.17.0
+  [7d51a73a] + ExplicitImports v1.15.0
+⌃ [86223c79] ↓ Graphs v1.13.4 ⇒ v1.13.1
+  [0f8b85d8] + JSON3 v1.14.3
+  [4076af6c] ↑ JuMP v1.29.4 ⇒ v1.30.0
+  [bfd54a76] + NCTSSoS v0.1.0 `~/QuantumSOS/NCTSSoS.jl`
+    Updating `/private/var/folders/q_/7327zt1d6vs45hhvrxkly7dm0000gn/T/jl_CXcaYf/Manifest.toml`
+  [14f7f29c] + AMD v0.5.3
+  [a4c015fc] + ANSIColoredPrinters v0.0.1
+
+thinking
+**Updating testing plan**
+
+I just accomplished some great tests but noticed there are two broken tests. Oh, in Julia, broken tests aren't failing; they're marked as expected, so that's okay! There are no command errors now, which is a relief. Now, I need to update my plan steps: I've finished step 2, which involved inspecting touched files for behavior, and I've completed step 3, reading the documentation. Time to move on to step 4 and produce a brief!
+Plan update
+  ✓ Read diff-context file fully
+  ✓ Inspect touched files for behavior
+  ✓ Read top-level docs/configs as needed
+  → Write markdown change brief
+exec
+/bin/zsh -lc "cd /Users/exaclior/QuantumSOS/NCTSSoS.jl && nl -ba test/data/expectations/correlated_structure.json | sed -n '150,230p'" in /Users/exaclior/QuantumSOS/NCTSSoS.jl succeeded in 52ms:
+   150	      "id": "correlative_sparsity_example1_n10_order3",
+   151	      "expected": {
+   152	        "max_clique_by_algo": {
+   153	          "no_elimination": 10,
+   154	          "mf": 7,
+   155	          "as_is_elimination": 7
+   156	        }
+   157	      },
+   158	      "notes": "Provenance: issue #257 (Example 1 structural expectations)."
+   159	    },
+   160	    {
+   161	      "id": "correlative_sparsity_constrained_n2_order2",
+   162	      "expected": {
+   163	        "no_elimination": {
+   164	          "max_clique": 2,
+   165	          "moment_basis_lengths": [7],
+   166	          "localizing_basis_lengths": [3, 3]
+   167	        },
+   168	        "mf": {
+   169	          "max_clique": 2,
+Plan update
+  ✓ Read diff-context file fully
+  ✓ Inspect touched files for behavior
+  ✓ Read top-level docs/configs as needed
+  ✓ Write markdown change brief
+codex
+Hi.  
+Small diffs; strong guarantees.
+
+# Change Brief
+
+## Repo Purpose
+
+`NCTSSoS.jl` provides tools for sparse noncommutative polynomial optimization via
+structured moment-SOHS/SOS relaxations, with correlative + term sparsity support
+(`README.md`).
+
+## Diff Baseline
+
+- Repo: `/Users/exaclior/QuantumSOS/NCTSSoS.jl`
+- Base: `origin/main` at `6556c5680ca59460460b9ace951426a881574651`
+- Head: `29dbbdc9553caac6086347e748d42daf03ed2ed9`
+- Commits:
+  - `29dbbdc test(correlated_sparsity): cover Wang-Magron example 3`
+- Touched files (from `review/explain-changes-diff-issue-275-20260306-023708.md`):
+  - `test/correlated_sparsity/graph_and_cliques.jl` (+58)
+  - `test/data/expectations/correlated_structure.json` (+17)
+
+## Site Index
+
+- Site: Correlated sparsity tests
+  - `test/correlated_sparsity/graph_and_cliques.jl`
+- Site: Expectations fixtures
+  - `test/data/expectations/correlated_structure.json`
+
+## Site: Correlated sparsity tests
+
+### Files
+
+- `test/correlated_sparsity/graph_and_cliques.jl`
+
+### Change Summary
+
+- Add local helpers to make graph edge comparisons deterministic:
+  - `_normalized_edge_pairs(graph::SimpleGraph)` sorts undirected edge pairs
+    (`test/correlated_sparsity/graph_and_cliques.jl:3`).
+  - `_graph_support(edges_uv, basis)` expands seed edges into activated support
+    monomials via `monomials(basis[u] * basis[v])`
+    (`test/correlated_sparsity/graph_and_cliques.jl:7`).
+- Add a clique-decomposition regression test on a 6-cycle (“Wang-Magron Example
+  3.2 concept”):
+  - Compare `NoElimination()` vs `MF()` by clique-size stats and clique count
+    (`test/correlated_sparsity/graph_and_cliques.jl:180`).
+- Add a term-sparsity “support extension” regression test (“Wang-Magron Example
+  3.1 concept”):
+  - Build a small noncommutative basis and show `get_term_sparsity_graph` adds a
+    specific new edge implied by activated support closure
+    (`test/correlated_sparsity/graph_and_cliques.jl:196`).
+
+### Why It Matters
+
+- Guards two brittle-but-important behaviors:
+  - Chordal extension / clique decomposition sensitivity on non-chordal graphs
+    (cycle graphs).
+  - Term-sparsity graph edge creation induced by activated support (ensures the
+    graph grows beyond the initial “seed edges” when warranted).
+
+### Behavior/Risk
+
+- `MF()` decomposition outcomes can vary with upstream graph/chordal toolchain
+  changes; the test intentionally checks only:
+  - max clique size for `NoElimination()` vs `MF()`
+  - number of cliques for `MF()`
+  This reduces brittleness but can miss structural differences in the actual
+  clique sets.
+- The “support extension” test assumes:
+  - Basis ordering is fixed (`basis = [1, x1, x2, x3, x2x3, x3x1, x1x2]`).
+  - Edge ordering is normalized via `_normalized_edge_pairs`, and JSON fixtures
+    match that sorted order.
+
+### Evidence
+
+- New tests + helpers:
+  - `test/correlated_sparsity/graph_and_cliques.jl:3`
+  - `test/correlated_sparsity/graph_and_cliques.jl:180`
+  - `test/correlated_sparsity/graph_and_cliques.jl:196`
+- Expectations lookup path for these tests:
+  - JSON loaded and cases accessed by id via `correlated_structure_case(...)` in
+    `test/correlated_sparsity/runtests.jl:31` and `test/correlated_sparsity/runtests.jl:34`.
+- Underlying behaviors being exercised (unchanged, but directly implicated):
+  - Clique decomposition entrypoint:
+    `src/optimization/elimination.jl:57`
+  - Term sparsity graph construction:
+    `src/optimization/sparsity.jl:381`
+- Verification run (local):
+  - `julia --project -e 'using Pkg; Pkg.test()'`
+  - Summary: `Pass 2309  Broken 2  Total 2311` (completed successfully).
+
+### Open Questions
+
+- The new JSON fixture note says “Provenance: issue #292 …”, while the diff file
+  name references issue 275; is the provenance pointer intentional, or should
+  it reference the same issue thread as the branch context?
+
+## Site: Expectations fixtures
+
+### Files
+
+- `test/data/expectations/correlated_structure.json`
+
+### Change Summary
+
+- Add new expectations case:
+  - id: `wang_magron_example_3_support_and_chordal`
+  - expected:
+    - `support_extension`: seed/extended/added edges
+    - `minimum_chordal_extension`: clique-size stats for `NoElimination()` and
+      `MF()` on a 6-cycle
+  (`test/data/expectations/correlated_structure.json:182`)
+
+### Why It Matters
+
+- Centralizes “golden” structural expectations so tests remain readable and
+  future adjustments are data-only (update fixture, not test logic).
+
+### Behavior/Risk
+
+- Fixture encodes *ordered* edge pairs; tests compare full vectors for equality
+  after sorting observed edges, so fixture ordering must remain sorted to match.
+- Fixture encodes algorithm-dependent numbers (`mf_max_clique_size`,
+  `mf_n_cliques`); changes in Graphs/CliqueTrees chordal routines could require
+  updating these numbers even if behavior is still “reasonable”.
+
+### Evidence
+
+- New case block:
+  - `test/data/expectations/correlated_structure.json:182`
+- Consumption of this fixture:
+  - `test/correlated_sparsity/runtests.jl:31`
+  - `test/correlated_sparsity/runtests.jl:34`
+
+### Open Questions
+
+- Should the fixture split “Example 3.1” and “Example 3.2” into separate ids, or
+  is bundling them under one id preferred to keep provenance and maintenance
+  together?
+
+## Cross-Site Notes
+
+- The new tests are wired to the new JSON fixture via the shared helper
+  `correlated_structure_case(id)` in `test/correlated_sparsity/runtests.jl:34`.
+- “Support extension” test is a focused probe of `get_term_sparsity_graph(...)`
+  logic: edges appear when products of basis terms (with `cons_support=[1]`)
+  land in `activated_supp` (`src/optimization/sparsity.jl:381`).
+- “Chordal” test is a focused probe of `clique_decomp(G, algo)` behavior across
+  `NoElimination()` (forced dense) and `MF()` (fill/triangulation path)
+  (`src/optimization/elimination.jl:57`).
+
+## Suggested Walkthrough Order
+
+1. `review/explain-changes-diff-issue-275-20260306-023708.md` (what changed)
+2. `test/data/expectations/correlated_structure.json:182` (new fixture contract)
+3. `test/correlated_sparsity/graph_and_cliques.jl:180` (cycle/clique expectations)
+4. `test/correlated_sparsity/graph_and_cliques.jl:196` (support-extension logic)
+5. `src/optimization/elimination.jl:57` (why `NoElimination()` is dense)
+6. `src/optimization/sparsity.jl:381` (why seed edges can induce new edges)
+
+## Unknowns
+
+- Whether the specific `MF()` clique counts/sizes for a 6-cycle remain stable
+  across future dependency updates (currently verified by local `Pkg.test()`,
+  but upstream changes could legitimately shift these stats).
+- Whether “Wang-Magron Example 3.* concept” is intended as a minimal sanity
+  check (as implemented) or should match a published example more literally
+  (would require clarifying what exact structure is canonical).
+tokens used
+63,652
+Hi.  
+Small diffs; strong guarantees.
+
+# Change Brief
+
+## Repo Purpose
+
+`NCTSSoS.jl` provides tools for sparse noncommutative polynomial optimization via
+structured moment-SOHS/SOS relaxations, with correlative + term sparsity support
+(`README.md`).
+
+## Diff Baseline
+
+- Repo: `/Users/exaclior/QuantumSOS/NCTSSoS.jl`
+- Base: `origin/main` at `6556c5680ca59460460b9ace951426a881574651`
+- Head: `29dbbdc9553caac6086347e748d42daf03ed2ed9`
+- Commits:
+  - `29dbbdc test(correlated_sparsity): cover Wang-Magron example 3`
+- Touched files (from `review/explain-changes-diff-issue-275-20260306-023708.md`):
+  - `test/correlated_sparsity/graph_and_cliques.jl` (+58)
+  - `test/data/expectations/correlated_structure.json` (+17)
+
+## Site Index
+
+- Site: Correlated sparsity tests
+  - `test/correlated_sparsity/graph_and_cliques.jl`
+- Site: Expectations fixtures
+  - `test/data/expectations/correlated_structure.json`
+
+## Site: Correlated sparsity tests
+
+### Files
+
+- `test/correlated_sparsity/graph_and_cliques.jl`
+
+### Change Summary
+
+- Add local helpers to make graph edge comparisons deterministic:
+  - `_normalized_edge_pairs(graph::SimpleGraph)` sorts undirected edge pairs
+    (`test/correlated_sparsity/graph_and_cliques.jl:3`).
+  - `_graph_support(edges_uv, basis)` expands seed edges into activated support
+    monomials via `monomials(basis[u] * basis[v])`
+    (`test/correlated_sparsity/graph_and_cliques.jl:7`).
+- Add a clique-decomposition regression test on a 6-cycle (“Wang-Magron Example
+  3.2 concept”):
+  - Compare `NoElimination()` vs `MF()` by clique-size stats and clique count
+    (`test/correlated_sparsity/graph_and_cliques.jl:180`).
+- Add a term-sparsity “support extension” regression test (“Wang-Magron Example
+  3.1 concept”):
+  - Build a small noncommutative basis and show `get_term_sparsity_graph` adds a
+    specific new edge implied by activated support closure
+    (`test/correlated_sparsity/graph_and_cliques.jl:196`).
+
+### Why It Matters
+
+- Guards two brittle-but-important behaviors:
+  - Chordal extension / clique decomposition sensitivity on non-chordal graphs
+    (cycle graphs).
+  - Term-sparsity graph edge creation induced by activated support (ensures the
+    graph grows beyond the initial “seed edges” when warranted).
+
+### Behavior/Risk
+
+- `MF()` decomposition outcomes can vary with upstream graph/chordal toolchain
+  changes; the test intentionally checks only:
+  - max clique size for `NoElimination()` vs `MF()`
+  - number of cliques for `MF()`
+  This reduces brittleness but can miss structural differences in the actual
+  clique sets.
+- The “support extension” test assumes:
+  - Basis ordering is fixed (`basis = [1, x1, x2, x3, x2x3, x3x1, x1x2]`).
+  - Edge ordering is normalized via `_normalized_edge_pairs`, and JSON fixtures
+    match that sorted order.
+
+### Evidence
+
+- New tests + helpers:
+  - `test/correlated_sparsity/graph_and_cliques.jl:3`
+  - `test/correlated_sparsity/graph_and_cliques.jl:180`
+  - `test/correlated_sparsity/graph_and_cliques.jl:196`
+- Expectations lookup path for these tests:
+  - JSON loaded and cases accessed by id via `correlated_structure_case(...)` in
+    `test/correlated_sparsity/runtests.jl:31` and `test/correlated_sparsity/runtests.jl:34`.
+- Underlying behaviors being exercised (unchanged, but directly implicated):
+  - Clique decomposition entrypoint:
+    `src/optimization/elimination.jl:57`
+  - Term sparsity graph construction:
+    `src/optimization/sparsity.jl:381`
+- Verification run (local):
+  - `julia --project -e 'using Pkg; Pkg.test()'`
+  - Summary: `Pass 2309  Broken 2  Total 2311` (completed successfully).
+
+### Open Questions
+
+- The new JSON fixture note says “Provenance: issue #292 …”, while the diff file
+  name references issue 275; is the provenance pointer intentional, or should
+  it reference the same issue thread as the branch context?
+
+## Site: Expectations fixtures
+
+### Files
+
+- `test/data/expectations/correlated_structure.json`
+
+### Change Summary
+
+- Add new expectations case:
+  - id: `wang_magron_example_3_support_and_chordal`
+  - expected:
+    - `support_extension`: seed/extended/added edges
+    - `minimum_chordal_extension`: clique-size stats for `NoElimination()` and
+      `MF()` on a 6-cycle
+  (`test/data/expectations/correlated_structure.json:182`)
+
+### Why It Matters
+
+- Centralizes “golden” structural expectations so tests remain readable and
+  future adjustments are data-only (update fixture, not test logic).
+
+### Behavior/Risk
+
+- Fixture encodes *ordered* edge pairs; tests compare full vectors for equality
+  after sorting observed edges, so fixture ordering must remain sorted to match.
+- Fixture encodes algorithm-dependent numbers (`mf_max_clique_size`,
+  `mf_n_cliques`); changes in Graphs/CliqueTrees chordal routines could require
+  updating these numbers even if behavior is still “reasonable”.
+
+### Evidence
+
+- New case block:
+  - `test/data/expectations/correlated_structure.json:182`
+- Consumption of this fixture:
+  - `test/correlated_sparsity/runtests.jl:31`
+  - `test/correlated_sparsity/runtests.jl:34`
+
+### Open Questions
+
+- Should the fixture split “Example 3.1” and “Example 3.2” into separate ids, or
+  is bundling them under one id preferred to keep provenance and maintenance
+  together?
+
+## Cross-Site Notes
+
+- The new tests are wired to the new JSON fixture via the shared helper
+  `correlated_structure_case(id)` in `test/correlated_sparsity/runtests.jl:34`.
+- “Support extension” test is a focused probe of `get_term_sparsity_graph(...)`
+  logic: edges appear when products of basis terms (with `cons_support=[1]`)
+  land in `activated_supp` (`src/optimization/sparsity.jl:381`).
+- “Chordal” test is a focused probe of `clique_decomp(G, algo)` behavior across
+  `NoElimination()` (forced dense) and `MF()` (fill/triangulation path)
+  (`src/optimization/elimination.jl:57`).
+
+## Suggested Walkthrough Order
+
+1. `review/explain-changes-diff-issue-275-20260306-023708.md` (what changed)
+2. `test/data/expectations/correlated_structure.json:182` (new fixture contract)
+3. `test/correlated_sparsity/graph_and_cliques.jl:180` (cycle/clique expectations)
+4. `test/correlated_sparsity/graph_and_cliques.jl:196` (support-extension logic)
+5. `src/optimization/elimination.jl:57` (why `NoElimination()` is dense)
+6. `src/optimization/sparsity.jl:381` (why seed edges can induce new edges)
+
+## Unknowns
+
+- Whether the specific `MF()` clique counts/sizes for a 6-cycle remain stable
+  across future dependency updates (currently verified by local `Pkg.test()`,
+  but upstream changes could legitimately shift these stats).
+- Whether “Wang-Magron Example 3.* concept” is intended as a minimal sanity
+  check (as implemented) or should match a published example more literally
+  (would require clarifying what exact structure is canonical).

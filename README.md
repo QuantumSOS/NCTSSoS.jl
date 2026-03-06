@@ -55,9 +55,10 @@ It is a successor to [NCTSSOS](https://github.com/wangjie212/NCTSSOS).
 
 | Algorithm | Description |
 |-----------|-------------|
+| `NoElimination` | One dense clique over all variables |
 | `MF` | Maximum fill-in |
 | `MMD` | Minimum degree ordering |
-| `MaximalElimination` | Maximal cliques |
+| `MaximalElimination` | Connected components / maximal chordal extension |
 | `AsIsElimination` | No reordering |
 
 ## Installation

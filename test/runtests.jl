@@ -33,5 +33,6 @@ using .TestExpectations: expectations_oracle
         include("problems/bell_inequalities/chsh_simple.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
+        include("problems/wang_magron_examples.jl")
     end
 end

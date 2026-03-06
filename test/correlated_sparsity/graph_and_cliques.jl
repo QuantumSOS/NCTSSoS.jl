@@ -1,5 +1,9 @@
 # test/correlated_sparsity/graph_and_cliques.jl
 
+function _normalized_edge_pairs(graph::SimpleGraph)
+    sort([(min(src(e), dst(e)), max(src(e), dst(e))) for e in edges(graph)])
+end
+
 @testset "Graph and Cliques" begin
     @testset "get_correlative_graph" begin
         @testset "Ring graph (n=4)" begin
@@ -163,6 +167,45 @@
 
             @test normalize_cliques(clique_decomp(graph, MaximalElimination())) ==
                 json_int_vec_vec(expected["maximal_elimination"])
+        end
+
+        @testset "Wang-Magron Example 3.2 concept (n=6 cycle)" begin
+            expected = correlated_structure_case("wang_magron_example_3_maximal_chordal")
+            graph = cycle_graph(json_int(expected["n_vertices"]))
+
+            cliques_maximal = clique_decomp(graph, MaximalElimination())
+            cliques_mf = clique_decomp(graph, MF())
+
+            @test normalize_cliques(cliques_maximal) ==
+                json_int_vec_vec(expected["maximal_elimination"])
+            @test maximum(length.(cliques_mf)) ==
+                json_int(expected["mf_max_clique_size"])
+            @test length(cliques_mf) == json_int(expected["mf_n_cliques"])
+        end
+    end
+
+    @testset "support extension" begin
+        @testset "Wang-Magron Example 3.1 concept" begin
+            expected = correlated_structure_case("wang_magron_example_3_support_extension")
+            expected_seed_edges = Tuple{Int,Int}[(row[1], row[2]) for row in json_int_vec_vec(expected["seed_edges"])]
+            expected_extended_edges = Tuple{Int,Int}[(row[1], row[2]) for row in json_int_vec_vec(expected["extended_edges"])]
+            expected_added_edges = Tuple{Int,Int}[(row[1], row[2]) for row in json_int_vec_vec(expected["added_edges"])]
+
+            _, (vars,) = create_noncommutative_variables([("vars", 1:3)])
+            x, y, z = vars
+            one_mono = one(typeof(x))
+            yz = only(monomials(y * z))
+            zx = only(monomials(z * x))
+            xy = only(monomials(x * y))
+            V = [one_mono, x, y, z, yz, zx, xy]
+            activated_supp = sort([yz, only(monomials(yz * x))])
+
+            extended_graph = NCTSSoS.get_term_sparsity_graph([one_mono], activated_supp, V)
+            observed_extended_edges = _normalized_edge_pairs(extended_graph)
+            observed_added_edges = setdiff(observed_extended_edges, expected_seed_edges)
+
+            @test observed_extended_edges == expected_extended_edges
+            @test sort(observed_added_edges) == expected_added_edges
         end
     end
 

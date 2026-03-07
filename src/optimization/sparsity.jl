@@ -179,6 +179,87 @@ function assign_constraint(
     return clique_cons, collect(global_cons)
 end
 
+function _normalize_basis_element(::Type{NormalMonomial{A,T}}, mono::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    return mono
+end
+
+function _normalize_basis_element(::Type{NormalMonomial{A,T}}, poly::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    poly_terms = terms(poly)
+    length(poly_terms) == 1 || throw(ArgumentError("Each `moment_basis` entry must be a monomial or a single-term polynomial with unit coefficient."))
+    coef, mono = only(poly_terms)
+    isone(coef) || throw(ArgumentError("Single-term polynomial entries in `moment_basis` must have unit coefficient."))
+    return mono
+end
+
+function _normalize_basis_element(::Type{M}, item) where {M}
+    throw(ArgumentError("`moment_basis` entries must match the problem basis type $M; got $(typeof(item))."))
+end
+
+function _finalize_moment_basis(
+    registry::VariableRegistry{A,T},
+    basis::Vector{M}
+) where {A<:AlgebraType,T<:Integer,M}
+    sorted_unique!(basis)
+    isempty(basis) && throw(ArgumentError("`moment_basis` must include the identity element; got an empty basis."))
+    one(M) in basis || throw(ArgumentError("`moment_basis` must include the identity element."))
+
+    allowed_indices = Set(T(abs(idx)) for idx in indices(registry))
+    for basis_elem in basis
+        mono_indices = variable_indices(basis_elem)
+        issubset(mono_indices, allowed_indices) || throw(ArgumentError("`moment_basis` contains elements outside the problem registry."))
+    end
+
+    return basis
+end
+
+function _normalize_moment_basis(
+    pop::OptimizationProblem{A,P},
+    moment_basis::AbstractVector
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    M = NormalMonomial{A,T}
+    normalized_basis = M[]
+    sizehint!(normalized_basis, length(moment_basis))
+    for basis_elem in moment_basis
+        push!(normalized_basis, _normalize_basis_element(M, basis_elem))
+    end
+    return _finalize_moment_basis(pop.registry, normalized_basis)
+end
+
+_effective_basis_order(moment_basis::Vector) = maximum(degree, moment_basis)
+
+function _filter_basis_to_clique(moment_basis::Vector{M}, clique_indices) where {M}
+    clique_set = Set(clique_indices)
+    return M[b for b in moment_basis if issubset(variable_indices(b), clique_set)]
+end
+
+function _build_localizing_bases(
+    cliques_moment_matrix_bases::Vector{Vector{M}},
+    cliques_cons::Vector{Vector{Int}},
+    all_cons::Vector,
+    effective_order::Int,
+) where {M}
+    cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]
+
+    return map(zip(eachindex(cliques_moment_matrix_bases), cliques_cons)) do (clique_idx, clique_cons_indices)
+        if isempty(clique_cons_indices)
+            return Vector{M}[]
+        end
+
+        cur_orders = effective_order .- cld.(degree.(all_cons[clique_cons_indices]), 2)
+        cur_lengths = map(cur_orders) do o
+            searchsortedfirst(cliques_moment_matrix_bases_dg[clique_idx], o + 1) - 1
+        end
+
+        map(cur_lengths) do len
+            if iszero(len)
+                M[]
+            else
+                cliques_moment_matrix_bases[clique_idx][1:len]
+            end
+        end
+    end
+end
+
 """
     correlative_sparsity(pop::OP, order::Int, elim_algo::EliminationAlgorithm) where {A<:AlgebraType, T, P<:Polynomial{A,T}, OP<:OptimizationProblem{A,P}}
 
@@ -237,30 +318,44 @@ function correlative_sparsity(
 
     # Infer M type from first non-empty clique basis
     M = eltype(first(filter(!isempty, cliques_moment_matrix_bases)))
+    cliques_localizing_bases = _build_localizing_bases(cliques_moment_matrix_bases, cliques_cons, all_cons, order)
 
-    # Compute degrees for localizing matrix basis truncation
-    cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]
+    return CorrelativeSparsity{A,T,P,M,Nothing}(
+        cliques,
+        registry,
+        all_cons,
+        cliques_cons,
+        global_cons,
+        cliques_moment_matrix_bases,
+        cliques_localizing_bases
+    )
+end
 
-    # Generate localizing matrix bases (truncated based on constraint degree)
-    cliques_localizing_bases = map(zip(eachindex(cliques), cliques_cons)) do (clique_idx, clique_cons_indices)
-        if isempty(clique_cons_indices)
-            return Vector{M}[]
-        end
+function correlative_sparsity(
+    pop::OP,
+    moment_basis::AbstractVector,
+    elim_algo::EliminationAlgorithm
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C},OP<:OptimizationProblem{A,P}}
+    normalized_basis = _normalize_moment_basis(pop, moment_basis)
+    registry = pop.registry
+    all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 
-        # For each constraint, compute the reduced order basis
-        cur_orders = order .- cld.(degree.(all_cons[clique_cons_indices]), 2)
-        cur_lengths = map(cur_orders) do o
-            searchsortedfirst(cliques_moment_matrix_bases_dg[clique_idx], o + 1) - 1
-        end
+    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, all_cons)
+    clique_node_sets = clique_decomp(G, elim_algo)
 
-        map(cur_lengths) do len
-            if iszero(len)
-                M[]
-            else
-                cliques_moment_matrix_bases[clique_idx][1:len]
-            end
-        end
+    node_to_idx = Dict{Int,T}(pos => idx for (idx, pos) in idx_to_node)
+    cliques = map(clique_node_sets) do node_set
+        sort([node_to_idx[node] for node in node_set])
     end
+
+    cliques_cons, global_cons = assign_constraint(cliques, all_cons, registry)
+    cliques_moment_matrix_bases = map(cliques) do clique_indices
+        _filter_basis_to_clique(normalized_basis, clique_indices)
+    end
+
+    M = eltype(normalized_basis)
+    effective_order = _effective_basis_order(normalized_basis)
+    cliques_localizing_bases = _build_localizing_bases(cliques_moment_matrix_bases, cliques_cons, all_cons, effective_order)
 
     return CorrelativeSparsity{A,T,P,M,Nothing}(
         cliques,
@@ -683,30 +778,7 @@ function correlative_sparsity(
         push!(cliques_moment_matrix_bases, sorted_unique(basis))
     end
 
-    # Compute degrees for localizing matrix basis truncation
-    cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]
-
-    # Generate localizing matrix bases (truncated based on constraint degree)
-    cliques_localizing_bases = map(zip(eachindex(cliques), cliques_cons)) do (clique_idx, clique_cons_indices)
-        if isempty(clique_cons_indices)
-            return Vector{M}[]
-        end
-
-        cur_orders = order .- cld.(degree.(all_cons[clique_cons_indices]), 2)
-        cur_lengths = map(cur_orders) do o
-            searchsortedfirst(cliques_moment_matrix_bases_dg[clique_idx], o + 1) - 1
-        end
-
-        localizing_bases = Vector{M}[]
-        for len in cur_lengths
-            if iszero(len)
-                push!(localizing_bases, M[])
-            else
-                push!(localizing_bases, cliques_moment_matrix_bases[clique_idx][1:len])
-            end
-        end
-        return localizing_bases
-    end
+    cliques_localizing_bases = _build_localizing_bases(cliques_moment_matrix_bases, cliques_cons, all_cons, order)
 
     return CorrelativeSparsity{A,T,P,M,ST}(
         cliques,

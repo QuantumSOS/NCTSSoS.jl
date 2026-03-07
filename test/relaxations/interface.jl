@@ -426,6 +426,35 @@ end
         @test res_basis.objective ≈ res_order.objective atol=1e-6
     end
 
+    @testset "moment_basis matches order for constrained problems" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        obj = x[1]^2 + x[2]^2 + 1.0
+        g = 1.0 - x[1] * x[2] - x[2] * x[1]   # ineq constraint
+        pop = polyopt(obj, reg; ineq_constraints=[g])
+
+        order_cfg = SolverConfig(
+            optimizer=SOLVER,
+            order=2,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
+        )
+        basis_cfg = SolverConfig(
+            optimizer=SOLVER,
+            moment_basis=get_ncbasis(reg, 2),
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
+        )
+
+        sp_order = compute_sparsity(pop, order_cfg)
+        sp_basis = compute_sparsity(pop, basis_cfg)
+        @test sp_basis.corr_sparsity.clq_mom_mtx_bases == sp_order.corr_sparsity.clq_mom_mtx_bases
+        @test sp_basis.corr_sparsity.clq_localizing_mtx_bases == sp_order.corr_sparsity.clq_localizing_mtx_bases
+
+        res_order = cs_nctssos(pop, order_cfg)
+        res_basis = cs_nctssos(pop, basis_cfg)
+        @test res_basis.objective ≈ res_order.objective atol=1e-6
+    end
+
     @testset "moment_basis is unsupported for state problems" begin
         reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:1)])
         obj = (1.0 * ς(x[1]) * ς(y[1]) + 1.0 * ς(x[2])) * one(typeof(x[1]))
@@ -433,11 +462,11 @@ end
 
         basis = get_state_basis(reg, 1; state_type=Arbitrary)
         @test_throws MethodError NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
-        @test_throws MethodError compute_sparsity(
+        @test_throws ArgumentError compute_sparsity(
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=basis)
         )
-        @test_throws MethodError cs_nctssos(
+        @test_throws ArgumentError cs_nctssos(
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=basis)
         )
@@ -450,11 +479,11 @@ end
 
         basis = get_state_basis(reg, 1; state_type=MaxEntangled)
         @test_throws MethodError NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
-        @test_throws MethodError compute_sparsity(
+        @test_throws ArgumentError compute_sparsity(
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=basis)
         )
-        @test_throws MethodError cs_nctssos(
+        @test_throws ArgumentError cs_nctssos(
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=basis)
         )

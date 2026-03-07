@@ -81,8 +81,8 @@ characteristics and may be more or less suitable for a given problem.
 solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3)
 ```
 
-For eigenvalue polynomial problems, if you want full control over the
-relaxation basis, you can provide `moment_basis` directly instead of `order`:
+If you want full control over the relaxation basis, you can provide
+`moment_basis` directly instead of `order`:
 
 ```julia
 basis = get_ncbasis(pop.registry, 3)

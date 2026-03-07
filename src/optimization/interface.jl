@@ -272,10 +272,10 @@ Configuration for solving polynomial optimization problems.
 # Keyword Arguments
 - `optimizer` (required): The optimizer to use for solving the SDP problem (e.g. Clarabel.Optimizer)
 - `order::Int`: The order of the moment relaxation (default: 0)
-- `moment_basis`: Optional custom basis for eigenvalue polynomial optimization,
-  replacing automatic order-based basis generation. Accepts a `Vector` of monomials
-  (or single-term unit-coefficient polynomials) and must include the identity
-  element. Default: `nothing`
+- `moment_basis`: Optional custom basis for polynomial optimization, replacing
+  automatic order-based basis generation. Accepts a `Vector` of monomials (or
+  single-term unit-coefficient polynomials) and must include the identity element.
+  Not supported for state/trace polynomial problems. Default: `nothing`
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
 - `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity exploitation (default: NoElimination())
 
@@ -341,6 +341,8 @@ end
 Compute correlative and term sparsity for a state polynomial optimization problem.
 """
 function compute_sparsity(pop::PolyOpt{A,T,P}, solver_config::SolverConfig) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+    isnothing(solver_config.moment_basis) ||
+        throw(ArgumentError("`moment_basis` is not supported for state/trace polynomial problems; use `order` instead."))
     relaxation_spec = _resolve_relaxation_spec(pop, solver_config)
     corr_sparsity = correlative_sparsity(pop, relaxation_spec, solver_config.cs_algo)
 

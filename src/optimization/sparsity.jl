@@ -192,7 +192,7 @@ function _normalize_basis_element(::Type{NormalMonomial{A,T}}, poly::Polynomial{
 end
 
 function _normalize_basis_element(::Type{M}, item) where {M}
-    throw(ArgumentError("`moment_basis` entries must match the problem basis type $M; got $(typeof(item))."))
+    throw(ArgumentError("`moment_basis` entries must be monomials or single-term unit-coefficient polynomials from the problem's variable registry; got $(typeof(item))."))
 end
 
 function _finalize_moment_basis(
@@ -238,6 +238,8 @@ function _build_localizing_bases(
     all_cons::Vector,
     effective_order::Int,
 ) where {M}
+    # Invariant: each basis in cliques_moment_matrix_bases is sorted (via sorted_unique!),
+    # so degree vectors are non-decreasing — required by the searchsortedfirst below.
     cliques_moment_matrix_bases_dg = [degree.(bs) for bs in cliques_moment_matrix_bases]
 
     return map(zip(eachindex(cliques_moment_matrix_bases), cliques_cons)) do (clique_idx, clique_cons_indices)
@@ -331,6 +333,15 @@ function correlative_sparsity(
     )
 end
 
+"""
+    correlative_sparsity(pop, moment_basis::AbstractVector, elim_algo)
+
+Basis-based variant of [`correlative_sparsity`](@ref).  Instead of generating
+bases from a relaxation order, accepts an explicit `moment_basis` vector of
+monomials (or single-term unit-coefficient polynomials).  The basis is
+normalized, validated, and then filtered per clique.  Localizing matrix bases
+are derived from the effective order (`maximum(degree, basis)`).
+"""
 function correlative_sparsity(
     pop::OP,
     moment_basis::AbstractVector,

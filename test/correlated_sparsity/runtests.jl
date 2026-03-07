@@ -127,6 +127,7 @@ end
 
 @testset "Correlated Sparsity" begin
     include("graph_and_cliques.jl")
+    include("convergence_examples.jl")
     include("core_pipeline_structure.jl")
     include("core_pipeline_numeric.jl")
     include("coverage_edges.jl")

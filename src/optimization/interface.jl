@@ -273,7 +273,7 @@ Configuration for solving polynomial optimization problems.
 - `optimizer` (required): The optimizer to use for solving the SDP problem (e.g. Clarabel.Optimizer)
 - `order::Int`: The order of the moment relaxation (default: 0)
 - `moment_basis`: Optional custom basis for eigenvalue polynomial optimization,
-  replacing automatic order-based basis generation. Accepts a vector of monomials
+  replacing automatic order-based basis generation. Accepts a `Vector` of monomials
   (or single-term unit-coefficient polynomials) and must include the identity
   element. Default: `nothing`
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
@@ -290,7 +290,7 @@ SolverConfig(Clarabel.MOIwrapper.Optimizer, 2, nothing, NoElimination(), NoElimi
 @kwdef struct SolverConfig
     optimizer
     order::Int = 0
-    moment_basis = nothing
+    moment_basis::Union{Nothing,Vector} = nothing
     cs_algo::EliminationAlgorithm = NoElimination()
     ts_algo::EliminationAlgorithm = NoElimination()
 end

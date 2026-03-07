@@ -464,6 +464,7 @@ end
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
         pop = polyopt(1.0 * x[1] + 1.0, reg)
 
+        @test_throws MethodError SolverConfig(optimizer=SOLVER, moment_basis=1)
         @test_throws ArgumentError compute_sparsity(
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=[x[1]])

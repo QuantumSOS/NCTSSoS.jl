@@ -188,7 +188,7 @@ solver_config = SolverConfig(
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 1, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 1, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
 ````
 
 solver_config: specifies solver and relaxation parameters
@@ -337,7 +337,7 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 2, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 2, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
 ````
 
 order=2: second level of the moment hierarchy
@@ -384,7 +384,7 @@ solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
 ````
 
 solver_config_dense: no sparsity exploitation
@@ -419,7 +419,7 @@ solver_config_sparse = SolverConfig(
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 6, CliqueTrees.MF(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 6, nothing, CliqueTrees.MF(), NCTSSoS.NoElimination())
 ````
 
 cs_algo=MF(): enables correlative sparsity via chordal graph decomposition
@@ -620,7 +620,7 @@ solver_config_ts = SolverConfig(
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, NCTSSoS.NoElimination(), CliqueTrees.MF())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), CliqueTrees.MF())
 ````
 
 ts_algo=MF(): enables term sparsity exploitation

@@ -6,4 +6,5 @@ using Test
     include("Aqua.jl")
     include("ExplicitImports.jl")
     include("Doctest.jl")
+    include("DocsExamples.jl")
 end

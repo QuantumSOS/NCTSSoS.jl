@@ -14,6 +14,7 @@ makedocs(;
         "Examples"=>Any[
             "Bell inequalities"=>"examples/generated/bell.md",
             "Trace Polynomial"=>"examples/generated/trace_poly.md",
+            "Wang-Magron 2021 Example 6.2"=>"examples/generated/wang_magron_2021_example_6_2.md",
             "Monoid Algebra Showcase"=>"examples/generated/monoid_algebras_showcase.md",
             "PBW Algebra Showcase"=>"examples/generated/pbw_algebras_showcase.md",
             "Mixed Systems (Tensor Products)"=>"examples/generated/mixed_algebras_tensor_products.md",

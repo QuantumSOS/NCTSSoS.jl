@@ -23,6 +23,7 @@ makedocs(;
             "Trace Polynomial"=>"examples/generated/trace_poly.md",
             "Newton Chip Method"=>"examples/generated/newton_chip_method.md",
             "Stabilization vs. Exactness"=>"examples/generated/sparsity_convergence.md",
+            "Wang-Magron Example 6.1 (Eigenvalue)"=>"examples/generated/wang_magron_2021_example_6_1.md",
             "Monoid Algebra Showcase"=>"examples/generated/monoid_algebras_showcase.md",
             "PBW Algebra Showcase"=>"examples/generated/pbw_algebras_showcase.md",
             "Mixed Systems (Tensor Products)"=>"examples/generated/mixed_algebras_tensor_products.md",

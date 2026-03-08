@@ -210,6 +210,48 @@ function _find_rl_only_state_case(basis)
     return nothing
 end
 
+@testset "Wang-Magron Example 5.3 trace graph witness" begin
+    reg, (vars,) = create_noncommutative_variables([("X", 1:2)])
+    X, Y = vars
+
+    f = 2.0 - X^2 + X * Y^2 * X - Y^2
+    g_ball = 4.0 - X^2 - Y^2
+    g_link = X * Y + Y * X - 2.0
+
+    mx = only(monomials(X))
+    sw_id = one(StateWord{MaxEntangled,NonCommutativeAlgebra,eltype(mx.word)})
+    trace_constraint(poly) = begin
+        coeffs = [coef for (coef, _) in poly.terms]
+        words = [NCStateWord(sw_id, mono) for (_, mono) in poly.terms]
+        NCStatePolynomial(coeffs, words)
+    end
+
+    paper_basis = let
+        x2 = only(monomials(X^2))
+        xy = only(monomials(X * Y))
+        yx = only(monomials(Y * X))
+        y2 = only(monomials(Y^2))
+        [NCStateWord(sw_id, mono) for mono in [one(mx), mx, only(monomials(Y)), x2, xy, yx, y2]]
+    end
+
+    init = NCTSSoS.init_activated_supp(
+        tr(f) * one(typeof(mx)),
+        [trace_constraint(g_link), trace_constraint(g_ball)],
+        paper_basis
+    )
+    @test length(init) == 8
+
+    trace_obj_support = NCStateWord(tr(only(monomials(X * Y^2 * X))), one(mx))
+    @test trace_obj_support in init
+
+    graph = NCTSSoS.get_term_sparsity_graph([NCStateWord(sw_id, one(mx))], init, paper_basis)
+    @test [(src(e), dst(e)) for e in collect(edges(graph))] ==
+        [(1, 4), (1, 5), (1, 6), (1, 7), (2, 3), (4, 7)]
+
+    witness = only(monomials(simplify(NCTSSoS._neat_dot3(paper_basis[4], one(paper_basis[1]), paper_basis[7]))))
+    @test symmetric_canon(expval(witness)) == symmetric_canon(expval(trace_obj_support))
+end
+
 @testset "Sparsity and Moment Edge Branches" begin
     reg_nc, (x_nc,) = create_noncommutative_variables([("x", 1:2)])
     pop_nc = polyopt(1.0 * x_nc[1], reg_nc; eq_constraints=[1.0 * x_nc[1] * x_nc[1] * x_nc[2]])

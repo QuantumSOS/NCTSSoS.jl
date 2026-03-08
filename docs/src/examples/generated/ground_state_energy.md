@@ -128,7 +128,7 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), t
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, CliqueTrees.MF(), CliqueTrees.MMD(0))
+NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, CliqueTrees.MF(), CliqueTrees.MMD(0))
 ````
 
 ## Next step

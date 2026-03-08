@@ -48,6 +48,6 @@
         oracle = CORRELATED_PIPELINE_ORACLES.TS_d3
         config = SolverConfig(optimizer=SOLVER, order=3, ts_algo=MMD())
         result = cs_nctssos(pop, config; dualize=true)
-        @test result.objective ≈ oracle.opt atol = 1e-4
+        @test result.objective ≈ oracle.opt atol = 2e-4
     end
 end

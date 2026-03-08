@@ -6,127 +6,264 @@
 #     ``\lambda^{\text{cs-ts}}_{d,k}`` is indexed by relaxation order ``d``
 #     and term-sparsity refinement order ``k``.
 #
-# In the [CS-TSSOS hierarchy](@ref cs-tssos-hierarchy), increasing the
-# sparse order ``k`` at fixed ``d`` can only add edges to the term-sparsity
-# graph, weakly tightening the bound. At some ``k`` the graph stops
-# changing — its support and block structure become a fixed point. This is
-# **graph stabilization**.
+# You have been climbing the [CS-TSSOS hierarchy](@ref cs-tssos-hierarchy),
+# tightening the bound step by step — and then the graph stops changing.
+# No new edges appear. The structure has *converged*. Surely the bound
+# is now tight?
 #
-# It is tempting to read stabilization as "the hierarchy has converged."
-# But two independent properties hide behind that word:
+# **Not necessarily.** This is one of the most tempting misreadings
+# in sparse polynomial optimization, and the distinction matters every
+# time you interpret a numerical result from the hierarchy.
 #
-# | Property | Meaning | Type |
+# Two entirely different things can happen when the graph freezes:
+#
+# | Property | What it means | What it tells you |
 # |:---|:---|:---|
-# | **Graph stabilization** | The term-sparsity graph at order ``k`` is a fixed point. | Structural |
-# | **Bound exactness** | ``\lambda^{\text{cs-ts}}_{d,k} = \lambda^{\text{cs}}_{d}`` (the sparse bound equals the dense bound at the same ``d``). | Numerical |
+# | **Graph stabilization** | The term-sparsity graph no longer gains edges when ``k`` increases. | The *structure* of the relaxation has settled. |
+# | **Bound exactness** | ``\lambda^{\text{cs-ts}}_{d,k}(f, S) = \lambda_{\min}(f, S)``. | The *numerical value* matches the true optimum. |
 #
-# Graph stabilization does not imply bound exactness. Wang and Magron
-# exhibit an explicit counterexample in
-# [wangExploitingTermSparsity2020](@cite) (Example 3.4): the graph
-# stabilizes immediately, yet the sparse bound remains strictly loose.
-# They also show a problem where the two properties *happen to coincide*
-# (Example 3.8). We reproduce both below.
+# The first is a structural checkpoint. The second is what you actually
+# want. One does not imply the other.
+#
+# Wang and Magron make this precise in
+# [wangExploitingTermSparsity2020](@cite) with two clean
+# counterexamples. Example 3.4 is the **trap**: the graph stabilizes
+# immediately yet the sparse bound stays strictly loose. Example 3.8
+# is the **happy path**: stabilization and exactness arrive together.
+# We reproduce both below, live, so you can see the gap for yourself.
 
 # ## Setup
 #
-# We use a silent Mosek backend throughout. Two helpers keep the output compact:
-#
-# - `term_summary` — extracts support sizes and block dimensions from one
-#   sparse-order step.
-# - `next_term_sparsities` — applies one additional support-extension step to a
-#   stored `SparsityResult`.
+# We use a silent Mosek backend for the SDP solves and `CairoMakie` for
+# the graph figures. Example 3.4 uses the paper basis for both the
+# solve and the graph, while Example 3.8 keeps the package basis for
+# the numerical solve and switches to the paper basis only for the
+# figure.
 
-using NCTSSoS, MosekTools
+using NCTSSoS, MosekTools, CairoMakie
 
 const MOI = NCTSSoS.MOI
 const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
-nothing #hide
 
-function term_summary(term_sparsities)
-    (
-        support_sizes = [length(ts.term_sparse_graph_supp) for ts in term_sparsities],
-        block_sizes = [length.(ts.block_bases) for ts in term_sparsities],
-    )
-end
-
-function next_term_sparsities(sparsity, clique_idx, ts_algo)
-    corr = sparsity.corr_sparsity
-    current = sparsity.cliques_term_sparsities[clique_idx]
-    activated_supp = reduce(
-        NCTSSoS.sorted_union,
-        [ts.term_sparse_graph_supp for ts in current]
-    )
-    cons_idx = corr.clq_cons[clique_idx]
-    return NCTSSoS.term_sparsities(
-        activated_supp,
-        corr.cons[cons_idx],
-        corr.clq_mom_mtx_bases[clique_idx],
-        corr.clq_localizing_mtx_bases[clique_idx],
-        ts_algo,
-    )
-end
-nothing #hide
-
-# ## Stabilized graph, inexact bound (Example 3.4)
+# ### Reference values
 #
-# Consider the unconstrained noncommutative polynomial from
+# We pin the paper's known answers up front so every check below
+# compares a live solve against a reviewed, stable target.
+
+const PAPER_EX34_LAMBDA_MIN = 0.0
+const PAPER_EX34_SPARSE = -0.0035
+include(joinpath(pkgdir(NCTSSoS), "docs", "src", "examples", "literate", "data", "sparsity_convergence_helpers.jl")) #hide
+nothing #hide
+
+# ## The trap: stabilization without exactness (Example 3.4)
+#
+# Here is the polynomial that exposes the gap. It is unconstrained, so
+# the true minimum ``\lambda_{\min}`` is determined entirely by the
+# algebra. The polynomial comes from
 # [wangExploitingTermSparsity2020](@cite), Example 3.4:
 #
 # ```math
-# f = X^2 - XY - YX + 3Y^2 - 2XYX + 2XY^2X - YZ - ZY + 6Z^2 + 9X^2Y + 9Z^2Y - 54ZYZ + 142ZY^2Z.
+# \begin{aligned}
+# f ={}& X^2 - XY - YX + 3Y^2 - 2XYX + 2XY^2X - YZ - ZY + 6Z^2 \\
+#      & + 9Y^2Z + 9ZY^2 - 54ZYZ + 142ZY^2Z.
+# \end{aligned}
 # ```
 #
-# The `MMD()` chordal-extension heuristic is the closest built-in analogue of
-# the approximately-minimum strategy used in the paper. We compute two
-# successive sparse-order steps and compare their graph structure.
+# The `moment_basis` keyword lets us fix the basis to
+# ``\{1, X, Y, Z, YX, YZ\}`` — the same six monomials used in
+# Figure 3 of the paper — so our graph and theirs sit on identical
+# node sets.
+#
+# ### Building the problem
+#
+# First, we set up the variables, the polynomial, and the explicit
+# paper basis.
 
-registry_34, (vars_34,) = create_noncommutative_variables([("X", 1:3)])
-X_34, Y_34, Z_34 = vars_34
+registry_34, (vars,) = create_noncommutative_variables([("X", 1:3)])
+X, Y, Z = vars
 
-f_34 = X_34^2 - X_34 * Y_34 - Y_34 * X_34 + 3.0 * Y_34^2 -
-    2.0 * X_34 * Y_34 * X_34 + 2.0 * X_34 * Y_34^2 * X_34 -
-    Y_34 * Z_34 - Z_34 * Y_34 + 6.0 * Z_34^2 + 9.0 * X_34^2 * Y_34 +
-    9.0 * Z_34^2 * Y_34 - 54.0 * Z_34 * Y_34 * Z_34 +
-    142.0 * Z_34 * Y_34^2 * Z_34
+f_34 = X^2 - X * Y - Y * X + 3.0 * Y^2 -
+    2.0 * X * Y * X + 2.0 * X * Y^2 * X -
+    Y * Z - Z * Y + 6.0 * Z^2 + 9.0 * Y^2 * Z +
+    9.0 * Z * Y^2 - 54.0 * Z * Y * Z +
+    142.0 * Z * Y^2 * Z
 
 pop_34 = polyopt(f_34, registry_34)
-config_34 = SolverConfig(optimizer=SILENT_MOSEK, order=2, ts_algo=MMD())
+paper_basis_34_labels, paper_basis_34 = let
+    NM = typeof(one(X))
+    yx = only(monomials(Y * X))
+    yz = only(monomials(Y * Z))
+    basis_entries = [
+        ("1", one(X)),
+        ("X", X),
+        ("Y", Y),
+        ("Z", Z),
+        ("YX", yx),
+        ("YZ", yz),
+    ]
+    (first.(basis_entries), NM[last(entry) for entry in basis_entries])
+end
+nothing #hide
 
-sparsity_34_k1 = compute_sparsity(pop_34, config_34)
-sparsity_34_k2 = next_term_sparsities(sparsity_34_k1, 1, MMD())
+config_34_dense = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    moment_basis=paper_basis_34,
+    cs_algo=NoElimination(),
+    ts_algo=NoElimination(),
+)
+config_34_sparse = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    moment_basis=paper_basis_34,
+    cs_algo=NoElimination(),
+    ts_algo=MMD(),
+)
+config_34_higher = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    cs_algo=NoElimination(),
+    ts_algo=MMD(),
+)
+nothing #hide
 
-summary_34 = (
-    algorithm = :MMD,
-    k1 = term_summary(sparsity_34_k1.cliques_term_sparsities[1]),
-    k2 = term_summary(sparsity_34_k2),
-    stabilized = term_summary(sparsity_34_k1.cliques_term_sparsities[1]) ==
-        term_summary(sparsity_34_k2),
-    paper_lambda_1 = -0.00355,
-    paper_lambda_min = 0.0,
+const PAPER_GRAPH_34 = (
+    labels = ["1", "X", "Y", "Z", "YX", "YZ"],
+    coords = [(1.0, 1.0), (0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (0.0, 1.0), (2.0, 1.0)],
+)
+nothing #hide
+
+# ### The dense solve: ground truth
+#
+# Without any sparsity exploitation, the dense relaxation on this basis
+# recovers the true minimum exactly. This is the number the sparse
+# hierarchy should be chasing.
+
+result_34_dense = cs_nctssos(pop_34, config_34_dense)
+check_isapprox(
+    "Example 3.4 dense bound matches λ_min",
+    result_34_dense.objective,
+    PAPER_EX34_LAMBDA_MIN;
+    atol=1e-6,
 )
 
-@assert summary_34.stabilized
-
-summary_34
-
-# The support and block sizes at `k = 1` and `k = 2` are identical:
-# the graph is a fixed point. Yet the paper reports a sparse optimum of
-# ``\lambda_1(f) \approx -0.00355`` versus a true minimum of
-# ``\lambda_{\min}(f) = 0`` [wangExploitingTermSparsity2020](@cite).
-# Graph stabilization did not imply bound exactness.
-
-# ## Stabilized graph, exact bound (Example 3.8)
+# The dense bound:
+result_34_dense.objective
 #
-# The constrained problem from [wangExploitingTermSparsity2020](@cite),
-# Example 3.8, provides the positive counterpart:
+# ### The first sparse step: where the gap appears
+#
+# Now we turn on term sparsity via `MMD()`. The solver exploits the
+# block structure revealed by the term-sparsity graph — and the
+# bound *drops below zero*. This is the gap: the sparse relaxation
+# is strictly weaker than the dense one on this problem.
+
+result_34_sparse = cs_nctssos(pop_34, config_34_sparse)
+check_isapprox(
+    "Example 3.4 sparse bound matches the expected rounded sparse value",
+    result_34_sparse.objective,
+    PAPER_EX34_SPARSE;
+    atol=1e-4,
+)
+
+# The first sparse-step bound:
+result_34_sparse.objective
+#
+# ### Trying harder: the next sparse step
+#
+# Can climbing one more rung help? We call `cs_nctssos_higher` to
+# refine the term-sparsity graph. The answer: no — the bound does
+# not budge.
+
+result_34_higher = cs_nctssos_higher(pop_34, result_34_sparse, config_34_higher)
+check_isapprox(
+    "Example 3.4 higher sparse step matches the same rounded sparse value",
+    result_34_higher.objective,
+    PAPER_EX34_SPARSE;
+    atol=1e-4,
+)
+
+# The higher sparse-step bound:
+result_34_higher.objective
+#
+# All three values side by side tell the whole story: dense hits ``0``,
+# while both sparse steps are stuck near ``-0.0035``.
+
+ex34_bounds = (
+    dense = result_34_dense.objective,
+    sparse = result_34_sparse.objective,
+    sparse_higher = result_34_higher.objective,
+)
+nothing #hide
+
+# The three objectives:
+ex34_bounds
+
+# The graph has stabilized — we will confirm that visually next — but the
+# bound has not reached the true optimum. That is the trap.
+
+# ### Visualizing stabilization
+#
+# To see *why* the hierarchy stops, look at the term-sparsity graph.
+# Starting from the initial graph at ``k = 1``, a chordal completion
+# adds fill edges (dashed below). A second completion attempt adds
+# nothing: the graph is already chordal, so the structure is frozen.
+
+sparsity_34 = compute_sparsity(pop_34, config_34_sparse)
+package_basis_34 = only(sparsity_34.corr_sparsity.clq_mom_mtx_bases)
+package_init_34 = only(sparsity_34.initial_activated_supps)
+
+package_graph_34_k1 = NCTSSoS.get_term_sparsity_graph([one(X)], package_init_34, package_basis_34)
+package_edges_34_k1 = edge_pairs(package_graph_34_k1)
+completed_graph_34 = deepcopy(package_graph_34_k1)
+for block in NCTSSoS.clique_decomp(package_graph_34_k1, MMD())
+    NCTSSoS.add_clique!(completed_graph_34, block)
+end
+package_edges_34_completed = edge_pairs(completed_graph_34)
+package_fill_34 = sort(setdiff(package_edges_34_completed, package_edges_34_k1))
+check_equal(
+    "Example 3.4 chordal extension is already stable after one completion",
+    chordal_completion_edges(completed_graph_34, MMD()),
+    package_edges_34_completed,
+)
+
+figure_34_graph = draw_term_graph(
+    paper_basis_34_labels,
+    PAPER_GRAPH_34.coords,
+    package_edges_34_k1;
+    dashed_edges=package_fill_34,
+    title="Example 3.4: term-sparsity graph and chordal extension",
+)
+nothing #hide
+
+# Solid lines are the original edges; dashed lines are the fill from
+# chordal completion. A second completion adds nothing new.
+figure_34_graph
+
+# The graph is frozen, yet the objective is still ``-0.0035`` — not
+# ``0``. Structural convergence happened; numerical convergence did
+# not. The missing edges that *would* tighten the bound simply cannot
+# be discovered by the term-sparsity refinement on this basis.
+
+# ## The happy path: stabilization with exactness (Example 3.8)
+#
+# Not every problem falls into the trap. Example 3.8 from
+# [wangExploitingTermSparsity2020](@cite) is a constrained problem
+# where the sparse hierarchy reaches the true optimum on the very
+# first step:
 #
 # ```math
 # f = 2 - X^2 + XY^2X - Y^2, \qquad S = \{4 - X^2 - Y^2,\; XY + YX - 2\}.
 # ```
 #
-# Here the initial adjacency graph is already chordal, so no fill-in is
-# needed. We use `NoElimination()` and compare sparse orders `k = 1` and
-# `k = 2` via [`cs_nctssos`](@ref) and [`cs_nctssos_higher`](@ref).
+# The ball constraint ``4 - X^2 - Y^2 \geq 0`` keeps the variables
+# bounded; the link constraint ``XY + YX = 2`` couples them. Together
+# they give a well-structured feasible set where sparsity does no harm.
+#
+# We separate two roles below:
+#
+# - The **numerical solve** uses the package's own bases (dense and
+#   sparse), so the bounds are package-native.
+# - The **graph figure** uses the paper basis
+#   ``\{1, X, Y, X^2, XY, YX, Y^2\}`` to match Figure 4.
+#
+# ### Building the problem
 
 registry_38, (vars_38,) = create_noncommutative_variables([("X", 1:2)])
 X_38, Y_38 = vars_38
@@ -138,67 +275,195 @@ g_link_38 = X_38 * Y_38 + Y_38 * X_38 - 2.0
 pop_38 = polyopt(
     f_38,
     registry_38;
-    ineq_constraints = [g_ball_38],
-    eq_constraints = [g_link_38],
-)
-config_38 = SolverConfig(optimizer=SILENT_MOSEK, order=2, ts_algo=NoElimination())
-
-result_38_k1 = cs_nctssos(pop_38, config_38)
-result_38_k2 = cs_nctssos_higher(pop_38, result_38_k1, config_38)
-
-summary_38 = (
-    algorithm = :NoElimination,
-    k1 = (
-        objective = result_38_k1.objective,
-        term_summary(result_38_k1.sparsity.cliques_term_sparsities[1])...,
-    ),
-    k2 = (
-        objective = result_38_k2.objective,
-        term_summary(result_38_k2.sparsity.cliques_term_sparsities[1])...,
-    ),
-    stabilized = term_summary(result_38_k1.sparsity.cliques_term_sparsities[1]) ==
-        term_summary(result_38_k2.sparsity.cliques_term_sparsities[1]),
+    ineq_constraints=[g_ball_38],
+    eq_constraints=[g_link_38],
 )
 
-@assert summary_38.stabilized
-@assert isapprox(summary_38.k1.objective, -1.0; atol=1e-6)
-@assert isapprox(summary_38.k2.objective, -1.0; atol=1e-6)
+config_38_dense = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    order=2,
+    cs_algo=NoElimination(),
+    ts_algo=NoElimination(),
+)
+config_38_sparse = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    order=2,
+    cs_algo=NoElimination(),
+    ts_algo=MMD(),
+)
+nothing #hide
 
-summary_38
-
-# Both sparse orders yield the same objective ``\approx -1.0``, matching the
-# dense SDP bound, and the graph is again a fixed point. This shows that
-# stabilization and exactness *can* coincide — but Example 3.4 above
-# demonstrates that they need not.
-
-# ## Summary
+# ### Dense bound: the target
 #
-# The comparison table below collects both cases. Recall that *exactness*
-# here means the sparse SDP optimum equals the dense SDP optimum at the
-# same relaxation order ``d`` — not necessarily the true optimum of the
-# original problem.
+# The dense relaxation at order 2 gives us the baseline. On this
+# problem it already reaches the true minimum ``\lambda_{\min} = -1``.
+
+result_38_dense = cs_nctssos(pop_38, config_38_dense)
+check_isapprox(
+    "Example 3.8 dense bound matches λ_min",
+    result_38_dense.objective,
+    -1.0;
+    atol=1e-6,
+)
+
+# The dense bound:
+result_38_dense.objective
+
+# ### First sparse step: matching immediately
 #
-# Graph stabilization is a structural fixed point of the term-sparsity
-# refinement. It does not, by itself, certify that the sparse bound is
-# tight. Under additional algebraic conditions — detailed in
-# [wangExploitingTermSparsity2020](@cite) — stabilization does imply
-# exactness, but those conditions must be verified, not assumed.
+# Unlike Example 3.4, turning on term sparsity here does *not*
+# degrade the bound. The sparse relaxation reaches ``-1`` as well —
+# the block structure exposed by the term-sparsity graph is rich
+# enough to preserve the full strength of the SDP.
 
-comparison = [
-    (
-        example = "3.4",
-        ts_algo = "MMD()",
-        stabilized = string(summary_34.stabilized),
-        outcome = "paper counterexample",
-        objective_story = "paper: lambda_1(f) approx -0.00355 < 0 = lambda_min(f)",
-    ),
-    (
-        example = "3.8",
-        ts_algo = "NoElimination()",
-        stabilized = string(summary_38.stabilized),
-        outcome = "exact at the first sparse step",
-        objective_story = "computed: k=1 = k=2 approx -1",
-    ),
-]
+result_38_sparse = cs_nctssos(pop_38, config_38_sparse)
+check_isapprox(
+    "Example 3.8 first sparse-step bound matches λ_min",
+    result_38_sparse.objective,
+    -1.0;
+    atol=1e-6,
+)
 
-comparison
+# The first sparse-step bound:
+result_38_sparse.objective
+
+# ### Higher sparse step: confirming stability
+#
+# One more refinement step confirms the picture: the bound stays
+# at ``-1``, and the internal block structure may regroup but the
+# numerical answer is unchanged.
+
+result_38_higher = cs_nctssos_higher(pop_38, result_38_sparse, config_38_sparse)
+check_isapprox(
+    "Example 3.8 higher sparse-step bound still matches λ_min",
+    result_38_higher.objective,
+    -1.0;
+    atol=1e-6,
+)
+check_isapprox(
+    "Example 3.8 higher sparse-step bound matches the first sparse step",
+    result_38_higher.objective,
+    result_38_sparse.objective;
+    atol=1e-6,
+)
+
+# The second sparse-step bound:
+result_38_higher.objective
+
+# All three numbers land on the same value:
+
+ex38_bounds = (
+    lambda_min = -1.0,
+    dense_bound = result_38_dense.objective,
+    sparse_bound = result_38_sparse.objective,
+    higher_bound = result_38_higher.objective,
+    higher_flat = isapprox(result_38_higher.objective, result_38_sparse.objective; atol=1e-6),
+)
+nothing #hide
+
+# The summary:
+ex38_bounds
+
+# ### Reconstructing Figure 4
+#
+# On the paper basis ``\{1, X, Y, X^2, XY, YX, Y^2\}``, the
+# term-sparsity graph turns out to be *already chordal* — no fill
+# edges needed. That means the very first graph is its own chordal
+# completion, and a refinement step produces the same graph. The
+# structure is a fixed point from the start.
+#
+# We verify this claim in four steps:
+#
+# 1. Build the initial activated support from the objective and both
+#    constraints.
+# 2. Construct the first term-sparsity graph (``k = 1``).
+# 3. Push through one refinement cycle (graph → support → graph).
+# 4. Check that the edge set is unchanged.
+
+const PAPER_GRAPH_38 = (
+    labels = ["1", "X", "Y", "X^2", "XY", "YX", "Y^2"],
+    coords = [(1.0, 2.0), (2.0, 1.5), (2.0, 0.5), (0.0, 1.0), (0.5, 0.0), (1.5, 0.0), (1.0, 1.0)],
+    solid_edges = [(1, 4), (1, 5), (1, 6), (1, 7), (2, 3)],
+)
+nothing #hide
+
+paper_basis_38 = let
+    NM = typeof(one(X_38))
+    x2 = only(monomials(X_38^2))
+    xy = only(monomials(X_38 * Y_38))
+    yx = only(monomials(Y_38 * X_38))
+    y2 = only(monomials(Y_38^2))
+    NM[one(X_38), X_38, Y_38, x2, xy, yx, y2]
+end
+nothing #hide
+
+# The paper basis:
+paper_basis_38
+
+# Starting from these seven monomials, we build the activated support.
+
+paper_init_38 = NCTSSoS.init_activated_supp(f_38, [g_ball_38, g_link_38], paper_basis_38)
+nothing #hide
+
+# The first term-sparsity graph:
+
+paper_graph_38_k1 = NCTSSoS.get_term_sparsity_graph([one(X_38)], paper_init_38, paper_basis_38)
+paper_edges_38_k1 = edge_pairs(paper_graph_38_k1)
+paper_edges_38_k1
+
+# One refinement cycle: graph → refined support → rebuilt graph.
+
+paper_supp_38_k1 = NCTSSoS.term_sparsity_graph_supp(paper_graph_38_k1, paper_basis_38, one(f_38))
+nothing #hide
+
+paper_graph_38_k2 = NCTSSoS.get_term_sparsity_graph([one(X_38)], paper_supp_38_k1, paper_basis_38)
+paper_edges_38_k2 = edge_pairs(paper_graph_38_k2)
+nothing #hide
+
+# Now the payoff: both edge sets match the paper, and the refinement
+# changes nothing.
+
+check_equal(
+    "Example 3.8 paper graph matches the reviewed Figure 4 edge set",
+    paper_edges_38_k1,
+    PAPER_GRAPH_38.solid_edges,
+)
+check_equal(
+    "Example 3.8 paper graph is unchanged after one refinement step",
+    paper_edges_38_k2,
+    paper_edges_38_k1,
+)
+
+# The graph, rendered in the paper's layout:
+
+draw_term_graph(
+    PAPER_GRAPH_38.labels,
+    PAPER_GRAPH_38.coords,
+    PAPER_GRAPH_38.solid_edges;
+    title="Example 3.8: Figure 4 reconstruction",
+    markersize=46,
+    fontsize=16,
+)
+
+# Five edges, no fill needed, and the bound is tight. Example 3.8 is
+# the happy path: the algebraic structure of the problem allows the
+# sparse relaxation to be just as strong as the dense one.
+
+# ## What to take away
+#
+# These two examples bracket the range of outcomes when the
+# term-sparsity graph stabilizes:
+#
+# | | Example 3.4 | Example 3.8 |
+# |:---|:---|:---|
+# | **Graph stabilizes?** | Yes (one chordal completion) | Yes (already a fixed point) |
+# | **Bound exact?** | No — gap of ≈ 0.0035 | Yes — dense and sparse both hit ``-1`` |
+# | **Lesson** | Stabilization alone proves nothing about the value. | When the algebra cooperates, sparsity is free. |
+#
+# The practical rule: **graph stabilization tells you the hierarchy
+# has done all it can at the current relaxation order.** If the bound
+# is not yet satisfactory, the next move is to increase the relaxation
+# order ``d``, not the sparse refinement order ``k``. The algebraic
+# conditions under which stabilization *does* guarantee exactness are
+# discussed in [wangExploitingTermSparsity2020](@cite); they must be
+# verified for each problem, not assumed.

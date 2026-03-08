@@ -281,9 +281,9 @@ Configuration for solving polynomial optimization problems.
 
 
 # Examples
-```jldoctest; setup=:(using NCTSSoS, Clarabel)
-julia> solver_config = SolverConfig(optimizer=Clarabel.Optimizer, order=2) # default elimination algorithms
-SolverConfig(Clarabel.MOIwrapper.Optimizer, 2, nothing, NoElimination(), NoElimination())
+```jldoctest; setup=:(using NCTSSoS, COSMO)
+julia> solver_config = SolverConfig(optimizer=COSMO.Optimizer, order=2) # default elimination algorithms
+SolverConfig(COSMO.Optimizer, 2, nothing, NoElimination(), NoElimination())
 ```
 
 """
@@ -391,6 +391,20 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
     return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end
 
+function _higher_step_graph_support(
+    activated_supp::Vector{M}, poly::P, basis::Vector{M}
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
+    graph = get_term_sparsity_graph(last.(poly.terms), activated_supp, basis)
+    return term_sparsity_graph_supp(graph, basis, poly)
+end
+
+function _higher_step_graph_support(
+    activated_supp::Vector{M}, poly::P, basis::Vector{M}
+) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
+    graph = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
+    return term_sparsity_graph_supp(graph, basis, poly)
+end
+
 """
     cs_nctssos_higher(pop::PolyOpt{T}, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {T}
 
@@ -410,7 +424,7 @@ Solve a polynomial optimization problem using higher-order term sparsity based o
 # Description
 This function performs a higher-order iteration of the CS-NCTSSOS method by:
 1. Using the correlative sparsity structure from the previous result
-2. Computing new term sparsity based on the union of previously activated supports
+2. Recomputing the next activated supports from the previous iteration's raw term sparsity graphs
 3. Formulating and solving either the moment relaxation or its SOS dual with the refined sparsity
 4. Returning the optimal objective value and updated sparsity information
 
@@ -421,14 +435,24 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
         throw(ArgumentError("`cs_nctssos_higher` reuses the basis from `prev_res`; do not pass `moment_basis`."))
 
     prev_sparsity = prev_res.sparsity
-
-    # Compute new initial activated supports from union of previous term sparsity graph supports
-    initial_activated_supps_nm = [
-        reduce(sorted_union, [poly_term_sparsity.term_sparse_graph_supp for poly_term_sparsity in term_sparsities_vec])
-        for term_sparsities_vec in prev_sparsity.cliques_term_sparsities
-    ]
-
     prev_corr_sparsity = prev_sparsity.corr_sparsity
+
+    # Recompute the previous raw graph supports before clique fill.
+    # Using the stored post-fill support here can widen the next iteration too aggressively.
+    initial_activated_supps_nm = map(enumerate(prev_sparsity.initial_activated_supps)) do (clique_idx, activated_supp)
+        cons_idx = prev_corr_sparsity.clq_cons[clique_idx]
+        clique_cons = prev_corr_sparsity.cons[cons_idx]
+        clique_mom_basis = prev_corr_sparsity.clq_mom_mtx_bases[clique_idx]
+        clique_localizing_bases = prev_corr_sparsity.clq_localizing_mtx_bases[clique_idx]
+
+        supports = Vector{eltype(activated_supp)}[
+            _higher_step_graph_support(activated_supp, one(eltype(clique_cons)), clique_mom_basis),
+        ]
+        for (poly, basis) in zip(clique_cons, clique_localizing_bases)
+            push!(supports, _higher_step_graph_support(activated_supp, poly, basis))
+        end
+        reduce(sorted_union, supports)
+    end
 
     cliques_term_sparsities = map(zip(initial_activated_supps_nm, prev_corr_sparsity.clq_cons, prev_corr_sparsity.clq_mom_mtx_bases, prev_corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
         term_sparsities(init_act_supp, prev_corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)

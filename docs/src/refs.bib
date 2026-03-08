@@ -50,6 +50,19 @@
   abstract = {We provide a new hierarchy of semidefinite programming relaxations, called NCTSSOS, to solve large-scale sparse noncommutative polynomial optimization problems. This hierarchy features the exploitation of term sparsity hidden in the input data for eigenvalue and trace optimization problems. NCTSSOS complements the recent work that exploits correlative sparsity for noncommutative optimization problems by Klep et al. (MP, 2021), and is the noncommutative analogue of the TSSOS framework by Wang et al. (SIAMJO 31: 114--141, 2021, SIAMJO 31: 30--58, 2021). We also propose an extension exploiting simultaneously correlative and term sparsity, as done previously in the commutative case (Wang in CS-TSSOS: Correlative and term sparsity for large-scale polynomial optimization, 2020). Under certain conditions, we prove that the optima of the NCTSSOS hierarchy converge to the optimum of the corresponding dense semidefinite programming relaxation. We illustrate the efficiency and scalability of NCTSSOS by solving eigenvalue/trace optimization problems from the literature as well as randomly generated examples involving up to several thousand variables.}
 }
 
+@misc{wangExploitingTermSparsity2020,
+  title = {Exploiting Term Sparsity in Noncommutative Polynomial Optimization},
+  author = {Wang, Jie and Magron, Victor},
+  year = {2020},
+  month = oct,
+  eprint = {2010.06956},
+  archiveprefix = {arXiv},
+  primaryclass = {math.OC},
+  url = {http://arxiv.org/abs/2010.06956},
+  urldate = {2026-03-07},
+  note = {Preprint}
+}
+
 @book{magronSparsePolynomialOptimization2023,
   title = {Sparse Polynomial Optimization: Theory and Practice},
   shorttitle = {Sparse Polynomial Optimization},
@@ -281,4 +294,26 @@
   pages={1051--1070},
   year={2022},
   publisher={Springer}
+}
+
+@article{wakiSparseSOS2006,
+  title = {Sums of Squares and Semidefinite Program Relaxations for Polynomial Optimization Problems with Structured Sparsity},
+  author = {Waki, Hayato and Kim, Sunyoung and Kojima, Masakazu and Muramatsu, Masakazu},
+  year = {2006},
+  journal = {SIAM Journal on Optimization},
+  volume = {17},
+  number = {1},
+  pages = {218--242},
+  doi = {10.1137/050623802}
+}
+
+@article{wangTSSOS2021,
+  title = {{TSSOS}: A Moment-{SOS} Hierarchy That Exploits Term Sparsity},
+  author = {Wang, Jie and Magron, Victor and Lasserre, Jean-Bernard},
+  year = {2021},
+  journal = {SIAM Journal on Optimization},
+  volume = {31},
+  number = {1},
+  pages = {30--58},
+  doi = {10.1137/19M1307871}
 }

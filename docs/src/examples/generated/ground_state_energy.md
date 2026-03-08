@@ -65,7 +65,7 @@ res.objective / N
 ````
 
 ````
--0.4671292719994368
+-0.49089408182282285
 ````
 
 The returned result matches the actual ground state energy $-0.467129$ to $6$
@@ -98,7 +98,7 @@ res.objective / N
 ````
 
 ````
--0.4270083217760736
+-0.4280208587540269
 ````
 
 We are able to obtain the ground state energy of $-0.4270083225302217$, accurate

@@ -22,6 +22,7 @@ CI baseline: Julia 1.11; solver: COSMO.
 - `make servedocs` — live docs server (LiveServer)
 - `make examples` — execute Literate examples, regenerate `docs/src/examples/generated/`, and update `docs/examples_stamp.toml` (requires a Mosek license; CI only verifies the stamp via `julia docs/examples_stamp.jl`)
 - `NCTSSOS_PATH=/path/to/NCTSSOS make oracle-chsh` — regenerate oracle values (see `Makefile` `oracle-%`)
+- Documentation work: after any change under `docs/` or any docs-facing content, always run `make examples` to regenerate the example markdowns, then `make servedocs` to preview the docs locally before handoff.
 
 ## Architecture Overview
 Type hierarchy:

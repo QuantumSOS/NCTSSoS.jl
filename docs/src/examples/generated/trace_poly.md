@@ -29,7 +29,7 @@ solver output.
 using NCTSSoS, MosekTools
 using JSON3
 
-const TRACE_POLY_REFS = JSON3.read(read(joinpath(@__DIR__, "data", "trace_poly_refs.json"), String))
+const TRACE_POLY_REFS = JSON3.read(read(joinpath(pkgdir(NCTSSoS), "docs", "src", "examples", "literate", "data", "trace_poly_refs.json"), String))
 
 const MOI = NCTSSoS.MOI
 const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true);

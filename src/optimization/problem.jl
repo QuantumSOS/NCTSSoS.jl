@@ -131,6 +131,48 @@ function polyopt(
     return PolyOpt{A,T,P}(objective, eq_cons, ineq_cons, registry)
 end
 
+@inline function _newton_chip_single_site_objective(
+    poly::Polynomial{NonCommutativeAlgebra,T,C}
+) where {T<:Unsigned,C<:Number}
+    return length(unique(decode_site.(collect(variable_indices(poly))))) <= 1
+end
+
+"""
+    newton_chip_basis(pop::PolyOpt, d::Int)
+
+Construct a strict Newton-chip basis for an unconstrained ordinary polynomial
+optimization problem over `NonCommutativeAlgebra`.
+
+The returned basis contains the identity and every right chip (suffix) of each
+word `w` such that `w' * w` appears in the support of `pop.objective`, with
+chips truncated to degree at most `d`. The intended integration path is
+`SolverConfig(moment_basis=newton_chip_basis(pop, d))`.
+
+Warning: the classical Newton-chip theorem is stated for the free
+noncommutative `*`-algebra with no extra commuting relations. In this package,
+`NonCommutativeAlgebra` commutes operators across physical sites, so this helper
+rejects objectives whose support spans more than one site.
+"""
+function newton_chip_basis(
+    pop::PolyOpt{NonCommutativeAlgebra,T,P},
+    d::Int
+) where {T<:Unsigned,C<:Number,P<:Polynomial{NonCommutativeAlgebra,T,C}}
+    isempty(pop.eq_constraints) && isempty(pop.ineq_constraints) ||
+        throw(ArgumentError("`newton_chip_basis` is only supported for unconstrained `PolyOpt` problems. Pass the resulting basis through `moment_basis` only for constraint-free problems."))
+    _newton_chip_single_site_objective(pop.objective) ||
+        throw(ArgumentError("`newton_chip_basis` assumes no extra commuting relations. In this package, `NonCommutativeAlgebra` commutes operators across physical sites, so the helper currently requires the objective support to use variables from at most one site."))
+
+    return _newton_chip_basis(pop.objective, d)
+end
+
+function newton_chip_basis(pop::PolyOpt{A,T,P}, _d::Int) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    throw(ArgumentError("`newton_chip_basis` is only supported for ordinary polynomial `PolyOpt` problems over `NonCommutativeAlgebra`; got `$(nameof(A))`."))
+end
+
+function newton_chip_basis(pop::PolyOpt{A,T,P}, _d::Int) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+    throw(ArgumentError("`newton_chip_basis` is only supported for ordinary polynomial `PolyOpt` problems, not state/trace polynomial problems."))
+end
+
 
 """
     Base.show(io::IO, pop::OptimizationProblem{A,P})
@@ -200,4 +242,3 @@ constraint handling in moment_relax.
 # keeping them visible to Julia's code-coverage instrumentation.
 @noinline _is_complex_problem(::Type{<:Union{PauliAlgebra,FermionicAlgebra,BosonicAlgebra}}) = true
 @noinline _is_complex_problem(::Type{<:Union{NonCommutativeAlgebra,ProjectorAlgebra,UnipotentAlgebra}}) = false
-

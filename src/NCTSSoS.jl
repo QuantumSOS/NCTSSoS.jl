@@ -169,7 +169,7 @@ export variable_indices
 export symmetric_canon, cyclic_canon, canonicalize
 
 # Basis Generation
-export get_ncbasis, get_state_basis
+export get_ncbasis, get_state_basis, newton_chip_basis
 
 # Registry Helpers
 export symbols, indices, subregistry

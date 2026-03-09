@@ -510,6 +510,33 @@ end
         )
     end
 
+    @testset "newton_chip_basis plugs into moment_basis" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        obj = 1.0 * x[1]^2 + 2.0 * x[2] * x[1] * x[1] * x[2] + 1.0
+        pop = polyopt(obj, reg)
+
+        basis = newton_chip_basis(pop, 2)
+        cfg = SolverConfig(optimizer=SOLVER, moment_basis=basis)
+        sparsity = compute_sparsity(pop, cfg)
+
+        @test length(sparsity.corr_sparsity.cliques) == 1
+        @test sparsity.corr_sparsity.clq_mom_mtx_bases[1] == basis
+    end
+
+    @testset "newton_chip_basis rejects unsupported scope" begin
+        reg_nc, (x,) = create_noncommutative_variables([("x", 1:1)])
+        constrained_pop = polyopt(1.0 * x[1]^2 + 1.0, reg_nc; ineq_constraints=[1.0 - x[1]])
+        @test_throws ArgumentError newton_chip_basis(constrained_pop, 1)
+
+        reg_multisite, (a, b) = create_noncommutative_variables([("a", 1:1), ("b", 1:1)])
+        multisite_pop = polyopt(1.0 * a[1]^2 + 1.0 * b[1]^2 + 1.0, reg_multisite)
+        @test_throws ArgumentError newton_chip_basis(multisite_pop, 1)
+
+        reg_pauli, (σx, _, _) = create_pauli_variables(1:1)
+        pauli_pop = polyopt(1.0 * σx[1]^2 + 1.0, reg_pauli)
+        @test_throws ArgumentError newton_chip_basis(pauli_pop, 1)
+    end
+
     @testset "cs_nctssos_higher rejects a new moment_basis" begin
         reg, (u,) = create_unipotent_variables([("u", 1:1)])
         pop = polyopt(1.0 * u[1], reg)

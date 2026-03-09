@@ -117,3 +117,56 @@ function get_ncbasis(registry::VariableRegistry{A,T}, d::Int) where {A<:AlgebraT
 
     return sort!(collect(basis_set))
 end
+
+@inline function _newton_chip_square_root(
+    mono::NormalMonomial{NonCommutativeAlgebra,T}
+) where {T<:Unsigned}
+    word = mono.word
+    half_degree, remainder = divrem(length(word), 2)
+    iszero(remainder) || return nothing
+
+    root = word[(half_degree + 1):end]
+    reverse(root) == word[1:half_degree] || return nothing
+
+    return copy(root)
+end
+
+"""
+    _newton_chip_basis(poly::Polynomial{NonCommutativeAlgebra,T,C}, d::Int) where {T,C}
+
+Internal Newton-chip basis constructor for ordinary polynomials over
+`NonCommutativeAlgebra`.
+
+The basis contains the identity and every right chip (suffix) of each word `w`
+whose Hermitian square `w' * w` appears in the support of `poly`, truncated to
+degree at most `d`.
+
+# Arguments
+- `poly`: The polynomial whose support defines the Newton-chip basis
+- `d`: Maximum degree (relaxation order)
+
+# Returns
+A sorted vector of unique `NormalMonomial{A,T}` elements.
+"""
+function _newton_chip_basis(
+    poly::Polynomial{NonCommutativeAlgebra,T,C},
+    d::Int
+) where {T<:Unsigned,C<:Number}
+    d < 0 && throw(DomainError(d, "`d` must be non-negative."))
+
+    basis = Set{NormalMonomial{NonCommutativeAlgebra,T}}()
+    push!(basis, one(NormalMonomial{NonCommutativeAlgebra,T}))
+
+    for mono in monomials(poly)
+        root = _newton_chip_square_root(mono)
+        isnothing(root) && continue
+
+        max_chip_degree = min(length(root), d)
+        for chip_degree in 1:max_chip_degree
+            chip = root[(end - chip_degree + 1):end]
+            push!(basis, NormalMonomial{NonCommutativeAlgebra,T}(copy(chip)))
+        end
+    end
+
+    return sort!(collect(basis))
+end

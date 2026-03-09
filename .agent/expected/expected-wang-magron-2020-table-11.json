@@ -1,0 +1,10 @@
+{
+  "source_description": "Section 6.2, Table 11 of Wang and Magron (2020): constrained trace minimization for the nc Broyden banded function over D, selected row n = 5.",
+  "expected_values": {
+    "table": "Table 11",
+    "family": "nc Broyden banded over D",
+    "n": 5,
+    "paper_sparse_mb": 19,
+    "paper_objective": 3.113
+  }
+}

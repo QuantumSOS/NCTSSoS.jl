@@ -1,0 +1,10 @@
+{
+  "source_description": "Section 6.2, Table 10 of Wang and Magron (2020): trace minimization for the nc Broyden tridiagonal function, selected row n = 20.",
+  "expected_values": {
+    "table": "Table 10",
+    "family": "nc Broyden tridiagonal",
+    "n": 20,
+    "paper_sparse_mb": 6,
+    "paper_objective": 0.0
+  }
+}

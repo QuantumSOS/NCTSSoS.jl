@@ -1,0 +1,10 @@
+{
+  "source_description": "Section 6.2, Table 9 of Wang and Magron (2020): trace minimization for the nc Broyden banded function, selected row n = 10.",
+  "expected_values": {
+    "table": "Table 9",
+    "family": "nc Broyden banded",
+    "n": 10,
+    "paper_sparse_mb": 29,
+    "paper_objective": 0.0
+  }
+}

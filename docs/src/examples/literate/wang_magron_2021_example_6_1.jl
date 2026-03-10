@@ -123,7 +123,8 @@ nothing #hide
 # ## Unconstrained benchmark: Table 4 (`f_gR`)
 #
 # Table 4 reports sparse optimum `1.0000` at `n = 20` for the generalized
-# Rosenbrock family. We solve the same `n = 20` instance twice:
+# Rosenbrock family. We solve the same `n = 20` instance twice, using the
+# order-2 Newton-chip basis as the moment basis in both runs:
 #
 # - `CS`: correlative sparsity only
 # - `CS+TS`: correlative sparsity plus term sparsity
@@ -133,6 +134,7 @@ nothing #hide
 # runtime modest.
 
 gr20 = generalized_rosenbrock_problem(20)
+gr20_basis = newton_chip_basis(gr20, 2)
 
 table4_rows = [
     run_case(
@@ -142,7 +144,7 @@ table4_rows = [
         gr20,
         SolverConfig(
             optimizer=SILENT_MOSEK,
-            order=2,
+            moment_basis=gr20_basis,
             cs_algo=MF(),
             ts_algo=NoElimination(),
         ),
@@ -155,7 +157,7 @@ table4_rows = [
         gr20,
         SolverConfig(
             optimizer=SILENT_MOSEK,
-            order=2,
+            moment_basis=gr20_basis,
             cs_algo=MF(),
             ts_algo=MMD(),
         ),
@@ -176,8 +178,9 @@ println(summarize_rows(table4_rows))
 # `D = {1 - X_i^2, X_i - 1/3}`. The paper reports positive optima that grow with
 # `n`, which makes this a good "size-varying" benchmark even at modest sizes.
 #
-# We keep the solver mode fixed at `CS+TS` and reproduce the table values for
-# `n = 5, 10, 20`.
+# `newton_chip_basis` only supports unconstrained ordinary polynomial problems,
+# so these constrained runs keep the default order-3 basis. We keep the solver
+# mode fixed at `CS+TS` and reproduce the table values for `n = 5, 10, 20`.
 
 table7_rows = [
     run_case(

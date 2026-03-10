@@ -127,7 +127,8 @@ so the optimum becomes positive and size-dependent.
 ## Unconstrained benchmark: Table 4 (`f_gR`)
 
 Table 4 reports sparse optimum `1.0000` at `n = 20` for the generalized
-Rosenbrock family. We solve the same `n = 20` instance twice:
+Rosenbrock family. We solve the same `n = 20` instance twice, using the
+order-2 Newton-chip basis as the moment basis in both runs:
 
 - `CS`: correlative sparsity only
 - `CS+TS`: correlative sparsity plus term sparsity
@@ -138,6 +139,7 @@ runtime modest.
 
 ````julia
 gr20 = generalized_rosenbrock_problem(20)
+gr20_basis = newton_chip_basis(gr20, 2)
 
 table4_rows = [
     run_case(
@@ -147,7 +149,7 @@ table4_rows = [
         gr20,
         SolverConfig(
             optimizer=SILENT_MOSEK,
-            order=2,
+            moment_basis=gr20_basis,
             cs_algo=MF(),
             ts_algo=NoElimination(),
         ),
@@ -160,7 +162,7 @@ table4_rows = [
         gr20,
         SolverConfig(
             optimizer=SILENT_MOSEK,
-            order=2,
+            moment_basis=gr20_basis,
             cs_algo=MF(),
             ts_algo=MMD(),
         ),
@@ -175,8 +177,8 @@ println(summarize_rows(table4_rows))
 ````
 family   n    mode      objective      paper    abs err    nuniq   blocks      sec
 ------------------------------------------------------------------------------------
-f_gR     20   CS         1.000000      1.000  7.553e-08      328       19     5.77
-f_gR     20   CS+TS      1.000000      1.000  4.397e-07      117       94     0.14
+f_gR     20   CS         1.000000      1.000  4.067e-07      153       19     0.02
+f_gR     20   CS+TS      1.000000      1.000  8.306e-08       78       56     0.01
 
 
 ````
@@ -191,8 +193,9 @@ Table 7 uses the noncommutative Broyden banded family with
 `D = {1 - X_i^2, X_i - 1/3}`. The paper reports positive optima that grow with
 `n`, which makes this a good "size-varying" benchmark even at modest sizes.
 
-We keep the solver mode fixed at `CS+TS` and reproduce the table values for
-`n = 5, 10, 20`.
+`newton_chip_basis` only supports unconstrained ordinary polynomial problems,
+so these constrained runs keep the default order-3 basis. We keep the solver
+mode fixed at `CS+TS` and reproduce the table values for `n = 5, 10, 20`.
 
 ````julia
 table7_rows = [
@@ -218,9 +221,9 @@ println(summarize_rows(table7_rows))
 ````
 family   n    mode      objective      paper    abs err    nuniq   blocks      sec
 ------------------------------------------------------------------------------------
-f_Bb^D   5    CS+TS      3.113005      3.113  4.992e-06      233      145     0.18
-f_Bb^D   10   CS+TS      3.011288      3.011  2.883e-04     1087     1544     1.58
-f_Bb^D   20   CS+TS      9.658650      9.658  6.497e-04     2877     5404     6.66
+f_Bb^D   5    CS+TS      3.113005      3.113  4.992e-06      233      145     0.12
+f_Bb^D   10   CS+TS      3.011288      3.011  2.883e-04     1087     1544     1.68
+f_Bb^D   20   CS+TS      9.658650      9.658  6.497e-04     2877     5404     7.01
 
 
 ````
@@ -250,3 +253,4 @@ instances rather than a compact closed-form family.
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

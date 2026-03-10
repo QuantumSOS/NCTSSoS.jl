@@ -1,0 +1,104 @@
+{
+  "source_description": "Local PDF \"Wang and Magron - 2020 - Exploiting term sparsity in Noncommutative Polynomial Optimization.pdf\": Section 6.1, PDF page 24 defines the nc chained Wood family fcW(x); PDF page 26, Table 5 reports the benchmark rows.",
+  "expected_values": {
+    "family": "f_cW",
+    "problem_type": "unconstrained eigenvalue minimization",
+    "objective_form": "nc chained Wood family f_cW from Section 6.1 of Wang and Magron (2021)",
+    "relaxation_order": 2,
+    "sparse_order": 1,
+    "sparse_rows": [
+      {
+        "n": 20,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 40,
+        "mb": 3,
+        "opt": 0.9997
+      },
+      {
+        "n": 60,
+        "mb": 3,
+        "opt": 0.9992
+      },
+      {
+        "n": 80,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 100,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 200,
+        "mb": 3,
+        "opt": 0.9978
+      },
+      {
+        "n": 400,
+        "mb": 3,
+        "opt": 0.993
+      },
+      {
+        "n": 600,
+        "mb": 3,
+        "opt": 0.9871
+      },
+      {
+        "n": 800,
+        "mb": 3,
+        "opt": 0.9846
+      },
+      {
+        "n": 1000,
+        "mb": 3,
+        "opt": 0.9919
+      },
+      {
+        "n": 2000,
+        "mb": 3,
+        "opt": 0.9605
+      },
+      {
+        "n": 3000,
+        "mb": 3,
+        "opt": 0.9889
+      },
+      {
+        "n": 4000,
+        "mb": 3,
+        "opt": 0.9652
+      }
+    ],
+    "dense_rows": [
+      {
+        "n": 20,
+        "mb": 31,
+        "opt": 1.0
+      },
+      {
+        "n": 40,
+        "mb": 61,
+        "opt": 1.0
+      },
+      {
+        "n": 60,
+        "mb": 91,
+        "opt": 1.0
+      },
+      {
+        "n": 80,
+        "mb": 121,
+        "opt": 1.0
+      },
+      {
+        "n": 100,
+        "mb": 151,
+        "opt": 1.0
+      }
+    ]
+  }
+}

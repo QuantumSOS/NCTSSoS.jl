@@ -1,0 +1,104 @@
+{
+  "source_description": "Wang and Magron (2021), https://link.springer.com/10.1007/s10589-021-00301-7, Section 6.1: PDF page 29 defines the nc Broyden tridiagonal objective f_Bt; PDF page 31, Table 6 reports the d-hat = 2, k = 1 benchmark rows.",
+  "expected_values": {
+    "family": "f_Bt",
+    "problem_type": "unconstrained eigenvalue minimization",
+    "objective_form": "f_Bt(X) = (3X_1 - 2X_1^2 - 2X_2 + 1)^*(...) + sum_{i=2}^{n-1}(3X_i - 2X_i^2 - X_{i-1} - 2X_{i+1} + 1)^*(...) + (3X_n - 2X_n^2 - X_{n-1} + 1)^*(...)",
+    "relaxation_order": 2,
+    "sparse_order": 1,
+    "sparse_rows": [
+      {
+        "n": 20,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 40,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 60,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 80,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 100,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 200,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 400,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 600,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 800,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 1000,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 2000,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 3000,
+        "mb": 5,
+        "opt": 0.0
+      },
+      {
+        "n": 4000,
+        "mb": 5,
+        "opt": 0.0
+      }
+    ],
+    "dense_rows": [
+      {
+        "n": 20,
+        "mb": 41,
+        "opt": 0.0
+      },
+      {
+        "n": 40,
+        "mb": 81,
+        "opt": 0.0
+      },
+      {
+        "n": 60,
+        "mb": 121,
+        "opt": 0.0
+      },
+      {
+        "n": 80,
+        "mb": 161,
+        "opt": 0.0
+      },
+      {
+        "n": 100,
+        "mb": 201,
+        "opt": 0.0
+      }
+    ]
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "source_description": "Wang and Magron (2021), https://link.springer.com/10.1007/s10589-021-00301-7, Section 6.1: PDF page 28 defines the nc generalized Rosenbrock objective f_gR; PDF page 30, Table 4 reports the d-hat = 2, k = 1 benchmark rows.",
+  "expected_values": {
+    "family": "f_gR",
+    "problem_type": "unconstrained eigenvalue minimization",
+    "objective_form": "f = Float64(n) * one(typeof(x[1])); for i in 2:n; f += 100.0 * x[i - 1]^4 - 200.0 * x[i - 1]^2 * x[i] - 2.0 * x[i] + 101.0 * x[i]^2; end",
+    "relaxation_order": 2,
+    "sparse_order": 1,
+    "sparse_rows": [
+      {
+        "n": 20,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 40,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 60,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 80,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 100,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 200,
+        "mb": 3,
+        "opt": 0.9999
+      },
+      {
+        "n": 400,
+        "mb": 3,
+        "opt": 0.9999
+      },
+      {
+        "n": 600,
+        "mb": 3,
+        "opt": 0.9999
+      },
+      {
+        "n": 800,
+        "mb": 3,
+        "opt": 0.9999
+      },
+      {
+        "n": 1000,
+        "mb": 3,
+        "opt": 0.9998
+      },
+      {
+        "n": 2000,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 3000,
+        "mb": 3,
+        "opt": 1.0
+      },
+      {
+        "n": 4000,
+        "mb": 3,
+        "opt": 0.9999
+      }
+    ],
+    "dense_rows": [
+      {
+        "n": 20,
+        "mb": 40,
+        "opt": 1.0
+      },
+      {
+        "n": 40,
+        "mb": 80,
+        "opt": 1.0
+      },
+      {
+        "n": 60,
+        "mb": 120,
+        "opt": 1.0
+      },
+      {
+        "n": 80,
+        "mb": 160,
+        "opt": 1.0
+      },
+      {
+        "n": 100,
+        "mb": 200,
+        "opt": 1.0
+      }
+    ]
+  }
+}

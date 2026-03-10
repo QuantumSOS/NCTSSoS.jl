@@ -409,6 +409,23 @@ function Base.copy(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Num
 end
 
 """
+    LinearAlgebra.adjoint(p::Polynomial{A,T,C}) where {A,T,C}
+
+Apply the algebra involution termwise to a polynomial.
+
+This maps each term `c * m` to `conj(c) * adjoint(m)`, then rebuilds the
+polynomial so the usual invariants (sorted, deduplicated, no zero terms) hold.
+"""
+function LinearAlgebra.adjoint(
+    p::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    adjoint_terms = Tuple{C,NormalMonomial{A,T}}[
+        (conj(coef), adjoint(mono)) for (coef, mono) in p.terms
+    ]
+    return Polynomial(adjoint_terms)
+end
+
+"""
     Base.iszero(p::Polynomial) -> Bool
 
 Check if a polynomial is the zero polynomial (has no terms).

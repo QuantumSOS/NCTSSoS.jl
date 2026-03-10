@@ -297,6 +297,43 @@ using NCTSSoS: variable_indices
         @test p !== p_copy
     end
 
+    @testset "Adjoint" begin
+        m1 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        m2 = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(3))
+        p = Polynomial([(1 + 2im, m1), (-3 + 4im, m2)])
+
+        p_adj = adjoint(p)
+        expected = Polynomial([(1 - 2im, adjoint(m1)), (-3 - 4im, adjoint(m2))])
+
+        @test p_adj == expected
+        @test adjoint(adjoint(p)) == p
+    end
+
+    @testset "Adjoint rebuilds normalized terms" begin
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
+        # Bypass the outer constructor so adjoint() has to rebuild invariants itself.
+        p_raw = Polynomial{NonCommutativeAlgebra,UInt16,ComplexF64}([
+            (1.0 + 1.0im, m),
+            (2.0 - 1.0im, m),
+        ])
+
+        p_adj = adjoint(p_raw)
+
+        @test p_adj == Polynomial([(3.0 + 0.0im, adjoint(m))])
+        @test length(terms(p_adj)) == 1
+    end
+
+    @testset "Adjoint preserves zero polynomial" begin
+        p_zero = zero(Polynomial{NonCommutativeAlgebra,UInt16,ComplexF64})
+        @test adjoint(p_zero) == p_zero
+    end
+
+    @testset "Adjoint for PBW polynomial follows monomial support" begin
+        m = NormalMonomial{FermionicAlgebra,Int32}(Int32[-2, 1])
+        p = Polynomial([(1.0, m)])
+        @test_throws ArgumentError adjoint(p)
+    end
+
     @testset "Type Promotion in Arithmetic" begin
         m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
 

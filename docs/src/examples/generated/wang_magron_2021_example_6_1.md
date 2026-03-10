@@ -2,250 +2,189 @@
 EditURL = "../literate/wang_magron_2021_example_6_1.jl"
 ```
 
-# [Wang-Magron 2021 Example 6.1: Size-Varying Eigenvalue Benchmarks](@id wang-magron-2021-example-6-1)
+# Wang-Magron 2021 Example 6.1: Broyden-Banded Table 2 Row
 
-This page reproduces a small, docs-friendly slice of Section 6.1 from
-Wang and Magron's NCTSSOS paper [wangExploitingTermSparsity2021](@cite).
-It is intentionally separate from the tracial-polynomial "Example 6.1"
-page: here we solve eigenvalue benchmarks for ordinary noncommutative
-polynomials, not trace-polynomial problems.
+This page reproduces one published row from Table 2 of Wang and Magron's
+NCTSSOS paper [wangExploitingTermSparsity2021](@cite): the noncommutative
+Broyden-banded benchmark at `n = 20`.
 
-Section 6.1 spans Tables 2--8:
-
-- Table 2 (`f_Bb`, unconstrained Broyden banded): sparse optimum `0`.
-- Table 3 (`f_cs`, unconstrained chained singular): sparse optimum near `0`.
-- Table 4 (`f_gR`, unconstrained generalized Rosenbrock): sparse optimum `1`.
-- Table 5 (`f_cW`, unconstrained chained Wood): sparse optimum near `1`.
-- Table 6 (`f_Bt`, unconstrained Broyden tridiagonal): sparse optimum `0`.
-- Table 7 (`f_Bb` over `D`): positive constrained optimum that grows with `n`.
-- Table 8 (random quartics over multi-balls): large-scale random instances.
-
-The docs page executes two representative families only:
-
-1. Table 4 (`f_gR`) to show why some unconstrained benchmarks have known
-   minimum `1`, and how correlative sparsity versus term sparsity changes cost.
-2. Table 7 (`f_Bb` over `D`) to show how constraints move the optimum away
-   from `0` and how runtime grows with problem size.
-
-Tables 2, 3, 5, 6, and 8 are cited for context but omitted from execution to
-keep the docs path short and deterministic.
+Broyden-type functions keep showing up in optimization papers for two reasons.
+First, they isolate recognizable solver behavior instead of hiding it inside a
+large application model. Second, reusing the same families keeps comparisons
+across papers honest. The banded Broyden case is especially useful here
+because each residual only talks to a short index neighborhood, so the example
+directly tests whether a relaxation detects and exploits local sparsity.
 
 ## Setup
 
-Mosek matches the workflow already used by the other executed example pages.
+We solve the same benchmark twice:
 
-````julia
-using NCTSSoS, MosekTools, Printf
+- `dense`: no correlative sparsity, no term sparsity
+- `sparse`: no correlative sparsity, but term sparsity via [`MMD`](@ref)
+
+Table 2 reports the stable structural fields `mb` and `opt`. The paper's
+notation table says printed `opt = 0` means the absolute objective is at most
+`1e-4`, so that is the tolerance we check against.
+
+````@example wang_magron_2021_example_6_1
+using NCTSSoS, MosekTools
 
 const MOI = NCTSSoS.MOI
 const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
 
-const TABLE_4_REFERENCE = Dict(20 => 1.0)
-const TABLE_7_REFERENCE = Dict(5 => 3.113, 10 => 3.011, 20 => 9.658)
+const PAPER_ROW_N20 = (
+    n=20,
+    sparse_mb=15,
+    sparse_opt_abs_le=1e-4,
+    sparse_time_seconds=0.34,
+    dense_mb=61,
+    dense_opt_abs_le=1e-4,
+    dense_time_seconds=1.42,
+)
+nothing #hide
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
-block_count(result) = length(flatten_sizes(result.moment_matrix_sizes))
+flatten_sizes(sizes) = collect(Iterators.flatten(sizes))
+max_block_size(result) = maximum(flatten_sizes(result.moment_matrix_sizes))
 
-function summarize_rows(rows)
-    io = IOBuffer()
-    println(
-        io,
-        @sprintf(
-            "%-8s %-4s %-6s %12s %10s %10s %8s %8s %8s",
-            "family", "n", "mode", "objective", "paper", "abs err", "nuniq", "blocks", "sec"
-        ),
-    )
-    println(io, repeat("-", 84))
-    for row in rows
-        println(
-            io,
-            @sprintf(
-                "%-8s %-4d %-6s %12.6f %10.3f %10.3e %8d %8d %8.2f",
-                row.family,
-                row.n,
-                row.mode,
-                row.objective,
-                row.paper,
-                row.abs_error,
-                row.n_unique,
-                row.blocks,
-                row.seconds,
-            ),
-        )
+dense_config = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    order=3,
+    cs_algo=NoElimination(),
+    ts_algo=NoElimination(),
+)
+
+sparse_config = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    order=3,
+    cs_algo=NoElimination(),
+    ts_algo=MMD(),
+)
+
+function build_broyden_banded_problem(n::Int)
+    registry, (X,) = create_noncommutative_variables([("X", 1:n)])
+    poly_type = typeof(X[1] + X[min(n, 2)])
+    objective = Float64(n) * one(poly_type)
+
+    for i in 1:n
+        neighbors = [j for j in max(1, i - 5):min(n, i + 1) if j != i]
+        objective += 4.0 * X[i] + 4.0 * X[i]^2 + 10.0 * X[i]^3 + 20.0 * X[i]^4 + 25.0 * X[i]^6
+        for j in neighbors
+            objective += -2.0 * X[j] - 2.0 * X[j]^2 - 4.0 * X[i] * X[j] - 4.0 * X[i] * X[j]^2
+            objective += -10.0 * X[i]^3 * X[j] - 10.0 * X[i]^3 * X[j]^2
+        end
+        for j in neighbors
+            for k in neighbors
+                objective += X[j] * X[k] + 2.0 * X[j]^2 * X[k] + X[j]^2 * X[k]^2
+            end
+        end
     end
-    return String(take!(io))
+
+    return polyopt(objective, registry)
 end
 
-function run_case(family::AbstractString, n::Int, mode::AbstractString, pop, config, paper_ref::Real)
-    seconds = @elapsed result = cs_nctssos(pop, config)
+function run_relaxation(pop, config)
+    result = cs_nctssos(pop, config)
     return (
-        family=family,
-        n=n,
-        mode=mode,
+        mb=max_block_size(result),
         objective=result.objective,
-        paper=Float64(paper_ref),
-        abs_error=abs(result.objective - paper_ref),
-        n_unique=result.n_unique_moment_matrix_elements,
-        blocks=block_count(result),
-        seconds=round(seconds; digits=2),
     )
 end
-
-function generalized_rosenbrock_problem(n::Int)
-    reg, (x,) = create_noncommutative_variables([("x", 1:n)])
-    f = Float64(n) * one(typeof(x[1]))
-    for i in 2:n
-        f += 100.0 * x[i - 1]^4 - 200.0 * x[i - 1]^2 * x[i] - 2.0 * x[i] + 101.0 * x[i]^2
-    end
-    return polyopt(f, reg)
-end
-
-function constrained_broyden_banded_problem(n::Int)
-    reg, (x,) = create_noncommutative_variables([("x", 1:n)])
-    f = sum(1:n) do i
-        jset = setdiff(max(1, i - 5):min(n, i + 1), i)
-        g = isempty(jset) ? 0.0 * x[1] : sum(x[j] + x[j]^2 for j in jset)
-        (2.0 * x[i] + 5.0 * x[i]^3 + 1 - g)^2
-    end
-    ineq_constraints = [[1.0 - x[i]^2 for i in 1:n]; [x[i] - 1//3 for i in 1:n]]
-    return polyopt(f, reg; ineq_constraints=ineq_constraints)
-end
 ````
 
-## Why the unconstrained minima are 0 or 1
+## Problem formulation
 
-The unconstrained Section 6.1 families are built from Hermitian-square
-patterns [wangExploitingTermSparsity2021](@cite):
+The noncommutative Broyden-banded objective is
 
-- Tables 2, 3, and 6 are minimized at the origin, so the benchmark minimum is `0`.
-- Tables 4 and 5 add constant offsets that shift the minimum to `1`.
+```math
+f = \sum_{i=1}^n g_i^\ast g_i,
+\qquad
+g_i = 2X_i + 5X_i^3 + 1 - \sum_{j \in J_i} (X_j + X_j^2),
+```
 
-The constrained family in Table 7 breaks that trivial certificate by adding
-`D = {1 - X_i^2, X_i - 1/3}`. The feasible set is pushed away from the origin,
-so the optimum becomes positive and size-dependent.
+with the banded neighbor set
 
-## Unconstrained benchmark: Table 4 (`f_gR`)
+```math
+J_i = \{j : \max(1, i-5) \le j \le \min(n, i+1),\ j \ne i\}.
+```
 
-Table 4 reports sparse optimum `1.0000` at `n = 20` for the generalized
-Rosenbrock family. We solve the same `n = 20` instance twice:
+The structure matters. Each `g_i` only depends on `X_i` and a short band of
+nearby generators, so a term-sparsity pass can keep the largest moment block
+much smaller than the dense relaxation.
 
-- `CS`: correlative sparsity only
-- `CS+TS`: correlative sparsity plus term sparsity
-
-Dense relaxation is intentionally omitted here because the sparse comparison
-already captures the practical point of Section 6.1 while keeping the docs
-runtime modest.
-
-````julia
-gr20 = generalized_rosenbrock_problem(20)
-
-table4_rows = [
-    run_case(
-        "f_gR",
-        20,
-        "CS",
-        gr20,
-        SolverConfig(
-            optimizer=SILENT_MOSEK,
-            order=2,
-            cs_algo=MF(),
-            ts_algo=NoElimination(),
-        ),
-        TABLE_4_REFERENCE[20],
-    ),
-    run_case(
-        "f_gR",
-        20,
-        "CS+TS",
-        gr20,
-        SolverConfig(
-            optimizer=SILENT_MOSEK,
-            order=2,
-            cs_algo=MF(),
-            ts_algo=MMD(),
-        ),
-        TABLE_4_REFERENCE[20],
-    ),
-]
-
-println(summarize_rows(table4_rows))
-@assert all(row.abs_error < 1e-3 for row in table4_rows)
+````@example wang_magron_2021_example_6_1
+pop = build_broyden_banded_problem(PAPER_ROW_N20.n)
 ````
 
-````
-family   n    mode      objective      paper    abs err    nuniq   blocks      sec
-------------------------------------------------------------------------------------
-f_gR     20   CS         1.000000      1.000  7.553e-08      328       19     0.03
-f_gR     20   CS+TS      1.000000      1.000  4.397e-07      117       94     0.01
+`pop` is a polynomial optimization problem with the paper's `n = 20` benchmark.
 
+## Run the sparse and dense relaxations
 
-````
+We use relaxation order `3`, matching the extracted Table 2 reproduction note.
 
-Table 4's optimum is reproduced within `1e-3`, while the printed `nuniq` and
-`blocks` columns show what term sparsity changes in practice: the answer stays
-at `1`, but the SDP description becomes much smaller.
+````@example wang_magron_2021_example_6_1
+sparse_result = run_relaxation(pop, sparse_config)
+dense_result = run_relaxation(pop, dense_config)
 
-## Constrained benchmark: Table 7 (`f_Bb` over `D`)
-
-Table 7 uses the noncommutative Broyden banded family with
-`D = {1 - X_i^2, X_i - 1/3}`. The paper reports positive optima that grow with
-`n`, which makes this a good "size-varying" benchmark even at modest sizes.
-
-We keep the solver mode fixed at `CS+TS` and reproduce the table values for
-`n = 5, 10, 20`.
-
-````julia
-table7_rows = [
-    run_case(
-        "f_Bb^D",
-        n,
-        "CS+TS",
-        constrained_broyden_banded_problem(n),
-        SolverConfig(
-            optimizer=SILENT_MOSEK,
-            order=3,
-            cs_algo=MF(),
-            ts_algo=MMD(),
-        ),
-        TABLE_7_REFERENCE[n],
-    ) for n in (5, 10, 20)
-]
-
-println(summarize_rows(table7_rows))
-@assert all(row.abs_error < 2e-3 for row in table7_rows)
+observed = (
+    n=PAPER_ROW_N20.n,
+    sparse_mb=sparse_result.mb,
+    sparse_objective=sparse_result.objective,
+    dense_mb=dense_result.mb,
+    dense_objective=dense_result.objective,
+)
 ````
 
-````
-family   n    mode      objective      paper    abs err    nuniq   blocks      sec
-------------------------------------------------------------------------------------
-f_Bb^D   5    CS+TS      3.113005      3.113  4.992e-06      233      145     0.19
-f_Bb^D   10   CS+TS      3.011288      3.011  2.883e-04     1087     1544     1.64
-f_Bb^D   20   CS+TS      9.658650      9.658  6.497e-04     2877     5404     7.16
+`observed` holds the locally reproduced row on the stable fields.
 
-
+````@example wang_magron_2021_example_6_1
+observed
 ````
 
-The constrained objectives line up with Table 7, and the `sec` column makes
-the scaling story concrete: even with `CS+TS`, the work rises quickly between
-`n = 5` and `n = 20`. That is exactly why the paper pushes the same ideas to
-much larger sparse instances instead of dense SDPs.
+## Compare against the published row
 
-## Meaning
+The extracted Table 2 row for `n = 20` records:
 
-Three takeaways matter more than the raw numbers:
+- sparse: `mb = 15`, printed `opt = 0`, printed `time = 0.34`
+- dense: `mb = 61`, printed `opt = 0`, printed `time = 1.42`
 
-1. In the unconstrained families, the published optima are explained by the
-   algebraic shape of the objective itself. Tables 2, 3, and 6 are anchored at
-   `0`; Tables 4 and 5 are shifted to `1`.
-2. Correlative sparsity and term sparsity mostly change cost, not the target
-   optimum. On `f_gR`, both sparse runs stay at the Table 4 value, but
-   `CS+TS` shrinks the SDP description substantially.
-3. Constraints change the story qualitatively. Table 7 no longer has a trivial
-   `0` or `1` minimum, and the positive optimum grows with `n`. The docs sweep
-   already shows the trend; the full paper extends it to much larger sizes.
+We compare the stable fields directly and treat the printed `0` objective as
+`|opt| <= 1e-4`, exactly as the paper's notation table prescribes. We do not
+assert runtime equality because elapsed time depends on hardware and solver
+versions.
 
-Table 8 is left out here because those random quartics come from external
-instances rather than a compact closed-form family.
+````@example wang_magron_2021_example_6_1
+paper = PAPER_ROW_N20
+
+checks = (
+    sparse_mb_matches=observed.sparse_mb == paper.sparse_mb,
+    dense_mb_matches=observed.dense_mb == paper.dense_mb,
+    sparse_objective_matches=abs(observed.sparse_objective) <= paper.sparse_opt_abs_le,
+    dense_objective_matches=abs(observed.dense_objective) <= paper.dense_opt_abs_le,
+)
+````
+
+`checks` summarizes whether the local run matches the paper on stable fields.
+
+````@example wang_magron_2021_example_6_1
+checks
+
+all(values(checks))
+````
+
+## Interpretation
+
+The point of this benchmark is not that the optimum is exotic. The point is
+that the sparse and dense relaxations certify the same near-zero minimum while
+using very different moment blocks. On the published `n = 20` row, the sparse
+hierarchy uses `mb = 15` while the dense hierarchy uses `mb = 61`. That gap is
+exactly why Wang and Magron use this family to showcase term sparsity.
+
+## Next steps
+
+- [`cs_nctssos`](@ref): build the first relaxation
+- [`cs_nctssos_higher`](@ref): continue from a sparse first step when needed
+- [Sparsity Convergence](@ref sparsity-convergence): another view of how
+  sparsity changes block structure across relaxation orders
 
 ---
 

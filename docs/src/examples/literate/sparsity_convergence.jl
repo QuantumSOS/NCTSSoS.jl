@@ -71,13 +71,15 @@ nothing #hide
 #
 # The `moment_basis` keyword lets us fix the basis to
 # ``\{1, X, Y, Z, YX, YZ\}`` — the same six monomials used in
-# Figure 3 of the paper — so our graph and theirs sit on identical
-# node sets.
+# Figure 3 of the paper. In this case,
+# `newton_chip_basis(pop_34, 2)` recovers exactly that basis, so our
+# graph and theirs sit on identical node sets without hand-writing the
+# monomials.
 #
 # ### Building the problem
 #
-# First, we set up the variables, the polynomial, and the explicit
-# paper basis.
+# First, we set up the variables, the polynomial, and the Newton-chip
+# basis.
 
 registry_34, (vars,) = create_noncommutative_variables([("X", 1:3)])
 X, Y, Z = vars
@@ -89,31 +91,20 @@ f_34 = X^2 - X * Y - Y * X + 3.0 * Y^2 -
     142.0 * Z * Y^2 * Z
 
 pop_34 = polyopt(f_34, registry_34)
-paper_basis_34_labels, paper_basis_34 = let
-    NM = typeof(one(X))
-    yx = only(monomials(Y * X))
-    yz = only(monomials(Y * Z))
-    basis_entries = [
-        ("1", one(X)),
-        ("X", X),
-        ("Y", Y),
-        ("Z", Z),
-        ("YX", yx),
-        ("YZ", yz),
-    ]
-    (first.(basis_entries), NM[last(entry) for entry in basis_entries])
-end
+
+newton_basis_34 = newton_chip_basis(pop_34, 2)
+newton_basis_34_labels = ["1", "X", "Y", "Z", "YX", "YZ"]
 nothing #hide
 
 config_34_dense = SolverConfig(
     optimizer=SILENT_MOSEK,
-    moment_basis=paper_basis_34,
+    moment_basis=newton_basis_34,
     cs_algo=NoElimination(),
     ts_algo=NoElimination(),
 )
 config_34_sparse = SolverConfig(
     optimizer=SILENT_MOSEK,
-    moment_basis=paper_basis_34,
+    moment_basis=newton_basis_34,
     cs_algo=NoElimination(),
     ts_algo=MMD(),
 )
@@ -224,7 +215,7 @@ check_equal(
 )
 
 figure_34_graph = draw_term_graph(
-    paper_basis_34_labels,
+    newton_basis_34_labels,
     PAPER_GRAPH_34.coords,
     package_edges_34_k1;
     dashed_edges=package_fill_34,

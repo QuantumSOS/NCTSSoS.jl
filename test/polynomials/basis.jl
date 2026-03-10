@@ -86,5 +86,20 @@ using Test, NCTSSoS
         reg_with_unused, (x_unused, y_unused) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
         single_site_pop = polyopt(1.0 * x_unused[1]^2 + 1.0, reg_with_unused)
         @test newton_chip_basis(single_site_pop, 1) == sort([one(x_unused[1]), x_unused[1]])
+
+        reg_ex34, (vars_ex34,) = create_noncommutative_variables([("X", 1:3)])
+        X, Y, Z = vars_ex34
+        ex34_objective = X^2 - X * Y - Y * X + 3.0 * Y^2 -
+            2.0 * X * Y * X + 2.0 * X * Y^2 * X -
+            Y * Z - Z * Y + 6.0 * Z^2 + 9.0 * Y^2 * Z +
+            9.0 * Z * Y^2 - 54.0 * Z * Y * Z +
+            142.0 * Z * Y^2 * Z
+        ex34_pop = polyopt(ex34_objective, reg_ex34)
+
+        yx = only(monomials(Y * X))
+        yz = only(monomials(Y * Z))
+        expected_ex34_basis = [one(X), X, Y, Z, yx, yz]
+
+        @test newton_chip_basis(ex34_pop, 2) == expected_ex34_basis
     end
 end

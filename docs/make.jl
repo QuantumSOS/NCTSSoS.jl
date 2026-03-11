@@ -21,6 +21,7 @@ makedocs(;
         "Examples"=>Any[
             "Bell inequalities"=>"examples/generated/bell.md",
             "Trace Polynomial"=>"examples/generated/trace_poly.md",
+            "Newton Chip Method"=>"examples/generated/newton_chip_method.md",
             "Stabilization vs. Exactness"=>"examples/generated/sparsity_convergence.md",
             "Monoid Algebra Showcase"=>"examples/generated/monoid_algebras_showcase.md",
             "PBW Algebra Showcase"=>"examples/generated/pbw_algebras_showcase.md",

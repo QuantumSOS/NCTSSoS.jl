@@ -25,3 +25,9 @@ NCTSSoS.SolverConfig
 NCTSSoS.cs_nctssos
 NCTSSoS.cs_nctssos_higher
 ```
+
+## Basis Selection
+
+```@docs
+NCTSSoS.newton_chip_basis
+```

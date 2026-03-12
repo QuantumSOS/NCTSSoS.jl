@@ -1,0 +1,107 @@
+{
+  "source_description": "Paper targets come from Wang and Magron (2021), https://link.springer.com/10.1007/s10589-021-00301-7, Section 6.1, Tables 3-6. The solved rows below were captured from local silent-Mosek runs of the Example 6.1 REPL helpers on 2026-03-12. Table 2 is intentionally omitted because no completed local Mosek solve row was captured in that session.",
+  "solver": {
+    "optimizer": "MosekTools.Optimizer",
+    "attributes": [
+      "MOI.Silent() => true"
+    ]
+  },
+  "rows": [
+    {
+      "table": 3,
+      "family": "f_cs",
+      "mode": "dense",
+      "n": 20,
+      "objective": 0.0004718240722655509,
+      "paper": -0.0001,
+      "abs_error": 0.0005718240722655509,
+      "mb": 59,
+      "paper_mb": 59,
+      "seconds": 11.14
+    },
+    {
+      "table": 3,
+      "family": "f_cs",
+      "mode": "sparse",
+      "n": 20,
+      "objective": -2.454480434971193e-5,
+      "paper": -0.0004,
+      "abs_error": 0.0003754551956502881,
+      "mb": 3,
+      "paper_mb": 3,
+      "seconds": 0.58
+    },
+    {
+      "table": 4,
+      "family": "f_gR",
+      "mode": "dense",
+      "n": 20,
+      "objective": 0.9999999999968305,
+      "paper": 1.0,
+      "abs_error": 3.169464690699897e-12,
+      "mb": 40,
+      "paper_mb": 40,
+      "seconds": 0.06
+    },
+    {
+      "table": 4,
+      "family": "f_gR",
+      "mode": "sparse",
+      "n": 20,
+      "objective": 0.9999999169403251,
+      "paper": 1.0,
+      "abs_error": 8.305967491573085e-8,
+      "mb": 3,
+      "paper_mb": 3,
+      "seconds": 0.01
+    },
+    {
+      "table": 5,
+      "family": "f_cW",
+      "mode": "dense",
+      "n": 20,
+      "objective": 0.9999999734255063,
+      "paper": 1.0,
+      "abs_error": 2.657449371668008e-8,
+      "mb": 31,
+      "paper_mb": 31,
+      "seconds": 0.05
+    },
+    {
+      "table": 5,
+      "family": "f_cW",
+      "mode": "sparse",
+      "n": 20,
+      "objective": 0.999999889269175,
+      "paper": 1.0,
+      "abs_error": 1.1073082495371978e-7,
+      "mb": 3,
+      "paper_mb": 3,
+      "seconds": 0.27
+    },
+    {
+      "table": 6,
+      "family": "f_Bt",
+      "mode": "dense",
+      "n": 20,
+      "objective": 1.0412314656142024e-9,
+      "paper": 0.0,
+      "abs_error": 1.0412314656142024e-9,
+      "mb": 41,
+      "paper_mb": 41,
+      "seconds": 0.05
+    },
+    {
+      "table": 6,
+      "family": "f_Bt",
+      "mode": "sparse",
+      "n": 20,
+      "objective": -5.9591637506051975e-9,
+      "paper": 0.0,
+      "abs_error": 5.9591637506051975e-9,
+      "mb": 5,
+      "paper_mb": 5,
+      "seconds": 0.01
+    }
+  ]
+}

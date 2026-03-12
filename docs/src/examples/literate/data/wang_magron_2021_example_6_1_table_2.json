@@ -1,0 +1,109 @@
+{
+  "source_description": "Wang and Magron (2021), https://link.springer.com/10.1007/s10589-021-00301-7, Section 6.1: PDF page 28 defines the nc Broyden banded family via f_Bb(X) = sum_i g_i(X)^* g_i(X) with g_i(X) = 2X_i + 5X_i^3 + 1 - sum_{j in J_i}(X_j + X_j^2); PDF page 29, Table 2 reports the sparse rows for n = 20:20:1000 and the dense comparison rows for n = 20, 40, 60.",
+  "expected_values": {
+    "family": "f_Bb",
+    "problem_type": "unconstrained eigenvalue minimization",
+    "objective_form": "f_Bb(X) = sum_{i=1}^n g_i(X)^* g_i(X)",
+    "summand_form": "g_i(X) = 2X_i + 5X_i^3 + 1 - sum_{j in J_i}(X_j + X_j^2)",
+    "index_set_rule": "J_i = { j | j != i, max(1, i - 5) <= j <= min(n, i + 1) }",
+    "relaxation_order": 3,
+    "sparse_order": 1,
+    "dense_mode": {
+      "cs_algo": "NoElimination()",
+      "ts_algo": "NoElimination()"
+    },
+    "sparse_mode": {
+      "cs_algo": "NoElimination()",
+      "ts_algo": "MMD()"
+    },
+    "sparse_rows": [
+      {
+        "n": 20,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 40,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 60,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 80,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 100,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 200,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 300,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 400,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 500,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 600,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 700,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 800,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 900,
+        "mb": 15,
+        "opt": 0.0
+      },
+      {
+        "n": 1000,
+        "mb": 15,
+        "opt": 0.0
+      }
+    ],
+    "dense_rows": [
+      {
+        "n": 20,
+        "mb": 61,
+        "opt": 0.0
+      },
+      {
+        "n": 40,
+        "mb": 121,
+        "opt": 0.0
+      },
+      {
+        "n": 60,
+        "mb": 181,
+        "opt": 0.0
+      }
+    ]
+  }
+}

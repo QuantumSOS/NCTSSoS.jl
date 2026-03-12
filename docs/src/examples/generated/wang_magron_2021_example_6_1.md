@@ -2,73 +2,213 @@
 EditURL = "../literate/wang_magron_2021_example_6_1.jl"
 ```
 
-# [Wang-Magron 2021 Example 6.1: Size-Varying Eigenvalue Benchmarks](@id wang-magron-2021-example-6-1)
+# [Wang-Magron 2021 Example 6.1: Reproducing `n = 20` Results](@id wang-magron-2021-example-6-1)
 
-This page reproduces a small, docs-friendly slice of Section 6.1 from
-Wang and Magron's NCTSSOS paper [wangExploitingTermSparsity2021](@cite).
-It is intentionally separate from the tracial-polynomial "Example 6.1"
-page: here we solve eigenvalue benchmarks for ordinary noncommutative
-polynomials, not trace-polynomial problems.
+This example reproduces the `n = 20` rows of Tables 2--6 from Section 6.1
+of Wang and Magron's NCTSSOS paper [wangExploitingTermSparsity2021](@cite),
+comparing both dense and sparse relaxations.
 
-Section 6.1 spans Tables 2--8:
+Including this file defines the functions below but does not run any solves.
+To run individual cases or the full suite interactively:
 
-- Table 2 (`f_Bb`, unconstrained Broyden banded): sparse optimum `0`.
-- Table 3 (`f_cs`, unconstrained chained singular): sparse optimum near `0`.
-- Table 4 (`f_gR`, unconstrained generalized Rosenbrock): sparse optimum `1`.
-- Table 5 (`f_cW`, unconstrained chained Wood): sparse optimum near `1`.
-- Table 6 (`f_Bt`, unconstrained Broyden tridiagonal): sparse optimum `0`.
-- Table 7 (`f_Bb` over `D`): positive constrained optimum that grows with `n`.
-- Table 8 (random quartics over multi-balls): large-scale random instances.
+```julia
+include("docs/src/examples/literate/wang_magron_2021_example_6_1.jl")
 
-The docs page executes two representative families only:
+test_table_4_dense_n20()              # single case (Mosek auto-detected)
+test_table_4_sparse_n20()
+test_all_n20_reference_cases()        # all 10 cases at once
+```
 
-1. Table 4 (`f_gR`) to show why some unconstrained benchmarks have known
-   minimum `1`, and how correlative sparsity versus term sparsity changes cost.
-2. Table 7 (`f_Bb` over `D`) to show how constraints move the optimum away
-   from `0` and how runtime grows with problem size.
+Each function checks the computed objective and maximal moment-matrix block
+size (`mb`) against tracked JSON expectations derived from the paper.
+Table 7 is not covered.
 
-Tables 2, 3, 5, 6, and 8 are cited for context but omitted from execution to
-keep the docs path short and deterministic.
+## Recorded Mosek results (`n = 20`)
+
+The table below summarises the silent-Mosek solves recorded in
+`wang_magron_2021_example_6_1_mosek_n20_results.json`:
+
+| Case | Lower bound | Paper | Abs. error | `mb` | Paper `mb` | Seconds |
+|:-----------|-------------------:|------:|-----------:|-----:|-----------:|--------:|
+| T3 dense   |  4.72e-4  | -1e-4 | 5.72e-4 | 59 | 59 | 11.14 |
+| T3 sparse  | -2.45e-5  | -4e-4 | 3.75e-4 |  3 |  3 |  0.58 |
+| T4 dense   |  1.000000 |  1.0  | 3.17e-12 | 40 | 40 |  0.06 |
+| T4 sparse  |  1.000000 |  1.0  | 8.31e-8  |  3 |  3 |  0.01 |
+| T5 dense   |  1.000000 |  1.0  | 2.66e-8  | 31 | 31 |  0.05 |
+| T5 sparse  |  1.000000 |  1.0  | 1.11e-7  |  3 |  3 |  0.27 |
+| T6 dense   |  1.04e-9  |  0.0  | 1.04e-9  | 41 | 41 |  0.05 |
+| T6 sparse  | -5.96e-9  |  0.0  | 5.96e-9  |  5 |  5 |  0.01 |
+
+Table 2 expectations (`paper = 0`, `mb = 61` dense / `mb = 15` sparse) are
+tracked but no local Mosek solve has been recorded yet.
 
 ## Setup
 
-Mosek matches the workflow already used by the other executed example pages.
+When `MosekTools` is available, a silent Mosek optimizer is used by default.
+Pass `optimizer=` to use a different backend or custom Mosek attributes.
 
 ````julia
-using NCTSSoS, MosekTools, Printf
+using NCTSSoS, Printf, JSON3
 
 const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
+const EXAMPLE_6_1_DATA_DIR = joinpath(
+    pkgdir(NCTSSoS), "docs", "src", "examples", "literate", "data"
+)
+const EXAMPLE_6_1_MOSEK_RESULTS_PATH = joinpath(
+    EXAMPLE_6_1_DATA_DIR, "wang_magron_2021_example_6_1_mosek_n20_results.json"
+)
+const EXAMPLE_6_1_HAS_MOSEKTOOLS = Base.find_package("MosekTools") !== nothing
 
-const TABLE_4_REFERENCE = Dict(20 => 1.0)
-const TABLE_7_REFERENCE = Dict(5 => 3.113, 10 => 3.011, 20 => 9.658)
+if EXAMPLE_6_1_HAS_MOSEKTOOLS
+    import MosekTools
+end
+````
 
-flatten_sizes(sizes) = reduce(vcat, sizes)
-block_count(result) = length(flatten_sizes(result.moment_matrix_sizes))
+### Helpers
 
-function summarize_rows(rows)
+Internal utilities for optimizer resolution, expectation loading, result
+verification, and summary formatting. These are used by the REPL entry
+points defined further below.
+
+````julia
+function example_6_1_flatten_sizes(sizes)
+    return reduce(vcat, sizes)
+end
+function example_6_1_max_block_size(result)
+    return maximum(example_6_1_flatten_sizes(result.moment_matrix_sizes))
+end
+function example_6_1_default_optimizer()
+    EXAMPLE_6_1_HAS_MOSEKTOOLS || error(
+        "MosekTools is not available in the active environment. " *
+        "Pass `optimizer=` explicitly to provide a compatible optimizer backend.",
+    )
+    return MOI.OptimizerWithAttributes(MosekTools.Optimizer, MOI.Silent() => true)
+end
+function example_6_1_resolve_optimizer(optimizer)
+    return optimizer === nothing ? example_6_1_default_optimizer() : optimizer
+end
+function example_6_1_table_expectation_path(table::Int)
+    2 <= table <= 6 || error("Only Tables 2--6 are fixture-backed in this example.")
+    return joinpath(
+        EXAMPLE_6_1_DATA_DIR, @sprintf("wang_magron_2021_example_6_1_table_%d.json", table)
+    )
+end
+
+function example_6_1_load_table_expectation(table::Int)
+    path = example_6_1_table_expectation_path(table)
+    isfile(path) || error("Missing expectation JSON: $(repr(path))")
+    return JSON3.read(read(path, String))
+end
+
+function example_6_1_load_mosek_n20_results()
+    isfile(EXAMPLE_6_1_MOSEK_RESULTS_PATH) || error(
+        "Missing tracked Mosek results JSON: $(repr(EXAMPLE_6_1_MOSEK_RESULTS_PATH))"
+    )
+    return JSON3.read(read(EXAMPLE_6_1_MOSEK_RESULTS_PATH, String))
+end
+function example_6_1_mode_key(mode::Symbol)
+    mode in (:dense, :sparse) || error("Unsupported mode $(repr(mode)); use :dense or :sparse.")
+    return String(mode)
+end
+
+function example_6_1_reference_row(table::Int, mode::Symbol, n::Int=20)
+    data = example_6_1_load_table_expectation(table)["expected_values"]
+    rows = data["$(example_6_1_mode_key(mode))_rows"]
+    for row in rows
+        Int(row["n"]) == n || continue
+        return (
+            table=table,
+            mode=example_6_1_mode_key(mode),
+            family=String(data["family"]),
+            n=Int(row["n"]),
+            paper=Float64(row["opt"]),
+            paper_mb=Int(row["mb"]),
+        )
+    end
+    error("No $(example_6_1_mode_key(mode)) expectation row for Table $(table) at n=$(n).")
+end
+
+function example_6_1_default_atol(table::Int, mode::Symbol=:sparse)
+    example_6_1_mode_key(mode)
+    return table == 6 ? 1e-6 : 1e-3
+end
+````
+
+````
+example_6_1_default_atol (generic function with 2 methods)
+````
+
+### Verification and Reporting
+
+````julia
+function example_6_1_verify_mosek_n20_results()
+    return map(example_6_1_load_mosek_n20_results()["rows"]) do raw_row
+        row = (
+            table=Int(raw_row["table"]),
+            family=String(raw_row["family"]),
+            mode=String(raw_row["mode"]),
+            n=Int(raw_row["n"]),
+            objective=Float64(raw_row["objective"]),
+            paper=Float64(raw_row["paper"]),
+            abs_error=Float64(raw_row["abs_error"]),
+            mb=Int(raw_row["mb"]),
+            paper_mb=Int(raw_row["paper_mb"]),
+            seconds=Float64(raw_row["seconds"]),
+        )
+        expected = example_6_1_reference_row(row.table, Symbol(row.mode), row.n)
+        @assert row.family == expected.family (
+            "Family mismatch for Table $(row.table) $(row.mode): got $(row.family), " *
+            "expected $(expected.family)."
+        )
+        @assert row.paper == expected.paper (
+            "Paper objective mismatch for Table $(row.table) $(row.mode): " *
+            "got $(row.paper), expected $(expected.paper)."
+        )
+        @assert row.paper_mb == expected.paper_mb (
+            "Paper block size mismatch for Table $(row.table) $(row.mode): " *
+            "got $(row.paper_mb), expected $(expected.paper_mb)."
+        )
+        @assert row.mb == row.paper_mb (
+            "Tracked Mosek block size mismatch for Table $(row.table) $(row.mode): " *
+            "got $(row.mb), expected $(row.paper_mb)."
+        )
+        return row
+    end
+end
+
+function example_6_1_summarize_rows(rows)
     io = IOBuffer()
     println(
         io,
         @sprintf(
-            "%-8s %-4s %-6s %12s %10s %10s %8s %8s %8s",
-            "family", "n", "mode", "objective", "paper", "abs err", "nuniq", "blocks", "sec"
+            "%-7s %-8s %-7s %-4s %12s %10s %10s %5s %8s %8s",
+            "table",
+            "family",
+            "mode",
+            "n",
+            "objective",
+            "paper",
+            "abs err",
+            "mb",
+            "nuniq",
+            "sec",
         ),
     )
-    println(io, repeat("-", 84))
+    println(io, repeat("-", 92))
     for row in rows
         println(
             io,
             @sprintf(
-                "%-8s %-4d %-6s %12.6f %10.3f %10.3e %8d %8d %8.2f",
+                "%-7s %-8s %-7s %-4d %12.6f %10.4f %10.3e %5d %8d %8.2f",
+                "T$(row.table)",
                 row.family,
-                row.n,
                 row.mode,
+                row.n,
                 row.objective,
                 row.paper,
                 row.abs_error,
+                row.mb,
                 row.n_unique,
-                row.blocks,
                 row.seconds,
             ),
         )
@@ -76,179 +216,315 @@ function summarize_rows(rows)
     return String(take!(io))
 end
 
-function run_case(family::AbstractString, n::Int, mode::AbstractString, pop, config, paper_ref::Real)
-    seconds = @elapsed result = cs_nctssos(pop, config)
+function example_6_1_build_row(table::Int, result, expected, seconds::Real)
     return (
-        family=family,
-        n=n,
-        mode=mode,
+        table=table,
+        mode=expected.mode,
+        family=expected.family,
+        n=expected.n,
         objective=result.objective,
-        paper=Float64(paper_ref),
-        abs_error=abs(result.objective - paper_ref),
+        paper=expected.paper,
+        abs_error=abs(result.objective - expected.paper),
+        mb=example_6_1_max_block_size(result),
+        paper_mb=expected.paper_mb,
         n_unique=result.n_unique_moment_matrix_elements,
-        blocks=block_count(result),
         seconds=round(seconds; digits=2),
     )
 end
 
-function generalized_rosenbrock_problem(n::Int)
+function example_6_1_verify_row(row, atol::Real)
+    @assert isapprox(row.objective, row.paper; atol=atol) (
+        "Objective mismatch for Table $(row.table): got $(row.objective), " *
+        "expected $(row.paper) with atol=$(atol)."
+    )
+    @assert row.mb == row.paper_mb (
+        "Moment block size mismatch for Table $(row.table): got $(row.mb), " *
+        "expected $(row.paper_mb)."
+    )
+    return nothing
+end
+
+function example_6_1_run_case(
+    table::Int,
+    mode::Symbol,
+    pop,
+    config;
+    n::Int=20,
+    atol::Real=example_6_1_default_atol(table, mode),
+)
+    expected = example_6_1_reference_row(table, mode, n)
+    seconds = @elapsed result = cs_nctssos(pop, config)
+    row = example_6_1_build_row(table, result, expected, seconds)
+    example_6_1_verify_row(row, atol)
+    return (row=row, result=result)
+end
+````
+
+````
+example_6_1_run_case (generic function with 1 method)
+````
+
+## Problem Builders
+
+Each builder below encodes the polynomial optimisation problem for its
+respective table, transcribed directly from the paper's formulations.
+
+````julia
+function build_table_2_problem(n::Int)
+    n >= 2 || error("Table 2 requires n >= 2.")
     reg, (x,) = create_noncommutative_variables([("x", 1:n)])
-    f = Float64(n) * one(typeof(x[1]))
-    for i in 2:n
-        f += 100.0 * x[i - 1]^4 - 200.0 * x[i - 1]^2 * x[i] - 2.0 * x[i] + 101.0 * x[i]^2
+    P = typeof(x[1] + x[2])
+    f = zero(P)
+
+    for i in 1:n
+        jset = setdiff(max(1, i - 5):min(n, i + 1), i)
+        coupling = isempty(jset) ? zero(P) : sum(x[j] + x[j]^2 for j in jset)
+        g_i = 2.0 * x[i] + 5.0 * x[i]^3 + one(P) - coupling
+        f += g_i * g_i
     end
+
     return polyopt(f, reg)
 end
 
-function constrained_broyden_banded_problem(n::Int)
+function build_table_3_problem(n::Int)
+    n >= 4 || error("Table 3 requires n >= 4.")
+    iseven(n) || error("Table 3 expects an even n.")
     reg, (x,) = create_noncommutative_variables([("x", 1:n)])
-    f = sum(1:n) do i
-        jset = setdiff(max(1, i - 5):min(n, i + 1), i)
-        g = isempty(jset) ? 0.0 * x[1] : sum(x[j] + x[j]^2 for j in jset)
-        (2.0 * x[i] + 5.0 * x[i]^3 + 1 - g)^2
+    P = typeof(x[1] + x[2])
+    f = zero(P)
+
+    for i in 1:2:(n - 3)
+        linear_1 = x[i] + 10.0 * x[i + 1]
+        linear_2 = x[i + 2] - x[i + 3]
+
+        left_quad_1 = x[i + 1]^2 - 4.0 * x[i + 2] * x[i + 1] + 4.0 * x[i + 2]^2
+        right_quad_1 = x[i + 1]^2 - 4.0 * x[i + 1] * x[i + 2] + 4.0 * x[i + 2]^2
+        left_quad_2 = x[i]^2 - 20.0 * x[i + 3] * x[i] + 100.0 * x[i + 3]^2
+        right_quad_2 = x[i]^2 - 20.0 * x[i] * x[i + 3] + 100.0 * x[i + 3]^2
+
+        f += linear_1 * linear_1
+        f += 5.0 * linear_2 * linear_2
+        f += left_quad_1 * right_quad_1
+        f += 10.0 * left_quad_2 * right_quad_2
     end
-    ineq_constraints = [[1.0 - x[i]^2 for i in 1:n]; [x[i] - 1//3 for i in 1:n]]
-    return polyopt(f, reg; ineq_constraints=ineq_constraints)
+
+    return polyopt(f, reg)
+end
+
+function build_table_4_problem(n::Int)
+    n >= 2 || error("Table 4 requires n >= 2.")
+    reg, (x,) = create_noncommutative_variables([("x", 1:n)])
+    f = Float64(n) * one(typeof(x[1]))
+
+    for i in 2:n
+        f += 100.0 * x[i - 1]^4 - 200.0 * x[i - 1]^2 * x[i] - 2.0 * x[i] + 101.0 * x[i]^2
+    end
+
+    return polyopt(f, reg)
+end
+
+function build_table_5_problem(n::Int)
+    n >= 4 || error("Table 5 requires n >= 4.")
+    n % 4 == 0 || error("Table 5 expects n divisible by 4.")
+    reg, (x,) = create_noncommutative_variables([("x", 1:n)])
+    P = typeof(x[1] + x[2])
+    f = one(P)
+
+    for i in 1:2:(n - 3)
+        a = x[i + 1] - x[i]^2
+        b = 1.0 - x[i]
+        c = x[i + 3] - x[i + 2]^2
+        d = 1.0 - x[i + 2]
+        e = x[i + 1] + x[i + 3] - 2.0
+        g = x[i + 1] - x[i + 3]
+
+        f += 100.0 * a * a
+        f += b * b
+        f += 90.0 * c * c
+        f += d * d
+        f += 10.0 * e * e
+        f += 0.1 * g * g
+    end
+
+    return polyopt(f, reg)
+end
+
+function build_table_6_problem(n::Int)
+    n >= 2 || error("Table 6 requires n >= 2.")
+    reg, (x,) = create_noncommutative_variables([("x", 1:n)])
+    a = 3.0 * x[1] - 2.0 * x[1]^2 - 2.0 * x[2] + 1.0
+    f = a * a
+
+    for i in 2:(n - 1)
+        b = 3.0 * x[i] - 2.0 * x[i]^2 - x[i - 1] - 2.0 * x[i + 1] + 1.0
+        f += b * b
+    end
+
+    c = 3.0 * x[n] - 2.0 * x[n]^2 - x[n - 1] + 1.0
+    f += c * c
+
+    return polyopt(f, reg)
+end
+
+function example_6_1_problem_builder(table::Int)
+    table == 2 && return build_table_2_problem
+    table == 3 && return build_table_3_problem
+    table == 4 && return build_table_4_problem
+    table == 5 && return build_table_5_problem
+    table == 6 && return build_table_6_problem
+    error("Unsupported fixture-backed table $(table).")
 end
 ````
 
-## Why the unconstrained minima are 0 or 1
+````
+example_6_1_problem_builder (generic function with 1 method)
+````
 
-The unconstrained Section 6.1 families are built from Hermitian-square
-patterns [wangExploitingTermSparsity2021](@cite):
+## Solver Configuration
 
-- Tables 2, 3, and 6 are minimized at the origin, so the benchmark minimum is `0`.
-- Tables 4 and 5 add constant offsets that shift the minimum to `1`.
-
-The constrained family in Table 7 breaks that trivial certificate by adding
-`D = {1 - X_i^2, X_i - 1/3}`. The feasible set is pushed away from the origin,
-so the optimum becomes positive and size-dependent.
-
-## Unconstrained benchmark: Table 4 (`f_gR`)
-
-Table 4 reports sparse optimum `1.0000` at `n = 20` for the generalized
-Rosenbrock family. We solve the same `n = 20` instance twice, using the
-order-2 Newton-chip basis as the moment basis in both runs:
-
-- `CS`: correlative sparsity only
-- `CS+TS`: correlative sparsity plus term sparsity
-
-Dense relaxation is intentionally omitted here because the sparse comparison
-already captures the practical point of Section 6.1 while keeping the docs
-runtime modest.
+Each table uses a specific combination of relaxation order, basis, and
+sparsity algorithms. The dense mode disables all elimination; the sparse
+mode enables correlative sparsity (CS) and/or term sparsity (TS) via
+`MF` and `MMD`.
 
 ````julia
-gr20 = generalized_rosenbrock_problem(20)
-gr20_basis = newton_chip_basis(gr20, 2)
-
-table4_rows = [
-    run_case(
-        "f_gR",
-        20,
-        "CS",
-        gr20,
-        SolverConfig(
-            optimizer=SILENT_MOSEK,
-            moment_basis=gr20_basis,
-            cs_algo=MF(),
-            ts_algo=NoElimination(),
-        ),
-        TABLE_4_REFERENCE[20],
-    ),
-    run_case(
-        "f_gR",
-        20,
-        "CS+TS",
-        gr20,
-        SolverConfig(
-            optimizer=SILENT_MOSEK,
-            moment_basis=gr20_basis,
-            cs_algo=MF(),
-            ts_algo=MMD(),
-        ),
-        TABLE_4_REFERENCE[20],
-    ),
-]
-
-println(summarize_rows(table4_rows))
-@assert all(row.abs_error < 1e-3 for row in table4_rows)
-````
-
-````
-family   n    mode      objective      paper    abs err    nuniq   blocks      sec
-------------------------------------------------------------------------------------
-f_gR     20   CS         1.000000      1.000  4.067e-07      153       19     0.02
-f_gR     20   CS+TS      1.000000      1.000  8.306e-08       78       56     0.01
-
-
-````
-
-Table 4's optimum is reproduced within `1e-3`, while the printed `nuniq` and
-`blocks` columns show what term sparsity changes in practice: the answer stays
-at `1`, but the SDP description becomes much smaller.
-
-## Constrained benchmark: Table 7 (`f_Bb` over `D`)
-
-Table 7 uses the noncommutative Broyden banded family with
-`D = {1 - X_i^2, X_i - 1/3}`. The paper reports positive optima that grow with
-`n`, which makes this a good "size-varying" benchmark even at modest sizes.
-
-`newton_chip_basis` only supports unconstrained ordinary polynomial problems,
-so these constrained runs keep the default order-3 basis. We keep the solver
-mode fixed at `CS+TS` and reproduce the table values for `n = 5, 10, 20`.
-
-````julia
-table7_rows = [
-    run_case(
-        "f_Bb^D",
-        n,
-        "CS+TS",
-        constrained_broyden_banded_problem(n),
-        SolverConfig(
-            optimizer=SILENT_MOSEK,
+function example_6_1_build_config(table::Int, mode::Symbol, pop; optimizer)
+    if table == 2
+        return SolverConfig(
+            optimizer=optimizer,
             order=3,
-            cs_algo=MF(),
+            cs_algo=NoElimination(),
+            ts_algo=mode == :dense ? NoElimination() : MMD(),
+        )
+    elseif table == 3 || table == 4
+        basis = newton_chip_basis(pop, 2)
+        return SolverConfig(
+            optimizer=optimizer,
+            moment_basis=basis,
+            cs_algo=mode == :dense ? NoElimination() : MF(),
+            ts_algo=mode == :dense ? NoElimination() : MMD(),
+        )
+    elseif table == 5
+        if mode == :dense
+            return SolverConfig(
+                optimizer=optimizer,
+                moment_basis=newton_chip_basis(pop, 2),
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+            )
+        end
+        return SolverConfig(
+            optimizer=optimizer,
+            order=2,
+            cs_algo=NoElimination(),
             ts_algo=MMD(),
-        ),
-        TABLE_7_REFERENCE[n],
-    ) for n in (5, 10, 20)
+        )
+    elseif table == 6
+        return SolverConfig(
+            optimizer=optimizer,
+            moment_basis=newton_chip_basis(pop, 2),
+            cs_algo=NoElimination(),
+            ts_algo=mode == :dense ? NoElimination() : MMD(),
+        )
+    end
+    error("Unsupported fixture-backed table $(table).")
+end
+
+function example_6_1_execute_case(
+    table::Int,
+    mode::Symbol;
+    optimizer=nothing,
+    n::Int=20,
+    atol::Real=example_6_1_default_atol(table, mode),
+    io::IO=stdout,
+    print_summary::Bool=true,
+)
+    chosen_optimizer = example_6_1_resolve_optimizer(optimizer)
+    pop = example_6_1_problem_builder(table)(n)
+    report = example_6_1_run_case(
+        table,
+        mode,
+        pop,
+        example_6_1_build_config(table, mode, pop; optimizer=chosen_optimizer);
+        n=n,
+        atol=atol,
+    )
+    if print_summary
+        print(io, example_6_1_summarize_rows([report.row]))
+    end
+    return report
+end
+````
+
+````
+example_6_1_execute_case (generic function with 1 method)
+````
+
+## REPL Entry Points
+
+Each `test_table_<T>_<mode>_n20` function solves one case, verifies the
+objective and block size against the JSON expectations, prints a summary
+row, and returns `(row=..., result=...)`.
+
+````julia
+const EXAMPLE_6_1_N20_CASE_SPECS = [
+    (table=2, mode=:dense),
+    (table=2, mode=:sparse),
+    (table=3, mode=:dense),
+    (table=3, mode=:sparse),
+    (table=4, mode=:dense),
+    (table=4, mode=:sparse),
+    (table=5, mode=:dense),
+    (table=5, mode=:sparse),
+    (table=6, mode=:dense),
+    (table=6, mode=:sparse),
 ]
 
-println(summarize_rows(table7_rows))
-@assert all(row.abs_error < 2e-3 for row in table7_rows)
+for spec in EXAMPLE_6_1_N20_CASE_SPECS
+    fn = Symbol("test_table_", spec.table, "_", spec.mode, "_n20")
+    table = spec.table
+    mode = spec.mode
+    @eval function $fn(;
+        optimizer=nothing,
+        atol::Real=example_6_1_default_atol($table, $(QuoteNode(mode))),
+        io::IO=stdout,
+    )
+        return example_6_1_execute_case(
+            $table,
+            $(QuoteNode(mode));
+            optimizer=optimizer,
+            n=20,
+            atol=atol,
+            io=io,
+        )
+    end
+end
+
+function test_all_n20_reference_cases(; optimizer=nothing, io::IO=stdout)
+    chosen_optimizer = example_6_1_resolve_optimizer(optimizer)
+    reports = map(EXAMPLE_6_1_N20_CASE_SPECS) do spec
+        example_6_1_execute_case(
+            spec.table,
+            spec.mode;
+            optimizer=chosen_optimizer,
+            n=20,
+            atol=example_6_1_default_atol(spec.table, spec.mode),
+            io=io,
+            print_summary=false,
+        )
+    end
+    print(io, example_6_1_summarize_rows([report.row for report in reports]))
+    return reports
+end
+
+function test_all_fast_cases(; optimizer=nothing, io::IO=stdout)
+    return test_all_n20_reference_cases(; optimizer=optimizer, io=io)
+end
 ````
 
 ````
-family   n    mode      objective      paper    abs err    nuniq   blocks      sec
-------------------------------------------------------------------------------------
-f_Bb^D   5    CS+TS      3.113005      3.113  4.992e-06      233      145     0.12
-f_Bb^D   10   CS+TS      3.011288      3.011  2.883e-04     1087     1544     1.68
-f_Bb^D   20   CS+TS      9.658650      9.658  6.497e-04     2877     5404     7.01
-
-
+test_all_fast_cases (generic function with 1 method)
 ````
-
-The constrained objectives line up with Table 7, and the `sec` column makes
-the scaling story concrete: even with `CS+TS`, the work rises quickly between
-`n = 5` and `n = 20`. That is exactly why the paper pushes the same ideas to
-much larger sparse instances instead of dense SDPs.
-
-## Meaning
-
-Three takeaways matter more than the raw numbers:
-
-1. In the unconstrained families, the published optima are explained by the
-   algebraic shape of the objective itself. Tables 2, 3, and 6 are anchored at
-   `0`; Tables 4 and 5 are shifted to `1`.
-2. Correlative sparsity and term sparsity mostly change cost, not the target
-   optimum. On `f_gR`, both sparse runs stay at the Table 4 value, but
-   `CS+TS` shrinks the SDP description substantially.
-3. Constraints change the story qualitatively. Table 7 no longer has a trivial
-   `0` or `1` minimum, and the positive optimum grows with `n`. The docs sweep
-   already shows the trend; the full paper extends it to much larger sizes.
-
-Table 8 is left out here because those random quartics come from external
-instances rather than a compact closed-form family.
 
 ---
 

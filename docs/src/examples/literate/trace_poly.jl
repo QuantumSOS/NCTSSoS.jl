@@ -1,25 +1,35 @@
 # # [Tracial Polynomial Optimization](@id tracial-polynomial-optimization)
 #
-# Tracial polynomial optimization minimizes polynomial expressions involving
-# traces of noncommutative operators — a natural formulation for optimizing
-# over quantum states via the moment-SOS hierarchy
+# Can quantum mechanics outperform classical physics in a *provable*,
+# *quantitative* way?  Bell inequalities answer yes: they set sharp
+# thresholds separating classical from quantum correlations.  Computing
+# quantum bounds is a **tracial polynomial optimization** problem —
+# minimize a polynomial in noncommutative operators under a
+# [tracial state](@ref tracial-polynomial) (normalized trace).
+# For a maximally entangled bipartite state
+# $\psi_k = \tfrac{1}{\sqrt{k}}\sum_{i=1}^k |ii\rangle$,
+# ``\langle\psi_k|X\otimes Y|\psi_k\rangle = \tfrac{1}{k}\operatorname{Tr}(X\,Y^{\mathsf T})``,
+# so Bell-inequality optimization over such states reduces to tracial form
 # [klep2022Optimization](@cite).
 #
-# This example covers three problems of increasing complexity:
+# This tutorial covers three problems of increasing complexity:
 #
-# 1. A **toy problem** with projector variables — minimal setup to learn the API.
-# 2. The **CHSH Bell inequality** — recovering the Tsirelson bound $2\sqrt{2}$.
-# 3. A **covariance Bell inequality** — nonlinear objective involving products
-#    of trace moments.
+# 1. **Warm-up** — a toy projector ($P^2 = P$) problem to learn the API.
+# 2. **CHSH inequality** — a two-party Bell test where quantum beats
+#    classical by $\sqrt{2}$.
+# 3. **Covariance Bell inequality** — a *nonlinear* generalization using
+#    bias-corrected correlations.
 #
-# **Prerequisites**: familiarity with
-# [tracial polynomial concepts](@ref tracial-polynomial) and the
-# [polynomial optimization API](@ref polynomial-optimization).
+# !!! note "Prerequisites"
+#     [Trace polynomials](@ref tracial-polynomial),
+#     [polynomial optimization](@ref polynomial-optimization), and the
+#     [moment-SOHS hierarchy](@ref moment-sohs-hierarchy).
+#     For the same inequalities in *state-polynomial* form (bipartite,
+#     separate sites), see [Bell inequalities](@ref bell-inequalities).
 
 # ## Setup
 #
-# We use Mosek as the SDP solver. The `MOI.Silent()` attribute suppresses
-# solver output.
+# We use [Mosek](@ref mosek) as the SDP solver, silenced via MathOptInterface.
 
 using NCTSSoS, MosekTools
 using JSON3
@@ -31,41 +41,46 @@ const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() =
 nothing #hide
 
 # ---
-# ## Toy Example: Projector Trace Polynomial
+# ## Warm-up: Three Projectors ($P^2 = P$)
 #
-# Minimize a tracial polynomial over three projector variables $P_1, P_2, P_3$
-# satisfying $P_i^2 = P_i$:
+# A [projector](@ref monoid-algebras-showcase) ($P^2 = P$) models a yes/no
+# measurement in quantum mechanics.
+# Given three projectors $P_1, P_2, P_3$, define
 #
 # ```math
 # f = \operatorname{tr}(P_1 P_2 P_3)
-#   + \operatorname{tr}(P_1 P_2)\,\operatorname{tr}(P_3)
+#   + \operatorname{tr}(P_1 P_2)\,\operatorname{tr}(P_3).
 # ```
-
-# #### Step 1 — Create projector variables
 #
-# Each tuple `("x", 1:3)` declares a **label group**: the string is a name
-# prefix and the range gives the indices, producing variables `x[1], x[2], x[3]`.
-# The returned `registry` stores the symbol ↔ index mapping and algebra
-# constraints; it is passed to [`polyopt`](@ref) so the solver knows the
-# variable structure.
+# The first term is a three-body trace moment; the second mixes a pairwise
+# moment with a single-body moment.  If the projectors commuted (a classical
+# model), both terms would be nonnegative joint probabilities and $f \ge 0$.
+# A negative value witnesses genuinely noncommuting structure.
+#
+# How negative can $f$ get over all quantum realizations?
+# We approximate this minimum with the
+# [moment-SOHS hierarchy](@ref moment-sohs-hierarchy): a sequence of
+# [SDP](@ref semidefinite-programming) relaxations whose bounds tighten
+# with increasing **order**.
 
-registry, (x,) = create_projector_variables([("x", 1:3)]);
+# Each tuple `("P", 1:3)` creates one **label group** (one physical site):
+# operators across groups commute; within a group they need not.
+# The `registry` stores symbol ↔ index mappings and the constraint
+# $P_i^2 = P_i$.
+
+registry, (P,) = create_projector_variables([("P", 1:3)]);
 nothing #hide
 
-# #### Step 2 — Build the tracial objective
-#
-# [`tr`](@ref) wraps a `Polynomial` into a `StatePolynomial` — a symbolic
-# expression over trace moments. To feed it to [`polyopt`](@ref), multiply
-# by the identity monomial `𝟙` to obtain an `NCStatePolynomial`.
+# [`tr`](@ref) wraps an operator word in the trace functional, producing a
+# scalar trace moment.  Since the objective is purely tracial (no remaining
+# operator word), we multiply by the identity `𝟙` to form a state
+# polynomial that [`polyopt`](@ref) can optimize.
 
-𝟙 = one(NormalMonomial{ProjectorAlgebra, UInt8})
-p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * 𝟙;
+𝟙 = one(typeof(P[1]))
+p = (tr(P[1] * P[2] * P[3]) + tr(P[1] * P[2]) * tr(P[3])) * 𝟙;
 nothing #hide
 
-# #### Step 3 — Formulate and solve
-#
-# [`SolverConfig`](@ref) sets the SDP backend and hierarchy `order`.
-# Higher orders yield tighter bounds at the cost of larger SDPs.
+# At **order 2** the SDP is small and fast:
 
 spop = polyopt(p, registry);
 
@@ -75,7 +90,7 @@ result = cs_nctssos(spop, solver_config);
 @show result.objective
 @assert isapprox(result.objective, TRACE_POLY_REFS["toy_projector_order2_objective"], atol=1e-6)
 
-# #### Step 4 — Tighten the bound at order 3
+# Raising to **order 3** tightens the bound:
 
 solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3);
 result = cs_nctssos(spop, solver_config);
@@ -83,14 +98,15 @@ result = cs_nctssos(spop, solver_config);
 @show result.objective
 @assert isapprox(result.objective, TRACE_POLY_REFS["toy_projector_order3_objective"], atol=1e-6)
 
-# The literature values are $-0.0467$ (order 2) and $-0.0312$ (order 3); our
+# Literature values: $-0.0467$ (order 2) and $-0.0312$ (order 3); our
 # results match within $10^{-6}$ [klep2022Optimization](@cite).
 
 # ---
 # ## CHSH Bell Inequality (Tracial Form)
 #
-# The CHSH inequality bounds correlations between two parties whose $\pm 1$
-# observables are $A_1, A_2$ (Alice) and $B_1, B_2$ (Bob):
+# The [CHSH inequality](@ref bell-inequalities) [clauser1969Proposed](@cite)
+# is the most famous Bell test: Alice and Bob each choose one of two $\pm 1$
+# measurements.  The CHSH score is
 #
 # ```math
 # \mathcal{B}_{\text{CHSH}}
@@ -98,51 +114,49 @@ result = cs_nctssos(spop, solver_config);
 #   + \operatorname{tr}(A_2 B_1) - \operatorname{tr}(A_2 B_2).
 # ```
 #
-# Classical bound: $\mathcal{B} \leq 2$. Quantum bound (Tsirelson):
-# $\mathcal{B} \leq 2\sqrt{2} \approx 2.828$.
+# Classically $\mathcal{B}_{\text{CHSH}} \leq 2$; quantum mechanics reaches
+# the Tsirelson bound $2\sqrt{2} \approx 2.828$
+# [cirelson1980Quantum](@cite).
+# Any correlation above $2$ rules out a local hidden-variable (shared-randomness)
+# model. We now recover the quantum maximum with NCTSSoS.
 #
-# We model the observables with `UnipotentAlgebra` ($U^2 = I$). Since
-# [`cs_nctssos`](@ref) *minimizes*, we negate the Bell expression and expect
-# $\approx -2\sqrt{2}$.
+# ### The transpose trick
+#
+# In the tracial formulation, a maximally entangled state of local dimension
+# $k$ converts bipartite expectations to single-system traces:
+# ``\langle\psi_k|A\otimes B|\psi_k\rangle = \tfrac{1}{k}\operatorname{Tr}(A\,B^{\mathsf T})``.
+# Each `Bⱼ` below therefore represents the *transposed* operator
+# $B_j^{\mathsf T}$, and all four variables share **one label group** —
+# they act on the same space and need not commute
+# [klep2022Optimization](@cite).
+#
+# !!! tip "Tracial vs. state-polynomial formulation"
+#     Separate label groups would enforce
+#     ``[A_i, B_j^{\mathsf T}] = 0``, changing the feasible set.
+#     For that bipartite formulation, see
+#     [Bell inequalities](@ref bell-inequalities).
 
-# #### Step 1 — Create unipotent variables (single group)
-#
-# Variables in the same label group do **not** commute. We place all four
-# observables in one group, then split into Alice/Bob symbols.
-#
-# !!! note "Why non-commuting? The transpose trick"
-#     In the tracial formulation, bipartite expectations over a maximally
-#     entangled state are rewritten via the identity
-#     ``\langle\phi^+|A\otimes B|\phi^+\rangle = \tfrac{1}{k}\operatorname{Tr}(A\,B^{\mathsf T})``
-#     [klep2022Optimization](@cite).
-#     When we write `tr(xᵢ * yⱼ)`, the variable `yⱼ` represents the
-#     **transposed** Bob operator ``B_j^{\mathsf T}``. Placing Alice and Bob
-#     in separate label groups would impose ``[A_i, B_j^{\mathsf T}] = 0``,
-#     which is **stronger** than the physical tensor-product commutation
-#     ``[A_i \otimes I,\, I \otimes B_j] = 0``. Using a single group leaves
-#     the variables non-commuting, matching the correct constraint set.
-#     See the [Bell inequalities example](@ref bell-inequalities) for the
-#     state-polynomial formulation, where separate groups *are* appropriate.
+# Observables with $\pm 1$ outcomes satisfy $U^2 = I$
+# ([UnipotentAlgebra](@ref monoid-algebras-showcase)):
 
 registry, (vars,) = create_unipotent_variables([("v", 1:4)]);
-x = vars[1:2];  # Alice: A₁, A₂
-y = vars[3:4];  # Bob:   B₁, B₂
+A1, A2, B1, B2 = vars
+# In code, `A1`/`A2` represent $A_1$/$A_2$ and `B1`/`B2` represent
+# $B_1^{\mathsf T}$/$B_2^{\mathsf T}$ (transpose trick).
 nothing #hide
 
-# #### Step 2 — Define the negated CHSH expression
+# Negate for minimization ([`cs_nctssos`](@ref) minimizes):
 
-𝟙 = one(NormalMonomial{UnipotentAlgebra, UInt8})
+𝟙 = one(typeof(A1))
 
-p = -1.0 * tr(x[1] * y[1]) +  ## −tr(A₁B₁)
-    -1.0 * tr(x[1] * y[2]) +  ## −tr(A₁B₂)
-    -1.0 * tr(x[2] * y[1]) +  ## −tr(A₂B₁)
-     1.0 * tr(x[2] * y[2]);   ## +tr(A₂B₂)
+p = -1.0 * (
+    tr(A1 * B1) + tr(A1 * B2) +
+    tr(A2 * B1) - tr(A2 * B2)
+);
 nothing #hide
 
-# #### Step 3 — Solve with term-sparsity exploitation
-#
-# Setting `ts_algo = MaximalElimination()` decomposes the SDP into smaller
-# blocks via connected components of the variable interaction graph.
+# `MaximalElimination()` exploits [term sparsity](@ref term-sparsity)
+# to decompose the SDP into smaller independent blocks:
 
 tpop = polyopt(p * 𝟙, registry);
 
@@ -152,14 +166,15 @@ result = cs_nctssos(tpop, solver_config);
 @show result.objective
 @assert isapprox(result.objective, -2 * sqrt(2), atol=1e-5)
 
-# The result recovers the Tsirelson bound $-2\sqrt{2} \approx -2.828$
-# [klep2022Optimization](@cite).
+# The optimum $-2\sqrt{2} \approx -2.828$ recovers the Tsirelson bound
+# at the first hierarchy level.
 
 # ---
-# ## Covariance Bell Inequality
+# ## Covariance Bell Inequality (Bias-Corrected Correlations)
 #
-# Nonlinear Bell inequalities involve products of trace moments. The
-# covariance of observables $A_i, B_j$ is:
+# CHSH uses *linear* correlations $\operatorname{tr}(A_i B_j)$.  When
+# marginals are biased ($\operatorname{tr}(A_i) \neq 0$), the
+# **covariance** removes that bias:
 #
 # ```math
 # \operatorname{Cov}(A_i, B_j)
@@ -167,43 +182,40 @@ result = cs_nctssos(tpop, solver_config);
 #   - \operatorname{tr}(A_i)\,\operatorname{tr}(B_j).
 # ```
 #
-# We maximize the covariance Bell expression from
-# [pozsgay2017Covariance](@cite):
+# This involves a *product of two traces* — a nonlinear trace-moment
+# expression.  Pozsgay *et al.* [pozsgay2017Covariance](@cite)
+# constructed a covariance Bell inequality for three measurements per
+# party with sign sets
+# $S^+ = \{(1,1),(1,2),(1,3),(2,1),(2,2),(3,1)\}$ and
+# $S^- = \{(2,3),(3,2)\}$:
 #
-# ```math
-# f = \sum_{(i,j)\in S^+} \operatorname{Cov}(A_i, B_j)
-#   - \sum_{(i,j)\in S^-} \operatorname{Cov}(A_i, B_j)
-# ```
+# - **Classical bound:** $f \leq 4.5$
+# - **Quantum bound:** $f = 5$
 #
-# where $S^+ = \{(1,1),(1,2),(1,3),(2,1),(2,2),(3,1)\}$ and
-# $S^- = \{(2,3),(3,2)\}$.
-# Classical bound: $f \leq 4.5$.  Quantum bound: $f = 5$.
+# See [Bell inequalities](@ref bell-inequalities) for an alternative
+# implementation using [state polynomials](@ref state-polynomial).
 
-# #### Step 1 — Create unipotent variables (single group)
-#
-# As with CHSH above, the tracial formulation requires non-commuting
-# variables (see the note on the transpose trick). We place all six
-# observables in one group and split afterward.
+# Six unipotent variables in a single label group (same transpose-trick
+# reasoning as CHSH):
 
 registry, (vars,) = create_unipotent_variables([("v", 1:6)]);
-x = vars[1:3];  # Alice: A₁, A₂, A₃
-y = vars[4:6];  # Bob:   B₁, B₂, B₃
+A = vars[1:3];  # Alice: A₁, A₂, A₃
+B = vars[4:6];  # Bob:   B₁, B₂, B₃
+
+𝟙 = one(typeof(A[1]));
 nothing #hide
 
-𝟙 = one(typeof(x[1]));
+# Covariance helper — note the product of two trace moments:
+
+cov(i, j) = 1.0 * tr(A[i] * B[j]) - 1.0 * tr(A[i]) * tr(B[j]);
 nothing #hide
 
-# #### Step 2 — Define the covariance helper
-
-cov(a, b) = 1.0 * tr(x[a] * y[b]) - 1.0 * tr(x[a]) * tr(y[b]);
-nothing #hide
-
-# #### Step 3 — Build and solve the negated objective
+# Negate and solve at order 2:
 
 p = -1.0 * (
-    cov(1, 1) + cov(1, 2) + cov(1, 3) +   ## S⁺ terms
-    cov(2, 1) + cov(2, 2) - cov(2, 3) +   ## mixed signs
-    cov(3, 1) - cov(3, 2)                  ## S⁻ term: −Cov(A₃,B₂)
+    cov(1, 1) + cov(1, 2) + cov(1, 3) +   ## (1,·) ∈ S⁺
+    cov(2, 1) + cov(2, 2) - cov(2, 3) +   ## (2,1),(2,2) ∈ S⁺; (2,3) ∈ S⁻
+    cov(3, 1) - cov(3, 2)                  ## (3,1) ∈ S⁺; (3,2) ∈ S⁻
 );
 nothing #hide
 
@@ -217,25 +229,29 @@ abs_error = abs(result.objective + 5.0)
 @show abs_error
 @assert abs_error < 1e-3
 
-# The quantum value $-5$ is recovered within $10^{-3}$
-# [pozsgay2017Covariance](@cite).
+# Quantum value $-5$ recovered within $10^{-3}$
+# [pozsgay2017Covariance](@cite).  The same
+# [`tr`](@ref) / [`polyopt`](@ref) / [`cs_nctssos`](@ref) pipeline handles
+# both linear and nonlinear trace-moment objectives.
 
 # ---
 # ## Summary
 #
+# Three problems of increasing complexity, all solved by the same pipeline:
+#
 # | Problem | Algebra | Classical | Quantum |
 # |:--------|:--------|:----------|:--------|
-# | Toy trace polynomial | `ProjectorAlgebra` ($P^2 = P$) | — | −0.0312 (order 3) |
-# | CHSH (tracial) | `UnipotentAlgebra` ($U^2 = I$) | 2 | $2\sqrt{2} \approx 2.828$ |
-# | Covariance Bell | `UnipotentAlgebra` ($U^2 = I$) | 4.5 | 5 |
+# | Toy trace polynomial | [ProjectorAlgebra](@ref monoid-algebras-showcase) ($P^2 = P$) | — | −0.0312 (order 3) |
+# | CHSH (tracial) | [UnipotentAlgebra](@ref monoid-algebras-showcase) ($U^2 = I$) | 2 | $2\sqrt{2} \approx 2.828$ |
+# | Covariance Bell | [UnipotentAlgebra](@ref monoid-algebras-showcase) ($U^2 = I$) | 4.5 | 5 |
 #
-# **Key API**:
-# - [`create_projector_variables`](@ref) / [`create_unipotent_variables`](@ref):
-#   create operators with $P^2 = P$ or $U^2 = I$ constraints
-# - [`tr`](@ref): build trace moments (tracial state)
-# - [`polyopt`](@ref): formulate the optimization problem
-# - [`SolverConfig`](@ref): set solver backend, hierarchy order, and sparsity options
-# - [`cs_nctssos`](@ref): solve via the moment-SOS hierarchy
+# **API pipeline**:
+# [`create_projector_variables`](@ref) /
+# [`create_unipotent_variables`](@ref) →
+# [`tr`](@ref) →
+# [`polyopt`](@ref) →
+# [`SolverConfig`](@ref) →
+# [`cs_nctssos`](@ref)
 #
-# For linear (non-tracial) Bell inequalities, see the
-# [Bell inequalities example](@ref bell-inequalities).
+# For the *state-polynomial* formulation (bipartite, separate sites), see
+# [Bell inequalities](@ref bell-inequalities).

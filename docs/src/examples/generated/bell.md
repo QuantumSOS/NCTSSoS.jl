@@ -217,6 +217,7 @@ Number of Bases Activated in each sub-block[5]
 
    Localizing Matrix:
 Unique Moment Matrix Elements: 11
+Dense Moment Data: false
 
 ````
 
@@ -650,6 +651,7 @@ Number of Bases Activated in each sub-block[2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
 
    Localizing Matrix:
 Unique Moment Matrix Elements: 375
+Dense Moment Data: false
 
 ````
 
@@ -680,6 +682,7 @@ Number of Bases Activated in each sub-block[3, 3, 3, 3, 4, 7, 3, 3, 4, 7, 11, 11
 
    Localizing Matrix:
 Unique Moment Matrix Elements: 2580
+Dense Moment Data: false
 
 ````
 

@@ -123,8 +123,8 @@ matrices = reconstruct(H, registry, 2; atol=0.001)
 
 ````
 Dict{UInt8, Matrix{Float64}} with 2 entries:
-  0x05 => [0.0 0.0 0.0; -0.0 0.0 0.0; -0.0 0.0 0.0]
-  0x09 => [0.0 0.0 0.0; -0.0 0.0 0.0; -0.0 0.0 0.0]
+  0x05 => [0.352941 0.0 0.0; -0.0882353 0.0 0.0; -0.0882353 0.0 0.0]
+  0x09 => [0.352941 0.0 0.0; -0.0882353 0.0 0.0; -0.0882353 0.0 0.0]
 ````
 
 Access the reconstructed matrix for each variable

@@ -27,6 +27,7 @@ makedocs(;
             "PBW Algebra Showcase"=>"examples/generated/pbw_algebras_showcase.md",
             "Mixed Systems (Tensor Products)"=>"examples/generated/mixed_algebras_tensor_products.md",
             "Ground State Energy"=>"examples/generated/ground_state_energy.md",
+            "Dense GNS Reconstruction"=>"examples/generated/dense_gns_construction.md",
             "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
             "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
             # "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"  # TODO: fix bug

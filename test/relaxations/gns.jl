@@ -1,144 +1,89 @@
-# GNS Construction Tests
-# Tests for GNS reconstruction from moment matrices.
-#
-# NOTE: These tests are commented out as they take too long or require
-#       further investigation for basis ordering issues.
+using Test, NCTSSoS, LinearAlgebra, COSMO
 
-using Test, NCTSSoS, JuMP
-using LinearAlgebra
-using NCTSSoS: neat_dot, get_ncbasis, degree
-
-# Helper to extract monomials from basis polynomials for GNS tests
-function extract_basis_monomials(basis_polys)
-    return [first(monomials(p)) for p in basis_polys]
-end
-
-# SOLVER fallback for standalone/REPL execution
 if !@isdefined(SOLVER)
-    using MosekTools
     const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
-        "MSK_IPAR_LOG" => 0
+        COSMO.Optimizer,
+        "verbose" => false,
+        "eps_abs" => 1e-7,
+        "eps_rel" => 1e-7,
     )
 end
 
-#=
+function example_27_fixture()
+    reg, (theta,) = create_noncommutative_variables([("theta", 1:2)])
+    hankel = [
+        1.00001 0.499907 0.500102 1.0483 -0.5483 -0.5483 1.0484;
+        0.499907 1.0483 -0.548283 1.0627 -0.0144 -0.6090 0.0606;
+        0.500102 -0.548283 1.04827 -0.0144 -0.5340 0.0606 0.9878;
+        1.0483 1.0627 -0.0144 1.4622 -0.3995 -0.8006 0.7863;
+        -0.5483 -0.0144 -0.5340 -0.3995 0.3852 0.1917 -0.7256;
+        -0.5483 -0.6090 0.0606 -0.8006 0.1917 0.4411 -0.3804;
+        1.0484 0.0606 0.9878 0.7863 -0.7256 -0.3804 1.3682;
+    ]
+    return reg, theta, hankel
+end
+
 @testset "GNS Construction" begin
-    @testset "Hankel dictionary utilities" begin
+    @testset "Dense Hankel Reconstruction" begin
+        reg, theta, hankel = example_27_fixture()
+        model = gns_reconstruct(hankel, reg, 2; atol=0.1, rtol=1e-6)
+
+        @test model.report.flat
+        @test model.report.rank_full == 2
+        @test model.report.rank_quotient == 2
+        @test model.report.max_moment_error < 1e-3
+        @test model.quotient_basis == [one(theta[1]), theta[1]]
+        @test model.cyclic_vector ≈ [1.0, 0.0] atol = 1e-12
+
+        theta1_idx = theta[1].word[1]
+        theta2_idx = theta[2].word[1]
+        @test model.operators[theta1_idx] * model.cyclic_vector ≈ [0.0, 1.0] atol = 1e-9
+        @test model.operators[theta2_idx] * model.cyclic_vector ≈ [1.0, -1.0] atol = 1e-3
+        @test model.operators[theta1_idx]' * model.gram ≈ model.gram * model.operators[theta1_idx] atol = 1e-12
+        @test model.operators[theta2_idx]' * model.gram ≈ model.gram * model.operators[theta2_idx] atol = 1e-12
+
+        gram_factor = cholesky(Symmetric(model.gram)).U
+        paper_sign = Diagonal([1.0, -1.0])
+        theta1_paper = paper_sign * (gram_factor * model.operators[theta1_idx] / gram_factor) * paper_sign
+        theta2_paper = paper_sign * (gram_factor * model.operators[theta2_idx] / gram_factor) * paper_sign
+
+        @test theta1_paper ≈ [0.5019 -0.8931; -0.8931 0.1727] atol = 3e-3
+        @test theta2_paper ≈ [0.4981 0.8939; 0.8939 0.0825] atol = 3e-3
+
+        wrapped = reconstruct(hankel, reg, 2; atol=0.1, rtol=1e-6)
+        @test wrapped[theta1_idx] ≈ model.operators[theta1_idx] atol = 1e-9
+        @test wrapped[theta2_idx] ≈ model.operators[theta2_idx] atol = 1e-9
+    end
+
+    @testset "Non-Flat Report" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+        hankel = Matrix{Float64}(I, 3, 3)
+        model = gns_reconstruct(hankel, reg, 2; atol=1e-8, rtol=1e-8)
 
-        basis_polys = get_ncbasis(reg, 2)  # [1, x, x^2]
-        basis_monomials = extract_basis_monomials(basis_polys)
-        H = [
-            1.0  0.2  0.7;
-            0.2  0.8  0.3;
-            0.7  0.3  0.6
-        ]
-
-        dict = NCTSSoS.hankel_entries_dict(H, basis_monomials)
-
-        key_x = neat_dot(basis_monomials[1], basis_monomials[2])
-        key_x2_first = neat_dot(basis_monomials[1], basis_monomials[3])
-        key_x2_second = neat_dot(basis_monomials[2], basis_monomials[2])
-
-        @test dict[key_x] == H[1, 2]
-        @test dict[key_x2_first] == H[1, 3]
-        @test dict[key_x2_second] == H[1, 3]
-
-        # Get the index for variable x (first index in registry)
-        x_idx = first(indices(reg))
-        K = NCTSSoS.construct_localizing_matrix(dict, x_idx, basis_monomials)
-
-        @test size(K) == (3, 3)
-        @test K[1, 1] == H[1, 2]
-        @test K[1, 2] == H[1, 3]
-        @test K[2, 1] == H[1, 3]
-        @test K[2, 2] == H[2, 3]
+        @test !model.report.flat
+        @test model.report.rank_full == 3
+        @test model.report.rank_quotient == 2
+        @test_throws ArgumentError gns_reconstruct(hankel, reg, 2; atol=1e-8, rtol=1e-8, require_flat=true)
     end
 
-    # TODO: This test is skipped because basis ordering in get_ncbasis changed.
-    # The localizing matrix values are correct but in different positions due to
-    # different monomial ordering. Needs revalidation with known reference values.
-    @testset "Localizing Matrix Construction" begin
-        @test_skip "Skipped pending basis ordering investigation"
+    @testset "Direct Solve Plumbing" begin
+        reg, (u,) = create_unipotent_variables([("u", 1:1)])
+        pop = polyopt(-1.0 * u[1], reg)
+
+        direct = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, order=1); dualize=false)
+        sol = dense_moment_solution(direct)
+        model = gns_reconstruct(direct; atol=1e-7, rtol=1e-7)
+
+        @test direct.objective ≈ -1.0 atol = 1e-6
+        @test sol.order == 1
+        @test sol.basis == [one(u[1]), u[1]]
+        @test model.report.flat
+        @test model.report.max_moment_error == 0.0
+        @test model.quotient_basis == [one(u[1])]
+        @test model.cyclic_vector == [1.0]
+        @test model.operators[u[1].word[1]][1, 1] ≈ 1.0 atol = 1e-6
+
+        dualized = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, order=1); dualize=true)
+        @test_throws ArgumentError dense_moment_solution(dualized)
     end
-
-    @testset "GNS Reconstruction Tests" begin
-
-        @testset "Dimension Mismatch" begin
-            reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
-
-            # Hankel matrix size doesn't match basis size
-            H = [1.0 0.0; 0.0 1.0]  # 2x2 matrix
-            # But basis for degree 1 with [x,y] has 3 elements: [1, x, y]
-
-            @test_throws ArgumentError reconstruct(H, reg, 1)
-        end
-
-        @testset "Invalid atol" begin
-            reg, (x,) = create_noncommutative_variables([("x", 1:1)])
-            H = [1.0 0.5; 0.5 1.0]
-
-            # Negative atol should throw error
-            @test_throws ArgumentError reconstruct(H, reg, 1; atol=-1.0)
-        end
-
-        @testset "No singular values exceed tolerance" begin
-            reg, (x,) = create_noncommutative_variables([("x", 1:1)])
-            # Create a matrix with very small singular values
-            H = 1e-10 * [1.0 0.5; 0.5 1.0]
-
-            # With default atol=1e-3, no singular values should exceed tolerance
-            @test_throws ArgumentError reconstruct(H, reg, 1)
-        end
-
-        # TODO: This test is skipped because the expected values from Example 2.7
-        # of the NCTSSOS paper may use a different basis ordering than the current
-        # implementation. The reconstruct function runs without error and produces
-        # valid matrices, but they differ from the reference due to different
-        # basis orderings. GNS matrices are unique up to unitary equivalence.
-        @testset "Example 2.7" begin
-            reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
-
-            basis_polys = get_ncbasis(reg, 2)
-            basis = extract_basis_monomials(basis_polys)
-
-            perm = [1, 2, 3, 5, 4, 6, 7]
-
-            n = length(basis)
-            swap_matrix = zeros(Float64, n, n)
-            for i in 1:n
-                swap_matrix[i, perm[i]] = 1.0
-            end
-
-            H = swap_matrix * [
-                1.00001 0.499907 0.500102 1.0483 −0.5483 −0.5483 1.0484;
-                0.499907 1.0483 −0.548283 1.0627 −0.0144 −0.6090 0.0606;
-                0.500102 −0.548283 1.04827 −0.0144 −0.5340 0.0606 0.9878;
-                1.0483 1.0627 −0.0144 1.4622 −0.3995 −0.8006 0.7863;
-                −0.5483 −0.0144 −0.5340 −0.3995 0.3852 0.1917 −0.7256;
-                −0.5483 −0.6090 0.0606 −0.8006 0.1917 0.4411 −0.3804;
-                1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682
-            ] * swap_matrix
-
-            # Test that reconstruct runs without error and produces valid output
-            matrices = reconstruct(H, reg, 2; atol=0.1)
-
-            x_idx = reg[:x₁]
-            y_idx = reg[:y₁]
-
-            X_mat = matrices[x_idx]
-            Y_mat = matrices[y_idx]
-
-            # Check matrix dimensions (the key structural property)
-            @test size(X_mat) == (2, 2)
-            @test size(Y_mat) == (2, 2)
-
-            # Check that matrices are finite (no NaN/Inf)
-            @test all(isfinite, X_mat)
-            @test all(isfinite, Y_mat)
-        end
-    end  # GNS Reconstruction Tests
-end  # GNS Construction
-=#
+end

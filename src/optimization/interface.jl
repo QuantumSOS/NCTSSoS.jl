@@ -33,7 +33,7 @@ end
 # =============================================================================
 
 """
-    PolyOptResult{T, A<:AlgebraType, TI<:Integer, P, M, ST}
+    PolyOptResult{T, A<:AlgebraType, TI<:Integer, P, M, ST, DS}
 
 Result of a polynomial optimization problem solution.
 
@@ -52,12 +52,13 @@ Result of a polynomial optimization problem solution.
 - `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix
 - `n_unique_moment_matrix_elements::Int`: Number of unique moment variables in all moment matrices (after canonicalization)
 """
-struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P, M, ST}
+struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P, M, ST, DS}
     objective::T
     sparsity::SparsityResult{A,TI,P,M,ST}
     model::GenericModel{T}
     moment_matrix_sizes::Vector{Vector{Int}}
     n_unique_moment_matrix_elements::Int
+    dense_moment_solution::DS
 end
 
 """
@@ -84,26 +85,28 @@ function PolyOptResult(
     objective::T,
     sparsity::SparsityResult{A,TI,P,M,ST},
     model::GenericModel{T},
-    n_unique_elements::Int
+    n_unique_elements::Int,
+    dense_moment_solution=nothing,
 ) where {T, A<:AlgebraType, TI<:Integer, P, M, ST}
     moment_matrix_sizes = _compute_moment_matrix_sizes(sparsity.cliques_term_sparsities)
 
-    return PolyOptResult{T,A,TI,P,M,ST}(
+    return PolyOptResult{T,A,TI,P,M,ST,typeof(dense_moment_solution)}(
         objective,
         sparsity,
         model,
         moment_matrix_sizes,
-        n_unique_elements
+        n_unique_elements,
+        dense_moment_solution,
     )
 end
 
 # Show for regular polynomials (ST = Nothing)
-function Base.show(io::IO, result::PolyOptResult{T,A,TI,P,M,Nothing}) where {T,A,TI,P,M}
+function Base.show(io::IO, result::PolyOptResult{T,A,TI,P,M,Nothing,DS}) where {T,A,TI,P,M,DS}
     _show_poly_opt_result(io, result, "")
 end
 
 # Show for state polynomials (ST <: StateType)
-function Base.show(io::IO, result::PolyOptResult{T,A,TI,P,M,ST}) where {T,A,TI,P,M,ST<:StateType}
+function Base.show(io::IO, result::PolyOptResult{T,A,TI,P,M,ST,DS}) where {T,A,TI,P,M,ST<:StateType,DS}
     _show_poly_opt_result(io, result, "State ")
 end
 
@@ -123,6 +126,7 @@ function _show_poly_opt_result(io::IO, result::PolyOptResult, prefix::String)
         end
     end
     println(io, "Unique Moment Matrix Elements: ", result.n_unique_moment_matrix_elements)
+    println(io, "Dense Moment Data: ", !isnothing(result.dense_moment_solution))
 end
 
 """
@@ -236,7 +240,7 @@ end
 
 Solve the SDP relaxation, either via SOS dualization or directly as moment problem.
 
-Returns a named tuple `(objective, model, n_unique_elements, status)`.
+Returns a named tuple `(objective, model, n_unique_elements, status, monomap)`.
 
 Throws an error if the solver fails (infeasible, unbounded, numerical error).
 """
@@ -250,7 +254,8 @@ function solve_sdp(moment_problem, optimizer; dualize::Bool=true)
             objective = objective_value(sos_problem.model),
             model = sos_problem.model,
             n_unique_elements = moment_problem.n_unique_moment_matrix_elements,
-            status = status
+            status = status,
+            monomap = nothing,
         )
     else
         result = solve_moment_problem(moment_problem, optimizer)
@@ -259,7 +264,8 @@ function solve_sdp(moment_problem, optimizer; dualize::Bool=true)
             objective = result.objective,
             model = result.model,
             n_unique_elements = result.n_unique_elements,
-            status = status
+            status = status,
+            monomap = result.monomap,
         )
     end
 end
@@ -385,10 +391,13 @@ This function solves a polynomial optimization problem by:
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
 function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
+    relaxation_spec = _resolve_relaxation_spec(pop, solver_config)
     sparsity = compute_sparsity(pop, solver_config)
     moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
     result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
-    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
+    dense_sol = dualize ? nothing :
+        _dense_moment_solution_from_solve(sparsity, relaxation_spec, result.monomap)
+    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements, dense_sol)
 end
 
 function _higher_step_graph_support(
@@ -464,7 +473,9 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
     moment_problem = moment_relax(pop, prev_corr_sparsity, cliques_term_sparsities)
 
     result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
-    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
+    dense_sol = dualize ? nothing :
+        _dense_moment_solution_from_solve(sparsity, solver_config.order, result.monomap)
+    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements, dense_sol)
 end
 
 
@@ -501,8 +512,11 @@ use `order >= 1`. If `order=0` is specified, it will be automatically computed
 from the maximum polynomial degree.
 """
 function cs_nctssos(pop::PolyOpt{A,T,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+    relaxation_spec = _resolve_relaxation_spec(pop, solver_config)
     sparsity = compute_sparsity(pop, solver_config)
     moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
     result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
-    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
+    dense_sol = dualize ? nothing :
+        _dense_moment_solution_from_solve(sparsity, relaxation_spec, result.monomap)
+    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements, dense_sol)
 end

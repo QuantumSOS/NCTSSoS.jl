@@ -26,6 +26,14 @@ NCTSSoS.cs_nctssos
 NCTSSoS.cs_nctssos_higher
 ```
 
+## Dense GNS Reconstruction
+
+```@docs
+NCTSSoS.DenseMomentSolution
+NCTSSoS.GNSFlatnessReport
+NCTSSoS.GNSModel
+```
+
 ## Basis Selection
 
 ```@docs

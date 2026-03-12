@@ -125,6 +125,7 @@ include("optimization/moment.jl")
 include("optimization/sos.jl")
 include("optimization/gns.jl")
 include("optimization/interface.jl")
+include("optimization/gns_dense.jl")
 
 # ============================================================================
 # Exports - User-Facing API Only
@@ -136,6 +137,8 @@ export SparsityResult, compute_sparsity
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, reconstruct
+export DenseMomentSolution, GNSFlatnessReport, GNSModel
+export dense_moment_solution, gns_reconstruct, verify_gns
 
 # Elimination Strategies
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination

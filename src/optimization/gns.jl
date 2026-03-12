@@ -302,7 +302,7 @@ function construct_localizing_matrix(
                 word[n_row + 1 + k] = col_mono.word[k]
             end
             # Simplify to get canonical key
-            key = simplify(A, word)
+            key = NormalMonomial{A,TM}(simplify(A, word))
             K[i, j] = get(hankel_dict, key, zero(T))
         end
     end

@@ -1,4 +1,5 @@
 using NCTSSoS, Test
+import NCTSSoS: degree
 
 include("Expectations.jl")
 using .TestExpectations: expectations_oracle

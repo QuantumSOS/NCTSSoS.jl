@@ -1,4 +1,4 @@
-using Graphs
+import Graphs
 using JuMP
 const MOI = JuMP.MOI
 
@@ -171,9 +171,9 @@ end
     @test occursin("Inequality constraints (1)", pop_str)
     @test occursin("...", pop_str)
 
-    G = SimpleGraph(4)
-    add_edge!(G, 1, 2)
-    add_edge!(G, 3, 4)
+    G = Graphs.SimpleGraph(4)
+    Graphs.add_edge!(G, 1, 2)
+    Graphs.add_edge!(G, 3, 4)
     max_cliques = NCTSSoS.clique_decomp(G, MaximalElimination())
     @test sort(length.(max_cliques)) == [2, 2]
 
@@ -245,7 +245,7 @@ end
     @test trace_obj_support in init
 
     graph = NCTSSoS.get_term_sparsity_graph([NCStateWord(sw_id, one(mx))], init, paper_basis)
-    @test [(src(e), dst(e)) for e in collect(edges(graph))] ==
+    @test [(Graphs.src(e), Graphs.dst(e)) for e in collect(Graphs.edges(graph))] ==
         [(1, 4), (1, 5), (1, 6), (1, 7), (2, 3), (4, 7)]
 
     witness = only(monomials(simplify(NCTSSoS._neat_dot3(paper_basis[4], one(paper_basis[1]), paper_basis[7]))))
@@ -269,7 +269,7 @@ end
     @test any(sw -> length(sw.state_syms) > 1, compound_words)
 
     graph_state, sorted_indices, idx_to_node = NCTSSoS.get_state_correlative_graph(reg_nc, compound_obj, [eq_state])
-    @test nv(graph_state) == length(sorted_indices) == length(idx_to_node)
+    @test Graphs.nv(graph_state) == length(sorted_indices) == length(idx_to_node)
 
     idx1 = only(variable_indices(x_nc[1]))
     idx2 = only(variable_indices(x_nc[2]))
@@ -293,7 +293,7 @@ end
     @test rl_case !== nothing
     a_case, b_case, supp_case, activated_case = rl_case
     graph_rl = NCTSSoS.get_term_sparsity_graph([supp_case], [activated_case], [a_case, b_case])
-    @test has_edge(graph_rl, 1, 2)
+    @test Graphs.has_edge(graph_rl, 1, 2)
 
     @test NCTSSoS._conj_coef(PauliAlgebra, UInt8(1)) == UInt8(3)
     @test !NCTSSoS._has_odd_parity_only(1.0 * x_nc[1])

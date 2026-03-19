@@ -2,7 +2,7 @@
 
 using Test, NCTSSoS, JuMP
 using NCTSSoS: NCStateWord, NCStatePolynomial, Arbitrary, MaxEntangled
-using Graphs
+import Graphs
 
 @testset "Coverage Edges" begin
     @testset "states/types.jl show" begin
@@ -338,6 +338,6 @@ using Graphs
 
         target = NCStateWord(sw_id, NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(2, 3, 4, 1)))
         G = NCTSSoS.get_term_sparsity_graph([supp], [target], [b1, b2])
-        @test has_edge(G, 1, 2)
+        @test Graphs.has_edge(G, 1, 2)
     end
 end

@@ -9,7 +9,7 @@
 # Results verified against NCTSSOS oracles.
 
 using Test, NCTSSoS, JuMP
-using Graphs
+import Graphs
 
 # SOLVER fallback for standalone/REPL execution
 if !@isdefined(SOLVER)
@@ -37,7 +37,7 @@ const HEISENBERG_STAR_EXPECTED = -1.0
     # Problem Setup Helper
     # =========================================================================
     function create_heisenberg_star_problem(num_sites::Int)
-        g = star_graph(num_sites)
+        g = Graphs.star_graph(num_sites)
 
         vec_idx2ij = [(i, j) for i = 1:num_sites for j = (i+1):num_sites]
         findvaridx(i, j) = findfirst(x -> x == (i, j), vec_idx2ij)
@@ -45,7 +45,7 @@ const HEISENBERG_STAR_EXPECTED = -1.0
         # Use unipotent variables for projector-like variables
         reg, (pij,) = create_unipotent_variables([("pij", 1:length(vec_idx2ij))])
 
-        objective = sum(1.0 * pij[[findvaridx(ee.src, ee.dst) for ee in edges(g)]])
+        objective = sum(1.0 * pij[[findvaridx(ee.src, ee.dst) for ee in Graphs.edges(g)]])
 
         # Singlet projection constraints
         gs = unique!([

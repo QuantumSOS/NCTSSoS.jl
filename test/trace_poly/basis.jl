@@ -6,8 +6,8 @@
 using Test
 using NCTSSoS
 # Exported: StateWord, get_state_basis, get_ncbasis, degree, tr
-# Internal (not exported): NCStateWord, MaxEntangled, Arbitrary, cyclic_symmetric_canon, _state_canon
-using NCTSSoS: NCStateWord, MaxEntangled, Arbitrary, cyclic_symmetric_canon, _state_canon
+# Internal (not exported): NCStateWord, MaxEntangled, Arbitrary, cyclic_symmetric_canon
+using NCTSSoS: NCStateWord, MaxEntangled, Arbitrary, cyclic_symmetric_canon
 
 @testset "StateWord hash consistency" begin
     reg, (x,) = create_unipotent_variables([("x", 1:2)])

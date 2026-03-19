@@ -29,6 +29,7 @@ makedocs(;
             "Ground State Energy"=>"examples/generated/ground_state_energy.md",
             "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
             "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
+            "GNS Optimizer Extraction"=>"examples/generated/gns_optimizer_extraction.md",
             # "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"  # TODO: fix bug
         ],
         "References"=>"reference.md",

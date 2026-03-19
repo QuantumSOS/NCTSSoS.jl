@@ -1,144 +1,182 @@
-# GNS Construction Tests
-# Tests for GNS reconstruction from moment matrices.
-#
-# NOTE: These tests are commented out as they take too long or require
-#       further investigation for basis ordering issues.
+using Test, NCTSSoS, LinearAlgebra
 
-using Test, NCTSSoS, JuMP
-using LinearAlgebra
-using NCTSSoS: neat_dot, get_ncbasis, degree
+using NCTSSoS: get_ncbasis, monomials
 
-# Helper to extract monomials from basis polynomials for GNS tests
-function extract_basis_monomials(basis_polys)
-    return [first(monomials(p)) for p in basis_polys]
+function _moment_lookup(monomap, mono)
+    key = symmetric_canon(NCTSSoS.expval(mono))
+    return get(monomap, key, 0.0)
 end
 
-# SOLVER fallback for standalone/REPL execution
-if !@isdefined(SOLVER)
-    using MosekTools
-    const SOLVER = optimizer_with_attributes(
-        Mosek.Optimizer,
-        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
-        "MSK_IPAR_LOG" => 0
-    )
+function _evaluate_monomial(matrices::Dict, mono::NormalMonomial)
+    sample_matrix = first(values(matrices))
+    T = eltype(sample_matrix)
+    dim = size(sample_matrix, 1)
+    result = Matrix{T}(I, dim, dim)
+    for idx in mono.word
+        result *= matrices[idx]
+    end
+    return result
 end
 
-#=
+function _expectation(matrices::Dict, xi::AbstractVector, mono::NormalMonomial)
+    op = _evaluate_monomial(matrices, mono)
+    return dot(xi, op * xi)
+end
+
+function _moment_key(mono::NormalMonomial)
+    return symmetric_canon(NCTSSoS.expval(mono))
+end
+
 @testset "GNS Construction" begin
-    @testset "Hankel dictionary utilities" begin
+    @testset "Hankel dictionary and localizing matrix" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+        basis_full = get_ncbasis(reg, 2)
+        basis = get_ncbasis(reg, 1)
+
+        # Moments m_k = L(x^k)
+        moments = Dict(
+            0 => 1.0,
+            1 => 0.2,
+            2 => 0.7,
+            3 => 0.5,
+            4 => 0.4,
+        )
+
+        H = [moments[i + j - 2] for i in 1:3, j in 1:3]
+        dict = NCTSSoS.hankel_entries_dict(H, basis_full)
+
+        @test dict[only(monomials(x[1]))] == moments[1]
+        @test dict[only(monomials(x[1]^2))] == moments[2]
+
+        x_idx = first(indices(reg))
+        K = NCTSSoS.construct_localizing_matrix(dict, x_idx, basis)
+
+        @test size(K) == (2, 2)
+        @test K ≈ [moments[1] moments[2]; moments[2] moments[3]] atol = 1e-12
+
+        gns = @test_logs (:warn, r"Flatness condition violated") gns_reconstruct(
+            H,
+            reg,
+            2;
+            hankel_deg=1,
+            atol=1e-12,
+        )
+        Xmat = gns.matrices[x_idx]
+        @test size(Xmat) == (2, 2)
+        @test real(dot(gns.xi, Xmat * gns.xi)) ≈ moments[1] atol = 1e-10
+        @test real(dot(gns.xi, Xmat^2 * gns.xi)) ≈ moments[2] atol = 1e-10
+    end
+
+    @testset "Real moment solve returns numeric moments" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+        pop = polyopt(1.0 * x[1]^2 + 1.0, reg)
+        cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+        sparsity = compute_sparsity(pop, cfg)
+        mp = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+        result = NCTSSoS.solve_moment_problem(mp, SOLVER)
+
+        @test !isempty(result.monomap)
+        @test all(v -> v isa Real, values(result.monomap))
+        @test _moment_lookup(result.monomap, one(x[1])) ≈ 1.0 atol = 1e-8
+    end
+
+    @testset "Fermionic reconstruction preserves adjoint pairs" begin
+        reg, (a, a_dag) = create_fermionic_variables(1:1)
+
+        monomap = Dict(
+            _moment_key(one(a[1])) => 1.0,
+            _moment_key(only(monomials(a[1]))) => 0.0,
+            _moment_key(only(monomials(a_dag[1]))) => 0.0,
+            _moment_key(only(monomials(a_dag[1] * a[1]))) => 0.0,
+        )
+
+        gns = gns_reconstruct(monomap, reg, 2; hankel_deg=1, atol=1e-10)
+        a_idx = only(only(monomials(a[1])).word)
+        adag_idx = only(only(monomials(a_dag[1])).word)
+        A = gns.matrices[a_idx]
+        A_dag = gns.matrices[adag_idx]
+
+        @test A_dag ≈ A' atol = 1e-12
+        @test !isapprox(A_dag, A; atol=1e-12)
+        @test A^2 ≈ zeros(eltype(A), size(A)) atol = 1e-12
+        @test A_dag^2 ≈ zeros(eltype(A_dag), size(A_dag)) atol = 1e-12
+    end
+
+    @testset "Monomap reconstruction rejects missing moments" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
 
-        basis_polys = get_ncbasis(reg, 2)  # [1, x, x^2]
-        basis_monomials = extract_basis_monomials(basis_polys)
-        H = [
-            1.0  0.2  0.7;
-            0.2  0.8  0.3;
-            0.7  0.3  0.6
-        ]
+        monomap = Dict(
+            _moment_key(one(x[1])) => 1.0,
+            _moment_key(only(monomials(x[1]))) => 0.2,
+        )
 
-        dict = NCTSSoS.hankel_entries_dict(H, basis_monomials)
+        err = try
+            gns_reconstruct(monomap, reg, 2; hankel_deg=1)
+            nothing
+        catch caught
+            caught
+        end
 
-        key_x = neat_dot(basis_monomials[1], basis_monomials[2])
-        key_x2_first = neat_dot(basis_monomials[1], basis_monomials[3])
-        key_x2_second = neat_dot(basis_monomials[2], basis_monomials[2])
-
-        @test dict[key_x] == H[1, 2]
-        @test dict[key_x2_first] == H[1, 3]
-        @test dict[key_x2_second] == H[1, 3]
-
-        # Get the index for variable x (first index in registry)
-        x_idx = first(indices(reg))
-        K = NCTSSoS.construct_localizing_matrix(dict, x_idx, basis_monomials)
-
-        @test size(K) == (3, 3)
-        @test K[1, 1] == H[1, 2]
-        @test K[1, 2] == H[1, 3]
-        @test K[2, 1] == H[1, 3]
-        @test K[2, 2] == H[2, 3]
+        @test err isa ArgumentError
+        @test occursin("missing", lowercase(sprint(showerror, err)))
     end
 
-    # TODO: This test is skipped because basis ordering in get_ncbasis changed.
-    # The localizing matrix values are correct but in different positions due to
-    # different monomial ordering. Needs revalidation with known reference values.
-    @testset "Localizing Matrix Construction" begin
-        @test_skip "Skipped pending basis ordering investigation"
+    @testset "Example 5.3 reproduction on the nc unit ball" begin
+        reg, (vars,) = create_noncommutative_variables([("X", 1:2)])
+        X, Y = vars
+
+        f = 2.0 - X^2 + X * Y^2 * X - Y^2
+        g = 1.0 - X^2 - Y^2
+        pop = polyopt(
+            f,
+            reg;
+            ineq_constraints=[g],
+        )
+
+        cfg = SolverConfig(
+            optimizer=SOLVER,
+            order=3,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+        )
+
+        sparsity = compute_sparsity(pop, cfg)
+        mp = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+        result = NCTSSoS.solve_moment_problem(mp, SOLVER)
+
+        @test result.objective ≈ 1.0 atol = 1e-5
+        @test all(v -> v isa Real, values(result.monomap))
+
+        gns = @test_logs (:warn, r"Flatness condition violated") gns_reconstruct(
+            result.monomap,
+            reg,
+            3;
+            hankel_deg=2,
+            atol=1e-6,
+        )
+        A1 = gns.matrices[reg[:X₁]]
+        A2 = gns.matrices[reg[:X₂]]
+
+        @test gns.rank == 5
+        @test gns.full_rank >= gns.rank
+        @test size(A1) == (5, 5)
+        @test size(A2) == (5, 5)
+        @test norm(A1 - A1') ≤ 1e-8
+        @test norm(A2 - A2') ≤ 1e-8
+        @test norm(gns.xi) ≈ 1.0 atol = 1e-8
+
+        F = Matrix(2I - A1^2 + A1 * A2^2 * A1 - A2^2)
+        F = Symmetric((F + F') / 2)
+        λmin = minimum(eigvals(F))
+
+        @test λmin ≈ 1.0 atol = 1e-5
+        @test real(dot(gns.xi, F * gns.xi)) ≈ 1.0 atol = 1e-5
+
+        for mono in get_ncbasis(reg, 3)
+            observed = _expectation(gns.matrices, gns.xi, mono)
+            expected = _moment_lookup(result.monomap, mono)
+            @test observed ≈ expected atol = 5e-5
+        end
     end
-
-    @testset "GNS Reconstruction Tests" begin
-
-        @testset "Dimension Mismatch" begin
-            reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
-
-            # Hankel matrix size doesn't match basis size
-            H = [1.0 0.0; 0.0 1.0]  # 2x2 matrix
-            # But basis for degree 1 with [x,y] has 3 elements: [1, x, y]
-
-            @test_throws ArgumentError reconstruct(H, reg, 1)
-        end
-
-        @testset "Invalid atol" begin
-            reg, (x,) = create_noncommutative_variables([("x", 1:1)])
-            H = [1.0 0.5; 0.5 1.0]
-
-            # Negative atol should throw error
-            @test_throws ArgumentError reconstruct(H, reg, 1; atol=-1.0)
-        end
-
-        @testset "No singular values exceed tolerance" begin
-            reg, (x,) = create_noncommutative_variables([("x", 1:1)])
-            # Create a matrix with very small singular values
-            H = 1e-10 * [1.0 0.5; 0.5 1.0]
-
-            # With default atol=1e-3, no singular values should exceed tolerance
-            @test_throws ArgumentError reconstruct(H, reg, 1)
-        end
-
-        # TODO: This test is skipped because the expected values from Example 2.7
-        # of the NCTSSOS paper may use a different basis ordering than the current
-        # implementation. The reconstruct function runs without error and produces
-        # valid matrices, but they differ from the reference due to different
-        # basis orderings. GNS matrices are unique up to unitary equivalence.
-        @testset "Example 2.7" begin
-            reg, (x, y) = create_noncommutative_variables([("x", 1:1), ("y", 1:1)])
-
-            basis_polys = get_ncbasis(reg, 2)
-            basis = extract_basis_monomials(basis_polys)
-
-            perm = [1, 2, 3, 5, 4, 6, 7]
-
-            n = length(basis)
-            swap_matrix = zeros(Float64, n, n)
-            for i in 1:n
-                swap_matrix[i, perm[i]] = 1.0
-            end
-
-            H = swap_matrix * [
-                1.00001 0.499907 0.500102 1.0483 −0.5483 −0.5483 1.0484;
-                0.499907 1.0483 −0.548283 1.0627 −0.0144 −0.6090 0.0606;
-                0.500102 −0.548283 1.04827 −0.0144 −0.5340 0.0606 0.9878;
-                1.0483 1.0627 −0.0144 1.4622 −0.3995 −0.8006 0.7863;
-                −0.5483 −0.0144 −0.5340 −0.3995 0.3852 0.1917 −0.7256;
-                −0.5483 −0.6090 0.0606 −0.8006 0.1917 0.4411 −0.3804;
-                1.0484 0.0606 0.9878 0.7863 −0.7256 −0.3804 1.3682
-            ] * swap_matrix
-
-            # Test that reconstruct runs without error and produces valid output
-            matrices = reconstruct(H, reg, 2; atol=0.1)
-
-            x_idx = reg[:x₁]
-            y_idx = reg[:y₁]
-
-            X_mat = matrices[x_idx]
-            Y_mat = matrices[y_idx]
-
-            # Check matrix dimensions (the key structural property)
-            @test size(X_mat) == (2, 2)
-            @test size(Y_mat) == (2, 2)
-
-            # Check that matrices are finite (no NaN/Inf)
-            @test all(isfinite, X_mat)
-            @test all(isfinite, Y_mat)
-        end
-    end  # GNS Reconstruction Tests
-end  # GNS Construction
-=#
+end

@@ -135,7 +135,7 @@ export PolyOpt, polyopt, PolyOptResult, SolverConfig
 export SparsityResult, compute_sparsity
 
 # Solver Interface
-export cs_nctssos, cs_nctssos_higher, reconstruct
+export cs_nctssos, cs_nctssos_higher, reconstruct, gns_reconstruct, GNSResult
 
 # Elimination Strategies
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination

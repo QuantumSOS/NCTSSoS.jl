@@ -259,7 +259,7 @@ Directly solve a symbolic moment problem by instantiating a JuMP model.
 - `NamedTuple` with:
   - `objective`: Optimal objective value
   - `model`: The JuMP model (for extracting dual values, etc.)
-  - `monomap`: Dictionary mapping monomials to JuMP variables
+  - `monomap`: Dictionary mapping canonical monomials to their solved numeric moment values
 
 # Description
 This function instantiates the symbolic moment problem as a JuMP model:
@@ -326,14 +326,14 @@ function _solve_real_moment_problem(
     idx_one === nothing && error("Expected identity moment to be present in basis")
     @constraint(model, y[idx_one] == 1)  # Normalization
 
-    monomap = Dict(zip(basis, y))
+    monovars = Dict(zip(basis, y))
 
     # Add constraints
     for (cone, mat) in mp.constraints
         dim = size(mat, 1)
         # Convert polynomial matrix to JuMP expression matrix
         jump_mat = [
-            _substitute_poly(mat[i,j], monomap)
+            _substitute_poly(mat[i,j], monovars)
             for i in 1:dim, j in 1:dim
         ]
 
@@ -347,7 +347,7 @@ function _solve_real_moment_problem(
     end
 
     # Set objective
-    obj_expr = _substitute_poly(mp.objective, monomap)
+    obj_expr = _substitute_poly(mp.objective, monovars)
     @objective(model, Min, obj_expr)
 
     # Solve
@@ -355,6 +355,7 @@ function _solve_real_moment_problem(
     silent && set_silent(model)
     optimize!(model)
 
+    monomap = Dict(m => value(monovars[m]) for m in basis)
     n_unique = mp.n_unique_moment_matrix_elements
 
     return (objective=objective_value(model), model=model, monomap=monomap, n_unique_elements=n_unique)

@@ -78,6 +78,15 @@ end
         @test flatness.err_flat ≤ 1e-12
         @test rank(Hflat) == 2
         @test Hflat ≈ H atol = 1e-12
+
+        basis_deg1 = get_ncbasis(reg, 1)
+        Hdeg1 = Matrix{Float64}(I, length(basis_deg1), length(basis_deg1))
+        flatness_deg1 = test_flatness(Hdeg1, basis_deg1, basis_deg1; atol=1e-12)
+
+        @test flatness_deg1.is_flat
+        @test flatness_deg1.rank_principal == 2
+        @test flatness_deg1.rank_full == 2
+        @test flatness_deg1.err_flat == 0.0
     end
 
     @testset "Cholesky GNS toy" begin
@@ -97,6 +106,19 @@ end
         end
     end
 
+    @testset "Cholesky basis repair keeps identity" begin
+        witness = [
+            0.06193274031408013 -0.5958244153640522 1.0857940215432762 0.1759399913010747
+            0.2784058141640002 0.04665938957338174 -1.5765649225859841 0.8653808054093252
+        ]
+        hankel_block = witness' * witness
+        selected, svals = NCTSSoS._gns_cholesky_basis_indices(hankel_block; atol=1e-8)
+
+        @test length(selected) == 2
+        @test selected[1] == 1
+        @test svals[2] > 1e-8
+    end
+
     @testset "SVD vs Cholesky agreement" begin
         reg, (x,) = create_noncommutative_variables([("X", 1:1)])
         H = [1.0 0.0 1.0; 0.0 1.0 0.0; 1.0 0.0 1.0]
@@ -110,6 +132,26 @@ end
             moment_chol = _pipeline_expectation(gns_chol.matrices, gns_chol.xi, mono)
             @test abs(moment_svd - moment_chol) ≤ 1e-8
         end
+    end
+
+    @testset "Dense wrappers and method dispatch" begin
+        reg, (x,) = create_noncommutative_variables([("X", 1:1)])
+        H = [1.0 0.0 1.0; 0.0 1.0 0.0; 1.0 0.0 1.0]
+        monomap = Dict(
+            _pipeline_moment_key(one(x[1])) => 1.0,
+            _pipeline_moment_key(only(monomials(x[1]))) => 0.0,
+            _pipeline_moment_key(only(monomials(x[1]^2))) => 1.0,
+            _pipeline_moment_key(only(monomials(x[1]^3))) => 0.0,
+            _pipeline_moment_key(only(monomials(x[1]^4))) => 1.0,
+        )
+
+        gns_from_monomap = gns_reconstruct(monomap, reg, 2; method=:cholesky, hankel_deg=1, atol=1e-12)
+        matrices_only = reconstruct(H, reg, 2; hankel_deg=1, atol=1e-12)
+
+        @test gns_from_monomap.matrices[reg[:X₁]] ≈ [0.0 1.0; 1.0 0.0] atol = 1e-12
+        @test matrices_only[reg[:X₁]] ≈ [0.0 1.0; 1.0 0.0] atol = 1e-12
+        @test_throws ArgumentError gns_reconstruct(H, reg, 2; method=:bogus, hankel_deg=1)
+        @test_throws ArgumentError gns_reconstruct(monomap, reg, 2; method=:bogus, hankel_deg=1)
     end
 
     ball = _solve_ball_example()
@@ -154,12 +196,15 @@ end
             atol=1e-6,
         )
         report = robustness_report(gns, ball.hankel, ball.full_basis, ball.basis)
+        report_convenience = robustness_report(gns, ball.hankel)
 
         @test report.sigma_min > 0
         @test report.sigma_max ≥ report.sigma_min
         @test isfinite(report.condition_number)
         @test report.dist_to_flat ≤ 0.1
         @test report.operator_error_bound ≤ 5.0
+        @test report_convenience.dist_to_flat ≈ report.dist_to_flat atol = 1e-12
+        @test report_convenience.operator_error_bound ≈ report.operator_error_bound atol = 1e-12
     end
 
     @testset "Verification suite" begin

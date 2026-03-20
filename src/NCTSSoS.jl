@@ -123,8 +123,11 @@ include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
 include("optimization/moment.jl")
 include("optimization/sos.jl")
-include("optimization/gns.jl")
 include("optimization/interface.jl")
+include("optimization/gns.jl")
+include("optimization/flat_extension.jl")
+include("optimization/gns_cholesky.jl")
+include("optimization/gns_diagnostics.jl")
 
 # ============================================================================
 # Exports - User-Facing API Only
@@ -136,6 +139,9 @@ export SparsityResult, compute_sparsity
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, reconstruct, gns_reconstruct, GNSResult
+export FlatnessResult, test_flatness, flat_extend
+export RobustnessReport, robustness_report
+export VerificationReport, verify_gns
 
 # Elimination Strategies
 export NoElimination, MF, MMD, AsIsElimination, MaximalElimination

@@ -15,5 +15,6 @@ using Test
     include("sos.jl")
     include("sparsity.jl")
     include("gns.jl")
+    include("gns_pipeline.jl")
     include("dualization.jl")
 end

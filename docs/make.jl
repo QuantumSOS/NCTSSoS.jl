@@ -30,7 +30,8 @@ makedocs(;
             "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
             "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
             "GNS Optimizer Extraction"=>"examples/generated/gns_optimizer_extraction.md",
-            # "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"  # TODO: fix bug
+            "GNS Construction Guide"=>"examples/generated/gns_construction_guide.md",
+            "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"
         ],
         "References"=>"reference.md",
         "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "SDP Relaxation" => "apis/relaxations.md"]

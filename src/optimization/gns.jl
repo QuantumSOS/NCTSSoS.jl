@@ -371,8 +371,8 @@ function gns_reconstruct(
     hankel::AbstractMatrix{T},
     registry::VariableRegistry{A,TI},
     H_deg::Int;
-    hankel_deg::Int=H_deg - 1,
     method::Symbol=:svd,
+    hankel_deg::Int=H_deg - 1,
     atol::Real=1e-8,
     rtol::Real=0.0,
 ) where {T<:Number,A<:AlgebraType,TI<:Integer}
@@ -419,6 +419,177 @@ function gns_reconstruct(
     throw(ArgumentError("Unknown GNS method: $method. Use :svd or :cholesky."))
 end
 
+@inline _gns_abs_index(idx::Integer) = abs(Int(idx))
+
+function _gns_word_in_clique(word::AbstractVector{<:Integer}, clique_set::Set{Int})
+    for idx in word
+        _gns_abs_index(idx) in clique_set || return false
+    end
+    return true
+end
+
+function _gns_project_word_to_clique(word::AbstractVector{TI}, clique_set::Set{Int}) where {TI<:Integer}
+    projected = TI[]
+    sizehint!(projected, length(word))
+    for idx in word
+        _gns_abs_index(idx) in clique_set && push!(projected, idx)
+    end
+    return projected
+end
+
+function _gns_filter_monomap_to_clique(monomap::AbstractDict, clique_set::Set{Int})
+    filtered = Dict{keytype(monomap),valtype(monomap)}()
+    for (key, value) in pairs(monomap)
+        if key isa NormalMonomial
+            _gns_word_in_clique(key.word, clique_set) || continue
+        elseif key isa AbstractVector{<:Integer}
+            _gns_word_in_clique(key, clique_set) || continue
+        else
+            continue
+        end
+        filtered[key] = value
+    end
+    return filtered
+end
+
+function _gns_pairwise_disjoint_cliques(cliques)
+    seen = Set{Int}()
+    for clique in cliques
+        clique_set = Set(Int.(clique))
+        isempty(intersect(seen, clique_set)) || return false
+        union!(seen, clique_set)
+    end
+    return true
+end
+
+function _gns_validate_sparse_registry_coverage(corr_sparsity)
+    registry_vars = Set(_gns_abs_index.(indices(corr_sparsity.registry)))
+    covered_vars = Set{Int}()
+    for clique in corr_sparsity.cliques
+        union!(covered_vars, _gns_abs_index.(clique))
+    end
+
+    inactive_vars = sort!(collect(setdiff(registry_vars, covered_vars)))
+    isempty(inactive_vars) || throw(ArgumentError(
+        "Sparse GNS reconstruction requires every registry variable to appear in at least one clique. Inactive variable indices: $(inactive_vars)."
+    ))
+    return nothing
+end
+
+function _gns_sparse_clique_data(
+    monomap::AbstractDict,
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M,Nothing},
+    H_deg::Int,
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
+    data = NamedTuple[]
+
+    for clique in corr_sparsity.cliques
+        clique_set = Set(Int.(clique))
+        clique_monomap = _gns_filter_monomap_to_clique(monomap, clique_set)
+        clique_registry = subregistry(corr_sparsity.registry, clique)
+        clique_full_basis = _gns_extract_monomials_from_basis(get_ncbasis(clique_registry, H_deg))
+        _gns_validate_monomap_coverage(clique_monomap, clique_full_basis, H_deg)
+        push!(data, (clique_set=clique_set, monomap=clique_monomap))
+    end
+
+    return data
+end
+
+function _gns_sparse_disjoint_moment_value(
+    clique_data,
+    ::Type{A},
+    mono::NormalMonomial{A,TI},
+) where {A<:AlgebraType,TI<:Integer}
+    isempty(clique_data) && return one(Float64)
+
+    first_data = first(clique_data)
+    first_word = _gns_project_word_to_clique(mono.word, first_data.clique_set)
+    total = _gns_moment_from_word(first_data.monomap, A, first_word)
+
+    for data in Iterators.drop(clique_data, 1)
+        projected = _gns_project_word_to_clique(mono.word, data.clique_set)
+        total *= _gns_moment_from_word(data.monomap, A, projected)
+    end
+
+    return total
+end
+
+function _gns_sparse_disjoint_moment_from_word(
+    clique_data,
+    ::Type{A},
+    word::Vector{TI},
+) where {A<:AlgebraType,TI<:Integer}
+    isempty(clique_data) && return 0.0
+
+    total = _gns_zero_value(clique_data[1].monomap)
+    for (coef, mono) in _simplified_to_terms(A, simplify(A, word), TI)
+        total += coef * _gns_sparse_disjoint_moment_value(clique_data, A, mono)
+    end
+    return total
+end
+
+function _gns_sparse_disjoint_hankel(clique_data, full_basis::Vector{M}) where {A<:AlgebraType,TI<:Integer,M<:NormalMonomial{A,TI}}
+    return [
+        _gns_sparse_disjoint_moment_from_word(clique_data, A, neat_dot(row_mono.word, col_mono.word))
+        for row_mono in full_basis, col_mono in full_basis
+    ]
+end
+
+"""
+    gns_reconstruct(monomap::AbstractDict, sparsity::SparsityResult, H_deg::Int;
+                    hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
+
+Perform sparse GNS reconstruction from solved sparse moments and their sparsity
+metadata.
+
+Current support is intentionally conservative:
+- a single clique falls back to dense [`gns_reconstruct`](@ref), and
+- multiple cliques are supported only when they are pairwise disjoint and there
+  are no global constraints.
+
+In the disjoint-clique case, missing cross-clique moments are completed by the
+product functional induced by the clique-local sparse moments, and dense GNS is
+then applied to the resulting Hankel matrix. Overlapping-clique amalgamation
+from SparseGNS / Theorem 4.2 is not implemented yet.
+"""
+function gns_reconstruct(
+    monomap::AbstractDict,
+    sparsity::SparsityResult{A,TI,P,M,Nothing},
+    H_deg::Int;
+    hankel_deg::Int=H_deg - 1,
+    atol::Real=1e-8,
+    rtol::Real=0.0,
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
+    _gns_validate_degrees(H_deg, hankel_deg)
+
+    corr_sparsity = sparsity.corr_sparsity
+    registry = corr_sparsity.registry
+    n_cliques = length(corr_sparsity.cliques)
+
+    n_cliques == 0 && throw(ArgumentError("Sparse GNS reconstruction requires at least one clique; got none."))
+    _gns_validate_sparse_registry_coverage(corr_sparsity)
+    n_cliques == 1 && return gns_reconstruct(
+        monomap,
+        registry,
+        H_deg;
+        hankel_deg=hankel_deg,
+        atol=atol,
+        rtol=rtol,
+    )
+
+    isempty(corr_sparsity.global_cons) || throw(ArgumentError(
+        "Sparse GNS reconstruction currently requires `global_cons` to be empty for multi-clique problems; got $(length(corr_sparsity.global_cons)) global constraint(s)."
+    ))
+    _gns_pairwise_disjoint_cliques(corr_sparsity.cliques) || throw(ArgumentError(
+        "Sparse GNS reconstruction currently supports only pairwise-disjoint cliques. Overlapping-clique amalgamation from SparseGNS / Theorem 4.2 is not implemented yet."
+    ))
+
+    clique_data = _gns_sparse_clique_data(monomap, corr_sparsity, H_deg)
+    full_basis, basis = _gns_basis_pair(registry, H_deg, hankel_deg)
+    hankel = _gns_sparse_disjoint_hankel(clique_data, full_basis)
+    return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+end
+
 """
     reconstruct(H::AbstractMatrix, registry::VariableRegistry, H_deg::Int;
                 hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
@@ -439,6 +610,24 @@ function reconstruct(
     return gns_reconstruct(
         hankel,
         registry,
+        H_deg;
+        hankel_deg=hankel_deg,
+        atol=atol,
+        rtol=rtol,
+    ).matrices
+end
+
+function reconstruct(
+    monomap::AbstractDict,
+    sparsity::SparsityResult{A,TI,P,M,Nothing},
+    H_deg::Int;
+    hankel_deg::Int=H_deg - 1,
+    atol::Real=1e-8,
+    rtol::Real=0.0,
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
+    return gns_reconstruct(
+        monomap,
+        sparsity,
         H_deg;
         hankel_deg=hankel_deg,
         atol=atol,

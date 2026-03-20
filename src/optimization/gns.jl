@@ -356,7 +356,7 @@ end
 
 """
     gns_reconstruct(hankel::AbstractMatrix, registry::VariableRegistry, H_deg::Int;
-                    hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
+                    method::Symbol=:svd, hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
 
 Perform GNS reconstruction from a full Hankel matrix.
 
@@ -372,17 +372,23 @@ function gns_reconstruct(
     registry::VariableRegistry{A,TI},
     H_deg::Int;
     hankel_deg::Int=H_deg - 1,
+    method::Symbol=:svd,
     atol::Real=1e-8,
     rtol::Real=0.0,
 ) where {T<:Number,A<:AlgebraType,TI<:Integer}
     _gns_validate_degrees(H_deg, hankel_deg)
     full_basis, basis = _gns_basis_pair(registry, H_deg, hankel_deg)
-    return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+    if method == :svd
+        return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+    elseif method == :cholesky
+        return _gns_finalize_cholesky(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+    end
+    throw(ArgumentError("Unknown GNS method: $method. Use :svd or :cholesky."))
 end
 
 """
     gns_reconstruct(monomap::AbstractDict, registry::VariableRegistry, H_deg::Int;
-                    hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
+                    method::Symbol=:svd, hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
 
 Perform GNS reconstruction directly from solved moment values.
 
@@ -396,6 +402,7 @@ function gns_reconstruct(
     monomap::AbstractDict,
     registry::VariableRegistry{A,TI},
     H_deg::Int;
+    method::Symbol=:svd,
     hankel_deg::Int=H_deg - 1,
     atol::Real=1e-8,
     rtol::Real=0.0,
@@ -404,7 +411,12 @@ function gns_reconstruct(
     full_basis, basis = _gns_basis_pair(registry, H_deg, hankel_deg)
     _gns_validate_monomap_coverage(monomap, full_basis, H_deg)
     hankel = hankel_matrix(monomap, full_basis)
-    return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+    if method == :svd
+        return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+    elseif method == :cholesky
+        return _gns_finalize_cholesky(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+    end
+    throw(ArgumentError("Unknown GNS method: $method. Use :svd or :cholesky."))
 end
 
 """

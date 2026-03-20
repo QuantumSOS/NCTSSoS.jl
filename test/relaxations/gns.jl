@@ -122,6 +122,90 @@ end
         @test occursin("missing", lowercase(sprint(showerror, err)))
     end
 
+    @testset "Sparse GNS reconstructs disjoint cliques" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        pop = polyopt(1.0 * x[1]^2 + 1.0 * x[2]^2, reg)
+        cfg = SolverConfig(
+            optimizer=SOLVER,
+            order=2,
+            cs_algo=MaximalElimination(),
+            ts_algo=NoElimination(),
+        )
+
+        sparsity = compute_sparsity(pop, cfg)
+        @test length(sparsity.corr_sparsity.cliques) == 2
+        @test all(length(clique) == 1 for clique in sparsity.corr_sparsity.cliques)
+
+        monomap = Dict(
+            _moment_key(one(x[1])) => 1.0,
+            _moment_key(only(monomials(x[1]))) => 0.0,
+            _moment_key(only(monomials(x[1]^2))) => 1.0,
+            _moment_key(only(monomials(x[1]^3))) => 0.0,
+            _moment_key(only(monomials(x[1]^4))) => 1.0,
+            _moment_key(only(monomials(x[2]))) => 0.0,
+            _moment_key(only(monomials(x[2]^2))) => 1.0,
+            _moment_key(only(monomials(x[2]^3))) => 0.0,
+            _moment_key(only(monomials(x[2]^4))) => 1.0,
+        )
+
+        gns = @test_logs (:warn, r"Flatness condition violated") gns_reconstruct(
+            monomap,
+            sparsity,
+            2;
+            hankel_deg=1,
+            atol=1e-10,
+        )
+        x1_idx = reg[:x₁]
+        x2_idx = reg[:x₂]
+        X1 = gns.matrices[x1_idx]
+        X2 = gns.matrices[x2_idx]
+
+        @test size(X1) == size(X2)
+        @test norm(X1 - X1') ≤ 1e-10
+        @test norm(X2 - X2') ≤ 1e-10
+        @test norm(gns.xi) ≈ 1.0 atol = 1e-10
+
+        expected_moments = [
+            (one(x[1]), 1.0),
+            (only(monomials(x[1])), 0.0),
+            (only(monomials(x[2])), 0.0),
+            (only(monomials(x[1]^2)), 1.0),
+            (only(monomials(x[2]^2)), 1.0),
+            (only(monomials(x[1] * x[2])), 0.0),
+            (only(monomials(x[2] * x[1])), 0.0),
+        ]
+
+        for (mono, expected) in expected_moments
+            observed = real(_expectation(gns.matrices, gns.xi, mono))
+            @test observed ≈ expected atol = 1e-8
+        end
+    end
+
+    @testset "Sparse GNS rejects overlapping cliques" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+        pop = polyopt(1.0 * x[1] * x[2] + 1.0 * x[2] * x[3], reg)
+        cfg = SolverConfig(
+            optimizer=SOLVER,
+            order=2,
+            cs_algo=AsIsElimination(),
+            ts_algo=NoElimination(),
+        )
+
+        sparsity = compute_sparsity(pop, cfg)
+        @test length(sparsity.corr_sparsity.cliques) > 1
+        @test !all(isempty, [intersect(Set(Int.(a)), Set(Int.(b))) for (i, a) in enumerate(sparsity.corr_sparsity.cliques) for b in sparsity.corr_sparsity.cliques[i+1:end]])
+
+        err = try
+            gns_reconstruct(Dict{Any,Float64}(), sparsity, 2; hankel_deg=1)
+            nothing
+        catch caught
+            caught
+        end
+
+        @test err isa ArgumentError
+        @test occursin("pairwise-disjoint", sprint(showerror, err))
+    end
+
     @testset "Example 5.3 reproduction on the nc unit ball" begin
         reg, (vars,) = create_noncommutative_variables([("X", 1:2)])
         X, Y = vars

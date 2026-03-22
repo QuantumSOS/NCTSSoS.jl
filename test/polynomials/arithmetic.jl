@@ -123,6 +123,24 @@ using NCTSSoS, Test
         @test iszero(p_zero * p)
     end
 
+    @testset "Polynomial Adjoint" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:3)])
+        p = x[1] * x[2] + 2.0 * x[3] + 3.0
+        p_adj = p'
+
+        @test p_adj == x[2] * x[1] + 2.0 * x[3] + 3.0
+        @test p_adj' == p
+
+        p1 = x[1] + x[2]
+        p2 = x[2] * x[3] + 5.0
+        @test (p1 * p2)' == p2' * p1'
+
+        reg_pauli, (σx, _, _) = create_pauli_variables(1:1)
+        p_pauli = (1.0 + 2.0im) * σx[1]
+        @test p_pauli' == (1.0 - 2.0im) * σx[1]
+        @test p_pauli'' == p_pauli
+    end
+
     @testset "Type Promotion" begin
         m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
 

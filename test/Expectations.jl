@@ -1,6 +1,6 @@
 module TestExpectations
 
-using JSON3
+using TOML
 using NCTSSoS
 
 export expectations_path,
@@ -14,15 +14,15 @@ expectations_path(parts::AbstractString...) = joinpath(TEST_DATA_DIR, parts...)
 
 function expectations_load(relpath::AbstractString)
     path = expectations_path(relpath)
-    return JSON3.read(read(path, String))
+    return TOML.parsefile(path)
 end
 
 function expectations_case(data, id::AbstractString)
-    haskey(data, "cases") || error("Missing key `cases` in expectations JSON.")
+    haskey(data, "cases") || error("Missing key `cases` in expectations TOML.")
     for case in data["cases"]
-        String(case["id"]) == id && return case
+        case["id"] == id && return case
     end
-    error("Case id not found in expectations JSON: $(repr(id))")
+    error("Case id not found in expectations TOML: $(repr(id))")
 end
 
 function expectations_oracle(relpath::AbstractString, id::AbstractString)
@@ -32,20 +32,19 @@ function expectations_oracle(relpath::AbstractString, id::AbstractString)
     expected = case["expected"]
 
     haskey(expected, "objective") || error("Missing key `expected.objective` for case $(repr(id)).")
-    oracle = (opt=Float64(expected["objective"]),)
+    oracle = (opt=expected["objective"],)
 
     if haskey(expected, "sides")
-        oracle = merge(oracle, (sides=[Int(x) for x in expected["sides"]],))
+        oracle = merge(oracle, (sides=expected["sides"],))
     end
 
     if haskey(expected, "nuniq")
-        oracle = merge(oracle, (nuniq=Int(expected["nuniq"]),))
+        oracle = merge(oracle, (nuniq=expected["nuniq"],))
     elseif haskey(expected, "n_unique_moment_matrix_elements")
-        oracle = merge(oracle, (nuniq=Int(expected["n_unique_moment_matrix_elements"]),))
+        oracle = merge(oracle, (nuniq=expected["n_unique_moment_matrix_elements"],))
     end
 
     return oracle
 end
 
 end
-

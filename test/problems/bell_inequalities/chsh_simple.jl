@@ -6,7 +6,7 @@
 
 using Test, NCTSSoS, JuMP
 
-# Expectations in test/data/expectations/chsh_simple.json
+# Expectations in test/data/expectations/chsh_simple.toml
 
 function create_chsh_problem()
     reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
@@ -18,7 +18,7 @@ end
 @testset "CHSH Simple (order=1)" begin
 
     @testset "Dense" begin
-        oracle = expectations_oracle("expectations/chsh_simple.json", "Dense_d1")
+        oracle = expectations_oracle("expectations/chsh_simple.toml", "Dense_d1")
         pop, _ = create_chsh_problem()
         config = SolverConfig(
             optimizer=SOLVER,
@@ -34,7 +34,7 @@ end
     end
 
     @testset "Correlative Sparsity (MF)" begin
-        oracle = expectations_oracle("expectations/chsh_simple.json", "CS_d1")
+        oracle = expectations_oracle("expectations/chsh_simple.toml", "CS_d1")
         pop, _ = create_chsh_problem()
         config = SolverConfig(
             optimizer=SOLVER,
@@ -50,7 +50,7 @@ end
     end
 
     @testset "Term Sparsity (MMD)" begin
-        oracle = expectations_oracle("expectations/chsh_simple.json", "TS_d1")
+        oracle = expectations_oracle("expectations/chsh_simple.toml", "TS_d1")
         pop, _ = create_chsh_problem()
         config = SolverConfig(
             optimizer=SOLVER,

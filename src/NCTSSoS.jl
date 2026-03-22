@@ -48,6 +48,7 @@ module NCTSSoS
 
 using SparseArrays, LinearAlgebra, JuMP
 using CliqueTrees, ChordalGraph, Graphs
+import Clarabel
 using CliqueTrees: EliminationAlgorithm, SupernodeType
 import CliqueTrees.cliquetree
 

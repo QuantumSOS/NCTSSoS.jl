@@ -1,0 +1,7 @@
+schema_version = 1
+
+[[cases]]
+id = "opt"
+
+    [cases.expected]
+    objective = -1.0

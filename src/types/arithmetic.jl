@@ -450,6 +450,32 @@ function Base.:(-)(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Num
 end
 
 # =============================================================================
+# Polynomial adjoint (†)
+# =============================================================================
+
+"""
+    LinearAlgebra.adjoint(p::Polynomial{A,T,C}) where {A,T,C} -> Polynomial
+
+Compute the adjoint of a Polynomial by conjugating coefficients and adjointing
+monomials term-by-term.
+
+For noncommutative polynomials this is the correct involution:
+`(c * m)' = conj(c) * m'`, so monomial order is reversed according to the
+underlying algebra's monomial adjoint.
+"""
+function LinearAlgebra.adjoint(
+    p::Polynomial{A,T,C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    CAdj = typeof(conj(zero(C)))
+    isempty(p.terms) && return zero(Polynomial{A,T,CAdj})
+
+    adj_terms = Tuple{CAdj,NormalMonomial{A,T}}[
+        (CAdj(conj(coef)), adjoint(mono)) for (coef, mono) in p.terms
+    ]
+    return Polynomial(adj_terms)
+end
+
+# =============================================================================
 # Polynomial ± Number → Polynomial
 # =============================================================================
 

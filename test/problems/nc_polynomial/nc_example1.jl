@@ -5,7 +5,7 @@
 
 using Test, NCTSSoS, JuMP
 
-# Expectations in test/data/expectations/nc_example1.json
+# Expectations in test/data/expectations/nc_example1.toml
 
 @testset "NC Example 1 (unconstrained)" begin
     n = 3
@@ -20,7 +20,7 @@ using Test, NCTSSoS, JuMP
     pop = polyopt(f, reg)
 
     @testset "Dense (order=2)" begin
-        oracle = expectations_oracle("expectations/nc_example1.json", "Dense_d2")
+        oracle = expectations_oracle("expectations/nc_example1.toml", "Dense_d2")
         config = SolverConfig(
             optimizer=SOLVER,
             order=2,
@@ -34,14 +34,14 @@ using Test, NCTSSoS, JuMP
     end
 
     @testset "Dense (SOS)" begin
-        oracle = expectations_oracle("expectations/nc_example1.json", "SOS_d2")
+        oracle = expectations_oracle("expectations/nc_example1.toml", "SOS_d2")
         config = SolverConfig(optimizer=SOLVER, order=2)
         result = cs_nctssos(pop, config; dualize=true)
         @test result.objective ≈ oracle.opt atol = 1e-6
     end
 
     @testset "Term Sparsity MMD (order=2)" begin
-        oracle = expectations_oracle("expectations/nc_example1.json", "TS_d2")
+        oracle = expectations_oracle("expectations/nc_example1.toml", "TS_d2")
         config = SolverConfig(
             optimizer=SOLVER,
             order=2,

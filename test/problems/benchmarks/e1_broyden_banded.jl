@@ -8,8 +8,8 @@
 # The paper-facing sparse formulation uses a Newton-chip basis. This test keeps
 # a lightweight structural check for the literature rows n = 20, 40 and
 # solves both sizes with Clarabel, asserting the optimum is near 0.
-# The full n = 20:20:200 structural sweep lives in
-# `test/correlated_sparsity/benchmark_structure.jl`.
+# We do not duplicate this benchmark with a separate correlated-sparsity
+# structure-only sweep.
 
 using Test, TOML, NCTSSoS, JuMP, Clarabel
 

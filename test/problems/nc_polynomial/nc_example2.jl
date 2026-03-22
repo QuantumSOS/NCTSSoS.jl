@@ -7,7 +7,7 @@
 using Test, NCTSSoS, JuMP
 
 @testset "NC Example 2 (constrained)" begin
-    opt_oracle = expectations_oracle("expectations/nc_example2.json", "opt")
+    opt_oracle = expectations_oracle("expectations/nc_example2.toml", "opt")
     n = 2
     reg, (x,) = create_noncommutative_variables([("x", 1:n)])
 

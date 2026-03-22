@@ -1,0 +1,23 @@
+schema_version = 1
+
+[[cases]]
+id = "newton_chip_n20"
+notes = "E3 NC generalized Rosenbrock benchmark (Wang-Magron '20, Table 4; `test-examples.typ` E3), row n=20. This file stores only literature-derived values from the paper/Typst metadata."
+
+    [cases.expected]
+    n = 20
+    dense_mb = 40
+    dense_opt = 1.0
+    sparse_mb = 3
+    sparse_opt = 1.0
+
+[[cases]]
+id = "newton_chip_n60"
+notes = "E3 NC generalized Rosenbrock benchmark (Wang-Magron '20, Table 4; `test-examples.typ` E3), row n=60. This file stores only literature-derived values from the paper/Typst metadata."
+
+    [cases.expected]
+    n = 60
+    dense_mb = 120
+    dense_opt = 1.0
+    sparse_mb = 3
+    sparse_opt = 1.0

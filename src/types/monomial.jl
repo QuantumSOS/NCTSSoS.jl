@@ -369,6 +369,15 @@ function Base.one(::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
 end
 
 """
+    Base.copy(m::NormalMonomial{A,T}) where {A,T}
+
+Create a copy of a monomial, duplicating the underlying word vector.
+"""
+function Base.copy(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    return NormalMonomial{A,T}(copy(m.word))
+end
+
+"""
     Base.one(::Type{NormalMonomial}) -> NormalMonomial{NonCommutativeAlgebra,UInt}
 
 Create the identity monomial (empty word) for the generic NormalMonomial type.

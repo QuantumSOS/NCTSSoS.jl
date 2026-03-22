@@ -5,7 +5,7 @@
 
 using Test, NCTSSoS, JuMP
 
-# Expectations in test/data/expectations/chsh_trace.json
+# Expectations in test/data/expectations/chsh_trace.toml
 
 @testset "CHSH Trace Polynomial" begin
     reg, (vars,) = create_unipotent_variables([("v", 1:4)])
@@ -24,7 +24,7 @@ using Test, NCTSSoS, JuMP
     tpop = polyopt(p * one(typeof(x[1])), reg)
 
     @testset "Dense" begin
-        oracle = expectations_oracle("expectations/chsh_trace.json", "Dense")
+        oracle = expectations_oracle("expectations/chsh_trace.toml", "Dense")
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,
@@ -38,7 +38,7 @@ using Test, NCTSSoS, JuMP
     end
 
     @testset "Term Sparsity (MMD)" begin
-        oracle = expectations_oracle("expectations/chsh_trace.json", "TS")
+        oracle = expectations_oracle("expectations/chsh_trace.toml", "TS")
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,

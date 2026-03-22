@@ -1,0 +1,167 @@
+schema_version = 1
+
+[[cases]]
+id = "get_correlative_graph_ring_n4"
+notes = "Provenance: issue #254 (ring adjacency)."
+
+    [cases.expected]
+    adjacency_by_position = [[2, 4], [1, 3], [2, 4], [1, 3]]
+[[cases]]
+id = "get_correlative_graph_chain_n3"
+notes = "Provenance: issue #254 (chain adjacency)."
+
+    [cases.expected]
+    adjacency_by_position = [[2], [1, 3], [2]]
+[[cases]]
+id = "get_correlative_graph_dense_n10"
+notes = "Provenance: issue #254 (dense adjacency table)."
+
+    [cases.expected]
+    adjacency_by_position = [[2, 3, 4, 5, 6, 7], [1, 3, 4, 5, 6, 7, 8], [1, 2, 4, 5, 6, 7, 8, 9], [1, 2, 3, 5, 6, 7, 8, 9, 10], [1, 2, 3, 4, 6, 7, 8, 9, 10], [1, 2, 3, 4, 5, 7, 8, 9, 10], [1, 2, 3, 4, 5, 6, 8, 9, 10], [2, 3, 4, 5, 6, 7, 9, 10], [3, 4, 5, 6, 7, 8, 10], [4, 5, 6, 7, 8, 9]]
+[[cases]]
+id = "get_correlative_graph_chain_constraints_n3"
+notes = "Provenance: issue #254 (chain + constraints)."
+
+    [cases.expected]
+    adjacency_by_position = [[2], [1, 3], [2]]
+[[cases]]
+id = "get_correlative_graph_bipartite_x3y3"
+notes = "Provenance: issue #254 (bipartite adjacency)."
+
+    [cases.expected]
+    adjacency_by_position = [[4, 5, 6], [4, 5, 6], [4, 5], [1, 2, 3], [1, 2, 3], [1, 2]]
+[[cases]]
+id = "clique_decomp_ring_n4"
+notes = "Provenance: issue #255 (ring cliques)."
+
+    [cases.expected]
+    no_elimination = [[1, 2, 3, 4]]
+    as_is_elimination = [[1, 2], [1, 4], [2, 3], [3, 4]]
+    mf = [[1, 2, 4], [2, 3, 4]]
+[[cases]]
+id = "clique_decomp_chain_n3"
+notes = "Provenance: issue #255 (chain cliques)."
+
+    [cases.expected]
+    no_elimination = [[1, 2, 3]]
+    as_is_elimination = [[1, 2], [2, 3]]
+    mf = [[1, 2], [2, 3]]
+[[cases]]
+id = "clique_decomp_dense_n10"
+notes = "Provenance: issue #255 (dense cliques)."
+
+    [cases.expected]
+    no_elimination = [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]]
+    as_is_elimination = [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
+    mf = [[1, 2, 3, 4, 5, 6, 7], [2, 3, 4, 5, 6, 7, 8], [3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9, 10]]
+[[cases]]
+id = "clique_decomp_chain_constraints_n3"
+notes = "Provenance: issue #255 (chain + constraints cliques)."
+
+    [cases.expected]
+    no_elimination = [[1, 2, 3]]
+    as_is_elimination = [[1, 2], [2, 3]]
+    mf = [[1, 2], [2, 3]]
+[[cases]]
+id = "clique_decomp_bipartite_x3y3"
+notes = "Provenance: issue #255 (bipartite cliques)."
+
+    [cases.expected]
+    no_elimination = [[1, 2, 3, 4, 5, 6]]
+    as_is_elimination = [[1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [2, 6], [3, 4], [3, 5]]
+    mf = [[1, 2, 4, 5], [1, 2, 6], [3, 4, 5]]
+[[cases]]
+id = "clique_decomp_disconnected_maximal"
+notes = "Provenance: issue #255 (disconnected graph with maximal elimination)."
+
+    [cases.expected]
+    maximal_elimination = [[1, 2], [3, 4]]
+[[cases]]
+id = "assign_constraint_partition_across_cliques"
+notes = "Provenance: issue #256 (partition across cliques)."
+
+    [cases.expected]
+    clique_constraints = [[1, 4], [2, 3]]
+    global_constraints = []
+[[cases]]
+id = "assign_constraint_single_clique"
+notes = "Provenance: issue #256 (single clique assignment)."
+
+    [cases.expected]
+    clique_constraints = [[1, 2, 3]]
+    global_constraints = []
+[[cases]]
+id = "correlative_sparsity_example2_order3"
+notes = "Provenance: issue #257 (Example 2 structural expectations)."
+
+    [cases.expected.max_clique_by_algo]
+    no_elimination = 6
+    mf = 4
+    as_is_elimination = 2
+[[cases]]
+id = "correlative_sparsity_example1_n10_order3"
+notes = "Provenance: issue #257 (Example 1 structural expectations)."
+
+    [cases.expected.max_clique_by_algo]
+    no_elimination = 10
+    mf = 7
+    as_is_elimination = 7
+[[cases]]
+id = "correlative_sparsity_constrained_n2_order2"
+notes = "Provenance: issue #257 (constrained n=2 structure expectations)."
+
+    [cases.expected.no_elimination]
+    max_clique = 2
+    moment_basis_lengths = [7]
+    localizing_basis_lengths = [3, 3]
+
+    [cases.expected.mf]
+    max_clique = 2
+    moment_basis_lengths = [7]
+    localizing_basis_lengths = [3, 3]
+
+    [cases.expected.as_is_elimination]
+    max_clique = 2
+    moment_basis_lengths = [7]
+    localizing_basis_lengths = [3, 3]
+[[cases]]
+id = "wang_magron_example_3_support_extension"
+notes = "Provenance: issue #292 (Wang-Magron 2021 Example 3.1 concept)."
+
+    [cases.expected]
+    seed_edges = [[1, 5], [3, 6]]
+    extended_edges = [[1, 5], [3, 4], [3, 6]]
+    added_edges = [[3, 4]]
+[[cases]]
+id = "wang_magron_example_3_maximal_chordal"
+notes = "Provenance: issue #292 (Wang-Magron 2021 Example 3.2 concept)."
+
+    [cases.expected]
+    n_vertices = 6
+    maximal_elimination = [[1, 2, 3, 4, 5, 6]]
+    mf_max_clique_size = 3
+    mf_n_cliques = 4
+[[cases]]
+id = "term_sparsity_empty_basis_nonstate"
+notes = "Provenance: issue #259 (empty-basis non-state support)."
+
+    [cases.expected]
+    supp_length = 0
+[[cases]]
+id = "term_sparsity_empty_basis_state"
+notes = "Provenance: issue #259 (empty-basis state support)."
+
+    [cases.expected]
+    supp_length = 0
+[[cases]]
+id = "term_sparsity_connected_lr_state"
+notes = "Provenance: issue #259 (connected_lr branch)."
+
+    [cases.expected]
+    has_edge_1_2 = true
+[[cases]]
+id = "term_sparsity_connected_rl_state"
+notes = "Provenance: issue #259 (connected_rl branch)."
+
+    [cases.expected]
+    has_edge_1_2 = true

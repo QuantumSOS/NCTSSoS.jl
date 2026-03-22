@@ -8,13 +8,12 @@ using NCTSSoS:
     StateWord
 
 function _wang_magron_expectation_case(id::AbstractString)
-    data = TestExpectations.expectations_load("expectations/wang_magron_example_5_3.json")
+    data = TestExpectations.expectations_load("expectations/wang_magron_example_5_3.toml")
     case = TestExpectations.expectations_case(data, id)
     haskey(case, "expected") || error("Missing key `expected` for case $(repr(id)).")
     return case["expected"]
 end
 
-_json_float(v) = Float64(v)
 
 function _trace_constraint(poly::Polynomial{NonCommutativeAlgebra,T,C}, sw_id::StateWord{MaxEntangled,NonCommutativeAlgebra,T}) where {T<:Integer,C<:Number}
     coeffs = C[coef for (coef, _) in poly.terms]
@@ -48,7 +47,7 @@ end
             ts_algo=NoElimination()
         )
         dense_result = cs_nctssos(tpop, dense_config; dualize=false)
-        @test dense_result.objective ≈ _json_float(lower_bounds["mu_2"]) atol = 1e-6
+        @test dense_result.objective ≈ lower_bounds["mu_2"] atol = 1e-6
 
         sparse_config = SolverConfig(
             optimizer=SOLVER,
@@ -57,6 +56,6 @@ end
             ts_algo=MMD()
         )
         sparse_result = cs_nctssos(tpop, sparse_config; dualize=false)
-        @test sparse_result.objective ≈ _json_float(lower_bounds["mu_ts_2_1"]) atol = 1e-6
+        @test sparse_result.objective ≈ lower_bounds["mu_ts_2_1"] atol = 1e-6
     end
 end

@@ -130,7 +130,7 @@ JuMP.dual_status(model::_StatusStub) = model.dual
         g = 1.0 * x[1]
 
         supp = NCTSSoS.term_sparsity_graph_supp(SimpleGraph(0), empty_basis, g)
-        @test length(supp) == json_int(expected["supp_length"])
+        @test length(supp) == expected["supp_length"]
         @test isempty(supp)
     end
 
@@ -143,7 +143,7 @@ JuMP.dual_status(model::_StatusStub) = model.dual
         empty_basis = eltype(basis0)[]
 
         supp = NCTSSoS.term_sparsity_graph_supp(SimpleGraph(0), empty_basis, g)
-        @test length(supp) == json_int(expected["supp_length"])
+        @test length(supp) == expected["supp_length"]
         @test isempty(supp)
     end
 

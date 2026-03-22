@@ -1,0 +1,17 @@
+schema_version = 1
+
+[[cases]]
+id = "example_5_3_lower_bounds"
+notes = "Wang-Magron 2020, Example 5.3: mu_ts_(2,1)(f,S) = mu_2(f,S) = -1."
+
+    [cases.expected]
+    mu_ts_2_1 = -1.0
+    mu_2 = -1.0
+[[cases]]
+id = "example_5_3_term_sparsity_graph"
+notes = "Reviewed six-edge reconstruction for Wang-Magron 2020 Example 5.3 / Example 3.8 Figure 4 on the basis {1, X, Y, X^2, XY, YX, Y^2}."
+
+    [cases.expected]
+    basis_labels = ["1", "X", "Y", "X^2", "XY", "YX", "Y^2"]
+    edges = [[1, 4], [1, 5], [1, 6], [1, 7], [2, 3], [4, 7]]
+    is_chordal = true

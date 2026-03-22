@@ -1,0 +1,15 @@
+schema_version = 1
+
+[[cases]]
+id = "Dense"
+
+    [cases.expected]
+    objective = -2.828427124746234
+    sides = [9]
+    nuniq = 21
+[[cases]]
+id = "TS"
+
+    [cases.expected]
+    objective = -2.8284271247321175
+    nuniq = 10

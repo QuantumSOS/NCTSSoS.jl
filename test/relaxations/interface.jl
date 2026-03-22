@@ -103,7 +103,7 @@ end
         # Both dualize=true and dualize=false now work for complex (Pauli) algebra
         res_mom = cs_nctssos(pop, solver_config; dualize=false)
         res_sos = cs_nctssos(pop, solver_config; dualize=true)
-        oracle = expectations_oracle("expectations/relaxations_interface.json", "dualization_naive_pauli_d1")
+        oracle = expectations_oracle("expectations/relaxations_interface.toml", "dualization_naive_pauli_d1")
         # Both should give the same result
         @test res_mom.objective ≈ res_sos.objective atol = 1e-6
         @test res_sos.objective ≈ oracle.opt atol = 1e-6
@@ -126,7 +126,7 @@ end
 
         result = cs_nctssos(pop, solver_config; dualize=true)
 
-        oracle = expectations_oracle("expectations/relaxations_interface.json", "dualization_trivial_true_min")
+        oracle = expectations_oracle("expectations/relaxations_interface.toml", "dualization_trivial_true_min")
         @test isapprox(result.objective, oracle.opt, atol=1e-6)
     end
 
@@ -295,7 +295,7 @@ end
 
         # This should solve successfully and not throw
         result = cs_nctssos(pop, solver_config)
-        oracle = expectations_oracle("expectations/relaxations_interface.json", "check_solver_status_min")
+        oracle = expectations_oracle("expectations/relaxations_interface.toml", "check_solver_status_min")
         @test result.objective ≈ oracle.opt atol=1e-4
     end
 

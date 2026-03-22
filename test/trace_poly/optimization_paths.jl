@@ -12,8 +12,8 @@ end
 
 @testset "Trace Optimization Paths" begin
     tpop = _build_chsh_trace_problem()
-    dense_oracle = expectations_oracle("expectations/trace_optimization_paths.json", "dense_auto_order")
-    mmd_oracle = expectations_oracle("expectations/trace_optimization_paths.json", "mmd_order1")
+    dense_oracle = expectations_oracle("expectations/trace_optimization_paths.toml", "dense_auto_order")
+    mmd_oracle = expectations_oracle("expectations/trace_optimization_paths.toml", "mmd_order1")
 
     dense_cfg = SolverConfig(
         optimizer=SOLVER,

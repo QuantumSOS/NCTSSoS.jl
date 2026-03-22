@@ -11,11 +11,11 @@
             order = 3
 
             @test maximum(length.(correlative_sparsity(pop, order, NoElimination()).cliques)) ==
-                json_int(max_clique_by_algo["no_elimination"])
+                max_clique_by_algo["no_elimination"]
             @test maximum(length.(correlative_sparsity(pop, order, MF()).cliques)) ==
-                json_int(max_clique_by_algo["mf"])
+                max_clique_by_algo["mf"]
             @test maximum(length.(correlative_sparsity(pop, order, AsIsElimination()).cliques)) ==
-                json_int(max_clique_by_algo["as_is_elimination"])
+                max_clique_by_algo["as_is_elimination"]
         end
 
         @testset "Example 1 (n=10 large scale)" begin
@@ -27,11 +27,11 @@
             order = 3
 
             @test maximum(length.(correlative_sparsity(pop, order, NoElimination()).cliques)) ==
-                json_int(max_clique_by_algo["no_elimination"])
+                max_clique_by_algo["no_elimination"]
             @test maximum(length.(correlative_sparsity(pop, order, MF()).cliques)) ==
-                json_int(max_clique_by_algo["mf"])
+                max_clique_by_algo["mf"]
             @test maximum(length.(correlative_sparsity(pop, order, AsIsElimination()).cliques)) ==
-                json_int(max_clique_by_algo["as_is_elimination"])
+                max_clique_by_algo["as_is_elimination"]
         end
 
         @testset "Constrained n=2" begin
@@ -50,11 +50,11 @@
             )
                 algo_expected = expected[algo_key]
                 sparsity = correlative_sparsity(pop, order, algo)
-                @test maximum(length.(sparsity.cliques)) == json_int(algo_expected["max_clique"])
+                @test maximum(length.(sparsity.cliques)) == algo_expected["max_clique"]
                 @test length.(sparsity.clq_mom_mtx_bases) ==
-                    json_int_vec(algo_expected["moment_basis_lengths"])
+                    algo_expected["moment_basis_lengths"]
                 @test length.(sparsity.clq_localizing_mtx_bases[1]) ==
-                    json_int_vec(algo_expected["localizing_basis_lengths"])
+                    algo_expected["localizing_basis_lengths"]
             end
         end
     end

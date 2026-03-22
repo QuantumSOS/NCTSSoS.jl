@@ -1,0 +1,23 @@
+schema_version = 1
+
+[[cases]]
+id = "newton_chip_n20"
+notes = "E5 NC Broyden tridiagonal benchmark (Wang-Magron '20, Table 6; `test-examples.typ` E5), row n=20. This file stores only literature-derived values from the paper/Typst metadata."
+
+    [cases.expected]
+    n = 20
+    dense_mb = 41
+    dense_opt = 0.0
+    sparse_mb = 5
+    sparse_opt = 0.0
+
+[[cases]]
+id = "newton_chip_n60"
+notes = "E5 NC Broyden tridiagonal benchmark (Wang-Magron '20, Table 6; `test-examples.typ` E5), row n=60. This file stores only literature-derived values from the paper/Typst metadata."
+
+    [cases.expected]
+    n = 60
+    dense_mb = 121
+    dense_opt = 0.0
+    sparse_mb = 5
+    sparse_opt = 0.0

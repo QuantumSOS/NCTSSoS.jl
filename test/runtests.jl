@@ -33,6 +33,7 @@ using .TestExpectations: expectations_oracle
     @testset "Problems" begin
         include("problems/bell_inequalities/chsh_simple.jl")
         include("problems/benchmarks/e1_broyden_banded.jl")
+        include("problems/benchmarks/e2_chained_singular.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
         include("problems/trace_polynomial/wang_magron_example_5_3.jl")

@@ -1,0 +1,23 @@
+schema_version = 1
+
+[[cases]]
+id = "newton_chip_n20"
+notes = "E4 NC chained Wood benchmark (Wang-Magron '20, Table 5; `test-examples.typ` E4), row n=20. This file stores only literature-derived values from the paper/Typst metadata."
+
+    [cases.expected]
+    n = 20
+    dense_mb = 31
+    dense_opt = 1.0
+    sparse_mb = 3
+    sparse_opt = 1.0
+
+[[cases]]
+id = "newton_chip_n40"
+notes = "E4 NC chained Wood benchmark (Wang-Magron '20, Table 5; `test-examples.typ` E4), row n=40. This file stores only literature-derived values from the paper/Typst metadata."
+
+    [cases.expected]
+    n = 40
+    dense_mb = 61
+    dense_opt = 1.0
+    sparse_mb = 3
+    sparse_opt = 0.9997

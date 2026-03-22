@@ -32,6 +32,7 @@ using .TestExpectations: expectations_oracle
     # 8. Curated problems
     @testset "Problems" begin
         include("problems/bell_inequalities/chsh_simple.jl")
+        include("problems/benchmarks/e1_broyden_banded.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
         include("problems/trace_polynomial/wang_magron_example_5_3.jl")

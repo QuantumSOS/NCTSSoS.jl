@@ -181,6 +181,10 @@ end
         end
     end
 
+    # TODO(backlog E8): promote the constrained NC polyball optimizer-
+    # extraction example here once overlapping-clique sparse GNS
+    # amalgamation is implemented. Until then, E8 should stay as a
+    # correlated-sparsity solve regression only.
     @testset "Sparse GNS rejects overlapping cliques" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:3)])
         pop = polyopt(1.0 * x[1] * x[2] + 1.0 * x[2] * x[3], reg)

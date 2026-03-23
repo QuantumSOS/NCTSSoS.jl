@@ -125,6 +125,31 @@ notes = "Provenance: issue #257 (constrained n=2 structure expectations)."
     moment_basis_lengths = [7]
     localizing_basis_lengths = [3, 3]
 [[cases]]
+id = "correlative_sparsity_e8_polyball_order2"
+notes = "Klep-Magron-Povh 2019 Example 5.10/5.15 constrained nc polyball. Verifies only the overlapping RIP clique pattern for E8 before optimizer extraction is attempted."
+
+    [cases.expected.no_elimination]
+    cliques = [["X₁", "X₂", "X₃", "X₄"]]
+
+    [cases.expected.mf]
+    cliques = [["X₁", "X₂", "X₃"], ["X₂", "X₃", "X₄"]]
+
+    [cases.expected.as_is_elimination]
+    cliques = [["X₁", "X₂", "X₃"], ["X₂", "X₃", "X₄"]]
+[[cases]]
+id = "correlated_pipeline_cs_d3_numeric_structure"
+notes = "Implementation-specific moment-block sizes and affine-count checks for the correlated-sparsity order-3 benchmark. These values come from the reviewed local oracle, not the literature table."
+
+    [cases.expected]
+    sides = [15, 15]
+    n_unique_moment_matrix_elements = 149
+[[cases]]
+id = "correlated_pipeline_ts_d3_numeric_structure"
+notes = "Implementation-specific affine-count check for the term-sparsity order-3 benchmark. This value comes from the reviewed local oracle, not the literature table."
+
+    [cases.expected]
+    n_unique_moment_matrix_elements = 123
+[[cases]]
 id = "wang_magron_example_3_support_extension"
 notes = "Provenance: issue #292 (Wang-Magron 2021 Example 3.1 concept)."
 

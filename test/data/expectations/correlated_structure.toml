@@ -137,6 +137,27 @@ notes = "Klep-Magron-Povh 2019 Example 5.10/5.15 constrained nc polyball. Verifi
     [cases.expected.as_is_elimination]
     cliques = [["X₁", "X₂", "X₃"], ["X₂", "X₃", "X₄"]]
 [[cases]]
+id = "correlative_sparsity_e9_polydisc_n4_order2"
+notes = "Klep-Magron-Povh 2019 Table 2, E9 chained singular on the nc polydisc. Structural expectations only: dense n=4 stays as one clique while MF reduces it to two 3-variable cliques."
+
+    [cases.expected.no_elimination]
+    cliques = [[1, 2, 3, 4]]
+
+    [cases.expected.mf]
+    cliques = [[1, 2, 4], [2, 3, 4]]
+[[cases]]
+id = "correlative_sparsity_e9_polydisc_n8_order2"
+notes = "Klep-Magron-Povh 2019 Table 2, E9 chained singular on the nc polydisc. Structural expectations only for the MF correlative-sparsity decomposition at n=8."
+
+    [cases.expected.mf]
+    cliques = [[1, 2, 4], [2, 3, 4], [3, 4, 6], [4, 5, 6], [5, 6, 7], [5, 7, 8]]
+[[cases]]
+id = "correlative_sparsity_e9_polydisc_n12_order2"
+notes = "Klep-Magron-Povh 2019 Table 2, E9 chained singular on the nc polydisc. Structural expectations only for the MF correlative-sparsity decomposition at n=12."
+
+    [cases.expected.mf]
+    cliques = [[1, 2, 4], [2, 3, 4], [3, 4, 5], [3, 5, 6], [5, 6, 7], [5, 7, 8], [7, 8, 10], [8, 9, 10], [9, 10, 12], [10, 11, 12]]
+[[cases]]
 id = "correlated_pipeline_cs_d3_numeric_structure"
 notes = "Implementation-specific moment-block sizes and affine-count checks for the correlated-sparsity order-3 benchmark. These values come from the reviewed local oracle, not the literature table."
 

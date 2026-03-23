@@ -29,6 +29,10 @@ const CORRELATED_PIPELINE_ORACLES = (
     E8_sparse_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E8_sparse_d2"),
     E8_sparse_d3 = expectations_oracle("expectations/correlated_pipeline.toml", "E8_sparse_d3"),
     E8_dense_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E8_dense_d2"),
+    E9_dense_n4_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E9_dense_n4_d2"),
+    E9_sparse_n4_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E9_sparse_n4_d2"),
+    E9_sparse_n8_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E9_sparse_n8_d2"),
+    E9_sparse_n12_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E9_sparse_n12_d2"),
 )
 
 const CORRELATED_STRUCTURE_EXPECTATIONS =
@@ -49,6 +53,11 @@ normalize_cliques(cliques) = sort(sort.(cliques))
 
 function clique_symbol_names(registry, cliques)
     normalize_cliques([[string(registry[idx]) for idx in clique] for clique in cliques])
+end
+
+function clique_variable_positions(vars, cliques)
+    position_by_index = Dict(var.word[1] => i for (i, var) in enumerate(vars))
+    normalize_cliques([[position_by_index[idx] for idx in clique] for clique in cliques])
 end
 
 function graph_adjacency_by_index(graph::SimpleGraph, sorted_indices)
@@ -160,10 +169,38 @@ function build_e8_polyball_problem()
     return polyopt(objective, reg; ineq_constraints=constraints)
 end
 
+function build_e9_chained_singular_polydisc_problem(n::Int)
+    n >= 4 || throw(ArgumentError("E9 requires n ≥ 4."))
+    iseven(n) || throw(ArgumentError("E9 is defined on even n with 4-variable chained blocks."))
+
+    reg, (x,) = create_noncommutative_variables([("X", 1:n)])
+    poly_type = typeof(x[1] + x[2])
+    objective = zero(poly_type)
+
+    # Keep the literature SOHS formulation from the chained-singular benchmark.
+    # Replacing these quartic pieces by naive NC fourth powers changes the
+    # support and no longer matches the published correlative-sparsity instance.
+    for i in 1:2:(n - 3)
+        linear1 = x[i] + 10.0 * x[i + 1]
+        linear2 = x[i + 2] - x[i + 3]
+        quadratic1 = x[i + 1]^2 - 4.0 * x[i + 1] * x[i + 2] + 4.0 * x[i + 2]^2
+        quadratic2 = x[i]^2 - 20.0 * x[i] * x[i + 3] + 100.0 * x[i + 3]^2
+
+        objective += linear1' * linear1
+        objective += 5.0 * (linear2' * linear2)
+        objective += quadratic1' * quadratic1
+        objective += 10.0 * (quadratic2' * quadratic2)
+    end
+
+    constraints = vcat([1.0 - x[i]^2 for i in 1:n], [x[i] - 1.0 / 3 for i in 1:n])
+    return reg, x, polyopt(objective, reg; ineq_constraints=constraints)
+end
+
 @testset "Correlated Sparsity" begin
     include("graph_and_cliques.jl")
     include("core_pipeline_structure.jl")
     include("core_pipeline_numeric.jl")
     include("coverage_edges.jl")
+    include("e9_chained_singular_polydisc.jl")
     include("literature_matrix.jl")
 end

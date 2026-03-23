@@ -26,6 +26,9 @@ end
 const CORRELATED_PIPELINE_ORACLES = (
     CS_d3 = expectations_oracle("expectations/correlated_pipeline.toml", "CS_d3"),
     TS_d3 = expectations_oracle("expectations/correlated_pipeline.toml", "TS_d3"),  # sides vary
+    E8_sparse_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E8_sparse_d2"),
+    E8_sparse_d3 = expectations_oracle("expectations/correlated_pipeline.toml", "E8_sparse_d3"),
+    E8_dense_d2 = expectations_oracle("expectations/correlated_pipeline.toml", "E8_dense_d2"),
 )
 
 const CORRELATED_STRUCTURE_EXPECTATIONS =
@@ -43,6 +46,10 @@ end
 
 var_indices(vars) = [v.word[1] for v in vars]
 normalize_cliques(cliques) = sort(sort.(cliques))
+
+function clique_symbol_names(registry, cliques)
+    normalize_cliques([[string(registry[idx]) for idx in clique] for clique in cliques])
+end
 
 function graph_adjacency_by_index(graph::SimpleGraph, sorted_indices)
     Dict(
@@ -119,6 +126,38 @@ function build_global_constraint_fixture()
         corr.clq_localizing_mtx_bases
     )
     return pop, sparsity, corr_with_global
+end
+
+function build_e8_polyball_problem()
+    reg, (x,) = create_noncommutative_variables([("X", 1:4)])
+    X1, X2, X3, X4 = x
+
+    f1 =
+        4.0 - X1 + 3.0 * X2 - 3.0 * X3 - 3.0 * X1^2 - 7.0 * X1 * X2 + 6.0 * X1 * X3 -
+        X2 * X1 - 5.0 * X3 * X1 + 5.0 * X3 * X2 - 5.0 * X1^3 - 3.0 * X1^2 * X3 +
+        4.0 * X1 * X2 * X1 - 6.0 * X1 * X2 * X3 + 7.0 * X1 * X3 * X1 +
+        2.0 * X1 * X3 * X2 - X1 * X3^2 - X2 * X1^2 + 3.0 * X2 * X1 * X2 -
+        X2 * X1 * X3 - 2.0 * X2^3 - 5.0 * X2^2 * X3 - 4.0 * X2 * X3^2 -
+        5.0 * X3 * X1^2 + 7.0 * X3 * X1 * X2 + 6.0 * X3 * X2 * X1 -
+        4.0 * X3 * X2^2 - X3^2 * X1 - 2.0 * X3^2 * X2 + 7.0 * X3^3
+
+    f2 =
+        -1.0 + 6.0 * X2 + 5.0 * X3 + 3.0 * X4 - 5.0 * X2^2 + 2.0 * X2 * X3 +
+        4.0 * X2 * X4 - 4.0 * X3 * X2 + X3^2 - X3 * X4 + X4 * X2 - X4 * X3 +
+        2.0 * X4^2 - 7.0 * X2^3 + 4.0 * X2 * X3^2 + 5.0 * X2 * X3 * X4 -
+        7.0 * X2 * X4 * X3 - 7.0 * X2 * X4^2 + X3 * X2^2 + 6.0 * X3 * X2 * X3 -
+        6.0 * X3 * X2 * X4 - 3.0 * X3^2 * X2 - 7.0 * X3^2 * X4 + 6.0 * X3 * X4 * X2 -
+        3.0 * X3 * X4 * X3 - 7.0 * X3 * X4^2 + 3.0 * X4 * X2^2 - 7.0 * X4 * X2 * X3 -
+        X4 * X2 * X4 - 5.0 * X4 * X3^2 + 7.0 * X4 * X3 * X4 + 6.0 * X4^2 * X2 -
+        4.0 * X4^3
+
+    # Examples 5.10/5.15 are stated as a self-adjoint eigenvalue benchmark.
+    # The tabulated f₁ and f₂ list one orientation of the mixed words, so the
+    # benchmark objective is reconstructed as f₁ + f₁† + f₂ + f₂†. Using only
+    # f₁ + f₂ cuts the reported optimum in half and no longer matches the paper.
+    objective = f1 + adjoint(f1) + f2 + adjoint(f2)
+    constraints = [1.0 - X1^2 - X2^2 - X3^2, 1.0 - X2^2 - X3^2 - X4^2]
+    return polyopt(objective, reg; ineq_constraints=constraints)
 end
 
 @testset "Correlated Sparsity" begin

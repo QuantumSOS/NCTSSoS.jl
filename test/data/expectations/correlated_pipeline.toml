@@ -2,14 +2,34 @@ schema_version = 1
 
 [[cases]]
 id = "CS_d3"
+notes = "Literature objective for the Wang-Magron correlated-sparsity benchmark. Implementation-specific moment-block sizes and affine-count checks live in `expectations/correlated_structure.toml`."
 
     [cases.expected]
     objective = 0.9975308091952613
-    sides = [15, 15]
-    nuniq = 149
 [[cases]]
 id = "TS_d3"
+notes = "Literature objective for the Wang-Magron term-sparsity benchmark. Implementation-specific affine-count checks live in `expectations/correlated_structure.toml`."
 
     [cases.expected]
     objective = 0.9975305666745705
-    nuniq = 123
+
+[[cases]]
+id = "E8_sparse_d2"
+notes = "Klep-Magron-Povh 2019 Example 5.10/5.15 constrained nc polyball, sparse correlative-sparsity relaxation with MF() at order 2. This file stores only the literature objective; implementation-specific block sizes and affine counts live in `expectations/correlated_structure.toml`."
+
+    [cases.expected]
+    objective = -27.536037905808033
+
+[[cases]]
+id = "E8_sparse_d3"
+notes = "Klep-Magron-Povh 2019 Example 5.10/5.15 constrained nc polyball, sparse correlative-sparsity relaxation with MF() at order 3. This file stores only the literature objective; implementation-specific block sizes and affine counts live in `expectations/correlated_structure.toml`."
+
+    [cases.expected]
+    objective = -27.466553231457887
+
+[[cases]]
+id = "E8_dense_d2"
+notes = "Klep-Magron-Povh 2019 Example 5.10/5.15 constrained nc polyball, dense order-2 relaxation. This file stores only the literature objective; implementation-specific block sizes and affine counts live in `expectations/correlated_structure.toml`."
+
+    [cases.expected]
+    objective = -27.466552559242835

@@ -57,5 +57,24 @@
                     algo_expected["localizing_basis_lengths"]
             end
         end
+
+        @testset "E8 constrained polyball (order=2)" begin
+            expected = correlated_structure_case("correlative_sparsity_e8_polyball_order2")
+            pop = build_e8_polyball_problem()
+            order = 2
+
+            for (algo_key, algo) in (
+                ("no_elimination", NoElimination()),
+                ("mf", MF()),
+                ("as_is_elimination", AsIsElimination()),
+            )
+                algo_expected = expected[algo_key]
+                sparsity = correlative_sparsity(pop, order, algo)
+
+                @test clique_symbol_names(sparsity.registry, sparsity.cliques) ==
+                    normalize_cliques(algo_expected["cliques"])
+                @test isempty(sparsity.global_cons)
+            end
+        end
     end
 end

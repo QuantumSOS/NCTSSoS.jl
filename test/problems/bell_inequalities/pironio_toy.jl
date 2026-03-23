@@ -1,8 +1,19 @@
 # test/problems/bell_inequalities/pironio_toy.jl
-# Tests: E11 Pironio toy problem
+# Tests: E11 Pironio toy problem.
 #
 # Coverage: dense moment + dense SOS at order 2.
 # Expected optimal value: -3/4.
+#
+# Note on E12:
+#   Pironio's "toy with extra constraints" adds generalized state constraints
+#       r(X)|φ⟩ = 0
+#   and
+#       ⟨φ|s(X)|φ⟩ ≥ 0.
+#   Those are state-polynomial features, not a clean Bell/eigenvalue benchmark in
+#   this file. A surrogate reformulation can be written with the current API, but
+#   that would test a state-polynomial encoding choice rather than the original
+#   Bell-problem formulation. So E12 is intentionally not included here; it should
+#   be covered in the state-polynomial test suite instead.
 
 using Test, NCTSSoS, JuMP
 

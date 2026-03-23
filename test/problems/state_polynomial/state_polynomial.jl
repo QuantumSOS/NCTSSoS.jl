@@ -5,6 +5,10 @@
 #   - 7.2.3: Mixed state polynomial with squared expectations
 #
 # Note: Basic CHSH state polynomial tests are in chsh.jl
+# Generalized state-constraint cases should also live under the state-polynomial
+# suite rather than `test/problems/bell_inequalities/`, even when they originate
+# from Bell examples, because the behavior under test is the state-polynomial
+# formulation itself.
 # Results verified against NCTSSOS.
 
 using Test, NCTSSoS, JuMP

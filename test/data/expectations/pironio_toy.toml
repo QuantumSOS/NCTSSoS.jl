@@ -1,0 +1,10 @@
+schema_version = 1
+
+[[cases]]
+id = "Dense_d2"
+notes = "E11 Pironio toy problem at dense order 2. Exact optimum is -3/4 from Pironio et al.; structure verified locally with COSMO."
+
+    [cases.expected]
+    objective = -0.75
+    sides = [7]
+    nuniq = 22

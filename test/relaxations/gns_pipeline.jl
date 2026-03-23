@@ -392,6 +392,57 @@ end
         @test norm(h_matrix) ≤ 1e-5
     end
 
+    @testset "Pironio toy extraction" begin
+        reg, (vars,) = create_noncommutative_variables([("X", 1:2)])
+        X1, X2 = vars
+
+        f = X1 * X2 + X2 * X1
+        g = -X2^2 + X2 + 0.5
+        h = X1^2 - X1
+        pop = polyopt(f, reg; eq_constraints=[h], ineq_constraints=[g])
+        problem = _solve_dense_example(pop, reg, 2; H_deg=2, hankel_deg=1, atol=1e-6)
+        gns = gns_reconstruct(
+            problem.hankel_flat,
+            reg,
+            2;
+            method=:svd,
+            hankel_deg=1,
+            atol=1e-6,
+        )
+
+        A1 = gns.matrices[reg[:X₁]]
+        A2 = gns.matrices[reg[:X₂]]
+        report = verify_gns(gns, problem.result.monomap, reg; atol=5e-5)
+
+        @test problem.result.objective ≈ -0.75 atol = 1e-5
+        @test problem.flatness.is_flat
+        @test report.moment_max_error ≤ 5e-5
+
+        # Put the extracted cyclic vector in the first basis slot. The second
+        # basis vector still has a sign freedom, so fix it to match the paper's
+        # convention where the off-diagonal entry of X₁★ is positive.
+        xi_hat = gns.xi / norm(gns.xi)
+        eta_hat = [-xi_hat[2], xi_hat[1]]
+        U = hcat(xi_hat, eta_hat)
+        A1_paper = U' * A1 * U
+        if real(A1_paper[1, 2]) < 0
+            eta_hat = -eta_hat
+            U = hcat(xi_hat, eta_hat)
+            A1_paper = U' * A1 * U
+        end
+        A2_paper = U' * A2 * U
+        phi_paper = U' * xi_hat
+        sqrt3_over_4 = sqrt(3) / 4
+        expected_A1 = [0.75 sqrt3_over_4; sqrt3_over_4 0.25]
+        expected_A2 = [-0.25 -sqrt3_over_4; -sqrt3_over_4 1.25]
+        expected_phi = [1.0, 0.0]
+
+        @test U' * U ≈ Matrix{eltype(U)}(I, 2, 2) atol = 1e-10
+        @test phi_paper ≈ expected_phi atol = 1e-10
+        @test A1_paper ≈ expected_A1 atol = 5e-5
+        @test A2_paper ≈ expected_A2 atol = 5e-5
+    end
+
     @testset "Motzkin quartic ball extraction" begin
         reg, (vars,) = create_noncommutative_variables([("X", 1:2)])
         X, Y = vars

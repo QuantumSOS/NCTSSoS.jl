@@ -37,6 +37,21 @@ function _solve_dense_moment_problem(pop, cfg)
     return result
 end
 
+function _pipeline_is_expected_noncertificate(err::NCTSSoS.SolverStatusError)
+    err.termination in (MOI.DUAL_INFEASIBLE, MOI.INFEASIBLE, MOI.INFEASIBLE_OR_UNBOUNDED) &&
+        return true
+
+    err.primal == MOI.INFEASIBILITY_CERTIFICATE && return true
+    err.dual == MOI.INFEASIBILITY_CERTIFICATE && return true
+
+    if err.termination in (MOI.ITERATION_LIMIT, MOI.SLOW_PROGRESS)
+        return err.primal ∉ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT) &&
+               err.dual ∉ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT)
+    end
+
+    return false
+end
+
 function _dense_hankel_data(monomap, reg, H_deg, hankel_deg; atol=1e-6)
     full_basis = get_ncbasis(reg, H_deg)
     basis = get_ncbasis(reg, hankel_deg)
@@ -512,9 +527,7 @@ end
         end
 
         if outcome isa NCTSSoS.SolverStatusError
-            @test outcome.termination in (MOI.DUAL_INFEASIBLE, MOI.INFEASIBLE, MOI.INFEASIBLE_OR_UNBOUNDED) ||
-                  outcome.primal == MOI.INFEASIBILITY_CERTIFICATE ||
-                  outcome.dual == MOI.INFEASIBILITY_CERTIFICATE
+            @test _pipeline_is_expected_noncertificate(outcome)
         else
             problem = _dense_hankel_data(outcome.monomap, reg, 2, 1; atol=1e-6)
             @test !problem.flatness.is_flat

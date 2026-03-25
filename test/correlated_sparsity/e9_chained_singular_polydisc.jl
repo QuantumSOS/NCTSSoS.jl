@@ -7,9 +7,12 @@
 # behavior, not just the final objective on a single end-to-end instance.
 #
 # The paper reports objectives only to table precision, and these dualized SOS
-# values drift slightly across solver/dependency resolutions. Keep the objective
-# tolerance aligned with the literature precision instead of overfitting one
-# exact package graph.
+# values drift slightly across solver/dependency resolutions. In the repository
+# environment, the stored E9 objectives reproduce exactly, but under `Pkg.test()`
+# re-resolution (JuMP/MOI/CliqueTrees upgrades) we observed objective drift up
+# to about 6.2e-3 while the structural oracles (`sides`, `nuniq`, clique data)
+# stayed exact. Use 1e-2 so CI remains sensitive to formulation regressions
+# without overfitting one exact floating-point dependency graph.
 const E9_OBJECTIVE_ATOL = 1e-2
 
 @testset "E9 chained singular on NC polydisc" begin

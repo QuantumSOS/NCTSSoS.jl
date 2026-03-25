@@ -239,10 +239,12 @@ end
         [trace_constraint(g_link), trace_constraint(g_ball)],
         paper_basis
     )
-    @test length(init) == 8
+    @test length(init) == 12
 
     trace_obj_support = NCStateWord(tr(only(monomials(X * Y^2 * X))), one(mx))
+    trace_diag_support = only(monomials(simplify(NCTSSoS._neat_dot3(paper_basis[5], one(paper_basis[1]), paper_basis[5]))))
     @test trace_obj_support in init
+    @test trace_diag_support in init
 
     graph = NCTSSoS.get_term_sparsity_graph([NCStateWord(sw_id, one(mx))], init, paper_basis)
     @test [(Graphs.src(e), Graphs.dst(e)) for e in collect(Graphs.edges(graph))] ==
@@ -331,8 +333,18 @@ end
     )
     @test_throws ErrorException NCTSSoS._solve_complex_moment_problem(bad_mp_pauli, SOLVER, true)
 
-    mp_state_manual = NCTSSoS.moment_relax(pop_state, corr_state, [ts_state])
-    @test !isempty(mp_state_manual.constraints)
+    @test_throws ArgumentError NCTSSoS.moment_relax(pop_state, corr_state, [ts_state])
+
+    valid_state_term = (1.0 * tr(x_nc[1])) * one(typeof(x_nc[1]))
+    pop_state_valid = polyopt(valid_state_term, reg_nc; eq_constraints=[valid_state_term])
+    sparsity_state_valid = compute_sparsity(pop_state_valid, SolverConfig(optimizer=SOLVER, order=1))
+    mp_state_valid = NCTSSoS.moment_relax(
+        pop_state_valid,
+        sparsity_state_valid.corr_sparsity,
+        sparsity_state_valid.cliques_term_sparsities
+    )
+    @test !isempty(mp_state_valid.constraints)
+
     pop_state_len0 = polyopt(
         (1.0 * tr(x_nc[1])) * one(typeof(x_nc[1])),
         reg_nc;
@@ -341,36 +353,36 @@ end
     corr_state_len0 = NCTSSoS.correlative_sparsity(pop_state_len0, 1, NoElimination())
     @test isempty(corr_state_len0.clq_localizing_mtx_bases[1][1])
 
-    M_state = eltype(corr_state.clq_mom_mtx_bases[1])
-    P_state = typeof(eq_state)
+    M_state = eltype(sparsity_state_valid.corr_sparsity.clq_mom_mtx_bases[1])
+    P_state = typeof(valid_state_term)
     manual_corr_state = CorrelativeSparsity{NonCommutativeAlgebra,UInt8,P_state,M_state,MaxEntangled}(
         [[idx1]],
         reg_nc,
-        [eq_state],
+        [valid_state_term],
         [Int[]],
         [1],
         [[one(M_state)]],
         [Vector{M_state}[]]
     )
     manual_ts = [[NCTSSoS.TermSparsity([one(M_state)], [[one(M_state)]])]]
-    mp_state_global = NCTSSoS.moment_relax(pop_state, manual_corr_state, manual_ts)
+    mp_state_global = NCTSSoS.moment_relax(pop_state_valid, manual_corr_state, manual_ts)
     @test any(c -> c[1] == :Zero, mp_state_global.constraints)
 
-    sos_state = NCTSSoS.sos_dualize(mp_state_manual)
+    sos_state = NCTSSoS.sos_dualize(mp_state_valid)
     @test sos_state.n_unique_elements > 0
 
     bad_mp_state = NCTSSoS.StateMomentProblem(
-        mp_state_manual.objective,
-        [(:HPSD, mp_state_manual.constraints[1][2], mp_state_manual.constraints[1][3])],
-        mp_state_manual.total_basis,
-        mp_state_manual.n_unique_moment_matrix_elements
+        mp_state_valid.objective,
+        [(:HPSD, mp_state_valid.constraints[1][2], mp_state_valid.constraints[1][3])],
+        mp_state_valid.total_basis,
+        mp_state_valid.n_unique_moment_matrix_elements
     )
     @test_throws ErrorException NCTSSoS.solve_moment_problem(bad_mp_state, SOLVER)
     bad_identity_mp = NCTSSoS.StateMomentProblem(
-        mp_state_manual.objective,
-        mp_state_manual.constraints,
-        eltype(mp_state_manual.total_basis)[],
-        mp_state_manual.n_unique_moment_matrix_elements
+        mp_state_valid.objective,
+        mp_state_valid.constraints,
+        eltype(mp_state_valid.total_basis)[],
+        mp_state_valid.n_unique_moment_matrix_elements
     )
     @test_throws ErrorException NCTSSoS.solve_moment_problem(bad_identity_mp, SOLVER)
 
@@ -383,6 +395,9 @@ end
     @test zero_expr == 0.0
 
     non_basis_ncsp = (1.0 * tr(_mono(1) * _mono(2))) * one(_mono(1))
-    skipped_expr = NCTSSoS._substitute_state_poly(non_basis_ncsp, Dict(sw_identity => 1), [1.0])
-    @test skipped_expr == 0.0
+    @test_throws ArgumentError NCTSSoS._substitute_state_poly(
+        non_basis_ncsp,
+        Dict(sw_identity => 1),
+        [1.0]
+    )
 end

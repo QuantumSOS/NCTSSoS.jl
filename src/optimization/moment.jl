@@ -689,6 +689,106 @@ function _build_state_constraint_matrix(
     return (cone, moment_mtx)
 end
 
+function _state_moment_matrix_basis(
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+) where {M<:NCStateWord}
+    basis = M[]
+
+    for term_sparsities in cliques_term_sparsities
+        for block_basis in term_sparsities[1].block_bases
+            for row_idx in block_basis, col_idx in block_basis
+                append!(basis, monomials(simplify(_neat_dot3(row_idx, one(M), col_idx))))
+            end
+        end
+    end
+
+    return sorted_unique!(basis)
+end
+
+function _state_total_basis(
+    pop::PolyOpt{A,TI,P},
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M,ST},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+) where {A<:AlgebraType,TI<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,TI},M<:NCStateWord{ST,A,TI}}
+    total_basis = M[]
+
+    for (cons_idx, term_sparsities) in zip(corr_sparsity.clq_cons, cliques_term_sparsities)
+        polys = [one(pop.objective); corr_sparsity.cons[cons_idx]...]
+        for (poly, term_sparsity) in zip(polys, term_sparsities)
+            for ncsw in monomials(poly), block_basis in term_sparsity.block_bases, row_idx in block_basis, col_idx in block_basis
+                append!(total_basis, monomials(simplify(_neat_dot3(row_idx, ncsw, col_idx))))
+            end
+        end
+    end
+
+    for global_con in corr_sparsity.global_cons
+        append!(total_basis, monomials(corr_sparsity.cons[global_con]))
+    end
+
+    return sorted_unique!(total_basis)
+end
+
+function _summarize_state_words(words; limit::Int=5)
+    shown = join((sprint(show, word) for word in Iterators.take(words, limit)), ", ")
+    length(words) > limit && (shown *= ", ...")
+    return "[" * shown * "]"
+end
+
+function _throw_missing_state_words(
+    missing::Vector{SW},
+    context::AbstractString;
+    source::AbstractString="Relaxation basis"
+) where {SW<:StateWord}
+    isempty(missing) && return nothing
+    sorted_unique!(missing)
+    throw(ArgumentError("$source does not generate all state words needed for $context. This would silently drop terms from the SDP. Missing words: $(_summarize_state_words(missing))"))
+end
+
+function _missing_state_words(
+    poly::P,
+    available_state_words::AbstractSet{StateWord{ST,A,T}}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer,P<:NCStatePolynomial{C,ST,A,T}}
+    missing = StateWord{ST,A,T}[]
+    for ncsw in monomials(poly)
+        sw = symmetric_canon(expval(ncsw))
+        sw in available_state_words || push!(missing, sw)
+    end
+    return missing
+end
+
+function _validate_state_relaxation_support(
+    pop::PolyOpt{A,TI,P},
+    total_basis::Vector{M};
+    source::AbstractString="Relaxation basis"
+) where {A<:AlgebraType,TI<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,TI},M<:NCStateWord{ST,A,TI}}
+    state_basis = _sorted_stateword_basis_from_ncsw(total_basis)
+    available_state_words = Set(state_basis)
+
+    _throw_missing_state_words(
+        _missing_state_words(pop.objective, available_state_words),
+        "the objective";
+        source
+    )
+
+    for (i, poly) in pairs(pop.eq_constraints)
+        _throw_missing_state_words(
+            _missing_state_words(poly, available_state_words),
+            "equality constraint $i";
+            source
+        )
+    end
+
+    for (i, poly) in pairs(pop.ineq_constraints)
+        _throw_missing_state_words(
+            _missing_state_words(poly, available_state_words),
+            "inequality constraint $i";
+            source
+        )
+    end
+
+    return state_basis
+end
+
 """
     moment_relax(pop::PolyOpt, corr_sparsity, cliques_term_sparsities) -> StateMomentProblem
 
@@ -710,32 +810,16 @@ function moment_relax(
 
     # Unique moment variables are determined by moment matrices only (poly = 1),
     # not by the full set of localizing matrices.
-    moment_matrix_basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
-        reduce(vcat, [
-            [
-                ncsw_result
-                for row_idx in basis
-                for col_idx in basis
-                for ncsw_result in monomials(simplify(_neat_dot3(row_idx, one(M), col_idx)))
-            ]
-            for basis in term_sparsities[1].block_bases
-        ])
-    end...)
+    moment_matrix_basis = _state_moment_matrix_basis(cliques_term_sparsities)
     n_unique_moment_matrix_elements = length(_sorted_stateword_basis_from_ncsw(moment_matrix_basis))
 
-    # Compute total basis: union of all moment matrix entry NCStateWords
-    # _neat_dot3 returns NCStateWord, simplify to get NCStatePolynomial
-    total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
-        reduce(vcat, [
-            [ncsw_result
-             for ncsw in monomials(poly)
-             for basis in term_sparsity.block_bases
-             for row_idx in basis
-             for col_idx in basis
-             for ncsw_result in monomials(simplify(_neat_dot3(row_idx, ncsw, col_idx)))]
-            for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
-        ])
-    end...)
+    # Compute total basis from every symbolic constraint actually present in the
+    # relaxation. This must cover clique-localizing terms and global constraints,
+    # but it intentionally does not add objective words on its own: if an
+    # objective moment is absent here, the relaxation is underspecified and must
+    # error rather than create an unconstrained free moment.
+    total_basis = _state_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+    _validate_state_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
 
     # State polynomial optimization uses real PSD cone (unipotent, projector algebras)
     # These are "real" algebras that don't produce complex phases
@@ -852,7 +936,7 @@ function solve_moment_problem(
         dim = size(mat, 1)
         # Convert NCStatePolynomial matrix to JuMP expression matrix
         jump_mat = [
-            _substitute_state_poly(mat[i,j], sw_to_idx, y)
+            _substitute_state_poly(mat[i,j], sw_to_idx, y; context="constraint matrix entry ($i, $j)")
             for i in 1:dim, j in 1:dim
         ]
 
@@ -866,7 +950,7 @@ function solve_moment_problem(
     end
 
     # Set objective
-    obj_expr = _substitute_state_poly(mp.objective, sw_to_idx, y)
+    obj_expr = _substitute_state_poly(mp.objective, sw_to_idx, y; context="the objective")
     @objective(model, Min, obj_expr)
 
     # Solve
@@ -883,18 +967,21 @@ function solve_moment_problem(
 end
 
 """
-    _substitute_state_poly(poly::NCStatePolynomial, sw_to_idx::Dict, y::Vector) -> AffExpr
+    _substitute_state_poly(poly::NCStatePolynomial, sw_to_idx::Dict, y::Vector; context="state polynomial") -> AffExpr
 
 Substitute StateWords in an NCStatePolynomial with JuMP variables.
 Returns a JuMP affine expression.
 
 NCStateWords are converted to StateWords via expval, then canonicalized.
-StateWords not in sw_to_idx are treated as having expectation value 0.
+Missing StateWords now raise an error instead of being silently treated as 0,
+preventing underspecified state/trace relaxations from constructing the wrong
+SDP.
 """
 function _substitute_state_poly(
     poly::P,
     sw_to_idx::Dict{SW,Int},
-    y::Vector{V}
+    y::Vector{V};
+    context::AbstractString="state polynomial"
 ) where {C<:Number, ST<:StateType, A<:AlgebraType, T<:Integer, P<:NCStatePolynomial{C,ST,A,T}, SW<:StateWord{ST,A,T}, V}
 
     if iszero(poly)
@@ -902,16 +989,19 @@ function _substitute_state_poly(
     end
 
     expr = zero(eltype(y))
+    missing = SW[]
     for (coef, ncsw) in zip(coefficients(poly), monomials(poly))
-        # Convert NCStateWord to StateWord via expval, then canonicalize
         canon_sw = symmetric_canon(expval(ncsw))
+        idx = get(sw_to_idx, canon_sw, 0)
 
-        # Skip StateWords not in basis (expectation value 0)
-        if haskey(sw_to_idx, canon_sw)
-            idx = sw_to_idx[canon_sw]
-            expr += coef * y[idx]
+        if iszero(idx)
+            push!(missing, canon_sw)
+            continue
         end
+
+        expr += coef * y[idx]
     end
 
+    _throw_missing_state_words(missing, context; source="Relaxation basis")
     return expr
 end

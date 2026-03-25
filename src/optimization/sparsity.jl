@@ -191,8 +191,36 @@ function _normalize_basis_element(::Type{NormalMonomial{A,T}}, poly::Polynomial{
     return mono
 end
 
+function _normalize_basis_element(::Type{NCStateWord{ST,A,T}}, mono::NormalMonomial{A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    return NCStateWord(one(StateWord{ST,A,T}), mono)
+end
+
+function _normalize_basis_element(::Type{NCStateWord{ST,A,T}}, sw::StateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    return NCStateWord(sw, one(NormalMonomial{A,T}))
+end
+
+function _normalize_basis_element(::Type{NCStateWord{ST,A,T}}, ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    return ncsw
+end
+
+function _normalize_basis_element(::Type{NCStateWord{ST,A,T}}, poly::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    state_terms = monomials(poly)
+    length(state_terms) == 1 || throw(ArgumentError("Each `moment_basis` entry must be a basis element or a single-term polynomial with unit coefficient."))
+    coef = only(coefficients(poly))
+    isone(coef) || throw(ArgumentError("Single-term polynomial entries in `moment_basis` must have unit coefficient."))
+    return NCStateWord(only(state_terms), one(NormalMonomial{A,T}))
+end
+
+function _normalize_basis_element(::Type{NCStateWord{ST,A,T}}, poly::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    state_terms = monomials(poly)
+    length(state_terms) == 1 || throw(ArgumentError("Each `moment_basis` entry must be a basis element or a single-term polynomial with unit coefficient."))
+    coef = only(coefficients(poly))
+    isone(coef) || throw(ArgumentError("Single-term polynomial entries in `moment_basis` must have unit coefficient."))
+    return only(state_terms)
+end
+
 function _normalize_basis_element(::Type{M}, item) where {M}
-    throw(ArgumentError("`moment_basis` entries must be monomials or single-term unit-coefficient polynomials from the problem's variable registry; got $(typeof(item))."))
+    throw(ArgumentError("`moment_basis` entries must be basis elements (monomials, state words, or NCStateWords) or single-term unit-coefficient polynomials from the problem's variable registry; got $(typeof(item))."))
 end
 
 function _finalize_moment_basis(
@@ -217,6 +245,19 @@ function _normalize_moment_basis(
     moment_basis::AbstractVector
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
     M = NormalMonomial{A,T}
+    normalized_basis = M[]
+    sizehint!(normalized_basis, length(moment_basis))
+    for basis_elem in moment_basis
+        push!(normalized_basis, _normalize_basis_element(M, basis_elem))
+    end
+    return _finalize_moment_basis(pop.registry, normalized_basis)
+end
+
+function _normalize_moment_basis(
+    pop::OptimizationProblem{A,P},
+    moment_basis::AbstractVector
+) where {A<:MonoidAlgebra,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+    M = NCStateWord{ST,A,T}
     normalized_basis = M[]
     sizehint!(normalized_basis, length(moment_basis))
     for basis_elem in moment_basis
@@ -369,6 +410,51 @@ function correlative_sparsity(
     cliques_localizing_bases = _build_localizing_bases(cliques_moment_matrix_bases, cliques_cons, all_cons, effective_order)
 
     return CorrelativeSparsity{A,T,P,M,Nothing}(
+        cliques,
+        registry,
+        all_cons,
+        cliques_cons,
+        global_cons,
+        cliques_moment_matrix_bases,
+        cliques_localizing_bases
+    )
+end
+
+"""
+    correlative_sparsity(pop, moment_basis::AbstractVector, elim_algo)
+
+Basis-based variant of [`correlative_sparsity`](@ref) for state/trace
+polynomial problems. The explicit `moment_basis` is normalized to
+`NCStateWord`s, validated against the problem registry, filtered per clique,
+and reused to derive localizing bases from the effective order.
+"""
+function correlative_sparsity(
+    pop::PolyOpt{A,T,P},
+    moment_basis::AbstractVector,
+    elim_algo::EliminationAlgorithm
+) where {A<:MonoidAlgebra,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+    normalized_basis = _normalize_moment_basis(pop, moment_basis)
+    registry = pop.registry
+    all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
+
+    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, all_cons)
+    clique_node_sets = clique_decomp(G, elim_algo)
+
+    node_to_idx = Dict{Int,T}(pos => idx for (idx, pos) in idx_to_node)
+    cliques = map(clique_node_sets) do node_set
+        sort([node_to_idx[node] for node in node_set])
+    end
+
+    cliques_cons, global_cons = assign_state_constraint(cliques, all_cons, registry)
+    cliques_moment_matrix_bases = map(cliques) do clique_indices
+        _filter_basis_to_clique(normalized_basis, clique_indices)
+    end
+
+    M = eltype(normalized_basis)
+    effective_order = _effective_basis_order(normalized_basis)
+    cliques_localizing_bases = _build_localizing_bases(cliques_moment_matrix_bases, cliques_cons, all_cons, effective_order)
+
+    return CorrelativeSparsity{A,T,P,M,ST}(
         cliques,
         registry,
         all_cons,
@@ -738,6 +824,31 @@ function _extract_compound_state_words(
     return unique(result)
 end
 
+@inline function _is_scalar_single_trace_term(
+    ncsw::NCStateWord{MaxEntangled,A,T}
+) where {A<:MonoidAlgebra,T<:Integer}
+    return isone(ncsw.nc_word) && (isone(ncsw.sw) || length(ncsw.sw.state_syms) == 1)
+end
+
+function _uses_scalar_trace_word_basis(
+    pop::PolyOpt{A,T,P}
+) where {A<:MonoidAlgebra,T<:Integer,C<:Number,P<:NCStatePolynomial{C,MaxEntangled,A,T}}
+    polys = (pop.objective, pop.eq_constraints..., pop.ineq_constraints...)
+    return all(polys) do poly
+        all(_is_scalar_single_trace_term, monomials(poly))
+    end
+end
+
+function _embedded_trace_moment_basis(
+    registry::VariableRegistry{A,T},
+    order::Int,
+) where {A<:MonoidAlgebra,T<:Integer}
+    sw_id = one(StateWord{MaxEntangled,A,T})
+    return NCStateWord{MaxEntangled,A,T}[NCStateWord(sw_id, mono) for mono in get_ncbasis(registry, order)]
+end
+
+@inline _uses_embedded_operator_basis(basis::Vector{<:NCStateWord}) = all(b -> isone(b.sw), basis)
+
 """
     correlative_sparsity(pop::PolyOpt, order, elim_algo) -> CorrelativeSparsity
 
@@ -811,34 +922,33 @@ end
 
 Initialize the activated support for state polynomial term sparsity iteration.
 
-This follows the NCTSSOS algorithm where the initial support includes:
-1. Canonicalized objective monomials (symmetric_canon applied)
-2. Constraint monomials
-
-Note: Diagonal entries (monosquare terms) are NOT included by default, matching
-NCTSSOS's `monosquare=false` default. This is crucial for proper term sparsity:
-including all diagonal entries would create spurious edges in the term sparsity
-graph because products of compound basis elements would match diagonals of other
-basis elements, making the graph fully connected.
+The generic state-polynomial path starts from the objective and constraint
+monomials only. For sparse pure-trace problems represented with the embedded
+operator basis `NCStateWord(one(StateWord), w)`, we also add the diagonal moment
+entries `b†b`, matching the reference NCTSSOS trace CS+TS construction.
 
 # Arguments
 - `partial_obj::NCStatePolynomial`: Partial objective for this clique
 - `cons::Vector{NCStatePolynomial}`: Constraint state polynomials
-- `mom_mtx_bases::Vector{NCStateWord}`: Moment matrix basis NCStateWords (unused, kept for API)
+- `mom_mtx_bases::Vector{NCStateWord}`: Moment matrix basis NCStateWords
 
 # Returns
-- `Vector{NCStateWord}`: Sorted union of canonicalized objective monomials and
-  constraint monomials
+- `Vector{NCStateWord}`: Sorted activated support for the first term-sparsity step
 """
 function init_activated_supp(
-    partial_obj::P, cons::Vector{P}, _mom_mtx_bases::Vector{M}
+    partial_obj::P, cons::Vector{P}, mom_mtx_bases::Vector{M}
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
-    # Only include objective and constraint monomials (no monosquare/diagonal terms)
-    # This matches NCTSSOS's default monosquare=false behavior
-    # Note: NCStateWord objects are already in canonical form, so we just union without symmetric_canon
+    diagonal_entries = M[]
+    if ST == MaxEntangled && _uses_embedded_operator_basis(mom_mtx_bases)
+        for b in mom_mtx_bases
+            append!(diagonal_entries, monomials(simplify(_neat_dot3(b, one(M), b))))
+        end
+    end
+
     return sorted_union(
         monomials(partial_obj),
-        mapreduce(monomials, vcat, cons; init=M[])
+        mapreduce(monomials, vcat, cons; init=M[]),
+        diagonal_entries,
     )
 end
 

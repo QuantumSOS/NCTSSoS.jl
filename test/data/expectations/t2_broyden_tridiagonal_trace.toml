@@ -1,0 +1,19 @@
+schema_version = 1
+
+[[cases]]
+id = "typst_n20"
+notes = "T2 NC Broyden tridiagonal trace benchmark, Typst row n=20 from `test-examples.typ` T2 / Wang-Magron Table 10. This fixture stores only literature-backed values."
+
+    [cases.expected]
+    n = 20
+    sparse_opt = 0.0
+    sparse_mb = 6
+
+[[cases]]
+id = "typst_n40"
+notes = "T2 NC Broyden tridiagonal trace benchmark at n=40. Wang-Magron Table 10 reports sparse_opt = 0 and sparse_mb = 6 for sampled rows n = 20, 100, 1000, 4000, and the same source states mu_min = 0 for all n with sparse mb = 6 for this family. This fixture stores only literature-backed values."
+
+    [cases.expected]
+    n = 40
+    sparse_opt = 0.0
+    sparse_mb = 6

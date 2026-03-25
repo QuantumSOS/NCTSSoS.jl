@@ -5,13 +5,12 @@ EditURL = "../literate/newton_chip_method.jl"
 # [Newton Chip Method](@id newton-chip-method)
 
 This page shows how the Newton chip idea appears in the current `NCTSSoS`
-API for both ordinary and tracial noncommutative optimization. For
-unconstrained ordinary `PolyOpt` problems, the package exposes
-[`newton_chip_basis`](@ref) directly. For tracial problems, the package
-exposes the dense trace basis through [`get_state_basis`](@ref), while the
-solver still uses `order` to build that basis internally. The background for
-these two reductions is developed in
-[burgdorfOptimizationPolynomialsNonCommuting2016](@cite) and
+API for both ordinary and tracial noncommutative optimization. The package
+exposes [`newton_chip_basis`](@ref) for unconstrained ordinary `PolyOpt`
+problems, and the same helper dispatches to the Newton cyclic chip reduction
+for unconstrained tracial `PolyOpt` problems over single-site
+`NonCommutativeAlgebra`. The background for these two reductions is developed
+in [burgdorfOptimizationPolynomialsNonCommuting2016](@cite) and
 [klep2022Optimization](@cite).
 
 **Prerequisites**: familiarity with the
@@ -38,6 +37,13 @@ function pretty_basis(basis, registry)
     print(io, "]")
     return String(take!(io))
 end
+````
+
+````
+Precompiling packages...
+   2329.3 ms  ✓ COSMO
+  1 dependency successfully precompiled in 2 seconds. 72 already precompiled.
+
 ````
 
 `pretty_basis` returns a registry-aware string for basis inspection.
@@ -148,112 +154,133 @@ The ordinary workflow is therefore:
 3. pass the result through `SolverConfig(moment_basis=...)`.
 
 ---
-## Tracial Problems: inspect with `get_state_basis`, solve with `order`
+## Tracial Problems: `newton_chip_basis`
 
 In the tracial setting, the certified polynomial is handled modulo cyclic
-equivalence because `tr(AB) = tr(BA)`. The paper's Newton cyclic chip method
-prunes the trace basis using the tracial Newton polytope
-[klep2022Optimization](@cite). The current package does **not** expose a
-public `moment_basis` hook for trace problems, so the honest workflow is:
-inspect the dense trace basis with [`get_state_basis`](@ref), then solve with
-`order`.
+equivalence because `tr(AB) = tr(BA)`. For unconstrained scalar trace
+objectives `tr(f)` over single-site `NonCommutativeAlgebra`,
+[`newton_chip_basis`](@ref) dispatches to the Newton cyclic chip reduction and
+returns a reduced `Vector{NCStateWord{MaxEntangled}}` that can be injected
+through `moment_basis` [klep2022Optimization](@cite).
+
+The helper is intentionally narrower than the full trace-polynomial API: it
+covers the free, unconstrained trace setting from the theorem, not products of
+traces, mixed state/operator objectives, built-in algebraic relations like
+`U^2 = I`, or constrained trace problems.
 
 ````julia
-trace_registry, (vars,) = create_unipotent_variables([("v", 1:4)]);
-alice = vars[1:2];
-bob = vars[3:4];
+trace_registry, (y,) = create_noncommutative_variables([("y", 1:2)]);
 ````
 
-`alice` and `bob` are unipotent observables (`U^2 = I`) used in the CHSH
-trace problem.
+`trace_registry` stores a single-site free-algebra trace problem.
 
 ````julia
-trace_basis = get_state_basis(trace_registry, 1; state_type=MaxEntangled);
+trace_objective = tr(1.0 * y[1] * y[1] + 1.0 * y[2] * y[1] * y[1] * y[2] + 1.0) * one(typeof(y[1]));
+trace_pop = polyopt(trace_objective, trace_registry);
 ````
 
-`trace_basis` is a `Vector{NCStateWord{MaxEntangled}}`; it is the public
-basis constructor for tracial relaxations.
+`trace_pop` is an unconstrained tracial `PolyOpt`, so it is within the scope
+accepted by [`newton_chip_basis`](@ref).
 
 ````julia
+dense_trace_basis = get_state_basis(trace_registry, 2; state_type=MaxEntangled);
+chip_trace_basis = newton_chip_basis(trace_pop, 2);
+````
+
+`dense_trace_basis` is the full order-2 trace basis. `chip_trace_basis`
+keeps only the pure operator words needed by the tracial Newton polytope.
+
+````julia
+trace_chip_words = [elem.nc_word for elem in chip_trace_basis];
 trace_basis_summary = (
-    kind = "NCStateWord{MaxEntangled}",
-    size = length(trace_basis),
+    dense_size = length(dense_trace_basis),
+    chip_words = pretty_basis(trace_chip_words, trace_registry),
+    chip_size = length(chip_trace_basis),
 )
 trace_basis_summary
 ````
 
 ````
-(kind = "NCStateWord{MaxEntangled}", size = 9)
+(dense_size = 19, chip_words = "[𝟙, y₁, y₁y₂, y₂y₁]", chip_size = 4)
 ````
 
-#### Build the CHSH trace problem
+#### Configure dense and custom relaxations
 
 ````julia
-trace_objective = (
-    -1.0 * tr(alice[1] * bob[1]) -
-    tr(alice[1] * bob[2]) -
-    tr(alice[2] * bob[1]) +
-    tr(alice[2] * bob[2])
-) * one(typeof(alice[1]));
-trace_pop = polyopt(trace_objective, trace_registry);
+dense_trace_cfg = SolverConfig(; optimizer=SILENT_COSMO, order=2);
+chip_trace_cfg = SolverConfig(; optimizer=SILENT_COSMO, moment_basis=chip_trace_basis);
 ````
 
-`trace_pop` is a tracial `PolyOpt`; use `order`, not `moment_basis`.
+`dense_trace_cfg` builds the full order-2 trace basis. `chip_trace_cfg`
+injects the Newton cyclic chip basis through `moment_basis`.
+
+For state/trace problems the package now validates custom bases before solving:
+the injected basis must generate every objective/constraint moment that the
+relaxation needs. If you choose `d` too small, `compute_sparsity`/`cs_nctssos`
+will throw instead of silently dropping trace words from the SDP.
 
 ````julia
-trace_cfg = SolverConfig(; optimizer=SILENT_COSMO, order=1);
-trace_sparsity = compute_sparsity(trace_pop, trace_cfg);
+dense_trace_sparsity = compute_sparsity(trace_pop, dense_trace_cfg);
+chip_trace_sparsity = compute_sparsity(trace_pop, chip_trace_cfg);
 ````
 
-`trace_sparsity` shows the internal order-1 basis used by the trace solver.
+The custom trace basis is stored in the same `SparsityResult` structure used
+by the ordinary polynomial solver.
 
 ````julia
-@assert trace_sparsity.corr_sparsity.clq_mom_mtx_bases[1] == trace_basis
+@assert chip_trace_sparsity.corr_sparsity.clq_mom_mtx_bases[1] == chip_trace_basis
 
 trace_size_summary = (
-    length(trace_basis),
-    length(trace_sparsity.corr_sparsity.clq_mom_mtx_bases[1]),
+    length(dense_trace_sparsity.corr_sparsity.clq_mom_mtx_bases[1]),
+    length(chip_trace_sparsity.corr_sparsity.clq_mom_mtx_bases[1]),
 )
 trace_size_summary
 ````
 
 ````
-(9, 9)
+(19, 4)
 ````
 
-#### Solve at order 1
+#### Solve both relaxations
 
 ````julia
-trace_result = cs_nctssos(trace_pop, trace_cfg);
+dense_trace_result = cs_nctssos(trace_pop, dense_trace_cfg);
+chip_trace_result = cs_nctssos(trace_pop, chip_trace_cfg);
 ````
 
-`trace_result` is a `PolyOptResult`; order 1 already recovers the Tsirelson
-bound for CHSH in this formulation.
+The Newton cyclic chip basis is a basis reduction only; the relaxation value
+should match the dense order-2 tracial solve.
 
 ````julia
-@assert isapprox(trace_result.objective, -2 * sqrt(2); atol=1e-5)
+@assert isapprox(chip_trace_result.objective, dense_trace_result.objective; atol=1e-6)
 
-trace_result.objective
+(
+    dense_trace_result.objective,
+    chip_trace_result.objective,
+    dense_trace_result.n_unique_moment_matrix_elements,
+    chip_trace_result.n_unique_moment_matrix_elements,
+)
 ````
 
 ````
--2.8284271246604606
+(0.9999999998835847, 1.0000000001164153, 57, 7)
 ````
 
 The tracial workflow is therefore:
-1. build the objective with [`tr`](@ref),
-2. inspect the dense trace basis with [`get_state_basis`](@ref) if needed,
-3. solve with `SolverConfig(order=...)`.
+1. build an unconstrained scalar trace objective with [`tr`](@ref),
+2. call [`newton_chip_basis`](@ref),
+3. pass the result through `SolverConfig(moment_basis=...)`.
 
-The missing piece, compared with the paper, is a public Newton cyclic chip
-helper that would replace the dense trace basis with a tracially pruned one.
+For general trace polynomials or trace problems with relations/constraints,
+fall back to the dense trace basis via [`get_state_basis`](@ref) and solve
+with `order`.
 
 ## Next steps
 
 - [Trace Polynomial](@ref tracial-polynomial-optimization): larger tracial
-  examples with Bell inequalities.
-- [`newton_chip_basis`](@ref): API reference for the ordinary Newton-chip
-  helper.
+  examples, including Bell inequalities and nonlinear trace objectives.
+- [`newton_chip_basis`](@ref): API reference for both the ordinary Newton-chip
+  and tracial Newton cyclic chip helpers.
 - [Quick Start](@ref quick-start): dense and sparse polynomial workflows.
 
 ---

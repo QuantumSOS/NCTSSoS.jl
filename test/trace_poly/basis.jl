@@ -124,6 +124,25 @@ end
     end
 end
 
+@testset "Newton cyclic chip basis" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+
+    y3x = only(monomials(x[2] * x[2] * x[2] * x[1]))
+    xy3 = only(monomials(x[1] * x[2] * x[2] * x[2]))
+    x1sq = only(monomials(x[1] * x[1]))
+    objective = tr(1.0 - 1.0 * xy3 + 1.0 * y3x + 2.0 * (x[2] * x[2]) - 4.0 * (x[1] * x[1] * x[1] * x[1] * x[1])) * one(typeof(x[1]))
+    pop = polyopt(objective, reg)
+
+    basis = newton_chip_basis(pop, 3)
+    expected_words = sort([one(x[1]), x[1], x[2], x1sq])
+
+    @test map(ncsw -> ncsw.nc_word, basis) == expected_words
+    @test all(ncsw -> isone(ncsw.sw), basis)
+    @test issorted(basis)
+    @test length(basis) == length(unique(basis))
+    @test all(elem -> degree(elem) <= 3, basis)
+end
+
 @testset "Unipotent simplification with site-based commutation" begin
     # Test that operators on different sites commute (sorted by site)
 

@@ -272,10 +272,15 @@ Configuration for solving polynomial optimization problems.
 # Keyword Arguments
 - `optimizer` (required): The optimizer to use for solving the SDP problem (e.g. Clarabel.Optimizer)
 - `order::Int`: The order of the moment relaxation (default: 0)
-- `moment_basis`: Optional custom basis for polynomial optimization, replacing
-  automatic order-based basis generation. Accepts a `Vector` of monomials (or
-  single-term unit-coefficient polynomials) and must include the identity element.
-  Not supported for state/trace polynomial problems. Default: `nothing`
+- `moment_basis`: Optional custom basis, replacing automatic order-based basis
+  generation. For ordinary polynomial problems, pass monomials (or single-term
+  unit-coefficient polynomials). For state/trace polynomial problems, pass
+  `NCStateWord`s, `StateWord`s, monomials (interpreted as identity-state
+  operator words), or single-term unit-coefficient state polynomials. The basis
+  must include the identity element. For state/trace relaxations, the supplied
+  basis must also generate every objective/constraint moment required by the
+  relaxation; underspecified bases raise an error instead of silently dropping
+  terms. Default: `nothing`
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
 - `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity exploitation (default: NoElimination())
 
@@ -305,6 +310,9 @@ function _resolve_relaxation_spec(pop::OptimizationProblem, solver_config::Solve
 
     return solver_config.moment_basis
 end
+
+@inline _has_active_sparsity(solver_config::SolverConfig) =
+    !(solver_config.cs_algo isa NoElimination && solver_config.ts_algo isa NoElimination)
 
 """
     compute_sparsity(pop::PolyOpt, solver_config::SolverConfig) -> SparsityResult
@@ -341,9 +349,18 @@ end
 Compute correlative and term sparsity for a state polynomial optimization problem.
 """
 function compute_sparsity(pop::PolyOpt{A,T,P}, solver_config::SolverConfig) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
-    isnothing(solver_config.moment_basis) ||
-        throw(ArgumentError("`moment_basis` is not supported for state/trace polynomial problems; use `order` instead."))
     relaxation_spec = _resolve_relaxation_spec(pop, solver_config)
+
+    # Sparse pure-trace benchmarks in NCTSSOS use the ordinary nc-word basis,
+    # not the general state-word basis. Reuse that basis here when sparsity is
+    # active so CS/TS block counts match the reference trace hierarchy.
+    if relaxation_spec isa Int &&
+       ST == MaxEntangled &&
+       _has_active_sparsity(solver_config) &&
+       _uses_scalar_trace_word_basis(pop)
+        relaxation_spec = _embedded_trace_moment_basis(pop.registry, relaxation_spec)
+    end
+
     corr_sparsity = correlative_sparsity(pop, relaxation_spec, solver_config.cs_algo)
 
     # Compute partial objectives for each clique
@@ -355,6 +372,11 @@ function compute_sparsity(pop::PolyOpt{A,T,P}, solver_config::SolverConfig) wher
 
     cliques_term_sparsities = map(zip(initial_activated_supps, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
         term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
+    end
+
+    if !isnothing(solver_config.moment_basis)
+        total_basis = _state_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+        _validate_state_relaxation_support(pop, total_basis; source="The supplied `moment_basis`")
     end
 
     return SparsityResult(corr_sparsity, initial_activated_supps, cliques_term_sparsities)

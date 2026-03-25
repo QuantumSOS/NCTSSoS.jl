@@ -1,0 +1,19 @@
+schema_version = 1
+
+[[cases]]
+id = "typst_n20"
+notes = "T1 NC Broyden banded trace benchmark, Typst row n=20 from `test-examples.typ` T1 / Wang-Magron Table 9. Benchmark path: trace CS+TS at order 3, with no Newton-chip basis. The target sparse max block size is the paper/reference `mb = 29`."
+
+    [cases.expected]
+    n = 20
+    sparse_opt = 0.0
+    sparse_mb = 29
+
+[[cases]]
+id = "local_mosek_n40"
+notes = "T1 NC Broyden banded trace benchmark local standalone sweep at n=40, run with the same trace CS+TS order-3 path as the literature family. This case is intentionally kept out of CI; it exists for local Mosek reproduction of the heavier benchmark regime. The expected optimum remains 0 and the sparse max block size remains 29 for this family."
+
+    [cases.expected]
+    n = 40
+    sparse_opt = 0.0
+    sparse_mb = 29

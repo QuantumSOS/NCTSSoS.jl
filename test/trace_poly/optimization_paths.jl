@@ -10,6 +10,46 @@ function _build_chsh_trace_problem()
     return polyopt(p * one(typeof(x[1])), reg)
 end
 
+@testset "Trace StatePolynomial input is promoted to NCStatePolynomial" begin
+    reg, (vars,) = create_unipotent_variables([("v", 1:4)])
+    x = vars[1:2]
+    y = vars[3:4]
+
+    p = -1.0 * tr(x[1] * y[1]) - tr(x[1] * y[2]) - tr(x[2] * y[1]) + tr(x[2] * y[2])
+    eq_p = -1.0 + tr(x[1])
+    ineq_p = 2.0 + tr(y[1])
+    pop_state = polyopt(p, reg)
+    pop_state_cons = polyopt(p, reg; eq_constraints=[eq_p], ineq_constraints=[ineq_p])
+    pop_nc = polyopt(p * one(typeof(x[1])), reg)
+    pop_nc_cons = polyopt(
+        p * one(typeof(x[1])),
+        reg;
+        eq_constraints=[eq_p * one(typeof(x[1]))],
+        ineq_constraints=[ineq_p * one(typeof(x[1]))],
+    )
+
+    @test pop_state.objective isa NCTSSoS.NCStatePolynomial{Float64,MaxEntangled,UnipotentAlgebra,UInt8}
+    @test pop_state.objective == pop_nc.objective
+    @test pop_state_cons.eq_constraints == pop_nc_cons.eq_constraints
+    @test pop_state_cons.ineq_constraints == pop_nc_cons.ineq_constraints
+    @test isempty(pop_state.eq_constraints)
+    @test isempty(pop_state.ineq_constraints)
+    @test all(isone(ncsw.nc_word) for ncsw in monomials(pop_state.objective))
+
+    config = SolverConfig(
+        optimizer=SOLVER,
+        order=1,
+        cs_algo=NoElimination(),
+        ts_algo=NoElimination()
+    )
+    result_state = cs_nctssos(pop_state, config)
+    result_nc = cs_nctssos(pop_nc, config)
+
+    @test result_state.objective ≈ result_nc.objective atol = 1e-5
+    @test result_state.n_unique_moment_matrix_elements == result_nc.n_unique_moment_matrix_elements
+    @test result_state.moment_matrix_sizes == result_nc.moment_matrix_sizes
+end
+
 @testset "Trace Optimization Paths" begin
     tpop = _build_chsh_trace_problem()
     dense_oracle = expectations_oracle("expectations/trace_optimization_paths.toml", "dense_auto_order")

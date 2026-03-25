@@ -70,6 +70,13 @@
 
 # The same problem can be solved much more concisely:
 
+# !!! note "SDP Solver"
+#     These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
+#     If you don't have a Mosek license, replace `Mosek.Optimizer` with any
+#     SDP-capable solver, for example:
+#     - **COSMO** (open-source): `using COSMO; SolverConfig(optimizer=COSMO.Optimizer, ...)`
+#     - **Clarabel** (open-source): `using Clarabel; SolverConfig(optimizer=Clarabel.Optimizer, ...)`
+
 using NCTSSoS, MosekTools
 N = 6  # Number of spins in the chain
 

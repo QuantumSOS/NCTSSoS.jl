@@ -456,32 +456,26 @@ end
 """
     Base.show(io::IO, m::NormalMonomial{A,T}) where {A,T}
 
-Display a monomial. If a `:registry` is present in the IOContext, uses symbol names
-from the registry. Otherwise, falls back to displaying raw indices.
+Display a monomial using human-readable symbol names.
+
+Registry resolution order:
+1. `:registry` key in the `IOContext` (explicit override)
+2. Module-level display registry for algebra type `A` (set automatically
+   by `create_*_variables`)
+3. Raw index fallback (e.g. `UInt8[1, 4]`)
 
 When using a registry, consecutive identical variables are displayed with exponents:
 - `[1, 1, 1]` with index 1 mapping to `:x` displays as `x³`
 - `[1, 2, 2]` displays as `x₁y₂²`
-- `[1, 1, 2, 2, 2]` displays as `x₁²y₂³`
 
 # Examples
 ```julia
-# Without registry (raw indices)
-julia> m = NormalMonomial{PauliAlgebra,Int}(Int[1, 4, 7]);
-julia> show(stdout, m)
-[1, 4, 7]
-
-# With registry (symbolic names)
 julia> reg, (σx, σy, σz) = create_pauli_variables(1:3);
-julia> m = monomials(σx[1] * σy[2] * σz[3])[1];
-julia> show(IOContext(stdout, :registry => reg), m)
-σx₁σy₂σz₃
 
-# With exponents for repeated variables (NonCommutativeAlgebra)
-julia> reg_nc, (x,) = create_noncommutative_variables([("x", 1:1)]);
-julia> m = monomials(x[1] * x[1] * x[1])[1];
-julia> show(IOContext(stdout, :registry => reg_nc), m)
-x₁³
+julia> m = monomials(σx[1] * σy[2] * σz[3])[1];
+
+julia> m   # uses display registry automatically
+σx₁σy₂σz₃
 ```
 
 See also: [`VariableRegistry`](@ref)
@@ -492,7 +486,12 @@ function Base.show(io::IO, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Inte
         return nothing
     end
 
+    # Resolve registry: explicit IOContext first, then module-level display fallback
     registry = get(io, :registry, nothing)
+    if registry === nothing
+        registry = _get_display_registry(A)
+    end
+
     if registry !== nothing
         # Use symbols from registry with exponent grouping
         i = 1

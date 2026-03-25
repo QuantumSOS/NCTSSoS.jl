@@ -51,6 +51,7 @@ using CliqueTrees, ChordalGraph, Graphs
 import Clarabel
 using CliqueTrees: EliminationAlgorithm, SupernodeType
 import CliqueTrees.cliquetree
+import JuMP: simplify    # extend JuMP.simplify to avoid export collision
 
 # ============================================================================
 # Core Types (formerly FastPolynomials)

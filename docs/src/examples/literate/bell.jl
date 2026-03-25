@@ -16,6 +16,8 @@
 # ## Setup
 #
 # We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver backend.
+# Any SDP solver works — replace `Mosek.Optimizer` with `COSMO.Optimizer` or
+# `Clarabel.Optimizer` for open-source alternatives.
 
 using NCTSSoS, MosekTools
 
@@ -90,10 +92,12 @@ f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
  coefficients(f))   # corresponding coefficients
 
 # #### Step 3: Create the optimization problem
+#
+# `polyopt` creates a **minimization** problem. To find the maximum quantum
+# violation we minimize `-f` and negate the result (same pattern as I₃₃₂₂ below).
 
-pop = polyopt(f, registry)
-# pop: polynomial optimization problem maximizing f
-#      subject to the algebraic constraints in registry (U² = I)
+pop = polyopt(-f, registry)
+# pop: minimize -f ≡ maximize f, subject to algebraic constraints (U² = I)
 
 # #### Step 4: Configure and run the SDP solver
 
@@ -108,8 +112,8 @@ result = cs_nctssos(pop, solver_config)
 
 # #### Step 5: Extract the upper bound
 
-chsh_bound = result.objective
-# chsh_bound: upper bound on maximal quantum violation
+chsh_bound = -result.objective
+# chsh_bound: upper bound on maximal quantum violation (negate since we minimized -f)
 
 # Compare with Tsirelson's bound:
 tsirelson_bound = 2 * sqrt(2)

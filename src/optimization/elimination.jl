@@ -75,6 +75,12 @@ Returns maximal cliques of the graph without triangulation.
     automatic chordal completion on non-chordal graphs.
 """
 function clique_decomp(G::SimpleGraph, ::AsIsElimination)
+    is_chordal, _ = CheckChordal(G)
+    if !is_chordal
+        @warn "AsIsElimination: the sparsity graph is not chordal. " *
+              "The resulting clique decomposition may violate the Running Intersection " *
+              "Property and produce invalid bounds. Use `MF()` or `MMD()` instead."
+    end
     return maximal_cliques(G)
 end
 

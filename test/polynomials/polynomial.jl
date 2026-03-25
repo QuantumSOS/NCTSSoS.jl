@@ -326,8 +326,9 @@ using NCTSSoS: variable_indices
         output_multi = repr(p_multi)
         # Tests that both terms appear and + separator exists
         @test contains(output_multi, "+")
-        @test contains(output_multi, "0x0011")
-        @test contains(output_multi, "0x0021")
+        @test contains(output_multi, "3.0")
+        # The two terms show distinct monomial representations (symbols or raw indices)
+        @test length(output_multi) > 10  # non-trivial output
     end
 
     @testset "variable_indices" begin

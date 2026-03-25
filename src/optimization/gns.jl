@@ -360,12 +360,30 @@ end
 
 Perform GNS reconstruction from a full Hankel matrix.
 
-`H_deg` is the degree of the full Hankel matrix. `hankel_deg` is the degree of
-its principal block used to define the quotient space. In the flat case one
-usually takes `hankel_deg = H_deg - 1`.
+`H_deg` is the degree of the full Hankel matrix (use `H_deg = order` where
+`order` is the SDP relaxation order). `hankel_deg` is the degree of its
+principal block used to define the quotient space (standard choice:
+`hankel_deg = H_deg - 1`).
 
 The result contains the reconstructed matrices, the distinguished vector `ξ`,
 and rank information.
+
+!!! tip "Recommended workflow"
+    Raw solver Hankel matrices are typically not flat. For best results,
+    pre-process with [`test_flatness`](@ref) and [`flat_extend`](@ref):
+
+    ```julia
+    hankel_flat = flat_extend(hankel, full_basis, basis; atol=1e-6)
+    gns = gns_reconstruct(hankel_flat, registry, H_deg; ...)
+    ```
+
+    The `monomap` overload (below) skips this step, which is fine for
+    `:svd` but may degrade `:cholesky` accuracy.
+
+!!! note "`atol` guidance"
+    The default `atol=1e-8` is well-tuned for standard SDP solvers
+    (COSMO, Mosek). Setting `atol` below the solver noise floor
+    (~1e-9) will inflate the detected rank with spurious directions.
 """
 function gns_reconstruct(
     hankel::AbstractMatrix{T},
@@ -393,10 +411,16 @@ end
 Perform GNS reconstruction directly from solved moment values.
 
 This is the most convenient entry point after `solve_moment_problem`: pass
-`result.monomap`, the registry, and a full Hankel degree. The full Hankel matrix
-is assembled automatically. The input `monomap` must contain every moment needed
-to build that dense Hankel matrix; sparse/custom bases should use the matrix
-overload instead.
+`result.monomap`, the registry, and a full Hankel degree (typically `H_deg =
+order` where `order` is the SDP relaxation order). The full Hankel matrix is
+assembled automatically.
+
+The `monomap` keys are `StateSymbol` objects of the form
+`symmetric_canon(expval(mono))` — the same format returned by
+`solve_moment_problem(...).monomap`.
+
+The input `monomap` must contain every moment needed to build the dense Hankel
+matrix; sparse/custom bases should use the matrix overload instead.
 """
 function gns_reconstruct(
     monomap::AbstractDict,

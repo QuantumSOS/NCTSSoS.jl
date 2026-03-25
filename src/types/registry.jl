@@ -135,7 +135,22 @@ end
 const SUBSCRIPT_DIGITS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
 
 """
-    _subscript_string(n::Int) -> String
+    _check_no_duplicate_subscripts(subscripts)
+
+Throw `ArgumentError` if `subscripts` contains duplicate values.
+"""
+function _check_no_duplicate_subscripts(subscripts)
+    seen = Set{eltype(subscripts)}()
+    for s in subscripts
+        if s in seen
+            throw(ArgumentError("Duplicate subscript value: $s. Each subscript must be unique."))
+        end
+        push!(seen, s)
+    end
+end
+
+"""
+    _subscript_string(n::Integer) -> String
 
 Convert an integer to its Unicode subscript representation.
 
@@ -145,14 +160,14 @@ _subscript_string(42)  # "₄₂"
 _subscript_string(0)   # "₀"
 ```
 """
-function _subscript_string(n::Int)
+function _subscript_string(n::Integer)
 
     if n < 0
         error("Negative subscripts not supported: $n")
     end
 
     # Convert to string of digits
-    digits_str = string(n)
+    digits_str = string(Int(n))
 
     # Map each digit to subscript
     return String([SUBSCRIPT_DIGITS[parse(Int, d)+1] for d in digits_str])
@@ -309,6 +324,7 @@ julia> length(σx)
 ```
 """
 function create_pauli_variables(subscripts)
+    _check_no_duplicate_subscripts(subscripts)
     # Pauli operators ordered by site first, then by type (x, y, z)
     # This enables encoding: site = (idx-1) ÷ 3 + 1, type = (idx-1) % 3
     pauli_types = [:σx, :σy, :σz]
@@ -415,6 +431,7 @@ julia> length(a⁺)
 create_fermionic_variables(subscripts) = _create_physical_variables(FermionicAlgebra, subscripts, "a")
 
 function _create_physical_variables(::Type{A}, subscripts, prefix::String) where {A<:AlgebraType}
+    _check_no_duplicate_subscripts(subscripts)
     n_modes = length(subscripts)
 
     # Select signed type that can hold ±n_modes
@@ -660,7 +677,22 @@ function _create_noncommutative_variables(
     ::Type{A},
     prefix_subscripts::Vector{Tuple{String, VT}}
 ) where {A<:AlgebraType, T<:Integer, VT<:AbstractVector{T}}
-    n_operators = sum(x -> length(x[2]), prefix_subscripts)
+    # Check for duplicate subscripts within each group
+    for (prefix, subs) in prefix_subscripts
+        _check_no_duplicate_subscripts(subs)
+    end
+    # Check for symbol collisions across groups
+    all_syms = Symbol[]
+    for (prefix, subs) in prefix_subscripts
+        for s in subs
+            sym = Symbol(prefix * _subscript_string(s))
+            if sym in all_syms
+                throw(ArgumentError("Duplicate variable symbol: $sym. Use distinct prefixes or subscripts."))
+            end
+            push!(all_syms, sym)
+        end
+    end
+    n_operators = sum(x -> length(x[2]), prefix_subscripts; init=0)
     n_sites = length(prefix_subscripts)
     IndexT = select_uint_type(n_operators, n_sites)
 

@@ -1,0 +1,10 @@
+schema_version = 1
+
+[[cases]]
+id = "dense_order2"
+notes = "T3 NCSOStools demo polynomial (Bhardwaj-Klep-Magron '21, Example 4.4; `test-examples.typ` T3), dense tracial relaxation at order 2. The literature reports tr_Theta^(2)(t) ≈ 6.967e-10, so the exact optimum is 0. Structural fields record the current dense order-2 moment model used in CI."
+
+    [cases.expected]
+    objective = 0.0
+    sides = [19]
+    nuniq = 57

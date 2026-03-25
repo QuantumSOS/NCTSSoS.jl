@@ -55,4 +55,26 @@ end
         @test !isempty(C_α_js)
         @test all(v -> v == 1.0 || v == -1.0, values(C_α_js))
     end
+
+    @testset "State SOS dualization rejects underspecified bases" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+        objective = tr(1.0 * x[1]) * one(typeof(x[1]))
+        P = typeof(objective)
+        M = typeof(only(monomials(objective)))
+        basis = [one(M)]
+        empty_constraints = Tuple{Symbol, Matrix{P}, Vector{M}}[]
+
+        objective_mp = NCTSSoS.StateMomentProblem(objective, empty_constraints, basis, 0)
+        @test_throws ArgumentError NCTSSoS.sos_dualize(objective_mp)
+
+        identity_objective = one(P)
+        constraint_matrix = reshape([objective], 1, 1)
+        constraint_mp = NCTSSoS.StateMomentProblem(
+            identity_objective,
+            [(:PSD, constraint_matrix, basis)],
+            basis,
+            0,
+        )
+        @test_throws ArgumentError NCTSSoS.sos_dualize(constraint_mp)
+    end
 end

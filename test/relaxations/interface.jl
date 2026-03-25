@@ -525,11 +525,35 @@ end
         @test result_order.objective ≈ result_basis.objective atol=1e-6
     end
 
+    @testset "moment_basis normalization accepts alternate state inputs" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+        objective = tr(1.0 * x[1]) * one(typeof(x[1]))
+        basis_elem = only(monomials(objective))
+        M = typeof(basis_elem)
+
+        sw = NCTSSoS.expval(basis_elem)
+        @test NCTSSoS._normalize_basis_element(M, sw) == NCTSSoS.NCStateWord(sw, one(typeof(x[1])))
+
+        state_poly = 1.0 * sw
+        @test NCTSSoS._normalize_basis_element(M, state_poly) == NCTSSoS.NCStateWord(sw, one(typeof(x[1])))
+        @test_throws ArgumentError NCTSSoS._normalize_basis_element(M, sw + one(sw))
+        @test_throws ArgumentError NCTSSoS._normalize_basis_element(M, 2.0 * sw)
+
+        nc_state_poly = 1.0 * basis_elem
+        @test NCTSSoS._normalize_basis_element(M, nc_state_poly) == basis_elem
+        @test_throws ArgumentError NCTSSoS._normalize_basis_element(M, basis_elem + one(basis_elem))
+        @test_throws ArgumentError NCTSSoS._normalize_basis_element(M, 2.0 * basis_elem)
+    end
+
     @testset "moment_basis validation" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
         pop = polyopt(1.0 * x[1] + 1.0, reg)
 
         @test_throws MethodError SolverConfig(optimizer=SOLVER, moment_basis=1)
+        @test_throws ArgumentError compute_sparsity(
+            pop,
+            SolverConfig(optimizer=SOLVER, moment_basis=[one(x[1]), (1, 2)])
+        )
         @test_throws ArgumentError compute_sparsity(
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=[x[1]])
@@ -619,6 +643,9 @@ end
         reg_trace_unipotent, (w,) = create_unipotent_variables([("w", 1:1)])
         unipotent_trace_pop = polyopt(tr(1.0 * w[1]^2 + 1.0) * one(typeof(w[1])), reg_trace_unipotent)
         @test_throws ArgumentError newton_chip_basis(unipotent_trace_pop, 1)
+
+        arbitrary_state_pop = polyopt((1.0 * ς(x[1])) * one(typeof(x[1])), reg_nc)
+        @test_throws ArgumentError newton_chip_basis(arbitrary_state_pop, 1)
 
         product_trace_pop = polyopt((1.0 * tr(x[1]) * tr(x[1])) * one(typeof(x[1])), reg_nc)
         @test_throws ArgumentError newton_chip_basis(product_trace_pop, 1)

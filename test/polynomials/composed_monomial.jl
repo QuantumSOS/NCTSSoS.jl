@@ -383,9 +383,9 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
 
         s = sprint(show, cm)
         @test occursin("ComposedMonomial", s)
-        # Check for the site indices we used
-        @test occursin("$P_S1", s) || occursin("0x0001", s)
-        @test occursin("[-1, 2]", s)
+        # Check components appear (display registry may show symbols or raw indices)
+        @test occursin("σx₁", s) || occursin("$P_S1", s) || occursin("0x0001", s)
+        @test occursin("a⁺₁a₂", s) || occursin("[-1, 2]", s)
 
         # Single component
         cm_single = ComposedMonomial((m1,))

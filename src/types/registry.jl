@@ -47,6 +47,42 @@ struct VariableRegistry{A<:AlgebraType, T<:Integer}
     end
 end
 
+# =============================================================================
+# Display Registry: module-level fallback for REPL display of monomials
+# =============================================================================
+
+"""
+    _DISPLAY_REGISTRIES::Dict{DataType, VariableRegistry}
+
+Module-level cache mapping `AlgebraType` to the most recently created
+`VariableRegistry` for that algebra.  Used by `Base.show(::IO, ::NormalMonomial)`
+as a fallback when no `:registry` IOContext is present, so that monomials
+print with human-readable symbol names in the REPL.
+
+Updated automatically by every `create_*_variables` call.  The IOContext
+`:registry` key always takes precedence when supplied.
+"""
+const _DISPLAY_REGISTRIES = Dict{DataType, Any}()
+
+"""
+    _register_display_registry(reg::VariableRegistry{A}) where {A}
+
+Store `reg` as the display-fallback registry for algebra type `A`.
+"""
+function _register_display_registry(reg::VariableRegistry{A}) where {A<:AlgebraType}
+    _DISPLAY_REGISTRIES[A] = reg
+    return nothing
+end
+
+"""
+    _get_display_registry(::Type{A}) where {A<:AlgebraType} -> Union{VariableRegistry, Nothing}
+
+Retrieve the display-fallback registry for algebra type `A`, or `nothing`.
+"""
+function _get_display_registry(::Type{A}) where {A<:AlgebraType}
+    return get(_DISPLAY_REGISTRIES, A, nothing)
+end
+
 """
     subregistry(reg::VariableRegistry{A,T}, subset_indices::VT) where {A,T,VT<:AbstractVector{T}}
 
@@ -298,6 +334,7 @@ function create_pauli_variables(subscripts)
     end
 
     reg = VariableRegistry{PauliAlgebra, T}(idx_to_vars, variables_to_idx)
+    _register_display_registry(reg)
 
     # Build monomial vectors grouped by Pauli type (x, y, z)
     σx = Vector{NormalMonomial{PauliAlgebra,T}}(undef, n_sites)
@@ -401,6 +438,7 @@ function _create_physical_variables(::Type{A}, subscripts, prefix::String) where
     end
 
     reg = VariableRegistry{A, T}(idx_to_vars, variables_to_idx)
+    _register_display_registry(reg)
 
     # Build monomial vectors grouped by operator type (annihilation, creation)
     annihilation = Vector{NormalMonomial{A,T}}(undef, n_modes)
@@ -644,6 +682,7 @@ function _create_noncommutative_variables(
     variables_to_idx = Dict(zip(all_symbols, all_indices))
 
     reg = VariableRegistry{A, IndexT}(idx_to_vars, variables_to_idx)
+    _register_display_registry(reg)
 
     # Build grouped monomial vectors
     monomial_groups = Vector{Vector{NormalMonomial{A,IndexT}}}()

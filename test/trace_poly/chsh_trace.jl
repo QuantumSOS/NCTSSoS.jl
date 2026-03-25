@@ -47,6 +47,7 @@ using Test, NCTSSoS, JuMP
         )
         result = cs_nctssos(tpop, config)
         @test result.objective ≈ oracle.opt atol = 1e-5
+        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
         @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 end

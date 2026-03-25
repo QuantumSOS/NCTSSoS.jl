@@ -8,7 +8,7 @@ using Test
     check_no_self_qualified_accesses(NCTSSoS)
     check_all_qualified_accesses_are_public(NCTSSoS, ignore=(
         # MathOptInterface enum values - correct API but not in names(MOI)
-        # These are TerminationStatusCode and ResultStatusCode enum instances
+        # These are TerminationStatusCode and ResultStatusCode enum instances.
         :OPTIMAL,
         :ALMOST_OPTIMAL,
         :LOCALLY_SOLVED,
@@ -17,5 +17,11 @@ using Test
         :SLOW_PROGRESS,
         :FEASIBLE_POINT,
         :NEARLY_FEASIBLE_POINT,
+        :INFEASIBLE,
+        :INFEASIBLE_OR_UNBOUNDED,
+
+        # Clarabel exposes the optimizer constructor as `Clarabel.Optimizer`,
+        # but ExplicitImports does not currently treat it as a public name.
+        :Optimizer,
     ))
 end

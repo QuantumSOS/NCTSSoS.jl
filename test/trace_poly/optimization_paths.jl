@@ -39,7 +39,13 @@ end
     )
     sparse_dual = cs_nctssos(tpop, mmd_cfg; dualize=true)
     @test sparse_dual.objective ≈ mmd_oracle.opt atol = 1e-5
+    @test flatten_sizes(sparse_dual.moment_matrix_sizes) == mmd_oracle.sides
     @test sparse_dual.n_unique_moment_matrix_elements == mmd_oracle.nuniq
+
+    sparse_moment = cs_nctssos(tpop, mmd_cfg; dualize=false)
+    @test sparse_moment.objective ≈ mmd_oracle.opt atol = 1e-5
+    @test flatten_sizes(sparse_moment.moment_matrix_sizes) == mmd_oracle.sides
+    @test sparse_moment.n_unique_moment_matrix_elements == mmd_oracle.nuniq
 
     @test occursin("State Optimization Result", sprint(show, dense_dual))
     @test occursin("Correlative Sparsity", sprint(show, dense_dual.sparsity.corr_sparsity))

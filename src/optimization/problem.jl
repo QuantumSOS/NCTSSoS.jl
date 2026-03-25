@@ -53,7 +53,7 @@ pop = polyopt(ham, reg)
 # State polynomial optimization (Bell inequalities)
 reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 sp = -1.0 * ς(x[1]*y[1]) - 1.0 * ς(x[1]*y[2]) - 1.0 * ς(x[2]*y[1]) + 1.0 * ς(x[2]*y[2])
-pop = polyopt(sp * one(NormalMonomial), reg)
+pop = polyopt(sp, reg)  # promoted internally to NCStatePolynomial
 ```
 
 See also: [`polyopt`](@ref), [`VariableRegistry`](@ref), [`AlgebraType`](@ref)
@@ -73,7 +73,10 @@ end
 Create a polynomial optimization problem from objective, registry, and optional constraints.
 
 Works with any `AbstractPolynomial` subtype including `Polynomial{A,T,C}` and
-`NCStatePolynomial{C,ST,A,T}`.
+`NCStatePolynomial{C,ST,A,T}`. For state/trace problems over `MonoidAlgebra`,
+a `StatePolynomial{C,ST,A,T}` objective is accepted as a convenience and is
+promoted to the equivalent `NCStatePolynomial{C,ST,A,T}` with identity
+non-commutative words.
 
 # Arguments
 - `objective::P`: The polynomial objective function to optimize
@@ -85,6 +88,8 @@ Works with any `AbstractPolynomial` subtype including `Polynomial{A,T,C}` and
 
 # Returns
 A `PolyOpt{A,T,P}` structure representing the optimization problem.
+For state-polynomial inputs, the stored polynomial type is the promoted
+`NCStatePolynomial` form.
 
 # Notes
 - Algebra type `A` is inferred from the registry
@@ -108,7 +113,7 @@ pop = polyopt(ham, reg; eq_constraints=[constraint])
 # State polynomial optimization (Bell inequalities)
 reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 sp = -1.0 * ς(x[1]*y[1]) - 1.0 * ς(x[1]*y[2]) - 1.0 * ς(x[2]*y[1]) + 1.0 * ς(x[2]*y[2])
-pop = polyopt(sp * one(NormalMonomial), reg)
+pop = polyopt(sp, reg)  # promoted internally to NCStatePolynomial
 ```
 
 See also: [`PolyOpt`](@ref), [`VariableRegistry`](@ref), [`NCStatePolynomial`](@ref)
@@ -129,6 +134,63 @@ function polyopt(
     ineq_cons = unique!(copy(ineq_constraints))
 
     return PolyOpt{A,T,P}(objective, eq_cons, ineq_cons, registry)
+end
+
+@inline function _lift_to_nc_state_poly(
+    poly::StatePolynomial{C,ST,A,T}
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    nc_words = NCStateWord{ST,A,T}[
+        NCStateWord(sw, one(NormalMonomial{A,T})) for sw in monomials(poly)
+    ]
+    return NCStatePolynomial(copy(coefficients(poly)), nc_words)
+end
+
+@inline _lift_to_nc_state_poly(poly::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} = poly
+
+@inline _lift_to_nc_state_constraint(::Type{NCStatePolynomial{C,ST,A,T}}, poly::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} =
+    _lift_to_nc_state_poly(poly)
+@inline _lift_to_nc_state_constraint(::Type{NCStatePolynomial{C,ST,A,T}}, poly::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} =
+    poly
+
+function _lift_to_nc_state_constraint(::Type{NCStatePolynomial{C,ST,A,T}}, poly) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    throw(ArgumentError("State-polynomial constraints must be `StatePolynomial{$C,$ST,$A,$T}` or `NCStatePolynomial{$C,$ST,$A,$T}`; got $(typeof(poly))."))
+end
+
+function polyopt(
+    objective::StatePolynomial{C,ST,A,T},
+    registry::VariableRegistry{A,T};
+    eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
+    ineq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    NCSP = NCStatePolynomial{C,ST,A,T}
+    return polyopt(
+        _lift_to_nc_state_poly(objective),
+        registry;
+        eq_constraints=NCSP[
+            _lift_to_nc_state_constraint(NCSP, con) for con in eq_constraints
+        ],
+        ineq_constraints=NCSP[
+            _lift_to_nc_state_constraint(NCSP, con) for con in ineq_constraints
+        ]
+    )
+end
+
+function polyopt(
+    objective::StatePolynomial{C,ST,A,T},
+    registry::VariableRegistry{A,T};
+    eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
+    ineq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
+) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    throw(ArgumentError("`polyopt(::StatePolynomial, ...)` is only supported for state/trace problems over `MonoidAlgebra`; got `$(nameof(A))`. This algebra is not supported by the state-polynomial optimization pipeline."))
+end
+
+function polyopt(
+    objective::StatePolynomial{C,ST,A,T},
+    registry::VariableRegistry;
+    eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
+    ineq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
+) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
+    throw(ArgumentError("`polyopt(::StatePolynomial, ...)` requires the objective and registry to use the same algebra and index types; got objective type `$(typeof(objective))` with registry type `$(typeof(registry))`."))
 end
 
 @inline function _newton_chip_single_site_objective(

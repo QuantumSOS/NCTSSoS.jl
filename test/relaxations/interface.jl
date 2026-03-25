@@ -85,6 +85,40 @@ end
         objective = 1.0 * sum(P .^ 2)
         pop = polyopt(objective, reg)
     end
+
+    @testset "StatePolynomial rejects unsupported algebra families" begin
+        reg, (σx, _, _) = create_pauli_variables(1:1)
+        state_objective = NCTSSoS.expval(1.0 * σx[1])
+
+        err = try
+            polyopt(state_objective, reg)
+            nothing
+        catch e
+            e
+        end
+
+        @test err isa ArgumentError
+        @test occursin(
+            "only supported for state/trace problems over `MonoidAlgebra`",
+            sprint(showerror, err),
+        )
+    end
+
+    @testset "StatePolynomial rejects mismatched registries" begin
+        reg_u, (u,) = create_unipotent_variables([("u", 1:1)])
+        reg_p, _ = create_projector_variables([("P", 1:1)])
+        state_objective = 1.0 * ς(u[1])
+
+        err = try
+            polyopt(state_objective, reg_p)
+            nothing
+        catch e
+            e
+        end
+
+        @test err isa ArgumentError
+        @test occursin("requires the objective and registry to use the same algebra and index types", sprint(showerror, err))
+    end
 end
 
 # Basic Dualization Tests

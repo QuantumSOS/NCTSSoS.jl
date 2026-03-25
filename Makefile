@@ -39,7 +39,8 @@ test:
 # Standalone local-only scripts that are intentionally excluded from
 # `test/runtests.jl` (for example, heavier Mosek-only reproductions).
 LOCAL_ONLY_TEST_SCRIPTS = \
-	test/problems/trace_polynomial/t1_broyden_banded_trace.jl
+	test/problems/trace_polynomial/t1_broyden_banded_trace.jl \
+	test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl
 
 test-local:
 	@set -e; \

@@ -42,7 +42,6 @@ using .TestExpectations: expectations_oracle
         include("problems/nc_polynomial/nc_example2.jl")
         include("problems/trace_polynomial/t2_broyden_tridiagonal_trace.jl")
         include("problems/trace_polynomial/t3_ncsostools_demo_polynomial.jl")
-        include("problems/trace_polynomial/t4_nc_motzkin_polynomial.jl")
         include("problems/trace_polynomial/t5_constrained_trace_semialgebraic_set.jl")
         include("problems/trace_polynomial/t6_projection_optimization.jl")
     end

@@ -43,6 +43,6 @@ using .TestExpectations: expectations_oracle
         include("problems/trace_polynomial/t2_broyden_tridiagonal_trace.jl")
         include("problems/trace_polynomial/t3_ncsostools_demo_polynomial.jl")
         include("problems/trace_polynomial/t4_nc_motzkin_polynomial.jl")
-        include("problems/trace_polynomial/wang_magron_example_5_3.jl")
+        include("problems/trace_polynomial/t5_constrained_trace_semialgebraic_set.jl")
     end
 end

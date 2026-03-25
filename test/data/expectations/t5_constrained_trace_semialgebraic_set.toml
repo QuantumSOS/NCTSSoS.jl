@@ -1,0 +1,16 @@
+schema_version = 1
+
+[[cases]]
+id = "dense_order2"
+notes = "T5 / Wang--Magron 2020 Example 5.3: dense order-2 constrained trace relaxation has optimum -1."
+
+    [cases.expected]
+    objective = -1.0
+
+[[cases]]
+id = "ts_mmd_order2"
+notes = "T5 / Wang--Magron 2020 Example 5.3: first term-sparse order-2 constrained trace relaxation matches the dense optimum -1."
+
+    [cases.expected]
+    objective = -1.0
+

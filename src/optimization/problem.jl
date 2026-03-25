@@ -145,8 +145,6 @@ end
     return NCStatePolynomial(copy(coefficients(poly)), nc_words)
 end
 
-@inline _lift_to_nc_state_poly(poly::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} = poly
-
 @inline _lift_to_nc_state_constraint(::Type{NCStatePolynomial{C,ST,A,T}}, poly::StatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} =
     _lift_to_nc_state_poly(poly)
 @inline _lift_to_nc_state_constraint(::Type{NCStatePolynomial{C,ST,A,T}}, poly::NCStatePolynomial{C,ST,A,T}) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer} =

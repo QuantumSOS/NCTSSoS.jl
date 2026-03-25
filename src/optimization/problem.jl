@@ -146,7 +146,7 @@ optimization problem over `NonCommutativeAlgebra`.
 The returned basis contains the identity and every right chip (suffix) of each
 word `w` such that `w' * w` appears in the support of `pop.objective`, with
 chips truncated to degree at most `d`. The intended integration path is
-`SolverConfig(moment_basis=newton_chip_basis(pop, d))`.
+`SolverConfig(monomial_basis=newton_chip_basis(pop, d))`.
 
 Warning: the classical Newton-chip theorem is stated for the free
 noncommutative `*`-algebra with no extra commuting relations. In this package,
@@ -158,7 +158,7 @@ function newton_chip_basis(
     d::Int
 ) where {T<:Unsigned,C<:Number,P<:Polynomial{NonCommutativeAlgebra,T,C}}
     isempty(pop.eq_constraints) && isempty(pop.ineq_constraints) ||
-        throw(ArgumentError("`newton_chip_basis` is only supported for unconstrained `PolyOpt` problems. Pass the resulting basis through `moment_basis` only for constraint-free problems."))
+        throw(ArgumentError("`newton_chip_basis` is only supported for unconstrained `PolyOpt` problems. Pass the resulting basis through `monomial_basis` only for constraint-free problems."))
     _newton_chip_single_site_objective(pop.objective) ||
         throw(ArgumentError("`newton_chip_basis` assumes no extra commuting relations. In this package, `NonCommutativeAlgebra` commutes operators across physical sites, so the helper currently requires the objective support to use variables from at most one site."))
 

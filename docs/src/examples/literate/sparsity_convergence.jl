@@ -69,7 +69,7 @@ nothing #hide
 # \end{aligned}
 # ```
 #
-# The `moment_basis` keyword lets us fix the basis to
+# The `monomial_basis` keyword lets us fix the basis to
 # ``\{1, X, Y, Z, YX, YZ\}`` — the same six monomials used in
 # Figure 3 of the paper — so our graph and theirs sit on identical
 # node sets.
@@ -107,13 +107,13 @@ nothing #hide
 
 config_34_dense = SolverConfig(
     optimizer=SILENT_MOSEK,
-    moment_basis=paper_basis_34,
+    monomial_basis=paper_basis_34,
     cs_algo=NoElimination(),
     ts_algo=NoElimination(),
 )
 config_34_sparse = SolverConfig(
     optimizer=SILENT_MOSEK,
-    moment_basis=paper_basis_34,
+    monomial_basis=paper_basis_34,
     cs_algo=NoElimination(),
     ts_algo=MMD(),
 )

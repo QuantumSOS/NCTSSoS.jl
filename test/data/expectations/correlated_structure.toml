@@ -112,17 +112,17 @@ notes = "Provenance: issue #257 (constrained n=2 structure expectations)."
 
     [cases.expected.no_elimination]
     max_clique = 2
-    moment_basis_lengths = [7]
+    monomial_basis_lengths = [7]
     localizing_basis_lengths = [3, 3]
 
     [cases.expected.mf]
     max_clique = 2
-    moment_basis_lengths = [7]
+    monomial_basis_lengths = [7]
     localizing_basis_lengths = [3, 3]
 
     [cases.expected.as_is_elimination]
     max_clique = 2
-    moment_basis_lengths = [7]
+    monomial_basis_lengths = [7]
     localizing_basis_lengths = [3, 3]
 [[cases]]
 id = "correlative_sparsity_e8_polyball_order2"

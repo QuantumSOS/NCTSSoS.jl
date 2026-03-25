@@ -89,11 +89,11 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3)
 ```
 
 If you want full control over the relaxation basis, you can provide
-`moment_basis` directly instead of `order`:
+`monomial_basis` directly instead of `order`:
 
 ```julia
 basis = get_ncbasis(pop.registry, 3)
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, moment_basis=basis)
+solver_config = SolverConfig(optimizer=Mosek.Optimizer, monomial_basis=basis)
 ```
 
 ## Solving the Problem

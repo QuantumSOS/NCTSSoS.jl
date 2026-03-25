@@ -60,7 +60,7 @@ end
 
         sparsity_config = SolverConfig(
             optimizer=nothing,
-            moment_basis=basis,
+            monomial_basis=basis,
             cs_algo=NoElimination(),
             ts_algo=MMD()
         )
@@ -72,7 +72,7 @@ end
 
         solve_config = SolverConfig(
             optimizer=E3_SOLVER,
-            moment_basis=basis,
+            monomial_basis=basis,
             cs_algo=NoElimination(),
             ts_algo=MMD()
         )

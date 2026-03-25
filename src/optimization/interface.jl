@@ -265,14 +265,14 @@ function solve_sdp(moment_problem, optimizer; dualize::Bool=true)
 end
 
 """
-    SolverConfig(; optimizer, order=0, moment_basis=nothing, cs_algo=NoElimination(), ts_algo=NoElimination())
+    SolverConfig(; optimizer, order=0, monomial_basis=nothing, cs_algo=NoElimination(), ts_algo=NoElimination())
 
 Configuration for solving polynomial optimization problems.
 
 # Keyword Arguments
 - `optimizer` (required): The optimizer to use for solving the SDP problem (e.g. Clarabel.Optimizer)
 - `order::Int`: The order of the moment relaxation (default: 0)
-- `moment_basis`: Optional custom basis for polynomial optimization, replacing
+- `monomial_basis`: Optional custom basis for polynomial optimization, replacing
   automatic order-based basis generation. Accepts a `Vector` of monomials (or
   single-term unit-coefficient polynomials) and must include the identity element.
   Not supported for state/trace polynomial problems. Default: `nothing`
@@ -290,20 +290,20 @@ SolverConfig(COSMO.Optimizer, 2, nothing, NoElimination(), NoElimination())
 @kwdef struct SolverConfig
     optimizer
     order::Int = 0
-    moment_basis::Union{Nothing,Vector} = nothing
+    monomial_basis::Union{Nothing,Vector} = nothing
     cs_algo::EliminationAlgorithm = NoElimination()
     ts_algo::EliminationAlgorithm = NoElimination()
 end
 
 function _resolve_relaxation_spec(pop::OptimizationProblem, solver_config::SolverConfig)
-    if isnothing(solver_config.moment_basis)
+    if isnothing(solver_config.monomial_basis)
         return compute_relaxation_order(pop, solver_config.order)
     end
 
     iszero(solver_config.order) ||
-        throw(ArgumentError("Specify either `order` or `moment_basis`, not both."))
+        throw(ArgumentError("Specify either `order` or `monomial_basis`, not both."))
 
-    return solver_config.moment_basis
+    return solver_config.monomial_basis
 end
 
 """
@@ -341,8 +341,8 @@ end
 Compute correlative and term sparsity for a state polynomial optimization problem.
 """
 function compute_sparsity(pop::PolyOpt{A,T,P}, solver_config::SolverConfig) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
-    isnothing(solver_config.moment_basis) ||
-        throw(ArgumentError("`moment_basis` is not supported for state/trace polynomial problems; use `order` instead."))
+    isnothing(solver_config.monomial_basis) ||
+        throw(ArgumentError("`monomial_basis` is not supported for state/trace polynomial problems; use `order` instead."))
     relaxation_spec = _resolve_relaxation_spec(pop, solver_config)
     corr_sparsity = correlative_sparsity(pop, relaxation_spec, solver_config.cs_algo)
 
@@ -431,8 +431,8 @@ This function performs a higher-order iteration of the CS-NCTSSOS method by:
 This is typically used when the previous relaxation was not tight enough and a higher-order relaxation is needed.
 """
 function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
-    isnothing(solver_config.moment_basis) ||
-        throw(ArgumentError("`cs_nctssos_higher` reuses the basis from `prev_res`; do not pass `moment_basis`."))
+    isnothing(solver_config.monomial_basis) ||
+        throw(ArgumentError("`cs_nctssos_higher` reuses the basis from `prev_res`; do not pass `monomial_basis`."))
 
     prev_sparsity = prev_res.sparsity
     prev_corr_sparsity = prev_sparsity.corr_sparsity

@@ -185,51 +185,51 @@ end
 
 function _normalize_basis_element(::Type{NormalMonomial{A,T}}, poly::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
     poly_terms = terms(poly)
-    length(poly_terms) == 1 || throw(ArgumentError("Each `moment_basis` entry must be a monomial or a single-term polynomial with unit coefficient."))
+    length(poly_terms) == 1 || throw(ArgumentError("Each `monomial_basis` entry must be a monomial or a single-term polynomial with unit coefficient."))
     coef, mono = only(poly_terms)
-    isone(coef) || throw(ArgumentError("Single-term polynomial entries in `moment_basis` must have unit coefficient."))
+    isone(coef) || throw(ArgumentError("Single-term polynomial entries in `monomial_basis` must have unit coefficient."))
     return mono
 end
 
 function _normalize_basis_element(::Type{M}, item) where {M}
-    throw(ArgumentError("`moment_basis` entries must be monomials or single-term unit-coefficient polynomials from the problem's variable registry; got $(typeof(item))."))
+    throw(ArgumentError("`monomial_basis` entries must be monomials or single-term unit-coefficient polynomials from the problem's variable registry; got $(typeof(item))."))
 end
 
-function _finalize_moment_basis(
+function _finalize_monomial_basis(
     registry::VariableRegistry{A,T},
     basis::Vector{M}
 ) where {A<:AlgebraType,T<:Integer,M}
     sorted_unique!(basis)
-    isempty(basis) && throw(ArgumentError("`moment_basis` must include the identity element; got an empty basis."))
-    one(M) in basis || throw(ArgumentError("`moment_basis` must include the identity element."))
+    isempty(basis) && throw(ArgumentError("`monomial_basis` must include the identity element; got an empty basis."))
+    one(M) in basis || throw(ArgumentError("`monomial_basis` must include the identity element."))
 
     allowed_indices = Set(T(abs(idx)) for idx in indices(registry))
     for basis_elem in basis
         mono_indices = variable_indices(basis_elem)
-        issubset(mono_indices, allowed_indices) || throw(ArgumentError("`moment_basis` contains elements outside the problem registry."))
+        issubset(mono_indices, allowed_indices) || throw(ArgumentError("`monomial_basis` contains elements outside the problem registry."))
     end
 
     return basis
 end
 
-function _normalize_moment_basis(
+function _normalize_monomial_basis(
     pop::OptimizationProblem{A,P},
-    moment_basis::AbstractVector
+    monomial_basis::AbstractVector
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
     M = NormalMonomial{A,T}
     normalized_basis = M[]
-    sizehint!(normalized_basis, length(moment_basis))
-    for basis_elem in moment_basis
+    sizehint!(normalized_basis, length(monomial_basis))
+    for basis_elem in monomial_basis
         push!(normalized_basis, _normalize_basis_element(M, basis_elem))
     end
-    return _finalize_moment_basis(pop.registry, normalized_basis)
+    return _finalize_monomial_basis(pop.registry, normalized_basis)
 end
 
-_effective_basis_order(moment_basis::Vector) = maximum(degree, moment_basis)
+_effective_basis_order(monomial_basis::Vector) = maximum(degree, monomial_basis)
 
-function _filter_basis_to_clique(moment_basis::Vector{M}, clique_indices) where {M}
+function _filter_basis_to_clique(monomial_basis::Vector{M}, clique_indices) where {M}
     clique_set = Set(clique_indices)
-    return M[b for b in moment_basis if issubset(variable_indices(b), clique_set)]
+    return M[b for b in monomial_basis if issubset(variable_indices(b), clique_set)]
 end
 
 function _build_localizing_bases(
@@ -334,20 +334,20 @@ function correlative_sparsity(
 end
 
 """
-    correlative_sparsity(pop, moment_basis::AbstractVector, elim_algo)
+    correlative_sparsity(pop, monomial_basis::AbstractVector, elim_algo)
 
 Basis-based variant of [`correlative_sparsity`](@ref).  Instead of generating
-bases from a relaxation order, accepts an explicit `moment_basis` vector of
+bases from a relaxation order, accepts an explicit `monomial_basis` vector of
 monomials (or single-term unit-coefficient polynomials).  The basis is
 normalized, validated, and then filtered per clique.  Localizing matrix bases
 are derived from the effective order (`maximum(degree, basis)`).
 """
 function correlative_sparsity(
     pop::OP,
-    moment_basis::AbstractVector,
+    monomial_basis::AbstractVector,
     elim_algo::EliminationAlgorithm
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C},OP<:OptimizationProblem{A,P}}
-    normalized_basis = _normalize_moment_basis(pop, moment_basis)
+    normalized_basis = _normalize_monomial_basis(pop, monomial_basis)
     registry = pop.registry
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 

@@ -52,7 +52,7 @@
                 sparsity = correlative_sparsity(pop, order, algo)
                 @test maximum(length.(sparsity.cliques)) == algo_expected["max_clique"]
                 @test length.(sparsity.clq_mom_mtx_bases) ==
-                    algo_expected["moment_basis_lengths"]
+                    algo_expected["monomial_basis_lengths"]
                 @test length.(sparsity.clq_localizing_mtx_bases[1]) ==
                     algo_expected["localizing_basis_lengths"]
             end

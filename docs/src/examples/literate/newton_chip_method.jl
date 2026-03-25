@@ -71,9 +71,9 @@ basis_summary
 # #### Configure dense and custom relaxations
 
 dense_cfg = SolverConfig(; optimizer=SILENT_COSMO, order=2);
-chip_cfg = SolverConfig(; optimizer=SILENT_COSMO, moment_basis=chip_basis);
+chip_cfg = SolverConfig(; optimizer=SILENT_COSMO, monomial_basis=chip_basis);
 # `dense_cfg` uses the full order-2 basis. `chip_cfg` injects the custom
-# Newton-chip basis through `moment_basis`.
+# Newton-chip basis through `monomial_basis`.
 
 dense_sparsity = compute_sparsity(pop, dense_cfg);
 chip_sparsity = compute_sparsity(pop, chip_cfg);
@@ -105,7 +105,7 @@ chip_result = cs_nctssos(pop, chip_cfg);
 # The ordinary workflow is therefore:
 # 1. build an unconstrained `PolyOpt`,
 # 2. call [`newton_chip_basis`](@ref),
-# 3. pass the result through `SolverConfig(moment_basis=...)`.
+# 3. pass the result through `SolverConfig(monomial_basis=...)`.
 
 # ---
 # ## Tracial Problems: inspect with `get_state_basis`, solve with `order`
@@ -114,7 +114,7 @@ chip_result = cs_nctssos(pop, chip_cfg);
 # equivalence because `tr(AB) = tr(BA)`. The paper's Newton cyclic chip method
 # prunes the trace basis using the tracial Newton polytope
 # [klep2022Optimization](@cite). The current package does **not** expose a
-# public `moment_basis` hook for trace problems, so the honest workflow is:
+# public `monomial_basis` hook for trace problems, so the honest workflow is:
 # inspect the dense trace basis with [`get_state_basis`](@ref), then solve with
 # `order`.
 
@@ -143,7 +143,7 @@ trace_objective = (
     tr(alice[2] * bob[2])
 ) * one(typeof(alice[1]));
 trace_pop = polyopt(trace_objective, trace_registry);
-# `trace_pop` is a tracial `PolyOpt`; use `order`, not `moment_basis`.
+# `trace_pop` is a tracial `PolyOpt`; use `order`, not `monomial_basis`.
 
 trace_cfg = SolverConfig(; optimizer=SILENT_COSMO, order=1);
 trace_sparsity = compute_sparsity(trace_pop, trace_cfg);

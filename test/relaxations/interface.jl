@@ -387,7 +387,7 @@ end
         @test !isempty(sparsity.initial_activated_supps)
     end
 
-    @testset "moment_basis matches order for regular problems" begin
+    @testset "monomial_basis matches order for regular problems" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])
         obj = 1.0 * x[1] * x[2] + 1.0 * x[2] * x[1] + x[1]^2 + x[2]^2 + 1.0
         pop = polyopt(obj, reg)
@@ -400,7 +400,7 @@ end
         )
         basis_cfg = SolverConfig(
             optimizer=SOLVER,
-            moment_basis=Any[
+            monomial_basis=Any[
                 get_ncbasis(reg, 1)...,
                 x[1] * x[1],
                 x[1] * x[2],
@@ -412,7 +412,7 @@ end
         )
 
         corr_order = NCTSSoS.correlative_sparsity(pop, 2, NoElimination())
-        corr_basis = NCTSSoS.correlative_sparsity(pop, basis_cfg.moment_basis, NoElimination())
+        corr_basis = NCTSSoS.correlative_sparsity(pop, basis_cfg.monomial_basis, NoElimination())
         @test corr_basis.clq_mom_mtx_bases == corr_order.clq_mom_mtx_bases
         @test corr_basis.clq_localizing_mtx_bases == corr_order.clq_localizing_mtx_bases
 
@@ -426,7 +426,7 @@ end
         @test res_basis.objective ≈ res_order.objective atol=1e-6
     end
 
-    @testset "moment_basis matches order for constrained problems" begin
+    @testset "monomial_basis matches order for constrained problems" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])
         obj = x[1]^2 + x[2]^2 + 1.0
         g = 1.0 - x[1] * x[2] - x[2] * x[1]   # ineq constraint
@@ -440,7 +440,7 @@ end
         )
         basis_cfg = SolverConfig(
             optimizer=SOLVER,
-            moment_basis=get_ncbasis(reg, 2),
+            monomial_basis=get_ncbasis(reg, 2),
             cs_algo=NoElimination(),
             ts_algo=NoElimination()
         )
@@ -455,7 +455,7 @@ end
         @test res_basis.objective ≈ res_order.objective atol=1e-6
     end
 
-    @testset "moment_basis is unsupported for state problems" begin
+    @testset "monomial_basis is unsupported for state problems" begin
         reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:1)])
         obj = (1.0 * ς(x[1]) * ς(y[1]) + 1.0 * ς(x[2])) * one(typeof(x[1]))
         pop = polyopt(obj, reg)
@@ -464,15 +464,15 @@ end
         @test_throws MethodError NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
         @test_throws ArgumentError compute_sparsity(
             pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
+            SolverConfig(optimizer=SOLVER, monomial_basis=basis)
         )
         @test_throws ArgumentError cs_nctssos(
             pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
+            SolverConfig(optimizer=SOLVER, monomial_basis=basis)
         )
     end
 
-    @testset "moment_basis is unsupported for trace problems" begin
+    @testset "monomial_basis is unsupported for trace problems" begin
         reg, (x, y) = create_unipotent_variables([("x", 1:1), ("y", 1:1)])
         obj = (1.0 * NCTSSoS.tr(x[1] * y[1])) * one(typeof(x[1]))
         pop = polyopt(obj, reg)
@@ -481,42 +481,49 @@ end
         @test_throws MethodError NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
         @test_throws ArgumentError compute_sparsity(
             pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
+            SolverConfig(optimizer=SOLVER, monomial_basis=basis)
         )
         @test_throws ArgumentError cs_nctssos(
             pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
+            SolverConfig(optimizer=SOLVER, monomial_basis=basis)
         )
     end
 
-    @testset "moment_basis validation" begin
+    @testset "monomial_basis validation" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
         pop = polyopt(1.0 * x[1] + 1.0, reg)
 
-        @test_throws MethodError SolverConfig(optimizer=SOLVER, moment_basis=1)
+        @test_throws MethodError SolverConfig(optimizer=SOLVER, monomial_basis=1)
         @test_throws ArgumentError compute_sparsity(
             pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=[x[1]])
+            SolverConfig(optimizer=SOLVER, monomial_basis=[x[1]])
         )
         @test_throws ArgumentError compute_sparsity(
             pop,
-            SolverConfig(optimizer=SOLVER, order=1, moment_basis=[one(x[1]), x[1]])
+            SolverConfig(optimizer=SOLVER, order=1, monomial_basis=[one(x[1]), x[1]])
         )
 
         reg_big, (x_big,) = create_noncommutative_variables([("x", 1:2)])
         @test_throws ArgumentError compute_sparsity(
             pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=[one(x[1]), x_big[2]])
+            SolverConfig(optimizer=SOLVER, monomial_basis=[one(x[1]), x_big[2]])
         )
     end
 
-    @testset "newton_chip_basis plugs into moment_basis" begin
+    @testset "moment_basis keyword is removed" begin
+        reg, _ = create_noncommutative_variables([("x", 1:1)])
+        basis = get_ncbasis(reg, 1)
+
+        @test_throws MethodError SolverConfig(optimizer=SOLVER, moment_basis=basis)
+    end
+
+    @testset "newton_chip_basis plugs into monomial_basis" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])
         obj = 1.0 * x[1]^2 + 2.0 * x[2] * x[1] * x[1] * x[2] + 1.0
         pop = polyopt(obj, reg)
 
         basis = newton_chip_basis(pop, 2)
-        cfg = SolverConfig(optimizer=SOLVER, moment_basis=basis)
+        cfg = SolverConfig(optimizer=SOLVER, monomial_basis=basis)
         sparsity = compute_sparsity(pop, cfg)
 
         @test length(sparsity.corr_sparsity.cliques) == 1
@@ -537,16 +544,16 @@ end
         @test_throws ArgumentError newton_chip_basis(pauli_pop, 1)
     end
 
-    @testset "cs_nctssos_higher rejects a new moment_basis" begin
+    @testset "cs_nctssos_higher rejects a new monomial_basis" begin
         reg, (u,) = create_unipotent_variables([("u", 1:1)])
         pop = polyopt(1.0 * u[1], reg)
-        base_cfg = SolverConfig(optimizer=SOLVER, moment_basis=get_ncbasis(reg, 1))
+        base_cfg = SolverConfig(optimizer=SOLVER, monomial_basis=get_ncbasis(reg, 1))
         res = cs_nctssos(pop, base_cfg)
 
         @test_throws ArgumentError cs_nctssos_higher(
             pop,
             res,
-            SolverConfig(optimizer=SOLVER, moment_basis=get_ncbasis(reg, 1))
+            SolverConfig(optimizer=SOLVER, monomial_basis=get_ncbasis(reg, 1))
         )
     end
 end

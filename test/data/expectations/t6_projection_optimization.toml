@@ -1,0 +1,19 @@
+schema_version = 1
+
+[[cases]]
+id = "dense_order2"
+notes = "T6 / Klep--Magron--Volčič 2020 Section 6.1: dense order-2 projector trace relaxation. Literature and reviewed oracle value is approximately -0.0467173784555. Structural fields record the current dense CI moment model."
+
+    [cases.expected]
+    objective = -0.04671737845552321
+    sides = [31]
+    nuniq = 81
+
+[[cases]]
+id = "dense_order3"
+notes = "T6 / Klep--Magron--Volčič 2020 Section 6.1: dense order-3 projector trace relaxation reaches the exact optimum -1/32. Structural fields record the current dense CI moment model."
+
+    [cases.expected]
+    objective = -0.03125
+    sides = [108]
+    nuniq = 395

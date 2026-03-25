@@ -7,7 +7,7 @@ will use it as an example.
 
 The function is defined as:
 ```math
-f(x_1, \dots, x_n) = \sum_{i=1}^n f_i(x_1, \dots, x_n)^2
+f(x_1, \dots, x_n) = \sum_{i=1}^n f_i(x_1, \dots, x_n)^\dagger f_i(x_1, \dots, x_n)
 ```
 where
 ```math
@@ -18,9 +18,15 @@ with
 J_i = \{j | j \neq i, \max(1, i-5) \leq j \leq \min(n, i+1)\}
 ```
 
-The variables $x_i$ are non-commuting. You may think of them as matrices or
-operators that is assigned with a representation. It's possible to put constraints
-on the variables in the form of polynomial inequalities. For example, we may require:
+Because the variables are non-commuting, the right analogue of a square is a
+Hermitian square $p^\dagger p$, not $p^2$ in general. In this example the
+generators $x_i$ are self-adjoint, so each $f_i$ is Hermitian and
+$f_i^\dagger f_i = f_i^2$, but we keep the Hermitian-square form explicit.
+
+The variables $x_i$ are non-commuting self-adjoint operators. You may think of
+them as matrices or observables once a representation is chosen. It's possible
+to put constraints on the variables in the form of polynomial inequalities. For
+example, we may require:
 
 ```math
 1 - x_i^2 \geq 0 \quad \text{and} \quad x_i - \frac{1}{3} \geq 0 \quad \forall i \in [1,n]
@@ -39,11 +45,12 @@ function broyden_banded(n::Int)
     # Create non-commutative variables
     registry, (x,) = create_noncommutative_variables([("x", 1:n)])
 
-    # Build the objective function using sum
+    # Build the objective as a sum of Hermitian squares
     f = sum(1:n) do i
         jset = setdiff(max(1, i-5):min(n, i+1), i)
         g = isempty(jset) ? 0.0 * x[1] : sum(x[j] + x[j]^2 for j in jset)
-        (2.0*x[i] + 5.0*x[i]^3 + 1 - g)^2
+        fi = 2.0*x[i] + 5.0*x[i]^3 + 1 - g
+        fi' * fi
     end
 
     # Define inequality constraints

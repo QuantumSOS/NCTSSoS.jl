@@ -285,19 +285,24 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     SW = StateWord{ST,A,TI}
     state_basis = _sorted_stateword_basis_from_ncsw(mp.total_basis)
     n_basis = length(state_basis)
+    sw_to_idx = Dict(sw => i for (i, sw) in enumerate(state_basis))
 
     # Initialize constraint expressions
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in 1:n_basis]
 
     # Add objective polynomial coefficients
     # Objective NCStateWords have form <xy>*I, we need to match them to basis StateWords
+    missing_objective_words = SW[]
     for (coef, ncsw) in zip(coefficients(mp.objective), monomials(mp.objective))
         canon_sw = symmetric_canon(expval(ncsw))
-        sym_idx = searchsortedfirst(state_basis, canon_sw)
-        if sym_idx <= n_basis && state_basis[sym_idx] == canon_sw
-            add_to_expression!(fα_constraints[sym_idx], coef)
+        sym_idx = get(sw_to_idx, canon_sw, 0)
+        if iszero(sym_idx)
+            push!(missing_objective_words, canon_sw)
+            continue
         end
+        add_to_expression!(fα_constraints[sym_idx], coef)
     end
+    _throw_missing_state_words(missing_objective_words, "the objective"; source="Relaxation basis")
 
     # Subtract b from the constant term (identity StateWord)
     add_to_expression!(fα_constraints[1], -one(C), b)
@@ -305,6 +310,7 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     # Process each constraint matrix by iterating directly over block (row, col) pairs
     # This ensures all StateWord contributions are accumulated correctly across blocks
     # (matching NCTSSOS's on-the-fly loop approach)
+    missing_constraint_words = SW[]
     for (i, (_, mat, _block_basis)) in enumerate(mp.constraints)
         dim = size(mat, 1)
         # Iterate over upper triangle to avoid double-counting
@@ -314,16 +320,19 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
                 for (coeff, ncsw) in zip(coefficients(poly), monomials(poly))
                     # Convert NCStateWord to canonical StateWord
                     sw = symmetric_canon(expval(ncsw))
-                    sw_idx = searchsortedfirst(state_basis, sw)
-                    if sw_idx <= n_basis && state_basis[sw_idx] == sw
-                        # Multiply off-diagonal entries by 2 for symmetric matrix contribution
-                        effective_coeff = (row == col) ? coeff : 2 * coeff
-                        add_to_expression!(fα_constraints[sw_idx], -effective_coeff, dual_variables[i][row, col])
+                    sw_idx = get(sw_to_idx, sw, 0)
+                    if iszero(sw_idx)
+                        push!(missing_constraint_words, sw)
+                        continue
                     end
+                    # Multiply off-diagonal entries by 2 for symmetric matrix contribution
+                    effective_coeff = (row == col) ? coeff : 2 * coeff
+                    add_to_expression!(fα_constraints[sw_idx], -effective_coeff, dual_variables[i][row, col])
                 end
             end
         end
     end
+    _throw_missing_state_words(missing_constraint_words, "the constraint matrices"; source="Relaxation basis")
 
     # All coefficient constraints
     @constraint(dual_model, fα_constraints .== 0)

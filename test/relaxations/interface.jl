@@ -455,38 +455,74 @@ end
         @test res_basis.objective ≈ res_order.objective atol=1e-6
     end
 
-    @testset "moment_basis is unsupported for state problems" begin
+    @testset "moment_basis matches order for state problems" begin
         reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:1)])
         obj = (1.0 * ς(x[1]) * ς(y[1]) + 1.0 * ς(x[2])) * one(typeof(x[1]))
         pop = polyopt(obj, reg)
 
         basis = get_state_basis(reg, 1; state_type=Arbitrary)
-        @test_throws MethodError NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
-        @test_throws ArgumentError compute_sparsity(
-            pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
-        )
-        @test_throws ArgumentError cs_nctssos(
-            pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
-        )
+        order_cfg = SolverConfig(optimizer=SOLVER, order=1)
+        basis_cfg = SolverConfig(optimizer=SOLVER, moment_basis=basis)
+
+        corr_order = NCTSSoS.correlative_sparsity(pop, 1, NoElimination())
+        corr_basis = NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
+        @test corr_basis.clq_mom_mtx_bases == corr_order.clq_mom_mtx_bases
+        @test corr_basis.clq_localizing_mtx_bases == corr_order.clq_localizing_mtx_bases
+
+        sparsity_order = compute_sparsity(pop, order_cfg)
+        sparsity_basis = compute_sparsity(pop, basis_cfg)
+        @test sparsity_basis.corr_sparsity.clq_mom_mtx_bases == sparsity_order.corr_sparsity.clq_mom_mtx_bases
+        @test sparsity_basis.corr_sparsity.clq_localizing_mtx_bases == sparsity_order.corr_sparsity.clq_localizing_mtx_bases
+
+        res_order = cs_nctssos(pop, order_cfg)
+        res_basis = cs_nctssos(pop, basis_cfg)
+        @test res_basis.objective ≈ res_order.objective atol=1e-6
     end
 
-    @testset "moment_basis is unsupported for trace problems" begin
-        reg, (x, y) = create_unipotent_variables([("x", 1:1), ("y", 1:1)])
-        obj = (1.0 * NCTSSoS.tr(x[1] * y[1])) * one(typeof(x[1]))
+    @testset "moment_basis matches order for trace problems" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        obj = tr(1.0 * x[1] * x[1] + 1.0 * x[2] * x[1] * x[1] * x[2] + 1.0) * one(typeof(x[1]))
         pop = polyopt(obj, reg)
 
-        basis = get_state_basis(reg, 1; state_type=MaxEntangled)
-        @test_throws MethodError NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
-        @test_throws ArgumentError compute_sparsity(
-            pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
-        )
-        @test_throws ArgumentError cs_nctssos(
-            pop,
-            SolverConfig(optimizer=SOLVER, moment_basis=basis)
-        )
+        basis = get_state_basis(reg, 2; state_type=MaxEntangled)
+        order_cfg = SolverConfig(optimizer=SOLVER, order=2)
+        basis_cfg = SolverConfig(optimizer=SOLVER, moment_basis=basis)
+
+        corr_order = NCTSSoS.correlative_sparsity(pop, 2, NoElimination())
+        corr_basis = NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
+        @test corr_basis.clq_mom_mtx_bases == corr_order.clq_mom_mtx_bases
+        @test corr_basis.clq_localizing_mtx_bases == corr_order.clq_localizing_mtx_bases
+
+        sparsity_order = compute_sparsity(pop, order_cfg)
+        sparsity_basis = compute_sparsity(pop, basis_cfg)
+        @test sparsity_basis.corr_sparsity.clq_mom_mtx_bases == sparsity_order.corr_sparsity.clq_mom_mtx_bases
+        @test sparsity_basis.corr_sparsity.clq_localizing_mtx_bases == sparsity_order.corr_sparsity.clq_localizing_mtx_bases
+
+        res_order = cs_nctssos(pop, order_cfg)
+        res_basis = cs_nctssos(pop, basis_cfg)
+        @test res_basis.objective ≈ res_order.objective atol=1e-6
+    end
+
+    @testset "sparse pure trace path matches embedded monomial basis" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        obj = tr(1.0 * x[1] * x[1] + 1.0 * x[2] * x[1] * x[1] * x[2] + 1.0) * one(typeof(x[1]))
+        pop = polyopt(obj, reg)
+
+        sparse_order_cfg = SolverConfig(optimizer=SOLVER, order=2, cs_algo=MF(), ts_algo=MMD())
+        sparse_basis_cfg = SolverConfig(optimizer=SOLVER, moment_basis=get_ncbasis(reg, 2), cs_algo=MF(), ts_algo=MMD())
+
+        sparsity_order = compute_sparsity(pop, sparse_order_cfg)
+        sparsity_basis = compute_sparsity(pop, sparse_basis_cfg)
+
+        @test sparsity_order.corr_sparsity.clq_mom_mtx_bases == sparsity_basis.corr_sparsity.clq_mom_mtx_bases
+        @test sparsity_order.corr_sparsity.clq_localizing_mtx_bases == sparsity_basis.corr_sparsity.clq_localizing_mtx_bases
+        @test [length.(ts[1].block_bases) for ts in sparsity_order.cliques_term_sparsities] ==
+            [length.(ts[1].block_bases) for ts in sparsity_basis.cliques_term_sparsities]
+
+        result_order = cs_nctssos(pop, sparse_order_cfg)
+        result_basis = cs_nctssos(pop, sparse_basis_cfg)
+        @test result_order.moment_matrix_sizes == result_basis.moment_matrix_sizes
+        @test result_order.objective ≈ result_basis.objective atol=1e-6
     end
 
     @testset "moment_basis validation" begin
@@ -508,6 +544,22 @@ end
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=[one(x[1]), x_big[2]])
         )
+
+        reg_state, (u,) = create_unipotent_variables([("u", 1:1)])
+        state_pop = polyopt((1.0 * ς(u[1])) * one(typeof(u[1])), reg_state)
+        state_cfg = SolverConfig(optimizer=SOLVER, moment_basis=[one(u[1])])
+        @test_throws ArgumentError compute_sparsity(state_pop, state_cfg)
+        @test_throws ArgumentError cs_nctssos(state_pop, state_cfg)
+
+        trace_pop = polyopt(tr(1.0 * x[1]^3) * one(typeof(x[1])), reg)
+        trace_basis = newton_chip_basis(trace_pop, 2)
+        @test map(elem -> elem.nc_word, trace_basis) == sort([one(x[1]), x[1]])
+        @test all(elem -> isone(elem.sw), trace_basis)
+
+        trace_cfg = SolverConfig(optimizer=SOLVER, moment_basis=trace_basis)
+        @test_throws ArgumentError compute_sparsity(trace_pop, trace_cfg)
+        @test_throws ArgumentError cs_nctssos(trace_pop, trace_cfg)
+        @test_throws ArgumentError cs_nctssos(trace_pop, trace_cfg; dualize=false)
     end
 
     @testset "newton_chip_basis plugs into moment_basis" begin
@@ -523,6 +575,27 @@ end
         @test sparsity.corr_sparsity.clq_mom_mtx_bases[1] == basis
     end
 
+    @testset "newton_chip_basis plugs into moment_basis for tracial problems" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        obj = tr(1.0 * x[1] * x[1] + 1.0 * x[2] * x[1] * x[1] * x[2] + 1.0) * one(typeof(x[1]))
+        pop = polyopt(obj, reg)
+
+        dense_cfg = SolverConfig(optimizer=SOLVER, order=2)
+        chip_basis = newton_chip_basis(pop, 2)
+        chip_cfg = SolverConfig(optimizer=SOLVER, moment_basis=chip_basis)
+
+        dense_sparsity = compute_sparsity(pop, dense_cfg)
+        chip_sparsity = compute_sparsity(pop, chip_cfg)
+        dense_result = cs_nctssos(pop, dense_cfg)
+        chip_result = cs_nctssos(pop, chip_cfg)
+
+        @test length(chip_sparsity.corr_sparsity.cliques) == 1
+        @test chip_sparsity.corr_sparsity.clq_mom_mtx_bases[1] == chip_basis
+        @test length(chip_basis) < length(dense_sparsity.corr_sparsity.clq_mom_mtx_bases[1])
+        @test chip_result.objective ≈ dense_result.objective atol=1e-6
+        @test chip_result.n_unique_moment_matrix_elements <= dense_result.n_unique_moment_matrix_elements
+    end
+
     @testset "newton_chip_basis rejects unsupported scope" begin
         reg_nc, (x,) = create_noncommutative_variables([("x", 1:1)])
         constrained_pop = polyopt(1.0 * x[1]^2 + 1.0, reg_nc; ineq_constraints=[1.0 - x[1]])
@@ -535,6 +608,20 @@ end
         reg_pauli, (σx, _, _) = create_pauli_variables(1:1)
         pauli_pop = polyopt(1.0 * σx[1]^2 + 1.0, reg_pauli)
         @test_throws ArgumentError newton_chip_basis(pauli_pop, 1)
+
+        constrained_trace_pop = polyopt(tr(1.0 * x[1]^2 + 1.0) * one(typeof(x[1])), reg_nc; ineq_constraints=[tr(1.0 - x[1]) * one(typeof(x[1]))])
+        @test_throws ArgumentError newton_chip_basis(constrained_trace_pop, 1)
+
+        reg_trace_multisite, (u, v) = create_noncommutative_variables([("u", 1:1), ("v", 1:1)])
+        multisite_trace_pop = polyopt((tr(1.0 * u[1]^2) + tr(1.0 * v[1]^2)) * one(typeof(u[1])), reg_trace_multisite)
+        @test_throws ArgumentError newton_chip_basis(multisite_trace_pop, 1)
+
+        reg_trace_unipotent, (w,) = create_unipotent_variables([("w", 1:1)])
+        unipotent_trace_pop = polyopt(tr(1.0 * w[1]^2 + 1.0) * one(typeof(w[1])), reg_trace_unipotent)
+        @test_throws ArgumentError newton_chip_basis(unipotent_trace_pop, 1)
+
+        product_trace_pop = polyopt((1.0 * tr(x[1]) * tr(x[1])) * one(typeof(x[1])), reg_nc)
+        @test_throws ArgumentError newton_chip_basis(product_trace_pop, 1)
     end
 
     @testset "cs_nctssos_higher rejects a new moment_basis" begin

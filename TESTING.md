@@ -25,4 +25,36 @@ julia --project -e 'using Pkg; Pkg.test()'
 
 ## Solver
 
-All tests use COSMO (open-source).
+The curated `Pkg.test()` / CI suite uses COSMO (open-source).
+
+## Standalone Local-Only Benchmark Scripts
+
+Some heavier literature reproductions live under `test/problems/` but are not
+included from `test/runtests.jl`.
+
+- Run all registered local-only scripts:
+
+```bash
+make test-local
+```
+
+- Run one local-only script directly:
+
+```bash
+make test-local-one SCRIPT=path/to/script.jl
+```
+
+- To add another local-only script later, register its path in
+  `LOCAL_ONLY_TEST_SCRIPTS` in the `Makefile`.
+
+Currently registered:
+
+- `test/problems/trace_polynomial/t1_broyden_banded_trace.jl`
+  - local-only Mosek benchmark
+  - runs the heavier T1 trace family at `n = 20, 40`
+  - requires a local Mosek license
+  - equivalent direct command:
+
+```bash
+julia --project test/problems/trace_polynomial/t1_broyden_banded_trace.jl
+```

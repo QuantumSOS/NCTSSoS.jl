@@ -137,6 +137,132 @@ end
     return length(unique(decode_site.(collect(variable_indices(poly))))) <= 1
 end
 
+@inline function _newton_chip_single_site_objective(
+    poly::NCStatePolynomial{C,ST,NonCommutativeAlgebra,T}
+) where {C<:Number,ST<:StateType,T<:Unsigned}
+    return length(unique(decode_site.(collect(variable_indices(poly))))) <= 1
+end
+
+@inline function _newton_cyclic_trace_word(
+    ncsw::NCStateWord{MaxEntangled,NonCommutativeAlgebra,T}
+) where {T<:Unsigned}
+    isone(ncsw.nc_word) ||
+        throw(ArgumentError("`newton_chip_basis` for tracial problems only supports scalar trace objectives of the form `tr(f)`; found a basis term with a residual nc-word factor. Pass a scalar trace objective and inject the resulting basis through `moment_basis`."))
+
+    sw = ncsw.sw
+    isone(sw) && return one(NormalMonomial{NonCommutativeAlgebra,T})
+    length(sw.state_syms) == 1 ||
+        throw(ArgumentError("`newton_chip_basis` for tracial problems only supports single-trace objectives `tr(f)`. Products of traces and general state-polynomial terms are outside the Newton cyclic chip theorem implemented here."))
+
+    return NormalMonomial{NonCommutativeAlgebra,T}(copy(only(sw.state_syms).mono))
+end
+
+function _newton_cyclic_support_exponents(
+    poly::NCStatePolynomial{C,MaxEntangled,NonCommutativeAlgebra,T}
+) where {C<:Number,T<:Unsigned}
+    used_indices = sort!(collect(variable_indices(poly)))
+    isempty(used_indices) && return used_indices, Tuple{Vararg{Int}}[()]
+
+    index_to_pos = Dict(idx => i for (i, idx) in enumerate(used_indices))
+    support_exponents = Set{Tuple{Vararg{Int}}}()
+    push!(support_exponents, Tuple(fill(0, length(used_indices))))
+
+    for ncsw in monomials(poly)
+        trace_word = _newton_cyclic_trace_word(ncsw)
+        exponents = zeros(Int, length(used_indices))
+        for idx in trace_word.word
+            exponents[index_to_pos[idx]] += 1
+        end
+        push!(support_exponents, Tuple(exponents))
+    end
+
+    return used_indices, sort!(collect(support_exponents))
+end
+
+function _newton_cyclic_half_polytope_oracle(support_exponents::Vector{<:Tuple})
+    nvars = length(first(support_exponents))
+    nvars == 0 && return (_target_exp::Tuple) -> true
+
+    support_set = Set(support_exponents)
+    m = length(support_exponents)
+    support_matrix = Matrix{Float64}(undef, nvars, m)
+    coordwise_max = zeros(Int, nvars)
+
+    for (j, exponent) in pairs(support_exponents)
+        for i in 1:nvars
+            support_matrix[i, j] = exponent[i]
+            coordwise_max[i] = max(coordwise_max[i], exponent[i])
+        end
+    end
+
+    model = JuMP.Model(Clarabel.Optimizer)
+    JuMP.set_silent(model)
+    @variable(model, λ[1:m] >= 0)
+    @constraint(model, sum(λ) == 1)
+    coord_constraints = [
+        @constraint(model, sum(support_matrix[i, j] * λ[j] for j in 1:m) == 0.0)
+        for i in 1:nvars
+    ]
+    @objective(model, Min, 0.0)
+
+    function oracle(target_exp::Tuple{Vararg{Int}})
+        all(iszero, target_exp) && return true
+
+        doubled_target = ntuple(i -> 2 * target_exp[i], nvars)
+        doubled_target in support_set && return true
+        any(doubled_target[i] > coordwise_max[i] for i in 1:nvars) && return false
+
+        for i in 1:nvars
+            JuMP.set_normalized_rhs(coord_constraints[i], float(doubled_target[i]))
+        end
+
+        JuMP.optimize!(model)
+        status = JuMP.termination_status(model)
+        status in (JuMP.MOI.OPTIMAL, JuMP.MOI.ALMOST_OPTIMAL) && return true
+        status in (JuMP.MOI.INFEASIBLE, JuMP.MOI.INFEASIBLE_OR_UNBOUNDED) && return false
+
+        throw(ErrorException("Newton cyclic chip polytope membership solve failed with status $(status)."))
+    end
+
+    return oracle
+end
+
+function _newton_cyclic_chip_basis(
+    poly::NCStatePolynomial{C,MaxEntangled,NonCommutativeAlgebra,T},
+    registry::VariableRegistry{NonCommutativeAlgebra,T},
+    d::Int
+) where {C<:Number,T<:Unsigned}
+    d < 0 && throw(DomainError(d, "`d` must be non-negative."))
+
+    used_indices, support_exponents = _newton_cyclic_support_exponents(poly)
+    M = NCStateWord{MaxEntangled,NonCommutativeAlgebra,T}
+    isempty(used_indices) && return [one(M)]
+
+    sub_reg = subregistry(registry, used_indices)
+    dense_words = get_ncbasis(sub_reg, d)
+    index_to_pos = Dict(idx => i for (i, idx) in enumerate(used_indices))
+    in_half_polytope = _newton_cyclic_half_polytope_oracle(support_exponents)
+    exponent_cache = Dict{Tuple{Vararg{Int}},Bool}()
+    sw_identity = one(StateWord{MaxEntangled,NonCommutativeAlgebra,T})
+
+    basis = M[]
+    sizehint!(basis, length(dense_words))
+
+    for mono in dense_words
+        exponents = zeros(Int, length(used_indices))
+        for idx in mono.word
+            exponents[index_to_pos[idx]] += 1
+        end
+        exponent_key = Tuple(exponents)
+        keep = get!(exponent_cache, exponent_key) do
+            in_half_polytope(exponent_key)
+        end
+        keep && push!(basis, NCStateWord(sw_identity, mono))
+    end
+
+    return basis
+end
+
 """
     newton_chip_basis(pop::PolyOpt, d::Int)
 
@@ -165,12 +291,50 @@ function newton_chip_basis(
     return _newton_chip_basis(pop.objective, d)
 end
 
+"""
+    newton_chip_basis(pop::PolyOpt, d::Int)
+
+Construct a strict Newton cyclic chip basis for an unconstrained tracial
+polynomial optimization problem over `NonCommutativeAlgebra`.
+
+This method applies to scalar trace objectives of the form `tr(f)`, represented
+in the package as `NCStatePolynomial{<:Number,MaxEntangled,NonCommutativeAlgebra}`.
+The returned basis contains pure operator basis elements `<I>⊗w` whose
+commutative-collapse exponent lies in half the tracial Newton polytope of the
+canonical trace support carried by `pop.objective`. The intended integration
+path is `SolverConfig(moment_basis=newton_chip_basis(pop, d))`. As with any
+custom state/trace `moment_basis`, the injected basis must still generate every
+objective/constraint moment required by the relaxation; underspecified choices
+now error instead of silently dropping terms.
+
+Warning: the Newton cyclic chip theorem is an unconstrained theorem for the
+free noncommutative `*`-algebra. This helper therefore rejects constrained
+problems, objectives spanning more than one site, products of traces, mixed
+state/operator terms, and algebras with built-in relations beyond the free
+single-site setting.
+"""
+function newton_chip_basis(
+    pop::PolyOpt{NonCommutativeAlgebra,T,P},
+    d::Int
+) where {T<:Unsigned,C<:Number,P<:NCStatePolynomial{C,MaxEntangled,NonCommutativeAlgebra,T}}
+    isempty(pop.eq_constraints) && isempty(pop.ineq_constraints) ||
+        throw(ArgumentError("`newton_chip_basis` is only supported for unconstrained `PolyOpt` problems. Pass the resulting basis through `moment_basis` only for constraint-free problems."))
+    _newton_chip_single_site_objective(pop.objective) ||
+        throw(ArgumentError("`newton_chip_basis` assumes no extra commuting relations. In this package, `NonCommutativeAlgebra` commutes operators across physical sites, so the helper currently requires the objective support to use variables from at most one site."))
+
+    return _newton_cyclic_chip_basis(pop.objective, pop.registry, d)
+end
+
 function newton_chip_basis(pop::PolyOpt{A,T,P}, _d::Int) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
     throw(ArgumentError("`newton_chip_basis` is only supported for ordinary polynomial `PolyOpt` problems over `NonCommutativeAlgebra`; got `$(nameof(A))`."))
 end
 
+function newton_chip_basis(pop::PolyOpt{NonCommutativeAlgebra,T,P}, _d::Int) where {T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,NonCommutativeAlgebra,T}}
+    throw(ArgumentError("`newton_chip_basis` is only supported for tracial `PolyOpt` problems with `MaxEntangled` state type over `NonCommutativeAlgebra`; got `$(nameof(ST))`."))
+end
+
 function newton_chip_basis(pop::PolyOpt{A,T,P}, _d::Int) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
-    throw(ArgumentError("`newton_chip_basis` is only supported for ordinary polynomial `PolyOpt` problems, not state/trace polynomial problems."))
+    throw(ArgumentError("`newton_chip_basis` is only supported for unconstrained ordinary polynomial problems, or for unconstrained tracial `PolyOpt` problems over `NonCommutativeAlgebra`; got state type `$(nameof(ST))` over `$(nameof(A))`."))
 end
 
 

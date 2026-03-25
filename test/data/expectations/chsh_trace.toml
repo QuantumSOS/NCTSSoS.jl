@@ -12,4 +12,5 @@ id = "TS"
 
     [cases.expected]
     objective = -2.8284271247321175
-    nuniq = 10
+    sides = [3, 3, 1]
+    nuniq = 6

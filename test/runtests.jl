@@ -44,5 +44,6 @@ using .TestExpectations: expectations_oracle
         include("problems/trace_polynomial/t3_ncsostools_demo_polynomial.jl")
         include("problems/trace_polynomial/t4_nc_motzkin_polynomial.jl")
         include("problems/trace_polynomial/t5_constrained_trace_semialgebraic_set.jl")
+        include("problems/trace_polynomial/t6_projection_optimization.jl")
     end
 end

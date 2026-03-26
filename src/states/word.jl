@@ -867,6 +867,8 @@ Only defined for `MonoidAlgebra` types (NonCommutative, Projector, Unipotent).
 For `TwistedGroupAlgebra` (Pauli) or `PBWAlgebra` (Fermionic/Bosonic), use
 `NCTSSoS.expval(m)` which handles phases and multi-term expansions.
 
+ASCII aliases: [`expect`](@ref), [`varsigma`](@ref).
+
 # Examples
 ```jldoctest
 julia> using NCTSSoS
@@ -892,10 +894,41 @@ function ς(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     ))
 end
 
-# varsigma is an ASCII alias for the Greek letter ς
+"""
+    varsigma(args...)
+
+ASCII alias for [`ς`](@ref). Equivalent to `ς(args...)`.
+
+See also: [`expect`](@ref), [`ς`](@ref).
+"""
 varsigma(args...) = ς(args...)
 
-# expect is a shorter, more discoverable ASCII alias for ς
+"""
+    expect(m::NormalMonomial) -> StateWord{Arbitrary}
+    expect(p::Polynomial)    -> StatePolynomial
+
+ASCII alias for [`ς`](@ref) (varsigma). Creates state-polynomial expectation
+values from monomials or polynomials.
+
+This is the recommended spelling for users who prefer plain ASCII over
+Unicode entry.
+
+# Examples
+```jldoctest
+julia> using NCTSSoS
+
+julia> using NCTSSoS: encode_index
+
+julia> idx(i) = encode_index(UInt8, i, 1);
+
+julia> m = NormalMonomial{NonCommutativeAlgebra}(UInt8[idx(1), idx(2)]);
+
+julia> expect(m) isa StateWord{Arbitrary}
+true
+```
+
+See also: [`varsigma`](@ref), [`ς`](@ref).
+"""
 expect(args...) = ς(args...)
 
 """

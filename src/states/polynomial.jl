@@ -718,6 +718,8 @@ a `Polynomial`, `ς(x[1] * y[1])` yields a `StatePolynomial`.
 Only defined for `MonoidAlgebra` types. For Pauli/Fermionic/Bosonic, use
 `NCTSSoS.expval(p)`.
 
+ASCII aliases: [`expect`](@ref), [`varsigma`](@ref).
+
 # Examples
 ```jldoctest
 julia> using NCTSSoS

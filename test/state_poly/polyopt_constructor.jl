@@ -54,6 +54,25 @@ using Test, NCTSSoS
         @test err_bad_constraint isa ArgumentError
         @test occursin("State-polynomial constraints must be", sprint(showerror, err_bad_constraint))
 
+        # NCStatePolynomial with non-identity NC words must be rejected
+        bad_ncsw = NCTSSoS.NCStateWord(ς(x[1]), x[2])
+        bad_obj = NCTSSoS.NCStatePolynomial([1.0], [bad_ncsw])
+        @test_throws ArgumentError polyopt(bad_obj, reg)
+        err_bad_nc = try
+            polyopt(bad_obj, reg)
+            nothing
+        catch e
+            e
+        end
+        @test occursin("non-identity NC word", sprint(showerror, err_bad_nc))
+        @test occursin("expect", sprint(showerror, err_bad_nc))
+
+        # Non-identity NC words in constraints are allowed (localizing matrices)
+        good_obj = objective_sp * one(typeof(x[1]))
+        bad_eq = NCTSSoS.NCStatePolynomial([1.0], [bad_ncsw])
+        @test polyopt(good_obj, reg; eq_constraints=[bad_eq]) isa NCTSSoS.PolyOpt
+        @test polyopt(good_obj, reg; ineq_constraints=[bad_eq]) isa NCTSSoS.PolyOpt
+
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,

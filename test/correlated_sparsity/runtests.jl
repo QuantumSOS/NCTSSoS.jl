@@ -201,6 +201,7 @@ end
     include("core_pipeline_structure.jl")
     include("core_pipeline_numeric.jl")
     include("coverage_edges.jl")
+    include("csts_broyden_banded_polydisc.jl")
     include("e9_chained_singular_polydisc.jl")
     include("literature_matrix.jl")
 end

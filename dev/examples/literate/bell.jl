@@ -16,6 +16,8 @@
 # ## Setup
 #
 # We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver backend.
+# Any SDP solver works — replace `Mosek.Optimizer` with `COSMO.Optimizer` or
+# `Clarabel.Optimizer` for open-source alternatives.
 
 using NCTSSoS, MosekTools
 
@@ -90,10 +92,12 @@ f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
  coefficients(f))   # corresponding coefficients
 
 # #### Step 3: Create the optimization problem
+#
+# `polyopt` creates a **minimization** problem. To find the maximum quantum
+# violation we minimize `-f` and negate the result (same pattern as I₃₃₂₂ below).
 
-pop = polyopt(f, registry)
-# pop: polynomial optimization problem maximizing f
-#      subject to the algebraic constraints in registry (U² = I)
+pop = polyopt(-f, registry)
+# pop: minimize -f ≡ maximize f, subject to algebraic constraints (U² = I)
 
 # #### Step 4: Configure and run the SDP solver
 
@@ -108,8 +112,8 @@ result = cs_nctssos(pop, solver_config)
 
 # #### Step 5: Extract the upper bound
 
-chsh_bound = result.objective
-# chsh_bound: upper bound on maximal quantum violation
+chsh_bound = -result.objective
+# chsh_bound: upper bound on maximal quantum violation (negate since we minimized -f)
 
 # Compare with Tsirelson's bound:
 tsirelson_bound = 2 * sqrt(2)
@@ -239,15 +243,24 @@ registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 # y: Bob's observables [B₁, B₂, B₃]
 
 # #### Step 2: Define the identity monomial
+#
+# The identity monomial `ID` serves a dual purpose: it anchors the algebra type
+# and promotes `StatePolynomial` → `NCStatePolynomial` (what `polyopt` expects).
+# Multiplying by `ID` is mathematically a no-op (×𝟙 = identity) but tells the
+# type system which algebra the non-commutative layer belongs to.
 
-ID = one(NormalMonomial{UnipotentAlgebra, UInt8})
-# ID: identity element (𝟙) needed for state polynomial arithmetic
+ID = one(typeof(x[1]))
+# ID: identity monomial (𝟙) inferred from the variable type
 
 ID  # display the identity
 
 # #### Step 3: Define the covariance function using state polynomials
 #
-# State polynomials use `ς(·)` to denote expectation values ⟨·⟩.
+# State polynomials use `ς(·)` (type `\varsigma` + Tab, or use the ASCII alias
+# `varsigma`) to denote expectation values ⟨·⟩.
+#
+# `ς` applied to a `Polynomial` returns a `StatePolynomial`; applied to a
+# single `NormalMonomial` it returns a `StateWord` (a single expectation factor).
 
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID -  # ⟨AᵢBⱼ⟩
             1.0 * ς(x[a]) * ς(y[b]) * ID  # -⟨Aᵢ⟩⟨Bⱼ⟩

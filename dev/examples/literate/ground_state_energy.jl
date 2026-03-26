@@ -17,6 +17,11 @@
 # Firstly, let's consider the simplest case of 1D Heisenberg chain with nearest
 # neighbor interaction and periodic boundary condition.
 
+# !!! note "SDP Solver"
+#     These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
+#     Any SDP-capable solver works: replace `Mosek.Optimizer` with
+#     `COSMO.Optimizer` or `Clarabel.Optimizer` for open-source alternatives.
+
 using NCTSSoS, MosekTools
 N = 6
 

@@ -460,6 +460,36 @@ end
         @test res_basis.objective ≈ res_order.objective atol=1e-6
     end
 
+    @testset "moment_basis matches order for fermionic PBW problems" begin
+        reg, (a, a_dag) = create_fermionic_variables(1:2)
+        obj = -1.0 * (a_dag[1] * a[2] + a_dag[2] * a[1])
+        pop = polyopt(obj, reg)
+
+        basis = get_ncbasis(reg, 1)
+        order_cfg = SolverConfig(
+            optimizer=SOLVER,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
+        )
+        basis_cfg = SolverConfig(
+            optimizer=SOLVER,
+            moment_basis=basis,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination()
+        )
+
+        corr_order = NCTSSoS.correlative_sparsity(pop, 1, NoElimination())
+        corr_basis = NCTSSoS.correlative_sparsity(pop, basis, NoElimination())
+        @test corr_order.clq_mom_mtx_bases == [basis]
+        @test corr_basis.clq_mom_mtx_bases == corr_order.clq_mom_mtx_bases
+
+        res_order = cs_nctssos(pop, order_cfg)
+        res_basis = cs_nctssos(pop, basis_cfg)
+        @test res_order.objective ≈ -1.0 atol=1e-6
+        @test res_basis.objective ≈ res_order.objective atol=1e-6
+    end
+
     @testset "moment_basis matches order for constrained problems" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])
         obj = x[1]^2 + x[2]^2 + 1.0

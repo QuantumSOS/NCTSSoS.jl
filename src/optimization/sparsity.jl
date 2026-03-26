@@ -354,7 +354,7 @@ function correlative_sparsity(
     # Generate moment matrix bases for each clique using subregistry + get_ncbasis
     # get_ncbasis returns Vector{NormalMonomial{A,T}} directly
     cliques_moment_matrix_bases = map(cliques) do clique_indices
-        sub_reg = subregistry(registry, clique_indices)
+        sub_reg = _basis_subregistry(registry, clique_indices)
         basis = get_ncbasis(sub_reg, order)
         sorted_unique!(basis)
     end
@@ -892,8 +892,9 @@ function correlative_sparsity(
     cliques_moment_matrix_bases = Vector{Vector{M}}()
 
     for clique_indices in cliques
-        # Create sub-registry for this clique
-        sub_reg = subregistry(registry, clique_indices)
+        # Create the clique-local registry used for basis generation.
+        # For PBW algebras this expands physical modes back to both signed operators.
+        sub_reg = _basis_subregistry(registry, clique_indices)
         # Generate NCStateWord basis - includes all compound forms automatically
         basis = get_state_basis(sub_reg, order; state_type=ST)
         # Sort and deduplicate

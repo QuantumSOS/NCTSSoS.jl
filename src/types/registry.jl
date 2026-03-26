@@ -131,6 +131,35 @@ function subregistry(reg::VariableRegistry{A,T}, subset_indices::VT) where {A<:A
     return VariableRegistry{A,T}(filtered_idx_to_vars, filtered_vars_to_idx)
 end
 
+"""
+    _basis_subregistry(reg::VariableRegistry{A,T}, subset_indices)
+
+Create the registry used for automatic moment-basis generation on a clique.
+
+For `PBWAlgebra`s, correlative sparsity is tracked in terms of physical modes,
+so a clique over modes `{1,2}` must generate basis words over both annihilation
+and creation operators `{a₁, a₂, a₁†, a₂†}`.  A plain `subregistry(reg, [1, 2])`
+would drop the negative indices and silently build an incomplete basis.
+"""
+function _basis_subregistry(reg::VariableRegistry{A,T}, subset_indices::VT) where {A<:AlgebraType,T<:Integer,VT<:AbstractVector{T}}
+    return subregistry(reg, subset_indices)
+end
+
+function _basis_subregistry(reg::VariableRegistry{A,T}, subset_indices::VT) where {A<:PBWAlgebra,T<:Signed,VT<:AbstractVector{T}}
+    modes = sort!(unique(T(abs(idx)) for idx in subset_indices))
+    expanded_indices = T[]
+    sizehint!(expanded_indices, 2 * length(modes))
+
+    for mode in modes
+        creation_idx = -mode
+        annihilation_idx = mode
+        haskey(reg.idx_to_variables, creation_idx) && push!(expanded_indices, creation_idx)
+        haskey(reg.idx_to_variables, annihilation_idx) && push!(expanded_indices, annihilation_idx)
+    end
+
+    return subregistry(reg, expanded_indices)
+end
+
 # Unicode subscript digits: ₀₁₂₃₄₅₆₇₈₉
 const SUBSCRIPT_DIGITS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
 

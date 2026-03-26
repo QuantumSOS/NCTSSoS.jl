@@ -243,15 +243,24 @@ registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 # y: Bob's observables [B₁, B₂, B₃]
 
 # #### Step 2: Define the identity monomial
+#
+# The identity monomial `ID` serves a dual purpose: it anchors the algebra type
+# and promotes `StatePolynomial` → `NCStatePolynomial` (what `polyopt` expects).
+# Multiplying by `ID` is mathematically a no-op (×𝟙 = identity) but tells the
+# type system which algebra the non-commutative layer belongs to.
 
-ID = one(NormalMonomial{UnipotentAlgebra, UInt8})
-# ID: identity element (𝟙) needed for state polynomial arithmetic
+ID = one(typeof(x[1]))
+# ID: identity monomial (𝟙) inferred from the variable type
 
 ID  # display the identity
 
 # #### Step 3: Define the covariance function using state polynomials
 #
-# State polynomials use `ς(·)` to denote expectation values ⟨·⟩.
+# State polynomials use `ς(·)` (type `\varsigma` + Tab, or use the ASCII alias
+# `varsigma`) to denote expectation values ⟨·⟩.
+#
+# `ς` applied to a `Polynomial` returns a `StatePolynomial`; applied to a
+# single `NormalMonomial` it returns a `StateWord` (a single expectation factor).
 
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID -  # ⟨AᵢBⱼ⟩
             1.0 * ς(x[a]) * ς(y[b]) * ID  # -⟨Aᵢ⟩⟨Bⱼ⟩

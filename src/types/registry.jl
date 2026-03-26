@@ -384,6 +384,7 @@ end
 
 """
     create_fermionic_variables(subscripts)
+    create_fermionic_variables(prefix_subscripts::Vector{Tuple{String,VT}}) where {VT<:AbstractVector}
 
 Create a variable registry and monomials for fermionic creation (a⁺) and annihilation (a) operators.
 
@@ -393,81 +394,99 @@ Fermionic operators satisfy anticommutation relations:
 - {aᵢ⁺, aⱼ⁺} = 0 (creation-creation)
 
 # Arguments
-- `subscripts`: Subscript values for different modes/sites
+- `subscripts`: subscript values for a single operator family named `a`
+- `prefix_subscripts`: vector of `(prefix, subscripts)` tuples for multiple
+  fermionic species sharing one registry
 
 # Returns
-A tuple of:
-- `VariableRegistry`: Registry with both a and a⁺ operators for each subscript
-- `(a, a⁺)`: Tuple of monomial vectors (annihilation, creation)
+- single-family call: `(reg, (a, a⁺))`
+- multi-family call: `(reg, ((a, a⁺), (b, b⁺), ...))`
 
 # Examples
 ```jldoctest
 julia> reg, (a, a⁺) = create_fermionic_variables(1:2);
 
-julia> length(a)  # One annihilation per mode
+julia> length(a)
 2
 
-julia> typeof(a[1])  # monomial for a₁
-NormalMonomial{FermionicAlgebra, Int8}
-
-julia> :a₁ in reg  # annihilation operator
-true
-
-julia> :a⁺₁ in reg  # creation operator
+julia> :a₁ in reg
 true
 ```
 
-Multiple modes:
+Multiple fermionic species in one registry:
 ```jldoctest
-julia> reg, (a, a⁺) = create_fermionic_variables(1:3);
+julia> reg, ((c_up, c_up_dag), (c_dn, c_dn_dag)) = create_fermionic_variables([("c_up", 1:2), ("c_dn", 1:2)]);
 
-julia> length(a)
-3
+julia> length(c_up), length(c_dn)
+(2, 2)
 
-julia> length(a⁺)
-3
+julia> c_up[1] == c_dn[1]
+false
 ```
 """
 create_fermionic_variables(subscripts) = _create_physical_variables(FermionicAlgebra, subscripts, "a")
 
+function create_fermionic_variables(
+    prefix_subscripts::Vector{Tuple{String,VT}}
+) where {T<:Integer,VT<:AbstractVector{T}}
+    _create_physical_variables(FermionicAlgebra, prefix_subscripts)
+end
+
 function _create_physical_variables(::Type{A}, subscripts, prefix::String) where {A<:AlgebraType}
-    _check_no_duplicate_subscripts(subscripts)
-    n_modes = length(subscripts)
+    reg, monomial_groups = _create_physical_variables(A, [(prefix, subscripts)])
+    return reg, monomial_groups[1]
+end
 
-    # Select signed type that can hold ±n_modes
-    T = _select_signed_index_type(n_modes)
-
-    idx_to_vars = Dict{T, Symbol}()
-    variables_to_idx = Dict{Symbol, T}()
-
-    for (i, subscript) in enumerate(subscripts)
-        subscript_str = _subscript_string(subscript)
-
-        # Annihilation operator: positive index
-        ann_sym = Symbol(prefix * subscript_str)
-        idx_to_vars[T(i)] = ann_sym
-        variables_to_idx[ann_sym] = T(i)
-
-        # Creation operator: negative index (same absolute value)
-        cre_sym = Symbol(prefix * "⁺" * subscript_str)
-        idx_to_vars[T(-i)] = cre_sym
-        variables_to_idx[cre_sym] = T(-i)
+function _create_physical_variables(
+    ::Type{A},
+    prefix_subscripts::Vector{Tuple{String,VT}},
+) where {A<:AlgebraType,T<:Integer,VT<:AbstractVector{T}}
+    for (_, subscripts) in prefix_subscripts
+        _check_no_duplicate_subscripts(subscripts)
     end
 
-    reg = VariableRegistry{A, T}(idx_to_vars, variables_to_idx)
+    n_modes = sum(length(subscripts) for (_, subscripts) in prefix_subscripts)
+    Tidx = _select_signed_index_type(n_modes)
+
+    idx_to_vars = Dict{Tidx, Symbol}()
+    variables_to_idx = Dict{Symbol, Tidx}()
+    monomial_groups = Vector{Tuple{Vector{NormalMonomial{A,Tidx}},Vector{NormalMonomial{A,Tidx}}}}(
+        undef,
+        length(prefix_subscripts),
+    )
+
+    next_mode = 0
+    for (group_idx, (prefix, subscripts)) in enumerate(prefix_subscripts)
+        annihilation = Vector{NormalMonomial{A,Tidx}}(undef, length(subscripts))
+        creation = Vector{NormalMonomial{A,Tidx}}(undef, length(subscripts))
+
+        for (local_idx, subscript) in enumerate(subscripts)
+            next_mode += 1
+            mode = Tidx(next_mode)
+            subscript_str = _subscript_string(subscript)
+            ann_sym = Symbol(prefix * subscript_str)
+            cre_sym = Symbol(prefix * "⁺" * subscript_str)
+
+            if haskey(variables_to_idx, ann_sym) || haskey(variables_to_idx, cre_sym)
+                throw(ArgumentError("Duplicate physical variable symbol: $ann_sym or $cre_sym"))
+            end
+
+            idx_to_vars[mode] = ann_sym
+            variables_to_idx[ann_sym] = mode
+            idx_to_vars[-mode] = cre_sym
+            variables_to_idx[cre_sym] = -mode
+
+            annihilation[local_idx] = NormalMonomial{A,Tidx}([mode])
+            creation[local_idx] = NormalMonomial{A,Tidx}([-mode])
+        end
+
+        monomial_groups[group_idx] = (annihilation, creation)
+    end
+
+    reg = VariableRegistry{A, Tidx}(idx_to_vars, variables_to_idx)
     _register_display_registry(reg)
 
-    # Build monomial vectors grouped by operator type (annihilation, creation)
-    annihilation = Vector{NormalMonomial{A,T}}(undef, n_modes)
-    creation = Vector{NormalMonomial{A,T}}(undef, n_modes)
-
-    for (i, subscript) in enumerate(subscripts)
-        subscript_str = _subscript_string(subscript)
-        annihilation[i] = NormalMonomial{A,T}([reg[Symbol(prefix * subscript_str)]])
-        creation[i] = NormalMonomial{A,T}([reg[Symbol(prefix * "⁺" * subscript_str)]])
-    end
-
-    return (reg, (annihilation, creation))
+    return reg, Tuple(monomial_groups)
 end
 
 """
@@ -484,6 +503,7 @@ end
 
 """
     create_bosonic_variables(subscripts)
+    create_bosonic_variables(prefix_subscripts::Vector{Tuple{String,VT}}) where {VT<:AbstractVector}
 
 Create a variable registry and monomials for bosonic creation (c⁺) and annihilation (c) operators.
 
@@ -493,42 +513,43 @@ Bosonic operators satisfy commutation relations:
 - [cᵢ⁺, cⱼ⁺] = 0 (creation-creation)
 
 # Arguments
-- `subscripts`: Subscript values for different modes/sites
+- `subscripts`: subscript values for a single operator family named `c`
+- `prefix_subscripts`: vector of `(prefix, subscripts)` tuples for multiple
+  bosonic species sharing one registry
 
 # Returns
-A tuple of:
-- `VariableRegistry`: Registry with both c and c⁺ operators for each subscript
-- `(c, c⁺)`: Tuple of monomial vectors (annihilation, creation)
+- single-family call: `(reg, (c, c⁺))`
+- multi-family call: `(reg, ((c, c⁺), (d, d⁺), ...))`
 
 # Examples
 ```jldoctest
 julia> reg, (c, c⁺) = create_bosonic_variables(1:2);
 
-julia> length(c)  # One annihilation per mode
+julia> length(c)
 2
 
-julia> typeof(c[1])  # monomial for c₁
-NormalMonomial{BosonicAlgebra, Int8}
-
-julia> :c₁ in reg  # annihilation operator
-true
-
-julia> :c⁺₁ in reg  # creation operator
+julia> :c₁ in reg
 true
 ```
 
-Multiple modes:
+Multiple bosonic species in one registry:
 ```jldoctest
-julia> reg, (c, c⁺) = create_bosonic_variables(1:3);
+julia> reg, ((b1, b1_dag), (b2, b2_dag)) = create_bosonic_variables([("b1", 1:2), ("b2", 1:2)]);
 
-julia> length(c)
-3
+julia> length(b1), length(b2)
+(2, 2)
 
-julia> length(c⁺)
-3
+julia> b1[1] == b2[1]
+false
 ```
 """
 create_bosonic_variables(subscripts) = _create_physical_variables(BosonicAlgebra, subscripts, "c")
+
+function create_bosonic_variables(
+    prefix_subscripts::Vector{Tuple{String,VT}}
+) where {T<:Integer,VT<:AbstractVector{T}}
+    _create_physical_variables(BosonicAlgebra, prefix_subscripts)
+end
 
 """
     create_projector_variables(prefix_subscripts::Vector{Tuple{String, VT}})

@@ -178,10 +178,38 @@ end
         check_symbols_in_registry(reg, [:a₁, Symbol("a⁺₁"), :a₂, Symbol("a⁺₂")])
     end
 
+    @testset "Fermionic Multi-Prefix Variable Creation" begin
+        reg, ((c_up, c_up_dag), (c_dn, c_dn_dag)) =
+            create_fermionic_variables([("c_up", 1:2), ("c_dn", 1:2)])
+
+        check_variable_arrays([c_up, c_up_dag, c_dn, c_dn_dag], FermionicAlgebra, [2, 2, 2, 2])
+        check_symbols_in_registry(reg, [
+            Symbol("c_up₁"), Symbol("c_up⁺₁"),
+            Symbol("c_dn₁"), Symbol("c_dn⁺₁"),
+        ])
+        @test c_up[1] != c_dn[1]
+        @test abs(c_up[1].word[1]) != abs(c_dn[1].word[1])
+        @test degree(c_up_dag[1] * c_up[1] * c_dn_dag[1] * c_dn[1]) == 4
+    end
+
     @testset "Bosonic Variable Creation" begin
         reg, (c, c_dag) = create_bosonic_variables(1:2)
         check_variable_arrays([c, c_dag], BosonicAlgebra, [2, 2])
         check_symbols_in_registry(reg, [:c₁, Symbol("c⁺₁"), :c₂, Symbol("c⁺₂")])
+    end
+
+    @testset "Bosonic Multi-Prefix Variable Creation" begin
+        reg, ((b1, b1_dag), (b2, b2_dag)) =
+            create_bosonic_variables([("b1", 1:2), ("b2", 1:2)])
+
+        check_variable_arrays([b1, b1_dag, b2, b2_dag], BosonicAlgebra, [2, 2, 2, 2])
+        check_symbols_in_registry(reg, [
+            Symbol("b1₁"), Symbol("b1⁺₁"),
+            Symbol("b2₁"), Symbol("b2⁺₁"),
+        ])
+        @test b1[1] != b2[1]
+        @test abs(b1[1].word[1]) != abs(b2[1].word[1])
+        @test degree(b1_dag[1] * b1[1] * b2_dag[1] * b2[1]) == 4
     end
 
     @testset "Monomial Power" begin

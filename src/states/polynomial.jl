@@ -162,27 +162,26 @@ terms(sp::StatePolynomial) = zip(sp.coeffs, sp.state_words)
 # =============================================================================
 
 """
-    expval(::Type{ST}, m::NormalMonomial{A,T}) where {ST,A,T}
+    expval(m::NormalMonomial{A,T}) where {A,T}
 
-Lift a normal-form operator monomial to a state expectation symbol.
+Lift a normal-form operator monomial to an arbitrary-state expectation symbol.
 
-For polynomials with multiple terms or complex coefficients, use `expval(ST, p::Polynomial)`.
+For a tracial symbol, use `tr(m)`. For polynomials with multiple terms or
+complex coefficients, use `expval(p)`.
 """
-# expval only generates expectation value which is `StateSymbol{Arbitrary`
 expval(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer} = StateSymbol{Arbitrary}(m)
-
 
 function expval(::Type{ST}, ::NormalMonomial) where {ST<:StateType}
     throw(ArgumentError("expval(::Type{$ST}, ::NormalMonomial) is not supported; use expval(m) for Arbitrary expectations, or tr(m) for trace symbols."))
 end
 
 """
-    expval(::Type{ST}, p::Polynomial{A,T,C}) where {ST,A,T,C}
+    expval(p::Polynomial{A,T,C}) where {A,T,C}
 
-Expectation value of a Polynomial.
+Expectation value of a Polynomial in the arbitrary-state formalism.
 
 Returns a `StatePolynomial` with the same coefficients, converting each
-`NormalMonomial` to a `StateWord{ST}`.
+`NormalMonomial` to a `StateWord{Arbitrary}`.
 """
 function expval(
     p::Polynomial{A,T,C},
@@ -709,8 +708,15 @@ end
 """
     ς(p::Polynomial{A,T,C}) -> StatePolynomial
 
-Create a StatePolynomial from a Polynomial.
-Converts each term's monomial to a StateWord{Arbitrary}.
+Create a `StatePolynomial` from a `Polynomial`, wrapping each term in a
+`StateWord{Arbitrary}` expectation.
+
+Note: `ς(NormalMonomial)` returns a single `StateWord`, while
+`ς(Polynomial)` returns a `StatePolynomial`. Since `x[1] * y[1]` produces
+a `Polynomial`, `ς(x[1] * y[1])` yields a `StatePolynomial`.
+
+Only defined for `MonoidAlgebra` types. For Pauli/Fermionic/Bosonic, use
+`NCTSSoS.expval(p)`.
 
 # Examples
 ```jldoctest
@@ -732,6 +738,13 @@ function ς(p::Polynomial{A,T,C}) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
     state_words = [StateWord{Arbitrary}(mono) for (_, mono) in p.terms]
     coeffs = C[coef for (coef, _) in p.terms]
     return StatePolynomial(coeffs, state_words)
+end
+
+function ς(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
+    throw(ArgumentError(
+        "ς is only defined for MonoidAlgebra types (NonCommutative, Projector, Unipotent). " *
+        "For $(A), use `NCTSSoS.expval(p)` instead."
+    ))
 end
 
 """

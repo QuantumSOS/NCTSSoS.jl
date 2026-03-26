@@ -510,7 +510,7 @@ function _gns_sparse_clique_data(
     for clique in corr_sparsity.cliques
         clique_set = Set(Int.(clique))
         clique_monomap = _gns_filter_monomap_to_clique(monomap, clique_set)
-        clique_registry = subregistry(corr_sparsity.registry, clique)
+        clique_registry = _basis_subregistry(corr_sparsity.registry, clique)
         clique_full_basis = _gns_extract_monomials_from_basis(get_ncbasis(clique_registry, H_deg))
         _gns_validate_monomap_coverage(clique_monomap, clique_full_basis, H_deg)
         push!(data, (clique_set=clique_set, monomap=clique_monomap))

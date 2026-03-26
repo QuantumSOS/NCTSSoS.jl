@@ -1,0 +1,9 @@
+schema_version = 1
+
+[[cases]]
+id = "kitaev_majorana_n4_order1"
+
+    [cases.expected]
+    objective = -3.0
+    sides = [5]
+    nuniq = 11

@@ -40,6 +40,7 @@ using .TestExpectations: expectations_oracle
         include("problems/benchmarks/e5_broyden_tridiagonal.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
+        include("problems/state_polynomial/survey_comparative.jl")
         include("problems/trace_polynomial/t2_broyden_tridiagonal_trace.jl")
         include("problems/trace_polynomial/t3_ncsostools_demo_polynomial.jl")
         include("problems/trace_polynomial/t5_constrained_trace_semialgebraic_set.jl")

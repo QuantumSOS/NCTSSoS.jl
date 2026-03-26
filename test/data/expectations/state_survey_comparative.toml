@@ -1,0 +1,19 @@
+schema_version = 1
+
+[[cases]]
+id = "S6_state_dense_order3"
+notes = "S6 / Huber--Magron--Volčič 2024 Section 3: dense order-3 state-polynomial relaxation for the comparative projector example. The literature optimum is exactly -1/16, and the order-3 dense hierarchy already reaches it numerically in CI while staying much cheaper than the higher-order exact relaxation. Structural fields record the current dense COSMO moment model on one noncommuting projector site."
+
+    [cases.expected]
+    objective = -0.0625
+    sides = [37]
+    nuniq = 93
+
+[[cases]]
+id = "S7_trace_dense_order3"
+notes = "S7 / Huber--Magron--Volčič 2024 Section 3: dense order-3 trace-restricted relaxation for the same comparative projector example. The literature optimum is exactly -1/27, and the order-3 dense hierarchy already reaches it numerically in CI. Structural fields record the current dense COSMO moment model on one noncommuting projector site."
+
+    [cases.expected]
+    objective = -0.037037037037037035
+    sides = [35]
+    nuniq = 58

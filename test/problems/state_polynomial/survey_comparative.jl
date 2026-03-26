@@ -18,7 +18,8 @@
 # needs two genuinely noncommuting projections.
 
 using Test, NCTSSoS
-using LinearAlgebra: Diagonal, dot, norm, tr
+import LinearAlgebra
+using LinearAlgebra: Diagonal, dot, norm
 
 const SURVEY_COMPARATIVE_EXPECTATIONS_PATH = "expectations/state_survey_comparative.toml"
 const S6_STATE_EXACT = -1 / 16
@@ -75,7 +76,7 @@ function survey_trace_witness_value()
         0.0 (1.0 / 3.0) (sqrt(2.0) / 3.0)
         0.0 (sqrt(2.0) / 3.0) (2.0 / 3.0)
     ]
-    τ(M) = real(tr(M)) / size(M, 1)
+    τ(M) = real(LinearAlgebra.tr(M)) / size(M, 1)
 
     value = 0.5 * (τ(X * Y * X * Y) + τ(Y * X * Y * X)) - τ(X * Y * X) * τ(Y)
     return X, Y, value

@@ -20,6 +20,8 @@ and $C$ is the classical bound. Quantum mechanics can exceed this bound.
 ## Setup
 
 We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver backend.
+Any SDP solver works — replace `Mosek.Optimizer` with `COSMO.Optimizer` or
+`Clarabel.Optimizer` for open-source alternatives.
 
 ````julia
 using NCTSSoS, MosekTools
@@ -43,7 +45,7 @@ reg_unip, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)])
 ````
 
 ````
-(VariableRegistry with 4 variables: A₁, A₂, B₁, B₂, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
+(VariableRegistry with 4 variables: A₁, A₂, B₁, B₂, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[A₁, A₂], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[B₁, B₂]))
 ````
 
 reg_unip: registry storing variable names and algebra type
@@ -79,7 +81,7 @@ reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
 ````
 
 ````
-(VariableRegistry with 4 variables: P₁, P₂, Q₁, Q₂, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
+(VariableRegistry with 4 variables: P₁, P₂, Q₁, Q₂, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[P₁, P₂], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[Q₁, Q₂]))
 ````
 
 reg_proj: registry for projector algebra
@@ -94,7 +96,7 @@ monomials(P[1] * P[1])  # should be [P[1]]
 
 ````
 1-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}}:
- UInt8[0x05]
+ P₁
 ````
 
 ---
@@ -119,7 +121,7 @@ registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
 ````
 
 ````
-(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
+(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[x₁, x₂], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[y₁, y₂]))
 ````
 
 registry: variable registry encoding U² = I constraint
@@ -136,7 +138,7 @@ f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
 ````
 
 ````
-UInt8[0x05, 0x0e] + UInt8[0x05, 0x12] + UInt8[0x09, 0x0e] + -UInt8[0x09, 0x12]
+x₁y₁ + x₁y₂ + x₂y₁ + -x₂y₂
 ````
 
 f: polynomial representing the CHSH Bell operator
@@ -149,20 +151,23 @@ Inspect the polynomial structure:
 ````
 
 ````
-(NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x05, 0x0e], UInt8[0x05, 0x12], UInt8[0x09, 0x0e], UInt8[0x09, 0x12]], [1.0, 1.0, 1.0, -1.0])
+(NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[x₁y₁, x₁y₂, x₂y₁, x₂y₂], [1.0, 1.0, 1.0, -1.0])
 ````
 
 #### Step 3: Create the optimization problem
 
+`polyopt` creates a **minimization** problem. To find the maximum quantum
+violation we minimize `-f` and negate the result (same pattern as I₃₃₂₂ below).
+
 ````julia
-pop = polyopt(f, registry)
+pop = polyopt(-f, registry)
 ````
 
 ````
 Optimization Problem (UnipotentAlgebra)
 ────────────────────────────────────
 Objective:
-    x₁y₁ + x₁y₂ + x₂y₁ + -x₂y₂
+    -x₁y₁ + -x₁y₂ + -x₂y₁ + x₂y₂
 
 Equality constraints (0):
     (none)
@@ -175,8 +180,7 @@ Variables (4):
 
 ````
 
-pop: polynomial optimization problem maximizing f
-     subject to the algebraic constraints in registry (U² = I)
+pop: minimize -f ≡ maximize f, subject to algebraic constraints (U² = I)
 
 #### Step 4: Configure and run the SDP solver
 
@@ -225,14 +229,14 @@ result: optimization result containing objective value and solver info
 #### Step 5: Extract the upper bound
 
 ````julia
-chsh_bound = result.objective
+chsh_bound = -result.objective
 ````
 
 ````
--2.82842713216232
+2.82842713216232
 ````
 
-chsh_bound: upper bound on maximal quantum violation
+chsh_bound: upper bound on maximal quantum violation (negate since we minimized -f)
 
 Compare with Tsirelson's bound:
 
@@ -251,7 +255,7 @@ abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
 ````
 
 ````
-5.65685425690851
+7.41612948829129e-9
 ````
 
 ---
@@ -273,7 +277,7 @@ registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
 ````
 
 ````
-(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x05], UInt8[0x09], UInt8[0x0d]], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x12], UInt8[0x16], UInt8[0x1a]]))
+(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[x₁, x₂, x₃], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[y₁, y₂, y₃]))
 ````
 
 registry: variable registry encoding P² = P constraint
@@ -292,7 +296,7 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) +  # A₁(B₁+B₂+B₃)
 ````
 
 ````
--UInt8[0x05] + -2.0 * UInt8[0x12] + -UInt8[0x16] + UInt8[0x05, 0x12] + UInt8[0x05, 0x16] + UInt8[0x05, 0x1a] + UInt8[0x09, 0x12] + UInt8[0x09, 0x16] + -UInt8[0x09, 0x1a] + UInt8[0x0d, 0x12] + -UInt8[0x0d, 0x16]
+-x₁ + -2.0 * y₁ + -y₂ + x₁y₁ + x₁y₂ + x₁y₃ + x₂y₁ + x₂y₂ + -x₂y₃ + x₃y₁ + -x₃y₂
 ````
 
 f: I₃₃₂₂ Bell polynomial
@@ -484,7 +488,7 @@ registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
 ````
 
 ````
-(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x05], UInt8[0x09], UInt8[0x0d]], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[UInt8[0x12], UInt8[0x16], UInt8[0x1a]]))
+(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[x₁, x₂, x₃], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[y₁, y₂, y₃]))
 ````
 
 x: Alice's observables [A₁, A₂, A₃]
@@ -492,15 +496,20 @@ y: Bob's observables [B₁, B₂, B₃]
 
 #### Step 2: Define the identity monomial
 
+The identity monomial `ID` serves a dual purpose: it anchors the algebra type
+and promotes `StatePolynomial` → `NCStatePolynomial` (what `polyopt` expects).
+Multiplying by `ID` is mathematically a no-op (×𝟙 = identity) but tells the
+type system which algebra the non-commutative layer belongs to.
+
 ````julia
-ID = one(NormalMonomial{UnipotentAlgebra, UInt8})
+ID = one(typeof(x[1]))
 ````
 
 ````
 𝟙
 ````
 
-ID: identity element (𝟙) needed for state polynomial arithmetic
+ID: identity monomial (𝟙) inferred from the variable type
 
 ````julia
 ID  # display the identity
@@ -512,7 +521,11 @@ ID  # display the identity
 
 #### Step 3: Define the covariance function using state polynomials
 
-State polynomials use `ς(·)` to denote expectation values ⟨·⟩.
+State polynomials use `ς(·)` (type `\varsigma` + Tab, or use the ASCII alias
+`varsigma`) to denote expectation values ⟨·⟩.
+
+`ς` applied to a `Polynomial` returns a `StatePolynomial`; applied to a
+single `NormalMonomial` it returns a `StateWord` (a single expectation factor).
 
 ````julia
 cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID -  # ⟨AᵢBⱼ⟩
@@ -533,7 +546,7 @@ cov(1, 1)
 ````
 
 ````
--⟨UInt8[0x05]⟩⟨UInt8[0x12]⟩ + ⟨UInt8[0x05, 0x12]⟩
+-⟨x₁⟩⟨y₁⟩ + ⟨x₁y₁⟩
 ````
 
 #### Step 4: Build the objective function
@@ -545,7 +558,7 @@ sp = cov(1,1) + cov(1,2) + cov(1,3) +  # Cov(A₁, B₁) + Cov(A₁, B₂) + Cov
 ````
 
 ````
--⟨UInt8[0x05]⟩⟨UInt8[0x12]⟩ - ⟨UInt8[0x05]⟩⟨UInt8[0x16]⟩ - ⟨UInt8[0x05]⟩⟨UInt8[0x1a]⟩ - ⟨UInt8[0x09]⟩⟨UInt8[0x12]⟩ - ⟨UInt8[0x09]⟩⟨UInt8[0x16]⟩ + ⟨UInt8[0x09]⟩⟨UInt8[0x1a]⟩ - ⟨UInt8[0x0d]⟩⟨UInt8[0x12]⟩ + ⟨UInt8[0x0d]⟩⟨UInt8[0x16]⟩ + ⟨UInt8[0x05, 0x12]⟩ + ⟨UInt8[0x05, 0x16]⟩ + ⟨UInt8[0x05, 0x1a]⟩ + ⟨UInt8[0x09, 0x12]⟩ + ⟨UInt8[0x09, 0x16]⟩ - ⟨UInt8[0x09, 0x1a]⟩ + ⟨UInt8[0x0d, 0x12]⟩ - ⟨UInt8[0x0d, 0x16]⟩
+-⟨x₁⟩⟨y₁⟩ - ⟨x₁⟩⟨y₂⟩ - ⟨x₁⟩⟨y₃⟩ - ⟨x₂⟩⟨y₁⟩ - ⟨x₂⟩⟨y₂⟩ + ⟨x₂⟩⟨y₃⟩ - ⟨x₃⟩⟨y₁⟩ + ⟨x₃⟩⟨y₂⟩ + ⟨x₁y₁⟩ + ⟨x₁y₂⟩ + ⟨x₁y₃⟩ + ⟨x₂y₁⟩ + ⟨x₂y₂⟩ - ⟨x₂y₃⟩ + ⟨x₃y₁⟩ - ⟨x₃y₂⟩
 ````
 
 sp: state polynomial for covariance Bell inequality
@@ -560,7 +573,7 @@ spop = polyopt(sp, registry)
 Optimization Problem (UnipotentAlgebra)
 ────────────────────────────────────
 Objective:
-    -⟨UInt8[0x05]⟩⟨UInt8[0x12]⟩ - ⟨UInt8[0x05]⟩⟨UInt8[0x16]⟩ - ⟨UInt8[0x05]⟩⟨UInt8[0x1a]⟩ - ⟨UInt8[0x09]⟩⟨UInt8[0x12]⟩ - ⟨UInt8[0x09]⟩⟨UInt8[0x16]⟩ + ⟨UInt8[0x09]⟩⟨UInt8[0x1a]⟩ - ⟨UInt8[0x0d]⟩⟨UInt8[0x12]⟩ + ⟨UInt8[0x0d]⟩⟨UInt8[0x16]⟩ + ⟨UInt8[0x05, 0x12]⟩ + ⟨UInt8[0x05, 0x16]⟩ + ⟨UInt8[0x05, 0x1a]⟩ + ⟨UInt8[0x09, 0x12]⟩ + ⟨UInt8[0x09, 0x16]⟩ - ⟨UInt8[0x09, 0x1a]⟩ + ⟨UInt8[0x0d, 0x12]⟩ - ⟨UInt8[0x0d, 0x16]⟩
+    -⟨x₁⟩⟨y₁⟩ - ⟨x₁⟩⟨y₂⟩ - ⟨x₁⟩⟨y₃⟩ - ⟨x₂⟩⟨y₁⟩ - ⟨x₂⟩⟨y₂⟩ + ⟨x₂⟩⟨y₃⟩ - ⟨x₃⟩⟨y₁⟩ + ⟨x₃⟩⟨y₂⟩ + ⟨x₁y₁⟩ + ⟨x₁y₂⟩ + ⟨x₁y₃⟩ + ⟨x₂y₁⟩ + ⟨x₂y₂⟩ - ⟨x₂y₃⟩ + ⟨x₃y₁⟩ - ⟨x₃y₂⟩
 
 Equality constraints (0):
     (none)

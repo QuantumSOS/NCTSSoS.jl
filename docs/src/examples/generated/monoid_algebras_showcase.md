@@ -97,7 +97,7 @@ reg_nc, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
 ````
 
 ````
-(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
+(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[x₁, x₂], NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[y₁, y₂]))
 ````
 
 This creates:
@@ -208,7 +208,7 @@ reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
 ````
 
 ````
-(VariableRegistry with 4 variables: P₁, P₂, Q₁, Q₂, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[UInt8[0x0e], UInt8[0x12]]))
+(VariableRegistry with 4 variables: P₁, P₂, Q₁, Q₂, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[P₁, P₂], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[Q₁, Q₂]))
 ````
 
 - `P[1], P[2]` on **site 1** (with P² = P)
@@ -317,10 +317,10 @@ basis_d1 = get_ncbasis(reg_nc, 1)
 ````
 5-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
  𝟙
- UInt8[0x05]
- UInt8[0x09]
- UInt8[0x0e]
- UInt8[0x12]
+ x₁
+ x₂
+ y₁
+ y₂
 ````
 
 basis_d1: all monomials up to degree 1
@@ -347,22 +347,22 @@ basis_d2 = get_ncbasis(reg_nc, 2)
 ````
 17-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
  𝟙
- UInt8[0x05]
- UInt8[0x09]
- UInt8[0x0e]
- UInt8[0x12]
- UInt8[0x05, 0x05]
- UInt8[0x05, 0x09]
- UInt8[0x05, 0x0e]
- UInt8[0x05, 0x12]
- UInt8[0x09, 0x05]
- UInt8[0x09, 0x09]
- UInt8[0x09, 0x0e]
- UInt8[0x09, 0x12]
- UInt8[0x0e, 0x0e]
- UInt8[0x0e, 0x12]
- UInt8[0x12, 0x0e]
- UInt8[0x12, 0x12]
+ x₁
+ x₂
+ y₁
+ y₂
+ x₁²
+ x₁x₂
+ x₁y₁
+ x₁y₂
+ x₂x₁
+ x₂²
+ x₂y₁
+ x₂y₂
+ y₁²
+ y₁y₂
+ y₂y₁
+ y₂²
 ````
 
 basis_d2: all monomials up to degree 2
@@ -416,7 +416,7 @@ poly = 1.0 * x[1] * x[2] + 2.0 * y[1] - 3.0 * x[1] * y[1]
 ````
 
 ````
-2.0 * UInt8[0x0e] + UInt8[0x05, 0x09] + -3.0 * UInt8[0x05, 0x0e]
+2.0 * y₁ + x₁x₂ + -3.0 * x₁y₁
 ````
 
 Site commutation is automatic in polynomial arithmetic:
@@ -428,7 +428,7 @@ monomials(poly2)  # simplified: terms combine if they have the same canonical fo
 
 ````
 1-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
- UInt8[0x05, 0x0e]
+ x₁y₁
 ````
 
 ## Summary: Choosing the Right Algebra

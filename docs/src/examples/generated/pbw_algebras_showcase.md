@@ -36,7 +36,7 @@ reg_f, (a, a⁺) = create_fermionic_variables(1:2)
 ````
 
 ````
-(VariableRegistry with 4 variables: a⁺₂, a⁺₁, a₁, a₂, (NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[Int8[1], Int8[2]], NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[Int8[-1], Int8[-2]]))
+(VariableRegistry with 4 variables: a⁺₂, a⁺₁, a₁, a₂, (NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a₁, a₂], NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a⁺₁, a⁺₂]))
 ````
 
 ### CAR example: `a₁ a₁† = 𝟙 - a₁† a₁`
@@ -99,7 +99,7 @@ reg_b, (c, c⁺) = create_bosonic_variables(1:1)
 ````
 
 ````
-(VariableRegistry with 2 variables: c⁺₁, c₁, (NCTSSoS.NormalMonomial{NCTSSoS.BosonicAlgebra, Int8}[Int8[1]], NCTSSoS.NormalMonomial{NCTSSoS.BosonicAlgebra, Int8}[Int8[-1]]))
+(VariableRegistry with 2 variables: c⁺₁, c₁, (NCTSSoS.NormalMonomial{NCTSSoS.BosonicAlgebra, Int8}[c₁], NCTSSoS.NormalMonomial{NCTSSoS.BosonicAlgebra, Int8}[c⁺₁]))
 ````
 
 ### CCR example: `c₁ c₁† = c₁† c₁ + 𝟙`

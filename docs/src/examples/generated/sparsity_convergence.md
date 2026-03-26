@@ -571,12 +571,12 @@ paper_basis_38
 ````
 7-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
  𝟙
- UInt8[0x05]
- UInt8[0x09]
- UInt8[0x05, 0x05]
- UInt8[0x05, 0x09]
- UInt8[0x09, 0x05]
- UInt8[0x09, 0x09]
+ X₁
+ X₂
+ X₁²
+ X₁X₂
+ X₂X₁
+ X₂²
 ````
 
 Starting from these seven monomials, we build the activated support.

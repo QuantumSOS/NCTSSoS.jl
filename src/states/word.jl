@@ -23,8 +23,8 @@ that has been canonicalized according to the state type:
 # Note on non-monoid algebras
 For algebras where simplification can introduce phases (Pauli / `TwistedGroupAlgebra`) or
 multi-term PBW expansions (Fermionic/Bosonic / `PBWAlgebra`), the expectation value of a
-`Monomial` is not representable by a single `StateSymbol`. Use `expval(ST, m::Monomial)`
-to obtain a `StatePolynomial` (a linear combination of `StateWord`s) instead.
+`Monomial` is not representable by a single `StateSymbol`. Use `NCTSSoS.expval(m)` for
+arbitrary expectations, or `tr(m)` for tracial symbols.
 
 # Examples
 ```jldoctest
@@ -169,7 +169,8 @@ function Base.show(io::IO, sym::StateSymbol{ST,A,T}) where {ST,A,T}
         prefix = "⟨"
         suffix = "⟩"
     end
-    mono_str = sprint(show, sym.mono; context=io)
+    # Use _show_word for registry-aware variable name display
+    mono_str = sprint(_show_word, sym.mono, A; context=io)
     print(io, prefix, mono_str, suffix)
 end
 
@@ -855,12 +856,16 @@ simplify!(ncsw::NCStateWord{ST,A,T}) where {ST<:StateType,A<:MonoidAlgebra,T<:In
 # =============================================================================
 
 """
-    ς(m::NormalMonomial{A,T}) where {A,T}
+    ς(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T} -> StateWord{Arbitrary}
 
-Create a StateWord{Arbitrary} from a monomial.
+Create a `StateWord{Arbitrary}` from a monomial (a single expectation factor ⟨m⟩).
 
-This is a convenience function for creating state expectations in the
-arbitrary state formalism. Equivalent to `StateWord{Arbitrary}(m)`.
+For a `Polynomial` input, `ς(p)` returns a `StatePolynomial` instead — see
+[`ς(::Polynomial)`](@ref).
+
+Only defined for `MonoidAlgebra` types (NonCommutative, Projector, Unipotent).
+For `TwistedGroupAlgebra` (Pauli) or `PBWAlgebra` (Fermionic/Bosonic), use
+`NCTSSoS.expval(m)` which handles phases and multi-term expansions.
 
 # Examples
 ```jldoctest
@@ -880,8 +885,18 @@ true
 """
 ς(m::NormalMonomial{A,T}) where {A<:MonoidAlgebra,T<:Integer} = StateWord{Arbitrary}(m)
 
+function ς(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    throw(ArgumentError(
+        "ς is only defined for MonoidAlgebra types (NonCommutative, Projector, Unipotent). " *
+        "For $(A), use `NCTSSoS.expval(m)` instead."
+    ))
+end
+
 # varsigma is an ASCII alias for the Greek letter ς
 varsigma(args...) = ς(args...)
+
+# expect is a shorter, more discoverable ASCII alias for ς
+expect(args...) = ς(args...)
 
 """
     tr(m::NormalMonomial{A,T}) where {A,T}

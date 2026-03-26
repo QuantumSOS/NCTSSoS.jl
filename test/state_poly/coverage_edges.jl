@@ -43,8 +43,33 @@ import Graphs
         @test symmetric_canon(ncsw) isa StateWord
         @test one(ncsw) == one(NCStateWord{Arbitrary,NonCommutativeAlgebra,UInt16})
 
-        # varsigma ASCII alias
+        # varsigma / expect ASCII aliases
         @test varsigma(m) == ς(m)
+        @test expect(m) == ς(m)
+
+        # StateSymbol show uses the display registry for readable variable names
+        reg_u, (u,) = create_unipotent_variables([("u", 1:1)])
+        @test reg_u isa VariableRegistry{UnipotentAlgebra}
+        @test sprint(show, StateSymbol{Arbitrary}(u[1])) == "⟨u₁⟩"
+
+        # Unsupported-algebra guidance should point to the actual expval API
+        err_mono = try
+            ς(σx[1])
+            nothing
+        catch err
+            err
+        end
+        @test err_mono isa ArgumentError
+        @test occursin("NCTSSoS.expval(m)", err_mono.msg)
+
+        err_poly = try
+            ς(1.0 * σx[1])
+            nothing
+        catch err
+            err
+        end
+        @test err_poly isa ArgumentError
+        @test occursin("NCTSSoS.expval(p)", err_poly.msg)
     end
 
     @testset "states/polynomial.jl accessors + lifted arithmetic" begin

@@ -164,7 +164,7 @@ export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra
 export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
 
 # State Polynomial Operations
-export ς, varsigma, tr
+export ς, varsigma, expect, tr
 export StateSymbol, StateWord, StatePolynomial
 export NCStateWord, MaxEntangled, Arbitrary
 

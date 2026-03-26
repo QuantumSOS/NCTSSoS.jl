@@ -454,9 +454,10 @@ end
 # =============================================================================
 
 """
-    Base.show(io::IO, m::NormalMonomial{A,T}) where {A,T}
+    _show_word(io::IO, word::Vector{T}, ::Type{A}) where {T<:Integer, A<:AlgebraType}
 
-Display a monomial using human-readable symbol names.
+Display a monomial word using registry-aware variable names with exponent grouping.
+Shared by `NormalMonomial.show` and `StateSymbol.show`.
 
 Registry resolution order:
 1. `:registry` key in the `IOContext` (explicit override)
@@ -480,8 +481,8 @@ julia> m   # uses display registry automatically
 
 See also: [`VariableRegistry`](@ref)
 """
-function Base.show(io::IO, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    if isempty(m.word)
+function _show_word(io::IO, word::Vector{T}, ::Type{A}) where {T<:Integer,A<:AlgebraType}
+    if isempty(word)
         print(io, "𝟙")  # Identity symbol
         return nothing
     end
@@ -495,14 +496,14 @@ function Base.show(io::IO, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Inte
     if registry !== nothing
         # Use symbols from registry with exponent grouping
         i = 1
-        while i <= length(m.word)
-            idx = m.word[i]
+        while i <= length(word)
+            idx = word[i]
             sym = get(registry.idx_to_variables, idx, nothing)
 
             if sym !== nothing
                 # Count consecutive occurrences of the same variable
                 count = 1
-                while i + count <= length(m.word) && m.word[i + count] == idx
+                while i + count <= length(word) && word[i + count] == idx
                     count += 1
                 end
 
@@ -526,8 +527,12 @@ function Base.show(io::IO, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Inte
         end
     else
         # Fallback: print raw word
-        print(io, m.word)
+        print(io, word)
     end
+end
+
+function Base.show(io::IO, m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    _show_word(io, m.word, A)
 end
 
 """

@@ -98,6 +98,10 @@ For state-polynomial inputs, the stored polynomial type is the promoted
 - For `FermionicAlgebra`: objectives should have even parity (parity superselection rule).
   Odd-parity operators have zero expectation value. Validation is done during moment
   relaxation via `_add_parity_constraints!`.
+- For `NCStatePolynomial` objectives: all `NCStateWord` terms in the objective must have
+  identity NC words (i.e., pure expectation-value expressions). Non-identity NC words in
+  the objective cause an `ArgumentError`. Constraints may have non-identity NC words.
+  Use [`expect`](@ref) or [`tr`](@ref) to construct valid state-polynomial objectives.
 
 # Examples
 ```julia
@@ -171,6 +175,38 @@ function polyopt(
             _lift_to_nc_state_constraint(NCSP, con) for con in ineq_constraints
         ]
     )
+end
+
+function polyopt(
+    objective::NCStatePolynomial{C,ST,A,T},
+    registry::VariableRegistry{A,T};
+    eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[],
+    ineq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[]
+) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
+    _validate_identity_nc_words(objective, "objective")
+    return invoke(polyopt, Tuple{AbstractPolynomial, VariableRegistry{A,T}},
+        objective, registry; eq_constraints=eq_constraints, ineq_constraints=ineq_constraints)
+end
+
+"""
+    _validate_identity_nc_words(poly::NCStatePolynomial, label::AbstractString)
+
+Validate that all `NCStateWord` terms in `poly` have identity NC words.
+
+State/trace polynomial optimization objectives must be pure expectation-value
+expressions (i.e., each term is of the form `c * ⟨state_word⟩`). Non-identity
+NC word factors indicate an ill-formed objective. Use [`expect`](@ref) or
+[`tr`](@ref) to construct valid state-polynomial objectives.
+"""
+function _validate_identity_nc_words(poly::NCStatePolynomial, label::AbstractString)
+    for ncsw in monomials(poly)
+        isone(ncsw.nc_word) || throw(ArgumentError(
+            "NCStatePolynomial $label contains a term with non-identity NC word " *
+            "`$(ncsw.nc_word)`. State/trace polynomial objectives must be pure " *
+            "expectation-value expressions where all NC words are identity. " *
+            "Use `expect(...)` or `tr(...)` to construct valid objectives."
+        ))
+    end
 end
 
 function polyopt(

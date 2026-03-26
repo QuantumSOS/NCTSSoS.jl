@@ -7,7 +7,7 @@ will use it as an example.
 
 The function is defined as:
 ```math
-f(x_1, \dots, x_n) = \sum_{i=1}^n f_i(x_1, \dots, x_n)^2
+f(x_1, \dots, x_n) = \sum_{i=1}^n f_i(x_1, \dots, x_n)^\dagger f_i(x_1, \dots, x_n)
 ```
 where
 ```math

@@ -32,7 +32,7 @@ reg_f, (a, a⁺) = create_fermionic_variables(1:1)
 ````
 
 ````
-(VariableRegistry with 2 variables: a⁺₁, a₁, (NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[Int8[1]], NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[Int8[-1]]))
+(VariableRegistry with 2 variables: a⁺₁, a₁, (NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a₁], NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a⁺₁]))
 ````
 
 A Pauli product on the same site can introduce a complex phase:
@@ -43,7 +43,7 @@ coef_p, mono_p = collect(σx[1] * σy[1])[1]
 ````
 
 ````
-(0.0 + 1.0im, UInt8[0x03])
+(0.0 + 1.0im, σz₁)
 ````
 
 A fermionic number operator is already normal-ordered:
@@ -65,7 +65,7 @@ cm = ComposedMonomial((mono_p, mono_f))
 ````
 
 ````
-ComposedMonomial(UInt8[0x03], Int8[-1, 1])
+ComposedMonomial(σz₁, a⁺₁a₁)
 ````
 
 Carry the phase as an external coefficient:
@@ -76,7 +76,7 @@ mixed_term
 ````
 
 ````
-(0.0 + 1.0im) * ComposedMonomial(UInt8[0x03], Int8[-1, 1])
+(0.0 + 1.0im) * ComposedMonomial(σz₁, a⁺₁a₁)
 ````
 
 `simplify` on a `ComposedMonomial` simplifies each component and returns a list
@@ -90,7 +90,7 @@ simplify(cm)
 
 ````
 1-element Vector{Tuple{ComplexF64, NCTSSoS.ComposedMonomial{Tuple{NCTSSoS.PauliAlgebra, NCTSSoS.FermionicAlgebra}, Tuple{NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}, NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}}}}}:
- ComposedMonomial(UInt8[0x03], Int8[-1, 1])
+ ComposedMonomial(σz₁, a⁺₁a₁)
 ````
 
 ---

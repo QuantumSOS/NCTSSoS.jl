@@ -39,13 +39,6 @@ function pretty_basis(basis, registry)
 end
 ````
 
-````
-Precompiling packages...
-   2329.3 ms  ✓ COSMO
-  1 dependency successfully precompiled in 2 seconds. 72 already precompiled.
-
-````
-
 `pretty_basis` returns a registry-aware string for basis inspection.
 
 ---

@@ -376,9 +376,13 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
     end
 
     @testset "Display - ComposedMonomial" begin
+        # Seed display registries so the output is not affected by prior tests.
+        create_pauli_variables(1:2)
+        create_fermionic_variables(1:2)
+
         # Use valid canonical forms
         m1 = NormalMonomial{PauliAlgebra,UInt16}(UInt16[P_S1, P_S2])  # Different sites
-        m2 = NormalMonomial{FermionicAlgebra,Int32}(Int32[-1, 2])  # c₁†a₂ (normal-ordered)
+        m2 = NormalMonomial{FermionicAlgebra,Int32}(Int32[-1, 2])  # a₁†a₂ (normal-ordered)
         cm = ComposedMonomial((m1, m2))
 
         s = sprint(show, cm)

@@ -53,7 +53,7 @@ registry, (x,) = create_noncommutative_variables([("x", 1:2)])
 ````
 
 ````
-(VariableRegistry with 2 variables: x₁, x₂, (NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[UInt8[0x05], UInt8[0x09]],))
+(VariableRegistry with 2 variables: x₁, x₂, (NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[x₁, x₂],))
 ````
 
 Generate a basis of monomials up to degree 2

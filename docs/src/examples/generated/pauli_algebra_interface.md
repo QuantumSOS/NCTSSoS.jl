@@ -74,6 +74,13 @@ rather than the algebra.
 
 The same problem can be solved much more concisely:
 
+!!! note "SDP Solver"
+    These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
+    If you don't have a Mosek license, replace `Mosek.Optimizer` with any
+    SDP-capable solver, for example:
+    - **COSMO** (open-source): `using COSMO; SolverConfig(optimizer=COSMO.Optimizer, ...)`
+    - **Clarabel** (open-source): `using Clarabel; SolverConfig(optimizer=Clarabel.Optimizer, ...)`
+
 ````julia
 using NCTSSoS, MosekTools
 N = 6  # Number of spins in the chain
@@ -82,7 +89,7 @@ registry, (σx, σy, σz) = create_pauli_variables(1:N)
 ````
 
 ````
-(VariableRegistry with 18 variables: σx₁, σy₁, σz₁, σx₂, σy₂, ..., σx₆, σy₆, σz₆, (NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[UInt8[0x01], UInt8[0x04], UInt8[0x07], UInt8[0x0a], UInt8[0x0d], UInt8[0x10]], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[UInt8[0x02], UInt8[0x05], UInt8[0x08], UInt8[0x0b], UInt8[0x0e], UInt8[0x11]], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[UInt8[0x03], UInt8[0x06], UInt8[0x09], UInt8[0x0c], UInt8[0x0f], UInt8[0x12]]))
+(VariableRegistry with 18 variables: σx₁, σy₁, σz₁, σx₂, σy₂, ..., σx₆, σy₆, σz₆, (NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[σx₁, σx₂, σx₃, σx₄, σx₅, σx₆], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[σy₁, σy₂, σy₃, σy₄, σy₅, σy₆], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[σz₁, σz₂, σz₃, σz₄, σz₅, σz₆]))
 ````
 
 Construct the Hamiltonian (same formula, cleaner variables)
@@ -93,7 +100,7 @@ ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
 ````
 
 ````
-0.25 + 0.0im * UInt8[0x01, 0x04] + 0.25 + 0.0im * UInt8[0x01, 0x10] + 0.25 + 0.0im * UInt8[0x02, 0x05] + 0.25 + 0.0im * UInt8[0x02, 0x11] + 0.25 + 0.0im * UInt8[0x03, 0x06] + 0.25 + 0.0im * UInt8[0x03, 0x12] + 0.25 + 0.0im * UInt8[0x04, 0x07] + 0.25 + 0.0im * UInt8[0x05, 0x08] + 0.25 + 0.0im * UInt8[0x06, 0x09] + 0.25 + 0.0im * UInt8[0x07, 0x0a] + 0.25 + 0.0im * UInt8[0x08, 0x0b] + 0.25 + 0.0im * UInt8[0x09, 0x0c] + 0.25 + 0.0im * UInt8[0x0a, 0x0d] + 0.25 + 0.0im * UInt8[0x0b, 0x0e] + 0.25 + 0.0im * UInt8[0x0c, 0x0f] + 0.25 + 0.0im * UInt8[0x0d, 0x10] + 0.25 + 0.0im * UInt8[0x0e, 0x11] + 0.25 + 0.0im * UInt8[0x0f, 0x12]
+0.25 + 0.0im * σx₁σx₂ + 0.25 + 0.0im * σx₁σx₆ + 0.25 + 0.0im * σy₁σy₂ + 0.25 + 0.0im * σy₁σy₆ + 0.25 + 0.0im * σz₁σz₂ + 0.25 + 0.0im * σz₁σz₆ + 0.25 + 0.0im * σx₂σx₃ + 0.25 + 0.0im * σy₂σy₃ + 0.25 + 0.0im * σz₂σz₃ + 0.25 + 0.0im * σx₃σx₄ + 0.25 + 0.0im * σy₃σy₄ + 0.25 + 0.0im * σz₃σz₄ + 0.25 + 0.0im * σx₄σx₅ + 0.25 + 0.0im * σy₄σy₅ + 0.25 + 0.0im * σz₄σz₅ + 0.25 + 0.0im * σx₅σx₆ + 0.25 + 0.0im * σy₅σy₆ + 0.25 + 0.0im * σz₅σz₆
 ````
 
 Create the optimization problem - constraints are handled automatically by the algebra type!

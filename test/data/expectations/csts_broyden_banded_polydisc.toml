@@ -1,0 +1,22 @@
+schema_version = 1
+
+[[cases]]
+id = "eigenvalue_n5"
+notes = "Wang-Magron 2020 Table 7 / `test-examples.typ` section 5.1.1 (`ex:csts-eig-bb`), row n=5. Literature values: CS+TS mb = 11, CS+TS opt = 3.113, dense mb = 156, dense opt = 3.113."
+
+    [cases.expected]
+    n = 5
+    sparse_opt = 3.113
+    sparse_mb = 11
+    dense_mb = 156
+
+[[cases]]
+id = "trace_n5"
+notes = "Wang-Magron 2020 Table 11 / `test-examples.typ` section 5.1.3 (`ex:csts-tr-bb`), row n=5. Literature values: CS+TS mb = 19, CS+TS opt = 3.113, dense mb = 156, dense opt = 3.113. With the repository's embedded operator-basis trace hierarchy, the same order-3 CS+TS relaxation contracts the sparse moment block further to 17 while preserving the literature objective."
+
+    [cases.expected]
+    n = 5
+    sparse_opt = 3.113
+    sparse_mb = 17
+    literature_sparse_mb = 19
+    dense_mb = 156

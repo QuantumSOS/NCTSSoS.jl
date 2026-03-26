@@ -38,6 +38,7 @@ using .TestExpectations: expectations_oracle
         include("problems/benchmarks/e3_generalized_rosenbrock.jl")
         include("problems/benchmarks/e4_chained_wood.jl")
         include("problems/benchmarks/e5_broyden_tridiagonal.jl")
+        include("problems/fermionic/fermionic_chain.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
         include("problems/trace_polynomial/t2_broyden_tridiagonal_trace.jl")

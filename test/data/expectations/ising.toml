@@ -1,0 +1,28 @@
+schema_version = 1
+
+[[cases]]
+id = "open_pauli_n3_order2"
+notes = "Open-chain N=3 transverse-field Ising benchmark in the package's Pauli ZZ + X convention. Exact ground-state energy from direct diagonalization."
+
+    [cases.expected]
+    objective = -3.031248122331958
+    sides = [22]
+    nuniq = 57
+
+[[cases]]
+id = "periodic_pauli_n3_order2"
+notes = "Periodic-chain N=3 transverse-field Ising benchmark in the package's Pauli ZZ + X convention. Exact ground-state energy from direct diagonalization."
+
+    [cases.expected]
+    objective = -3.0527756377319943
+    sides = [22]
+    nuniq = 57
+
+[[cases]]
+id = "open_fermionic_n3_order1"
+notes = "Example 3.1.2: open-chain N=3 transverse-field Ising model in Jordan–Wigner fermionic form. Unitarily equivalent to the open Pauli benchmark above."
+
+    [cases.expected]
+    objective = -3.031248122331958
+    sides = [7]
+    nuniq = 22

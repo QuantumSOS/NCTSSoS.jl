@@ -36,7 +36,7 @@ if !@isdefined(SOLVER)
     )
 end
 
-function _kron_all(mats::AbstractVector{<:AbstractMatrix})
+function _fermionic_chain_kron_all(mats::AbstractVector{<:AbstractMatrix})
     isempty(mats) && return Matrix{ComplexF64}(I, 1, 1)
     return reduce(kron, mats)
 end
@@ -58,13 +58,13 @@ function _jw_fermion_op(mode::Int, kind::Symbol, nmodes::Int)
             mats[site] = _PAULI_I
         end
     end
-    return _kron_all(mats)
+    return _fermionic_chain_kron_all(mats)
 end
 
 function _pauli_site_op(site::Int, local_op::AbstractMatrix{<:Number}, nsites::Int)
     mats = [_PAULI_I for _ in 1:nsites]
     mats[site] = Matrix{ComplexF64}(local_op)
-    return _kron_all(mats)
+    return _fermionic_chain_kron_all(mats)
 end
 
 function _majorana_sweet_spot_hamiltonian_oracle(nsites::Int)

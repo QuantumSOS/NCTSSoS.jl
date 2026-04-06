@@ -45,3 +45,6 @@ benchmark/result.json
 # Local Julia environment
 .julia_depot/
 .juliaup/
+
+# Pi agent sessions
+.pi/

@@ -28,6 +28,7 @@ makedocs(;
             "Mixed Systems (Tensor Products)"=>"examples/generated/mixed_algebras_tensor_products.md",
             "Ground State Energy"=>"examples/generated/ground_state_energy.md",
             "Fermionic Ground State"=>"examples/generated/fermionic_ground_state.md",
+            "Kitaev Chain"=>"examples/generated/kitaev_chain.md",
             "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
             "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
             "GNS Optimizer Extraction"=>"examples/generated/gns_optimizer_extraction.md",

@@ -9,7 +9,7 @@
 #
 # In general, we consider the following Hamiltonian:
 # ```math
-# H = \frac{1}{4} \sum_{i \u003c j} J_{ij} \sum_{ a \in \{x,y,z\}} \sigma_i^a \sigma_j^a
+# H = \frac{1}{4} \sum_{i \lt j} J_{ij} \sum_{a \in \{x,y,z\}} \sigma_i^a \sigma_j^a
 # ```
 
 # ## 1D Heisenberg Model with Nearest Neighbor Interaction
@@ -36,21 +36,16 @@ pop = polyopt(ham, registry)
 
 solver_config = SolverConfig(
                     optimizer=Mosek.Optimizer,          # the solver backend
-                    order=2,                            # moment matrix order
-                    ts_algo = MMD(),                    # term sparsity algorithm
+                    order=3,                            # moment matrix order
+                    ts_algo=MMD(),                      # term sparsity algorithm
                     )
 
 res = cs_nctssos(pop, solver_config)
-
-res = cs_nctssos_higher(
-            pop,                                        # Polynomial Optimization Problem
-            res,                                        # Solution of First Order Term Sparsity Iteration
-            solver_config                               # Solver Configuration
-        )
 res.objective / N
 
-# The returned result matches the actual ground state energy $-0.467129$ to $6$
-# digits. [wang2024Certifying](@cite)
+# For this small $N = 6$ instance, the sparse order-$3$ lower bound is already
+# tight. The returned value agrees with the reference ground-state energy per
+# site $-0.467129$ reported in [wang2024Certifying](@cite).
 
 # ## 1D Heisenberg Model with next nearest neighbor interaction
 
@@ -69,15 +64,14 @@ ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) *
 
 pop = polyopt(ham, registry)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2, ts_algo = MMD())
+solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, ts_algo=MMD())
 
 res = cs_nctssos(pop, solver_config)
-
-res = cs_nctssos_higher(pop, res, solver_config)
 res.objective / N
 
-# We are able to obtain the ground state energy of $-0.4270083225302217$, accurate
-# to $6$ digits!
+# Again, for this small $N = 6$ instance the sparse order-$3$ lower bound is
+# already tight. The returned value agrees with the reference ground-state
+# energy per site $-0.4270083225302217$ reported in [wang2024Certifying](@cite).
 
 # ## 2D Square Lattice
 

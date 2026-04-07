@@ -430,7 +430,7 @@ end
 """
     cs_nctssos_higher(pop::PolyOpt{T}, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {T}
 
-Solve a polynomial optimization problem using higher-order term sparsity based on a previous result.
+Solve a polynomial optimization problem using another raw term-sparsity iteration based on a previous result.
 
 # Arguments
 - `pop::PolyOpt{T}`: The polynomial optimization problem to solve
@@ -444,13 +444,13 @@ Solve a polynomial optimization problem using higher-order term sparsity based o
 - `PolyOptResult`: Result containing the objective value, correlative sparsity structure, and updated term sparsity information
 
 # Description
-This function performs a higher-order iteration of the CS-NCTSSOS method by:
-1. Using the correlative sparsity structure from the previous result
-2. Recomputing the next activated supports from the previous iteration's raw term sparsity graphs
-3. Formulating and solving either the moment relaxation or its SOS dual with the refined sparsity
+This function performs another term-sparsity iteration of the CS-NCTSSOS method by:
+1. Reusing the correlative sparsity structure and relaxation order from the previous result
+2. Recomputing the next activated supports from the previous iteration's raw term-sparsity graphs
+3. Formulating and solving either the moment relaxation or its SOS dual with the updated sparsity
 4. Returning the optimal objective value and updated sparsity information
 
-This is typically used when the previous relaxation was not tight enough and a higher-order relaxation is needed.
+Importantly, this does **not** increase the relaxation order or switch to a denser basis. It only updates the raw term-sparsity support at the same order. If that raw support is already at a fixed point, `cs_nctssos_higher` may return exactly the same relaxation and objective value as the previous solve. To obtain a tighter bound in that situation, increase `order` or use a less aggressive sparsity configuration.
 """
 function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
     isnothing(solver_config.moment_basis) ||

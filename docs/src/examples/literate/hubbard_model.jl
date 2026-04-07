@@ -227,6 +227,16 @@ SOLVER = optimizer_with_attributes(Mosek.Optimizer,
     "MSK_IPAR_LOG" => 0,
     "MSK_IPAR_NUM_THREADS" => 0);
 
+# This quartic Hubbard example is a good reminder that sparsity is not magic.
+# Plain order-2 dense relaxations leave visible gaps, while dense order 3 is
+# essentially exact but much slower.  The practical compromise here is to use
+# **term sparsity only** with one refinement step.  The grand-canonical case is
+# already tight at order 3, while the canonical half-filled case benefits from
+# pushing to order 4.
+
+config_gc = SolverConfig(optimizer = SOLVER, order = 3, ts_algo = MMD())
+config_can = SolverConfig(optimizer = SOLVER, order = 4, ts_algo = MMD())
+
 # ---
 #
 # ## Case 1 — Grand-canonical (no particle-number constraint)
@@ -236,17 +246,19 @@ SOLVER = optimizer_with_attributes(Mosek.Optimizer,
 # result is a valid lower bound on the global ground-state energy.
 
 pop_gc = polyopt(ham, registry)
-config = SolverConfig(optimizer = SOLVER, order = 2)  ## order controls moment-matrix size: higher = tighter bound, larger SDP
-result_gc = cs_nctssos(pop_gc, config)
+result_gc_first = cs_nctssos(pop_gc, config_gc)
+result_gc = cs_nctssos_higher(pop_gc, result_gc_first, config_gc)
 
 @assert result_gc.objective ≤ E_full + 1e-5   #src
-println("Grand-canonical SDP:  $(round(result_gc.objective; digits=6))")
-println("Exact full-Fock GS:   $(round(E_full; digits=6))")
-println("Gap:                  $(round(abs(result_gc.objective - E_full); digits=6))")
+@assert abs(result_gc.objective - E_full) < 1e-6   #src
+println("Grand-canonical SDP (first sparse pass):  $(round(result_gc_first.objective; digits=6))")
+println("Grand-canonical SDP (refined):            $(round(result_gc.objective; digits=6))")
+println("Exact full-Fock GS:                       $(round(E_full; digits=6))")
+println("Gap after refinement:                     $(round(abs(result_gc.objective - E_full); digits=6))")
 
-# The SDP bound is slightly below the exact value — correct for a
-# **lower bound**.  The gap of ${\sim}0.01$ reflects the finite
-# relaxation order.
+# The first sparse pass is still loose, but one call to
+# [`cs_nctssos_higher`](@ref) refines the term-sparsity graph and drives the
+# bound essentially onto the exact value.
 
 # ---
 #
@@ -261,7 +273,7 @@ println("Gap:                  $(round(abs(result_gc.objective - E_full); digits
 # !!! warning "`eq_constraints` vs. `moment_eq_constraints`"
 #     [`polyopt`](@ref) offers two kinds of equality constraint:
 #
-#     **`eq_constraints`** treats $g = 0$ as an **operator identity** —
+#     **`eq_constraints`** treats ``g = 0`` as an **operator identity** —
 #     true in *every* quantum state.  Internally it builds a full bilinear
 #     localizing matrix, imposing
 #     $\langle b_i^\dagger \, g \, b_j \rangle = 0$ for all basis pairs
@@ -269,7 +281,7 @@ println("Gap:                  $(round(abs(result_gc.objective - E_full); digits
 #     (the parity constraint in the
 #     [XY model example](@ref fermionic-ground-state)).
 #
-#     **`moment_eq_constraints`** treats $g|\psi\rangle = 0$ as a **state
+#     **`moment_eq_constraints`** treats ``g|\psi\rangle = 0`` as a **state
 #     constraint** — true for the *target state*, not universally.  It
 #     builds the one-sided localizing form
 #     $\langle b_i^\dagger \, g \rangle = 0$ for each basis element $b_i$.
@@ -281,8 +293,8 @@ println("Gap:                  $(round(abs(result_gc.objective - E_full); digits
 #     overconstrains the SDP and produces garbage (for these parameters,
 #     objective $\approx +2$ instead of $\approx -2$).
 #
-#     **Rule of thumb:** if $g = 0$ is a law of the algebra (holds for
-#     every state), use `eq_constraints`.  If $g|\psi\rangle = 0$ is a
+#     **Rule of thumb:** if ``g = 0`` is a law of the algebra (holds for
+#     every state), use `eq_constraints`.  If ``g|\psi\rangle = 0`` is a
 #     property of the state you're looking for, use
 #     `moment_eq_constraints`.
 
@@ -299,16 +311,20 @@ n_dn_total = 1.0 * sum(c_dn_dag[i] * c_dn[i] for i in 1:N)
 pop_can = polyopt(ham, registry;
     moment_eq_constraints = [n_up_total - 2.0 * one(ham),
                              n_dn_total - 2.0 * one(ham)])
-result_can = cs_nctssos(pop_can, config)
+result_can_first = cs_nctssos(pop_can, config_can)
+result_can = cs_nctssos_higher(pop_can, result_can_first, config_can)
 
 @assert result_can.objective ≤ E_half + 1e-4   #src
+@assert abs(result_can.objective - E_half) < 1e-6   #src
 @assert result_can.objective > -3.0             #src
-println("Canonical SDP:        $(round(result_can.objective; digits=6))")
-println("Exact half-filled GS: $(round(E_half; digits=6))")
-println("Gap:                  $(round(abs(result_can.objective - E_half); digits=6))")
+println("Canonical SDP (first sparse pass):        $(round(result_can_first.objective; digits=6))")
+println("Canonical SDP (refined):                  $(round(result_can.objective; digits=6))")
+println("Exact half-filled GS:                     $(round(E_half; digits=6))")
+println("Gap after refinement:                     $(round(abs(result_can.objective - E_half); digits=6))")
 
 # The canonical bound tracks the half-filled sector — it is *not* pulled
-# down to the lower full-Fock minimum.
+# down to the lower full-Fock minimum.  At order 4, one refinement step drives
+# the gap down to about ${\sim}10^{-7}$.
 
 # ---
 #
@@ -317,14 +333,16 @@ println("Gap:                  $(round(abs(result_can.objective - E_half); digit
 # | Quantity | Value |
 # |:--------|------:|
 # | Exact full-Fock $E_0$ | $-3.419$ |
-# | Grand-canonical SDP (order 2) | $\approx -3.432$ |
+# | Grand-canonical SDP (order 3 TS + higher) | $\approx -3.419$ |
 # | Exact half-filled $E_0\;(N_\uparrow{=}N_\downarrow{=}2)$ | $-2.103$ |
-# | Canonical SDP (order 2) | $\approx -2.147$ |
+# | Canonical SDP (order 4 TS + higher) | $\approx -2.103$ |
 #
 # Both SDP values are **valid lower bounds** on their respective exact
-# energies.  The gaps (${\sim}0.01$ grand-canonical, ${\sim}0.04$
-# canonical) reflect the finite relaxation order — higher order gives
-# tighter bounds at the cost of larger SDPs.
+# energies.  For this example, the practical sweet spot is not plain dense
+# order 2, and it is not naive correlative sparsity either.  Using **term
+# sparsity plus one refinement step**, the grand-canonical case is already
+# essentially exact at order 3, while the canonical case reaches numerical
+# precision at order 4.
 
 # ---
 #
@@ -338,7 +356,11 @@ println("Gap:                  $(round(abs(result_can.objective - E_half); digit
 # without and with particle-number constraints.  The grand-canonical SDP
 # finds a lower bound across all Fock sectors; the canonical relaxation,
 # using `moment_eq_constraints` to fix $N_\uparrow = N_\downarrow = 2$,
-# targets the half-filled Mott sector specifically.
+# targets the half-filled Mott sector specifically.  Numerically, this is a
+# case where **term sparsity plus one refinement step** works well, but the
+# two sectors are not equally hard: the grand-canonical problem is already
+# essentially exact at order 3, while the canonical half-filled problem needs
+# order 4 to close the gap to numerical precision.
 #
 # ### The code recipe
 #
@@ -346,8 +368,8 @@ println("Gap:                  $(round(abs(result_can.objective - E_half); digit
 # |:-----|:------------|:----|
 # | 1 | Create spin-up and spin-down operators on disjoint mode ranges | [`create_fermionic_variables`](@ref) with species list |
 # | 2 | Build the Hubbard Hamiltonian (hopping + on-site repulsion) | Standard Julia arithmetic |
-# | 3 | Grand-canonical solve (no constraints) | [`polyopt`](@ref) $\to$ [`cs_nctssos`](@ref) |
-# | 4 | Canonical solve (fixed particle number) | `moment_eq_constraints` kwarg in [`polyopt`](@ref) |
+# | 3 | Grand-canonical solve with order-3 term sparsity refinement | [`polyopt`](@ref) $\to$ [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
+# | 4 | Canonical solve with fixed particle number, order 4, and one refinement | `moment_eq_constraints` in [`polyopt`](@ref), then [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
 # | 5 | Verify against exact diagonalisation | `hubbard_exact_matrix` + `sector_ground_state_energy` |
 #
 # ### Key concepts
@@ -358,8 +380,8 @@ println("Gap:                  $(round(abs(result_can.objective - E_half); digit
 # | **Doubled modes** | Spin-up and spin-down as disjoint mode ranges in one registry ($2N$ modes for $N$ sites) |
 # | **Grand-canonical** | No particle-number constraint — optimise over entire Fock space |
 # | **Canonical** | Fix $N_\uparrow$ and $N_\downarrow$ — optimise within a single particle-number sector |
-# | **`moment_eq_constraints`** | One-sided localizing: $\langle b_i^\dagger g \rangle = 0$ — for state constraints ($g|\psi\rangle = 0$) |
-# | **`eq_constraints`** | Full bilinear localizing: $\langle b_i^\dagger g\, b_j \rangle = 0$ — for operator identities ($g = 0$ always) |
+# | **`moment_eq_constraints`** | One-sided localizing: $\langle b_i^\dagger g \rangle = 0$ — for state constraints (``g|\psi\rangle = 0``) |
+# | **`eq_constraints`** | Full bilinear localizing: $\langle b_i^\dagger g\, b_j \rangle = 0$ — for operator identities (``g = 0`` always) |
 # | **Mott insulator** | Large $U/t$ at half-filling: electrons localise, charge transport freezes |
 #
 # ### See also

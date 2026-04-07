@@ -148,7 +148,7 @@ end
 ````
 
 ````
-Main.var"##284".kitaev_chain_exact
+Main.var"##285".kitaev_chain_exact
 ````
 
 Quick sanity check — the sweet spot should give $E_0 = -(N-1)$:

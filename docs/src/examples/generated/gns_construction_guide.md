@@ -120,6 +120,9 @@ Equality constraints (0):
 Inequality constraints (1):
     1 + -X₁² + -X₂² >= 0
 
+Moment equality constraints (0):
+    (none)
+
 Variables (2):
     X₁, X₂
 

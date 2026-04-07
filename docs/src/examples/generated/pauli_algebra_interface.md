@@ -121,6 +121,9 @@ Equality constraints (0):
 Inequality constraints (0):
     (none)
 
+Moment equality constraints (0):
+    (none)
+
 Variables (18):
     σx₁, σy₁, σz₁, σx₂, σy₂, ..., σx₆, σy₆, σz₆
 

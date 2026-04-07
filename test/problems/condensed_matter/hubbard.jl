@@ -39,7 +39,7 @@ function _hubbard_kron_all(mats::AbstractVector{<:AbstractMatrix})
     return reduce(kron, mats)
 end
 
-function _jw_fermion_op(mode::Int, kind::Symbol, nmodes::Int)
+function _hubbard_jw_fermion_op(mode::Int, kind::Symbol, nmodes::Int)
     mats = Vector{Matrix{ComplexF64}}(undef, nmodes)
     for site in 1:nmodes
         if site < mode
@@ -53,22 +53,22 @@ function _jw_fermion_op(mode::Int, kind::Symbol, nmodes::Int)
     return _hubbard_kron_all(mats)
 end
 
-function _fermion_word_matrix(word::AbstractVector{<:Integer}, nmodes::Int)
+function _hubbard_fermion_word_matrix(word::AbstractVector{<:Integer}, nmodes::Int)
     dim = 2^nmodes
     acc = Matrix{ComplexF64}(I, dim, dim)
     for op in word
         mode = abs(Int(op))
         kind = op > 0 ? :annihilate : :create
-        acc = acc * _jw_fermion_op(mode, kind, nmodes)
+        acc = acc * _hubbard_jw_fermion_op(mode, kind, nmodes)
     end
     return acc
 end
 
-function _fermion_poly_matrix(p::Polynomial{FermionicAlgebra,T,C}, nmodes::Int) where {T<:Integer,C<:Number}
+function _hubbard_fermion_poly_matrix(p::Polynomial{FermionicAlgebra,T,C}, nmodes::Int) where {T<:Integer,C<:Number}
     dim = 2^nmodes
     acc = zeros(ComplexF64, dim, dim)
     for (coef, mono) in zip(coefficients(p), monomials(p))
-        acc .+= ComplexF64(coef) * _fermion_word_matrix(mono.word, nmodes)
+        acc .+= ComplexF64(coef) * _hubbard_fermion_word_matrix(mono.word, nmodes)
     end
     return acc
 end
@@ -130,7 +130,7 @@ end
         oracle = expectations_oracle(HUBBARD_EXPECTATIONS_PATH, "periodic_n2_u4_order2")
 
         registry, _, _, ham = _hubbard_problem(N; t, U, periodic=true)
-        exact_hamiltonian = _fermion_poly_matrix(ham, 2 * N)
+        exact_hamiltonian = _hubbard_fermion_poly_matrix(ham, 2 * N)
         exact_e0 = eigmin(Hermitian(exact_hamiltonian))
         half_filled_e0 = _sector_ground_state_energy(exact_hamiltonian, N; nup=1, ndn=1)
 
@@ -151,7 +151,7 @@ end
         oracle = expectations_oracle(HUBBARD_EXPECTATIONS_PATH, "periodic_n4_u4_order2")
 
         registry, _, _, ham = _hubbard_problem(N; t, U, periodic=true)
-        exact_hamiltonian = _fermion_poly_matrix(ham, 2 * N)
+        exact_hamiltonian = _hubbard_fermion_poly_matrix(ham, 2 * N)
         exact_e0 = eigmin(Hermitian(exact_hamiltonian))
         half_filled_e0 = _sector_ground_state_energy(exact_hamiltonian, N; nup=2, ndn=2)
 
@@ -174,7 +174,7 @@ end
         oracle = expectations_oracle(HUBBARD_EXPECTATIONS_PATH, "periodic_n4_u4_order2_canonical")
 
         registry, (c_up, c_up_dag), (c_dn, c_dn_dag), ham = _hubbard_problem(N; t, U, periodic=true)
-        exact_hamiltonian = _fermion_poly_matrix(ham, 2 * N)
+        exact_hamiltonian = _hubbard_fermion_poly_matrix(ham, 2 * N)
         half_filled_e0 = _sector_ground_state_energy(exact_hamiltonian, N; nup=2, ndn=2)
 
         # Build particle-number constraints: N_up = 2, N_dn = 2

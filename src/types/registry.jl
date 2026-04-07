@@ -434,7 +434,8 @@ Fermionic operators satisfy anticommutation relations:
 !!! note "Cross-species anticommutation"
     When multiple species are created (multi-family call), **all** modes
     share one fermionic algebra and **anticommute** with each other —
-    including across species: `{c_upᵢ, c_dnⱼ⁺} = 0` for i ≠ j.
+    including across species: `{c_upᵢ, c_dnⱼ⁺} = 0` for all i, j,
+    since `c_up[i]` and `c_dn[j]` are always distinct modes.
     Each tuple provides a naming prefix, not an independent algebra.
     This differs from `MonoidAlgebra` constructors like
     [`create_projector_variables`](@ref), where different tuples

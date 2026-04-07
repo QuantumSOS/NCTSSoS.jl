@@ -86,6 +86,9 @@ non-commutative words.
 # Keyword Arguments
 - `eq_constraints`: Equality constraints as polynomials (p = 0). Default: empty
 - `ineq_constraints`: Inequality constraints as polynomials (p >= 0). Default: empty
+- `moment_eq_constraints`: One-sided moment equality constraints encoding
+  state conditions `g|ψ⟩ = 0` via `⟨b† g⟩ = 0` inside the relaxation. Default: empty.
+  Currently supported for ordinary polynomial optimization, not state/trace problems.
 
 # Returns
 A `PolyOpt{A,T,P}` structure representing the optimization problem.
@@ -192,6 +195,9 @@ function polyopt(
     moment_eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[]
 ) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     _validate_identity_nc_words(objective, "objective")
+    isempty(moment_eq_constraints) || throw(ArgumentError(
+        "moment_eq_constraints are not yet supported for state polynomial optimization."
+    ))
     return invoke(polyopt, Tuple{AbstractPolynomial, VariableRegistry{A,T}},
         objective, registry; eq_constraints=eq_constraints, ineq_constraints=ineq_constraints, moment_eq_constraints=moment_eq_constraints)
 end

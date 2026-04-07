@@ -70,6 +70,15 @@ end
             @test length(pop.eq_constraints) == 1
             @test length(pop.ineq_constraints) == 2
         end
+
+        @testset "Moment equality constraints are stored separately and deduplicated" begin
+            g = 1.0 * x[1]^2 - 1.0 * one(objective)
+            pop = polyopt(objective, reg; moment_eq_constraints=[g, g])
+
+            @test isempty(pop.eq_constraints)
+            @test isempty(pop.ineq_constraints)
+            @test pop.moment_eq_constraints == [g]
+        end
     end
 
     @testset "Unipotent Algebra" begin
@@ -235,6 +244,15 @@ end
         @test NCTSSoS.compute_relaxation_order(pop, 0) == 2
     end
 
+    @testset "Moment equality constraints affect order" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+        obj = 1.0 * x[1]
+        meq = 1.0 * x[1]^3
+        pop = polyopt(obj, reg; moment_eq_constraints=[meq])
+
+        @test NCTSSoS.compute_relaxation_order(pop, 0) == 2
+    end
+
     @testset "Trivial polynomial defaults to order 1" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])
         obj = 5.0 * one(x[1])  # constant, degree 0
@@ -243,6 +261,33 @@ end
         # ceil(0/2) = 0, but we use max(1, ...) to default to 1 for trivial problems
         @test NCTSSoS.compute_relaxation_order(pop, 0) == 1
     end
+end
+
+@testset "moment_eq_constraints truncation" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:1)])
+    obj = 1.0 * x[1]
+    meq = 1.0 * x[1]^3
+
+    pop = polyopt(obj, reg; moment_eq_constraints=[meq])
+    config = SolverConfig(
+        optimizer=SOLVER,
+        order=2,
+        cs_algo=NoElimination(),
+        ts_algo=NoElimination(),
+    )
+
+    sparsity = NCTSSoS.compute_sparsity(pop, config)
+    mp = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+
+    zero_constraints = [mat for (cone, mat) in mp.constraints if cone == :Zero]
+    @test length(zero_constraints) == 2
+    @test maximum(degree.(mp.total_basis)) == 4
+    @test all(degree(only(monomials(mat[1, 1]))) <= 4 for mat in zero_constraints)
+
+    zero_pop = polyopt(obj, reg; moment_eq_constraints=[zero(obj)])
+    zero_sparsity = NCTSSoS.compute_sparsity(zero_pop, config)
+    zero_mp = NCTSSoS.moment_relax(zero_pop, zero_sparsity.corr_sparsity, zero_sparsity.cliques_term_sparsities)
+    @test count(c -> c[1] == :Zero, zero_mp.constraints) == 0
 end
 
 @testset "project_to_clique" begin

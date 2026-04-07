@@ -73,6 +73,15 @@ using Test, NCTSSoS
         @test polyopt(good_obj, reg; eq_constraints=[bad_eq]) isa NCTSSoS.PolyOpt
         @test polyopt(good_obj, reg; ineq_constraints=[bad_eq]) isa NCTSSoS.PolyOpt
 
+        err_meq = try
+            polyopt(objective_sp, reg; moment_eq_constraints=[eq_sp])
+            nothing
+        catch e
+            e
+        end
+        @test err_meq isa ArgumentError
+        @test occursin("moment_eq_constraints are not yet supported", sprint(showerror, err_meq))
+
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,

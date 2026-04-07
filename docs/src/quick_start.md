@@ -113,8 +113,13 @@ result_sparse = cs_nctssos(pop, solver_config)
 
 As expected, the time taken to solve the problem is significantly reduced.
 However, the result may no longer be a tight lower bound since sparsity is itself
-a kind of relaxation. Luckily, we can tighten the relaxation in the [Term
-Sparsity](@ref term-sparsity) sense using [`NCTSSoS.cs_nctssos_higher`](@ref).
+a kind of relaxation. A follow-up call to [`NCTSSoS.cs_nctssos_higher`](@ref)
+can sometimes tighten the relaxation in the [Term Sparsity](@ref term-sparsity)
+sense by updating the raw term-sparsity support at the same order.
+
+This is not guaranteed to improve the bound: if the raw term-sparsity support is
+already at a fixed point, the next sparse step will return the same relaxation.
+In that case, use a higher `order` or a less aggressive sparsity configuration.
 
 ```julia
 result_higher = cs_nctssos_higher(pop, result_sparse, solver_config)

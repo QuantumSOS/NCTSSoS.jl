@@ -194,6 +194,31 @@ function moment_relax(
         ])
     end...)
 
+    # Extend total basis with one-sided localizing products from moment_eq_constraints
+    if !isempty(pop.moment_eq_constraints)
+        meq_monomials = NormalMonomial{A,TI}[]
+        all_moment_bases = M[]
+        for term_sparsities in cliques_term_sparsities
+            for block_basis in term_sparsities[1].block_bases
+                append!(all_moment_bases, block_basis)
+            end
+        end
+        sorted_unique!(all_moment_bases)
+        for g in pop.moment_eq_constraints
+            for row_mono in all_moment_bases
+                for (_, row_word) in row_mono
+                    for (_, mono) in g.terms
+                        product = _neat_dot3(row_word, mono, one_word)
+                        for (_, m) in _simplified_to_terms(A, simplify(A, product), TI)
+                            push!(meq_monomials, m)
+                        end
+                    end
+                end
+            end
+        end
+        total_basis = sorted_union(total_basis, meq_monomials)
+    end
+
     # NOTE: For fermionic algebras, we do NOT filter odd-parity monomials from the basis.
     # The parity superselection rule is enforced via constraints (see _add_parity_constraints!)
     # rather than basis filtering. This is because moment matrix entries M[i,j] = <basis[i]^dag * op * basis[j]>
@@ -235,7 +260,70 @@ function moment_relax(
     # This enforces that odd-parity moment entries are zero
     _add_parity_constraints!(mp)
 
+    # Add one-sided localizing constraints for moment equality constraints
+    # These implement g|ψ⟩ = 0 via ⟨b_i† g⟩ = 0 for all basis elements b_i
+    _add_moment_eq_constraints!(mp, pop, cliques_term_sparsities)
+
     return mp
+end
+
+
+# =============================================================================
+# Moment Equality Constraints (One-Sided Localizing)
+# =============================================================================
+
+"""
+    _add_moment_eq_constraints!(mp, pop, cliques_term_sparsities)
+
+Add one-sided localizing constraints for moment equality constraints.
+
+Moment equality constraints represent state constraints g|ψ⟩ = 0 (not operator
+identities). The correct linearization is ⟨b_i† g⟩ = 0 for all basis elements
+b_i, which is a vector of scalar constraints (NOT a full localizing matrix).
+
+This is weaker than the standard equality constraint (which imposes the full
+bilinear ⟨b_i† g b_j⟩ = 0) but is the correct formulation for state-sector
+constraints like particle-number fixing in fermionic systems.
+"""
+function _add_moment_eq_constraints!(
+    mp::MomentProblem{A,T,M,P},
+    pop::PolyOpt{A,T,P},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T},P<:Polynomial{A,T,C}}
+    isempty(pop.moment_eq_constraints) && return nothing
+
+    one_mono = one(NormalMonomial{A,T})
+
+    # Collect all moment matrix basis elements from all cliques
+    all_moment_bases = M[]
+    for term_sparsities in cliques_term_sparsities
+        for block_basis in term_sparsities[1].block_bases
+            append!(all_moment_bases, block_basis)
+        end
+    end
+    sorted_unique!(all_moment_bases)
+
+    meq_constraints = Tuple{Symbol, Matrix{P}}[]
+
+    for g in pop.moment_eq_constraints
+        for row_mono in all_moment_bases
+            # Build b_i† * g (one-sided: no right multiplier)
+            poly = sum(
+                _conj_coef(A, c_row) * coef * Polynomial(_simplified_to_terms(A, simplify(A, _neat_dot3(row_word, mono, one_mono)), T))
+                for (c_row, row_word) in row_mono
+                for (coef, mono) in g.terms;
+                init=zero(P)
+            )
+            if !iszero(poly)
+                constraint_mat = Matrix{P}(undef, 1, 1)
+                constraint_mat[1, 1] = poly
+                push!(meq_constraints, (:Zero, constraint_mat))
+            end
+        end
+    end
+
+    append!(mp.constraints, meq_constraints)
+    return nothing
 end
 
 
@@ -650,6 +738,14 @@ struct StateMomentProblem{A<:AlgebraType, ST<:StateType, T<:Integer, M<:NCStateW
     constraints::Vector{Tuple{Symbol, Matrix{P}, Vector{M}}}  # (cone, matrix, block_basis)
     total_basis::Vector{M}
     n_unique_moment_matrix_elements::Int
+end
+
+# Fallback for StateMomentProblem (not implemented yet)
+function _add_moment_eq_constraints!(
+    mp::StateMomentProblem, pop, cliques_term_sparsities
+)
+    isempty(pop.moment_eq_constraints) && return nothing
+    throw(ArgumentError("moment_eq_constraints are not yet supported for state polynomial optimization."))
 end
 
 """

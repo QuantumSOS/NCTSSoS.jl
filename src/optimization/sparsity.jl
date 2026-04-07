@@ -337,7 +337,9 @@ function correlative_sparsity(
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 
     # Build correlative graph and get index mappings
-    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, all_cons)
+    # Include moment_eq_constraints variables in graph for connectivity
+    graph_polys = vcat(all_cons, pop.moment_eq_constraints)
+    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, graph_polys)
 
     # Decompose graph into cliques
     clique_node_sets = clique_decomp(G, elim_algo)
@@ -392,7 +394,8 @@ function correlative_sparsity(
     registry = pop.registry
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 
-    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, all_cons)
+    graph_polys = vcat(all_cons, pop.moment_eq_constraints)
+    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, graph_polys)
     clique_node_sets = clique_decomp(G, elim_algo)
 
     node_to_idx = Dict{Int,T}(pos => idx for (idx, pos) in idx_to_node)
@@ -437,7 +440,8 @@ function correlative_sparsity(
     registry = pop.registry
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 
-    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, all_cons)
+    graph_polys = vcat(all_cons, pop.moment_eq_constraints)
+    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, graph_polys)
     clique_node_sets = clique_decomp(G, elim_algo)
 
     node_to_idx = Dict{Int,T}(pos => idx for (idx, pos) in idx_to_node)
@@ -871,7 +875,9 @@ function correlative_sparsity(
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 
     # Build correlative graph and get index mappings
-    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, all_cons)
+    # Include moment_eq_constraints variables in graph for connectivity
+    graph_polys = vcat(all_cons, pop.moment_eq_constraints)
+    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, graph_polys)
 
     # Decompose graph into cliques
     clique_node_sets = clique_decomp(G, elim_algo)

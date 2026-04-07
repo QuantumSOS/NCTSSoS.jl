@@ -137,7 +137,7 @@ Returns 1 for trivial problems (empty or zero-degree polynomials).
 """
 function compute_relaxation_order(pop::OptimizationProblem, user_order::Int)::Int
     iszero(user_order) || return user_order
-    all_polys = [pop.objective; pop.eq_constraints; pop.ineq_constraints]
+    all_polys = [pop.objective; pop.eq_constraints; pop.ineq_constraints; pop.moment_eq_constraints]
     max_deg = maximum(degree(poly) for poly in all_polys)
     isfinite(max_deg) ? max(1, ceil(Int, max_deg / 2)) : 1
 end

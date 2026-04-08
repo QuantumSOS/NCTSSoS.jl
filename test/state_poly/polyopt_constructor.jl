@@ -82,6 +82,29 @@ using Test, NCTSSoS
         @test err_meq isa ArgumentError
         @test occursin("moment_eq_constraints are not yet supported", sprint(showerror, err_meq))
 
+        # The public constructor rejects moment_eq_constraints first; keep the
+        # internal state-moment fallback explicit too so it does not silently rot.
+        P = typeof(pop_state.objective)
+        M = typeof(first(monomials(pop_state.objective)))
+        dummy_mp = NCTSSoS.StateMomentProblem(
+            pop_state.objective,
+            Tuple{Symbol, Matrix{P}, Vector{M}}[],
+            M[],
+            0,
+        )
+        err_meq_internal = try
+            NCTSSoS._add_moment_eq_constraints!(
+                dummy_mp,
+                (; moment_eq_constraints=[pop_state.objective]),
+                nothing,
+            )
+            nothing
+        catch e
+            e
+        end
+        @test err_meq_internal isa ArgumentError
+        @test occursin("moment_eq_constraints are not yet supported", sprint(showerror, err_meq_internal))
+
         config = SolverConfig(
             optimizer=SOLVER,
             order=1,

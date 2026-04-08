@@ -288,6 +288,16 @@ end
     zero_sparsity = NCTSSoS.compute_sparsity(zero_pop, config)
     zero_mp = NCTSSoS.moment_relax(zero_pop, zero_sparsity.corr_sparsity, zero_sparsity.cliques_term_sparsities)
     @test count(c -> c[1] == :Zero, zero_mp.constraints) == 0
+
+    high_degree_pop = polyopt(obj, reg; moment_eq_constraints=[1.0 * x[1]^5])
+    high_degree_sparsity = NCTSSoS.compute_sparsity(high_degree_pop, config)
+    high_degree_mp = NCTSSoS.moment_relax(
+        high_degree_pop,
+        high_degree_sparsity.corr_sparsity,
+        high_degree_sparsity.cliques_term_sparsities,
+    )
+    @test count(c -> c[1] == :Zero, high_degree_mp.constraints) == 0
+    @test high_degree_mp.total_basis == zero_mp.total_basis
 end
 
 @testset "project_to_clique" begin

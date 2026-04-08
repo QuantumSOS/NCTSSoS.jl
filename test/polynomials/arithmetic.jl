@@ -139,6 +139,11 @@ using NCTSSoS, Test
         p_pauli = (1.0 + 2.0im) * σx[1]
         @test p_pauli' == (1.0 - 2.0im) * σx[1]
         @test p_pauli'' == p_pauli
+
+        reg_ferm, (a, a_dag) = create_fermionic_variables(1:2)
+        p_ferm = a_dag[1] * a[2] + 2.0 * a_dag[2] * a[1]
+        @test p_ferm' == a_dag[2] * a[1] + 2.0 * a_dag[1] * a[2]
+        @test p_ferm'' == p_ferm
     end
 
     @testset "Type Promotion" begin

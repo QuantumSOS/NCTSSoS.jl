@@ -384,7 +384,7 @@ println("Pauli XX chain:  SDP = $(result₅.objective),  fermionic sweet spot = 
 # ### See also
 #
 # - [Fermionic Ground State (XY Model)](@ref fermionic-ground-state) —
-#   periodic BCs, parity constraints, free-fermion spectrum
+#   periodic BCs, parity sectors, free-fermion spectrum
 # - [PBW Algebra Showcase](@ref pbw-algebras-showcase) — CAR details and
 #   normal ordering
 # - [Ground State Energy](@ref ground-state-energy) — Pauli-level spin

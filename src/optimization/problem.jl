@@ -66,6 +66,30 @@ struct PolyOpt{A<:AlgebraType,T<:Integer,P<:AbstractPolynomial} <: OptimizationP
     registry::VariableRegistry{A,T}
 end
 
+@inline _is_hermitian_polynomial(poly::Polynomial) = iszero(poly - adjoint(poly))
+@inline _validate_polyopt_problem_data(::AbstractPolynomial, _eq_constraints, _ineq_constraints, _moment_eq_constraints) = nothing
+
+function _validate_polyopt_problem_data(
+    objective::Polynomial{A,T,C},
+    _eq_constraints,
+    ineq_constraints,
+    _moment_eq_constraints,
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    _is_complex_problem(A) || return nothing
+
+    _is_hermitian_polynomial(objective) || throw(ArgumentError(
+        "Complex-algebra objectives must be Hermitian. Got a non-Hermitian objective for $(nameof(A))."
+    ))
+
+    for (i, poly) in pairs(ineq_constraints)
+        _is_hermitian_polynomial(poly) || throw(ArgumentError(
+            "Inequality constraint $i must be Hermitian for $(nameof(A)) problems. " *
+            "Non-Hermitian PSD constraints are not currently supported."
+        ))
+    end
+
+    return nothing
+end
 
 """
     polyopt(objective::P, registry::VariableRegistry{A,T};
@@ -99,6 +123,9 @@ For state-polynomial inputs, the stored polynomial type is the promoted
 - Algebra type `A` is inferred from the registry
 - Coefficient type cannot be an integer subtype (JuMP solver requirement)
 - Simplification rules are determined by the algebra type, not manual flags
+- For complex-algebra polynomial problems (`PauliAlgebra`, `FermionicAlgebra`, `BosonicAlgebra`),
+  the objective and inequality constraints must be Hermitian. Non-Hermitian PSD constraints are
+  rejected.
 - For `FermionicAlgebra`: objectives should have even parity (parity superselection rule).
   Odd-parity operators have zero expectation value. Validation is done during moment
   relaxation via `_add_parity_constraints!`.
@@ -137,6 +164,8 @@ function polyopt(
     if C <: Integer
         throw(ArgumentError("Polynomial coefficients cannot be integers (not supported by JuMP solvers). Use Float64 or other floating-point types."))
     end
+
+    _validate_polyopt_problem_data(objective, eq_constraints, ineq_constraints, moment_eq_constraints)
 
     # Deduplicate constraints
     eq_cons = unique!(copy(eq_constraints))

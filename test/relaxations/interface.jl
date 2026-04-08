@@ -7,6 +7,7 @@
 # Note: Problem-specific optimization tests are in problems/ subdirectory.
 
 using Test, NCTSSoS, JuMP
+using LinearAlgebra: Hermitian, eigmin, norm
 
 # SOLVER fallback for standalone/REPL execution
 if !@isdefined(SOLVER)
@@ -30,6 +31,33 @@ end
         pop = polyopt(ham, reg)
         @test pop.objective == ham
         @test isempty(pop.eq_constraints)
+    end
+
+    @testset "Complex polynomial inputs must be Hermitian" begin
+        reg, (σx, _, _) = create_pauli_variables(1:1)
+
+        err_obj = try
+            polyopt(1.0im * σx[1], reg)
+            nothing
+        catch e
+            e
+        end
+        @test err_obj isa ArgumentError
+        @test occursin("Hermitian", sprint(showerror, err_obj))
+
+        err_ineq = try
+            polyopt(0.0 * σx[1], reg; ineq_constraints=[1.0im * σx[1]])
+            nothing
+        catch e
+            e
+        end
+        @test err_ineq isa ArgumentError
+        @test occursin("Inequality constraint 1", sprint(showerror, err_ineq))
+
+        # Equality constraints are still allowed to be non-Hermitian because they
+        # are modeled through Zero-cone constraints on both real and imaginary parts.
+        pop_eq = polyopt(0.0 * σx[1], reg; eq_constraints=[1.0im * σx[1]])
+        @test length(pop_eq.eq_constraints) == 1
     end
 
     @testset "NonCommutative Algebra Basic" begin
@@ -200,6 +228,82 @@ end
 
             @test isapprox(result_mom.objective, result_sos.objective, atol=1e-3)
         end
+    end
+end
+
+@testset "Complex realification note regressions" begin
+    function _eval_complex_moment_poly(poly, monomap)
+        total = 0.0 + 0.0im
+        for (coef, mono) in terms(poly)
+            key = NCTSSoS.symmetric_canon(NCTSSoS.expval(mono))
+            total += coef * get(monomap, key, 0.0 + 0.0im)
+        end
+        return total
+    end
+
+    @testset "Non-Hermitian complex equalities split into Hermitian zero constraints" begin
+        reg, (σx, σy, _) = create_pauli_variables(1:1)
+        objective = 1.0 * σx[1]
+        eq = 1.0 * σx[1] + 1.0im * σy[1]
+        @test eq != eq'
+
+        pop = polyopt(objective, reg; eq_constraints=[eq])
+        config = SolverConfig(
+            optimizer=SOLVER,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+        )
+
+        res_mom = cs_nctssos(pop, config; dualize=false)
+        res_sos = cs_nctssos(pop, config; dualize=true)
+        @test res_mom.objective ≈ 0.0 atol = 1e-6
+        @test res_sos.objective ≈ res_mom.objective atol = 1e-6
+
+        sparsity = compute_sparsity(pop, config)
+        mp = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+        zero_constraints = [mat for (cone, mat) in mp.constraints if cone == :Zero]
+        @test length(zero_constraints) == 2
+        @test zero_constraints[1][1, 1] == 1.0 * σx[1]
+        @test zero_constraints[2][1, 1] == 1.0 * σy[1]
+    end
+
+    @testset "2x2 Hermitian lift keeps the factor-of-2 straight" begin
+        reg, (b, b_dag) = create_bosonic_variables(1:1)
+        objective = -(1.0 * b[1] + 1.0 * b_dag[1])
+        block = Matrix{typeof(objective)}(undef, 2, 2)
+        block[1, 1] = 1.0 * one(b[1])
+        block[1, 2] = 1.0 * b[1]
+        block[2, 1] = 1.0 * b_dag[1]
+        block[2, 2] = 1.0 * one(b[1])
+
+        mp = NCTSSoS.MomentProblem(
+            objective,
+            [(:HPSD, block)],
+            [one(b[1]), b[1], b_dag[1]],
+            3,
+        )
+
+        direct = NCTSSoS.solve_moment_problem(mp, SOLVER)
+        sos = NCTSSoS.sos_dualize(mp)
+        set_optimizer(sos.model, SOLVER)
+        set_silent(sos.model)
+        optimize!(sos.model)
+        NCTSSoS._check_solver_status(sos.model)
+
+        @test direct.objective ≈ -2.0 atol = 1e-6
+        @test objective_value(sos.model) ≈ direct.objective atol = 1e-6
+
+        recovered_block = ComplexF64[
+            _eval_complex_moment_poly(block[i, j], direct.monomap)
+            for i in 1:2, j in 1:2
+        ]
+        recovered_obj = _eval_complex_moment_poly(objective, direct.monomap)
+
+        @test real(recovered_obj) ≈ direct.objective atol = 1e-8
+        @test abs(imag(recovered_obj)) ≤ 1e-8
+        @test norm(recovered_block - recovered_block', Inf) ≤ 1e-8
+        @test eigmin(Hermitian((recovered_block + recovered_block') / 2)) ≥ -1e-6
     end
 end
 
@@ -686,6 +790,15 @@ end
         @test_throws ArgumentError compute_sparsity(
             pop,
             SolverConfig(optimizer=SOLVER, moment_basis=[one(x[1]), x_big[2]])
+        )
+
+        high_deg_pop = polyopt(1.0 * x[1]^3 + 1.0, reg)
+        underspecified_basis_cfg = SolverConfig(optimizer=SOLVER, moment_basis=[one(x[1]), x[1]])
+        @test_throws ArgumentError compute_sparsity(high_deg_pop, underspecified_basis_cfg)
+        @test_throws ArgumentError cs_nctssos(high_deg_pop, underspecified_basis_cfg)
+        @test_throws ArgumentError cs_nctssos(
+            high_deg_pop,
+            SolverConfig(optimizer=SOLVER, order=1)
         )
 
         reg_state, (u,) = create_unipotent_variables([("u", 1:1)])

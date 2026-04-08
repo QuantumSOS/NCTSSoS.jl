@@ -148,7 +148,7 @@ end
 ````
 
 ````
-Main.var"##285".kitaev_chain_exact
+Main.var"##286".kitaev_chain_exact
 ````
 
 Quick sanity check — the sweet spot should give $E_0 = -(N-1)$:
@@ -445,7 +445,7 @@ ground-state energy across all four parameter regimes.
 ### See also
 
 - [Fermionic Ground State (XY Model)](@ref fermionic-ground-state) —
-  periodic BCs, parity constraints, free-fermion spectrum
+  periodic BCs, parity sectors, free-fermion spectrum
 - [PBW Algebra Showcase](@ref pbw-algebras-showcase) — CAR details and
   normal ordering
 - [Ground State Energy](@ref ground-state-energy) — Pauli-level spin

@@ -236,6 +236,17 @@ end
 
 Solve the SDP relaxation, either via SOS dualization or directly as moment problem.
 
+For ordinary complex-algebra polynomial problems (`PauliAlgebra`, `FermionicAlgebra`,
+`BosonicAlgebra`):
+- `dualize=false` solves the primal moment SDP directly, realifying each Hermitian
+  cone by the standard block map `[Re(H) -Im(H); Im(H) Re(H)]` (the note's
+  block-doubling / Algorithm 1 route).
+- `dualize=true` solves the dual SOS SDP for the Hermitian setting covered by the
+  note. Hermitian PSD cones use the lifted real PSD dual formulation. Complex
+  zero constraints are first split into Hermitian real/imaginary components when
+  needed, so non-Hermitian equalities still reach the dual path through an
+  explicit Hermitian decomposition instead of being modeled implicitly.
+
 Returns a named tuple `(objective, model, n_unique_elements, status)`.
 
 Throws an error if the solver fails (infeasible, unbounded, numerical error).
@@ -277,10 +288,9 @@ Configuration for solving polynomial optimization problems.
   unit-coefficient polynomials). For state/trace polynomial problems, pass
   `NCStateWord`s, `StateWord`s, monomials (interpreted as identity-state
   operator words), or single-term unit-coefficient state polynomials. The basis
-  must include the identity element. For state/trace relaxations, the supplied
-  basis must also generate every objective/constraint moment required by the
-  relaxation; underspecified bases raise an error instead of silently dropping
-  terms. Default: `nothing`
+  must include the identity element. The supplied basis must also generate every
+  objective/constraint moment required by the relaxation; underspecified bases
+  raise an error instead of silently dropping terms. Default: `nothing`
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
 - `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity exploitation (default: NoElimination())
 
@@ -338,6 +348,11 @@ function compute_sparsity(pop::OP, solver_config::SolverConfig) where {A<:Algebr
 
     cliques_term_sparsities = map(zip(initial_activated_supps_nm, corr_sparsity.clq_cons, corr_sparsity.clq_mom_mtx_bases, corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
         term_sparsities(init_act_supp, corr_sparsity.cons[cons_idx], mom_mtx_bases, localizing_mtx_bases, solver_config.ts_algo)
+    end
+
+    if !isnothing(solver_config.moment_basis)
+        total_basis, _, _ = _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+        _validate_polynomial_relaxation_support(pop, total_basis; source="The supplied `moment_basis`")
     end
 
     return SparsityResult(corr_sparsity, initial_activated_supps_nm, cliques_term_sparsities)

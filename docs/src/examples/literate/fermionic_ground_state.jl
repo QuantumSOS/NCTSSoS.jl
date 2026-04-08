@@ -184,20 +184,25 @@
 # H_{\mathrm{even}} = -\frac{j_c}{2}\sum_{i=1}^{N-1}
 #     \bigl(a_i^\dagger a_{i+1} + a_{i+1}^\dagger a_i\bigr)
 #   + \frac{j_c}{2}
-#     \bigl(a_N^\dagger a_1 + a_1^\dagger a_N\bigr),
+#     \bigl(a_N^\dagger a_1 + a_1^\dagger a_N\bigr).
 # ```
 #
-# together with the equality constraint $P = I$.
+# This reduced Hamiltonian already *is* the even-sector problem.  For a very
+# small system we can additionally certify $P = I$ inside the SDP, but that
+# parity polynomial has degree $2N$, so it stops fitting inside low-order
+# relaxations once $N$ grows.
 #
-# !!! warning "Why the constraint matters"
-#     Without the constraint $P = I$, the SDP relaxation searches over
-#     *both* parity sectors simultaneously.  The resulting lower bound is
-#     still valid, but it is typically **looser** — the solver can exploit
-#     states that mix even and odd sectors, which are not physical.
-#     Imposing $P = I$ pins us to the sector where the ground state
-#     actually lives, giving a tighter (and hence more useful) bound.
-#     Open chains (no ring) have no boundary twist, so no parity
-#     constraint is needed.
+# !!! warning "Do not impose `P - I = 0` blindly"
+#     The polynomial `P - I` has degree `2N`.  For `N = 4`, an order-4
+#     relaxation can still represent it, so the explicit equality constraint
+#     works.  For `N = 6` and `N = 8`, the order-3 sparse relaxations used
+#     below only carry moments up to degree 6, so a model with
+#     `eq_constraints = [P - I]` is under-supported.
+#
+#     `NCTSSoS.jl` now rejects that setup instead of silently dropping the
+#     missing high-degree moments.  So for the larger cases below we solve the
+#     already-reduced Hamiltonian $H_{\mathrm{even}}$ directly rather than
+#     adding a separate parity polynomial.
 
 # !!! tip "What about the odd-parity sector?"
 #     In the odd sector ($P = -1$), the boundary sign flips: all hopping
@@ -320,11 +325,11 @@ end
 # The core idea: diagonalising the full quantum Hamiltonian scales
 # exponentially in the number of sites, but we can ask a different,
 # tractable question.  An SDP solver searches for the *lowest* value of
-# $\langle H \rangle$ that is consistent with all the algebraic constraints
-# (the CAR, $P = I$, and the requirement that expectation values come from
-# a valid quantum state).  Because every valid quantum state satisfies those
-# constraints, the SDP answer is guaranteed to be **at or below** the true
-# ground-state energy — it is a **certified lower bound**.
+# $\langle H \rangle$ that is consistent with the CAR, the chosen
+# even-sector Hamiltonian, and the requirement that expectation values come
+# from a valid quantum state.  Because every valid quantum state satisfies
+# those conditions, the SDP answer is guaranteed to be **at or below** the
+# true ground-state energy — it is a **certified lower bound**.
 
 # !!! note "SDP Solver"
 #     These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
@@ -407,6 +412,13 @@ println("N = $N₁:  SDP = $(result₁.objective),  exact = $exact₁,  gap = $(
 # moment matrix into smaller blocks.  Some cross-correlations between
 # distant sites can be missed in the first decomposition.
 #
+# There is also a modeling detail that matters here: for `N = 6` and `N = 8`,
+# the explicit parity polynomial has degree 12 and 16, so the order-3 sparse
+# relaxation below cannot support it as an `eq_constraint`.  That was exactly
+# what broke the old page.  We therefore keep the same reduced Hamiltonian
+# $H_{\mathrm{even}}$, but we do **not** add `P - I = 0` again for these
+# larger cases.
+#
 # A second call to [`cs_nctssos_higher`](@ref) reads the moment values from
 # the first solve, discovers which cross-correlations matter, and refines
 # the sparsity pattern.  The result is typically tight.
@@ -417,9 +429,13 @@ println("N = $N₁:  SDP = $(result₁.objective),  exact = $exact₁,  gap = $(
 """
     solve_xy(N; j_c=1.0, order=3)
 
-Build the even-parity fermionic XY Hamiltonian for `N` sites,
+Build the already-reduced even-sector fermionic XY Hamiltonian for `N` sites,
 run one round of `cs_nctssos` and one of `cs_nctssos_higher`,
 and return `(first_obj, refined_obj, exact)`.
+
+For `N ≥ 6` we intentionally do **not** add `P - I = 0` as an explicit
+`eq_constraint`: that degree-`2N` polynomial does not fit inside the low-order
+sparse relaxation used here.
 """
 function solve_xy(N::Int; j_c::Real = 1.0, order::Int = 3)
     registry, (a, a_dag) = create_fermionic_variables(1:N)
@@ -429,9 +445,7 @@ function solve_xy(N::Int; j_c::Real = 1.0, order::Int = 3)
         for i in 1:N-1
     ) + ComplexF64(j_c / 2) * (a_dag[N] * a[1] + a_dag[1] * a[N])
 
-    parity = prod(one(ham) - 2.0 * a_dag[i] * a[i] for i in 1:N)
-
-    pop = polyopt(ham, registry; eq_constraints = [parity - one(ham)])
+    pop = polyopt(ham, registry)
     config = SolverConfig(optimizer = SOLVER, order = order, ts_algo = MMD())
 
     res1 = cs_nctssos(pop, config)
@@ -478,10 +492,13 @@ println("  gap after refinement: $(abs(r8.refined - r8.exact))")
 # particles that obey anticommutation rules enforced automatically by
 # `NCTSSoS.jl`.  The boundary term of the ring acquired a parity operator
 # $P$ that measures whether the total fermion count is even or odd.
-# Restricting to the even sector ($P = I$) turned the Hamiltonian into a
-# free-fermion problem whose ground-state energy we could check exactly.
-# Our SDP relaxation matched the exact answer, certifying it as a rigorous
-# lower bound.
+# Restricting to the even sector fixes the boundary sign and turns the
+# Hamiltonian into a free-fermion problem whose ground-state energy we can
+# check exactly.  For `N = 4` we also enforce `P = I` explicitly; for
+# `N = 6` and `N = 8` we keep the already-reduced Hamiltonian and avoid the
+# high-degree parity polynomial that would break the low-order sparse
+# relaxation.  In every case the SDP matches the exact answer, certifying a
+# rigorous lower bound.
 #
 # ### The code recipe
 #
@@ -489,7 +506,7 @@ println("  gap after refinement: $(abs(r8.refined - r8.exact))")
 # |------|-------------|-----|
 # | 1 | Create fermionic operators (CAR built in) | [`create_fermionic_variables`](@ref) |
 # | 2 | Write the even-sector Hamiltonian | standard Julia arithmetic on operators |
-# | 3 | Impose parity constraint $P = I$ | `eq_constraints` in [`polyopt`](@ref) |
+# | 3 | Keep the large-`N` model low-degree by solving $H_{\mathrm{even}}$ directly (the `N = 4` sanity check also enforces `P = I`) | [`polyopt`](@ref) |
 # | 4 | Solve & refine the SDP relaxation | [`cs_nctssos`](@ref), [`cs_nctssos_higher`](@ref) |
 # | 5 | Compare with exact free-fermion energy | `xy_exact_energy` (above) |
 #

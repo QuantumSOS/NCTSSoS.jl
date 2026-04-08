@@ -465,6 +465,25 @@ underlying algebra's monomial adjoint.
 """
 function LinearAlgebra.adjoint(
     p::Polynomial{A,T,C}
+) where {A<:PBWAlgebra,T<:Signed,C<:Number}
+    CAdj = typeof(conj(zero(C)))
+    isempty(p.terms) && return zero(Polynomial{A,T,CAdj})
+
+    adj_terms = Tuple{CAdj,NormalMonomial{A,T}}[]
+    for (coef, mono) in p.terms
+        raw_adj_word = similar(mono.word, length(mono.word))
+        raw_adj_word .= .-@view(mono.word[end:-1:1])
+
+        for (adj_coef, adj_mono) in _simplified_to_terms(A, simplify(A, raw_adj_word), T)
+            push!(adj_terms, (CAdj(conj(coef)) * CAdj(adj_coef), adj_mono))
+        end
+    end
+
+    return Polynomial(adj_terms)
+end
+
+function LinearAlgebra.adjoint(
+    p::Polynomial{A,T,C}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     CAdj = typeof(conj(zero(C)))
     isempty(p.terms) && return zero(Polynomial{A,T,CAdj})

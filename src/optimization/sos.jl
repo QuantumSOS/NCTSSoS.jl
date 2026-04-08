@@ -104,10 +104,10 @@ Convert a symbolic moment problem into its dual SOS (Sum of Squares) problem.
 
 # Description
 The dualization process involves:
-1. Creating matrix variables (G_j) for each constraint:
-   - `:Zero` constraints -> SymmetricMatrixSpace (equality)
+1. Creating dual variables for each constraint:
+   - `:Zero` constraints -> equality multipliers
    - `:PSD` constraints -> PSDCone (real positive semidefinite)
-   - `:HPSD` constraints -> PSDCone of size 2n x 2n (Hermitian embedding)
+   - `:HPSD` constraints -> lifted real PSDCone of size `2n × 2n`
 2. Introducing scalar variable `b` to bound the minimum value of the primal
 3. Setting up polynomial equality constraints by matching coefficients
 4. Returning the maximization of `b`
@@ -345,16 +345,27 @@ end
 
 Internal: Dualize a complex/Hermitian symbolic moment problem.
 
-For complex algebras (Pauli, Fermionic, Bosonic), Hermitian PSD constraints
-are embedded as real 2n x 2n PSD constraints.
+For complex algebras (Pauli, Fermionic, Bosonic), `:HPSD` constraints use the
+standard real lift `H ↦ [Re(H) -Im(H); Im(H) Re(H)]` and a lifted real PSD dual
+matrix. This is the Wang-style unconstrained lifted dual route for Hermitian
+cones.
 
-The Hermitian embedding:
+` :Zero` constraints are only valid in this route when the symbolic zero matrix
+is Hermitian. In that case the lifted symmetric multiplier is overparameterized
+but correct. The public `moment_relax` path now splits non-Hermitian complex
+zero constraints into Hermitian real/imaginary components before they reach SOS
+dualization. The guard here remains as a safety net for manually constructed
+`MomentProblem`s.
+
+The Hermitian embedding is:
 ```
 H in HPSD <=> [Re(H), -Im(H); Im(H), Re(H)] in PSD
 ```
 
-For the dual SOS problem, we create 2n x 2n matrix variables and extract
-the real and imaginary parts of the SOS multiplier from the block structure.
+Factor-of-2 note: for a lifted dual matrix `Z`, the adjoint map is built from
+`X₁ = Z₁₁ + Z₂₂` and `X₂ = Z₂₁ - Z₁₂`. The sum over both diagonal blocks is
+intentional. The realified Frobenius product doubles the complex Hermitian one,
+so taking only one block would be the classic factor-of-2 bug.
 """
 function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     # Get coefficient type (should be complex for these algebras)
@@ -363,39 +374,25 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
 
     dual_model = GenericModel{RC}()
 
-    # Create 2n x 2n matrix variables for Hermitian embedding
     dual_variables = map(mp.constraints) do (cone, mat)
-        G_dim = size(mat, 1)
+        dim = size(mat, 1)
         if cone == :Zero
-            @variable(dual_model, [1:2*G_dim, 1:2*G_dim] in SymmetricMatrixSpace())
+            _is_hermitian_poly_matrix(mat) || throw(ArgumentError(
+                "Complex SOS dualization requires Hermitian zero-cone matrices. " *
+                "Pass moment problems built through `moment_relax`, which splits " *
+                "non-Hermitian equalities into Hermitian real/imaginary components first."
+            ))
+            (
+                dim = dim,
+                lifted = @variable(dual_model, [1:2*dim, 1:2*dim] in SymmetricMatrixSpace()),
+            )
         else  # :HPSD
-            @variable(dual_model, [1:2*G_dim, 1:2*G_dim] in PSDCone())
+            (
+                dim = dim,
+                lifted = @variable(dual_model, [1:2*dim, 1:2*dim] in PSDCone()),
+            )
         end
     end
-
-    # Store dimensions for extracting blocks
-    dual_variable_dims = [size(mp.constraints[i][2], 1) for i in 1:length(mp.constraints)]
-
-    # Extract X1 = Re(G) = top-left + bottom-right blocks
-    # Extract X2 = Im(G) = bottom-left - top-right blocks
-    Xs = [
-        # X1 (real part): top-left + bottom-right
-        [
-            begin
-                dim = dual_variable_dims[i]
-                dv[1:dim, 1:dim] .+ dv[dim+1:2*dim, dim+1:2*dim]
-            end
-            for (i, dv) in enumerate(dual_variables)
-        ],
-        # X2 (imaginary part): bottom-left - top-right
-        [
-            begin
-                dim = dual_variable_dims[i]
-                dv[dim+1:2*dim, 1:dim] .- dv[1:dim, dim+1:2*dim]
-            end
-            for (i, dv) in enumerate(dual_variables)
-        ]
-    ]
 
     # Scalar variable b
     @variable(dual_model, b)
@@ -435,37 +432,33 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     # Process each constraint matrix
     for (i, (_, mat)) in enumerate(mp.constraints)
         Cαjs = get_Cαj(sorted_unsym_basis, mat)
+        dv = dual_variables[i]
+        lifted = dv.lifted
+        dim = dv.dim
+
         # Deterministic iteration (Dict order is randomized per Julia session).
         for ky in sort!(collect(keys(Cαjs)))
             coef = Cαjs[ky]
             unsym_basis_idx, row, col = ky
 
-            # Map unsymmetrized basis index to symmetric index
-            if unsym_basis_idx <= length(sorted_unsym_basis)
-                unsym_mono = sorted_unsym_basis[unsym_basis_idx]
-                sym_idx = basis_to_sym_idx[unsym_mono]
+            unsym_basis_idx <= length(sorted_unsym_basis) || continue
+            unsym_mono = sorted_unsym_basis[unsym_basis_idx]
+            sym_idx = basis_to_sym_idx[unsym_mono]
+            c_re = real(coef)
+            c_im = imag(coef)
 
-                # For complex coefficient coef = c_re + i*c_im
-                # The contribution to real constraint from Re(G) is -c_re
-                # The contribution to real constraint from Im(G) is +c_im
-                # The contribution to imag constraint from Re(G) is -c_im
-                # The contribution to imag constraint from Im(G) is -c_re
+            # For a lifted dual matrix Z, the adjoint of the block-realification map is
+            # X₁ = Z₁₁ + Z₂₂ and X₂ = Z₂₁ - Z₁₂, so the effective complex multiplier is
+            # G = X₁ + iX₂. The sum over both diagonal blocks is what avoids the factor-of-2 bug.
+            X1 = lifted[row, col] + lifted[dim + row, dim + col]
+            X2 = lifted[dim + row, col] - lifted[row, dim + col]
 
-                # This comes from: coef * G = (c_re + i*c_im) * (X1 + i*X2)
-                # Real part: c_re*X1 - c_im*X2
-                # Imag part: c_im*X1 + c_re*X2
-
-                c_re = real(coef)
-                c_im = imag(coef)
-
-                # Real constraint gets -c_re*X1[row,col] + c_im*X2[row,col]
-                add_to_expression!(fα_constraints_re[sym_idx], -c_re, Xs[1][i][row, col])
-                add_to_expression!(fα_constraints_re[sym_idx], +c_im, Xs[2][i][row, col])
-
-                # Imag constraint gets -c_im*X1[row,col] - c_re*X2[row,col]
-                add_to_expression!(fα_constraints_im[sym_idx], -c_im, Xs[1][i][row, col])
-                add_to_expression!(fα_constraints_im[sym_idx], -c_re, Xs[2][i][row, col])
-            end
+            # Real(c*G) = c_re*X₁ - c_im*X₂
+            # Imag(c*G) = c_im*X₁ + c_re*X₂
+            add_to_expression!(fα_constraints_re[sym_idx], -c_re, X1)
+            add_to_expression!(fα_constraints_re[sym_idx], +c_im, X2)
+            add_to_expression!(fα_constraints_im[sym_idx], -c_im, X1)
+            add_to_expression!(fα_constraints_im[sym_idx], -c_re, X2)
         end
     end
 

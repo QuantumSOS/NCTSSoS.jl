@@ -1,114 +1,331 @@
-# # GNS Construction for Operator Reconstruction
-
-# The Gelfand-Naimark-Segal (GNS) construction is a fundamental mathematical tool
-# in quantum mechanics that allows us to represent abstract quantum states and operators
-# as concrete matrices acting on a Hilbert space. For physicists, this provides a systematic
-# way to reconstruct operator representations from expectation values (moments).
-
-
-# ## Background: From Expectation Values to Matrix Representations
-
-# In quantum mechanics, we often know the expectation values of operators in a given state:
+# # [Recovering Textbook Pauli Matrices and the XXX Singlet from GNS](@id pauli-gns-construction)
+#
+# The GNS construction reconstructs operators only **up to unitary change of
+# basis**. That is the right mathematics, but it hides the familiar physics.
+# For the two-qubit XXX model we can do better: solve the moment relaxation,
+# run GNS, and then **fix the basis explicitly** so the reconstructed operators
+# become the standard matrices
+#
 # ```math
-# \langle A  \rangle = \text{Tr}(\rho A)
+# \sigma_x \otimes I, \quad \sigma_y \otimes I, \quad \sigma_z \otimes I,
+# \quad
+# I \otimes \sigma_x, \quad I \otimes \sigma_y, \quad I \otimes \sigma_z,
 # ```
-# where ``\rho`` is the density matrix and ``A`` is an operator.
-
-# The GNS construction answers the question: **Can we reconstruct the actual matrices
-# representing operators from just these expectation values?**
-
-# The key insight is that the collection of all expectation values defines a **moment matrix**
-# (also called a Hankel matrix in the context of polynomial optimization):
+#
+# while the GNS cyclic vector becomes the singlet ground state
+#
 # ```math
-# H_{ij} = \langle b_i^\dagger b_j \rangle
+# |\psi_-\rangle = \frac{|01\rangle - |10\rangle}{\sqrt{2}}.
 # ```
-# where ``\{b_i\}`` is a basis of operators (monomials in our variables).
-
-# ## The `reconstruct` Function
-
-# NCTSSoS provides a `reconstruct` function that performs GNS construction. Given a moment
-# matrix `H` and a registry of variables, it returns matrix representations of the variables.
-
-# The function signature is:
-# ```julia
-# reconstruct(H::Matrix, registry::VariableRegistry, degree::Int; atol=1e-3)
+#
+# We use the two-qubit Heisenberg XXX Hamiltonian
+#
+# ```math
+# H = \frac{1}{4}\left(\sigma^x_1\sigma^x_2 + \sigma^y_1\sigma^y_2 + \sigma^z_1\sigma^z_2\right),
 # ```
+#
+# whose exact spectrum is one singlet level at ``-3/4`` and a triply-degenerate
+# triplet level at ``+1/4``.
+#
+# **Prerequisites**: familiarity with the [polynomial optimization API](@ref polynomial-optimization)
+# and the [GNS construction interface](@ref gns-construction-guide).
+#
+# Concretely, this page shows both:
+#
+# 1. the raw GNS reconstruction as a correct but nonstandard Pauli representation,
+# 2. an explicit gauge-fixing that recovers the textbook computational basis.
 
-# ## Example: Simple Non-Commutative Variables
+using NCTSSoS, MosekTools, LinearAlgebra, Logging
 
-# Let's demonstrate with a simple example using two non-commuting variables.
+const MOI = NCTSSoS.MOI
+const SILENT_MOSEK = MOI.OptimizerWithAttributes(
+    Mosek.Optimizer,
+    MOI.Silent() => true,
+)
+nothing #hide
 
-using NCTSSoS
-using LinearAlgebra
+# ## Step 1 — Solve the order-2 moment relaxation directly
+#
+# We solve the dense order-2 moment relaxation. The high-level [`cs_nctssos`](@ref)
+# interface gives the bound, but for GNS we also need the solved moment table
+# `monomap`, so we use the low-level moment workflow explicitly.
 
-# Create two non-commutative variables
-registry, (x,) = create_noncommutative_variables([("x", 1:2)])
+registry, (σx, σy, σz) = create_pauli_variables(1:2)
 
-# Generate a basis of monomials up to degree 2
-basis = get_ncbasis(registry, 2)
-println("Basis monomials (degree ≤ 2): ", length(basis))
+ham = ComplexF64(1 / 4) * (
+    σx[1] * σx[2] +
+    σy[1] * σy[2] +
+    σz[1] * σz[2]
+)
+pop = polyopt(ham, registry)
 
-# For GNS reconstruction, we need a moment matrix that encodes expectation values
-# of all products of basis elements. The matrix entry H[i,j] = ⟨basis[i]† · basis[j]⟩.
+solver_config = SolverConfig(
+    optimizer=SILENT_MOSEK,
+    order=2,
+    cs_algo=NoElimination(),
+    ts_algo=NoElimination(),
+)
 
-# Here we'll use a simple positive definite moment matrix as an example:
-n = length(basis)
-H = zeros(Float64, n, n)
+sparsity = compute_sparsity(pop, solver_config)
+moment_problem = NCTSSoS.moment_relax(
+    pop,
+    sparsity.corr_sparsity,
+    sparsity.cliques_term_sparsities,
+)
+moment_result = NCTSSoS.solve_moment_problem(moment_problem, SILENT_MOSEK)
 
-# Create a simple valid moment matrix (identity-like with some correlations)
-for i in 1:n
-    H[i,i] = 1.0
+solve_summary = (
+    objective = moment_result.objective,
+    n_unique_moments = moment_result.n_unique_elements,
+    solved_moments = length(moment_result.monomap),
+)
+solve_summary
+
+# The page should fail loudly if that exactness ever regresses.
+
+@assert isapprox(moment_result.objective, -0.75; atol=5e-6)
+
+# The order-2 relaxation is already exact for this problem.
+
+# ## Step 2 — Raw GNS reconstruction
+#
+# From the solved moments we reconstruct a `4 × 4` representation. This is
+# already a valid Pauli representation, but not yet in the standard
+# computational basis.
+
+gns = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
+    gns_reconstruct(moment_result.monomap, registry, 2; atol=1e-6)
+end;
+
+raw_X1 = gns.matrices[registry[:σx₁]]
+raw_Y1 = gns.matrices[registry[:σy₁]]
+raw_Z1 = gns.matrices[registry[:σz₁]]
+raw_X2 = gns.matrices[registry[:σx₂]]
+raw_Y2 = gns.matrices[registry[:σy₂]]
+raw_Z2 = gns.matrices[registry[:σz₂]]
+
+raw_summary = (
+    rank = gns.rank,
+    full_rank = gns.full_rank,
+    xi = round.(gns.xi, digits=6),
+    σx₁ = round.(raw_X1, digits=3),
+    σz₁ = round.(raw_Z1, digits=3),
+)
+raw_summary
+
+# The matrices look unfamiliar, but they already satisfy the Pauli algebra.
+
+I4 = Matrix{ComplexF64}(I, 4, 4)
+raw_representation_errors = (
+    σx₁² = opnorm(raw_X1 * raw_X1 - I4),
+    σy₁² = opnorm(raw_Y1 * raw_Y1 - I4),
+    σz₁² = opnorm(raw_Z1 * raw_Z1 - I4),
+    anticommutator_σx₁σy₁ = opnorm(raw_X1 * raw_Y1 + raw_Y1 * raw_X1),
+    commutator_σz₁σz₂ = opnorm(raw_Z1 * raw_Z2 - raw_Z2 * raw_Z1),
+)
+raw_representation_errors
+
+# This really is a four-dimensional representation with a normalized cyclic
+# vector; it is just written in an inconvenient basis.
+
+@assert gns.rank == 4
+@assert gns.full_rank == 4
+@assert isapprox(norm(gns.xi), 1.0; atol=1e-8)
+@assert all(err -> err < 1e-6, values(raw_representation_errors))
+
+# The matrices above look nothing like the textbook Pauli matrices, but that is
+# just basis freedom. GNS only reconstructs the representation up to a unitary.
+
+# ## Step 3 — Fix the computational basis
+#
+# We now remove that gauge freedom in two steps.
+#
+# 1. `σz₁` and `σz₂` commute, so their joint eigenspaces define the four
+#    computational basis states `|00⟩`, `|01⟩`, `|10⟩`, `|11⟩`.
+# 2. Each basis vector is still free up to a phase. We choose those phases so
+#    `σx₁` and `σx₂` become the standard bit-flip matrices.
+#
+# After that, the `σy` matrices and the GNS cyclic vector fall into place.
+
+function leading_projector_vector(P; atol=1e-6)
+    F = eigen(Hermitian((P + P') / 2))
+    idx = argmax(F.values)
+    λ = F.values[idx]
+    λ ≥ 1 - atol || error("Expected a rank-1 projector, got leading eigenvalue $λ.")
+    v = F.vectors[:, idx]
+    return v / norm(v)
 end
-# Add small off-diagonal terms for correlation structure
-H[1,2] = H[2,1] = 0.3
-H[1,3] = H[3,1] = 0.3
-H[2,3] = H[3,2] = 0.2
 
-# The moment matrix should be positive semidefinite
-@assert isposdef(Hermitian(H)) "Moment matrix must be positive definite"
+function pauli_alignment_unitary(X1, X2, Z1, Z2, ξ; atol=1e-6)
+    T = promote_type(eltype(X1), eltype(X2), eltype(Z1), eltype(Z2), eltype(ξ))
+    I4 = Matrix{T}(I, 4, 4)
+    labels = ((1, 1), (1, -1), (-1, 1), (-1, -1))
 
-# Perform GNS reconstruction
-matrices = reconstruct(H, registry, 2; atol=0.001)
+    U_joint = hcat([
+        leading_projector_vector(((I4 + s1 * Z1) / 2) * ((I4 + s2 * Z2) / 2); atol=atol)
+        for (s1, s2) in labels
+    ]...)
 
-# Access the reconstructed matrix for each variable
-var_indices = collect(NCTSSoS.indices(registry))
-X1 = matrices[var_indices[1]]
-X2 = matrices[var_indices[2]]
+    X1_joint = U_joint' * X1 * U_joint
+    X2_joint = U_joint' * X2 * U_joint
 
-println("Reconstructed X₁ matrix:")
-display(round.(X1, digits=4))
+    phases = Vector{ComplexF64}(undef, 4)
+    phases[1] = 1.0 + 0im
+    phases[2] = conj(X2_joint[1, 2]) / abs(X2_joint[1, 2])
+    phases[3] = conj(X1_joint[1, 3]) / abs(X1_joint[1, 3])
 
-println("\nReconstructed X₂ matrix:")
-display(round.(X2, digits=4))
+    phase_from_X1 = conj(X1_joint[2, 4]) / abs(X1_joint[2, 4]) * phases[2]
+    phase_from_X2 = conj(X2_joint[3, 4]) / abs(X2_joint[3, 4]) * phases[3]
+    @assert isapprox(phase_from_X1, phase_from_X2; atol=100atol)
+    phases[4] = phase_from_X1 / abs(phase_from_X1)
 
-# ## Verifying the Reconstruction
+    U = U_joint * Diagonal(phases)
 
-# The reconstructed matrices should be consistent with the moment data.
-# Specifically, the GNS construction guarantees that these matrices satisfy
-# the algebraic relations encoded by the algebra type.
+    ψ_singlet_ref = ComplexF64[0, 1 / sqrt(2), -1 / sqrt(2), 0]
+    ξ_aligned = U' * ξ
+    overlap = dot(ψ_singlet_ref, ξ_aligned)
+    global_phase = abs(overlap) ≤ atol ? (1.0 + 0im) : overlap / abs(overlap)
 
-@show size(X1)
-@show size(X2)
+    return U * global_phase
+end
 
-# ## Key Properties of GNS Reconstruction
+U = pauli_alignment_unitary(raw_X1, raw_X2, raw_Z1, raw_Z2, gns.xi)
 
-# 1. **Unitary Freedom**: Reconstructed matrices are unique only up to unitary transformations.
-#    Different moment matrices from the same state can yield unitarily equivalent matrices.
+X1 = U' * raw_X1 * U
+Y1 = U' * raw_Y1 * U
+Z1 = U' * raw_Z1 * U
+X2 = U' * raw_X2 * U
+Y2 = U' * raw_Y2 * U
+Z2 = U' * raw_Z2 * U
+ψ_gns = U' * gns.xi
 
-# 2. **Rank Determines Dimension**: The rank of the Hankel matrix determines the dimension
-#    of the reconstructed Hilbert space. Pure states give lower-rank matrices.
+joint_eigenbasis_summary = (
+    σz₁ = round.(Z1, digits=6),
+    σz₂ = round.(Z2, digits=6),
+    ψ_gns = round.(ψ_gns, digits=6),
+)
+joint_eigenbasis_summary
 
-# 3. **Flatness Condition**: For valid reconstruction, the moment matrix should satisfy
-#    the "flat extension" property (rank should stabilize at lower degrees).
+# ## Step 4 — Compare with the textbook Pauli matrices
+#
+# Now we build the exact computational-basis matrices and check that the aligned
+# GNS operators agree with them numerically.
 
-# ## Using GNS with Polynomial Optimization
+σx_ref = ComplexF64[0 1; 1 0]
+σy_ref = ComplexF64[0 -im; im 0]
+σz_ref = ComplexF64[1 0; 0 -1]
+I2 = Matrix{ComplexF64}(I, 2, 2)
 
-# The primary use of GNS reconstruction in NCTSSoS is to extract optimal solutions
-# from semidefinite programming relaxations. When solving polynomial optimization:
+X1_ref = kron(σx_ref, I2)
+Y1_ref = kron(σy_ref, I2)
+Z1_ref = kron(σz_ref, I2)
+X2_ref = kron(I2, σx_ref)
+Y2_ref = kron(I2, σy_ref)
+Z2_ref = kron(I2, σz_ref)
 
-# 1. The SDP relaxation produces a moment matrix as part of its dual solution
-# 2. `reconstruct` extracts matrix representations of variables
-# 3. These matrices can be used to verify or extract the optimal point
+site_1_matrices = (
+    σx₁ = round.(X1, digits=3),
+    σy₁ = round.(Y1, digits=3),
+    σz₁ = round.(Z1, digits=3),
+)
+site_1_matrices
 
-# See the optimization examples for practical applications of GNS reconstruction
-# in the context of polynomial optimization over non-commutative variables.
+# Site 2 should match the second-qubit Pauli operators just as cleanly.
+
+site_2_matrices = (
+    σx₂ = round.(X2, digits=3),
+    σy₂ = round.(Y2, digits=3),
+    σz₂ = round.(Z2, digits=3),
+)
+site_2_matrices
+
+# The actual numerical check is basis-independent: every aligned operator should
+# agree with its textbook reference up to tiny solver noise.
+
+alignment_errors = (
+    σx₁ = opnorm(X1 - X1_ref),
+    σy₁ = opnorm(Y1 - Y1_ref),
+    σz₁ = opnorm(Z1 - Z1_ref),
+    σx₂ = opnorm(X2 - X2_ref),
+    σy₂ = opnorm(Y2 - Y2_ref),
+    σz₂ = opnorm(Z2 - Z2_ref),
+)
+alignment_errors
+
+# Those errors should stay at the solver-noise level.
+
+@assert all(err -> err < 1e-6, values(alignment_errors))
+
+# This is the point of the page: the raw GNS output was merely unitary-equivalent
+# to the usual Pauli representation, while the aligned output is the actual
+# textbook matrix model.
+
+# ## Step 5 — Reconstruct the XXX Hamiltonian and its spectrum
+#
+# With the aligned Pauli matrices in hand, we rebuild the Hamiltonian as an
+# ordinary `4 × 4` matrix.
+
+H_gns = (X1 * X2 + Y1 * Y2 + Z1 * Z2) / 4
+H_ref = (X1_ref * X2_ref + Y1_ref * Y2_ref + Z1_ref * Z2_ref) / 4
+
+hamiltonian_summary = (
+    H = round.(H_gns, digits=3),
+    deviation_from_reference = opnorm(H_gns - H_ref),
+)
+hamiltonian_summary
+
+# Diagonalizing the aligned Hamiltonian now exposes the familiar spectrum.
+
+F = eigen(Hermitian((H_gns + H_gns') / 2))
+spectrum = round.(F.values, digits=6)
+spectrum
+
+# We also pin the exact spectrum numerically.
+
+@assert opnorm(H_gns - H_ref) < 1e-6
+@assert isapprox(F.values[1], -0.75; atol=1e-6)
+@assert all(λ -> isapprox(λ, 0.25; atol=1e-6), F.values[2:4])
+
+# The GNS-reconstructed Hamiltonian has exactly the singlet/triplet structure we
+# expect: one ground-state energy `-3/4` and three excited states at `+1/4`.
+
+# ## Step 6 — Recover the singlet ground state
+#
+# Because the ground state is non-degenerate, the aligned GNS cyclic vector must
+# be that ground state.
+
+ψ_singlet_ref = ComplexF64[0, 1 / sqrt(2), -1 / sqrt(2), 0]
+ground_state_check = (
+    ψ_gns = round.(ψ_gns, digits=6),
+    ψ_singlet = round.(ψ_singlet_ref, digits=6),
+    overlap = abs(dot(ψ_singlet_ref, ψ_gns)),
+    eigen_residual = norm(H_gns * ψ_gns + (3 / 4) * ψ_gns),
+)
+ground_state_check
+
+# The aligned cyclic vector should agree with the singlet directly, not just up
+# to energy expectation value.
+
+@assert norm(ψ_gns - ψ_singlet_ref) < 1e-6
+@assert abs(real(dot(ψ_gns, H_gns * ψ_gns)) + 0.75) < 1e-6
+@assert norm(H_gns * ψ_gns + (3 / 4) * ψ_gns) < 1e-6
+
+# The GNS vector is not just some optimizer in an abstract quotient space. After
+# fixing the basis, it is the familiar singlet
+#
+# ```math
+# \frac{|01\rangle - |10\rangle}{\sqrt{2}}.
+# ```
+#
+# ## Summary
+#
+# For the two-qubit XXX model, the GNS construction recovers:
+#
+# 1. a `4 × 4` operator representation of the Pauli algebra,
+# 2. the exact textbook matrices after basis alignment,
+# 3. the full XXX Hamiltonian matrix with spectrum `{-3/4, 1/4, 1/4, 1/4}`,
+# 4. the singlet ground state as the aligned cyclic vector.
+#
+# The important lesson is simple: **raw GNS output is only defined up to unitary
+# gauge, but for a small full-rank example you can fix that gauge explicitly and
+# recover the usual computational-basis physics.**

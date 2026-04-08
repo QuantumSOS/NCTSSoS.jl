@@ -320,9 +320,9 @@ equality constraint, so you might reach for `eq_constraints`.
     true in *every* quantum state.  Internally it builds a full bilinear
     localizing matrix, imposing
     $\langle b_i^\dagger \, g \, b_j \rangle = 0$ for all basis pairs
-    $(b_i, b_j)$.  Use this for identities like the CAR or $P^2 = I$
-    (the parity constraint in the
-    [XY model example](@ref fermionic-ground-state)).
+    $(b_i, b_j)$.  Use this for identities like the CAR or $P^2 = I$.
+    Do **not** use it for sector-fixing conditions such as
+    $P|\psi\rangle = |\psi\rangle$.
 
     **`moment_eq_constraints`** treats ``g|\psi\rangle = 0`` as a **state
     constraint** — true for the *target state*, not universally.  It
@@ -365,7 +365,7 @@ println("Gap after refinement:                     $(round(abs(result_can.object
 ````
 
 ````
-Canonical SDP (first sparse pass):        -2.223454
+Canonical SDP (first sparse pass):        -2.223447
 Canonical SDP (refined):                  -2.102748
 Exact half-filled GS:                     -2.102748
 Gap after refinement:                     0.0

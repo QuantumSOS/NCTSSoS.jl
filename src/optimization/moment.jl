@@ -140,6 +140,185 @@ function _truncate_moment_eq_row_bases(
     return iszero(len) ? M[] : all_moment_bases[1:len]
 end
 
+function _moment_matrix_basis(
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T}}
+    one_word = one(NormalMonomial{A,T})
+    basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
+        reduce(vcat, [
+            [
+                mono
+                for row_mono in basis
+                for col_mono in basis
+                for (_, row_word) in row_mono
+                for (_, col_word) in col_mono
+                for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, one_word, col_word)), T)
+            ]
+            for basis in term_sparsities[1].block_bases
+        ])
+    end...)
+    return convert(Vector{M}, basis)
+end
+
+function _polynomial_total_basis(
+    pop::PolyOpt{A,TI,P},
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M,Nothing},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
+    one_word = one(NormalMonomial{A,TI})
+    total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
+        reduce(vcat, [
+            [mono
+             for m in last.(poly.terms)
+             for (_, row_word) in row_mono
+             for (_, col_word) in col_mono
+             for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, m, col_word)), TI)]
+            for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
+            for basis in term_sparsity.block_bases
+            for row_mono in basis
+            for col_mono in basis
+        ])
+    end...)
+
+    moment_eq_row_bases = M[]
+    moment_eq_row_basis_degrees = Int[]
+
+    if !isempty(pop.moment_eq_constraints)
+        meq_monomials = NormalMonomial{A,TI}[]
+        moment_eq_row_bases, moment_eq_row_basis_degrees = _collect_moment_eq_row_bases(cliques_term_sparsities)
+        for g in pop.moment_eq_constraints
+            row_bases = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, g)
+            isempty(row_bases) && continue
+            for row_mono in row_bases
+                for (_, row_word) in row_mono
+                    for (_, mono) in g.terms
+                        product = _neat_dot3(row_word, mono, one_word)
+                        for (_, m) in _simplified_to_terms(A, simplify(A, product), TI)
+                            push!(meq_monomials, m)
+                        end
+                    end
+                end
+            end
+        end
+        total_basis = sorted_union(total_basis, meq_monomials)
+    end
+
+    return convert(Vector{M}, total_basis), moment_eq_row_bases, moment_eq_row_basis_degrees
+end
+
+function _summarize_normal_monomials(words; limit::Int=5)
+    shown = join((sprint(show, word) for word in Iterators.take(words, limit)), ", ")
+    length(words) > limit && (shown *= ", ...")
+    return "[" * shown * "]"
+end
+
+function _throw_missing_polynomial_monomials(
+    missing::Vector{M},
+    context::AbstractString;
+    source::AbstractString="Relaxation basis"
+) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T}}
+    isempty(missing) && return nothing
+    sorted_unique!(missing)
+    throw(ArgumentError("$source does not generate all operator moments needed for $context. This would silently drop terms from the SDP. Missing monomials: $(_summarize_normal_monomials(missing))"))
+end
+
+function _missing_polynomial_monomials(
+    poly::P,
+    available_moments::AbstractSet
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    missing = NormalMonomial{A,T}[]
+    for mono in monomials(poly)
+        canon_mono = symmetric_canon(expval(mono))
+        canon_mono in available_moments || push!(missing, mono)
+    end
+    return missing
+end
+
+function _validate_polynomial_relaxation_support(
+    pop::PolyOpt{A,TI,P},
+    total_basis::AbstractVector;
+    source::AbstractString="Relaxation basis"
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C}}
+    available_moments = Set(_sorted_symmetric_basis(total_basis))
+
+    _throw_missing_polynomial_monomials(
+        _missing_polynomial_monomials(pop.objective, available_moments),
+        "the objective";
+        source
+    )
+
+    for (i, poly) in pairs(pop.eq_constraints)
+        _throw_missing_polynomial_monomials(
+            _missing_polynomial_monomials(poly, available_moments),
+            "equality constraint $i";
+            source
+        )
+    end
+
+    for (i, poly) in pairs(pop.ineq_constraints)
+        _throw_missing_polynomial_monomials(
+            _missing_polynomial_monomials(poly, available_moments),
+            "inequality constraint $i";
+            source
+        )
+    end
+
+    return available_moments
+end
+
+@inline _matrix_has_nonzero_entry(mat::AbstractMatrix) = any(!iszero, mat)
+
+@inline _moment_problem_coeff_type(::Type{A}, ::Type{C}) where {A<:AlgebraType,C<:Number} =
+    _is_complex_problem(A) ? Complex{typeof(real(zero(C)))} : C
+
+function _is_hermitian_poly_matrix(mat::AbstractMatrix)
+    size(mat, 1) == size(mat, 2) || return false
+    for j in axes(mat, 2), i in axes(mat, 1)
+        iszero(mat[i, j] - adjoint(mat[j, i])) || return false
+    end
+    return true
+end
+
+function _convert_polynomial_matrix(::Type{P2}, mat::AbstractMatrix{P1}) where {P2<:Polynomial,P1<:Polynomial}
+    converted = Matrix{P2}(undef, size(mat, 1), size(mat, 2))
+    for j in axes(mat, 2), i in axes(mat, 1)
+        converted[i, j] = convert(P2, mat[i, j])
+    end
+    return converted
+end
+
+function _zero_constraint_components(
+    mat::Matrix{P}
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    (!_is_complex_problem(A) || _is_hermitian_poly_matrix(mat)) && return Matrix{P}[mat]
+
+    components = Matrix{P}[]
+    hermitian_part = (mat + adjoint(mat)) / 2
+    skewhermitian_part = (mat - adjoint(mat)) / (2im)
+
+    _matrix_has_nonzero_entry(hermitian_part) && push!(components, hermitian_part)
+    _matrix_has_nonzero_entry(skewhermitian_part) && push!(components, skewhermitian_part)
+    return components
+end
+
+function _append_constraint!(
+    constraints::Vector{Tuple{Symbol, Matrix{P2}}},
+    cone::Symbol,
+    mat::AbstractMatrix,
+    ::Type{P2},
+) where {A<:AlgebraType,T<:Integer,C<:Number,P2<:Polynomial{A,T,C}}
+    promoted_mat = _convert_polynomial_matrix(P2, mat)
+
+    if cone == :Zero
+        for component in _zero_constraint_components(promoted_mat)
+            push!(constraints, (:Zero, component))
+        end
+    else
+        push!(constraints, (cone, promoted_mat))
+    end
+
+    return nothing
+end
 
 # =============================================================================
 # Moment Relaxation (Unified)
@@ -188,61 +367,12 @@ function moment_relax(
     # Unique moment variables are determined by moment matrices only (poly = 1),
     # not by the full set of localizing matrices.
     # For Monomial bases, we expand over all term pairs from the bilinear form.
-    one_word = one(NormalMonomial{A,TI})
-    moment_matrix_basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
-        reduce(vcat, [
-            [
-                mono
-                for row_mono in basis
-                for col_mono in basis
-                for (_, row_word) in row_mono  # Iterate over terms in row Monomial
-                for (_, col_word) in col_mono  # Iterate over terms in col Monomial
-                for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, one_word, col_word)), TI)
-            ]
-            for basis in term_sparsities[1].block_bases
-        ])
-    end...)
+    moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
     n_unique_moment_matrix_elements = length(_sorted_symmetric_basis(moment_matrix_basis))
 
-    # Compute total basis: union of all moment matrix entry monomials
-    # Expands over all term pairs from Monomial bases
-    total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
-        reduce(vcat, [
-            [mono
-             for m in last.(poly.terms)
-             for (_, row_word) in row_mono  # Iterate over terms in row Monomial
-             for (_, col_word) in col_mono  # Iterate over terms in col Monomial
-             for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, m, col_word)), TI)]
-            for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
-            for basis in term_sparsity.block_bases
-            for row_mono in basis
-            for col_mono in basis
-        ])
-    end...)
-
-    moment_eq_row_bases = M[]
-    moment_eq_row_basis_degrees = Int[]
-
-    # Extend total basis with one-sided localizing products from moment_eq_constraints
-    if !isempty(pop.moment_eq_constraints)
-        meq_monomials = NormalMonomial{A,TI}[]
-        moment_eq_row_bases, moment_eq_row_basis_degrees = _collect_moment_eq_row_bases(cliques_term_sparsities)
-        for g in pop.moment_eq_constraints
-            row_bases = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, g)
-            isempty(row_bases) && continue
-            for row_mono in row_bases
-                for (_, row_word) in row_mono
-                    for (_, mono) in g.terms
-                        product = _neat_dot3(row_word, mono, one_word)
-                        for (_, m) in _simplified_to_terms(A, simplify(A, product), TI)
-                            push!(meq_monomials, m)
-                        end
-                    end
-                end
-            end
-        end
-        total_basis = sorted_union(total_basis, meq_monomials)
-    end
+    total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
+        _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+    _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
 
     # NOTE: For fermionic algebras, we do NOT filter odd-parity monomials from the basis.
     # The parity superselection rule is enforced via constraints (see _add_parity_constraints!)
@@ -252,9 +382,14 @@ function moment_relax(
     # Determine cone type based on algebra
     is_complex = _is_complex_problem(A)
     psd_cone = is_complex ? :HPSD : :PSD
+    MP_C = _moment_problem_coeff_type(A, C)
+    MP_P = Polynomial{A,TI,MP_C}
+    objective_mp = convert(MP_P, pop.objective)
 
-    # Build constraint matrices symbolically
-    constraints = Vector{Tuple{Symbol, Matrix{P}}}()
+    # Build constraint matrices symbolically. For complex problems we promote the
+    # symbolic data to complex coefficients up front so zero-cone constraints can
+    # be split into Hermitian real/imaginary components when needed.
+    constraints = Tuple{Symbol, Matrix{MP_P}}[]
 
     # Process clique constraints
     for (term_sparsities, cons_idx) in zip(cliques_term_sparsities, corr_sparsity.clq_cons)
@@ -264,8 +399,8 @@ function moment_relax(
             for ts_sub_basis in term_sparsity.block_bases
                 # Determine cone: Zero for equality constraints, PSD/HPSD otherwise
                 cone = poly in pop.eq_constraints ? :Zero : psd_cone
-                constraint = _build_constraint_matrix(poly, ts_sub_basis, cone)
-                push!(constraints, constraint)
+                _, mat = _build_constraint_matrix(poly, ts_sub_basis, cone)
+                _append_constraint!(constraints, cone, mat, MP_P)
             end
         end
     end
@@ -275,11 +410,11 @@ function moment_relax(
         poly = corr_sparsity.cons[global_con]
         cone = poly in pop.eq_constraints ? :Zero : psd_cone
         # Global constraints use identity basis (scalar moment)
-        constraint = _build_constraint_matrix(poly, [one(M)], cone)
-        push!(constraints, constraint)
+        _, mat = _build_constraint_matrix(poly, [one(M)], cone)
+        _append_constraint!(constraints, cone, mat, MP_P)
     end
 
-    mp = MomentProblem{A, TI, M, P}(pop.objective, constraints, total_basis, n_unique_moment_matrix_elements)
+    mp = MomentProblem{A, TI, M, MP_P}(objective_mp, constraints, total_basis, n_unique_moment_matrix_elements)
 
     # Add parity superselection constraints for fermionic algebras
     # This enforces that odd-parity moment entries are zero
@@ -312,15 +447,15 @@ bilinear ⟨b_i† g b_j⟩ = 0) but is the correct formulation for state-sector
 constraints like particle-number fixing in fermionic systems.
 """
 function _add_moment_eq_constraints!(
-    mp::MomentProblem{A,T,M,P},
-    pop::PolyOpt{A,T,P},
+    mp::MomentProblem{A,T,M,MP},
+    pop::PolyOpt{A,T,PP},
     moment_eq_row_bases::Vector{M},
     moment_eq_row_basis_degrees::Vector{Int},
-) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T},P<:Polynomial{A,T,C}}
+) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
     isempty(pop.moment_eq_constraints) && return nothing
 
     one_mono = one(NormalMonomial{A,T})
-    meq_constraints = Tuple{Symbol, Matrix{P}}[]
+    meq_constraints = Tuple{Symbol, Matrix{MP}}[]
 
     for g in pop.moment_eq_constraints
         row_bases = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, g)
@@ -332,13 +467,13 @@ function _add_moment_eq_constraints!(
                 _conj_coef(A, c_row) * coef * Polynomial(_simplified_to_terms(A, simplify(A, _neat_dot3(row_word, mono, one_mono)), T))
                 for (c_row, row_word) in row_mono
                 for (coef, mono) in g.terms;
-                init=zero(P)
+                init=zero(MP)
             )
             iszero(poly) && continue
 
-            constraint_mat = Matrix{P}(undef, 1, 1)
+            constraint_mat = Matrix{MP}(undef, 1, 1)
             constraint_mat[1, 1] = poly
-            push!(meq_constraints, (:Zero, constraint_mat))
+            _append_constraint!(meq_constraints, :Zero, constraint_mat, MP)
         end
     end
 
@@ -535,7 +670,8 @@ function _solve_complex_moment_problem(
         end
     end
 
-    # Set objective (minimize real part, imaginary should be zero for valid problem)
+    # `polyopt` validates that complex-algebra objectives are Hermitian, so their
+    # expectation values are real. Optimize the real part only.
     obj_re, _ = _substitute_complex_poly(mp.objective, basis_to_idx, y_re, y_im)
     @objective(model, Min, obj_re)
 
@@ -721,7 +857,7 @@ function _add_parity_constraints!(
             poly = mat[i,j]
             if _has_odd_parity_only(poly)
                 # This entry must be zero - add as 1x1 Zero constraint
-                push!(parity_constraints, (:Zero, reshape([poly], 1, 1)))
+                _append_constraint!(parity_constraints, :Zero, reshape([poly], 1, 1), P)
             end
         end
     end

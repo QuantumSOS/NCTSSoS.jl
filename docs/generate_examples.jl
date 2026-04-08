@@ -1,4 +1,6 @@
 import Pkg; Pkg.activate(@__DIR__);
+Pkg.develop(path=joinpath(@__DIR__, ".."))
+Pkg.instantiate()
 Pkg.precompile()
 
 using Literate

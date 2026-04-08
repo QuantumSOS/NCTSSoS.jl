@@ -90,8 +90,12 @@ JuMP.dual_status(model::_StatusStub) = model.dual
         NCTSSoS._add_parity_constraints!(mp)
         zero_after = count(c -> c[1] == :Zero, mp.constraints)
 
+        odd_real = (odd_poly + adjoint(odd_poly)) / 2
+        odd_imag = (odd_poly - adjoint(odd_poly)) / (2im)
+
         @test zero_after > zero_before
-        @test any(cone == :Zero && size(mat) == (1, 1) && mat[1, 1] == odd_poly for (cone, mat) in mp.constraints)
+        @test any(cone == :Zero && size(mat) == (1, 1) && mat[1, 1] == odd_real for (cone, mat) in mp.constraints)
+        @test any(cone == :Zero && size(mat) == (1, 1) && mat[1, 1] == odd_imag for (cone, mat) in mp.constraints)
     end
 
     @testset "_solve_real_moment_problem rejects unknown cone" begin

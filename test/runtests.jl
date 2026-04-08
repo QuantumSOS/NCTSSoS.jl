@@ -40,6 +40,7 @@ using .TestExpectations: expectations_oracle
         include("problems/benchmarks/e5_broyden_tridiagonal.jl")
         include("problems/condensed_matter/ising.jl")
         include("problems/condensed_matter/hubbard.jl")
+        include("problems/condensed_matter/bose_hubbard.jl")
         include("problems/fermionic/fermionic_chain.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")

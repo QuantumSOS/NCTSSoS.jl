@@ -29,6 +29,7 @@ makedocs(;
             "Ground State Energy"=>"examples/generated/ground_state_energy.md",
             "Fermionic Ground State"=>"examples/generated/fermionic_ground_state.md",
             "Kitaev Chain"=>"examples/generated/kitaev_chain.md",
+            "Hubbard Model"=>"examples/generated/hubbard_model.md",
             "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",
             "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
             "GNS Optimizer Extraction"=>"examples/generated/gns_optimizer_extraction.md",

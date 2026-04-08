@@ -175,6 +175,9 @@ Equality constraints (0):
 Inequality constraints (0):
     (none)
 
+Moment equality constraints (0):
+    (none)
+
 Variables (4):
     x₁, x₂, y₁, y₂
 
@@ -327,6 +330,9 @@ Equality constraints (0):
     (none)
 
 Inequality constraints (0):
+    (none)
+
+Moment equality constraints (0):
     (none)
 
 Variables (6):
@@ -579,6 +585,9 @@ Equality constraints (0):
     (none)
 
 Inequality constraints (0):
+    (none)
+
+Moment equality constraints (0):
     (none)
 
 Variables (6):

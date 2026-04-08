@@ -1,0 +1,28 @@
+schema_version = 1
+
+[[cases]]
+id = "periodic_n2_u4_order2"
+notes = "Spinful 2-site 1D Hubbard ring with doubled fermionic modes. At t=1, U=4 the unconstrained grand-canonical ground state already lies in the half-filled (N_up, N_dn) = (1, 1) sector."
+
+    [cases.expected]
+    objective = -2.4721359549995796
+    sides = [37]
+    nuniq = 163
+
+[[cases]]
+id = "periodic_n4_u4_order2"
+notes = "Spinful 4-site 1D Hubbard ring with doubled fermionic modes. This is the zero-chemical-potential grand-canonical benchmark; the half-filled sector is not the global ground state here."
+
+    [cases.expected]
+    objective = -3.4323046395105874
+    sides = [137]
+    nuniq = 2517
+
+[[cases]]
+id = "periodic_n4_u4_order2_canonical"
+notes = "Spinful 4-site 1D Hubbard ring, canonical half-filling (N_up=2, N_dn=2). Uses moment_eq_constraints for one-sided localizing of particle-number constraints. Exact half-filled sector GS is -2.102748483462074."
+
+    [cases.expected]
+    objective = -2.1474320142000694
+    sides = [137]
+    nuniq = 2517

@@ -6,9 +6,12 @@
 #
 # Problem:
 #   H = -t Σᵢ(c†ᵢσ cᵢ₊₁σ + h.c.) + U Σᵢ nᵢ↑ nᵢ↓
-#   4 sites, periodic boundary conditions, t=1, U=4, half-filling.
+#   4 sites, periodic boundary conditions, t=1, U=4.
 #
-# Reference: DMRG gives E₀ ≈ -2.83 for these parameters.
+# Important: as written, this is the grand-canonical Hamiltonian. There is no
+# particle-number constraint here, so this script does *not* enforce half-filling.
+# For these parameters the exact full-Fock ground-state energy is about -3.41855.
+# If you want the half-filled problem, add particle-number constraints explicitly.
 
 using NCTSSoS
 using Clarabel
@@ -54,7 +57,7 @@ config = SolverConfig(optimizer=Clarabel.Optimizer, order=2)
 result = cs_nctssos(pop, config)
 
 println("Ground state energy bound: ", result.objective)
-println("Expected (DMRG):           ≈ -2.83")
+println("Expected (grand-canonical exact ED): ≈ -3.41855")
 
 # --- Correlation: ⟨Sᶻ₁ Sᶻ₂⟩ ---
 # Sᶻᵢ = (nᵢ↑ - nᵢ↓)/2 = (c†ᵢ↑cᵢ↑ - c†ᵢ↓cᵢ↓)/2

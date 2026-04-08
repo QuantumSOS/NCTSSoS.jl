@@ -15,5 +15,5 @@ I want to compute the maximum quantum violation of the I₃₃₂₂ Bell inequa
 ## Prompt 2: Physicist, no optimization background
 
 ```
-I'm studying a 4-site Fermi-Hubbard chain with periodic boundaries, t=1, U=4. The Hamiltonian is H = -t Σᵢ(c†ᵢσ cᵢ₊₁σ + h.c.) + U Σᵢ nᵢ↑ nᵢ↓. I know from DMRG the ground state energy is around -2.83. Is there a way to get a rigorous lower bound on that with this package? I'd also like to extract the nearest-neighbor spin correlation ⟨Sᶻ₁Sᶻ₂⟩ from the solution if possible.
+I'm studying a 4-site Fermi-Hubbard chain with periodic boundaries, t=1, U=4 at half-filling. The Hamiltonian is H = -t Σᵢ(c†ᵢσ cᵢ₊₁σ + h.c.) + U Σᵢ nᵢ↑ nᵢ↓. I know from DMRG the half-filled ground state energy is around -2.83, but I also know the bare Hamiltonian by itself is grand-canonical unless I add particle-number constraints. How do I set this up in NCTSSoS so the bound is really for half-filling, and how would I extract the nearest-neighbor spin correlation ⟨Sᶻ₁Sᶻ₂⟩ from the solved moments?
 ```

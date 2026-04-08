@@ -101,6 +101,9 @@ Inequality constraints (2):
     1 + -X₁² >= 0
             1 + -X₂² >= 0
 
+Moment equality constraints (0):
+    (none)
+
 Variables (2):
     X₁, X₂
 

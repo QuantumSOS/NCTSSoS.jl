@@ -431,6 +431,16 @@ Fermionic operators satisfy anticommutation relations:
 - single-family call: `(reg, (a, a⁺))`
 - multi-family call: `(reg, ((a, a⁺), (b, b⁺), ...))`
 
+!!! note "Cross-species anticommutation"
+    When multiple species are created (multi-family call), **all** modes
+    share one fermionic algebra and **anticommute** with each other —
+    including across species: `{c_upᵢ, c_dnⱼ⁺} = 0` for all i, j,
+    since `c_up[i]` and `c_dn[j]` are always distinct modes.
+    Each tuple provides a naming prefix, not an independent algebra.
+    This differs from `MonoidAlgebra` constructors like
+    [`create_projector_variables`](@ref), where different tuples
+    correspond to different *sites* whose operators commute.
+
 # Examples
 ```jldoctest
 julia> reg, (a, a⁺) = create_fermionic_variables(1:2);
@@ -451,6 +461,17 @@ julia> length(c_up), length(c_dn)
 
 julia> c_up[1] == c_dn[1]
 false
+```
+
+Cross-species operators anticommute (they are **not** independent):
+```jldoctest
+julia> reg, ((a, a_dag), (b, b_dag)) = create_fermionic_variables([("a", 1:1), ("b", 1:1)]);
+
+julia> a[1] * b[1] + b[1] * a[1]  # {a₁, b₁} = 0
+0
+
+julia> a[1] * b_dag[1] + b_dag[1] * a[1]  # {a₁, b₁⁺} = 0 (different species)
+0
 ```
 """
 create_fermionic_variables(subscripts) = _create_physical_variables(FermionicAlgebra, subscripts, "a")
@@ -571,6 +592,12 @@ julia> length(b1), length(b2)
 julia> b1[1] == b2[1]
 false
 ```
+
+!!! note "Cross-species commutation"
+    When multiple species are created, **all** modes share one bosonic
+    algebra. Cross-species operators commute: `[b1ᵢ, b2ⱼ⁺] = 0`
+    for any i, j (the Kronecker delta is zero across species).
+    Each tuple provides a naming prefix, not an independent algebra.
 """
 create_bosonic_variables(subscripts) = _create_physical_variables(BosonicAlgebra, subscripts, "c")
 

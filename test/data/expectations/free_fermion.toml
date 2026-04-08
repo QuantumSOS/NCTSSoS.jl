@@ -1,0 +1,28 @@
+schema_version = 1
+
+[[cases]]
+id = "two_site_hopping_order1"
+notes = "Two-site free fermion hopping. H = -(a†₁a₂ + a†₂a₁). Simplest fermionic benchmark: bonding/antibonding, E₀ = -1.0."
+
+    [cases.expected]
+    objective = -1.0000000000017786
+    sides = [5]
+    nuniq = 11
+
+[[cases]]
+id = "two_site_hopping_order2"
+notes = "Two-site free fermion hopping at order 2."
+
+    [cases.expected]
+    objective = -1.0000000000379121
+    sides = [11]
+    nuniq = 16
+
+[[cases]]
+id = "pure_hopping_chain_n4_order1"
+notes = "Pure tight-binding chain N=4, OBC, FermionicAlgebra. H = -Σ(a†i ai+1 + h.c.). Exact E₀ = -√5 ≈ -2.2361."
+
+    [cases.expected]
+    objective = -2.2360679774997916
+    sides = [9]
+    nuniq = 37

@@ -1,0 +1,10 @@
+schema_version = 1
+
+[[cases]]
+id = "single_mode_order2"
+notes = "Quantum harmonic oscillator H = b†b + 1/2 (ω=1). Trivial bosonic sanity check. Exact E₀ = 0.5."
+
+    [cases.expected]
+    objective = 0.49999999999999917
+    sides = [6]
+    nuniq = 15

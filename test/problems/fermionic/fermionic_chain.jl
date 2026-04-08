@@ -25,6 +25,7 @@
 using NCTSSoS, Test, JuMP, LinearAlgebra
 
 const FERMIONIC_CHAIN_EXPECTATIONS_PATH = "expectations/fermionic_chain.toml"
+const KITAEV_CHAIN_EXPECTATIONS_PATH = "expectations/kitaev_chain.toml"
 
 # SOLVER fallback for standalone/REPL execution
 if !@isdefined(SOLVER)
@@ -176,7 +177,8 @@ end
         # In the topological phase with μ=0, t=Δ=1, the Hamiltonian reduces to:
         # H = Σᵢ [-(aᵢ†aᵢ₊₁ + aᵢ₊₁†aᵢ) + (aᵢaᵢ₊₁ + aᵢ₊₁†aᵢ†)]
         # This maps to iΣⱼ γ₂ⱼγ₂ⱼ₊₁ in Majorana basis with E₀ = -(N-1)
-        
+        oracle = expectations_oracle(KITAEV_CHAIN_EXPECTATIONS_PATH, "sweet_spot_n4_order1")
+
         registry, (a, a_dag) = create_fermionic_variables(1:N)
 
         hopping = sum(
@@ -197,16 +199,20 @@ end
         exact_e0 = _kitaev_chain_exact_energy(N, 0.0, 1.0, 1.0)
         @test exact_e0 ≈ -3.0 atol = 1e-12
         @test result.objective ≈ exact_e0 atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test reduce(vcat, result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     @testset "Trivial phase (μ=3, t=1, Δ=1) via FermionicAlgebra" begin
         # In the trivial phase with |μ| > 2t, the chemical potential dominates.
         # For μ=3, t=Δ=1, exact ED gives E₀ ≈ -12.5039
-        
+        oracle = expectations_oracle(KITAEV_CHAIN_EXPECTATIONS_PATH, "trivial_phase_mu3_n4_order1")
+
         registry, (a, a_dag) = create_fermionic_variables(1:N)
-        
+
         μ, t, Δ = 3.0, 1.0, 1.0
-        
+
         chemical = -μ * sum(a_dag[i] * a[i] for i in 1:N)
         hopping = -t * sum(
             a_dag[i] * a[i+1] + a_dag[i+1] * a[i]
@@ -217,14 +223,17 @@ end
             for i in 1:(N-1)
         )
         ham = chemical + hopping + pairing
-        
+
         pop = polyopt(ham, registry)
         solver_config = SolverConfig(optimizer=SOLVER, order=1)
         result = cs_nctssos(pop, solver_config)
-        
+
         exact_e0 = _kitaev_chain_exact_energy(N, μ, t, Δ)
         @test exact_e0 ≈ -12.503891557126414 atol = 1e-10
         @test result.objective ≈ exact_e0 atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test reduce(vcat, result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     @testset "XX chain with field via PauliAlgebra" begin
@@ -251,11 +260,12 @@ end
     @testset "Asymmetric pairing (μ=0, t=1, Δ=0.5) via FermionicAlgebra" begin
         # With Δ ≠ t, the ground state energy interpolates between limits.
         # For μ=0, t=1, Δ=0.5: exact ED gives E₀ ≈ -2.4221
-        
+        oracle = expectations_oracle(KITAEV_CHAIN_EXPECTATIONS_PATH, "asymmetric_pairing_delta0p5_n4_order1")
+
         registry, (a, a_dag) = create_fermionic_variables(1:N)
-        
+
         μ, t, Δ = 0.0, 1.0, 0.5
-        
+
         hopping = -t * sum(
             a_dag[i] * a[i+1] + a_dag[i+1] * a[i]
             for i in 1:(N-1)
@@ -265,33 +275,40 @@ end
             for i in 1:(N-1)
         )
         ham = hopping + pairing
-        
+
         pop = polyopt(ham, registry)
         solver_config = SolverConfig(optimizer=SOLVER, order=1)
         result = cs_nctssos(pop, solver_config)
-        
+
         exact_e0 = _kitaev_chain_exact_energy(N, μ, t, Δ)
         @test exact_e0 ≈ -2.422078451440553 atol = 1e-10
         @test result.objective ≈ exact_e0 atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test reduce(vcat, result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 
     @testset "Pure hopping (μ=0, t=1, Δ=0) via FermionicAlgebra" begin
         # No pairing (Δ=0): standard tight-binding chain.
         # For N=4, μ=0, t=1, exact ED gives E₀ = -√5 ≈ -2.2361
-        
+        oracle = expectations_oracle(KITAEV_CHAIN_EXPECTATIONS_PATH, "pure_hopping_n4_order1")
+
         registry, (a, a_dag) = create_fermionic_variables(1:N)
-        
+
         hopping = -sum(
             a_dag[i] * a[i+1] + a_dag[i+1] * a[i]
             for i in 1:(N-1)
         )
-        
+
         pop = polyopt(hopping, registry)
         solver_config = SolverConfig(optimizer=SOLVER, order=1)
         result = cs_nctssos(pop, solver_config)
-        
+
         exact_e0 = _kitaev_chain_exact_energy(N, 0.0, 1.0, 0.0)
         @test exact_e0 ≈ -2.23606797749979 atol = 1e-10  # -√5
         @test result.objective ≈ exact_e0 atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test reduce(vcat, result.moment_matrix_sizes) == oracle.sides
+        @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
 end

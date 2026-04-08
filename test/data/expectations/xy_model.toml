@@ -1,0 +1,28 @@
+schema_version = 1
+
+[[cases]]
+id = "pbc_pauli_n4_order2"
+notes = "XY model N=4, PBC, Pauli algebra. H = (1/4)Σ(XiXi+1 + YiYi+1). Order-2 relaxation converges to exact E₀ = -√2."
+
+    [cases.expected]
+    objective = -1.4142135571856405
+    sides = [37]
+    nuniq = 163
+
+[[cases]]
+id = "apbc_fermionic_n4_order1"
+notes = "XY model N=4, fermionic APBC (= spin PBC via JW). H = (1/2)Σ(a†i ai+1 + h.c.) with sign flip on boundary. Exact E₀ = -√2. Order-1 fermionic relaxation is exact for free fermions."
+
+    [cases.expected]
+    objective = -1.4142135623726038
+    sides = [9]
+    nuniq = 37
+
+[[cases]]
+id = "pbc_fermionic_n4_order1"
+notes = "XY model N=4, fermionic PBC. H = (1/2)Σ(a†i ai+1 + h.c.) with PBC. Fermionic PBC ground state E₀ = -1.0 (not -√2; spin PBC maps to fermionic APBC)."
+
+    [cases.expected]
+    objective = -1.0000000005821674
+    sides = [9]
+    nuniq = 37

@@ -1,0 +1,10 @@
+schema_version = 1
+
+[[cases]]
+id = "two_site_n2_u2_order2"
+notes = "Two-site Bose-Hubbard model with t=1, U=2 in the canonical N=2 sector, enforced via moment_eq_constraints. Provenance: `expected.objective` comes from the exact 3×3 fixed-particle-number sector Hamiltonian on the basis |2,0⟩, |1,1⟩, |0,2⟩, whose lowest eigenvalue is 1 - sqrt(5). The structural values `sides = [15]` and `nuniq = 70` are implementation-specific dense order-2 moment-model oracles captured from a reviewed local run of `cs_nctssos` for this exact setup; they are not literature constants."
+
+[cases.expected]
+objective = -1.2360679774997898
+sides = [15]
+nuniq = 70

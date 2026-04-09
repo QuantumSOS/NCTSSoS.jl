@@ -20,6 +20,7 @@ makedocs(;
         ],
         "Examples"=>Any[
             "Bell inequalities"=>"examples/generated/bell.md",
+            "CHSH GNS Reconstruction"=>"examples/generated/chsh_gns_reconstruction.md",
             "Trace Polynomial"=>"examples/generated/trace_poly.md",
             "Newton Chip Method"=>"examples/generated/newton_chip_method.md",
             "Stabilization vs. Exactness"=>"examples/generated/sparsity_convergence.md",

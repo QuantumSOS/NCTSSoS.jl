@@ -34,26 +34,52 @@ triplet level at ``+1/4``.
 **Prerequisites**: familiarity with the [polynomial optimization API](@ref polynomial-optimization)
 and the [GNS construction interface](@ref gns-construction-guide).
 
-Concretely, this page shows both:
+Concretely, this page shows:
 
-1. the raw GNS reconstruction as a correct but nonstandard Pauli representation,
-2. an explicit gauge-fixing that recovers the textbook computational basis.
+1. that the dense direct moment solve and the `dualize=true` SOS solve agree,
+2. the raw GNS reconstruction from the moments recovered off the dualized solve,
+3. an explicit gauge-fixing that recovers the textbook computational basis.
 
 ````julia
-using NCTSSoS, MosekTools, LinearAlgebra, Logging
+using NCTSSoS, MosekTools, JuMP, LinearAlgebra, Logging
 
 const MOI = NCTSSoS.MOI
 const SILENT_MOSEK = MOI.OptimizerWithAttributes(
     Mosek.Optimizer,
     MOI.Silent() => true,
 )
+
+function recover_complex_dual_monomap(moment_problem, model)
+    basis = [symmetric_canon(NCTSSoS.expval(mono)) for mono in moment_problem.total_basis]
+    sort!(basis)
+    unique!(basis)
+
+    coeff_constraints = all_constraints(model, AffExpr, MOI.EqualTo{Float64})
+    n_basis = length(basis)
+    length(coeff_constraints) == 2 * n_basis || error(
+        "Expected $(2 * n_basis) coefficient-matching equalities, got $(length(coeff_constraints))."
+    )
+
+    return Dict(
+        basis[i] => ComplexF64(
+            dual(coeff_constraints[i]),
+            dual(coeff_constraints[n_basis + i]),
+        )
+        for i in 1:n_basis
+    )
+end
 ````
 
-## Step 1 — Solve the order-2 moment relaxation directly
+## Step 1 — Solve the order-2 relaxation on both primal and dual paths
 
-We solve the dense order-2 moment relaxation. The high-level [`cs_nctssos`](@ref)
-interface gives the bound, but for GNS we also need the solved moment table
-`monomap`, so we use the low-level moment workflow explicitly.
+We solve the dense order-2 relaxation twice:
+
+1. directly as a moment SDP, which gives the primal moment table immediately;
+2. through the `dualize=true` SOS route, whose equality multipliers recover the
+   same primal moments.
+
+The high-level [`cs_nctssos`](@ref) interface gives the bound, but for GNS we
+also need a concrete `monomap`, so we use the low-level symbolic workflow.
 
 ````julia
 registry, (σx, σy, σz) = create_pauli_variables(1:2)
@@ -79,36 +105,49 @@ moment_problem = NCTSSoS.moment_relax(
     sparsity.cliques_term_sparsities,
 )
 moment_result = NCTSSoS.solve_moment_problem(moment_problem, SILENT_MOSEK)
+dual_result = NCTSSoS.solve_sdp(moment_problem, SILENT_MOSEK; dualize=true)
+dual_monomap = recover_complex_dual_monomap(moment_problem, dual_result.model)
+
+@assert Set(keys(dual_monomap)) == Set(keys(moment_result.monomap))
+max_moment_recovery_error = maximum(
+    abs(dual_monomap[key] - moment_result.monomap[key])
+    for key in keys(moment_result.monomap)
+)
 
 solve_summary = (
-    objective = moment_result.objective,
+    primal_objective = moment_result.objective,
+    dual_objective = dual_result.objective,
     n_unique_moments = moment_result.n_unique_elements,
     solved_moments = length(moment_result.monomap),
+    max_recovered_moment_error = max_moment_recovery_error,
 )
 solve_summary
 ````
 
 ````
-(objective = -0.7499999966623363, n_unique_moments = 16, solved_moments = 16)
+(primal_objective = -0.7499999966623363, dual_objective = -0.7499999999996073, n_unique_moments = 16, solved_moments = 16, max_recovered_moment_error = 4.449696500152811e-9)
 ````
 
-The page should fail loudly if that exactness ever regresses.
+The page should fail loudly if exactness or primal/dual consistency regresses.
 
 ````julia
 @assert isapprox(moment_result.objective, -0.75; atol=5e-6)
+@assert isapprox(dual_result.objective, moment_result.objective; atol=5e-6)
+@assert max_moment_recovery_error < 1e-8
 ````
 
-The order-2 relaxation is already exact for this problem.
+The order-2 relaxation is already exact for this problem, and the `dualize=true`
+route recovers the same moments needed for GNS.
 
-## Step 2 — Raw GNS reconstruction
+## Step 2 — Raw GNS reconstruction from the dualized solve
 
-From the solved moments we reconstruct a `4 × 4` representation. This is
-already a valid Pauli representation, but not yet in the standard
-computational basis.
+We now run GNS on the moment table recovered from the dualized SOS model.
+This still produces a `4 × 4` Pauli representation, but not yet in the
+standard computational basis.
 
 ````julia
 gns = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(moment_result.monomap, registry, 2; atol=1e-6)
+    gns_reconstruct(dual_monomap, registry, 2; atol=1e-6)
 end;
 
 raw_X1 = gns.matrices[registry[:σx₁]]
@@ -129,7 +168,7 @@ raw_summary
 ````
 
 ````
-(rank = 4, full_rank = 4, xi = ComplexF64[-0.0 + 0.0im, -0.0 + 0.0im, -0.0 - 0.0im, -1.0 + 0.0im], σx₁ = ComplexF64[0.004 + 0.0im 0.005 + 0.298im 0.007 + 0.891im 0.343 - 0.009im; 0.005 - 0.298im -0.004 + 0.0im -0.008 + 0.343im -0.891 - 0.004im; 0.007 - 0.891im -0.008 - 0.343im 0.0 + 0.0im 0.298 + 0.0im; 0.343 + 0.009im -0.891 + 0.004im 0.298 - 0.0im -0.0 + 0.0im], σz₁ = ComplexF64[-0.001 + 0.0im -0.001 - 0.061im -0.01 - 0.341im 0.938 - 0.007im; -0.001 + 0.061im 0.001 + 0.0im -0.004 + 0.938im 0.341 + 0.009im; -0.01 + 0.341im -0.004 - 0.938im -0.0 + 0.0im -0.061 - 0.0im; 0.938 + 0.007im 0.341 - 0.009im -0.061 + 0.0im 0.0 + 0.0im])
+(rank = 4, full_rank = 4, xi = ComplexF64[-0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -1.0 + 0.0im], σx₁ = ComplexF64[-0.024 + 0.0im 0.06 + 0.209im 0.06 - 0.23im 0.945 - 0.044im; 0.06 - 0.209im 0.0 + 0.0im -0.302 + 0.897im 0.239 + 0.0im; 0.06 + 0.23im -0.302 - 0.897im 0.024 + 0.0im 0.217 - 0.02im; 0.945 + 0.044im 0.239 - 0.0im 0.217 + 0.02im -0.0 + 0.0im], σz₁ = ComplexF64[0.098 + 0.0im 0.01 - 0.044im -0.243 + 0.93im 0.253 - 0.017im; 0.01 + 0.044im -0.0 + 0.0im -0.076 + 0.242im -0.966 + 0.0im; -0.243 - 0.93im -0.076 - 0.242im -0.098 + 0.0im -0.037 + 0.026im; 0.253 + 0.017im -0.966 - 0.0im -0.037 - 0.026im 0.0 + 0.0im])
 ````
 
 The matrices look unfamiliar, but they already satisfy the Pauli algebra.
@@ -147,7 +186,7 @@ raw_representation_errors
 ````
 
 ````
-(σx₁² = 2.2251083907798494e-9, σy₁² = 2.2251094951469527e-9, σz₁² = 2.225108384221885e-9, anticommutator_σx₁σy₁ = 1.285251396980686e-15, commutator_σz₁σz₂ = 3.728041858304257e-16)
+(σx₁² = 2.5741580761264377e-13, σy₁² = 2.5728063534634455e-13, σz₁² = 2.575266337627533e-13, anticommutator_σx₁σy₁ = 2.259735985058214e-16, commutator_σz₁σz₂ = 2.593058517527379e-16)
 ````
 
 This really is a four-dimensional representation with a normalized cyclic
@@ -236,7 +275,7 @@ joint_eigenbasis_summary
 ````
 
 ````
-(σz₁ = ComplexF64[1.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im -0.0 - 0.0im; -0.0 - 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 - 0.0im -0.0 + 0.0im -1.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im -1.0 - 0.0im], σz₂ = ComplexF64[1.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im -0.0 - 0.0im; 0.0 - 0.0im -1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -0.0 - 0.0im -1.0 - 0.0im], ψ_gns = ComplexF64[-0.0 + 0.0im, 0.707107 - 0.0im, -0.707107 + 0.0im, 0.0 + 0.0im])
+(σz₁ = ComplexF64[1.0 - 0.0im 0.0 + 0.0im -0.0 - 0.0im -0.0 - 0.0im; 0.0 - 0.0im 1.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -1.0 - 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im -1.0 - 0.0im], σz₂ = ComplexF64[1.0 - 0.0im -0.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -1.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im -0.0 - 0.0im 1.0 - 0.0im -0.0 + 0.0im; -0.0 - 0.0im 0.0 - 0.0im -0.0 - 0.0im -1.0 + 0.0im], ψ_gns = ComplexF64[-0.0 + 0.0im, 0.707107 - 0.0im, -0.707107 - 0.0im, 0.0 + 0.0im])
 ````
 
 ## Step 4 — Compare with the textbook Pauli matrices
@@ -266,7 +305,7 @@ site_1_matrices
 ````
 
 ````
-(σx₁ = ComplexF64[0.0 + 0.0im 0.0 + 0.0im 1.0 - 0.0im -0.0 - 0.0im; 0.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 1.0 - 0.0im -0.0 - 0.0im 0.0 - 0.0im -0.0 + 0.0im; -0.0 + 0.0im 1.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im], σy₁ = ComplexF64[0.0 - 0.0im -0.0 + 0.0im -0.0 - 1.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 - 1.0im; -0.0 + 1.0im 0.0 + 0.0im -0.0 + 0.0im 0.0 - 0.0im; -0.0 - 0.0im 0.0 + 1.0im 0.0 + 0.0im 0.0 + 0.0im], σz₁ = ComplexF64[1.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im -0.0 - 0.0im; -0.0 - 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 - 0.0im -0.0 + 0.0im -1.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im -1.0 - 0.0im])
+(σx₁ = ComplexF64[0.0 + 0.0im -0.0 + 0.0im 1.0 - 0.0im -0.0 + 0.0im; -0.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im 1.0 - 0.0im; 1.0 - 0.0im -0.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 - 0.0im 1.0 + 0.0im -0.0 - 0.0im -0.0 + 0.0im], σy₁ = ComplexF64[-0.0 + 0.0im -0.0 + 0.0im 0.0 - 1.0im 0.0 + 0.0im; 0.0 - 0.0im 0.0 - 0.0im 0.0 + 0.0im -0.0 - 1.0im; -0.0 + 1.0im 0.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im; 0.0 - 0.0im -0.0 + 1.0im -0.0 - 0.0im 0.0 + 0.0im], σz₁ = ComplexF64[1.0 - 0.0im 0.0 + 0.0im -0.0 - 0.0im -0.0 - 0.0im; 0.0 - 0.0im 1.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -1.0 - 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im -1.0 - 0.0im])
 ````
 
 Site 2 should match the second-qubit Pauli operators just as cleanly.
@@ -281,7 +320,7 @@ site_2_matrices
 ````
 
 ````
-(σx₂ = ComplexF64[0.0 - 0.0im 1.0 - 0.0im 0.0 + 0.0im -0.0 - 0.0im; 1.0 - 0.0im 0.0 - 0.0im 0.0 + 0.0im -0.0 - 0.0im; 0.0 - 0.0im -0.0 - 0.0im -0.0 - 0.0im 1.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im 1.0 - 0.0im -0.0 + 0.0im], σy₂ = ComplexF64[0.0 + 0.0im 0.0 - 1.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 + 1.0im -0.0 + 0.0im -0.0 + 0.0im 0.0 - 0.0im; -0.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im 0.0 - 1.0im; -0.0 - 0.0im 0.0 + 0.0im 0.0 + 1.0im 0.0 + 0.0im], σz₂ = ComplexF64[1.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im -0.0 - 0.0im; 0.0 - 0.0im -1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -0.0 - 0.0im -1.0 - 0.0im])
+(σx₂ = ComplexF64[0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; 1.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 - 0.0im -0.0 - 0.0im -0.0 - 0.0im 1.0 - 0.0im; -0.0 - 0.0im -0.0 - 0.0im 1.0 + 0.0im -0.0 - 0.0im], σy₂ = ComplexF64[-0.0 + 0.0im -0.0 - 1.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 1.0im -0.0 - 0.0im -0.0 - 0.0im -0.0 + 0.0im; 0.0 - 0.0im -0.0 + 0.0im 0.0 - 0.0im -0.0 - 1.0im; 0.0 - 0.0im -0.0 - 0.0im -0.0 + 1.0im 0.0 + 0.0im], σz₂ = ComplexF64[1.0 - 0.0im -0.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -1.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im -0.0 - 0.0im 1.0 - 0.0im -0.0 + 0.0im; -0.0 - 0.0im 0.0 - 0.0im -0.0 - 0.0im -1.0 + 0.0im])
 ````
 
 The actual numerical check is basis-independent: every aligned operator should
@@ -300,7 +339,7 @@ alignment_errors
 ````
 
 ````
-(σx₁ = 1.1125543206494431e-9, σy₁ = 1.1125546444434714e-9, σz₁ = 1.112554450256499e-9, σx₂ = 1.1125543491184788e-9, σy₂ = 1.1125543835058484e-9, σz₂ = 1.1125544339858942e-9)
+(σx₁ = 1.2889765604760883e-13, σy₁ = 1.2890225958686977e-13, σz₁ = 1.2889304950509726e-13, σx₂ = 1.2898109431837067e-13, σy₂ = 1.287893011174029e-13, σz₂ = 1.2891365800728359e-13)
 ````
 
 Those errors should stay at the solver-noise level.
@@ -330,7 +369,7 @@ hamiltonian_summary
 ````
 
 ````
-(H = ComplexF64[0.25 - 0.0im 0.0 - 0.0im -0.0 - 0.0im 0.0 - 0.0im; -0.0 + 0.0im -0.25 - 0.0im 0.5 + 0.0im 0.0 + 0.0im; -0.0 - 0.0im 0.5 - 0.0im -0.25 + 0.0im -0.0 - 0.0im; 0.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im 0.25 - 0.0im], deviation_from_reference = 1.6688313370094764e-9)
+(H = ComplexF64[0.25 - 0.0im -0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.0 - 0.0im -0.25 - 0.0im 0.5 - 0.0im 0.0 - 0.0im; -0.0 + 0.0im 0.5 + 0.0im -0.25 + 0.0im -0.0 + 0.0im; 0.0 - 0.0im -0.0 - 0.0im -0.0 + 0.0im 0.25 - 0.0im], deviation_from_reference = 1.9270700290260765e-13)
 ````
 
 Diagonalizing the aligned Hamiltonian now exposes the familiar spectrum.
@@ -377,7 +416,7 @@ ground_state_check
 ````
 
 ````
-(ψ_gns = ComplexF64[-0.0 + 0.0im, 0.707107 - 0.0im, -0.707107 + 0.0im, 0.0 + 0.0im], ψ_singlet = ComplexF64[0.0 + 0.0im, 0.707107 + 0.0im, -0.707107 + 0.0im, 0.0 + 0.0im], overlap = 1.0, eigen_residual = 1.6688314126653906e-9)
+(ψ_gns = ComplexF64[-0.0 + 0.0im, 0.707107 - 0.0im, -0.707107 - 0.0im, 0.0 + 0.0im], ψ_singlet = ComplexF64[0.0 + 0.0im, 0.707107 + 0.0im, -0.707107 + 0.0im, 0.0 + 0.0im], overlap = 0.9999999999999963, eigen_residual = 1.9272887205522792e-13)
 ````
 
 The aligned cyclic vector should agree with the singlet directly, not just up
@@ -398,16 +437,19 @@ fixing the basis, it is the familiar singlet
 
 ## Summary
 
-For the two-qubit XXX model, the GNS construction recovers:
+For the two-qubit XXX model, the dense order-2 relaxation gives:
 
-1. a `4 × 4` operator representation of the Pauli algebra,
-2. the exact textbook matrices after basis alignment,
-3. the full XXX Hamiltonian matrix with spectrum `{-3/4, 1/4, 1/4, 1/4}`,
-4. the singlet ground state as the aligned cyclic vector.
+1. matching primal moments from the direct moment solve and the recovered
+   `dualize=true` SOS solve,
+2. a `4 × 4` operator representation of the Pauli algebra,
+3. the exact textbook matrices after basis alignment,
+4. the full XXX Hamiltonian matrix with spectrum `{-3/4, 1/4, 1/4, 1/4}`,
+5. the singlet ground state as the aligned cyclic vector.
 
 The important lesson is simple: **raw GNS output is only defined up to unitary
 gauge, but for a small full-rank example you can fix that gauge explicitly and
-recover the usual computational-basis physics.**
+recover the usual computational-basis physics — even when the relaxation was
+solved through the dualized SOS model.**
 
 ---
 

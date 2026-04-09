@@ -30,12 +30,13 @@
 # **Prerequisites**: familiarity with the [polynomial optimization API](@ref polynomial-optimization)
 # and the [GNS construction interface](@ref gns-construction-guide).
 #
-# Concretely, this page shows both:
+# Concretely, this page shows:
 #
-# 1. the raw GNS reconstruction as a correct but nonstandard Pauli representation,
-# 2. an explicit gauge-fixing that recovers the textbook computational basis.
+# 1. that the dense direct moment solve and the `dualize=true` SOS solve agree,
+# 2. the raw GNS reconstruction from the moments recovered off the dualized solve,
+# 3. an explicit gauge-fixing that recovers the textbook computational basis.
 
-using NCTSSoS, MosekTools, LinearAlgebra, Logging
+using NCTSSoS, MosekTools, JuMP, LinearAlgebra, Logging
 
 const MOI = NCTSSoS.MOI
 const SILENT_MOSEK = MOI.OptimizerWithAttributes(
@@ -44,11 +45,37 @@ const SILENT_MOSEK = MOI.OptimizerWithAttributes(
 )
 nothing #hide
 
-# ## Step 1 — Solve the order-2 moment relaxation directly
+function recover_complex_dual_monomap(moment_problem, model)
+    basis = [symmetric_canon(NCTSSoS.expval(mono)) for mono in moment_problem.total_basis]
+    sort!(basis)
+    unique!(basis)
+
+    coeff_constraints = all_constraints(model, AffExpr, MOI.EqualTo{Float64})
+    n_basis = length(basis)
+    length(coeff_constraints) == 2 * n_basis || error(
+        "Expected $(2 * n_basis) coefficient-matching equalities, got $(length(coeff_constraints))."
+    )
+
+    return Dict(
+        basis[i] => ComplexF64(
+            dual(coeff_constraints[i]),
+            dual(coeff_constraints[n_basis + i]),
+        )
+        for i in 1:n_basis
+    )
+end
+nothing #hide
+
+# ## Step 1 — Solve the order-2 relaxation on both primal and dual paths
 #
-# We solve the dense order-2 moment relaxation. The high-level [`cs_nctssos`](@ref)
-# interface gives the bound, but for GNS we also need the solved moment table
-# `monomap`, so we use the low-level moment workflow explicitly.
+# We solve the dense order-2 relaxation twice:
+#
+# 1. directly as a moment SDP, which gives the primal moment table immediately;
+# 2. through the `dualize=true` SOS route, whose equality multipliers recover the
+#    same primal moments.
+#
+# The high-level [`cs_nctssos`](@ref) interface gives the bound, but for GNS we
+# also need a concrete `monomap`, so we use the low-level symbolic workflow.
 
 registry, (σx, σy, σz) = create_pauli_variables(1:2)
 
@@ -73,28 +100,41 @@ moment_problem = NCTSSoS.moment_relax(
     sparsity.cliques_term_sparsities,
 )
 moment_result = NCTSSoS.solve_moment_problem(moment_problem, SILENT_MOSEK)
+dual_result = NCTSSoS.solve_sdp(moment_problem, SILENT_MOSEK; dualize=true)
+dual_monomap = recover_complex_dual_monomap(moment_problem, dual_result.model)
+
+@assert Set(keys(dual_monomap)) == Set(keys(moment_result.monomap))
+max_moment_recovery_error = maximum(
+    abs(dual_monomap[key] - moment_result.monomap[key])
+    for key in keys(moment_result.monomap)
+)
 
 solve_summary = (
-    objective = moment_result.objective,
+    primal_objective = moment_result.objective,
+    dual_objective = dual_result.objective,
     n_unique_moments = moment_result.n_unique_elements,
     solved_moments = length(moment_result.monomap),
+    max_recovered_moment_error = max_moment_recovery_error,
 )
 solve_summary
 
-# The page should fail loudly if that exactness ever regresses.
+# The page should fail loudly if exactness or primal/dual consistency regresses.
 
 @assert isapprox(moment_result.objective, -0.75; atol=5e-6)
+@assert isapprox(dual_result.objective, moment_result.objective; atol=5e-6)
+@assert max_moment_recovery_error < 1e-8
 
-# The order-2 relaxation is already exact for this problem.
+# The order-2 relaxation is already exact for this problem, and the `dualize=true`
+# route recovers the same moments needed for GNS.
 
-# ## Step 2 — Raw GNS reconstruction
+# ## Step 2 — Raw GNS reconstruction from the dualized solve
 #
-# From the solved moments we reconstruct a `4 × 4` representation. This is
-# already a valid Pauli representation, but not yet in the standard
-# computational basis.
+# We now run GNS on the moment table recovered from the dualized SOS model.
+# This still produces a `4 × 4` Pauli representation, but not yet in the
+# standard computational basis.
 
 gns = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(moment_result.monomap, registry, 2; atol=1e-6)
+    gns_reconstruct(dual_monomap, registry, 2; atol=1e-6)
 end;
 
 raw_X1 = gns.matrices[registry[:σx₁]]
@@ -319,13 +359,16 @@ ground_state_check
 #
 # ## Summary
 #
-# For the two-qubit XXX model, the GNS construction recovers:
+# For the two-qubit XXX model, the dense order-2 relaxation gives:
 #
-# 1. a `4 × 4` operator representation of the Pauli algebra,
-# 2. the exact textbook matrices after basis alignment,
-# 3. the full XXX Hamiltonian matrix with spectrum `{-3/4, 1/4, 1/4, 1/4}`,
-# 4. the singlet ground state as the aligned cyclic vector.
+# 1. matching primal moments from the direct moment solve and the recovered
+#    `dualize=true` SOS solve,
+# 2. a `4 × 4` operator representation of the Pauli algebra,
+# 3. the exact textbook matrices after basis alignment,
+# 4. the full XXX Hamiltonian matrix with spectrum `{-3/4, 1/4, 1/4, 1/4}`,
+# 5. the singlet ground state as the aligned cyclic vector.
 #
 # The important lesson is simple: **raw GNS output is only defined up to unitary
 # gauge, but for a small full-rank example you can fix that gauge explicitly and
-# recover the usual computational-basis physics.**
+# recover the usual computational-basis physics — even when the relaxation was
+# solved through the dualized SOS model.**

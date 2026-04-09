@@ -4,13 +4,14 @@ EditURL = "../literate/h4_chain_energy_benchmark.jl"
 
 # [H₄ Chain — k=0 Moment Relaxation](@id h4-chain-energy-benchmark)
 
-This example solves a **reduced model** of the periodic H₄ hydrogen chain
-(Nk=2) using an order-2 fermionic moment relaxation with canonical
-particle-number constraints.
+This example computes a **certified lower bound** on the ground-state
+energy of four hydrogen atoms arranged in a repeating chain — the simplest
+model of a crystalline solid.  We do this by converting the quantum
+mechanics problem into a **semidefinite program** (SDP).
 
-We restrict to the **k=0 intra-sector Hamiltonian** (16 spin-orbital modes)
-and impose $N_\uparrow = N_\downarrow = 2$ via `moment_eq_constraints`.
-This produces a valid SDP lower bound on the k=0-sector ground-state energy.
+We work with a **reduced model**: only the k=0 sector of an Nk=2 periodic
+hydrogen chain, solved with an order-2 fermionic moment relaxation and
+canonical particle-number constraints.
 
 !!! warning "Scope"
     This is **not** the full periodic V2RDM benchmark from the paper.
@@ -18,6 +19,131 @@ This produces a valid SDP lower bound on the k=0-sector ground-state energy.
     For the full asset inspection and a discussion of what the k-blocked
     formulation requires, see
     [H₄ Periodic Active-Space Workflow](@ref h4-periodic-active-space).
+
+## Background for newcomers
+
+This section defines every concept you need to follow the code below.
+If you already know quantum chemistry, skip ahead to **Setup**.
+
+### What is H₄?
+
+"H₄" means **four hydrogen atoms**.  Hydrogen is the simplest atom in
+nature — one proton in the nucleus, one electron orbiting it.  Four atoms
+give us four electrons whose behaviour we want to predict.
+
+We arrange the atoms in a **repeating chain**, like beads on a string that
+repeats forever.  That makes this a tiny model of a *crystal* — the kind of
+repeating atomic pattern found in metals, semiconductors, and insulators.
+
+### The electronic structure problem
+
+Atoms consist of heavy nuclei and light electrons.  The nuclei barely move
+(the *Born–Oppenheimer approximation*), so the interesting question is:
+**what are the electrons doing?**
+
+Quantum mechanics says the answer is encoded in the *Schrödinger equation*:
+
+```math
+\hat{H}\,|\Psi\rangle \;=\; E\,|\Psi\rangle
+```
+
+- $|\Psi\rangle$ is the **wave function** — a complete description of all
+  electrons.
+- $\hat{H}$ is the **Hamiltonian** — an operator that encodes the physics
+  (kinetic energy of electrons, attraction to nuclei, repulsion between
+  electrons).
+- $E$ is the **energy**.
+
+The smallest possible $E$ is called the **ground-state energy** — it
+describes the most stable configuration.  Finding this number is the
+central problem of computational quantum chemistry.
+
+**Why it's hard:** For $N$ electrons that can each occupy any of $r$
+available states ("orbitals"), the wave function lives in a space of
+dimension $\binom{r}{N}$.  For 100 orbitals and 50 electrons that's
+$\approx 10^{29}$.  You cannot store or diagonalize a matrix that large.
+
+### How SDP (semidefinite programming) helps
+
+The Hamiltonian contains only *one-body* terms (each electron on its own)
+and *two-body* terms (pairs of electrons repelling each other) — no
+three-electron interactions.  So the energy depends on electrons only
+through **pairs**.
+
+!!! info "Analogy"
+    Imagine computing the total "social energy" of a party.  If every
+    interaction is a two-person conversation, you don't need to track all
+    possible group configurations — just the pairwise interaction patterns.
+
+The mathematical object that captures all pairwise information is the
+**2-electron reduced density matrix** (2-RDM): a matrix of size roughly
+$r^2 \times r^2$ — polynomial in $r$, not exponential.  The energy turns
+out to be a *linear* function of the 2-RDM:
+$E = \operatorname{Tr}({}^2\!K \;\cdot\; {}^2\!D)$.
+
+The catch: not every matrix is a physically valid 2-RDM.  The constraints
+that enforce physical validity are called **N-representability conditions**
+— and the key ones are *semidefinite* constraints (certain derived matrices
+must be positive semidefinite).  Minimizing energy subject to these
+constraints is an SDP.
+
+Because the N-representability conditions used are *necessary but not
+sufficient*, the SDP minimum is a **lower bound** on the true ground-state
+energy.  In practice, this bound is remarkably tight — recovering 82–99%
+of the correlation energy for real molecules.  This approach is called
+**V2RDM** (variational 2-RDM method).
+
+### What "periodic" and "k-points" mean
+
+A **crystal** is a material whose atoms repeat in a regular pattern —
+like tiles on a floor.  The smallest repeating unit is the **unit cell**.
+
+Instead of simulating an infinite crystal, physicists exploit the
+repetition using *Bloch's theorem*: every electronic property decomposes
+into contributions labeled by a **crystal momentum** $k$.  Think of $k$ as
+a "frequency channel": $k = 0$ means the electron wave looks identical in
+every cell (no phase shift); other $k$ values correspond to waves that
+shift phase from cell to cell.
+
+The set of discrete $k$-values used in a finite simulation is called
+the set of **k-points**.  Here we use $N_k = 2$ k-points ($k=0$ and
+$k=1$), and **restrict to the $k=0$ sector only** — giving a
+self-contained 16-mode problem instead of the full 32-mode system.
+
+### What an "active space" is
+
+Real materials have many electrons, most of which sit in low-energy
+"core" orbitals that barely participate in chemistry.  The **active-space
+approximation** freezes those core electrons at a cheap mean-field level
+and focuses the expensive SDP only on the "active" electrons near the
+energy frontier.
+
+Here, **[4, 8]** means: 4 active electrons in 8 active orbitals per unit
+cell.  The energy of the frozen core is added back as a constant after
+optimization.
+
+### What a "moment relaxation" is
+
+In polynomial optimization, a **moment relaxation** replaces a hard
+problem with a hierarchy of SDPs, each tighter than the last.  At
+order $d$, you build a *moment matrix* whose entries are expected values
+of products of variables up to degree $2d$, and require it to be positive
+semidefinite.
+
+For electrons, the "variables" are **creation and annihilation operators**
+($a_i^\dagger$ adds an electron to mode $i$; $a_i$ removes one).  An
+**order-2** relaxation considers all products of up to 2 operators —
+which captures exactly the pairwise correlations the 2-RDM encodes.
+
+!!! info "V2RDM = order-2 moment relaxation"
+    The order-2 fermionic moment relaxation and the V2RDM method with
+    PQG conditions are the **same SDP** in different notation.
+    The moment matrix's subblocks contain the particle ($\mathcal{D}$),
+    hole ($\mathcal{Q}$), and particle-hole ($\mathcal{G}$) matrices
+    that chemists enforce separately.  Requiring the full moment matrix
+    to be PSD enforces all three at once.
+
+---
 
 **System** (Schouten, Ewing & Mazziotti, arXiv:2504.02861):
 
@@ -63,8 +189,11 @@ k=0 sector:  16 spin-orbital modes
 
 ## Spin-orbital index convention (k=0 sector)
 
-Inside the k=0 sector, we flatten $(\text{orbital}, \text{spin})$ into a
-single mode index over 16 modes:
+Each electron has a spatial position (which orbital it occupies) and a
+**spin** — an intrinsic quantum property that comes in two flavours:
+spin-up (↑) and spin-down (↓).  A **spin-orbital** combines both labels
+into one mode index.  Inside the k=0 sector we have 8 spatial orbitals
+× 2 spin species = 16 spin-orbitals, numbered as:
 
 | Mode range | Spin |
 |:-----------|:-----|
@@ -77,8 +206,20 @@ k0_mode(orb::Int, spin::Int) = spin * n_active_orb + orb + 1
 
 ## Building the k=0 Hamiltonian
 
-We use only the one-body block $h^{k=0}_{pq}$ and the intra-sector
-two-electron integral block $(0,0,0,0)$.  The second-quantized form is:
+The **Hamiltonian** is the mathematical operator that encodes all the
+physics of the system.  In **second-quantized** form — the standard
+language for many-electron problems — it is written in terms of creation
+operators $a^\dagger$ (which add an electron to a mode) and annihilation
+operators $a$ (which remove one).
+
+Our Hamiltonian has two pieces:
+
+- **One-body terms** ($h^0_{pq}$): an electron hops from orbital $q$ to
+  orbital $p$ — kinetic energy plus attraction to nuclei.
+- **Two-body terms** (ERI = electron repulsion integrals): two electrons
+  in orbitals $(p, q)$ repel each other into orbitals $(r, s)$.
+
+The second-quantized form is:
 
 ```math
 H_{k=0} = \sum_{pq\sigma} h^0_{pq}\;
@@ -89,8 +230,10 @@ H_{k=0} = \sum_{pq\sigma} h^0_{pq}\;
            a_{s\tau}\, a_{r\sigma}
 ```
 
-This omits all cross-k coupling terms like $(0,1,0,1)$ — it is a reduced
-model, not the full periodic Hamiltonian.
+We use only the $(0,0,0,0)$ ERI block — the block where all four orbital
+indices belong to the $k=0$ sector.  This omits all cross-k coupling
+terms like $(0,1,0,1)$ — it is a reduced model, not the full periodic
+Hamiltonian.
 
 Use the complex integral blocks **as stored**.  In this orbital gauge, the
 $(0,0,0,0)$ ERI block has nontrivial imaginary parts; the right fix is the
@@ -143,9 +286,13 @@ k=0 Hamiltonian: 1984 terms on 16 modes
 
 ## Hermitianization
 
-The raw Hamiltonian is only *numerically* Hermitian — floating-point
+A Hamiltonian must be **Hermitian** — physically, this means energy is a
+real number, and mathematically, $H = H^\dagger$ (the operator equals its
+conjugate transpose).
+
+The raw Hamiltonian we built is only *numerically* Hermitian — floating-point
 rounding in the integral file means $H \neq H^\dagger$ at machine precision.
-We enforce exact Hermiticity before handing the polynomial to the SDP.
+We enforce exact Hermiticity by averaging: $H \leftarrow (H + H^\dagger)/2$.
 
 !!! tip "Always Hermitianize ab initio Hamiltonians"
     Use the complex coefficients from the integral file as-is, then enforce
@@ -166,14 +313,17 @@ After Hermitianization: 1984 terms
 
 ## Canonical particle-number constraints
 
-The k=0 sector of the Nk=2 H₄ system has 4 active electrons per cell,
-split as $N_\uparrow = 2$ and $N_\downarrow = 2$.  We impose this as a
-state constraint: $(\hat{N}_\sigma - 2)|\psi\rangle = 0$.
+Electrons are conserved — you can't create or destroy them.  Our system
+has a fixed number of electrons: 2 spin-up and 2 spin-down in the k=0
+sector.  We tell the SDP about this by imposing **particle-number
+constraints**: the state $|\psi\rangle$ we're optimizing over must satisfy
+$\hat{N}_\uparrow |\psi\rangle = 2|\psi\rangle$ and
+$\hat{N}_\downarrow |\psi\rangle = 2|\psi\rangle$.
 
 This uses `moment_eq_constraints` — **not** `eq_constraints` — because
-fixed particle number is a property of the target state, not an operator
-identity.  See the [Hubbard Model](@ref hubbard-model) example for a
-detailed explanation of why the distinction matters.
+fixed particle number is a property of the *target state*, not an operator
+identity that holds for all states.  See the [Hubbard Model](@ref hubbard-model)
+example for a detailed explanation of why the distinction matters.
 
 ````julia
 n_up = 1.0 * sum(a_dag[i] * a[i] for i in 1:n_active_orb)
@@ -195,18 +345,25 @@ Target sector: N↑ = 2, N↓ = 2
 
 ## Order-2 SDP relaxation
 
-An order-2 fermionic moment relaxation builds a moment matrix indexed by
-all fermionic monomials up to degree 2.  For $n$ spin-orbital modes this
-gives $2n$ generators (each $a_i$ and $a_i^\dagger$) and a basis of size
+We now solve the SDP.  An order-2 fermionic moment relaxation builds a
+**moment matrix** indexed by all fermionic monomials up to degree 2.
+For $n$ spin-orbital modes this gives $2n$ generators (each $a_i$ and
+$a_i^\dagger$) and a basis of size
 $\binom{2n}{0} + \binom{2n}{1} + \binom{2n}{2}$.  For $n = 16$:
 $1 + 32 + 496 = 529$ elements.
+
+The SDP solver finds the assignment of expected values to these 529
+basis elements that (a) makes the moment matrix positive semidefinite,
+(b) respects the particle-number constraints, and (c) minimizes the
+energy.
 
 ### Why we don't need explicit PQG constraints
 
 In quantum chemistry, the "PQG conditions" are positivity constraints on
-the particle ($\mathcal{D}$), hole ($\mathcal{Q}$), and particle-hole
-($\mathcal{G}$) two-body reduced density matrices.  Our order-2 fermionic
-moment matrix already **implicitly** contains PQG-like positivity:
+three derived matrices called the particle ($\mathcal{D}$), hole
+($\mathcal{Q}$), and particle-hole ($\mathcal{G}$) reduced density
+matrices.  Our order-2 fermionic moment matrix already **implicitly**
+contains all three:
 
 - The $\mathcal{D}$ (particle) block corresponds to products
   $a_i^\dagger a_j^\dagger$ applied to $|\psi\rangle$,
@@ -253,9 +410,10 @@ Order-2 electronic energy (first pass): -3.6611870442 Ha
 
 ### Refinement
 
-One call to [`cs_nctssos_higher`](@ref) tightens the term-sparsity
-decomposition.  For well-conditioned problems this often improves the
-bound by a small amount at low marginal cost.
+One call to [`cs_nctssos_higher`](@ref) tightens the **term-sparsity
+decomposition** — a technique that breaks the large moment matrix into
+smaller blocks, reducing solver cost.  For well-conditioned problems this
+often improves the bound by a small amount at low marginal cost.
 
 ````julia
 println("Refining …")
@@ -272,10 +430,13 @@ Order-2 electronic energy (refined):    -3.6611883935 Ha
 
 ## Context: how does this compare?
 
-The k=0 intra-sector SDP bound is a lower bound on the **k=0 sector
-ground-state energy**, not on the full Nk=2 system energy.  To relate it
-to published numbers, we need the constant shift that accounts for
-frozen-core and nuclear-repulsion contributions.
+The result above is a lower bound on the **k=0 sector ground-state
+energy** — the energy of the electrons in the $k=0$ "frequency channel"
+only.  It is *not* the total energy of the full system.
+
+To relate it to published numbers, we need the **constant shift**: the
+energy from frozen-core electrons and nuclear repulsion that we set aside
+when we defined the active-space Hamiltonian.
 
 ````julia
 hf_elec = hf_energy(h1e, eri; nk, n_active_elec)
@@ -333,15 +494,22 @@ That formulation is future work for `NCTSSoS.jl`.
 - k-blocked or spin-adapted formulation
 - Reproduce the published V2RDM energy per cell
 
-### Key concepts
+### Glossary
 
-| Concept | One-liner |
-|:--------|:----------|
-| **k=0 intra-sector model** | Use only the $(0,0,0,0)$ ERI block — ignores inter-k coupling |
-| **Hermitianization** | Force exact $H = H^\dagger$ on floating-point integrals before the SDP |
-| **Canonical constraints** | Fix particle number per spin species via `moment_eq_constraints` |
-| **Implicit PQG** | Order-2 fermionic moment matrix contains $\mathcal{D}$/$\mathcal{Q}$/$\mathcal{G}$ blocks as principal submatrices |
-| **Term sparsity** | `MMD()` heuristic decomposes the moment matrix into smaller blocks |
+| Term | Meaning |
+|:-----|:--------|
+| **Ground-state energy** | Lowest possible energy of the electrons — the most stable configuration |
+| **Hamiltonian** | The mathematical operator that encodes all the physics (kinetic energy, attractions, repulsions) |
+| **Orbital / spin-orbital** | A possible state for one electron.  A spin-orbital specifies both spatial shape and spin (↑ or ↓) |
+| **2-RDM** | 2-electron reduced density matrix — captures all pairwise electron correlations in a polynomial-size matrix |
+| **N-representability** | Constraints ensuring a candidate 2-RDM could actually come from a physical quantum state |
+| **PQG conditions** | Three positive-semidefiniteness constraints (particle, hole, particle-hole) — the standard N-representability conditions for V2RDM |
+| **Active space [n, r]** | Solve the expensive part for $n$ electrons in $r$ orbitals; freeze the rest |
+| **k-point / crystal momentum** | A label for how an electron's wave shifts phase between unit cells.  $k=0$ means no shift |
+| **Moment relaxation** | An SDP that lower-bounds the optimum by constraining a moment matrix to be PSD |
+| **Hermitianization** | Averaging $H$ and $H^\dagger$ to enforce exact self-adjointness on floating-point data |
+| **ERI** | Electron repulsion integrals — the numbers that quantify how much two electrons in given orbitals repel each other |
+| **Term sparsity** | `MMD()` heuristic that decomposes the moment matrix into smaller blocks for computational efficiency |
 
 ### See also
 

@@ -1,17 +1,26 @@
 # # [H₄ Periodic Active-Space Workflow](@id h4-periodic-active-space)
 #
-# This page is an **asset-backed workflow example**.  It inspects the vendored
-# Nk=2 periodic H₄ active-space data, reconstructs the Hartree–Fock bookkeeping
-# already encoded there, and shows why the current solver API is not yet the
-# right interface for the full periodic V2RDM benchmark.
+# This page **inspects** the vendored data for a periodic hydrogen chain and
+# explains what it contains — without running an SDP solve.  It reconstructs
+# the Hartree–Fock bookkeeping, builds a derived tensor, and shows why the
+# current solver API is not yet the right interface for the full periodic
+# V2RDM benchmark.
 #
-# Concretely, we will:
+# If you want to understand the background concepts (what H₄ is, what
+# "periodic" means, how SDP helps, what a moment relaxation is), start with
+# the companion page:
+# [H₄ Chain — k=0 Moment Relaxation](@ref h4-chain-energy-benchmark).
 #
-# 1. load the reviewed Nk=2 assets shipped with the repository,
-# 2. inspect the k-blocked one- and two-body integrals,
-# 3. reconstruct the active-space HF energy, total HF energy, and constant shift,
-# 4. rebuild the derived ``K_2`` tensor,
-# 5. quantify why a naive 32-mode order-2 lift becomes a dense relaxation in disguise.
+# ## What this page covers
+#
+# 1. Load the reviewed Nk=2 assets shipped with the repository.
+# 2. Inspect the **k-blocked one- and two-body integrals** (the numbers
+#    that encode how electrons interact).
+# 3. Reconstruct the **Hartree–Fock energy** and the **constant shift**
+#    (see below).
+# 4. Rebuild the derived $K_2$ tensor.
+# 5. Quantify why a naive 32-mode order-2 lift becomes a dense relaxation
+#    in disguise.
 #
 # What we **do not** do here is claim that `NCTSSoS.jl` already reproduces the
 # full periodic V2RDM solve from the paper.  The k-blocked / spin-adapted
@@ -28,6 +37,44 @@
 # [H₄ Chain — k=0 Moment Relaxation](@ref h4-chain-energy-benchmark).  That
 # companion page keeps only the k=0 intra-sector Hamiltonian and is explicit
 # about what it does — and does not — certify.
+#
+# ## Key concepts for this page
+#
+# ### What is Hartree–Fock (HF)?
+#
+# **Hartree–Fock** is the simplest approximation to the electronic structure
+# problem.  It assumes each electron moves independently in an average field
+# created by all the others — like assuming each party guest reacts only to
+# the average mood, not to specific conversations.  HF gives a baseline
+# energy, but misses **correlation energy** — the energy lowering that comes
+# from electrons actually avoiding each other.
+#
+# ### What is an active space?
+#
+# Real materials have many electrons, most of which sit in low-energy "core"
+# orbitals that barely participate in interesting physics.  The **active-space
+# approximation** freezes core electrons at the HF level and runs the
+# expensive calculation only on the "active" electrons and orbitals near the
+# energy frontier.  The notation **[4, 8]** means 4 active electrons in 8
+# active orbitals per unit cell.
+#
+# The energy of the frozen core is accounted for by a **constant shift**
+# (also called the "additive constant") that gets added back after
+# optimization.
+#
+# ### What are "integrals" in this context?
+#
+# The Hamiltonian (the operator encoding all physics) is built from numbers
+# called **integrals** — computed from the overlap of electron orbitals:
+#
+# - **One-body integrals** ($h_{pq}$): encode kinetic energy and
+#   electron–nucleus attraction.  One matrix per k-point.
+# - **Two-body integrals** (ERI = electron repulsion integrals,
+#   $V_{pqrs}$): encode electron–electron Coulomb repulsion.  Stored as
+#   blocks labeled by four k-point indices $(k_1, k_2, k_3, k_4)$.
+#
+# Crystal momentum conservation means most k-combinations are zero —
+# only blocks where $k_1 + k_2 \equiv k_3 + k_4 \pmod{N_k}$ survive.
 
 # ## Setup
 #
@@ -53,24 +100,24 @@ nothing #hide
 
 # ## Physical setup and vendored assets
 #
-# The reviewed H₄ asset corresponds to a periodic hydrogen chain in **k-space**:
+# The reviewed H₄ asset corresponds to a periodic hydrogen chain in **k-space**
+# (see the [companion page](@ref h4-chain-energy-benchmark) for what "k-space"
+# means):
 #
-# - **4 H atoms per unit cell**,
-# - bond distance **1.0 Å**,
-# - lattice constant **4.0 Å**,
-# - active space **[4,8] per unit cell**,
-# - **Nk = 2** k-points.
+# - **4 H atoms per unit cell** — the repeating unit of the crystal,
+# - bond distance **1.0 Å** — the spacing between adjacent atoms,
+# - lattice constant **4.0 Å** — the length of one full repeating unit,
+# - active space **[4,8] per unit cell** — 4 electrons, 8 orbitals,
+# - **Nk = 2** k-points — two discrete "frequency channels" ($k=0$ and $k=1$).
 #
 # For this Nk=2 asset that means:
 #
 # - **4 active electrons per cell**,
-# - **8 active spatial orbitals per k-point**,
-# - **16 spatial orbitals total**,
-# - **32 spin-orbital modes** under a naive spin lift.
-#
-# We load the reviewed metadata plus the parsed integral blocks.  The printed
-# summary stays compact on purpose; the full tensors remain in the vendored text
-# file rather than being dumped into the docs page.
+# - **8 active spatial orbitals per k-point** (a spatial orbital describes
+#   where an electron can be, ignoring spin),
+# - **16 spatial orbitals total** (8 per k-point × 2 k-points),
+# - **32 spin-orbital modes** when we account for spin (each spatial orbital
+#   splits into spin-up and spin-down).
 
 asset = load_nk2_asset()
 (; reference, preflight, blocker, figure, nk, n_active_orb, n_active_elec,
@@ -94,9 +141,14 @@ println("naive spin-orbital modes = ", total_spin_orbital_modes)
 
 # ## One-body block structure: ``h_{pq}^k``
 #
-# The file stores one-electron integrals as separate Hermitian blocks for each
-# k-point.  For Nk=2 we expect exactly two blocks, `k = 0` and `k = 1`.
-# We summarize each block by its shape, number of nonzeros, and diagonal values.
+# The one-body integrals (kinetic energy + nuclear attraction) are stored as
+# separate **Hermitian** blocks for each k-point.  "Hermitian" means the
+# matrix equals its conjugate transpose — a physical requirement ensuring
+# energies are real numbers.
+#
+# For Nk=2 we expect exactly two blocks, `k = 0` and `k = 1`.
+# We summarize each by shape, number of nonzeros, and diagonal values.
+# The diagonal values represent the orbital energies at each k-point.
 
 h1e_keys = sort(collect(keys(h1e)))
 @assert h1e_keys == [0, 1] #src
@@ -118,9 +170,14 @@ end
 
 # ## Two-body momentum-conserving ERI blocks
 #
-# The two-electron integrals are stored as blocks keyed by
-# `(k₁, k₂, k₃, k₄)`.  Only momentum-conserving combinations are present.
-# For Nk=2 that leaves eight blocks.  Again we print only compact summaries.
+# The two-electron repulsion integrals are stored as blocks keyed by four
+# k-point indices `(k₁, k₂, k₃, k₄)`.  **Momentum conservation** —
+# $k_1 + k_2 \equiv k_3 + k_4 \pmod{N_k}$ — means most combinations
+# vanish.  For Nk=2 that leaves eight nonzero blocks.
+#
+# This is the same idea as the [companion page](@ref h4-chain-energy-benchmark)
+# restricting to the $(0,0,0,0)$ block — but here we see *all* surviving
+# blocks, including the cross-k ones that the reduced model ignores.
 
 eri_keys = sort(collect(keys(eri)))
 @assert length(eri_keys) == preflight["eri_blocks"] #src
@@ -138,9 +195,14 @@ println(@sprintf("max |ERI| = %.12f", maximum(maximum(abs, block) for block in v
 
 # ## Reconstructing the Hartree–Fock energy bookkeeping
 #
-# The integral dump represents the **active-space electronic Hamiltonian**.  To
-# recover the total PySCF Hartree–Fock energy per cell, we must add back the
-# constant shift that is not explicit in the second-quantized active-space data.
+# The integral file represents the **active-space** electronic Hamiltonian —
+# it describes only the active electrons, not the frozen core.  To recover
+# the total HF energy that PySCF reports, we must add back the **constant
+# shift**: the combined energy of (a) frozen-core electrons, (b) nuclear
+# repulsion, and (c) core-active interactions.
+#
+# This bookkeeping matters: comparing the active-space energy directly
+# against the total PySCF number would be mixing two different conventions.
 
 hf_electronic = hf_energy(h1e, eri; nk, n_active_elec)
 hf_total = preflight["hf_total_energy"]
@@ -160,9 +222,15 @@ println(@sprintf("HF total energy per cell          = %.13f Ha", hf_total))
 
 # ## Rebuilding the derived ``K_2`` tensor
 #
-# The research workflow also constructs a derived ``K_2`` tensor from the
-# normalized one- and two-body blocks.  Flattening the compound index `(k, p)`
-# gives a `(16, 16, 16, 16)` tensor for this Nk=2 asset.
+# The **reduced Hamiltonian** ${}^2K$ is a 4-index tensor that combines the
+# one-body and two-body integrals into a single object.  The ground-state
+# energy is then simply $E = \operatorname{Tr}({}^2K \cdot {}^2D)$ — a
+# linear function of the 2-RDM.  (See the
+# [companion page](@ref h4-chain-energy-benchmark) for what a 2-RDM is.)
+#
+# Flattening the compound index `(k, p)` gives a `(16, 16, 16, 16)` tensor
+# for this Nk=2 asset.  Reconstructing it validates the asset-processing
+# pipeline.
 
 k2 = build_k2(h1e, eri; nk, n_active_orb, n_total_electrons = total_active_electrons)
 k2_nnz = count_nonzero_entries(k2)
@@ -180,13 +248,19 @@ println(@sprintf("sample K₂[1,1,1,1] = %.12f%+.12fim", real(k2[1, 1, 1, 1]), i
 
 # ## Why a naive order-2 spin-orbital lift is the wrong interface
 #
-# A tempting idea is to flatten the 16 spatial orbitals into 32 spin orbitals,
-# feed that Hamiltonian into the current fermionic API, and call order-2.  For
-# this asset, that would mostly hide dense work behind a familiar interface.
+# A tempting shortcut: flatten the 16 spatial orbitals into 32 spin orbitals,
+# feed that into the existing fermionic API, and call order-2.  Why doesn't
+# this work?
 #
-# The extracted compound-orbital coupling graph is effectively **complete**:
-# once the ab initio ERIs are included, every spatial orbital couples to every
-# other one.  Correlative sparsity therefore collapses to a single dense clique.
+# **Correlative sparsity** is the technique `NCTSSoS.jl` uses to break large
+# SDPs into smaller, cheaper blocks.  It works by finding groups of variables
+# that don't interact — if orbital A never appears in the same term as
+# orbital B, their moment-matrix blocks can be solved independently.
+#
+# But for real molecules, the electron repulsion integrals couple essentially
+# **every** orbital to every other.  The coupling graph is *complete* — there
+# are no independent groups to split off.  Correlative sparsity collapses to
+# a single dense clique, and you're back to solving one giant SDP.
 
 spatial_edges = compound_spatial_edge_count(h1e, eri; n_active_orb)
 complete_edges = complete_graph_edge_count(total_spatial_orbitals)
@@ -205,16 +279,28 @@ println("naive spin-orbital modes  = ", total_spin_orbital_modes)
 println("order-2 basis size        = ", order2_basis_size)
 println("unique order-2 moments    = ", order2_nuniq)
 
-# `2081` basis elements and `679121` unique moments are not a lightweight docs
-# or CI example.  Without a formulation that keeps the periodic structure explicit
-# — k-blocked, spin-adapted, or both — the current API is doing dense work in
-# disguise.
+# 2081 basis elements and 679121 unique moments — this is not a lightweight
+# docs or CI example.  The right approach is a formulation that keeps the
+# periodic structure explicit — **k-blocked**, **spin-adapted**, or both —
+# rather than collapsing everything into one dense matrix.  That is future
+# work for `NCTSSoS.jl`.
 
 # ## Figure values are context, not oracles
 #
-# The reference TOML also stores energies visually digitized from the paper's
-# figure.  Those numbers are useful for orientation, but they are **not exact**.
+# The reference TOML also stores energies visually read off ("digitized")
+# from the paper's figure.  These are useful for orientation — they show
+# where different methods land — but they are **not exact numbers**.
 # Treat them like plot labels, not regression targets.
+#
+# The methods shown below form a hierarchy of increasing accuracy (and cost):
+#
+# - **HF** (Hartree–Fock): mean-field, no correlation energy.
+# - **MP2** (2nd-order perturbation theory): cheapest correlation correction.
+# - **CCSD** (coupled-cluster singles & doubles): systematic wave-function method.
+# - **CCSD(T)**: CCSD with perturbative triples — the "gold standard" of
+#   quantum chemistry.
+# - **V2RDM [4,8]**: the SDP-based method from the paper, with active space
+#   [4, 8].
 
 figure_uncertainty = reference["figure_reference"]["energy_uncertainty_Ha"]
 @assert abs(hf_total - figure["HF"]) > figure_uncertainty #src

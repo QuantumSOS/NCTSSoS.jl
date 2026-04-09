@@ -30,6 +30,8 @@ makedocs(;
             "Ground State Energy"=>"examples/generated/ground_state_energy.md",
             "Fermionic Ground State"=>"examples/generated/fermionic_ground_state.md",
             "Kitaev Chain"=>"examples/generated/kitaev_chain.md",
+            "H₄ Periodic Active-Space Workflow"=>"examples/generated/h4_periodic_active_space.md",
+            "H₄ Chain — k=0 Moment Relaxation"=>"examples/generated/h4_chain_energy_benchmark.md",
             "Hubbard Model"=>"examples/generated/hubbard_model.md",
             "Bosonic Ground State"=>"examples/generated/bosonic_ground_state.md",
             "Pauli Algebra Interface"=>"examples/generated/pauli_algebra_interface.md",

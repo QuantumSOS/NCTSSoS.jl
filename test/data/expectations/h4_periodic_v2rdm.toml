@@ -1,0 +1,37 @@
+schema_version = 1
+
+[[cases]]
+id = "nk2_asset_preflight"
+notes = "H₄ periodic active-space asset imported from the fermion-boson-sdp research note. The raw files are vendored under test/data/assets/ so the repo can regression-check the reviewed integrals and metadata without depending on external note paths. Figure energies remain approximate digitizations. The exact PySCF HF total energy is stored separately from the active-space electronic part, because the integral-backed second-quantized Hamiltonian omits an additive constant shift."
+
+    [cases.expected]
+    nk = 2
+    active_space_electrons_per_cell = 4
+    active_space_orbitals_per_k = 8
+    total_active_electrons = 8
+    total_spatial_orbitals = 16
+    total_spin_orbital_modes = 32
+    eri_blocks = 8
+    hf_total_energy = -2.1133521247843836
+    hf_active_space_electronic_energy = -3.3902648213395157
+    hf_constant_shift = 1.276912696555132
+    max_abs_eri = 0.4520340338898752
+    max_abs_k2 = 0.28563440426286857
+    h1e_diag_k0 = [-1.563345664952, -1.215911741271, -1.200615973276, -0.3979619502946, -0.05321845839529, -0.06868059625704, -0.3490385684207, -0.24838706129]
+    h1e_diag_k1 = [-1.473803936332, -1.473804144695, -0.6247338037341, -0.6247356635082, -0.4587556999877, -0.4587573711461, -0.1552725248935, -0.1552725248935]
+    figure_hf_nk2 = -2.107
+    figure_mp2_nk2 = -2.182
+    figure_ccsd_nk2 = -2.203
+    figure_ccsd_t_nk2 = -2.206
+    figure_v2rdm_nk2 = -2.188
+    figure_uncertainty_ha = 0.002
+
+[[cases]]
+id = "spin_orbital_order2_blocker"
+notes = "A faithful spin-orbital lift of the Nk=2 [4,8] periodic asset uses 32 fermionic modes. Because the extracted ab initio couplings connect every compound spatial orbital, correlative sparsity collapses to a single dense clique. These counts document why the full order-2 solve is not CI-ready on the current API without a k-blocked / spin-adapted formulation."
+
+    [cases.expected]
+    spatial_graph_complete = true
+    spatial_graph_edges = 120
+    order2_basis_size = 2081
+    order2_nuniq = 679121

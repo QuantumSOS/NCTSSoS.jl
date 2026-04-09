@@ -44,6 +44,7 @@ using .TestExpectations: expectations_oracle
         include("problems/fermionic/fermionic_chain.jl")
         include("problems/fermionic/xy_model.jl")
         include("problems/fermionic/free_fermion.jl")
+        include("problems/fermionic/h4_periodic_v2rdm.jl")
         include("problems/condensed_matter/harmonic_oscillator.jl")
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")

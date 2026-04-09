@@ -1,0 +1,77 @@
+# H4 chain periodic V2RDM benchmark data
+# Source: Schouten, Ewing & Mazziotti, arXiv:2504.02861
+# System: 4 H atoms/cell, 1 Å bond distance, a = 4.0 Å
+# Basis: gth-tzvp, Pseudo: gth-pade, DF: GDF
+# Active space: [4,8] per unit cell
+
+[system]
+atoms_per_cell = 4
+bond_distance_angstrom = 1.0
+lattice_constant_angstrom = 4.0
+basis = "gth-tzvp"
+pseudo = "gth-pade"
+active_space_electrons = 4
+active_space_orbitals = 8
+
+# Energies per unit cell in Hartree (digitized from Fig. 1 / H4_energy_tzvp.png;
+# visually re-checked against the paper figure on 2026-04-08; ± 0.002 Ha)
+[[energies]]
+nk = 2
+HF = -2.107
+MP2 = -2.182
+CCSD = -2.203
+CCSD_T = -2.206
+V2RDM_4_8 = -2.188
+
+[[energies]]
+nk = 4
+HF = -2.137
+MP2 = -2.215
+CCSD = -2.233
+CCSD_T = -2.236
+V2RDM_4_8 = -2.221
+
+[[energies]]
+nk = 6
+HF = -2.141
+MP2 = -2.221
+CCSD = -2.237
+CCSD_T = -2.241
+V2RDM_4_8 = -2.225
+
+[[energies]]
+nk = 8
+HF = -2.142
+MP2 = -2.223
+CCSD = -2.238
+CCSD_T = -2.242
+V2RDM_4_8 = -2.225
+
+# PySCF-extracted integrals (Nk=2)
+[pyscf_nk2]
+HF_energy = -2.1133521247843836
+data_npz = "h4_chain_nk2.npz"
+data_txt = "h4_chain_nk2_integrals.txt"
+n_eri_blocks = 8
+max_abs_eri = 0.4520340338898752
+max_abs_K2 = 0.28563440426286857
+
+[pyscf_nk2.h1e_diag_k0]
+values = [-1.5633, -1.2159, -1.2006, -0.3980, -0.0532, -0.0687, -0.3490, -0.2484]
+
+[pyscf_nk2.h1e_diag_k1]
+values = [-1.4738, -1.4738, -0.6247, -0.6247, -0.4588, -0.4588, -0.1553, -0.1553]
+
+[figure_reference]
+source = "Schouten et al. 2025, Fig. 1"
+image = "H4_energy_tzvp.png"
+verified_on = "2026-04-08"
+energy_uncertainty_Ha = 0.002
+
+# Key findings from paper / figure
+[findings]
+v2rdm_vs_ccsd_t_total_energy_percent_at_nk8 = 99.24
+v2rdm_minus_ccsd_t_at_nk8_Ha = 0.017
+k_convergence_threshold_Ha = 1e-4
+k_convergence_at_nk = 7
+noo_hono_luno_equivalence_at_k0 = true

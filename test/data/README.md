@@ -5,6 +5,7 @@ This directory stores reviewed expectation values (fixtures) used by solver-depe
 ## Layout
 
 - `expectations/*.toml`: numeric expectations keyed by stable `id` strings.
+- `assets/`: reviewed raw benchmark inputs that are too specific or bulky for the expectation tables alone (for example imported integral dumps used by asset-backed tests).
 
 ## TOML schema (v1)
 

@@ -93,10 +93,10 @@ physics entirely.
 The grand-canonical ground state may live in a **different**
 particle-number sector than the one of physical interest.  For
 our $N = 4$ ring with $U/t = 4$, the global ground state has
-$E_0 \approx -3.419$, while the half-filled sector
-($N_\uparrow = N_\downarrow = 2$) has $E_0 \approx -2.103$.  If you
-care about the half-filled Mott physics, you **must** constrain
-the particle number.
+$E_0 \approx -3.419$ in the dilute sector $(N_\uparrow, N_\downarrow) = (1, 1)$,
+while the half-filled sector $(N_\uparrow = N_\downarrow = 2)$ has
+$E_0 \approx -2.103$.  If you care about the half-filled Mott physics,
+you **must** constrain the particle number.
 
 !!! tip "When to use canonical constraints"
     Real experiments almost always fix the electron count — electrons
@@ -116,14 +116,20 @@ for real materials.
 using LinearAlgebra
 
 # Jordan–Wigner building blocks
+````
+
+We use the occupation-basis convention |0⟩ = empty, |1⟩ = occupied,
+so bit counts in the computational basis equal literal particle numbers.
+
+````julia
 const PAULI_Z = ComplexF64[1 0; 0 -1]
 const PAULI_I = Matrix{ComplexF64}(I, 2, 2)
-const JW_RAISE = ComplexF64[0 1; 0 0]   # σ⁺ (creation in JW)
-const JW_LOWER = ComplexF64[0 0; 1 0]   # σ⁻ (annihilation in JW)
+const JW_CREATE = ComplexF64[0 0; 1 0]   # |1⟩⟨0|
+const JW_DESTROY = ComplexF64[0 1; 0 0]  # |0⟩⟨1|
 
 function jw_fermion_op(mode::Int, kind::Symbol, nmodes::Int)
     mats = [site < mode ? PAULI_Z :
-            site == mode ? (kind === :annihilate ? JW_LOWER : JW_RAISE) :
+            site == mode ? (kind === :annihilate ? JW_DESTROY : JW_CREATE) :
             PAULI_I for site in 1:nmodes]
     return reduce(kron, mats)
 end
@@ -166,22 +172,25 @@ U = 4.0
 
 H_mat = hubbard_exact_matrix(N; t, U)
 E_full = eigmin(H_mat)
+E_dilute = sector_ground_state_energy(H_mat, N; nup = 1, ndn = 1)
 E_half = sector_ground_state_energy(H_mat, N; nup = 2, ndn = 2)
 
 println("Full Fock space GS:    E₀ = $(round(E_full; digits=6))")
+println("Dilute (1,1) GS:       E₀ = $(round(E_dilute; digits=6))")
 println("Half-filled (2,2) GS:  E₀ = $(round(E_half; digits=6))")
 ````
 
 ````
 Full Fock space GS:    E₀ = -3.418551
+Dilute (1,1) GS:       E₀ = -3.418551
 Half-filled (2,2) GS:  E₀ = -2.102748
 
 ````
 
-The global ground state (energy $\approx -3.42$) sits in a
-particle-number sector with *more* than half-filling.  The half-filled
-sector ($E_0 \approx -2.10$) is the physically relevant one for Mott
-physics.
+The global ground state (energy $\approx -3.42$) sits in the dilute
+$(N_\uparrow, N_\downarrow) = (1, 1)$ sector, not at half-filling.  The
+half-filled sector ($E_0 \approx -2.10$) is the physically relevant one
+for Mott physics.
 
 ---
 
@@ -440,6 +449,9 @@ order 4 to close the gap to numerical precision.
   creation/annihilation operators, CAR, parity constraints
 - [Kitaev Chain](@ref kitaev-chain) — pairing terms, Majorana
   operators, topological phases
+- [Hubbard Model (Filling-Sector Scan)](@ref hubbard-filling-scan) —
+  what the unconstrained SDP does, and how it compares with exact
+  diagonalisation across all $(N_\uparrow, N_\downarrow)$ sectors
 - [Ground State Energy](@ref ground-state-energy) — Pauli-level spin
   chain examples
 

@@ -31,6 +31,8 @@ makedocs(;
             "Fermionic Ground State"=>"examples/generated/fermionic_ground_state.md",
             "Kitaev Chain"=>"examples/generated/kitaev_chain.md",
             "H₄ Periodic Active-Space Workflow"=>"examples/generated/h4_periodic_active_space.md",
+            "H₄ Periodic Chain — Correlative-Sparsity Attempt"=>"examples/generated/h4_periodic_correlative_sparsity.md",
+            "H₄ Periodic Chain — Incomplete Momentum-Basis Relaxation"=>"examples/generated/h4_periodic_incomplete_momentum_basis.md",
             "H₄ Chain — k=0 Moment Relaxation"=>"examples/generated/h4_chain_energy_benchmark.md",
             "Hubbard Model"=>"examples/generated/hubbard_model.md",
             "Bosonic Ground State"=>"examples/generated/bosonic_ground_state.md",

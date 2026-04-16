@@ -19,6 +19,11 @@ canonical particle-number constraints.
     For the full asset inspection and a discussion of what the k-blocked
     formulation requires, see
     [H₄ Periodic Active-Space Workflow](@ref h4-periodic-active-space).
+    For the first full-Nk=2 attempt that uses only correlative sparsity, see
+    [H₄ Periodic Chain — Correlative-Sparsity Attempt](@ref h4-periodic-correlative-sparsity).
+    For the later full-Nk=2 compromise solve that keeps the periodic
+    Hamiltonian but uses a hand-built incomplete basis, see
+    [H₄ Periodic Chain — Incomplete Momentum-Basis Relaxation](@ref h4-periodic-incomplete-momentum-basis).
 
 ## Background for newcomers
 
@@ -100,10 +105,28 @@ like tiles on a floor.  The smallest repeating unit is the **unit cell**.
 
 Instead of simulating an infinite crystal, physicists exploit the
 repetition using *Bloch's theorem*: every electronic property decomposes
-into contributions labeled by a **crystal momentum** $k$.  Think of $k$ as
-a "frequency channel": $k = 0$ means the electron wave looks identical in
-every cell (no phase shift); other $k$ values correspond to waves that
-shift phase from cell to cell.
+into contributions labeled by a **crystal momentum** $k$.
+
+Physically, $k$ describes the **phase pattern between unit cells** — not
+a velocity.  Think of a standing wave on a guitar string:
+
+- $k = 0$: every unit cell has the same sign — all copies in sync.
+- $k = \pi/a$: the sign alternates between neighboring cells — plus,
+  minus, plus, minus.
+
+The value $k$ labels the wavelength of this inter-cell pattern, exactly
+like a frequency in Fourier analysis.
+
+At each $k$-value, there are **multiple orbitals** — different spatial
+shapes with different energies.  If you've seen a band-structure plot
+(energy vs. $k$ with multiple curves), each curve corresponds to a
+different orbital index $p$ at the same momentum.  So a full orbital
+label needs two pieces: the momentum $k$ (which "building" in k-space)
+and the orbital index $p$ (which "floor" in that building).
+
+For our H₄ chain, 4 atoms per unit cell contribute 8 active spatial
+orbitals per cell.  Each of those 8 shapes exists at each k-point,
+giving $8 \times N_k$ spatial orbitals total.
 
 The set of discrete $k$-values used in a finite simulation is called
 the set of **k-points**.  Here we use $N_k = 2$ k-points ($k=0$ and
@@ -500,12 +523,13 @@ That formulation is future work for `NCTSSoS.jl`.
 |:-----|:--------|
 | **Ground-state energy** | Lowest possible energy of the electrons — the most stable configuration |
 | **Hamiltonian** | The mathematical operator that encodes all the physics (kinetic energy, attractions, repulsions) |
-| **Orbital / spin-orbital** | A possible state for one electron.  A spin-orbital specifies both spatial shape and spin (↑ or ↓) |
+| **Orbital** | A function $\phi(x,y,z) \to \mathbb{C}$ describing one possible state for an electron.  $|\phi|^2$ gives the probability density of finding the electron at each point in space.  The simplest example: hydrogen's 1s orbital is a blob centered on the nucleus that decays exponentially with distance |
+| **Spin-orbital** | An orbital with a spin label (↑ or ↓) attached — specifies both spatial shape and spin |
 | **2-RDM** | 2-electron reduced density matrix — captures all pairwise electron correlations in a polynomial-size matrix |
 | **N-representability** | Constraints ensuring a candidate 2-RDM could actually come from a physical quantum state |
 | **PQG conditions** | Three positive-semidefiniteness constraints (particle, hole, particle-hole) — the standard N-representability conditions for V2RDM |
 | **Active space [n, r]** | Solve the expensive part for $n$ electrons in $r$ orbitals; freeze the rest |
-| **k-point / crystal momentum** | A label for how an electron's wave shifts phase between unit cells.  $k=0$ means no shift |
+| **k-point / crystal momentum** | A label for the phase pattern between unit cells — like a wavelength on a guitar string.  $k=0$: all cells in sync (no phase shift).  $k=\pi/a$: sign alternates between neighbors.  Not a velocity — a spatial frequency |
 | **Moment relaxation** | An SDP that lower-bounds the optimum by constraining a moment matrix to be PSD |
 | **Hermitianization** | Averaging $H$ and $H^\dagger$ to enforce exact self-adjointness on floating-point data |
 | **ERI** | Electron repulsion integrals — the numbers that quantify how much two electrons in given orbitals repel each other |
@@ -514,8 +538,13 @@ That formulation is future work for `NCTSSoS.jl`.
 ### See also
 
 - [H₄ Periodic Active-Space Workflow](@ref h4-periodic-active-space) —
-  full asset inspection, HF reconstruction, why the naive 32-mode lift
+  full asset inspection, HF reconstruction, and why the naive 32-mode lift
   is the wrong interface
+- [H₄ Periodic Chain — Correlative-Sparsity Attempt](@ref h4-periodic-correlative-sparsity) —
+  full Nk=2 Hamiltonian, no custom basis, correlative sparsity only, and the
+  point where the current API runs out of useful structure
+- [H₄ Periodic Chain — Incomplete Momentum-Basis Relaxation](@ref h4-periodic-incomplete-momentum-basis) —
+  full Nk=2 Hamiltonian with a smaller hand-built basis and term sparsity
 - [Hubbard Model](@ref hubbard-model) — canonical constraints with
   `moment_eq_constraints`, the `eq_constraints` vs. `moment_eq_constraints`
   distinction

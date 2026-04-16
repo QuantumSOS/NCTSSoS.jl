@@ -38,6 +38,15 @@
 # companion page keeps only the k=0 intra-sector Hamiltonian and is explicit
 # about what it does — and does not — certify.
 #
+# If you want the **first honest full-Nk=2 attempt** with the current solver
+# interface — keep the full Bloch-basis Hamiltonian, turn on only correlative
+# sparsity, and see where Mosek runs out of road — see
+# [H₄ Periodic Chain — Correlative-Sparsity Attempt](@ref h4-periodic-correlative-sparsity).
+#
+# If you then want a **runnable full-Nk=2 compromise solve** that keeps the
+# whole periodic Hamiltonian but uses a hand-built incomplete order-2 basis,
+# see [H₄ Periodic Chain — Incomplete Momentum-Basis Relaxation](@ref h4-periodic-incomplete-momentum-basis).
+#
 # ## Key concepts for this page
 #
 # ### What is Hartree–Fock (HF)?
@@ -75,6 +84,16 @@
 #
 # Crystal momentum conservation means most k-combinations are zero —
 # only blocks where $k_1 + k_2 \equiv k_3 + k_4 \pmod{N_k}$ survive.
+#
+# !!! info "What is crystal momentum, physically?"
+#     The momentum label $k$ describes the **phase pattern between unit
+#     cells** — not a velocity.  Think of a standing wave on a guitar
+#     string: $k=0$ means every cell has the same sign (all in sync);
+#     $k=\pi/a$ means the sign alternates (plus, minus, plus, minus).
+#     Momentum conservation then says: the phase patterns of a pair of
+#     interacting electrons must be consistent before and after the
+#     interaction.  Combinations that violate this give zero integrals,
+#     which is why most ERI blocks vanish.
 
 # ## Setup
 #
@@ -113,8 +132,13 @@ nothing #hide
 # For this Nk=2 asset that means:
 #
 # - **4 active electrons per cell**,
-# - **8 active spatial orbitals per k-point** (a spatial orbital describes
-#   where an electron can be, ignoring spin),
+# - **8 active spatial orbitals per k-point** — each orbital is a function
+#   $\phi(x,y,z) \to \mathbb{C}$ whose $|\phi|^2$ gives the probability
+#   of finding the electron at that point.  The 8 per k-point come from
+#   the 4 hydrogen atoms each contributing basis functions that combine
+#   into crystal orbitals of different shapes and energies.  The k-point
+#   labels the inter-cell phase pattern; the orbital index labels which
+#   shape/energy level within that phase pattern —
 # - **16 spatial orbitals total** (8 per k-point × 2 k-points),
 # - **32 spin-orbital modes** when we account for spin (each spatial orbital
 #   splits into spin-up and spin-down).
@@ -332,6 +356,11 @@ println(@sprintf("Exact PySCF HF differs from the figure HF by %.6f Ha", abs(hf_
 #
 # - [H₄ Chain — k=0 Moment Relaxation](@ref h4-chain-energy-benchmark) for a
 #   reduced but genuinely runnable SDP on the same Nk=2 asset,
+# - [H₄ Periodic Chain — Correlative-Sparsity Attempt](@ref h4-periodic-correlative-sparsity)
+#   for the first full-Nk=2, no-custom-basis Mosek attempt and the point where
+#   current correlative sparsity stops helping,
+# - [H₄ Periodic Chain — Incomplete Momentum-Basis Relaxation](@ref h4-periodic-incomplete-momentum-basis)
+#   for a full-Nk=2 compromise solve with a hand-built incomplete basis,
 # - [Hubbard Model](@ref hubbard-model) for a fermionic example that the current
 #   API *does* solve directly,
 # - [Fermionic Ground State (XY Model)](@ref fermionic-ground-state) for the

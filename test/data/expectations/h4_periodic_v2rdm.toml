@@ -35,3 +35,18 @@ notes = "A faithful spin-orbital lift of the Nk=2 [4,8] periodic asset uses 32 f
     spatial_graph_edges = 120
     order2_basis_size = 2081
     order2_nuniq = 679121
+
+[[cases]]
+id = "correlative_sparsity_only_attempt"
+notes = "Full Nk=2 periodic H₄ Hamiltonian in the Bloch basis, order-2 fermionic relaxation, and correlative sparsity only (`cs_algo = MF()`, `ts_algo = NoElimination()`). These structural counts come from the current API without a custom basis or hand-imposed k-blocks. A manual Mosek solve attempt on this formulation failed with `MSK_RES_ERR_SPACE` after symbolic model construction, so the expectation locks down the stage we can currently reach reliably."
+
+    [cases.expected]
+    hamiltonian_terms = 23752
+    eri_blocks = 8
+    correlative_cliques = 1
+    max_clique_size = 32
+    order2_basis_size = 2081
+    order2_nuniq = 679121
+    moment_problem_constraints = 508611
+    mosek_error_code = 1051
+    mosek_error_symbol = "MSK_RES_ERR_SPACE"

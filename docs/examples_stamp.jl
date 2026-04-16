@@ -14,6 +14,7 @@ function _git_ls_files(root::AbstractString, pathspecs::Vector{String})::Vector{
     cmd = `git -C $root ls-files -z -- $(pathspecs...)`
     raw = read(cmd)
     files = split(String(raw), '\0'; keepempty=false)
+    filter!(rel -> isfile(joinpath(root, rel)), files)
     sort!(files)
     return files
 end

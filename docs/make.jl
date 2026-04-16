@@ -36,7 +36,8 @@ makedocs(;
             "Certifying Ground State Property"=>"examples/generated/certify_ground_state_property.md",
             "GNS Optimizer Extraction"=>"examples/generated/gns_optimizer_extraction.md",
             "GNS Construction Guide"=>"examples/generated/gns_construction_guide.md",
-            "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"
+            "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md",
+            "Periodic V2RDM (H₄ Chain)"=>"examples/generated/periodic_v2rdm_h4.md"
         ],
         "References"=>"reference.md",
         "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "SDP Relaxation" => "apis/relaxations.md"]

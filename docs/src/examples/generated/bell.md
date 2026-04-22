@@ -195,7 +195,7 @@ solver_config = SolverConfig(
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 1, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 1, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination(), nothing)
 ````
 
 solver_config: specifies solver and relaxation parameters
@@ -260,6 +260,14 @@ abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
 ````
 7.41612948829129e-9
 ````
+
+!!! tip "Going further: shrink this SDP with symmetry"
+    The CHSH operator is invariant under a 16-element symmetry group. The
+    [CHSH with Symmetry Reduction](@ref chsh-symmetry) example shows how to
+    use that group to replace the dense `5\times 5` PSD block with three
+    independent `1\times 1` PSD blocks while still recovering `2\sqrt{2}`.
+    The architectural picture is on the [Symmetry-Adapted Basis](@ref symmetry-adapted-basis)
+    manual page.
 
 ---
 ### $I_{3322}$ Inequality
@@ -347,7 +355,7 @@ solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 2, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 2, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination(), nothing)
 ````
 
 order=2: second level of the moment hierarchy
@@ -394,7 +402,7 @@ solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination(), nothing)
 ````
 
 solver_config_dense: no sparsity exploitation
@@ -429,7 +437,7 @@ solver_config_sparse = SolverConfig(
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 6, nothing, CliqueTrees.MF(), NCTSSoS.NoElimination())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 6, nothing, CliqueTrees.MF(), NCTSSoS.NoElimination(), nothing)
 ````
 
 cs_algo=MF(): enables correlative sparsity via chordal graph decomposition
@@ -642,7 +650,7 @@ solver_config_ts = SolverConfig(
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), CliqueTrees.MF())
+NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), CliqueTrees.MF(), nothing)
 ````
 
 ts_algo=MF(): enables term sparsity exploitation

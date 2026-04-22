@@ -92,6 +92,33 @@ end
     @test occursin("Number of Activated supp", sprint(show, dense_dual.sparsity.cliques_term_sparsities[1][1]))
 end
 
+@testset "Trace symmetry MVP is rejected cleanly" begin
+    tpop = _build_chsh_trace_problem()
+    symmetry = SymmetrySpec(SignedPermutation(1 => 2, 2 => 1))
+
+    err = try
+        cs_nctssos(
+            tpop,
+            SolverConfig(
+                optimizer=SOLVER,
+                order=1,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+                symmetry=symmetry,
+            ),
+        )
+        nothing
+    catch caught
+        caught
+    end
+
+    @test err isa ArgumentError
+    @test occursin(
+        "state/trace polynomial optimization",
+        sprint(showerror, err),
+    )
+end
+
 @testset "Trace Equality Constraints" begin
     reg, (x,) = create_unipotent_variables([("x", 1:2)])
     objective = (-1.0 * tr(x[1] * x[2])) * one(typeof(x[1]))

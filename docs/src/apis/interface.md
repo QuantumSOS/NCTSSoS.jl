@@ -24,6 +24,18 @@ NCTSSoS.create_noncommutative_variables
 NCTSSoS.SolverConfig
 NCTSSoS.cs_nctssos
 NCTSSoS.cs_nctssos_higher
+NCTSSoS.PolyOptResult
+```
+
+## Symmetry Reduction
+
+See [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for an overview of
+what is supported, the MVP scope, and the CHSH reference acceptance case.
+
+```@docs
+NCTSSoS.SignedPermutation
+NCTSSoS.SymmetrySpec
+NCTSSoS.SymmetryReport
 ```
 
 ## Basis Selection

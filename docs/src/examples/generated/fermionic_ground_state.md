@@ -272,7 +272,7 @@ end
 ````
 
 ````
-Main.var"##282".xy_exact_energy
+Main.var"##284".xy_exact_energy
 ````
 
 ### Method 2 — analytic Fourier formula
@@ -321,7 +321,7 @@ end
 ````
 
 ````
-Main.var"##282".xy_exact_energy_analytic
+Main.var"##284".xy_exact_energy_analytic
 ````
 
 Both methods agree:
@@ -540,7 +540,7 @@ end
 ````
 
 ````
-Main.var"##282".solve_xy
+Main.var"##284".solve_xy
 ````
 
 ### N = 6

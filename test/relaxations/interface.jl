@@ -895,4 +895,148 @@ end
             SolverConfig(optimizer=SOLVER, moment_basis=get_ncbasis(reg, 1))
         )
     end
+
+    @testset "cs_nctssos_higher rejects a symmetry-reduced previous result" begin
+        reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+        objective = -(1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2])
+        pop = polyopt(objective, reg)
+        basis = [one(x[1]), x[1], x[2], y[1], y[2]]
+        symmetry = SymmetrySpec(
+            SignedPermutation(
+                x[1].word[1] => x[2].word[1],
+                x[2].word[1] => x[1].word[1],
+                y[2].word[1] => (-1, y[2].word[1]),
+            ),
+            SignedPermutation(
+                x[2].word[1] => (-1, x[2].word[1]),
+                y[1].word[1] => y[2].word[1],
+                y[2].word[1] => y[1].word[1],
+            ),
+            SignedPermutation(
+                x[1].word[1] => y[1].word[1],
+                x[2].word[1] => y[2].word[1],
+                y[1].word[1] => x[1].word[1],
+                y[2].word[1] => x[2].word[1],
+            ),
+        )
+        sym_res = cs_nctssos(
+            pop,
+            SolverConfig(
+                optimizer=SOLVER,
+                moment_basis=basis,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+                symmetry=symmetry,
+            ),
+        )
+
+        err = try
+            cs_nctssos_higher(pop, sym_res, SolverConfig(optimizer=SOLVER))
+            nothing
+        catch caught
+            caught
+        end
+
+        @test !isnothing(sym_res.symmetry)
+        @test err isa ArgumentError
+        @test occursin("symmetry-reduced `prev_res`", sprint(showerror, err))
+    end
+
+    @testset "Symmetry MVP guardrails" begin
+        function symmetry_error(f)
+            try
+                f()
+                return nothing
+            catch err
+                return err
+            end
+        end
+
+        function swap_symmetry(a, b)
+            T = typeof(a.word[1])
+            generator = SignedPermutation(Dict{T,Tuple{Int,T}}(
+                a.word[1] => (1, b.word[1]),
+                b.word[1] => (1, a.word[1]),
+            ))
+            return SymmetrySpec{T}([generator], true)
+        end
+
+        function swap_group(a, b)
+            domain = sort([a.word[1], b.word[1]])
+            return NCTSSoS._enumerate_symmetry_group(swap_symmetry(a, b), domain)
+        end
+
+        @testset "non-invariant objective and constraint fail fast" begin
+            reg, (x,) = create_unipotent_variables([("x", 1:2)])
+            group = swap_group(x[1], x[2])
+
+            objective_err = symmetry_error() do
+                NCTSSoS._check_symmetry_invariance(polyopt(1.0 * x[1], reg), group)
+            end
+            @test objective_err isa ArgumentError
+            @test occursin("objective", sprint(showerror, objective_err))
+            @test occursin("invariant", sprint(showerror, objective_err))
+
+            constrained_pop = polyopt(
+                1.0 * (x[1] + x[2]),
+                reg;
+                ineq_constraints=[1.0 - x[1]],
+            )
+            constraint_err = symmetry_error() do
+                NCTSSoS._check_symmetry_invariance(constrained_pop, group)
+            end
+            @test constraint_err isa ArgumentError
+            @test occursin("inequality constraint 1", sprint(showerror, constraint_err))
+            @test occursin("invariant", sprint(showerror, constraint_err))
+        end
+
+        @testset "basis closure failure is explicit" begin
+            reg, (x,) = create_unipotent_variables([("x", 1:2)])
+            group = swap_group(x[1], x[2])
+
+            closure_err = symmetry_error() do
+                NCTSSoS._check_basis_closure("test basis", [one(x[1]), x[1]], group)
+            end
+            @test closure_err isa ArgumentError
+            @test occursin("test basis", sprint(showerror, closure_err))
+            @test occursin("maps outside the basis", sprint(showerror, closure_err))
+        end
+
+        @testset "unsupported ordinary solver configs error cleanly" begin
+            reg, (x,) = create_unipotent_variables([("x", 1:2)])
+            pop = polyopt(-(1.0 * x[1] + x[2]), reg)
+            basis = [one(x[1]), x[1], x[2]]
+            symmetry = swap_symmetry(x[1], x[2])
+
+            cs_err = symmetry_error() do
+                cs_nctssos(
+                    pop,
+                    SolverConfig(
+                        optimizer=SOLVER,
+                        moment_basis=basis,
+                        cs_algo=MF(),
+                        ts_algo=NoElimination(),
+                        symmetry=symmetry,
+                    ),
+                )
+            end
+            @test cs_err isa ArgumentError
+            @test occursin("`cs_algo=NoElimination()`", sprint(showerror, cs_err))
+
+            ts_err = symmetry_error() do
+                cs_nctssos(
+                    pop,
+                    SolverConfig(
+                        optimizer=SOLVER,
+                        moment_basis=basis,
+                        cs_algo=NoElimination(),
+                        ts_algo=MMD(),
+                        symmetry=symmetry,
+                    ),
+                )
+            end
+            @test ts_err isa ArgumentError
+            @test occursin("`ts_algo=NoElimination()`", sprint(showerror, ts_err))
+        end
+    end
 end

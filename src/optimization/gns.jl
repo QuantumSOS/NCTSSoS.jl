@@ -420,7 +420,10 @@ The `monomap` keys are `StateSymbol` objects of the form
 `solve_moment_problem(...).monomap`.
 
 The input `monomap` must contain every moment needed to build the dense Hankel
-matrix; sparse/custom bases should use the matrix overload instead.
+matrix; sparse/custom bases should use the matrix overload instead. In
+particular, symmetry-reduced `monomap`s from `SolverConfig(; symmetry=...)`
+are not directly compatible today because they omit many dense moments needed
+by GNS reconstruction.
 """
 function gns_reconstruct(
     monomap::AbstractDict,

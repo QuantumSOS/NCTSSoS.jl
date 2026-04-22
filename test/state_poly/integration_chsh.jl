@@ -38,4 +38,33 @@ using Test, NCTSSoS, JuMP
         @test result.objective ≈ oracle.opt atol = 1e-5
         @test result.n_unique_moment_matrix_elements == oracle.nuniq
     end
+
+    @testset "Symmetry is rejected on the state-polynomial solver path" begin
+        symmetry = SymmetrySpec(SignedPermutation(
+            x[1].word[1] => x[2].word[1],
+            x[2].word[1] => x[1].word[1],
+        ))
+
+        err = try
+            cs_nctssos(
+                spop,
+                SolverConfig(
+                    optimizer=SOLVER,
+                    order=1,
+                    cs_algo=NoElimination(),
+                    ts_algo=NoElimination(),
+                    symmetry=symmetry,
+                ),
+            )
+            nothing
+        catch caught
+            caught
+        end
+
+        @test err isa ArgumentError
+        @test occursin(
+            "state/trace polynomial optimization",
+            sprint(showerror, err),
+        )
+    end
 end

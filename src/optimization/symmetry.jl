@@ -726,7 +726,6 @@ function _reduce_to_scalar_blocks_sw(
                 mat,
                 row_bases[block_idx],
                 row_bases[block_idx];
-                scale=SymbolicWedderburn.degree(block),
                 atol,
             ),
             reducer;

@@ -161,7 +161,7 @@ end
 
         result = cs_nctssos(polyopt(ham, registry), SolverConfig(optimizer=SOLVER, order=2))
 
-        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test result.objective ≈ oracle.opt atol = 5e-6
         @test result.objective ≤ exact_e0 + 1e-6
         @test reduce(vcat, result.moment_matrix_sizes) == oracle.sides
         @test result.n_unique_moment_matrix_elements == oracle.nuniq

@@ -238,7 +238,7 @@ sym_bound = -sym_result.objective
 ````
 
 ````
-2.8284271120512297
+2.828427124727845
 ````
 
 matched against the theoretical value:
@@ -248,7 +248,7 @@ abs(sym_bound - 2 * sqrt(2))
 ````
 
 ````
-1.2694960638270913e-8
+1.8345325258906087e-11
 ````
 
 and matched against the dense baseline:
@@ -258,7 +258,7 @@ abs(sym_bound - dense_bound)
 ````
 
 ````
-2.0111090126562203e-8
+7.434474813550196e-9
 ````
 
 ## Step 5 — Read the [`SymmetryReport`](@ref)
@@ -331,7 +331,7 @@ sym_result
 ````
 
 ````
-Objective: -2.8284271120512297
+Objective: -2.828427124727845
 Correlative Sparsity (UnipotentAlgebra): 
 
    maximum clique size: 4

@@ -121,6 +121,14 @@ tsirelson_bound = 2 * sqrt(2)
 
 abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
 
+# !!! tip "Going further: shrink this SDP with symmetry"
+#     The CHSH operator is invariant under a 16-element symmetry group. The
+#     [CHSH with Symmetry Reduction](@ref chsh-symmetry) example shows how to
+#     use that group to replace the dense `5\times 5` PSD block with three
+#     independent `1\times 1` PSD blocks while still recovering `2\sqrt{2}`.
+#     The architectural picture is on the [Symmetry-Adapted Basis](@ref symmetry-adapted-basis)
+#     manual page.
+
 # ---
 # ### $I_{3322}$ Inequality
 #

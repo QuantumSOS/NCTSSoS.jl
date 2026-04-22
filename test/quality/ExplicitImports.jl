@@ -23,5 +23,12 @@ using Test
         # Clarabel exposes the optimizer constructor as `Clarabel.Optimizer`,
         # but ExplicitImports does not currently treat it as a public name.
         :Optimizer,
+
+        # The SymbolicWedderburn symmetry adapter currently has to hook into
+        # non-public extension points (`BySignedPermutations`, `action`) and
+        # uses Base's iterator-size trait singleton directly.
+        :BySignedPermutations,
+        :action,
+        :HasLength,
     ))
 end

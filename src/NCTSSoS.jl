@@ -124,6 +124,7 @@ include("optimization/problem.jl")
 include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
 include("optimization/moment.jl")
+include("optimization/symmetry.jl")
 include("optimization/sos.jl")
 include("optimization/interface.jl")
 include("optimization/gns.jl")
@@ -137,6 +138,7 @@ include("optimization/gns_diagnostics.jl")
 
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
+export SignedPermutation, SymmetrySpec, SymmetryReport
 export SparsityResult, compute_sparsity
 
 # Solver Interface

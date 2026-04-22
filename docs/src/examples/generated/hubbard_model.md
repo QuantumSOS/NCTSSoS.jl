@@ -278,7 +278,7 @@ config_can = SolverConfig(optimizer = SOLVER, order = 4, ts_algo = MMD())
 ````
 
 ````
-NCTSSoS.SolverConfig(MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.RawOptimizerAttribute("MSK_IPAR_LOG") => 0, MathOptInterface.RawOptimizerAttribute("MSK_IPAR_NUM_THREADS") => 0]), 4, nothing, NCTSSoS.NoElimination(), CliqueTrees.MMD(0))
+NCTSSoS.SolverConfig(MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.RawOptimizerAttribute("MSK_IPAR_LOG") => 0, MathOptInterface.RawOptimizerAttribute("MSK_IPAR_NUM_THREADS") => 0]), 4, nothing, NCTSSoS.NoElimination(), CliqueTrees.MMD(0), nothing)
 ````
 
 ---

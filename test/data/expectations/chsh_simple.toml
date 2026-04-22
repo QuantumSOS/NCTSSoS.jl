@@ -21,3 +21,12 @@ id = "TS_d1"
     objective = -2.8284271247321175
     sides = [3, 3, 1]
     nuniq = 6
+
+[[cases]]
+id = "Symmetry_d1"
+
+    [cases.expected]
+    objective = -2.8284271247461903
+    group_order = 16
+    invariant_moment_count = 1
+    psd_block_sizes = [1, 1, 1]

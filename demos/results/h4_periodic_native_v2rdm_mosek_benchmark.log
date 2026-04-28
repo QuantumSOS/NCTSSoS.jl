@@ -1,0 +1,56 @@
+^D]0;Julia]0;Julia[32m[1m  Activating[22m[39m project at `~/QuantumSOS/NCTSSoS.jl-h4-periodic-v2rdm-benchmark`
+H4 periodic Nk=2 — D-only bridge / native V2RDM Mosek benchmark
+selected refinement: spin-resolved
+Mosek config: time_limit = 30.0 s, num_threads = 0, log_level = 10
+include trace equalities: true
+
+[stage] native JuMP build : 57.22 s  |  alloc 212.06 GiB
+  pair sectors (K-only)              : [(K = 0, dim = 240), (K = 1, dim = 256)]
+  pair sectors (spin-resolved)       : [(K = 0, two_Sz = -2, dim = 56), (K = 0, two_Sz = 0, dim = 128), (K = 0, two_Sz = 2, dim = 56), (K = 1, two_Sz = -2, dim = 64), (K = 1, two_Sz = 0, dim = 128), (K = 1, two_Sz = 2, dim = 64)]
+  particle-hole sectors (spin)       : [(delta_k = 0, two_Sz_transfer = -2, dim = 128), (delta_k = 0, two_Sz_transfer = 0, dim = 256), (delta_k = 0, two_Sz_transfer = 2, dim = 128), (delta_k = 1, two_Sz_transfer = -2, dim = 128), (delta_k = 1, two_Sz_transfer = 0, dim = 256), (delta_k = 1, two_Sz_transfer = 2, dim = 128)]
+  current NCTSSoS paper-route        : real vars = 340546, PSD rows = 1545187, equality rows = 16012, total rows = 1561199
+  K-only native bridge        D/Q blocks = [240, 256] | G blocks = [512, 512]
+                              native D vars = 123136 | D-only moment real vars = 246272 | PSD rows = 1543136 | total rows = 1543141
+  spin-resolved native bridge D/Q blocks = [56, 128, 56, 64, 128, 64] | G blocks = [128, 256, 128, 128, 256, 128]
+                              native D vars = 47232 | D-only moment real vars = 94464 | PSD rows = 584160 | total rows = 584165
+  selected native D vars             : 47232
+  selected JuMP num_variables        : 47232
+  selected JuMP num_constraints      : 23
+  JuMP constraint breakdown          : Dict("AffExpr in MathOptInterface.EqualTo{Float64}" => 5, "Vector{VariableRef} in MathOptInterface.HermitianPositiveSemidefiniteConeTriangle" => 6, "Vector{AffExpr} in MathOptInterface.HermitianPositiveSemidefiniteConeTriangle" => 12)
+  selected Hermitian block sizes     : [56, 128, 56, 64, 128, 64, 56, 128, 56, 64, 128, 64, 128, 256, 128, 128, 256, 128]
+  selected real-lift block sizes     : [112, 256, 112, 128, 256, 128, 112, 256, 112, 128, 256, 128, 256, 512, 256, 256, 512, 256]
+  selected PSD rows after real lift  : 584160
+  selected total rows (+ equalities) : 584165
+  selected build stage times         : (one_rdm = 0.116883708, q_blocks = 1.285284209, g_blocks = 1.013820416, scalar_constraints = 0.035807625, objective = 5.026245, total = 9.654960333)
+  spin-vs-K variable reduction       : 2.61x
+  spin-vs-K PSD-row reduction        : 2.64x
+  spin-vs-current variable reduction : 7.21x
+  spin-vs-current total-row reduction: 2.67x
+
+[stage] optimize! (Mosek) : running native JuMP model ...
+---------------- begin Mosek output ----------------
+Problem
+  Name                   :                 
+  Objective sense        : minimize        
+  Type                   : CONIC (conic optimization problem)
+  Constraints            : 47733           
+  Affine conic cons.     : 12 (489200 rows)
+  Disjunctive cons.      : 0               
+  Cones                  : 0               
+  Scalar variables       : 0               
+  Matrix variables       : 6 (scalarized: 94960)
+  Integer variables      : 0               
+
+Optimizer started.
+Presolve started.
+Linear dependency checker started.
+Linear dependency checker terminated.
+Eliminator started.
+Freed constraints in eliminator : 0
+Eliminator terminated.
+Eliminator - tries                  : 1                 time                   : 0.00            
+Lin. dep.  - tries                  : 1                 time                   : 0.02            
+Lin. dep.  - primal attempts        : 1                 successes              : 1               
+Lin. dep.  - dual attempts          : 0                 successes              : 0               
+Lin. dep.  - primal deps.           : 0                 dual deps.             : 0               
+Presolve terminated. Time: 0.03    

@@ -1,12 +1,13 @@
 # H₄ periodic V2RDM active-space asset regression
 #
-# The current package still lacks the k-blocked / spin-adapted formulation
-# needed for a faithful Nk=2 periodic V2RDM solve.  This regression therefore
-# locks down the asset-backed pieces we can verify exactly today:
+# The core package still lacks a first-class periodic V2RDM API, but the repo
+# now carries a reviewed native bridge benchmark helper under `demos/`. This
+# regression therefore locks down:
 #   1. the vendored Nk=2 integrals and metadata,
 #   2. the HF reconstruction and additive constant shift,
 #   3. the dense-graph counts showing why a naive 32-mode order-2 lift is not
-#      a good CI target on the current API.
+#      a good CI target on the current API,
+#   4. the reviewed K-only and spin-resolved native bridge block counts.
 
 using Test, NCTSSoS, LinearAlgebra
 
@@ -21,6 +22,10 @@ using .H4PeriodicAssets: H4_EXPECTATIONS_PATH,
                          fermionic_order2_nuniq,
                          hf_energy,
                          load_nk2_asset
+
+include(joinpath(pkgdir(NCTSSoS), "demos", "H4PeriodicNativeV2RDMHelpers.jl"))
+using .H4PeriodicNativeV2RDMHelpers: load_native_problem_data,
+                                     native_size_summary
 
 @testset "H4 periodic V2RDM active-space asset regression" begin
     asset = load_nk2_asset()
@@ -85,5 +90,26 @@ using .H4PeriodicAssets: H4_EXPECTATIONS_PATH,
 
         @test basis_size == blocker["order2_basis_size"]
         @test nuniq == blocker["order2_nuniq"]
+    end
+
+    @testset "Native bridge block counts stay reviewed" begin
+        native = load_native_problem_data()
+        k_only = native_size_summary(native; refinement = :k_only)
+        spin_resolved = native_size_summary(native; refinement = :spin_resolved)
+
+        @test length.(native.D_term_sparsity.block_bases) == [240, 256]
+        @test length.(native.D_term_sparsity_spin.block_bases) == [56, 128, 56, 64, 128, 64]
+
+        @test k_only.d_only_block_sizes == [240, 256]
+        @test k_only.g_block_sizes == [512, 512]
+        @test k_only.jump_variables == 123_136
+        @test k_only.solver_psd_total_rows == 1_543_136
+        @test k_only.jump_constraints_total == 11
+
+        @test spin_resolved.d_only_block_sizes == [56, 128, 56, 64, 128, 64]
+        @test spin_resolved.g_block_sizes == [128, 256, 128, 128, 256, 128]
+        @test spin_resolved.jump_variables == 47_232
+        @test spin_resolved.solver_psd_total_rows == 584_160
+        @test spin_resolved.jump_constraints_total == 23
     end
 end

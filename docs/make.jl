@@ -37,7 +37,13 @@ makedocs(;
             "GNS Optimizer Extraction"=>"examples/generated/gns_optimizer_extraction.md",
             "GNS Construction Guide"=>"examples/generated/gns_construction_guide.md",
             "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md",
-            "Periodic V2RDM (H₄ Chain)"=>"examples/generated/periodic_v2rdm_h4.md"
+            "Periodic V2RDM (H₄ Chain)"=>"examples/generated/periodic_v2rdm_h4.md",
+            "H4-My-Attempt"=>"examples/generated/h4_my_attempt.md",
+            "Periodic V2RDM: Why Correlative Sparsity Misses the k-Blocks"=>"examples/generated/periodic_v2rdm_correlative_sparsity.md",
+            "Periodic V2RDM: ²D Symmetry Blocks vs. Term-Sparsity Blocks"=>"examples/generated/periodic_v2rdm_block_structure.md",
+            "Periodic V2RDM: Building the Paper's PQG Relaxation"=>"examples/generated/periodic_v2rdm_pqg_construction.md",
+            "Periodic V2RDM: PQG Basis, Trace Constraints, and COSMO"=>"examples/generated/periodic_v2rdm_pqg_cosmo.md",
+            "Periodic V2RDM: D-Only Bridge, Spin Resolution, and Solver Probes"=>"examples/generated/periodic_v2rdm_native_jump.md"
         ],
         "References"=>"reference.md",
         "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "SDP Relaxation" => "apis/relaxations.md"]

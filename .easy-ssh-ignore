@@ -1,0 +1,21 @@
+# Git / editor noise
+.git
+.git/
+.pi/
+.DS_Store
+.vscode/
+
+# Julia local build/cache artifacts
+*.jl.cov
+*.jl.mem
+.julia/
+
+# Documentation build output; generated source markdown stays tracked/synced
+docs/build/
+docs/site/
+
+# Large/transient scratch artifacts
+tmp/
+
+# Keep remote logs/results unless explicitly syncing them
+# demos/results/

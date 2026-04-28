@@ -1,0 +1,45 @@
+==============================================================================
+H4 periodic (Nk=2) — order-2 V2RDM — term sparsity probe
+==============================================================================
+Asset preflight: Nk = 2, norb_per_k = 8, total spin-orbital modes = 32, HF constant shift = 1.2769126966 Ha
+[stage] build polyopt        : 46.31 s  |  alloc 149.81 GiB
+
+[stage] compute_sparsity     : running order-2 TS with MMD() ...
+[stage] compute_sparsity     : 135.12 s  |  alloc 10.88 GiB
+
+-- block footprint at order 2 --
+  dense baseline PSD block          : 2081 × 2081
+  TS PSD blocks                     : 313
+  TS largest block                  : 168 × 168
+  sum(block_size^2) proxy           : 983593
+  sum of upper-tri PSD scalar slots : 498845
+
+[stage] moment_relax         : assembling symbolic moment problem ...
+[stage] moment_relax         : 7.51 s  |  alloc 10.11 GiB
+  unique moment variables           : 26817
+
+Direct COSMO config: max_iter = 10, eps_abs/rel = 1.0e-04, decompose = false
+
+[stage] direct data build     : symbolic moment problem -> sparse COSMO matrices ...
+  basis length / unique moments     : 85941
+  direct COSMO variable count       : 171882
+  constraint blocks to assemble     : 8571
+    ... direct constraint block 2143 / 8571
+    ... direct constraint block 4286 / 8571
+    ... direct constraint block 6429 / 8571
+    ... direct constraint block 8571 / 8571
+[stage] direct data build     : 5.61 s  |  alloc 22.94 GiB
+  direct objective variables        : 171882
+  direct constraint rows            : 1997801
+  direct A nnz                      : 2579805
+  number of COSMO constraints       : 8572
+
+[stage] COSMO assemble!      : loading sparse problem into COSMO ...
+[stage] COSMO assemble!      : 7.89 s  |  alloc 54.66 GiB
+  model size m × n                  : 1997801 × 171882
+  assembled KKT A nnz               : 2579805
+  assembled b nnz                   : 1
+  assembled cone count              : 314
+
+[stage] COSMO optimize!      : running direct solver ...
+---------------- begin COSMO output ----------------

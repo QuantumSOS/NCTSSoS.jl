@@ -1,0 +1,35 @@
+==============================================================================
+H4 periodic (Nk=2) — order-2 V2RDM — term sparsity probe
+==============================================================================
+Asset preflight: Nk = 2, norb_per_k = 8, total spin-orbital modes = 32, HF constant shift = 1.2769126966 Ha
+[stage] build polyopt        : 49.39 s  |  alloc 149.81 GiB
+
+[stage] compute_sparsity     : running order-2 TS with MMD() ...
+[stage] compute_sparsity     : 139.13 s  |  alloc 10.88 GiB
+
+-- block footprint at order 2 --
+  dense baseline PSD block          : 2081 × 2081
+  TS PSD blocks                     : 313
+  TS largest block                  : 168 × 168
+  sum(block_size^2) proxy           : 983593
+  sum of upper-tri PSD scalar slots : 498845
+
+[stage] moment_relax         : assembling symbolic moment problem ...
+[stage] moment_relax         : 7.60 s  |  alloc 10.11 GiB
+  unique moment variables           : 26817
+
+Clarabel config: max_iter = 10, tol_feas/gap = 1.0e-04
+
+[stage] primal moment build  : assembling JuMP primal moment SDP ...
+  basis length / unique moments     : 85941
+  constraint blocks to assemble     : 8571
+    ... constraint block 2143 / 8571
+    ... constraint block 4286 / 8571
+    ... constraint block 6429 / 8571
+    ... constraint block 8571 / 8571
+[stage] primal moment build  : 12.64 s  |  alloc 106.34 GiB
+  JuMP num_variables                : 171882
+  JuMP num_constraints (all types)  : 16831
+
+[stage] optimize! (Clarabel) : running SDP solver ...
+---------------- begin Clarabel output ----------------

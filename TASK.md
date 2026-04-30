@@ -67,8 +67,9 @@ source = Model()
 write_to_file(source, path)
 
 roundtrip = read_from_file(path)
-set_optimizer(roundtrip) do
-    BPSDP.Optimizer(
+set_optimizer(
+    roundtrip,
+    () -> BPSDP.Optimizer(
         max_iter = 5_000,
         cg_max_iter = 100,
         mu_update_frequency = 25,
@@ -79,8 +80,8 @@ set_optimizer(roundtrip) do
         sdp_error_convergence = 1e-8,
         guess_type = :zero,
         print_level = 0,
-    )
-end
+    ),
+)
 set_silent(roundtrip)
 optimize!(roundtrip)
 

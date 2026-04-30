@@ -71,6 +71,9 @@ function _split_export_args(argv)
         end
     end
 
+    sense in (:min, :max) || throw(ArgumentError("--sense must be min or max"))
+    orphans_per_block >= 1 || throw(ArgumentError("--orphans-per-block must be >= 1"))
+
     return formulation_args, outdir, basename, sense, orphans_per_block
 end
 

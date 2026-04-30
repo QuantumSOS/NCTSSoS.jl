@@ -41,13 +41,10 @@ module SDPALibsdpExport
 #
 # Indices are 1-based.  Entries are written verbatim — there is NO automatic
 # Hermitian mirroring (libsdp's evaluate_Au sums user-supplied entries
-# directly).  A companion text metadata sidecar records the pivot map and
-# constraint provenance so a downstream user can map the libsdp solution back
-# to moments.
+# directly).  A companion text metadata sidecar records block/pivot counts and
+# constraint provenance counts for sanity checks.
 
-using NCTSSoS
-using NCTSSoS: NormalMonomial, Polynomial, MomentProblem, AlgebraType,
-    FermionicAlgebra, symmetric_canon, expval, monomials, coefficients
+using NCTSSoS: Polynomial, symmetric_canon, expval, monomials, coefficients
 using Printf
 
 export export_libsdp, LibsdpExportSummary
@@ -177,6 +174,8 @@ function discover_pivots(mp; orphans_per_block::Int = 32)
     # ---- Pass 1: HPSD single-term unit-coef pivots ----------------------
     for (k, (cone, mat)) in enumerate(mp.constraints)
         cone === :HPSD || continue
+        size(mat, 1) == size(mat, 2) ||
+            error("HPSD constraint $k must be square, got size $(size(mat))")
         n = size(mat, 1)
         push!(block_dims, n)
         push!(hpsd_block_indices, k)
@@ -368,8 +367,8 @@ metadata sidecar.
 # Files written
 
 * `<outdir>/<basename>.dat-c`     — the SDPA-sparse problem (see header for format).
-* `<outdir>/<basename>_meta.txt`  — pivot map, block layout, sense, constraint
-                                    provenance counts.
+* `<outdir>/<basename>_meta.txt`  — block layout, sense, pivot counts, and
+                                    constraint provenance counts.
 
 # Arguments
 
@@ -457,6 +456,8 @@ function export_libsdp(mp;
     n_zero_components = 0
     for (kc, (cone, mat)) in enumerate(mp.constraints)
         if cone === :HPSD
+            size(mat, 1) == size(mat, 2) ||
+                error("HPSD constraint $kc must be square, got size $(size(mat))")
             b = hpsd_block_id[kc]
             n = size(mat, 1)
             for j in 1:n, i in 1:n
@@ -484,6 +485,8 @@ function export_libsdp(mp;
                                         "HPSD-bind block=$(b), entry=($i,$j)")
             end
         elseif cone === :Zero
+            size(mat, 1) == size(mat, 2) ||
+                error("Zero constraint $kc must be square for upper-triangle export, got size $(size(mat))")
             n_zero_components += 1
             n = size(mat, 1)
             # Hermitian Zero matrices: only the upper triangle (i ≤ j) is
@@ -506,10 +509,9 @@ function export_libsdp(mp;
     n_dropped_orphan_terms = isempty(orphans) ? 0 : sum(values(orphans))
     if !isempty(orphans)
         # We allocated aux blocks for every canonical mono observed during
-        # pivot discovery, so any remaining orphans imply the relaxation
-        # basis is internally inconsistent (e.g., a polynomial gained terms
-        # after pivot discovery).  Surface loudly.
-        @warn("$(length(orphans)) canonical moments with no pivot — these terms were dropped (implicit ⟨·⟩ = 0).  Total occurrences: $n_dropped_orphan_terms.  This usually means the polynomial set changed between pivot discovery and constraint emission.")
+        # pivot discovery, so any remaining orphan means the emitted SDP would
+        # no longer be the same relaxation.  Failing beats exporting nonsense.
+        error("$(length(orphans)) canonical moments have no pivot; refusing to drop $n_dropped_orphan_terms orphan term occurrences")
     end
 
     n_constraints = length(rhs_vec)
@@ -582,17 +584,6 @@ function export_libsdp(mp;
             @printf(io, "%-20s %d\n", family, cnt)
         end
 
-        if !isempty(orphans)
-            @printf(io, "\n# dropped orphan canonical moments (canon => occurrences)\n")
-            shown = 0
-            for (canon, cnt) in sort!(collect(orphans); by = x -> string(x[1]))
-                @printf(io, "%s  %d\n", string(canon), cnt)
-                shown += 1
-                shown >= 32 && break
-            end
-            shown < length(orphans) &&
-                @printf(io, "... (%d more elided)\n", length(orphans) - shown)
-        end
     end
 
     return LibsdpExportSummary(n_blocks,

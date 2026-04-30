@@ -36,6 +36,32 @@
   - `<outdir>/<basename>.dat-c`
   - `<outdir>/<basename>_meta.txt`
 
+## Python / libsdp environment
+
+Use `uv` for all Python environment management on `HAI`; do not use system Python packages, `pip install --user`, or ad-hoc global installs.
+
+Known-good libsdp environment setup:
+
+```bash
+easy-ssh run 'cd /home/ubuntu/libsdp
+uv venv .venv
+. .venv/bin/activate
+CMAKE_BUILD_PARALLEL_LEVEL=2 uv pip install numpy /home/ubuntu/libsdp'
+```
+
+Important gotcha: after activating `/home/ubuntu/libsdp/.venv`, run Python from the benchmark repo (or `/tmp`), not from `/home/ubuntu/libsdp`; otherwise Python imports the source-tree `libsdp/` package and misses the built `_libsdp` extension in site-packages.
+
+Verified libsdp complex BPSDP smoke test on `HAI` with this uv environment:
+
+```text
+problem: min X subject to X = 1, X ⪰ 0, encoded as one 1x1 complex SDPA-sparse block
+procedure: minimize
+primal objective: +1.000000000000
+||Ax - b||: 2.220e-16
+dual objective: +1.000000000000
+duality gap: 1.110e-16
+```
+
 ## Cheap JuMP/BPSDP file-roundtrip recipe
 
 Purpose: build a tiny SDP in JuMP, write it with `write_to_file`, read it back with `read_from_file`, and solve the reloaded model with `BPSDP.jl`. Use MOF JSON (`.mof.json`); LP/MPS do not preserve SDP cones. Do not keep a dedicated repo script for this smoke test.

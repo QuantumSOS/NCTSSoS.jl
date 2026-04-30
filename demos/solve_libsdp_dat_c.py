@@ -70,6 +70,8 @@ def _parse_dat_c(path: Path):
 
         if len(block_dims) != nblocks:
             raise ValueError(f"block dims length {len(block_dims)} != nblocks {nblocks}")
+        if any(dim <= 0 for dim in block_dims):
+            raise ValueError(f"all block dimensions must be positive, got {block_dims!r}")
         if len(b) != m:
             raise ValueError(f"b length {len(b)} != m {m}")
 
@@ -87,6 +89,13 @@ def _parse_dat_c(path: Path):
             im = float(tok[5])
             if not (0 <= k <= m):
                 raise ValueError(f"Constraint id {k} out of range [0, {m}]")
+            if not (1 <= blk <= nblocks):
+                raise ValueError(f"Block id {blk} out of range [1, {nblocks}]")
+            dim = block_dims[blk - 1]
+            if not (1 <= r <= dim and 1 <= c <= dim):
+                raise ValueError(
+                    f"Entry ({blk}, {r}, {c}) outside block dimension {dim}"
+                )
             entries_by_k[k].append((blk, r, c, complex(re, im)))
 
     return b, entries_by_k, block_dims

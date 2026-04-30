@@ -1,0 +1,32 @@
+# Benchmark / demo environment for solver shootouts.
+#
+# This is intentionally separate from the main `Project.toml` (which keeps the
+# library lean) and from `docs/Project.toml` (which builds Literate examples).
+# Use `julia --project=demos` for all benchmark scripts in `demos/`.
+#
+# To instantiate on a fresh machine:
+#   julia --project=demos -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
+#
+# To use the local BPSDP.jl checkout on a solver server:
+#   julia --project=demos -e 'using Pkg; Pkg.develop(path="/path/to/BPSDP.jl"); Pkg.instantiate()'
+#
+# `NCTSSoS` is included via path-dev so changes in `src/` are picked up
+# without re-instantiation. `BPSDP` is listed as a dependency but should be
+# path-dev'd on machines where it is checked out locally.
+
+[deps]
+NCTSSoS = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
+
+# JuMP and core utilities
+JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+# Solvers used in the moment-SOS shootout
+BPSDP = "6166ed0a-ac6c-41b8-82ce-cbedd1501067"
+COSMO = "1e616198-aa4e-51ec-90a2-23f7fbd31d8d"
+Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
+MosekTools = "1ec41992-ff65-5c91-ac43-2df89e9693a4"
+SCS = "c946c3f1-0d1f-5ce8-9dea-7daa1f7e2d13"

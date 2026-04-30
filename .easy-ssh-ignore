@@ -16,6 +16,7 @@ docs/site/
 
 # Large/transient scratch artifacts
 tmp/
+output/
 
 # Keep remote logs/results unless explicitly syncing them
 # demos/results/

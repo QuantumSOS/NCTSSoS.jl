@@ -1,16 +1,15 @@
 #!/usr/bin/env julia
-# H4/Nk=2 periodic V2RDM in NCTSSoS.jl language.
+# H4/Nk=2 periodic 1D+PQG V2RDM in NCTSSoS.jl language.
 #
-# This script does the important part: it formulates the H4 active-space
-# Hamiltonian with fermionic CAR variables and relaxes it to a symbolic
-# NCTSSoS MomentProblem with explicit PQG moment blocks.
+# This script formulates exactly the SDP we want:
+#   minimize the explicit H4 active-space Hamiltonian over one fermionic CAR
+#   moment functional, with explicit 1D, D, Q, and G Hermitian PSD blocks.
 #
-# Default action is build/inspect only; no SDP solver is called. The full solve
-# is large enough that pretending it is a quick demo would be lying.
+# No SDP solver is called here. The useful artifact is the symbolic
+# NCTSSoS MomentProblem.
 #
 # Usage from the repository root:
 #   julia --project=. demos/h4_periodic_moment_sos.jl
-#   julia --project=. demos/h4_periodic_moment_sos.jl --particle-sector=spin
 #   julia --project=. demos/h4_periodic_moment_sos.jl --integrals=output/h4_chain_nk2_figure1_integrals_drop1e-12.txt
 #
 # Caveat: the repository's default text asset is the older H4 dump. For the
@@ -32,19 +31,11 @@ const DEFAULT_INTEGRALS = normpath(joinpath(@__DIR__, "..", "test", "data", "ass
 struct Options
     integrals_path::String
     blocking::Symbol
-    particle_sector::Symbol
-    trace_constraints::Bool
-    include_one_d::Bool
-    zero_objective::Bool
 end
 
 function parse_options(argv)
     integrals_path = DEFAULT_INTEGRALS
     blocking = :momentum
-    particle_sector = :total
-    trace_constraints = true
-    include_one_d = false
-    zero_objective = false
 
     for arg in argv
         if startswith(arg, "--integrals=")
@@ -60,45 +51,23 @@ function parse_options(argv)
             else
                 throw(ArgumentError("unknown --blocking=$value; expected momentum, spin, or none"))
             end
-        elseif startswith(arg, "--particle-sector=")
-            value = split(arg, "=", limit = 2)[2]
-            if value == "total"
-                particle_sector = :total
-            elseif value == "spin"
-                particle_sector = :spin
-            elseif value == "none"
-                particle_sector = :none
-            else
-                throw(ArgumentError("unknown --particle-sector=$value; expected total, spin, or none"))
-            end
-        elseif arg == "--no-trace-constraints"
-            trace_constraints = false
-        elseif arg == "--include-1d"
-            include_one_d = true
-        elseif arg == "--zero-objective"
-            zero_objective = true
         elseif arg in ("-h", "--help")
             println("Usage: julia --project=. demos/h4_periodic_moment_sos.jl [options]\n")
             println("Options:")
             println("  --integrals=PATH              text integral dump; default test/data/assets/h4_chain_nk2_integrals.txt")
-            println("  --blocking=momentum|spin|none PQG block grouping; default momentum")
-            println("  --particle-sector=total|spin|none  moment_eq sector constraints; default total")
-            println("  --no-trace-constraints        omit global Tr(D), Tr(Q), Tr(G) constraints")
-            println("  --include-1d                  add extra 1-RDM HPSD blocks (not paper PQG)")
-            println("  --zero-objective              build feasibility relaxation with zero objective")
+            println("  --blocking=momentum|spin|none 1D/PQG block grouping; default momentum")
             exit(0)
         else
             throw(ArgumentError("unknown argument: $arg"))
         end
     end
 
-    return Options(integrals_path, blocking, particle_sector, trace_constraints, include_one_d, zero_objective)
+    return Options(integrals_path, blocking)
 end
 
 bytes_to_gib(bytes::Integer) = bytes / 1024.0^3
 rss_string() = @sprintf("%.3f GiB", bytes_to_gib(Sys.maxrss()))
 
-@inline compound_orbital_index(k::Int, orbital::Int, norb::Int) = k * norb + orbital
 @inline complex_entry(fields, re_idx::Int, im_idx::Int) =
     complex(parse(Float64, fields[re_idx]), parse(Float64, fields[im_idx]))
 
@@ -342,9 +311,7 @@ function build_rdm_bases(spin_orbitals)
     return (; oneD_basis, twoD_basis, twoQ_basis, twoG_basis)
 end
 
-function particle_number_constraints(vars, ham; norb::Int, total_electrons::Int, sector::Symbol)
-    sector == :none && return typeof(ham)[]
-
+function total_electron_constraint(vars, ham; norb::Int, total_electrons::Int)
     n_up = 1.0 * sum(
         vars.c_up_k0_dag[i] * vars.c_up_k0[i] + vars.c_up_k1_dag[i] * vars.c_up_k1[i]
         for i in 1:norb
@@ -354,17 +321,7 @@ function particle_number_constraints(vars, ham; norb::Int, total_electrons::Int,
         for i in 1:norb
     )
 
-    if sector == :total
-        return [n_up + n_dn - Float64(total_electrons) * one(ham)]
-    elseif sector == :spin
-        iseven(total_electrons) || error("spin-balanced sector requires even electron count")
-        return [
-            n_up - Float64(total_electrons ÷ 2) * one(ham),
-            n_dn - Float64(total_electrons ÷ 2) * one(ham),
-        ]
-    end
-
-    error("unreachable particle sector: $sector")
+    return n_up + n_dn - Float64(total_electrons) * one(ham)
 end
 
 function trace_constraints(spin_orbitals, ham; total_electrons::Int)
@@ -394,6 +351,24 @@ function trace_constraints(spin_orbitals, ham; total_electrons::Int)
     ]
 end
 
+function single_full_system_clique(registry, moment_support_basis::Vector{NM}, objective::P; nk::Int, norb::Int) where {NM<:NormalMonomial,P}
+    T = eltype(one(NM).word)
+    clique_modes = T.(1:(2 * nk * norb))
+
+    # NCTSSoS.moment_relax wants a CorrelativeSparsity object. We are not
+    # computing or using correlative sparsity here: one clique covers the full
+    # active space, and the Schouten 1D/PQG blocks below carry the structure.
+    return NCTSSoS.CorrelativeSparsity{FermionicAlgebra,T,P,NM,Nothing}(
+        [clique_modes],
+        registry,
+        P[],
+        [Int[]],
+        Int[],
+        [moment_support_basis],
+        [Vector{Vector{NM}}()],
+    )
+end
+
 function build_h4_pqg_moment_problem(options::Options)
     nk = 2
     norb = 8
@@ -402,67 +377,49 @@ function build_h4_pqg_moment_problem(options::Options)
 
     h1e, eri = load_integrals_txt(options.integrals_path; norb)
     registry, vars, h4_ham = build_h4_nk2_hamiltonian(h1e, eri; nk, norb)
-    objective = options.zero_objective ? zero(h4_ham) : h4_ham
+    objective = h4_ham
     spin_orbitals = build_spin_orbitals(vars; nk, norb)
 
-    meq_constraints = typeof(h4_ham)[]
-    append!(meq_constraints, particle_number_constraints(vars, h4_ham;
-        norb, total_electrons, sector = options.particle_sector))
-    if options.trace_constraints
-        append!(meq_constraints, trace_constraints(spin_orbitals, h4_ham; total_electrons))
-    end
+    meq_constraints = typeof(h4_ham)[
+        total_electron_constraint(vars, h4_ham; norb, total_electrons),
+    ]
+    append!(meq_constraints, trace_constraints(spin_orbitals, h4_ham; total_electrons))
 
     pop = polyopt(objective, registry; moment_eq_constraints = meq_constraints)
 
-    bases = build_rdm_bases(spin_orbitals)
-    NM = eltype(bases.oneD_basis)
-    T = eltype(one(NM).word)
-    P = typeof(objective)
-
+    row_bases = build_rdm_bases(spin_orbitals)
+    NM = eltype(row_bases.oneD_basis)
     identity = one(NM)
-    oneD_blocks = options.include_one_d ? grouped_blocks(bases.oneD_basis, options.blocking; nk, norb) : Vector{NM}[]
-    twoD_blocks = grouped_blocks(bases.twoD_basis, options.blocking; nk, norb)
-    twoQ_blocks = grouped_blocks(bases.twoQ_basis, options.blocking; nk, norb)
-    twoG_blocks = grouped_blocks_with_identity(bases.twoG_basis, identity, options.blocking; nk, norb)
 
-    all_rdm_basis = options.include_one_d ? NM[
-        bases.oneD_basis;
-        bases.twoD_basis;
-        bases.twoQ_basis;
-        bases.twoG_basis;
-    ] : NM[
-        bases.twoD_basis;
-        bases.twoQ_basis;
-        bases.twoG_basis;
+    oneD_blocks = grouped_blocks(row_bases.oneD_basis, options.blocking; nk, norb)
+    twoD_blocks = grouped_blocks(row_bases.twoD_basis, options.blocking; nk, norb)
+    twoQ_blocks = grouped_blocks(row_bases.twoQ_basis, options.blocking; nk, norb)
+    twoG_blocks = grouped_blocks_with_identity(row_bases.twoG_basis, identity, options.blocking; nk, norb)
+
+    moment_support_basis = NM[
+        identity;
+        row_bases.oneD_basis;
+        row_bases.twoD_basis;
+        row_bases.twoQ_basis;
+        row_bases.twoG_basis;
     ]
-    requested_moment_basis = NM[identity; all_rdm_basis]
 
-    clique_modes = T.(1:(2 * nk * norb))
-    corr_sparsity = NCTSSoS.CorrelativeSparsity{FermionicAlgebra,T,P,NM,Nothing}(
-        [clique_modes],
-        registry,
-        P[],
-        [Int[]],
-        Int[],
-        [requested_moment_basis],
-        [Vector{Vector{NM}}()],
-    )
+    schouten_blocks = Vector{NM}[]
+    append!(schouten_blocks, oneD_blocks)
+    append!(schouten_blocks, twoD_blocks)
+    append!(schouten_blocks, twoQ_blocks)
+    append!(schouten_blocks, twoG_blocks)
 
-    block_bases = Vector{NM}[]
-    append!(block_bases, oneD_blocks)
-    append!(block_bases, twoD_blocks)
-    append!(block_bases, twoQ_blocks)
-    append!(block_bases, twoG_blocks)
-    term_sparsity = NCTSSoS.TermSparsity{NM}(copy(requested_moment_basis), block_bases)
-
-    moment_problem = NCTSSoS.moment_relax(pop, corr_sparsity, [[term_sparsity]])
+    full_clique = single_full_system_clique(registry, moment_support_basis, objective; nk, norb)
+    term_sparsity = NCTSSoS.TermSparsity{NM}(copy(moment_support_basis), schouten_blocks)
+    moment_problem = NCTSSoS.moment_relax(pop, full_clique, [[term_sparsity]])
     hf_active = active_hf_energy(h1e, eri; nk, nelec_per_cell)
 
     return (; nk, norb, nelec_per_cell, total_electrons, h1e, eri,
              registry, vars, h4_ham, objective, pop, meq_constraints,
-             spin_orbitals, bases, oneD_blocks, twoD_blocks, twoQ_blocks,
-             twoG_blocks, requested_moment_basis, term_sparsity, moment_problem,
-             hf_active)
+             spin_orbitals, row_bases, oneD_blocks, twoD_blocks, twoQ_blocks,
+             twoG_blocks, moment_support_basis, schouten_blocks, term_sparsity,
+             moment_problem, hf_active)
 end
 
 real_lift_triangle_rows(n::Integer) = (2n) * (2n + 1) ÷ 2
@@ -482,18 +439,14 @@ end
 
 function print_summary(data, options::Options, build_seconds::Real)
     stats = constraint_stats(data.moment_problem)
-    trace_desc = options.trace_constraints ? "global TrD=28, TrQ=276, TrG=200" : "disabled"
-    sector_desc = options.particle_sector == :total ? "N=8 via moment_eq_constraints" :
-                  options.particle_sector == :spin ? "N_up=4, N_down=4 via moment_eq_constraints" :
-                  "disabled"
 
-    println("== H4/Nk=2 periodic V2RDM as an NCTSSoS MomentProblem ==")
+    println("== H4/Nk=2 periodic 1D+PQG V2RDM as an NCTSSoS MomentProblem ==")
     @printf("%-48s %s\n", "integrals", options.integrals_path)
     @printf("%-48s %s\n", "blocking", string(options.blocking))
-    @printf("%-48s %s\n", "objective", options.zero_objective ? "zero" : "H4 active-space Hamiltonian")
-    @printf("%-48s %s\n", "particle sector", sector_desc)
-    @printf("%-48s %s\n", "trace constraints", trace_desc)
-    @printf("%-48s %s\n", "extra ¹D HPSD block", options.include_one_d ? "included" : "disabled (PQG default)")
+    @printf("%-48s %s\n", "objective", "H4 active-space Hamiltonian")
+    @printf("%-48s %s\n", "particle constraint", "N=8 via moment_eq_constraints")
+    @printf("%-48s %s\n", "trace constraints", "TrD=28, TrQ=276, TrG=200")
+    @printf("%-48s %s\n", "correlative sparsity", "none; single full-system clique")
     println()
 
     @printf("%-48s %d\n", "k-points", data.nk)
@@ -504,20 +457,21 @@ function print_summary(data, options::Options, build_seconds::Real)
     @printf("%-48s %d\n", "Hamiltonian monomials", length(monomials(data.h4_ham)))
     println()
 
-    println("-- RDM row bases --")
-    @printf("%-48s %s\n", "¹D rows a_p", options.include_one_d ? string(length(data.bases.oneD_basis)) : "not included")
-    @printf("%-48s %d\n", "²D rows a_p a_q, p<q", length(data.bases.twoD_basis))
-    @printf("%-48s %d\n", "²Q rows a†_p a†_q, p<q", length(data.bases.twoQ_basis))
-    @printf("%-48s %d\n", "²G rows a†_p a_q", length(data.bases.twoG_basis))
-    @printf("%-48s %d\n", "requested basis incl. identity", length(data.requested_moment_basis))
+    println("-- Moment support basis --")
+    @printf("%-48s %d\n", "identity", 1)
+    @printf("%-48s %d\n", "¹D rows a_p", length(data.row_bases.oneD_basis))
+    @printf("%-48s %d\n", "²D rows a_p a_q, p<q", length(data.row_bases.twoD_basis))
+    @printf("%-48s %d\n", "²Q rows a†_p a†_q, p<q", length(data.row_bases.twoQ_basis))
+    @printf("%-48s %d\n", "²G rows a†_p a_q", length(data.row_bases.twoG_basis))
+    @printf("%-48s %d\n", "total support rows", length(data.moment_support_basis))
     println()
 
-    println("-- HPSD block sizes by family --")
-    @printf("%-48s %s\n", "identity", "inside ²G zero-momentum sector")
-    @printf("%-48s %s\n", "¹D", options.include_one_d ? string(length.(data.oneD_blocks)) : "not included")
+    println("-- Schouten HPSD blocks --")
+    @printf("%-48s %s\n", "¹D", string(length.(data.oneD_blocks)))
     @printf("%-48s %s\n", "²D", string(length.(data.twoD_blocks)))
     @printf("%-48s %s\n", "²Q", string(length.(data.twoQ_blocks)))
     @printf("%-48s %s\n", "²G", string(length.(data.twoG_blocks)))
+    @printf("%-48s %s\n", "identity", "inside ²G zero-momentum sector")
     @printf("%-48s %d\n", "total HPSD blocks", length(stats.hpsd_sizes))
     @printf("%-48s %d\n", "largest HPSD block", maximum(stats.hpsd_sizes))
     println()
@@ -539,7 +493,7 @@ function print_summary(data, options::Options, build_seconds::Real)
     @printf("%-48s %s\n", "max RSS after build", rss_string())
     println()
     println("No optimizer was attached and optimize! was not called.")
-    println("This is the useful artifact: a symbolic NCTSSoS MomentProblem with PQG HPSD blocks over one shared fermionic CAR moment map.")
+    println("Artifact: symbolic 1D+PQG MomentProblem over one shared fermionic CAR moment map.")
     return nothing
 end
 

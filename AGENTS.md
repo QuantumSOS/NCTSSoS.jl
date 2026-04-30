@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+## Current Task Context
+- Read `TASK.md` before work for current task-specific constraints and environment notes.
+
 ## Project Layout
 - `src/` — library code
   - `src/types/` — algebras, registries, monomials, polynomials

@@ -32,12 +32,16 @@ struct Options
     integrals_path::String
     blocking::Symbol
     include_one_d::Bool
+    spin_resolved_trace::Bool
+    singlet_s2::Bool
 end
 
 function parse_options(argv)
     integrals_path = DEFAULT_INTEGRALS
     blocking = :momentum
     include_one_d = false
+    spin_resolved_trace = false
+    singlet_s2 = false
 
     for arg in argv
         if startswith(arg, "--integrals=")
@@ -57,6 +61,17 @@ function parse_options(argv)
             include_one_d = true
         elseif arg == "--no-1d"
             include_one_d = false
+        elseif arg in ("--paper-spin", "--spin-singlet")
+            spin_resolved_trace = true
+            singlet_s2 = true
+        elseif arg == "--spin-resolved-trace"
+            spin_resolved_trace = true
+        elseif arg == "--no-spin-resolved-trace"
+            spin_resolved_trace = false
+        elseif arg == "--singlet-s2"
+            singlet_s2 = true
+        elseif arg == "--no-singlet-s2"
+            singlet_s2 = false
         elseif arg in ("-h", "--help")
             println("Usage: julia --project=. demos/h4_periodic_moment_sos.jl [options]\n")
             println("Options:")
@@ -65,13 +80,20 @@ function parse_options(argv)
             println("  --include-1d                  add an extra ¹D PSD block (off by default; matches")
             println("                                replicate/scripts/nctssos_pqg_regen default)")
             println("  --no-1d                       explicitly drop the ¹D PSD block (default)")
+            println("  --paper-spin, --spin-singlet  add spin-resolved ²D traces and singlet S²")
+            println("                                constraint; combine with --include-1d for the")
+            println("                                Figure-1 comparison SDP")
+            println("  --spin-resolved-trace         replace total TrD with TrDαα/TrDαβ/TrDββ")
+            println("  --no-spin-resolved-trace      use one total TrD constraint (default)")
+            println("  --singlet-s2                  add Σᵢⱼ D(iα,jβ;jα,iβ) = N/2")
+            println("  --no-singlet-s2               do not add singlet S² constraint (default)")
             exit(0)
         else
             throw(ArgumentError("unknown argument: $arg"))
         end
     end
 
-    return Options(integrals_path, blocking, include_one_d)
+    return Options(integrals_path, blocking, include_one_d, spin_resolved_trace, singlet_s2)
 end
 
 bytes_to_gib(bytes::Integer) = bytes / 1024.0^3
@@ -333,7 +355,7 @@ function total_electron_constraint(vars, ham; norb::Int, total_electrons::Int)
     return n_up + n_dn - Float64(total_electrons) * one(ham)
 end
 
-function trace_constraints(spin_orbitals, ham; total_electrons::Int)
+function trace_constraints(spin_orbitals, ham; total_electrons::Int, include_total_d::Bool = true)
     n_modes = length(spin_orbitals)
     n_holes = n_modes - total_electrons
 
@@ -353,11 +375,58 @@ function trace_constraints(spin_orbitals, ham; total_electrons::Int)
         trG += adjoint(grow) * grow
     end
 
-    return [
-        trD - Float64(total_electrons * (total_electrons - 1) ÷ 2) * one(ham),
+    constraints = typeof(ham)[]
+    if include_total_d
+        push!(constraints,
+            trD - Float64(total_electrons * (total_electrons - 1) ÷ 2) * one(ham))
+    end
+    push!(constraints,
         trQ - Float64(n_holes * (n_holes - 1) ÷ 2) * one(ham),
         trG - Float64(total_electrons * (n_holes + 1)) * one(ham),
+    )
+    return constraints
+end
+
+function spin_resolved_d_trace_constraints(spin_orbitals, ham; total_electrons::Int)
+    iseven(total_electrons) ||
+        throw(ArgumentError("spin-resolved trace constraints assume an M_s = 0 sector"))
+
+    n_alpha = total_electrons ÷ 2
+    n_beta = total_electrons ÷ 2
+    tr_aa = zero(ham)
+    tr_ab = zero(ham)
+    tr_bb = zero(ham)
+
+    for p in 1:(length(spin_orbitals) - 1), q in (p + 1):length(spin_orbitals)
+        drow = spin_orbitals[p].a * spin_orbitals[q].a
+        term = adjoint(drow) * drow
+        spin_p = spin_orbitals[p].spin
+        spin_q = spin_orbitals[q].spin
+        if spin_p == :up && spin_q == :up
+            tr_aa += term
+        elseif spin_p == :dn && spin_q == :dn
+            tr_bb += term
+        else
+            tr_ab += term
+        end
+    end
+
+    return typeof(ham)[
+        tr_aa - Float64(n_alpha * (n_alpha - 1) ÷ 2) * one(ham),
+        tr_ab - Float64(n_alpha * n_beta) * one(ham),
+        tr_bb - Float64(n_beta * (n_beta - 1) ÷ 2) * one(ham),
     ]
+end
+
+function singlet_s2_constraint(vars, ham; nk::Int, norb::Int, total_electrons::Int)
+    exchange_sum = zero(ham)
+    for ki in 0:(nk - 1), pi in 1:norb, kj in 0:(nk - 1), pj in 1:norb
+        exchange_sum +=
+            vars.dag[(ki, :up)][pi] * vars.dag[(kj, :dn)][pj] *
+            vars.ann[(ki, :dn)][pi] * vars.ann[(kj, :up)][pj]
+    end
+    exchange_sum = 0.5 * (exchange_sum + adjoint(exchange_sum))
+    return exchange_sum - (0.5 * total_electrons) * one(ham)
 end
 
 function single_full_system_clique(registry, moment_support_basis::Vector{NM}, objective::P; nk::Int, norb::Int) where {NM<:NormalMonomial,P}
@@ -392,7 +461,18 @@ function build_h4_pqg_moment_problem(options::Options)
     meq_constraints = typeof(h4_ham)[
         total_electron_constraint(vars, h4_ham; norb, total_electrons),
     ]
-    append!(meq_constraints, trace_constraints(spin_orbitals, h4_ham; total_electrons))
+    append!(meq_constraints, trace_constraints(spin_orbitals, h4_ham;
+        total_electrons,
+        include_total_d = !options.spin_resolved_trace,
+    ))
+    if options.spin_resolved_trace
+        append!(meq_constraints,
+            spin_resolved_d_trace_constraints(spin_orbitals, h4_ham; total_electrons))
+    end
+    if options.singlet_s2
+        push!(meq_constraints,
+            singlet_s2_constraint(vars, h4_ham; nk, norb, total_electrons))
+    end
 
     pop = polyopt(objective, registry; moment_eq_constraints = meq_constraints)
 
@@ -466,7 +546,12 @@ function print_summary(data, options::Options, build_seconds::Real)
             options.include_one_d ? "included" : "disabled (paper PQG default)")
     @printf("%-48s %s\n", "objective", "H4 active-space Hamiltonian")
     @printf("%-48s %s\n", "particle constraint", "N=8 via moment_eq_constraints")
-    @printf("%-48s %s\n", "trace constraints", "TrD=28, TrQ=276, TrG=200")
+    trace_label = options.spin_resolved_trace ?
+        "TrDαα=6, TrDαβ=16, TrDββ=6, TrQ=276, TrG=200" :
+        "TrD=28, TrQ=276, TrG=200"
+    @printf("%-48s %s\n", "trace constraints", trace_label)
+    @printf("%-48s %s\n", "singlet S² constraint",
+            options.singlet_s2 ? "Σᵢⱼ D(iα,jβ;jα,iβ)=4 included" : "disabled")
     @printf("%-48s %s\n", "correlative sparsity", "none; single full-system clique")
     println()
 

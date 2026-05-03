@@ -17,6 +17,8 @@
 # Formulation flags are forwarded to h4_periodic_moment_sos.jl:
 #   --integrals=PATH
 #   --blocking=momentum|spin|none
+#   --include-1d|--no-1d
+#   --paper-spin|--spin-singlet
 #
 # Export flags:
 #   --outdir=PATH                Default: output/h4_periodic_moment_sos_libsdp
@@ -41,6 +43,8 @@ function _print_export_help()
     println("Formulation options forwarded to h4_periodic_moment_sos.jl:")
     println("  --integrals=PATH")
     println("  --blocking=momentum|spin|none")
+    println("  --include-1d | --no-1d")
+    println("  --paper-spin | --spin-singlet")
     println()
     println("After export, parse/solve with:")
     println("  python demos/solve_libsdp_dat_c.py --problem <outdir>/<basename>.dat-c --no-solve")

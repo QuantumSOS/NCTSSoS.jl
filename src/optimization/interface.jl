@@ -306,10 +306,12 @@ Configuration for solving polynomial optimization problems.
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
 - `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity exploitation (default: NoElimination())
 - `symmetry::Union{Nothing,SymmetrySpec}`: Optional symmetry reduction spec. The
-  current MVP is intentionally narrow: dense ordinary polynomial relaxations only
-  (`cs_algo=NoElimination()`, `ts_algo=NoElimination()`), monoid algebras only,
-  and signed-permutation actions only. Unsupported combinations error instead of
-  silently doing the wrong thing.
+  current implementation is still intentionally narrow: dense ordinary polynomial
+  relaxations only (`cs_algo=NoElimination()`, `ts_algo=NoElimination()`), with
+  supported combinations limited to either
+  - `MonoidAlgebra` + `SignedPermutation`, or
+  - `FermionicAlgebra` + `FermionicModePermutation`, `FermionicSectorSpec`, and optional `FermionicSpinAdaptationSpec` layered on sector blocks.
+  Unsupported combinations error instead of silently doing the wrong thing.
 
 # Examples
 ```jldoctest; setup=:(using NCTSSoS, COSMO)
@@ -348,25 +350,45 @@ function _check_symmetry_mvp_support(
 ) where {A<:AlgebraType,P}
     isnothing(solver_config.symmetry) && return nothing
 
-    A <: MonoidAlgebra || throw(ArgumentError(
-        "Symmetry reduction MVP currently supports ordinary polynomial problems over `MonoidAlgebra` only. Got `$(nameof(A))`."
-    ))
+    symmetry = solver_config.symmetry
+
     P <: Polynomial || throw(ArgumentError(
-        "Symmetry reduction MVP currently supports ordinary polynomial problems only; state/trace problems are not yet supported."
+        "Symmetry reduction currently supports ordinary polynomial problems only; state/trace problems are not yet supported."
     ))
     solver_config.cs_algo isa NoElimination || throw(ArgumentError(
-        "Symmetry reduction MVP currently requires `cs_algo=NoElimination()`."
+        "Symmetry reduction currently requires `cs_algo=NoElimination()`."
     ))
     solver_config.ts_algo isa NoElimination || throw(ArgumentError(
-        "Symmetry reduction MVP currently requires `ts_algo=NoElimination()`."
+        "Symmetry reduction currently requires `ts_algo=NoElimination()`."
     ))
     length(sparsity.corr_sparsity.cliques) == 1 || throw(ArgumentError(
-        "Symmetry reduction MVP currently supports a single dense clique only."
+        "Symmetry reduction currently supports a single dense clique only."
     ))
 
     for term_sparsities in sparsity.cliques_term_sparsities, term_sparsity in term_sparsities
         length(term_sparsity.block_bases) == 1 || throw(ArgumentError(
-            "Symmetry reduction MVP does not yet compose with term-sparsity block splitting."
+            "Symmetry reduction does not yet compose with term-sparsity block splitting."
+        ))
+    end
+
+    if !isempty(symmetry.generators)
+        A <: MonoidAlgebra || throw(ArgumentError(
+            "`SignedPermutation` symmetry is currently supported only for ordinary polynomial problems over `MonoidAlgebra`. Got `$(nameof(A))`."
+        ))
+        (isnothing(symmetry.sector) && isnothing(symmetry.spin_adaptation)) || throw(ArgumentError(
+            "Fermionic sector splitting / spin adaptation cannot be combined with raw `SignedPermutation` symmetry. Use `FermionicModePermutation` for fermionic problems."
+        ))
+    end
+
+    if !isempty(symmetry.fermionic_generators) || !isnothing(symmetry.sector) || !isnothing(symmetry.spin_adaptation)
+        A === FermionicAlgebra || throw(ArgumentError(
+            "Fermionic mode permutations / sector splitting / spin adaptation are currently supported only for `FermionicAlgebra`. Got `$(nameof(A))`."
+        ))
+    end
+
+    if !isnothing(symmetry.spin_adaptation)
+        isnothing(symmetry.sector) && throw(ArgumentError(
+            "Fermionic spin adaptation currently requires `sector=FermionicSectorSpec(..., split_spin=true)` in the same `SymmetrySpec`."
         ))
     end
 

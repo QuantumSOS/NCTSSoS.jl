@@ -38,6 +38,23 @@ NCTSSoS.SymmetrySpec
 NCTSSoS.SymmetryReport
 ```
 
+### Fermionic Symmetry
+
+Fermionic-specific helpers for sector splitting (parity / particle
+number / `S_z` / Abelian orbital irrep) and Casimir-based SU(2) spin
+adaptation. See the worked example
+[H₂/STO-3G with Fermionic Symmetry Adaptation](@ref h2-fermionic-symmetry).
+
+```@docs
+NCTSSoS.FermionicModePermutation
+NCTSSoS.FermionicModeLayout
+NCTSSoS.AbelianIrrepTable
+NCTSSoS.FermionicSectorSpec
+NCTSSoS.FermionicSectorLabel
+NCTSSoS.FermionicSpinAdaptationSpec
+NCTSSoS.FermionicSpinBlockLabel
+```
+
 ## Basis Selection
 
 ```@docs

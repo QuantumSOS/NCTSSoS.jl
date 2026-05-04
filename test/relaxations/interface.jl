@@ -958,7 +958,7 @@ end
                 a.word[1] => (1, b.word[1]),
                 b.word[1] => (1, a.word[1]),
             ))
-            return SymmetrySpec{T}([generator], true)
+            return SymmetrySpec([generator]; check_invariance=true)
         end
 
         function swap_group(a, b)
@@ -1037,6 +1037,66 @@ end
             end
             @test ts_err isa ArgumentError
             @test occursin("`ts_algo=NoElimination()`", sprint(showerror, ts_err))
+        end
+
+        @testset "unsupported algebra-action combinations fail loudly" begin
+            regf, (a, a_dag) = create_fermionic_variables(1:2)
+            ferm_pop = polyopt(-(a_dag[1] * a[2] + a_dag[2] * a[1]), regf)
+            ferm_basis = [one(a[1]), a[1], a[2], a_dag[1], a_dag[2]]
+
+            signed_err = symmetry_error() do
+                cs_nctssos(
+                    ferm_pop,
+                    SolverConfig(
+                        optimizer=SOLVER,
+                        moment_basis=ferm_basis,
+                        cs_algo=NoElimination(),
+                        ts_algo=NoElimination(),
+                        symmetry=SymmetrySpec(SignedPermutation(1 => 2, 2 => 1)),
+                    ),
+                )
+            end
+            @test signed_err isa ArgumentError
+            @test occursin("`SignedPermutation`", sprint(showerror, signed_err))
+
+            regm, (xm,) = create_unipotent_variables([("x", 1:2)])
+            monoid_pop = polyopt(-(1.0 * xm[1] + xm[2]), regm)
+            monoid_basis = [one(xm[1]), xm[1], xm[2]]
+            sector_err = symmetry_error() do
+                cs_nctssos(
+                    monoid_pop,
+                    SolverConfig(
+                        optimizer=SOLVER,
+                        moment_basis=monoid_basis,
+                        cs_algo=NoElimination(),
+                        ts_algo=NoElimination(),
+                        symmetry=SymmetrySpec(sector=FermionicSectorSpec(split_parity=true)),
+                    ),
+                )
+            end
+            @test sector_err isa ArgumentError
+            @test occursin("Fermionic mode permutations / sector splitting", sprint(showerror, sector_err))
+
+            up_mode = Int(a[1].word[1])
+            dn_mode = Int(a[2].word[1])
+            layout = FermionicModeLayout(
+                Dict(up_mode => 1, dn_mode => 1);
+                spin2_of=Dict(up_mode => 1, dn_mode => -1),
+            )
+            spin_without_sector_err = symmetry_error() do
+                cs_nctssos(
+                    ferm_pop,
+                    SolverConfig(
+                        optimizer=SOLVER,
+                        moment_basis=ferm_basis,
+                        cs_algo=NoElimination(),
+                        ts_algo=NoElimination(),
+                        symmetry=SymmetrySpec(spin_adaptation=FermionicSpinAdaptationSpec(mode_layout=layout)),
+                    ),
+                )
+            end
+            @test spin_without_sector_err isa ArgumentError
+            @test occursin("spin adaptation currently requires", sprint(showerror, spin_without_sector_err))
         end
     end
 end

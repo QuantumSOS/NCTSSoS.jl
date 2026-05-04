@@ -44,17 +44,17 @@ end
 
         # Test 4: Two operators (a_dag * a) have even parity (2 operators)
         # Before simplification, product has 2 operators
-        pair_mono = a_dag[1] * a[1]
+        pair_mono = only(monomials(a_dag[1] * a[1]))
         @test has_even_parity(pair_mono) == true
 
         # Test 5: Three operators have odd parity
         # a_dag[1] * a_dag[2] * a[1] has 3 operators
-        triple_mono = a_dag[1] * a_dag[2] * a[1]
+        triple_mono = only(monomials(a_dag[1] * a_dag[2] * a[1]))
         @test has_even_parity(triple_mono) == false
 
         # Test 6: Four operators have even parity
         # a_dag[1] * a_dag[2] * a[2] * a[1] has 4 operators
-        quad_mono = a_dag[1] * a_dag[2] * a[2] * a[1]
+        quad_mono = only(monomials(a_dag[1] * a_dag[2] * a[2] * a[1]))
         @test has_even_parity(quad_mono) == true
     end
 
@@ -65,15 +65,15 @@ end
 
         # Simplified even-parity polynomial: a_dag[1] * a[1] after normal ordering
         even_poly = simplify(a_dag[1] * a[1])
-        for t in terms(even_poly)
-            @test has_even_parity(t.monomial) == true
+        for (_, mono) in terms(even_poly)
+            @test has_even_parity(mono) == true
         end
 
         # Simplified polynomial: a[1] * a_dag[1] = delta - a_dag[1]*a[1]
         # Both identity (from delta) and number operator have even parity
         anticomm_poly = simplify(a[1] * a_dag[1])
-        for t in terms(anticomm_poly)
-            @test has_even_parity(t.monomial) == true
+        for (_, mono) in terms(anticomm_poly)
+            @test has_even_parity(mono) == true
         end
     end
 
@@ -177,10 +177,10 @@ end
 
         # Odd-parity objective: single annihilation operator (has 1 operator)
         # Need to create a Polynomial explicitly to pass to polyopt
-        odd_poly = Polynomial([Term(1.0, a[1])])
+        odd_poly = Polynomial((1.0, a[1]))
 
-        # This should throw an error because odd-parity operators have zero expectation
-        @test_throws ErrorException polyopt(odd_poly, registry)
+        # This should throw an error because the single fermionic operator is non-Hermitian
+        @test_throws ArgumentError polyopt(odd_poly, registry)
 
         # Even-parity objective should succeed
         even_poly = a_dag[1] * a[1] + a_dag[2] * a[2]
@@ -192,9 +192,9 @@ end
         registry, (a, a_dag) = create_fermionic_variables(1:2)
 
         # Pure odd-parity: just a single creation operator
-        odd_poly = Polynomial([Term(1.0, a_dag[1])])
+        odd_poly = Polynomial((1.0, a_dag[1]))
 
-        @test_throws ErrorException polyopt(odd_poly, registry)
+        @test_throws ArgumentError polyopt(odd_poly, registry)
     end
 
     @testset "Mixed parity objective rejected" begin
@@ -203,12 +203,48 @@ end
         # Mixed: has both even and odd parity terms
         # Even term: a_dag[1] * a[1] (2 operators)
         # Odd term: a[1] (1 operator)
-        even_term = Term(1.0, a_dag[1] * a[1])
-        odd_term = Term(1.0, a[1])
-        mixed_poly = Polynomial([even_term, odd_term])
+        mixed_poly = Polynomial([(1.0, only(monomials(a_dag[1] * a[1]))), (1.0, a[1])])
 
-        # Should reject because of the odd-parity term
-        @test_throws ErrorException polyopt(mixed_poly, registry)
+        # Should reject because the mixed objective is not Hermitian
+        @test_throws ArgumentError polyopt(mixed_poly, registry)
+    end
+
+    @testset "Fermionic mode-swap symmetry agrees with the ordinary path" begin
+        registry, (a, a_dag) = create_fermionic_variables(1:2)
+        ham = -(a_dag[1] * a[2] + a_dag[2] * a[1])
+        pop = polyopt(ham, registry)
+        basis = [one(a[1]), a[1], a[2], a_dag[1], a_dag[2]]
+
+        plain = cs_nctssos(
+            pop,
+            SolverConfig(
+                optimizer=SOLVER,
+                moment_basis=basis,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+            ),
+        )
+        symmetric = cs_nctssos(
+            pop,
+            SolverConfig(
+                optimizer=SOLVER,
+                moment_basis=basis,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+                symmetry=SymmetrySpec(
+                    fermionic_generators=[FermionicModePermutation(1 => 2, 2 => 1)],
+                    sector=FermionicSectorSpec(split_parity=true, split_number=true),
+                ),
+            ),
+        )
+
+        @test symmetric.objective ≈ plain.objective atol = 1e-6
+        @test !isnothing(symmetric.symmetry)
+        @test symmetric.symmetry.group_order == 2
+        @test symmetric.symmetry.psd_block_sizes == [1, 1, 1, 1, 1]
+        @test all(label isa FermionicSectorLabel for label in symmetric.symmetry.block_labels)
+        @test length(symmetric.symmetry.psd_block_sizes) > 1
+        @test maximum(symmetric.symmetry.psd_block_sizes) < only(flatten_sizes(plain.moment_matrix_sizes))
     end
 
 end

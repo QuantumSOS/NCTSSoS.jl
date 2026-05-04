@@ -211,7 +211,7 @@ spec = SymmetrySpec(alice_swap, bob_swap, party_swap)
 ````
 
 ````
-NCTSSoS.SymmetrySpec{Int64}(NCTSSoS.SignedPermutation{Int64}[NCTSSoS.SignedPermutation{Int64}(Dict(5 => (1, 9), 18 => (-1, 18), 9 => (1, 5))), NCTSSoS.SignedPermutation{Int64}(Dict(18 => (1, 14), 9 => (-1, 9), 14 => (1, 18))), NCTSSoS.SignedPermutation{Int64}(Dict(5 => (1, 14), 18 => (1, 9), 9 => (1, 18), 14 => (1, 5)))], true)
+NCTSSoS.SymmetrySpec(NCTSSoS.SignedPermutation[NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x05 => (1, 0x09), 0x12 => (-1, 0x12), 0x09 => (1, 0x05))), NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x12 => (1, 0x0e), 0x09 => (-1, 0x09), 0x0e => (1, 0x12))), NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x05 => (1, 0x0e), 0x12 => (1, 0x09), 0x09 => (1, 0x12), 0x0e => (1, 0x05)))], NCTSSoS.FermionicModePermutation[], nothing, nothing, true)
 ````
 
 ## Step 4 — Solve with symmetry reduction
@@ -238,7 +238,7 @@ sym_bound = -sym_result.objective
 ````
 
 ````
-2.828427124727845
+2.8284271244510046
 ````
 
 matched against the theoretical value:
@@ -248,7 +248,7 @@ abs(sym_bound - 2 * sqrt(2))
 ````
 
 ````
-1.8345325258906087e-11
+2.9518565369812677e-10
 ````
 
 and matched against the dense baseline:
@@ -258,7 +258,7 @@ abs(sym_bound - dense_bound)
 ````
 
 ````
-7.434474813550196e-9
+7.711315141989417e-9
 ````
 
 ## Step 5 — Read the [`SymmetryReport`](@ref)
@@ -271,7 +271,7 @@ report = sym_result.symmetry
 ````
 
 ````
-SymmetryReport(group_order=16, invariant_moment_count=1, psd_block_sizes=[1, 1, 1], basis_half_size=5, basis_full_size=13)
+SymmetryReport(group_order=16, invariant_moment_count=1, psd_block_sizes=[1, 1, 1], basis_half_size=5, basis_full_size=13, block_provenance=[:wedderburn, :wedderburn, :wedderburn])
 ````
 
 The full enumerated symmetry group has 16 elements:
@@ -331,7 +331,7 @@ sym_result
 ````
 
 ````
-Objective: -2.828427124727845
+Objective: -2.8284271244510046
 Correlative Sparsity (UnipotentAlgebra): 
 
    maximum clique size: 4
@@ -351,7 +351,7 @@ Number of Bases Activated in each sub-block[5]
 
    Localizing Matrix:
 Unique Moment Matrix Elements: 2
-Symmetry: SymmetryReport(group_order=16, invariant_moment_count=1, psd_block_sizes=[1, 1, 1], basis_half_size=5, basis_full_size=13)
+Symmetry: SymmetryReport(group_order=16, invariant_moment_count=1, psd_block_sizes=[1, 1, 1], basis_half_size=5, basis_full_size=13, block_provenance=[:wedderburn, :wedderburn, :wedderburn])
 
 ````
 

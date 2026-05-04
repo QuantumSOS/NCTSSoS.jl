@@ -1,0 +1,42 @@
+schema_version = 1
+
+[[cases]]
+id = "two_orbital_pair_sector_spin_blocks"
+notes = "Structural SU(2) regression on the two-spatial-orbital, two-electron, M_S = 0 pair-creation sector over four spin orbitals (1↑, 1↓, 2↑, 2↓). The Casimir-adapted block sizes must be [3, 1] for singlet/triplet splitting. `objective` is a dummy placeholder because the shared oracle loader requires it."
+
+    [cases.expected]
+    objective = 0.0
+    sides = [3, 1]
+
+[[cases]]
+id = "h2_sto3g_sector_labels"
+notes = "Structural label-only H₂/STO-3G molecular-orbital regression in the (σ_g, σ_u) basis. Diagonal densities a†_{gσ}a_{gσ} and a†_{uσ}a_{uσ} must be irrep-neutral (`:Ag`), while transitions a†_{gσ}a_{uσ} and a†_{uσ}a_{gσ} must carry the odd irrep (`:B1u`). `objective` is a dummy placeholder because the shared oracle loader requires it."
+
+    [cases.expected]
+    objective = 0.0
+    diagonal_irrep = "Ag"
+    transition_irrep = "B1u"
+
+[[cases]]
+id = "h2_sto3g_n2_spin_adapted"
+notes = "H₂/STO-3G in molecular-orbital form over four spin orbitals (σ_g↑, σ_g↓, σ_u↑, σ_u↓), with electronic-only one- and two-electron integrals reviewed offline and N = 2 enforced by `moment_eq_constraints`. `objective` is the exact electronic N = 2 ground-state energy from finite-dimensional diagonalization of the same polynomial (no nuclear-repulsion constant added). `sides` records the reviewed symmetry-adapted PSD block sizes from a local COSMO order-2 run."
+
+    [cases.expected]
+    objective = -1.8510462258674936
+    sides = [1, 2, 1, 1, 1, 2, 2, 2, 2, 3, 2, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+[[cases]]
+id = "be_1s_2s_spin_blocks"
+notes = "Structural-only Be worked example from the fermionic symmetry note: two spatial orbitals (1s, 2s), doubled by spin. The spin-zero one-body density sector splits into singlet/triplet SU(2) blocks of sizes [2, 2]. `objective` is a dummy placeholder because the shared oracle loader requires it."
+
+    [cases.expected]
+    objective = 0.0
+    sides = [2, 2]
+
+[[cases]]
+id = "be_1s_2s_one_body_n2_order1"
+notes = "Be STO-6G-derived 1s/2s one-body slice with two active electrons and canonical N=2 enforced by `moment_eq_constraints`. One-electron integrals come from Nakata/Braams public `Be.1S.STO6G.eri`; the exact reference objective is 2 * λ_min(h), where h is the 2x2 spatial one-electron matrix. `sides` records the reviewed symmetry-adapted PSD block sizes from a local COSMO run."
+
+    [cases.expected]
+    objective = -15.90163070552046
+    sides = [5, 4]

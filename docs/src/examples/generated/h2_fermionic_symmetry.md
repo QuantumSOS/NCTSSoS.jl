@@ -57,7 +57,37 @@ molecular electronic structure hard:
 | **Particle-number conservation** | only the $N = 2$ sector is physical |
 | **Total $S_z$ conservation** | the Hamiltonian is spin-rotation invariant |
 | **Total $S^2$ conservation (SU(2))** | physical eigenstates are singlets ($S = 0$) or triplets ($S = 1$) |
-| **Inversion symmetry $i$ (D$_{2h}$ ↓)** | orbitals split into gerade ($\sigma_g$) and ungerade ($\sigma_u$); operators carry an Abelian $\{ \mathrm{Ag}, \mathrm{B1u} \}$ label |
+| **Inversion symmetry $\hat i$** | reflecting through the bond midpoint leaves $H$ unchanged, so every operator carries a parity $\pm 1$ under $\hat i$: *gerade* ($\sigma_g$, label `:Ag`) or *ungerade* ($\sigma_u$, label `:B1u`) |
+
+That last row is the one that usually reads as jargon, so here is the
+one-paragraph unpacking. H₂ has a geometric symmetry: put the origin
+at the midpoint of the H–H bond and send every point
+$\mathbf r \mapsto -\mathbf r$. The two protons swap, but because the
+nuclei are identical the electronic Hamiltonian is unchanged — i.e.
+$[H, \hat i] = 0$. Since $\hat i^2 = 1$, its eigenvalues are $\pm 1$,
+so every operator has a definite *parity* under $\hat i$: even
+(*gerade*, `g`, label `:Ag`) or odd (*ungerade*, `u`, label `:B1u`).
+The two spatial orbitals $\sigma_g$ and $\sigma_u$ are already
+eigenorbitals of $\hat i$, which is why the integral matrix $h$
+above is diagonal.
+
+**Why that matters for the SDP.** A symmetry of $H$ is a free
+block-diagonalisation. Moments of the form
+$\langle \text{even}\cdot\text{odd} \rangle$ must vanish, so the one
+big moment matrix splits as
+$M = M_\text{even} \oplus M_\text{odd}$, and the single big PSD
+constraint becomes two smaller ones. In NCTSSoS this is the
+`split_irrep = true` piece of [`FermionicSectorSpec`](@ref) further
+down this page.
+
+**Where the names come from.** H₂'s full point group is the
+continuous $D_{\infty h}$; quantum-chemistry codes can't handle the
+continuous part, so they keep the largest *finite Abelian* subgroup
+$D_{2h}$ (8 one-dimensional irreps) and label orbitals with its
+Mulliken names. For H₂/STO-3G only two of those names appear in
+practice — `:Ag` for the gerade orbital and `:B1u` for the
+ungerade one — and only the $\hat i$-parity bit of $D_{2h}$ is
+actually doing work here. The rest is inherited naming.
 
 A *dense* moment relaxation ignores all of that: it builds one large PSD
 block over every monomial up to some order.  The fermionic **sector
@@ -106,10 +136,44 @@ end
 Main.var"##288".jw_op
 ````
 
-H₂'s reviewed offline molecular-orbital integrals — one-body matrix
-elements `h[p,q]` and antisymmetric two-body tensor `v[p,q,r,s]`
-(chemists' notation, electronic-only).  These exact constants come
-from `test/problems/fermionic/fermionic_symmetry.jl`.
+### Where these integrals come from
+
+The numbers below are the **standard minimal-basis H₂/STO-3G**
+molecular-orbital integrals at the equilibrium bond length
+$R = 1.4\,\text{a.u.}\;(\approx 0.7414\,\text{Å})$, in chemists'
+notation:
+
+- $h_{pq} = \int \phi_p(\mathbf r)\,\bigl(-\tfrac12\nabla^2 + V_\text{ne}(\mathbf r)\bigr)\,\phi_q(\mathbf r)\,d\mathbf r$ — one-body MO matrix.
+- $v_{pqrs} = (pq|rs) = \iint \phi_p(\mathbf r_1)\phi_q(\mathbf r_1)\,\frac{1}{r_{12}}\,\phi_r(\mathbf r_2)\phi_s(\mathbf r_2)\,d\mathbf r_1 d\mathbf r_2$ — two-body MO tensor.
+
+**How they were generated.** They were produced once with
+[PySCF](https://pyscf.org/) (v2.x), printed at machine precision,
+reviewed, and then frozen so this page stays Python-free. The
+reproducer is short:
+
+```python
+from pyscf import gto, scf, ao2mo
+import numpy as np
+
+mol = gto.M(atom="H 0 0 0; H 0 0 1.4", unit="Bohr",
+            basis="sto-3g", verbose=0)
+mf  = scf.RHF(mol).run()
+C    = mf.mo_coeff                                      # AO -> MO transform
+h_mo = C.T @ mf.get_hcore() @ C                         # 1-body, MO basis
+v_mo = ao2mo.restore(1, ao2mo.kernel(mol, C), C.shape[1])  # (pq|rs), chemists'
+np.set_printoptions(precision=12, suppress=True)
+print("h =", h_mo); print("v =", v_mo)
+```
+
+**How to verify them without running PySCF.** The same minimal-basis
+H₂ example is worked out by hand in Szabo & Ostlund, *Modern Quantum
+Chemistry* (Dover, 1996), §3.5 — every constant below matches that
+table to its 4-figure printed precision; PySCF just gives more
+digits. The committed test fixture
+`test/data/expectations/fermionic_symmetry.toml` (case
+`h2_sto3g_n2_spin_adapted`) and the regression test
+`test/problems/fermionic/fermionic_symmetry.jl` use *these exact
+numbers*.
 
 ````julia
 function h2_sto3g_integrals()
@@ -183,6 +247,36 @@ two electrons.  Add the nuclear-repulsion constant separately if you
 want the textbook total energy; the polynomial we feed the SDP does
 not contain it, and neither does the value above.
 
+### Sanity-check against the literature
+
+Two independent ways to convince yourself the number above is right:
+
+1. **Comparison to a tabulated total energy.** In a minimal basis,
+   full configuration interaction (FCI) is exact, and the FCI/STO-3G
+   total energy of H₂ at $R = 1.4\,\text{a.u.}$ is the textbook value
+   $E_\text{total} \approx -1.1368\,\text{hartree}$ (e.g. Szabo &
+   Ostlund, *Modern Quantum Chemistry*, §3.5 / §4.3, and reproduced
+   by every standard QC code). Adding the nuclear-repulsion constant
+   $1/R = 1/1.4 = 0.71428\!\dots$ to our electronic value gives
+
+   ```
+   E_total = E_exact + 1/R
+           = -1.85104622586… + 0.71428571428…
+           = -1.13676051158… hartree
+   ```
+
+   matching the tabulated FCI/STO-3G value to all printed digits.
+
+2. **Internal Jordan–Wigner cross-check.** The `E_exact` above *is*
+   the Jordan–Wigner exact diagonalisation of the same fermionic
+   polynomial we hand to the SDP (restricted to the $N = 2$ sector),
+   so the FCI comparison is what `h2_exact_n2_energy()` already does.
+   The reviewed fixture
+   `test/data/expectations/fermionic_symmetry.toml`
+   (case `h2_sto3g_n2_spin_adapted`) records the same value
+   $-1.8510462258674936$ to machine precision, and CI checks both
+   the exact diagonalisation and the SDP against it.
+
 ---
 
 ## Building H₂ as a fermionic polynomial
@@ -255,29 +349,85 @@ ham = h2_hamiltonian(c_up, c_up_dag, c_dn, c_dn_dag);
 
 ## The fermionic mode layout
 
-Sector splitting and spin adaptation both need to know **which physical
-mode is what** — its orbital, its spin label, and which Abelian
-irrep its orbital carries.  The [`FermionicModeLayout`](@ref) is the
-struct that records this metadata.
+Sector splitting and spin adaptation both need to know **which
+physical mode is what** — its orbital, its spin label, and which
+Abelian irrep its orbital carries. Before we fill in that table,
+here is what each of those words means in this concrete H₂ setting.
 
-For H₂/STO-3G:
+### Background: orbitals, spin labels, and orbital irreps
 
-| Mode | Spin (2$S_z$) | Orbital | Irrep |
-|:-----|:-------------:|:-------:|:------|
-| `up_modes[1]` (σ_g↑) | `+1` | 1 | `:Ag`  |
-| `up_modes[2]` (σ_u↑) | `+1` | 2 | `:B1u` |
-| `dn_modes[1]` (σ_g↓) | `-1` | 1 | `:Ag`  |
-| `dn_modes[2]` (σ_u↓) | `-1` | 2 | `:B1u` |
+- **Spatial orbital.** A one-electron wavefunction in 3D space —
+  the *spatial* part of where an electron lives. In the minimal
+  STO-3G basis for H₂ there are exactly two spatial orbitals:
+  $\sigma_g$ (the *bonding* combination of the two atomic 1s
+  orbitals, with extra amplitude between the nuclei) and $\sigma_u$
+  (the *antibonding* combination, with a node between the nuclei).
 
-The irrep labels live on **orbitals**, not on modes — both spins of
-the same spatial orbital share the same irrep.  This matches the
-physics: $\sigma_g$ vs. $\sigma_u$ is a property of the spatial wave
-function under inversion ($i$), not of the spin.
+- **Spin orbital / fermionic mode.** A spatial orbital times a spin
+  component $\uparrow$ (spin up) or $\downarrow$ (spin down).
+  H₂/STO-3G therefore has $2 \times 2 = 4$ spin orbitals, and each
+  spin orbital is one *fermionic mode* that an electron can either
+  occupy or not. Those four modes are exactly the four operators
+  `c_up[1]`, `c_up[2]`, `c_dn[1]`, `c_dn[2]` we built above.
 
-The composition rule is the discrete-$\mathbb{Z}_2$ table:
-any two equal labels multiply to `:Ag` (totally symmetric, gerade
-product); any two unequal labels multiply to `:B1u` (the lone
-odd irrep).  We give that table to [`AbelianIrrepTable`](@ref).
+- **The number `2`$S_z$.** $S_z$ is the $z$-component of an
+  electron's intrinsic spin and only takes two values: $+\tfrac12$
+  for spin up, $-\tfrac12$ for spin down. We store **twice** that
+  value, $2 S_z \in \{+1, -1\}$, so dictionary keys stay integer
+  instead of half-integer. There is no physics in the factor of two
+  — it is purely a bookkeeping convention.
+
+- **Inversion symmetry and the labels `:Ag` / `:B1u`.** H₂ has an
+  *inversion symmetry* $i$: reflect every coordinate through the
+  midpoint of the bond. Acting on a spatial orbital, $i$ either
+  leaves it alone or flips its sign:
+
+    - $i\,\sigma_g = +\sigma_g$ — *gerade* (German for "even");
+    - $i\,\sigma_u = -\sigma_u$ — *ungerade* ("odd").
+
+  That single $\pm 1$ bit is the only orbital-symmetry information
+  we are using here. It is what physicists call an *irreducible
+  representation* (irrep) of the inversion group $\{1, i\} \cong
+  \mathbb{Z}_2$: a label that records how the orbital transforms
+  under the symmetry. The names `:Ag` and `:B1u` are inherited from
+  the larger $D_{2h}$ point group that quantum-chemistry codes use
+  for linear molecules; for our purposes they are just shorthand for
+
+    - `:Ag`  ↔ even under inversion (no sign flip), and
+    - `:B1u` ↔ odd under inversion (sign flip).
+
+  The label belongs to the **spatial** orbital, not to the spin —
+  $\sigma_g\!\uparrow$ and $\sigma_g\!\downarrow$ both inherit
+  `:Ag`, because spin-flip and spatial inversion are unrelated.
+
+- **Multiplying irreps.** When you multiply two operators, their
+  orbital irreps multiply. With only two labels and the inversion
+  rule "two evens or two odds give even, one of each gives odd",
+  the full multiplication table is:
+
+  | $\times$ | `:Ag`  | `:B1u` |
+  |:--------:|:------:|:------:|
+  | `:Ag`    | `:Ag`  | `:B1u` |
+  | `:B1u`   | `:B1u` | `:Ag`  |
+
+  This is just the $\mathbb{Z}_2$ group table with `:Ag` as the
+  identity. NCTSSoS reads it from the `multiply` callback we hand
+  to [`AbelianIrrepTable`](@ref) below.
+
+### The H₂/STO-3G layout
+
+With those terms defined, the four-mode layout reads:
+
+| Mode          | Spatial orbital | Spin           | $2 S_z$ | Orbital irrep |
+|:--------------|:----------------|:---------------|:-------:|:--------------|
+| `up_modes[1]` | $\sigma_g$      | $\uparrow$     | `+1`    | `:Ag`         |
+| `up_modes[2]` | $\sigma_u$      | $\uparrow$     | `+1`    | `:B1u`        |
+| `dn_modes[1]` | $\sigma_g$      | $\downarrow$   | `-1`    | `:Ag`         |
+| `dn_modes[2]` | $\sigma_u$      | $\downarrow$   | `-1`    | `:B1u`        |
+
+We pass that information to [`FermionicModeLayout`](@ref): the
+orbital each mode belongs to, the $2 S_z$ of each mode, the irrep
+of each *orbital*, and the irrep multiplication table.
 
 ````julia
 h2_irrep_multiply(a, b) = a === b ? :Ag : :B1u
@@ -300,13 +450,14 @@ layout = FermionicModeLayout(
 NCTSSoS.FermionicModeLayout(Dict(4 => 2, 2 => 2, 3 => 1, 1 => 1), Dict(4 => -1, 2 => 1, 3 => -1, 1 => 1), Dict{Int64, Any}(2 => :B1u, 1 => :Ag), NCTSSoS.AbelianIrrepTable{Symbol, typeof(Main.var"##288".h2_irrep_multiply), typeof(identity)}(:Ag, Main.var"##288".h2_irrep_multiply, identity))
 ````
 
-Two things to notice in the layout:
-
-- `orbital_of[mode] = orbital_index` (the first positional argument)
-  is what links the spin orbital back to its parent spatial orbital.
-- `spin2_of[mode] = ±1` records *twice* the spin (in units of $1/2$),
-  so up is `+1` and down is `-1`.  The factor of two avoids fractional
-  keys.
+One API note worth flagging: the **first positional argument** to
+[`FermionicModeLayout`](@ref) is the `orbital_of` map
+`mode => orbital_index`. That is what tells the symmetry layer which
+*spin* orbital (mode) belongs to which *spatial* orbital, so that
+both spin copies of $\sigma_g$ correctly inherit the `:Ag` label and
+both copies of $\sigma_u$ inherit `:B1u`. The `spin2_of` and
+`irrep_of` keyword arguments then attach the spin and the irrep on
+top.
 
 ---
 
@@ -628,11 +779,13 @@ Set{Int64} with 3 elements:
   1
 ````
 
-!!! note "`total_spin2` is `2 S²`, not `S²`"
+!!! note "`total_spin2` is `2S`, twice the spin quantum number"
     The convention is the same as for `spin2_of` in the layout: we
-    store **twice** the conserved spin quantum number to keep
-    everything in integers.  So `total_spin2 = 0` is $S = 0$
-    (singlet) and `total_spin2 = 2` is $S = 1$ (triplet).
+    store **twice** the conserved spin quantum number, so everything
+    stays integer.  So `total_spin2 = 0` is $S = 0$ (singlet),
+    `total_spin2 = 2` is $S = 1$ (triplet), `total_spin2 = 1` would
+    be a doublet, and so on.  The associated Casimir eigenvalue is
+    $S(S+1) =$ `total_spin2 * (total_spin2 + 2) / 4`.
 
 That the H₂ ground state is a singlet is well known.  The relaxation
 does not need that knowledge — both singlet and triplet blocks live

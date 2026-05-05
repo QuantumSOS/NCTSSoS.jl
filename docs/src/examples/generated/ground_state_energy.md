@@ -64,7 +64,7 @@ res.objective / N
 ````
 
 ````
--0.46712927289360867
+-0.46712927289360845
 ````
 
 For this small $N = 6$ instance, the sparse order-$3$ lower bound is already
@@ -96,7 +96,7 @@ res.objective / N
 ````
 
 ````
--0.4270083213629547
+-0.4270083213629549
 ````
 
 Again, for this small $N = 6$ instance the sparse order-$3$ lower bound is

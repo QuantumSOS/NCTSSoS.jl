@@ -115,7 +115,7 @@ solve_summary
 ````
 
 ````
-(objective = -2.8284271246852204, tsirelson = 2.8284271246852204, expected = 2.8284271247461903, n_unique_moments = 101, solved_moments = 101)
+(objective = -2.828427124697732, tsirelson = 2.828427124697732, expected = 2.8284271247461903, n_unique_moments = 101, solved_moments = 101)
 ````
 
 The objective should match `-2√2` up to solver tolerance.
@@ -139,7 +139,7 @@ flatness = test_flatness(hankel, full_basis, basis; atol=1e-8)
 ````
 
 ````
-NCTSSoS.FlatnessResult(true, 4, 4, 2.111819797849206e-11)
+NCTSSoS.FlatnessResult(true, 4, 4, 1.6884188088879657e-11)
 ````
 
 `flatness` should report equal numerical ranks for the full Hankel and the
@@ -177,7 +177,7 @@ raw_summary
 ````
 
 ````
-(rank = 4, full_rank = 4, xi = [-0.0, 1.0, -0.0, 0.0], A₁ = [0.0 0.0 -0.933 -0.361; 0.0 -0.0 -0.361 0.933; -0.933 -0.361 0.0 0.0; -0.361 0.933 0.0 0.0], B₁ = [-0.0 -0.0 0.915 -0.404; -0.0 -0.0 0.404 0.915; 0.915 0.404 -0.0 0.0; -0.404 0.915 0.0 0.0])
+(rank = 4, full_rank = 4, xi = [-0.0, 1.0, -0.0, 0.0], A₁ = [-0.0 0.0 0.0 1.0; 0.0 -0.0 1.0 -0.0; 0.0 1.0 0.0 -0.0; 1.0 -0.0 -0.0 -0.0], B₁ = [0.0 -0.0 0.707 -0.707; -0.0 0.0 0.707 0.707; 0.707 0.707 -0.0 -0.0; -0.707 0.707 -0.0 0.0])
 ````
 
 The raw matrices are already a valid CHSH model — just not in a friendly basis.
@@ -200,7 +200,7 @@ raw_errors
 ````
 
 ````
-(A₁² = 2.0184498894114297e-11, A₂² = 2.0180661225787687e-11, B₁² = 2.0191160494621043e-11, B₂² = 2.017541852778071e-11, comm_A₁B₁ = 1.0237012633053347e-11, comm_A₁B₂ = 1.023003905429204e-11, comm_A₂B₁ = 1.0235035066154988e-11, comm_A₂B₂ = 1.0229754577509488e-11, anticomm_A = 1.4496201283920786e-11, anticomm_B = 1.453750637377178e-11)
+(A₁² = 1.6054546369647496e-11, A₂² = 1.608387351959301e-11, B₁² = 1.604858677771268e-11, B₂² = 1.6049485238106888e-11, comm_A₁B₁ = 8.165912400081395e-12, comm_A₁B₂ = 8.127720725155336e-12, comm_A₂B₁ = 8.132938791610397e-12, comm_A₂B₂ = 8.169243081494232e-12, anticomm_A = 1.1536376056197555e-11, anticomm_B = 1.15427616137883e-11)
 ````
 
 `raw_errors` should stay at the solver-noise level.
@@ -220,7 +220,7 @@ verification
 ````
 
 ````
-NCTSSoS.VerificationReport(true, 1.0135892125617829e-11, 1.6148415937777827e-11, Float64[], true)
+NCTSSoS.VerificationReport(true, 8.065326184691912e-12, 1.2821299577581158e-11, Float64[], true)
 ````
 
 The generic verification suite should agree with the hand-checked algebra facts above.
@@ -289,7 +289,7 @@ alice_summary
 ````
 
 ````
-(A₁ = ComplexF64[1.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[-0.0 + 0.0im -0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im], B₁_offdiag = 2.5617309789609354e-12, B₂_offdiag = 2.5574607347377054e-12, xi = ComplexF64[4.9e-5 + 0.0im, 0.707107 + 0.0im, -0.707107 + 0.0im, 4.9e-5 + 0.0im])
+(A₁ = ComplexF64[1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[0.0 + 0.0im -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im], B₁_offdiag = 2.0444050973775872e-12, B₂_offdiag = 2.03358957520707e-12, xi = ComplexF64[0.00072 + 0.0im, -0.707106 + 0.0im, 0.707106 + 0.0im, 0.00072 + 0.0im])
 ````
 
 After Alice's gauge-fixing, the Bob operators should be block-diagonal with
@@ -360,7 +360,7 @@ alignment_errors
 ````
 
 ````
-(A₁ = 2.3035952944045974e-11, A₂ = 1.665790498283323e-11, B₁ = 2.226419490788844e-11, B₂ = 2.239380562759813e-11)
+(A₁ = 1.832956602853375e-11, A₂ = 1.3193662517297707e-11, B₁ = 1.7760010921651897e-11, B₂ = 1.7768215743595492e-11)
 ````
 
 These errors should collapse to roundoff once the gauge is fixed.
@@ -382,7 +382,7 @@ aligned_summary
 ````
 
 ````
-(A₁ = ComplexF64[1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[-0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im], B₁ = ComplexF64[0.707 + 0.0im 0.707 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im 0.707 + 0.0im 0.707 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im], B₂ = ComplexF64[0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.707 + 0.0im -0.707 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -0.707 + 0.0im -0.707 + 0.0im])
+(A₁ = ComplexF64[1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im], B₁ = ComplexF64[0.707 + 0.0im 0.707 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im 0.707 + 0.0im 0.707 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im], B₂ = ComplexF64[0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.707 + 0.0im -0.707 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -0.707 + 0.0im -0.707 + 0.0im])
 ````
 
 ## Step 6 — Recover the Bell state
@@ -404,7 +404,7 @@ state_summary
 ````
 
 ````
-(xi = ComplexF64[0.707107 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.707107 + 0.0im], phi_plus = ComplexF64[0.707107 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.707107 + 0.0im], overlap = 0.9999999999916963)
+(xi = ComplexF64[0.707107 + 0.0im, -0.0 - 0.0im, 0.0 + 0.0im, 0.707107 + 0.0im], phi_plus = ComplexF64[0.707107 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.707107 + 0.0im], overlap = 0.9999999999933913)
 ````
 
 Global phase is gone; the cyclic vector is now the textbook Bell state.
@@ -425,7 +425,7 @@ final_check
 ````
 
 ````
-(expectation = 2.8284271246464594, spectrum = [-2.828427, 0.0, 0.0, 2.828427])
+(expectation = 2.828427124666839, spectrum = [-2.828427, 0.0, 0.0, 2.828427])
 ````
 
 The aligned state still saturates Tsirelson's bound.

@@ -5,6 +5,7 @@
 ```@docs
 NCTSSoS.PolyOpt
 NCTSSoS.polyopt
+NCTSSoS.particle_number_constraint
 ```
 
 ## Variable Creation

@@ -120,6 +120,7 @@ include("util/helpers.jl")
 # Optimization Framework
 # ============================================================================
 
+include("optimization/particle_number.jl")
 include("optimization/problem.jl")
 include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
@@ -138,6 +139,7 @@ include("optimization/gns_diagnostics.jl")
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
 export SparsityResult, compute_sparsity
+export particle_number_constraint
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, reconstruct, gns_reconstruct, GNSResult

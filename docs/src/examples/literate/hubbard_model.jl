@@ -9,9 +9,10 @@
 # 2. **Canonical** — fix the number of spin-up and spin-down electrons
 #    (half-filling).
 #
-# The canonical case introduces a new API keyword, `moment_eq_constraints`,
-# and the difference between the two cases teaches a key lesson about
-# **state constraints vs. operator identities** in SDP relaxations.
+# The canonical case uses [`particle_number_constraint`](@ref), which builds
+# the right `moment_eq_constraints` for fixed particle-number sectors.  The
+# difference between the two cases teaches a key lesson about **state
+# constraints vs. operator identities** in SDP relaxations.
 #
 # If you haven't seen fermionic operators before, start with the
 # [Fermionic Ground State (XY Model)](@ref fermionic-ground-state) example,
@@ -302,15 +303,14 @@ println("Gap after refinement:                     $(round(abs(result_gc.objecti
 #
 # ## Case 2 — Canonical half-filling ($N_\uparrow = N_\downarrow = 2$)
 #
-# We build the total number operators and impose half-filling as moment
-# equality constraints.
+# We impose half-filling with one helper call.  Each group is a vector of
+# annihilation operators, so `c_up => 2` means
+# ``\sum_i c_{i\uparrow}^\dagger c_{i\uparrow} = 2`` and similarly for
+# spin down.
 
-n_up_total = 1.0 * sum(c_up_dag[i] * c_up[i] for i in 1:N)  ## 1.0 * promotes to float coefficients
-n_dn_total = 1.0 * sum(c_dn_dag[i] * c_dn[i] for i in 1:N)
+canonical_constraints = particle_number_constraint(registry, c_up => 2, c_dn => 2)
 
-pop_can = polyopt(ham, registry;
-    moment_eq_constraints = [n_up_total - 2.0 * one(ham),
-                             n_dn_total - 2.0 * one(ham)])
+pop_can = polyopt(ham, registry; moment_eq_constraints = canonical_constraints)
 result_can_first = cs_nctssos(pop_can, config_can)
 result_can = cs_nctssos_higher(pop_can, result_can_first, config_can)
 
@@ -322,9 +322,11 @@ println("Canonical SDP (refined):                  $(round(result_can.objective;
 println("Exact half-filled GS:                     $(round(E_half; digits=6))")
 println("Gap after refinement:                     $(round(abs(result_can.objective - E_half); digits=6))")
 
-# The canonical bound tracks the half-filled sector — it is *not* pulled
-# down to the lower full-Fock minimum.  At order 4, one refinement step drives
-# the gap down to about ${\sim}10^{-7}$.
+# The helper expands to the same one-sided constraints you would write by
+# hand, but without exposing that plumbing in every model.  The canonical
+# bound tracks the half-filled sector — it is *not* pulled down to the lower
+# full-Fock minimum.  At order 4, one refinement step drives the gap down to
+# about ${\sim}10^{-7}$.
 
 # ---
 #
@@ -355,12 +357,13 @@ println("Gap after refinement:                     $(round(abs(result_can.object
 # periodic ring at $U/t = 4$ — firmly in the correlated regime — both
 # without and with particle-number constraints.  The grand-canonical SDP
 # finds a lower bound across all Fock sectors; the canonical relaxation,
-# using `moment_eq_constraints` to fix $N_\uparrow = N_\downarrow = 2$,
-# targets the half-filled Mott sector specifically.  Numerically, this is a
-# case where **term sparsity plus one refinement step** works well, but the
-# two sectors are not equally hard: the grand-canonical problem is already
-# essentially exact at order 3, while the canonical half-filled problem needs
-# order 4 to close the gap to numerical precision.
+# using `particle_number_constraint(registry, c_up => 2, c_dn => 2)` to fix
+# $N_\uparrow = N_\downarrow = 2$, targets the half-filled Mott sector
+# specifically.  Numerically, this is a case where **term sparsity plus one
+# refinement step** works well, but the two sectors are not equally hard:
+# the grand-canonical problem is already essentially exact at order 3, while
+# the canonical half-filled problem needs order 4 to close the gap to
+# numerical precision.
 #
 # ### The code recipe
 #
@@ -369,7 +372,7 @@ println("Gap after refinement:                     $(round(abs(result_can.object
 # | 1 | Create spin-up and spin-down operators on disjoint mode ranges | [`create_fermionic_variables`](@ref) with species list |
 # | 2 | Build the Hubbard Hamiltonian (hopping + on-site repulsion) | Standard Julia arithmetic |
 # | 3 | Grand-canonical solve with order-3 term sparsity refinement | [`polyopt`](@ref) $\to$ [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
-# | 4 | Canonical solve with fixed particle number, order 4, and one refinement | `moment_eq_constraints` in [`polyopt`](@ref), then [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
+# | 4 | Canonical solve with fixed particle number, order 4, and one refinement | [`particle_number_constraint`](@ref) in `moment_eq_constraints`, then [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
 # | 5 | Verify against exact diagonalisation | `hubbard_exact_matrix` + `sector_ground_state_energy` |
 #
 # ### Key concepts

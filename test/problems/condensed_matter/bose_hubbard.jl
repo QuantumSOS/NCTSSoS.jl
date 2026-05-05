@@ -253,13 +253,16 @@ end
 
     total_number = 1.0 * sum(n)
     canonical_sector = total_number - 2.0 * one(ham)
+    helper_constraints = particle_number_constraint(registry, 2)
+
+    @test helper_constraints == [canonical_sector]
 
     exact_hamiltonian = _two_site_bose_hubbard_sector_matrix(t_hop, U)
     exact_e0 = eigmin(exact_hamiltonian)
 
     @test exact_e0 ≈ 1.0 - sqrt(5.0) atol = 1e-12
 
-    pop = polyopt(ham, registry; moment_eq_constraints=[canonical_sector])
+    pop = polyopt(ham, registry; moment_eq_constraints=helper_constraints)
     result = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, order=2))
 
     @test result.objective ≈ oracle.opt atol = 1e-6

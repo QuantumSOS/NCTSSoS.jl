@@ -12,6 +12,7 @@ using Test
 
 @testset "Relaxations" begin
     include("interface.jl")
+    include("particle_number.jl")
     include("sos.jl")
     include("sparsity.jl")
     include("gns.jl")

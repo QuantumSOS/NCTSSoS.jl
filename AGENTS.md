@@ -1,7 +1,8 @@
 # Repository Guidelines
 
 ## Current Task Context
-- Read `TASK.md` before work for current task-specific constraints and environment notes.
+- **Active task: design a particle-number-conservation public API** for `polyopt` on top of `moment_eq_constraints`, for Fermionic and Bosonic problems.
+- Read `TASK.md` first for the full mission, end goal, open design questions, and the reason this worktree tracks `origin/feat/h4-periodic-v2rdm-benchmark` instead of `origin/main`.
 
 ## Project Layout
 - `src/` — library code

@@ -583,7 +583,7 @@ function _solve_real_moment_problem(
         if cone == :Zero
             @constraint(model, jump_mat in Zeros())
         elseif cone == :PSD
-            @constraint(model, jump_mat in PSDCone())
+            @constraint(model, _checked_symmetric(jump_mat; context="real PSD constraint") in PSDCone())
         else
             error("Unexpected cone type $cone for real problem")
         end
@@ -643,9 +643,12 @@ function _solve_complex_moment_problem(
     for (cone, mat) in mp.constraints
         dim = size(mat, 1)
 
-        # Build real and imaginary parts of constraint matrix
-        mat_re = Matrix{Any}(undef, dim, dim)
-        mat_im = Matrix{Any}(undef, dim, dim)
+        # Build real and imaginary parts of constraint matrix.
+        # Keep these typed: JuMP's triangular PSD path dispatches on the matrix
+        # element type, and `Matrix{Any}` would miss the cheaper Symmetric path.
+        Aff = typeof(zero(C) * y_re[1])
+        mat_re = Matrix{Aff}(undef, dim, dim)
+        mat_im = Matrix{Aff}(undef, dim, dim)
 
         for i in 1:dim, j in 1:dim
             re_expr, im_expr = _substitute_complex_poly(mat[i,j], basis_to_idx, y_re, y_im)
@@ -693,6 +696,28 @@ end
 # Helper Functions
 # =============================================================================
 
+function _check_square_psd_matrix(mat::AbstractMatrix, context::AbstractString)
+    size(mat, 1) == size(mat, 2) || throw(DimensionMismatch("$context must be square, got size $(size(mat))"))
+    return nothing
+end
+
+function _checked_symmetric(mat::AbstractMatrix; context::AbstractString="PSD constraint matrix")
+    _check_square_psd_matrix(mat, context)
+
+    for col in axes(mat, 2)
+        for row in first(axes(mat, 1)):(col - 1)
+            diff = JuMP.simplify(mat[row, col] - mat[col, row])
+            iszero(diff) || throw(ArgumentError(
+                "$context is not symmetric at entries ($row, $col) and ($col, $row); " *
+                "refusing to wrap it in Symmetric(...) and hide the mismatch."
+            ))
+        end
+    end
+
+    return Symmetric(mat)
+end
+
+
 """
     _substitute_poly(poly::P, monomap::Dict{M,V}) where {T, P<:AbstractPolynomial{T}, M, V}
 
@@ -726,13 +751,11 @@ Returns (real_expr, imag_expr) tuple.
 
 Monomials not in basis_to_idx are treated as having expectation value 0.
 
-# Type Suggestions for mat_re/mat_im
-For optimal type stability in complex moment solving, prefer:
-- `Matrix{JuMP.GenericAffExpr{Cr,JuMP.VariableRef}}` over `Matrix{Any}`
-where `Cr = real(eltype(coefficients(poly)))` (typically Float64).
-This ensures type-stable matrix operations during constraint construction.
-Currently Matrix{Any} is used for simplicity, but typed matrices would
-reduce allocation overhead and enable better JIT optimization.
+# Type note
+Complex moment lowering stores real/imaginary matrices with a concrete JuMP affine
+expression element type before wrapping PSD matrices in `Symmetric(...)`. That is
+not just polish: JuMP dispatches to the triangular PSD cone only for symmetric
+matrices with a concrete JuMP scalar element type.
 """
 function _substitute_complex_poly(
     poly::P,
@@ -741,18 +764,20 @@ function _substitute_complex_poly(
     y_im::Vector{V}
 ) where {T, P<:AbstractPolynomial{T}, M, V}
 
-    # For zero polynomial, return correctly typed zero expressions
-    # rather than literal (0.0, 0.0) which causes type instability
+    # For zero polynomial, return correctly typed affine zero expressions
+    # rather than literal (0.0, 0.0) which causes type instability. Do not use
+    # `zero(eltype(y_re)) * y_re[1]`: for JuMP variables that constructs a
+    # quadratic zero expression and poisons PSD matrix typing.
+    R = typeof(real(zero(T)))
     if iszero(poly)
-        # Use the JuMP variable type to construct proper zero expressions
-        zero_re = zero(eltype(y_re)) * y_re[1]
-        zero_im = zero(eltype(y_im)) * y_im[1]
+        zero_re = zero(R) * y_re[1]
+        zero_im = zero(R) * y_im[1]
         return (zero_re, zero_im)
     end
 
-    # Initialize with properly typed zero expressions
-    re_expr = zero(eltype(y_re)) * y_re[1]
-    im_expr = zero(eltype(y_im)) * y_im[1]
+    # Initialize with properly typed affine zero expressions
+    re_expr = zero(R) * y_re[1]
+    im_expr = zero(R) * y_im[1]
 
     for (coef, mono) in zip(coefficients(poly), monomials(poly))
         canon_mono = symmetric_canon(expval(mono))
@@ -1195,7 +1220,7 @@ function solve_moment_problem(
         if cone == :Zero
             @constraint(model, jump_mat in Zeros())
         elseif cone == :PSD
-            @constraint(model, jump_mat in PSDCone())
+            @constraint(model, _checked_symmetric(jump_mat; context="state PSD constraint") in PSDCone())
         else
             error("Unexpected cone type $cone for state polynomial problem")
         end

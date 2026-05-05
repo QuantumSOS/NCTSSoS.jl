@@ -268,6 +268,19 @@ end
         @test zero_constraints[2][1, 1] == 1.0 * σy[1]
     end
 
+    @testset "PSD moment lowering uses triangular cones safely" begin
+        model = JuMP.GenericModel{Float64}()
+        @variable(model, x)
+        @variable(model, y)
+
+        symmetric_mat = [1.0 x; x y]
+        cref = @constraint(model, NCTSSoS._checked_symmetric(symmetric_mat; context="test PSD") in PSDCone())
+        @test constraint_object(cref).set == MOI.PositiveSemidefiniteConeTriangle(2)
+
+        asymmetric_mat = [1.0 x; y 1.0]
+        @test_throws ArgumentError NCTSSoS._checked_symmetric(asymmetric_mat; context="bad PSD")
+    end
+
     @testset "2x2 Hermitian lift keeps the factor-of-2 straight" begin
         reg, (b, b_dag) = create_bosonic_variables(1:1)
         objective = -(1.0 * b[1] + 1.0 * b_dag[1])

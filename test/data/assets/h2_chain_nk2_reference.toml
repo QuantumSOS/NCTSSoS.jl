@@ -1,0 +1,37 @@
+# H2 chain Nk=2 periodic demo reference data
+# Generated on HAI with PySCF 2.13.0 using an inline uv-managed extraction script.
+
+[system]
+atoms_per_cell = 2
+bond_distance_angstrom = 1.0
+lattice_constant_angstrom = 2.0
+transverse_vacuum_angstrom = 10.0
+basis = "gth-tzvp"
+pseudo = "none"
+dimension = 1
+low_dim_ft_type = "inf_vacuum"
+density_fit = "gdf"
+active_space_electrons = 2
+active_space_orbitals = 4
+nk = 2
+
+[energies]
+# Total periodic PySCF energies per H2 cell, in Hartree.
+HF = -0.9785605187653950
+MP2 = -1.0134708577369118
+CCSD = -1.0321815309149127
+CCSD_T = -1.0359901518840313
+
+[active_hamiltonian]
+# The NCTSSoS demo optimizes the active electronic Hamiltonian from h1e/ERI.
+# Add constant_shift_per_cell_Ha to compare against total PySCF energies.
+HF = -21.2048356037436463
+constant_shift_per_cell_Ha = 20.2262750849782513
+MP2_shifted = -21.2397459427151638
+CCSD_shifted = -21.2584566158931629
+CCSD_T_shifted = -21.2622652368622838
+
+[integrals]
+data_txt = "h2_chain_nk2_active_2e4o_integrals.txt"
+format = "h1e k p q Re Im; eri k1 k2 k3 k4 p r q s Re Im, chemist order (p r | q s)"
+drop_tolerance = 1e-12

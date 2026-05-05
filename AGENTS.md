@@ -2,6 +2,15 @@
 
 ## Current Task Context
 - Read `TASK.md` before work for current task-specific constraints and environment notes.
+- **Active phase: Phase 2 — $\mathcal{A}\mathcal{A}^{*}$ diagnostic on H₂ / Nk=2.** Authoritative spec: `PHASE2_PLAN.md`. Phase 1 (H₄ periodic SDP via libsdp / BPSDP.jl with `.dat-c` roundtrip) is complete and archived to `archive/PHASE1_h4_libsdp_bpsdp_roundtrip.md`.
+- **Phase 2 in one sentence**: for each residual symmetry block of the H₂/Nk=2 PQG V2RDM SDP, decide *empirically* which inner linear-solve strategy the production solver should use, by measuring the spectrum, kernel, and sparsity of $\mathcal{A}\mathcal{A}^{*}$. **The output is a decision table, not a solver — no SDP gets solved in Phase 2.**
+- **Per (block $B$, choice of $\mathcal{A} \in \{\mathcal{A}_{\text{full}}, \mathcal{A}_{\text{eq}}\}$)**: dense SVD ground truth → report $\sigma_1$, numerical rank $\hat r$ at $\tau \in \{10^{-10}, 10^{-12}, 10^{-14}\}$, $\sigma_{\hat r}$, range condition $\kappa_{\text{range}}$, spectral gap $g$, kernel basis, predicted vs empirical kernel dim (**excess kernel** is the load-bearing number), nnz, AMD/METIS fill-in.
+- **Symmetries to peel, in order**: particle number $N$, spin $S_z$, translation $\mathbb{Z}_{Nk}$, Re/Im split, time reversal.
+- **Per-block classifier output**: one of {Direct Cholesky | Tikhonov+CG | Mazziotti-CG | **Facial reduction needed** | Punt to BM}.
+- **Deliverables**: prerequisites in `test/data/assets/h2_chain_nk2_*` + `demos/h2_periodic_nk2_moment_sos.jl`; driver in `probes/h2_nk2_aastar_diagnostic.jl`; results in `output/phase2/h2_nk2/{summary.md,plots/,blocks/}`.
+- **Out of scope for Phase 2**: solving any SDP, implementing facial reduction, Mazziotti-CG integration into NCTSSoS, the H₄/Nk=2 production-scale run, end-to-end COSMO/BPSDP timing comparisons. Those are Phase 3+ or Paper 5.
+- **Phase 3 infrastructure (parallel track)**: lowering refactor for `MomentProblem → JuMP`. Why: `MOMENT_SOS_PIPELINE_ANALYSIS.md`. How: `LOWERING_REFACTOR_PLAN.md`. Adds a `:psd_blocks` formulation that eliminates the BPSDP 1×1-cone explosion seen at H₂/Nk=2; precondition for Phase 3 H₄/Nk=2 production. Not Phase 2 work, but unblocks it.
+- **Server policy**: all real runs on `HAI` via `easy-ssh`; Python uses `uv`-managed envs only. Server / local path map preserved in `TASK.md`.
 
 ## Project Layout
 - `src/` — library code

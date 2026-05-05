@@ -12,6 +12,7 @@ using Test
 
 @testset "Relaxations" begin
     include("interface.jl")
+    include("lowering.jl")
     include("sos.jl")
     include("sparsity.jl")
     include("gns.jl")

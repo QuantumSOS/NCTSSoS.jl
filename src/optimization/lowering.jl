@@ -2,6 +2,16 @@
 # MomentProblem -> JuMP lowering
 # =============================================================================
 
+struct Pivot
+    key::Any
+    constraint_idx::Int
+    block_idx::Int
+    i::Int
+    j::Int
+    phase::ComplexF64
+    cone::Symbol
+end
+
 struct AffineResolver{D,Z}
     values::D
     zero_value::Z
@@ -21,6 +31,122 @@ function substitute(poly::Polynomial, resolver)
         expr += coef * resolver(symmetric_canon(expval(mono)))
     end
     return expr
+end
+
+@inline _is_pivot_cone(cone::Symbol) = cone == :PSD || cone == :HPSD
+
+function _strict_unit_phase(coef)
+    one_coef = one(coef)
+    coef == one_coef && return ComplexF64(1)
+    coef == -one_coef && return ComplexF64(-1)
+    coef == im * one_coef && return ComplexF64(im)
+    coef == -im * one_coef && return ComplexF64(-im)
+    return nothing
+end
+
+function _pivot_candidate(poly::Polynomial)
+    simplified = simplify(poly)
+    length(simplified.terms) == 1 || return nothing
+
+    coef, mono = only(simplified.terms)
+    phase = _strict_unit_phase(coef)
+    phase === nothing && return nothing
+
+    return (symmetric_canon(expval(mono)), phase)
+end
+
+function _collect_moment_key!(ordered_keys::Vector{Any}, seen::Set{Any}, key)
+    key in seen && return nothing
+    push!(seen, key)
+    push!(ordered_keys, key)
+    return nothing
+end
+
+function _collect_polynomial_keys!(ordered_keys::Vector{Any}, seen::Set{Any}, poly::Polynomial)
+    simplified = simplify(poly)
+    for (coef, mono) in simplified
+        iszero(coef) && continue
+        _collect_moment_key!(ordered_keys, seen, symmetric_canon(expval(mono)))
+    end
+    return nothing
+end
+
+function _all_moment_keys(mp::MomentProblem)
+    ordered_keys = Any[]
+    seen = Set{Any}()
+
+    _collect_polynomial_keys!(ordered_keys, seen, mp.objective)
+    for (_, mat) in mp.constraints
+        for entry in mat
+            _collect_polynomial_keys!(ordered_keys, seen, entry)
+        end
+    end
+
+    return ordered_keys
+end
+
+function _discover_pivots_unchecked(mp::MomentProblem)
+    pivots = Dict{Any,Pivot}()
+    block_idx = 0
+
+    for (constraint_idx, (cone, mat)) in pairs(mp.constraints)
+        _is_pivot_cone(cone) || continue
+        size(mat, 1) == size(mat, 2) ||
+            throw(DimensionMismatch("$cone constraint $constraint_idx must be square, got size $(size(mat))"))
+
+        block_idx += 1
+        for i in axes(mat, 1), j in axes(mat, 2)
+            candidate = _pivot_candidate(mat[i, j])
+            candidate === nothing && continue
+
+            key, phase = candidate
+            haskey(pivots, key) && continue  # C1: first lexicographic match wins.
+            pivots[key] = Pivot(key, constraint_idx, block_idx, i, j, phase, cone)
+        end
+    end
+
+    return pivots
+end
+
+function orphan_keys(mp::MomentProblem, pivots::Dict{Any,Pivot})
+    return [key for key in _all_moment_keys(mp) if !haskey(pivots, key)]
+end
+
+function orphan_keys(mp::MomentProblem)
+    return orphan_keys(mp, _discover_pivots_unchecked(mp))
+end
+
+function _summarize_canonical_keys(keys; limit::Int=5)
+    shown = join((sprint(show, key) for key in Iterators.take(keys, limit)), ", ")
+    length(keys) > limit && (shown *= ", ...")
+    return "[" * shown * "]"
+end
+
+"""
+    discover_pivots(mp::MomentProblem; orphan_policy=:error) -> Dict{Any,Pivot}
+
+Discover deterministic PSD/HPSD entry pivots for canonical moment keys.
+A pivot candidate is exactly a single-term polynomial with coefficient in
+`±1, ±im`. The first candidate in `(constraint_idx, i, j)` order wins.
+"""
+function discover_pivots(mp::MomentProblem; orphan_policy::Symbol=:error)
+    orphan_policy in (:error, :aux_psd_free) ||
+        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error or :aux_psd_free"))
+
+    pivots = _discover_pivots_unchecked(mp)
+    orphans = orphan_keys(mp, pivots)
+    if !isempty(orphans)
+        if orphan_policy == :error
+            throw(ArgumentError(
+                "$(length(orphans)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
+                _summarize_canonical_keys(orphans)
+            ))
+        else
+            throw(ArgumentError("orphan_policy=:aux_psd_free is not implemented yet"))
+        end
+    end
+
+    return pivots
 end
 
 """

@@ -13,6 +13,7 @@ using Test
 @testset "Relaxations" begin
     include("interface.jl")
     include("lowering.jl")
+    include("h2_nk2_bridge_smoke.jl")
     include("sos.jl")
     include("sparsity.jl")
     include("gns.jl")

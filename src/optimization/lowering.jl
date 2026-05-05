@@ -2,6 +2,8 @@
 # MomentProblem -> JuMP lowering
 # =============================================================================
 
+const AUX_ORPHANS_PER_BLOCK = 32
+
 struct Pivot
     key::Any
     constraint_idx::Int
@@ -134,6 +136,30 @@ function _summarize_canonical_keys(keys; limit::Int=5)
     return "[" * shown * "]"
 end
 
+function _n_symbolic_psd_blocks(mp::MomentProblem)
+    return count(c -> _is_pivot_cone(c[1]), mp.constraints)
+end
+
+function _n_aux_blocks(n_orphans::Int; orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK)
+    n_orphans == 0 && return 0
+    return cld(n_orphans, orphans_per_block)
+end
+
+function _add_aux_pivots!(
+    pivots::Dict{Any,Pivot},
+    orphan_keys::AbstractVector,
+    first_aux_block_idx::Int;
+    orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK,
+)
+    for (offset, key) in enumerate(orphan_keys)
+        local_idx = mod1(offset, orphans_per_block)
+        block_offset = (offset - 1) ÷ orphans_per_block
+        block_idx = first_aux_block_idx + block_offset
+        pivots[key] = Pivot(key, 0, block_idx, 1, 1 + local_idx, ComplexF64(1), :AuxHPSD)
+    end
+    return pivots
+end
+
 """
     discover_pivots(mp::MomentProblem; orphan_policy=:error) -> Dict{Any,Pivot}
 
@@ -154,7 +180,7 @@ function discover_pivots(mp::MomentProblem; orphan_policy::Symbol=:error)
                 _summarize_canonical_keys(orphans)
             ))
         else
-            throw(ArgumentError("orphan_policy=:aux_psd_free is not implemented yet"))
+            _add_aux_pivots!(pivots, orphans, _n_symbolic_psd_blocks(mp) + 1)
         end
     end
 
@@ -404,6 +430,24 @@ function _declare_psd_block_variables!(model, mp::MomentProblem)
     return blocks, constraint_to_block
 end
 
+function _declare_aux_orphan_blocks!(
+    model,
+    blocks::Dict{Int,Any},
+    n_orphans::Int;
+    orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK,
+)
+    n_orphans == 0 && return 0
+
+    next_block_idx = maximum(keys(blocks)) + 1
+    n_aux = _n_aux_blocks(n_orphans; orphans_per_block=orphans_per_block)
+    for aux_offset in 0:(n_aux - 1)
+        n_in_block = min(orphans_per_block, n_orphans - aux_offset * orphans_per_block)
+        blocks[next_block_idx + aux_offset] = _declare_psd_block_variable!(model, :HPSD, n_in_block + 1)
+    end
+
+    return n_aux
+end
+
 function _pivot_entry_lookup(pivots::Dict{Any,Pivot})
     lookup = Dict{Tuple{Int,Int,Int},Pivot}()
     for pivot in values(pivots)
@@ -444,8 +488,25 @@ function _build_complex_psd_block_model(
     C = real(eltype(coefficients(mp.objective)))
     model = GenericModel{C}()
 
-    pivots = discover_pivots(mp; orphan_policy=orphan_policy)
+    pivots = _discover_pivots_unchecked(mp)
+    orphans = orphan_keys(mp, pivots)
+    if !isempty(orphans)
+        if orphan_policy == :error
+            throw(ArgumentError(
+                "$(length(orphans)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
+                _summarize_canonical_keys(orphans)
+            ))
+        elseif orphan_policy != :aux_psd_free
+            throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error or :aux_psd_free"))
+        end
+    end
+
     blocks, constraint_to_block = _declare_psd_block_variables!(model, mp)
+    if orphan_policy == :aux_psd_free && !isempty(orphans)
+        first_aux_block_idx = maximum(keys(blocks)) + 1
+        _declare_aux_orphan_blocks!(model, blocks, length(orphans))
+        _add_aux_pivots!(pivots, orphans, first_aux_block_idx)
+    end
 
     anchor_block = blocks[first(sort!(collect(keys(blocks))))]
     anchor = anchor_block[1, 1]

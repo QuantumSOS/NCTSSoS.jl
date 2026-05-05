@@ -985,7 +985,7 @@ end
 # JuMP/BPSDP solve and solution diagnostics.
 # -----------------------------------------------------------------------------
 
-function build_jump_model(mp, block_labels::Vector{String})
+function build_direct_jump_model(mp, block_labels::Vector{String})
     C = real(eltype(coefficients(mp.objective)))
     model = JuMP.GenericModel{C}()
 
@@ -1204,7 +1204,7 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
 end
 
 function solve_with_bpsdp!(data, options::Options, materialized)
-    jump_data = build_jump_model(data.moment_problem, data.block_labels)
+    jump_data = build_direct_jump_model(data.moment_problem, data.block_labels)
     cg_iterations = Int[]
     set_optimizer(jump_data.model, bpsdp_optimizer_factory(options, cg_iterations))
 

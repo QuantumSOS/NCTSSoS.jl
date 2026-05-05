@@ -590,17 +590,10 @@ function _substitute_poly(
     poly::P,
     monomap::Dict{M,V}
 ) where {T, P<:AbstractPolynomial{T}, M, V}
-    if iszero(poly)
-        return zero(T) * first(values(monomap))
-    end
-    # Skip monomials not in monomap (expectation value 0)
-    return sum(
-        (
-            canon_mono = symmetric_canon(expval(mono));
-            haskey(monomap, canon_mono) ? coef * monomap[canon_mono] : zero(coef) * first(values(monomap))
-        )
-        for (coef, mono) in zip(coefficients(poly), monomials(poly))
-    )
+    anchor = first(values(monomap))
+    resolver_values = Dict(key => one(T) * value for (key, value) in monomap)
+    resolver = AffineResolver(resolver_values, zero(T) * anchor)
+    return substitute(poly, resolver)
 end
 
 """
@@ -629,35 +622,11 @@ function _substitute_complex_poly(
     # `zero(eltype(y_re)) * y_re[1]`: for JuMP variables that constructs a
     # quadratic zero expression and poisons PSD matrix typing.
     R = typeof(real(zero(T)))
-    if iszero(poly)
-        zero_re = zero(R) * y_re[1]
-        zero_im = zero(R) * y_im[1]
-        return (zero_re, zero_im)
-    end
-
-    # Initialize with properly typed affine zero expressions
-    re_expr = zero(R) * y_re[1]
-    im_expr = zero(R) * y_im[1]
-
-    for (coef, mono) in zip(coefficients(poly), monomials(poly))
-        canon_mono = symmetric_canon(expval(mono))
-
-        # Skip monomials not in basis (expectation value 0)
-        if !haskey(basis_to_idx, canon_mono)
-            continue
-        end
-
-        idx = basis_to_idx[canon_mono]
-
-        # (a + bi)(x + yi) = (ax - by) + (ay + bx)i
-        c_re = real(coef)
-        c_im = imag(coef)
-
-        re_expr += c_re * y_re[idx] - c_im * y_im[idx]
-        im_expr += c_im * y_re[idx] + c_re * y_im[idx]
-    end
-
-    return (re_expr, im_expr)
+    zero_complex = zero(R) * y_re[1] + im * (zero(R) * y_im[1])
+    resolver_values = Dict(key => y_re[idx] + im * y_im[idx] for (key, idx) in basis_to_idx)
+    resolver = AffineResolver(resolver_values, zero_complex)
+    expr = substitute(poly, resolver)
+    return (real(expr), imag(expr))
 end
 
 

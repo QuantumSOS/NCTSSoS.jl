@@ -2,6 +2,27 @@
 # MomentProblem -> JuMP lowering
 # =============================================================================
 
+struct AffineResolver{D,Z}
+    values::D
+    zero_value::Z
+end
+
+function (resolver::AffineResolver)(key)
+    return get(resolver.values, key, resolver.zero_value)
+end
+
+@inline _resolver_zero(resolver::AffineResolver) = copy(resolver.zero_value)
+
+function substitute(poly::Polynomial, resolver)
+    expr = _resolver_zero(resolver)
+    iszero(poly) && return expr
+
+    for (coef, mono) in poly
+        expr += coef * resolver(symmetric_canon(expval(mono)))
+    end
+    return expr
+end
+
 """
     build_jump_model(mp::MomentProblem;
         formulation=:moment_variables,
@@ -73,12 +94,14 @@ function _build_real_moment_variable_model(
     @constraint(model, y[idx_one] == 1)  # Normalization
 
     monovars = Dict(zip(basis, y))
+    resolver_values = Dict(m => one(C) * monovars[m] for m in basis)
+    resolver = AffineResolver(resolver_values, zero(C) * y[1])
 
     # Add constraints.
     for (cone, mat) in mp.constraints
         dim = size(mat, 1)
         jump_mat = [
-            _substitute_poly(mat[i, j], monovars)
+            substitute(mat[i, j], resolver)
             for i in 1:dim, j in 1:dim
         ]
 
@@ -91,7 +114,7 @@ function _build_real_moment_variable_model(
         end
     end
 
-    obj_expr = _substitute_poly(mp.objective, monovars)
+    obj_expr = substitute(mp.objective, resolver)
     @objective(model, Min, obj_expr)
 
     extract_monomap = function ()
@@ -145,21 +168,23 @@ function _build_complex_moment_variable_model(
     @constraint(model, y_im[idx_one] == 0)
 
     basis_to_idx = Dict(m => i for (i, m) in enumerate(basis))
+    zero_complex_moment = zero(C) * y_re[1] + im * (zero(C) * y_im[1])
+    resolver_values = Dict(m => y_re[i] + im * y_im[i] for (m, i) in basis_to_idx)
+    resolver = AffineResolver(resolver_values, zero_complex_moment)
 
     # Add constraints with Hermitian embedding.
     for (cone, mat) in mp.constraints
         dim = size(mat, 1)
 
-        # Keep these typed: JuMP's triangular PSD path dispatches on the matrix
-        # element type, and `Matrix{Any}` would miss the cheaper Symmetric path.
-        Aff = typeof(zero(C) * y_re[1])
+        zero_expr = substitute(zero(eltype(mat)), resolver)
+        Aff = typeof(real(zero_expr))
         mat_re = Matrix{Aff}(undef, dim, dim)
         mat_im = Matrix{Aff}(undef, dim, dim)
 
         for i in 1:dim, j in 1:dim
-            re_expr, im_expr = _substitute_complex_poly(mat[i, j], basis_to_idx, y_re, y_im)
-            mat_re[i, j] = re_expr
-            mat_im[i, j] = im_expr
+            expr = substitute(mat[i, j], resolver)
+            mat_re[i, j] = real(expr)
+            mat_im[i, j] = imag(expr)
         end
 
         if cone == :Zero
@@ -181,8 +206,8 @@ function _build_complex_moment_variable_model(
 
     # `polyopt` validates that complex-algebra objectives are Hermitian, so their
     # expectation values are real. Optimize the real part only.
-    obj_re, _ = _substitute_complex_poly(mp.objective, basis_to_idx, y_re, y_im)
-    @objective(model, Min, obj_re)
+    obj_expr = substitute(mp.objective, resolver)
+    @objective(model, Min, real(obj_expr))
 
     extract_monomap = function ()
         return Dict(m => Complex(value(y_re[i]), value(y_im[i])) for (m, i) in basis_to_idx)

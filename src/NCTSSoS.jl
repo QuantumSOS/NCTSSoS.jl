@@ -124,6 +124,7 @@ include("optimization/problem.jl")
 include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
 include("optimization/moment.jl")
+include("optimization/lowering.jl")
 include("optimization/sos.jl")
 include("optimization/interface.jl")
 include("optimization/gns.jl")
@@ -140,7 +141,7 @@ export PolyOpt, polyopt, PolyOptResult, SolverConfig
 export SparsityResult, compute_sparsity
 
 # Solver Interface
-export cs_nctssos, cs_nctssos_higher, reconstruct, gns_reconstruct, GNSResult
+export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult
 export FlatnessResult, test_flatness, flat_extend
 export RobustnessReport, robustness_report
 export VerificationReport, verify_gns

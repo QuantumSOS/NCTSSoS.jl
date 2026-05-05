@@ -1083,6 +1083,33 @@ function raw_optimizer(model::JuMP.Model)
     end
 end
 
+has_field(obj, name::Symbol) = name in fieldnames(typeof(obj))
+field_or_nothing(obj, name::Symbol) = has_field(obj, name) ? getfield(obj, name) : nothing
+function first_field_or_nothing(obj, names::Symbol...)
+    for name in names
+        has_field(obj, name) && return getfield(obj, name)
+    end
+    return nothing
+end
+
+finite_or_nothing(x) = x === nothing ? nothing : finite_or_string(x)
+
+function bpsdp_state_summary(raw)
+    state = raw === nothing ? nothing : field_or_nothing(raw, :state)
+    state === nothing && return nothing
+    summary = Dict{String,Any}(
+        "outer_iterations" => first_field_or_nothing(state, :outer_iterations, :iterations),
+        "inner_iterations" => field_or_nothing(state, :inner_iterations),
+        "primal_error" => finite_or_nothing(field_or_nothing(state, :primal_error)),
+        "dual_error" => finite_or_nothing(field_or_nothing(state, :dual_error)),
+        "objective_primal" => finite_or_nothing(first_field_or_nothing(state, :objective_primal, :primal_objective)),
+        "objective_dual" => finite_or_nothing(first_field_or_nothing(state, :objective_dual, :dual_objective)),
+        "objective_gap" => finite_or_nothing(field_or_nothing(state, :objective_gap)),
+        "termination_reason" => string(first_field_or_nothing(state, :termination_reason, :status)),
+    )
+    return summary
+end
+
 function poly_value(poly, monomap)
     acc = 0.0 + 0.0im
     for (coef, mono) in zip(coefficients(poly), monomials(poly))
@@ -1117,13 +1144,13 @@ function eig_summary(vals::Vector{Float64}, rank_tols::Vector{Float64})
     return Dict("eigenvalues" => vals_desc, "rank_by_tol" => ranks)
 end
 
-function write_solution_side_diagnostics(data, options::Options, jump_data, materialized, cg_iterations::Vector{Int}, solve_seconds::Real)
+function write_solution_side_diagnostics(data, options::Options, jump_data, materialized, monomap, cg_iterations::Vector{Int}, solve_seconds::Real)
     model = jump_data.model
-    basis = jump_data.basis
-    y_re = jump_data.y_re
-    y_im = jump_data.y_im
-    monomap = Dict(basis[i] => Complex(value(y_re[i]), value(y_im[i])) for i in eachindex(basis))
-    y_vec = vcat([real(monomap[b]) for b in basis], [imag(monomap[b]) for b in basis])
+    basis = materialized.basis
+    y_vec = vcat(
+        [real(get(monomap, b, 0.0 + 0.0im)) for b in basis],
+        [imag(get(monomap, b, 0.0 + 0.0im)) for b in basis],
+    )
 
     residual = materialized.zero_A * y_vec - materialized.zero_rhs
     residual_linf = isempty(residual) ? 0.0 : norm(residual, Inf)
@@ -1135,7 +1162,6 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
     objective = objective_value(model)
 
     raw = raw_optimizer(model)
-    state = raw === nothing ? nothing : getfield(raw, :state)
     status = termination_status(model)
 
     solve_dir = joinpath(options.output_dir, "solve")
@@ -1155,6 +1181,11 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
         "cg_iterations_total_from_monitor" => sum(cg_iterations),
         "julia_threads" => Threads.nthreads(),
         "blas_threads" => BLAS.get_num_threads(),
+        "jump_lowering" => Dict(
+            "formulation" => "psd_blocks",
+            "representation" => "complex",
+            "orphan_policy" => "aux_psd_free",
+        ),
         "bpsdp_options" => Dict(
             "max_iter" => options.bpsdp_max_iter,
             "cg_max_iter" => options.bpsdp_cg_max_iter,
@@ -1166,30 +1197,14 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
             "guess_type" => "zero",
         ),
     )
-    if state !== nothing
-        objective_json["bpsdp_state"] = Dict(
-            "outer_iterations" => getfield(state, :outer_iterations),
-            "inner_iterations" => getfield(state, :inner_iterations),
-            "primal_error" => finite_or_string(getfield(state, :primal_error)),
-            "dual_error" => finite_or_string(getfield(state, :dual_error)),
-            "objective_primal" => finite_or_string(getfield(state, :objective_primal)),
-            "objective_dual" => finite_or_string(getfield(state, :objective_dual)),
-            "objective_gap" => finite_or_string(getfield(state, :objective_gap)),
-            "termination_reason" => string(getfield(state, :termination_reason)),
-        )
-    end
+    state_summary = bpsdp_state_summary(raw)
+    state_summary !== nothing && (objective_json["bpsdp_state"] = state_summary)
     write_json(joinpath(solve_dir, "objective.json"), objective_json)
 
-    multipliers = Any[]
-    for item in jump_data.eq_refs
-        val = try
-            dual(item.ref)
-        catch err
-            string("unavailable: ", err)
-        end
-        push!(multipliers, Dict("label" => item.label, "dual" => val isa Real ? finite_or_string(val) : string(val)))
-    end
-    write_json(joinpath(solve_dir, "multipliers.json"), Dict("equality_multipliers" => multipliers))
+    write_json(joinpath(solve_dir, "multipliers.json"), Dict(
+        "equality_multipliers" => Any[],
+        "note" => "Unavailable from the PSD-block lowering path; equality labels remain in blocks/*/labels.json.",
+    ))
 
     hpsd_mats = [mat for (cone, mat) in data.moment_problem.constraints if cone == :HPSD]
     for (idx, mat) in enumerate(hpsd_mats)
@@ -1203,16 +1218,84 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
     return (; monomap, objective_json)
 end
 
+function write_bpsdp_failure!(options::Options, model, cg_iterations::Vector{Int}, solve_seconds::Real; optimize_error = nothing)
+    solve_dir = joinpath(options.output_dir, "solve")
+    mkpath(solve_dir)
+    raw = raw_optimizer(model)
+    objective_json = Dict{String,Any}(
+        "termination_status" => try string(termination_status(model)) catch err string("unavailable: ", err) end,
+        "raw_status" => try string(MOI.get(model, MOI.RawStatusString())) catch err string("unavailable: ", err) end,
+        "optimize_error" => optimize_error,
+        "solve_wall_seconds_measured" => solve_seconds,
+        "cg_iterations_per_outer" => cg_iterations,
+        "cg_iterations_total_from_monitor" => sum(cg_iterations),
+        "jump_lowering" => Dict(
+            "formulation" => "psd_blocks",
+            "representation" => "complex",
+            "orphan_policy" => "aux_psd_free",
+        ),
+        "bpsdp_options" => Dict(
+            "max_iter" => options.bpsdp_max_iter,
+            "cg_max_iter" => options.bpsdp_cg_max_iter,
+            "mu_update_frequency" => options.bpsdp_mu_update_frequency,
+            "penalty_parameter" => options.bpsdp_penalty,
+            "cg_convergence" => options.bpsdp_cg_tol,
+            "sdp_objective_convergence" => options.bpsdp_obj_tol,
+            "sdp_error_convergence" => options.bpsdp_err_tol,
+            "guess_type" => "zero",
+        ),
+    )
+    state_summary = bpsdp_state_summary(raw)
+    state_summary !== nothing && (objective_json["bpsdp_state"] = state_summary)
+    if raw !== nothing
+        objective_json["bpsdp_problem"] = Dict(
+            "n_blocks" => has_field(raw, :block_dims) ? length(getfield(raw, :block_dims)) : nothing,
+            "largest_block_dim" => has_field(raw, :block_dims) && !isempty(getfield(raw, :block_dims)) ? maximum(getfield(raw, :block_dims)) : nothing,
+            "dual_rows" => has_field(raw, :b) ? length(getfield(raw, :b)) : nothing,
+            "primal_dim" => has_field(raw, :c) ? length(getfield(raw, :c)) : nothing,
+            "A_nnz" => has_field(raw, :A) ? nnz(getfield(raw, :A)) : nothing,
+        )
+    end
+    write_json(joinpath(solve_dir, "objective.json"), objective_json)
+    write_json(joinpath(solve_dir, "multipliers.json"), Dict(
+        "equality_multipliers" => Any[],
+        "note" => "BPSDP did not return OPTIMAL; no reliable dual multipliers available.",
+    ))
+    return objective_json
+end
+
 function solve_with_bpsdp!(data, options::Options, materialized)
-    jump_data = build_direct_jump_model(data.moment_problem, data.block_labels)
+    model, extract_monomap = build_jump_model(
+        data.moment_problem;
+        formulation = :psd_blocks,
+        representation = :complex,
+        orphan_policy = :aux_psd_free,
+    )
+    jump_data = (; model, extract_monomap)
     cg_iterations = Int[]
-    set_optimizer(jump_data.model, bpsdp_optimizer_factory(options, cg_iterations))
+    set_optimizer(model, bpsdp_optimizer_factory(options, cg_iterations))
 
-    solve_seconds = @elapsed optimize!(jump_data.model)
-    status = termination_status(jump_data.model)
-    status == MOI.OPTIMAL || error("BPSDP did not return OPTIMAL; got $status")
+    optimize_error = nothing
+    solve_seconds = @elapsed begin
+        try
+            optimize!(model)
+        catch err
+            optimize_error = sprint(showerror, err)
+        end
+    end
+    status = try
+        termination_status(model)
+    catch
+        MOI.OTHER_ERROR
+    end
+    if optimize_error !== nothing || status != MOI.OPTIMAL
+        write_bpsdp_failure!(options, model, cg_iterations, solve_seconds; optimize_error)
+        optimize_error === nothing || error("BPSDP optimize! threw: $optimize_error")
+        error("BPSDP did not return OPTIMAL; got $status")
+    end
 
-    solution = write_solution_side_diagnostics(data, options, jump_data, materialized, cg_iterations, solve_seconds)
+    monomap = extract_monomap()
+    solution = write_solution_side_diagnostics(data, options, jump_data, materialized, monomap, cg_iterations, solve_seconds)
     return (; jump_data, cg_iterations, solve_seconds, solution)
 end
 
@@ -1317,6 +1400,9 @@ end
 
 function main(argv = ARGS)
     options = parse_options(argv)
+    for child in ("blocks", "solve", "plots")
+        rm(joinpath(options.output_dir, child); force = true, recursive = true)
+    end
     mkpath(options.output_dir)
     mkpath(joinpath(options.output_dir, "solve"))
     mkpath(joinpath(options.output_dir, "plots"))

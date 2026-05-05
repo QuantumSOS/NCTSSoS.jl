@@ -486,6 +486,24 @@ function write_summary(input_dir::AbstractString, rows::Vector{Dict{String,Any}}
         end
         println(io)
 
+        eq_rows = [row for row in rows if row["operator"] == "A_eq"]
+        full_rows = [row for row in rows if row["operator"] == "A_full"]
+        eq_facial = count(row -> row["decision"] == "Facial reduction needed", eq_rows)
+        full_facial = count(row -> row["decision"] == "Facial reduction needed", full_rows)
+        full_direct = count(row -> row["decision"] == "Direct Cholesky", full_rows)
+        termination = solve === nothing ? nothing : object_get(solve, "termination_status")
+
+        println(io, "## Instance-level decision")
+        println(io)
+        println(io, "- `A_eq`: ", eq_facial, "/", length(eq_rows), " blocks classified as `Facial reduction needed`.")
+        println(io, "- `A_full`: ", full_direct, "/", length(full_rows), " blocks classified as `Direct Cholesky`; ", full_facial, "/", length(full_rows), " still require facial reduction/presolve by the Phase-2 rule.")
+        if termination !== nothing
+            println(io, "- BPSDP PSD-block solve status: `", termination, "`.")
+        end
+        println(io, "- Verdict: row/nullspace elimination or facial-reduction-style presolve is a blocking workstream before treating H₄/Nk=2 as a plain BPSDP/Mazziotti-CG run. Direct Cholesky remains viable only for the cleaned `A_full` subblocks that survive that presolve.")
+        println(io, "- Causality note: the BPSDP `cg_failure` is consistent with the measured singular/equality-kernel structure, but this table alone does not prove facial reduction is the only cause; scaling and implementation checks remain follow-up work.")
+        println(io)
+
         println(io, "## Per-block decision table")
         println(io)
         println(io, "| block | A | m | n | nnz(A) | nnz(AA*) | σ₁ | rank@1e-12 | ker | pred ker | excess | κ_range | gap | AMD nnz(L) | CG est | decision |")
@@ -502,6 +520,11 @@ function write_summary(input_dir::AbstractString, rows::Vector{Dict{String,Any}}
 
         println(io, "## Moment-matrix rank at the BPSDP optimum")
         println(io)
+        termination = solve === nothing ? nothing : object_get(solve, "termination_status")
+        if termination !== nothing && string(termination) != "OPTIMAL"
+            println(io, "No optimum was obtained (`termination_status = ", termination, "`), so primal moment-rank validation is unavailable for this run.")
+            println(io)
+        end
         println(io, "| block | rank@1e-10 | rank@1e-12 | rank@1e-14 | min positive eig@1e-12 |")
         println(io, "|---|---:|---:|---:|---:|")
         for dir in block_dirs(input_dir)

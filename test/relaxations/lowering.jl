@@ -96,6 +96,32 @@ end
     @test monomap[key(b_dag[1])] ≈ 1.0im atol = 1e-6
 end
 
+@testset "Moment lowering PSD-block binds full HPSD and raw complex Zero rows" begin
+    MOI = JuMP.MOI
+    reg, (b, b_dag) = create_bosonic_variables(1:1)
+    P = typeof(0.0 * one(b[1]))
+
+    block = Matrix{P}(undef, 2, 2)
+    block[1, 1] = 1.0 * one(b[1])
+    block[1, 2] = 1.0 * b[1]
+    block[2, 1] = zero(P)          # Deliberately non-Hermitian: lower entry must not be ignored.
+    block[2, 2] = 1.0 * one(b[1])
+    zero_mat = reshape([1.0 * b[1]], 1, 1)
+
+    mp = NCTSSoS.MomentProblem(
+        zero(P),
+        [(:HPSD, block), (:Zero, zero_mat)],
+        [one(b[1]), b[1], b_dag[1]],
+        3,
+    )
+
+    model, _ = build_jump_model(mp; formulation=:psd_blocks, representation=:complex)
+    backend = JuMP.backend(model)
+
+    @test MOI.get(backend, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64},MOI.EqualTo{Float64}}()) == 2
+    @test MOI.get(backend, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{ComplexF64},MOI.EqualTo{ComplexF64}}()) == 3
+end
+
 @testset "Moment lowering moment-variable formulation uses cached identity" begin
     reg, (b, b_dag) = create_bosonic_variables(1:1)
     objective = 0.0 * one(b[1])

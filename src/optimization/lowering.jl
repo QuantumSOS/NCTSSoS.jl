@@ -374,11 +374,28 @@ function _aux_orphan_pivots(
     return aux_pivots
 end
 
-@inline _upper_triangle_indices(n::Int) = ((i, j) for j in 1:n for i in 1:j)
+@inline _all_matrix_indices(n::Int) = ((i, j) for j in 1:n for i in 1:n)
+
+function _is_implicit_pivot_binding(block_idx::Int, i::Int, j::Int, form::LinearMomentForm, L::MomentLinearData)
+    length(form.terms) == 1 || return false
+    key, coef = only(form.terms)
+    pivot = _dict_get_value_or(L.pivots, key, nothing)
+    pivot === nothing && return false
+    pivot.block == block_idx || return false
+
+    if !pivot.adjoint
+        return pivot.row == i && pivot.col == j && coef == pivot.phase
+    else
+        # For an adjoint key sharing an upper-triangle Hermitian pivot,
+        # resolver(key) = phase * X[col,row].  The lower-triangle entry
+        # `conj(phase) * key` is therefore already X[col,row].
+        return pivot.row == j && pivot.col == i && coef * pivot.phase == one(coef)
+    end
+end
 
 function _add_psd_block_bindings!(model, X, block::PSDBlockLin, resolver, block_idx::Int)
-    for (i, j) in _upper_triangle_indices(block.size)
-        haskey(resolver.linear.pivot_at, (block_idx, i, j)) && continue
+    for (i, j) in _all_matrix_indices(block.size)
+        _is_implicit_pivot_binding(block_idx, i, j, block.entries[i, j], resolver.linear) && continue
         @constraint(model, X[i, j] == _eval_form(block.entries[i, j], resolver))
     end
     return nothing
@@ -420,14 +437,25 @@ function _build_complex_psd_block_model(
     zero_complex_moment = zero(C) * real(anchor) + im * (zero(C) * real(anchor))
     resolver = BlockMomentResolver(L, blocks, free_values, aux_pivots, zero_complex_moment)
 
-    @constraint(model, resolver(L.identity) == one(C))
+    identity_expr = resolver(L.identity)
+    @constraint(model, real(identity_expr) == one(C))
+    @constraint(model, imag(identity_expr) == zero(C))
 
     for (block_idx, block) in enumerate(L.psd_blocks_lin)
         _add_psd_block_bindings!(model, blocks[block_idx], block, resolver, block_idx)
     end
 
-    for zc in L.zero_constraints
-        @constraint(model, real(_eval_form(zc.form, resolver)) == zero(C))
+    K = typeof(L.identity)
+    for (cone, mat) in mp.constraints
+        cone == :Zero || continue
+        size(mat, 1) == size(mat, 2) || throw(DimensionMismatch(
+            "complex Zero constraint must be square for PSD-block lowering, got $(size(mat))"
+        ))
+        for j in axes(mat, 2), i in firstindex(mat, 1):j
+            form = _linearize_moment_polynomial(K, LC, mat[i, j])
+            isempty(form) && continue
+            @constraint(model, _eval_form(form, resolver) == zero_complex_moment)
+        end
     end
 
     obj_expr = _eval_form(L.objective_lin, resolver)

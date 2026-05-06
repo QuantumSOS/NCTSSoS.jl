@@ -1,4 +1,4 @@
-using Test, NCTSSoS, JuMP
+using Test, NCTSSoS, JuMP, SparseArrays
 const MOI = JuMP.MOI
 
 const RUN_H2_NK2_BRIDGE_SMOKE = get(ENV, "NCTSSOS_RUN_H2_NK2_BRIDGE_SMOKE", "0") == "1"
@@ -104,5 +104,7 @@ else
         @test _raw_scalar_1x1_psd_count(raw) == 0
         @test _raw_scalar_1x1_psd_count(raw) < 100  # hard ceiling vs old 406,706
         @test length(dims) == n_symbolic_hpsd + n_aux_hpsd
+        @test length(getfield(raw, :b)) > 80_000      # full moment-primal entry bindings, not upper-only
+        @test nnz(getfield(raw, :A)) > 400_000
     end
 end

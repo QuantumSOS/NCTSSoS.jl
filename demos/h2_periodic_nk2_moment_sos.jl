@@ -85,13 +85,13 @@ function parse_options(argv)
     output_dir = DEFAULT_OUTPUT_DIR
     rank_tols = copy(DEFAULT_RANK_TOLS)
     diagnostic_block = ""
-    bpsdp_max_iter = 5_000
-    bpsdp_cg_max_iter = 100
-    bpsdp_mu_update_frequency = 25
+    bpsdp_max_iter = 50_000
+    bpsdp_cg_max_iter = 10_000
+    bpsdp_mu_update_frequency = 500
     bpsdp_penalty = 0.1
-    bpsdp_cg_tol = 1e-12
-    bpsdp_obj_tol = 1e-8
-    bpsdp_err_tol = 1e-8
+    bpsdp_cg_tol = 1e-10
+    bpsdp_obj_tol = 1e-7
+    bpsdp_err_tol = 1e-7
     bpsdp_print_level = 1
 
     for arg in argv
@@ -157,13 +157,13 @@ function parse_options(argv)
             println("  --output-dir=PATH                 default output/phase2/h2_nk2")
             println("  --rank-tol=t1,t2,t3               default 1e-10,1e-12,1e-14")
             println("  --diagnostic-block=LABEL          default largest dumped block")
-            println("  --bpsdp-max-iter=N                default 5000")
-            println("  --bpsdp-cg-max-iter=N             default 100")
-            println("  --bpsdp-mu-update-frequency=N     default 25")
+            println("  --bpsdp-max-iter=N                default 50000")
+            println("  --bpsdp-cg-max-iter=N             default 10000")
+            println("  --bpsdp-mu-update-frequency=N     default 500")
             println("  --bpsdp-penalty=rho               default 0.1")
-            println("  --bpsdp-cg-tol=eps                default 1e-12")
-            println("  --bpsdp-obj-tol=eps               default 1e-8")
-            println("  --bpsdp-err-tol=eps               default 1e-8")
+            println("  --bpsdp-cg-tol=eps                default 1e-10")
+            println("  --bpsdp-obj-tol=eps               default 1e-7")
+            println("  --bpsdp-err-tol=eps               default 1e-7")
             println("  --bpsdp-print-level=N             default 1")
             exit(0)
         else
@@ -1066,13 +1066,13 @@ function bpsdp_optimizer_factory(options::Options, cg_iterations::Vector{Int})
         mu_update_frequency = options.bpsdp_mu_update_frequency,
         penalty_parameter = options.bpsdp_penalty,
         cg_convergence = options.bpsdp_cg_tol,
-        dynamic_cg_convergence = false,
+        dynamic_cg_convergence = true,
         sdp_objective_convergence = options.bpsdp_obj_tol,
         sdp_error_convergence = options.bpsdp_err_tol,
         guess_type = :zero,
         print_level = options.bpsdp_print_level,
         progress_monitor = monitor,
-        dependent_rows = :drop,
+        dependent_rows = :keep,
     )
 end
 
@@ -1185,7 +1185,7 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
         "jump_lowering" => Dict(
             "formulation" => "psd_blocks",
             "representation" => "complex",
-            "orphan_policy" => "free_variables",
+            "orphan_policy" => "aux_psd_free",
         ),
         "bpsdp_options" => Dict(
             "max_iter" => options.bpsdp_max_iter,
@@ -1193,10 +1193,11 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
             "mu_update_frequency" => options.bpsdp_mu_update_frequency,
             "penalty_parameter" => options.bpsdp_penalty,
             "cg_convergence" => options.bpsdp_cg_tol,
+            "dynamic_cg_convergence" => true,
             "sdp_objective_convergence" => options.bpsdp_obj_tol,
             "sdp_error_convergence" => options.bpsdp_err_tol,
             "guess_type" => "zero",
-            "dependent_rows" => "drop",
+            "dependent_rows" => "keep",
         ),
     )
     state_summary = bpsdp_state_summary(raw)
@@ -1234,7 +1235,7 @@ function write_bpsdp_failure!(options::Options, model, cg_iterations::Vector{Int
         "jump_lowering" => Dict(
             "formulation" => "psd_blocks",
             "representation" => "complex",
-            "orphan_policy" => "free_variables",
+            "orphan_policy" => "aux_psd_free",
         ),
         "bpsdp_options" => Dict(
             "max_iter" => options.bpsdp_max_iter,
@@ -1242,10 +1243,11 @@ function write_bpsdp_failure!(options::Options, model, cg_iterations::Vector{Int
             "mu_update_frequency" => options.bpsdp_mu_update_frequency,
             "penalty_parameter" => options.bpsdp_penalty,
             "cg_convergence" => options.bpsdp_cg_tol,
+            "dynamic_cg_convergence" => true,
             "sdp_objective_convergence" => options.bpsdp_obj_tol,
             "sdp_error_convergence" => options.bpsdp_err_tol,
             "guess_type" => "zero",
-            "dependent_rows" => "drop",
+            "dependent_rows" => "keep",
         ),
     )
     state_summary = bpsdp_state_summary(raw)
@@ -1272,7 +1274,7 @@ function solve_with_bpsdp!(data, options::Options, materialized)
         data.moment_problem;
         formulation = :psd_blocks,
         representation = :complex,
-        orphan_policy = :free_variables,
+        orphan_policy = :aux_psd_free,
     )
     jump_data = (; model, extract_monomap)
     cg_iterations = Int[]

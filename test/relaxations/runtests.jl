@@ -12,6 +12,7 @@ using Test
 
 @testset "Relaxations" begin
     include("interface.jl")
+    include("moment_linear.jl")
     include("lowering.jl")
     include("h2_nk2_bridge_smoke.jl")
     include("sos.jl")

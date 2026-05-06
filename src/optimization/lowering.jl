@@ -4,7 +4,7 @@
 
 const AUX_ORPHANS_PER_BLOCK = 32
 
-struct Pivot
+struct LoweringPivot
     key::Any
     constraint_idx::Int
     block_idx::Int
@@ -100,7 +100,7 @@ function _all_moment_keys(mp::MomentProblem)
 end
 
 function _discover_pivots_unchecked(mp::MomentProblem)
-    pivots = Dict{Any,Pivot}()
+    pivots = Dict{Any,LoweringPivot}()
     block_idx = 0
 
     for (constraint_idx, (cone, mat)) in pairs(mp.constraints)
@@ -115,14 +115,14 @@ function _discover_pivots_unchecked(mp::MomentProblem)
 
             key, phase = candidate
             haskey(pivots, key) && continue  # C1: first lexicographic match wins.
-            pivots[key] = Pivot(key, constraint_idx, block_idx, i, j, phase, cone)
+            pivots[key] = LoweringPivot(key, constraint_idx, block_idx, i, j, phase, cone)
         end
     end
 
     return pivots
 end
 
-function orphan_keys(mp::MomentProblem, pivots::Dict{Any,Pivot})
+function orphan_keys(mp::MomentProblem, pivots::Dict{Any,LoweringPivot})
     return [key for key in _all_moment_keys(mp) if !haskey(pivots, key)]
 end
 
@@ -146,7 +146,7 @@ function _n_aux_blocks(n_orphans::Int; orphans_per_block::Int=AUX_ORPHANS_PER_BL
 end
 
 function _add_aux_pivots!(
-    pivots::Dict{Any,Pivot},
+    pivots::Dict{Any,LoweringPivot},
     orphan_keys::AbstractVector,
     first_aux_block_idx::Int;
     orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK,
@@ -155,13 +155,13 @@ function _add_aux_pivots!(
         local_idx = mod1(offset, orphans_per_block)
         block_offset = (offset - 1) ÷ orphans_per_block
         block_idx = first_aux_block_idx + block_offset
-        pivots[key] = Pivot(key, 0, block_idx, 1, 1 + local_idx, ComplexF64(1), :AuxHPSD)
+        pivots[key] = LoweringPivot(key, 0, block_idx, 1, 1 + local_idx, ComplexF64(1), :AuxHPSD)
     end
     return pivots
 end
 
 """
-    discover_pivots(mp::MomentProblem; orphan_policy=:error) -> Dict{Any,Pivot}
+    discover_pivots(mp::MomentProblem; orphan_policy=:error) -> Dict{Any,LoweringPivot}
 
 Discover deterministic PSD/HPSD entry pivots for canonical moment keys.
 A pivot candidate is exactly a single-term polynomial with coefficient in
@@ -448,8 +448,8 @@ function _declare_aux_orphan_blocks!(
     return n_aux
 end
 
-function _pivot_entry_lookup(pivots::Dict{Any,Pivot})
-    lookup = Dict{Tuple{Int,Int,Int},Pivot}()
+function _pivot_entry_lookup(pivots::Dict{Any,LoweringPivot})
+    lookup = Dict{Tuple{Int,Int,Int},LoweringPivot}()
     for pivot in values(pivots)
         lookup[(pivot.constraint_idx, pivot.i, pivot.j)] = pivot
     end

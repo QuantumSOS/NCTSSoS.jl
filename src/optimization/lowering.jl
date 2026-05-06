@@ -4,6 +4,9 @@
 
 const AUX_ORPHANS_PER_BLOCK = 32
 
+# Compatibility type for the PR-2 diagnostics/tests. The production lowering below
+# consumes `MomentLinearData` directly; this wrapper should disappear with the
+# dead pivot-discovery API in the cleanup PR.
 struct LoweringPivot
     key::Any
     constraint_idx::Int
@@ -19,130 +22,79 @@ struct AffineResolver{D,Z}
     zero_value::Z
 end
 
-struct PivotResolver{P,B,Z}
-    pivots::P
+struct BlockMomentResolver{L,B,F,A,Z}
+    linear::L
     blocks::B
+    free_values::F
+    aux_pivots::A
     zero_value::Z
 end
 
-struct BlockMomentResolver{P,B,F,Z}
-    pivots::P
-    blocks::B
-    free_values::F
-    zero_value::Z
+function _dict_get_value_or(dict::Dict, key, default)
+    haskey(dict, key) && return dict[key]
+
+    # Current canonical keys may be vectors. Keep lookup value-based so lowering
+    # is not hostage to object identity if a form carries an equal-but-distinct key.
+    for (candidate, value) in dict
+        key_isequal(candidate, key) && return value
+    end
+    return default
 end
 
 function (resolver::AffineResolver)(key)
-    return get(resolver.values, key, resolver.zero_value)
+    return _dict_get_value_or(resolver.values, key, resolver.zero_value)
 end
 
-function (resolver::PivotResolver)(key)
-    pivot = resolver.pivots[key]
-    return resolver.blocks[pivot.block_idx][pivot.i, pivot.j] / pivot.phase
+function _pivot_value(pivot::Pivot, blocks)
+    X = blocks[pivot.block]
+    if pivot.adjoint
+        # The pivot is stored at the Hermitian upper-triangle position for α*, so
+        # ⟨α*⟩ = phase * X[j,i], not conj(phase) * X[i,j].
+        return pivot.phase * X[pivot.col, pivot.row]
+    else
+        # X[i,j] = phase * ⟨α⟩ for unit phases.
+        return conj(pivot.phase) * X[pivot.row, pivot.col]
+    end
 end
 
 function (resolver::BlockMomentResolver)(key)
-    pivot = get(resolver.pivots, key, nothing)
-    pivot !== nothing && return resolver.blocks[pivot.block_idx][pivot.i, pivot.j] / pivot.phase
-    return get(resolver.free_values, key, resolver.zero_value)
+    pivot = _dict_get_value_or(resolver.linear.pivots, key, nothing)
+    pivot !== nothing && return _pivot_value(pivot, resolver.blocks)
+
+    aux_pivot = _dict_get_value_or(resolver.aux_pivots, key, nothing)
+    aux_pivot !== nothing && return _pivot_value(aux_pivot, resolver.blocks)
+
+    free_value = _dict_get_value_or(resolver.free_values, key, nothing)
+    free_value !== nothing && return free_value
+
+    return resolver.zero_value
 end
 
 @inline _resolver_zero(resolver::AffineResolver) = copy(resolver.zero_value)
-@inline _resolver_zero(resolver::PivotResolver) = copy(resolver.zero_value)
 @inline _resolver_zero(resolver::BlockMomentResolver) = copy(resolver.zero_value)
 
+function _eval_form(form::LinearMomentForm, resolver)
+    expr = _resolver_zero(resolver)
+    for (key, coef) in form
+        add_to_expression!(expr, coef, resolver(key))
+    end
+    return expr
+end
+
+# Kept for state-polynomial helpers in moment.jl. New MomentProblem lowering uses
+# the cached linear forms in `mp.linear` instead of substituting polynomials.
 function substitute(poly::Polynomial, resolver)
     expr = _resolver_zero(resolver)
     iszero(poly) && return expr
 
-    for (coef, mono) in poly
-        expr += coef * resolver(symmetric_canon(expval(mono)))
+    for (coef, mono) in simplify(poly)
+        iszero(coef) && continue
+        add_to_expression!(expr, coef, resolver(symmetric_canon(expval(mono))))
     end
     return expr
 end
 
 @inline _is_pivot_cone(cone::Symbol) = cone == :PSD || cone == :HPSD
-
-function _strict_unit_phase(coef)
-    one_coef = one(coef)
-    coef == one_coef && return ComplexF64(1)
-    coef == -one_coef && return ComplexF64(-1)
-    coef == im * one_coef && return ComplexF64(im)
-    coef == -im * one_coef && return ComplexF64(-im)
-    return nothing
-end
-
-function _pivot_candidate(poly::Polynomial)
-    simplified = simplify(poly)
-    length(simplified.terms) == 1 || return nothing
-
-    coef, mono = only(simplified.terms)
-    phase = _strict_unit_phase(coef)
-    phase === nothing && return nothing
-
-    return (symmetric_canon(expval(mono)), phase)
-end
-
-function _collect_moment_key!(ordered_keys::Vector{Any}, seen::Set{Any}, key)
-    key in seen && return nothing
-    push!(seen, key)
-    push!(ordered_keys, key)
-    return nothing
-end
-
-function _collect_polynomial_keys!(ordered_keys::Vector{Any}, seen::Set{Any}, poly::Polynomial)
-    simplified = simplify(poly)
-    for (coef, mono) in simplified
-        iszero(coef) && continue
-        _collect_moment_key!(ordered_keys, seen, symmetric_canon(expval(mono)))
-    end
-    return nothing
-end
-
-function _all_moment_keys(mp::MomentProblem)
-    ordered_keys = Any[]
-    seen = Set{Any}()
-
-    _collect_polynomial_keys!(ordered_keys, seen, mp.objective)
-    for (_, mat) in mp.constraints
-        for entry in mat
-            _collect_polynomial_keys!(ordered_keys, seen, entry)
-        end
-    end
-
-    return ordered_keys
-end
-
-function _discover_pivots_unchecked(mp::MomentProblem)
-    pivots = Dict{Any,LoweringPivot}()
-    block_idx = 0
-
-    for (constraint_idx, (cone, mat)) in pairs(mp.constraints)
-        _is_pivot_cone(cone) || continue
-        size(mat, 1) == size(mat, 2) ||
-            throw(DimensionMismatch("$cone constraint $constraint_idx must be square, got size $(size(mat))"))
-
-        block_idx += 1
-        for i in axes(mat, 1), j in axes(mat, 2)
-            candidate = _pivot_candidate(mat[i, j])
-            candidate === nothing && continue
-
-            key, phase = candidate
-            haskey(pivots, key) && continue  # C1: first lexicographic match wins.
-            pivots[key] = LoweringPivot(key, constraint_idx, block_idx, i, j, phase, cone)
-        end
-    end
-
-    return pivots
-end
-
-function orphan_keys(mp::MomentProblem, pivots::Dict{Any,LoweringPivot})
-    return [key for key in _all_moment_keys(mp) if !haskey(pivots, key)]
-end
-
-function orphan_keys(mp::MomentProblem)
-    return orphan_keys(mp, _discover_pivots_unchecked(mp))
-end
 
 function _summarize_canonical_keys(keys; limit::Int=5)
     shown = join((sprint(show, key) for key in Iterators.take(keys, limit)), ", ")
@@ -150,16 +102,34 @@ function _summarize_canonical_keys(keys; limit::Int=5)
     return "[" * shown * "]"
 end
 
-function _n_symbolic_psd_blocks(mp::MomentProblem)
-    return count(c -> _is_pivot_cone(c[1]), mp.constraints)
-end
-
 function _n_aux_blocks(n_orphans::Int; orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK)
     n_orphans == 0 && return 0
     return cld(n_orphans, orphans_per_block)
 end
 
-function _add_aux_pivots!(
+function orphan_keys(mp::MomentProblem)
+    return copy(mp.linear.free_keys)
+end
+
+function orphan_keys(mp::MomentProblem, pivots::Dict{Any,LoweringPivot})
+    return [key for key in mp.linear.moments if _dict_get_value_or(pivots, key, nothing) === nothing]
+end
+
+function _linear_pivots_as_lowering_pivots(mp::MomentProblem)
+    L = mp.linear
+    out = Dict{Any,LoweringPivot}()
+    for (key, pivot) in L.pivots
+        constraint_idx = L.psd_block_constraint_idx[pivot.block]
+        cone = L.psd_blocks_lin[pivot.block].meta.cone
+        i = pivot.adjoint ? pivot.col : pivot.row
+        j = pivot.adjoint ? pivot.row : pivot.col
+        phase = pivot.adjoint ? conj(pivot.phase) : pivot.phase
+        out[key] = LoweringPivot(key, constraint_idx, pivot.block, i, j, ComplexF64(phase), cone)
+    end
+    return out
+end
+
+function _add_aux_lowering_pivots!(
     pivots::Dict{Any,LoweringPivot},
     orphan_keys::AbstractVector,
     first_aux_block_idx::Int;
@@ -177,18 +147,16 @@ end
 """
     discover_pivots(mp::MomentProblem; orphan_policy=:error) -> Dict{Any,LoweringPivot}
 
-Discover deterministic PSD/HPSD entry pivots for canonical moment keys.
-A pivot candidate is exactly a single-term polynomial with coefficient in
-`±1, ±im`. The first candidate in `(constraint_idx, i, j)` order wins.
-With `orphan_policy=:free_variables`, orphan keys are reported by `orphan_keys`
-but deliberately not inserted into the pivot map.
+Compatibility view of the cached `mp.linear.pivots`. New lowering code reads the
+cache directly; this helper remains only until the cleanup PR removes the old
+pivot-discovery surface.
 """
 function discover_pivots(mp::MomentProblem; orphan_policy::Symbol=:error)
     orphan_policy in (:error, :free_variables, :aux_psd_free) ||
         throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
 
-    pivots = _discover_pivots_unchecked(mp)
-    orphans = orphan_keys(mp, pivots)
+    pivots = _linear_pivots_as_lowering_pivots(mp)
+    orphans = mp.linear.free_keys
     if !isempty(orphans)
         if orphan_policy == :error
             throw(ArgumentError(
@@ -196,7 +164,7 @@ function discover_pivots(mp::MomentProblem; orphan_policy::Symbol=:error)
                 _summarize_canonical_keys(orphans)
             ))
         elseif orphan_policy == :aux_psd_free
-            _add_aux_pivots!(pivots, orphans, _n_symbolic_psd_blocks(mp) + 1)
+            _add_aux_lowering_pivots!(pivots, orphans, length(mp.linear.psd_blocks_lin) + 1)
         end
     end
 
@@ -211,19 +179,8 @@ end
     ) -> (model, extract_monomap)
 
 Lower a symbolic `MomentProblem` into a JuMP model without attaching an
-optimizer. The returned `extract_monomap` closure reads the solved model values
-and returns the canonical-moment map used by the existing direct moment path.
-
-The default `formulation=:moment_variables, representation=:real` preserves the
-historical lowering exactly: real algebras use one free real moment variable per
-canonical key, and complex algebras use split real/imaginary moment variables
-with Hermitian blocks embedded into real PSD cones.
-
-For `formulation=:psd_blocks`, strict pivot moments are represented directly by
-native PSD/Hermitian PSD block entries. Non-pivot orphan moments should use
-`orphan_policy=:free_variables` for the JuMP/BPSDP path. The older auxiliary
-PSD-block packing is mathematically a free-moment construction, but it adds
-unconstrained slack coordinates and is a poor fit for BPSDP's normal equations.
+optimizer. The public API is unchanged; the implementation consumes the cached
+`mp.linear` view instead of rediscovering moment pivots and key universes.
 """
 function build_jump_model(
     mp::MomentProblem{A,T,M,P};
@@ -251,64 +208,90 @@ function build_jump_model(
             throw(ArgumentError("formulation=:moment_variables currently supports representation=:real for complex algebras"))
         return _build_complex_moment_variable_model(mp)
     else
-        # Real algebras ignore representation; their moment coordinates are real.
         return _build_real_moment_variable_model(mp)
     end
 end
 
-function _moment_variable_basis(mp::MomentProblem{A,T,M,P}) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
-    basis = [symmetric_canon(expval(m)) for m in mp.total_basis]
-    sorted_unique!(basis)
-    return basis
+function _lowering_coeff_type(::MomentLinearData{K,C,M}) where {K,C,M}
+    return C
+end
+
+function _lowering_real_type(::MomentLinearData{K,C,M}) where {K,C,M}
+    return typeof(real(one(C)))
+end
+
+function _check_real_lowering_cones!(mp::MomentProblem)
+    for (cone, _) in mp.constraints
+        (cone == :Zero || cone == :PSD) || error("Unexpected cone type $cone for real problem")
+    end
+    return nothing
+end
+
+function _check_complex_moment_variable_cones!(mp::MomentProblem)
+    for (cone, _) in mp.constraints
+        (cone == :Zero || cone == :HPSD) || error("Unexpected cone type $cone for complex problem")
+    end
+    return nothing
+end
+
+function _check_complex_psd_block_cones!(mp::MomentProblem)
+    for (cone, _) in mp.constraints
+        (cone == :Zero || _is_pivot_cone(cone)) ||
+            error("Unexpected cone type $cone for complex PSD-block problem")
+    end
+    return nothing
+end
+
+function _moment_values_resolver(model, L::MomentLinearData{K}, ::Type{C}) where {K,C}
+    @variable(model, y[1:length(L.moments)], set_string_name=false)
+    values = Dict{K,Any}(key => one(C) * y[idx] for (idx, key) in enumerate(L.moments))
+    return y, AffineResolver(values, zero(C) * y[1])
+end
+
+function _complex_moment_values_resolver(model, L::MomentLinearData{K}, ::Type{C}) where {K,C}
+    @variable(model, y_re[1:length(L.moments)], set_string_name=false)
+    @variable(model, y_im[1:length(L.moments)], set_string_name=false)
+    values = Dict{K,Any}(key => y_re[idx] + im * y_im[idx] for (idx, key) in enumerate(L.moments))
+    zero_complex = zero(C) * y_re[1] + im * (zero(C) * y_im[1])
+    return y_re, y_im, AffineResolver(values, zero_complex)
+end
+
+function _identity_index(L::MomentLinearData)
+    return _get_key_value(L.moment_index, L.identity, "identity moment index")
 end
 
 """
     _build_real_moment_variable_model(mp) -> (model, extract_monomap)
 
-Historical real-algebra direct moment lowering, factored out of
-`solve_moment_problem` without semantic changes.
+Historical real-algebra direct moment lowering, now driven by `mp.linear`.
 """
 function _build_real_moment_variable_model(
     mp::MomentProblem{A,T,M,P},
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
-    C = eltype(coefficients(mp.objective))
+    _check_real_lowering_cones!(mp)
+
+    L = mp.linear
+    C = _lowering_real_type(L)
     model = GenericModel{C}()
+    y, resolver = _moment_values_resolver(model, L, C)
 
-    basis = _moment_variable_basis(mp)
+    @constraint(model, y[_identity_index(L)] == one(C))
 
-    @variable(model, y[1:length(basis)], set_string_name=false)
-
-    one_sym = symmetric_canon(expval(one(M)))
-    idx_one = findfirst(==(one_sym), basis)
-    idx_one === nothing && error("Expected identity moment to be present in basis")
-    @constraint(model, y[idx_one] == 1)  # Normalization
-
-    monovars = Dict(zip(basis, y))
-    resolver_values = Dict(m => one(C) * monovars[m] for m in basis)
-    resolver = AffineResolver(resolver_values, zero(C) * y[1])
-
-    # Add constraints.
-    for (cone, mat) in mp.constraints
-        dim = size(mat, 1)
-        jump_mat = [
-            substitute(mat[i, j], resolver)
-            for i in 1:dim, j in 1:dim
-        ]
-
-        if cone == :Zero
-            @constraint(model, jump_mat in Zeros())
-        elseif cone == :PSD
-            @constraint(model, _checked_symmetric(jump_mat; context="real PSD constraint") in PSDCone())
-        else
-            error("Unexpected cone type $cone for real problem")
-        end
+    for block in L.psd_blocks_lin
+        block.meta.cone == :PSD || error("Unexpected cone type $(block.meta.cone) for real problem")
+        n = block.size
+        jump_mat = [_eval_form(block.entries[i, j], resolver) for i in 1:n, j in 1:n]
+        @constraint(model, _checked_symmetric(jump_mat; context="real PSD constraint") in PSDCone())
     end
 
-    obj_expr = substitute(mp.objective, resolver)
-    @objective(model, Min, obj_expr)
+    for zc in L.zero_constraints
+        @constraint(model, _eval_form(zc.form, resolver) == zero(C))
+    end
+
+    @objective(model, Min, _eval_form(L.objective_lin, resolver))
 
     extract_monomap = function ()
-        return Dict(m => value(monovars[m]) for m in basis)
+        return Dict(key => value(y[idx]) for (idx, key) in enumerate(L.moments))
     end
 
     return model, extract_monomap
@@ -334,73 +317,53 @@ end
 """
     _build_complex_moment_variable_model(mp) -> (model, extract_monomap)
 
-Historical complex/Hermitian direct moment lowering, factored out of
-`solve_moment_problem` without semantic changes.
+Historical complex/Hermitian direct moment lowering, now driven by `mp.linear`.
 """
 function _build_complex_moment_variable_model(
     mp::MomentProblem{A,T,M,P},
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
-    C = real(eltype(coefficients(mp.objective)))
+    _check_complex_moment_variable_cones!(mp)
+
+    L = mp.linear
+    C = _lowering_real_type(L)
     model = GenericModel{C}()
+    y_re, y_im, resolver = _complex_moment_values_resolver(model, L, C)
 
-    basis = _moment_variable_basis(mp)
-    n_basis = length(basis)
+    idx_one = _identity_index(L)
+    @constraint(model, y_re[idx_one] == one(C))
+    @constraint(model, y_im[idx_one] == zero(C))
 
-    @variable(model, y_re[1:n_basis], set_string_name=false)
-    @variable(model, y_im[1:n_basis], set_string_name=false)
+    for block in L.psd_blocks_lin
+        block.meta.cone == :HPSD || error("Unexpected cone type $(block.meta.cone) for complex problem")
+        n = block.size
 
-    one_sym = symmetric_canon(expval(one(M)))
-    idx_one = findfirst(==(one_sym), basis)
-    idx_one === nothing && error("Expected identity moment to be present in basis")
-
-    # Normalization: y[1] = 1 (real), y_im[1] = 0.
-    @constraint(model, y_re[idx_one] == 1)
-    @constraint(model, y_im[idx_one] == 0)
-
-    basis_to_idx = Dict(m => i for (i, m) in enumerate(basis))
-    zero_complex_moment = zero(C) * y_re[1] + im * (zero(C) * y_im[1])
-    resolver_values = Dict(m => y_re[i] + im * y_im[i] for (m, i) in basis_to_idx)
-    resolver = AffineResolver(resolver_values, zero_complex_moment)
-
-    # Add constraints with Hermitian embedding.
-    for (cone, mat) in mp.constraints
-        dim = size(mat, 1)
-
-        zero_expr = substitute(zero(eltype(mat)), resolver)
+        zero_expr = _resolver_zero(resolver)
         Aff = typeof(real(zero_expr))
-        mat_re = Matrix{Aff}(undef, dim, dim)
-        mat_im = Matrix{Aff}(undef, dim, dim)
+        mat_re = Matrix{Aff}(undef, n, n)
+        mat_im = Matrix{Aff}(undef, n, n)
 
-        for i in 1:dim, j in 1:dim
-            expr = substitute(mat[i, j], resolver)
+        for i in 1:n, j in 1:n
+            expr = _eval_form(block.entries[i, j], resolver)
             mat_re[i, j] = real(expr)
             mat_im[i, j] = imag(expr)
         end
 
-        if cone == :Zero
-            # Zero cone: both real and imaginary parts must be zero.
-            @constraint(model, [mat_re[i, j] for i in 1:dim, j in 1:dim] .== 0)
-            @constraint(model, [mat_im[i, j] for i in 1:dim, j in 1:dim] .== 0)
-        elseif cone == :HPSD
-            # Hermitian PSD: embed as real 2n x 2n PSD.
-            # [Re(H), -Im(H); Im(H), Re(H)] in PSD.
-            embedded = [
-                [mat_re[i, j] for i in 1:dim, j in 1:dim]   [-mat_im[i, j] for i in 1:dim, j in 1:dim]
-                [mat_im[i, j] for i in 1:dim, j in 1:dim]   [mat_re[i, j] for i in 1:dim, j in 1:dim]
-            ]
-            @constraint(model, embedded in PSDCone())
-        else
-            error("Unexpected cone type $cone for complex problem")
-        end
+        embedded = [
+            [mat_re[i, j] for i in 1:n, j in 1:n]   [-mat_im[i, j] for i in 1:n, j in 1:n]
+            [mat_im[i, j] for i in 1:n, j in 1:n]   [mat_re[i, j] for i in 1:n, j in 1:n]
+        ]
+        @constraint(model, embedded in PSDCone())
     end
 
-    # `polyopt` validates that complex-algebra objectives are Hermitian, so their
-    # expectation values are real. Optimize the real part only.
-    obj_expr = substitute(mp.objective, resolver)
+    for zc in L.zero_constraints
+        @constraint(model, real(_eval_form(zc.form, resolver)) == zero(C))
+    end
+
+    obj_expr = _eval_form(L.objective_lin, resolver)
     @objective(model, Min, real(obj_expr))
 
     extract_monomap = function ()
-        return Dict(m => Complex(value(y_re[i]), value(y_im[i])) for (m, i) in basis_to_idx)
+        return Dict(key => Complex(value(y_re[idx]), value(y_im[idx])) for (idx, key) in enumerate(L.moments))
     end
 
     return model, extract_monomap
@@ -424,7 +387,7 @@ function _solve_complex_moment_problem(
 end
 
 function _declare_psd_block_variable!(model, cone::Symbol, n::Int)
-    if cone == :HPSD
+    if cone == :HPSD || cone == :AuxHPSD
         return @variable(model, [1:n, 1:n] in HermitianPSDCone(), set_string_name=false)
     elseif cone == :PSD
         return @variable(model, [1:n, 1:n] in PSDCone(), set_string_name=false)
@@ -433,45 +396,30 @@ function _declare_psd_block_variable!(model, cone::Symbol, n::Int)
     end
 end
 
-function _declare_psd_block_variables!(model, mp::MomentProblem)
-    blocks = Dict{Int,Any}()
-    constraint_to_block = Dict{Int,Int}()
-    block_idx = 0
-
-    for (constraint_idx, (cone, mat)) in pairs(mp.constraints)
-        _is_pivot_cone(cone) || continue
-        size(mat, 1) == size(mat, 2) ||
-            throw(DimensionMismatch("$cone constraint $constraint_idx must be square, got size $(size(mat))"))
-
-        block_idx += 1
-        constraint_to_block[constraint_idx] = block_idx
-        blocks[block_idx] = _declare_psd_block_variable!(model, cone, size(mat, 1))
-    end
-
-    isempty(blocks) && throw(ArgumentError("formulation=:psd_blocks requires at least one PSD/HPSD constraint"))
-    return blocks, constraint_to_block
+function _declare_psd_block_variables!(model, L::MomentLinearData)
+    isempty(L.psd_blocks_lin) && throw(ArgumentError("formulation=:psd_blocks requires at least one PSD/HPSD constraint"))
+    return Any[_declare_psd_block_variable!(model, block.meta.cone, block.size) for block in L.psd_blocks_lin]
 end
 
 function _declare_aux_orphan_blocks!(
     model,
-    blocks::Dict{Int,Any},
+    blocks::Vector{Any},
     n_orphans::Int;
     orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK,
 )
     n_orphans == 0 && return 0
 
-    next_block_idx = maximum(keys(blocks)) + 1
     n_aux = _n_aux_blocks(n_orphans; orphans_per_block=orphans_per_block)
     for aux_offset in 0:(n_aux - 1)
         n_in_block = min(orphans_per_block, n_orphans - aux_offset * orphans_per_block)
-        blocks[next_block_idx + aux_offset] = _declare_psd_block_variable!(model, :HPSD, n_in_block + 1)
+        push!(blocks, _declare_psd_block_variable!(model, :AuxHPSD, n_in_block + 1))
     end
 
     return n_aux
 end
 
 function _declare_free_orphan_moments!(model, orphan_keys::AbstractVector)
-    free_values = Dict{Any,Any}()
+    free_values = Dict{eltype(orphan_keys),Any}()
     isempty(orphan_keys) && return free_values
 
     n_orphans = length(orphan_keys)
@@ -483,35 +431,28 @@ function _declare_free_orphan_moments!(model, orphan_keys::AbstractVector)
     return free_values
 end
 
-function _pivot_entry_lookup(pivots::Dict{Any,LoweringPivot})
-    lookup = Dict{Tuple{Int,Int,Int},LoweringPivot}()
-    for pivot in values(pivots)
-        lookup[(pivot.constraint_idx, pivot.i, pivot.j)] = pivot
+function _aux_orphan_pivots(
+    ::Type{C},
+    orphan_keys::AbstractVector{K},
+    first_aux_block_idx::Int;
+    orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK,
+) where {C,K}
+    aux_pivots = Dict{K,Pivot{C}}()
+    for (offset, key) in enumerate(orphan_keys)
+        local_idx = mod1(offset, orphans_per_block)
+        block_offset = (offset - 1) ÷ orphans_per_block
+        block_idx = first_aux_block_idx + block_offset
+        aux_pivots[key] = Pivot{C}(block_idx, 1, 1 + local_idx, one(C), false)
     end
-    return lookup
+    return aux_pivots
 end
 
 @inline _upper_triangle_indices(n::Int) = ((i, j) for j in 1:n for i in 1:j)
 
-function _add_psd_block_bindings!(model, X, mat, resolver, pivot_entries, constraint_idx::Int)
-    n = size(mat, 1)
-    for (i, j) in _upper_triangle_indices(n)
-        haskey(pivot_entries, (constraint_idx, i, j)) && continue
-        @constraint(model, X[i, j] == substitute(mat[i, j], resolver))
-    end
-    return nothing
-end
-
-function _add_zero_bindings!(model, mat, resolver, constraint_idx::Int)
-    size(mat, 1) == size(mat, 2) ||
-        throw(DimensionMismatch("Zero constraint $constraint_idx must be square, got size $(size(mat))"))
-    _is_hermitian_poly_matrix(mat) ||
-        throw(ArgumentError("Zero constraint $constraint_idx is not Hermitian; MomentProblem zero matrices must be split before lowering"))
-
-    n = size(mat, 1)
-    for (i, j) in _upper_triangle_indices(n)
-        iszero(mat[i, j]) && continue
-        @constraint(model, substitute(mat[i, j], resolver) == 0)
+function _add_psd_block_bindings!(model, X, block::PSDBlockLin, resolver, block_idx::Int)
+    for (i, j) in _upper_triangle_indices(block.size)
+        haskey(resolver.linear.pivot_at, (block_idx, i, j)) && continue
+        @constraint(model, X[i, j] == _eval_form(block.entries[i, j], resolver))
     end
     return nothing
 end
@@ -520,67 +461,53 @@ function _build_complex_psd_block_model(
     mp::MomentProblem{A,T,M,P};
     orphan_policy::Symbol=:error,
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
-    C = real(eltype(coefficients(mp.objective)))
+    _check_complex_psd_block_cones!(mp)
+
+    L = mp.linear
+    C = _lowering_real_type(L)
+    LC = _lowering_coeff_type(L)
     model = GenericModel{C}()
 
-    orphan_policy in (:error, :free_variables, :aux_psd_free) ||
-        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
-
-    pivots = _discover_pivots_unchecked(mp)
-    orphans = orphan_keys(mp, pivots)
-    if !isempty(orphans) && orphan_policy == :error
+    if !isempty(L.free_keys) && orphan_policy == :error
         throw(ArgumentError(
-            "$(length(orphans)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
-            _summarize_canonical_keys(orphans)
+            "$(length(L.free_keys)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
+            _summarize_canonical_keys(L.free_keys)
         ))
     end
 
-    blocks, constraint_to_block = _declare_psd_block_variables!(model, mp)
-    free_values = Dict{Any,Any}()
-    if !isempty(orphans)
+    blocks = _declare_psd_block_variables!(model, L)
+    free_values = Dict{eltype(L.free_keys),Any}()
+    aux_pivots = Dict{eltype(L.free_keys),Pivot{LC}}()
+
+    if !isempty(L.free_keys)
         if orphan_policy == :aux_psd_free
-            first_aux_block_idx = maximum(keys(blocks)) + 1
-            _declare_aux_orphan_blocks!(model, blocks, length(orphans))
-            _add_aux_pivots!(pivots, orphans, first_aux_block_idx)
+            first_aux_block_idx = length(blocks) + 1
+            _declare_aux_orphan_blocks!(model, blocks, length(L.free_keys))
+            aux_pivots = _aux_orphan_pivots(LC, L.free_keys, first_aux_block_idx)
         elseif orphan_policy == :free_variables
-            free_values = _declare_free_orphan_moments!(model, orphans)
+            free_values = _declare_free_orphan_moments!(model, L.free_keys)
         end
     end
 
-    anchor_block = blocks[first(sort!(collect(keys(blocks))))]
-    anchor = anchor_block[1, 1]
+    anchor = blocks[1][1, 1]
     zero_complex_moment = zero(C) * real(anchor) + im * (zero(C) * real(anchor))
-    resolver = BlockMomentResolver(pivots, blocks, free_values, zero_complex_moment)
+    resolver = BlockMomentResolver(L, blocks, free_values, aux_pivots, zero_complex_moment)
 
-    one_key = symmetric_canon(expval(one(M)))
-    (haskey(pivots, one_key) || haskey(free_values, one_key)) ||
-        throw(ArgumentError("Identity moment has no PSD/HPSD pivot or free-moment variable"))
-    @constraint(model, resolver(one_key) == 1)
+    @constraint(model, resolver(L.identity) == one(C))
 
-    pivot_entries = _pivot_entry_lookup(pivots)
-    for (constraint_idx, (cone, mat)) in pairs(mp.constraints)
-        if _is_pivot_cone(cone)
-            block_idx = constraint_to_block[constraint_idx]
-            _add_psd_block_bindings!(model, blocks[block_idx], mat, resolver, pivot_entries, constraint_idx)
-        elseif cone == :Zero
-            _add_zero_bindings!(model, mat, resolver, constraint_idx)
-        else
-            error("Unexpected cone type $cone for complex PSD-block problem")
-        end
+    for (block_idx, block) in enumerate(L.psd_blocks_lin)
+        _add_psd_block_bindings!(model, blocks[block_idx], block, resolver, block_idx)
     end
 
-    obj_expr = substitute(mp.objective, resolver)
+    for zc in L.zero_constraints
+        @constraint(model, real(_eval_form(zc.form, resolver)) == zero(C))
+    end
+
+    obj_expr = _eval_form(L.objective_lin, resolver)
     @objective(model, Min, real(obj_expr))
 
     extract_monomap = function ()
-        monomap = Dict{Any,Any}()
-        for key in keys(pivots)
-            monomap[key] = value(resolver(key))
-        end
-        for key in keys(free_values)
-            monomap[key] = value(resolver(key))
-        end
-        return monomap
+        return Dict(key => value(resolver(key)) for key in L.moments)
     end
 
     return model, extract_monomap

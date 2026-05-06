@@ -2,8 +2,8 @@
 # Pivot-coverage audit for MomentProblem linear-cache design.
 #
 # This is a probe, not a solver. It builds representative MomentProblems,
-# runs the existing lowering-time pivot discovery, and records how many
-# canonical moment keys would become free/orphan keys in the planned cache.
+# reads the cached MomentLinearData pivot map, and records how many canonical
+# moment keys become free/orphan keys.
 
 using Dates
 using Printf
@@ -274,9 +274,9 @@ end
 function audit_case(name::String, builder, note::String)
     GC.gc()
     build_seconds = @elapsed mp = builder()
-    pivots = NCTSSoS._discover_pivots_unchecked(mp)
-    orphans = NCTSSoS.orphan_keys(mp, pivots)
-    all_keys = NCTSSoS._all_moment_keys(mp)
+    pivots = mp.linear.pivots
+    orphans = mp.linear.free_keys
+    all_keys = mp.linear.moments
     psd_sizes = [size(mat, 1) for (cone, mat) in mp.constraints if cone in (:PSD, :HPSD)]
     zero_constraints = count(c -> c[1] == :Zero, mp.constraints)
     n_moments = length(all_keys)
@@ -310,7 +310,7 @@ function write_report(path::AbstractString, records)
         println(io, "Generated: ", Dates.format(now(), dateformat"yyyy-mm-dd HH:MM:SS"))
         println(io, "Git commit: `", git_commit(), "`")
         println(io)
-        println(io, "Purpose: measure whether existing runtime pivot discovery covers every canonical moment key, or whether planned `MomentLinearData.free_keys` must carry orphan moments.")
+        println(io, "Purpose: measure whether cached `MomentLinearData.pivots` covers every canonical moment key, or whether `MomentLinearData.free_keys` must carry orphan moments.")
         println(io)
         println(io, "| case | build s | moments | pivots | orphans | orphan % | category | PSD/HPSD blocks | max block | zero constraints |")
         println(io, "|---|---:|---:|---:|---:|---:|---|---:|---:|---:|")

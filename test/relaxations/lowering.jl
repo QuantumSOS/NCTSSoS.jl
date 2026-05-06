@@ -1,6 +1,6 @@
 using Test, NCTSSoS, JuMP
 
-@testset "Moment lowering pivot discovery" begin
+@testset "Moment lowering cached pivot compatibility" begin
     reg, (σx, σy, σz) = create_pauli_variables(1:2)
     m_pos = σx[1]
     m_neg = σy[1]
@@ -23,7 +23,7 @@ using Test, NCTSSoS, JuMP
         4,
     )
 
-    pivots = NCTSSoS.discover_pivots(mp)
+    pivots = NCTSSoS.discover_pivots(mp; orphan_policy=:free_variables)
 
     key(m) = symmetric_canon(NCTSSoS.expval(m))
     @test pivots[key(m_pos)].phase == 1 + 0im
@@ -62,7 +62,59 @@ end
     @test monomap[symmetric_canon(NCTSSoS.expval(one(b[1])))] ≈ 1.0 atol = 1e-7
 end
 
-@testset "Moment lowering pivot discovery reports orphans" begin
+@testset "Moment lowering PSD-block resolver uses Hermitian adjoint pivots" begin
+    reg, (b, b_dag) = create_bosonic_variables(1:1)
+    objective = 1.0im * b_dag[1] - 1.0im * b[1]
+    P = typeof(objective)
+
+    block = Matrix{P}(undef, 2, 2)
+    block[1, 1] = 1.0 * one(b[1])
+    block[1, 2] = 1.0im * b[1]
+    block[2, 1] = -1.0im * b_dag[1]
+    block[2, 2] = 1.0 * one(b[1])
+
+    mp = NCTSSoS.MomentProblem(
+        objective,
+        [(:HPSD, block)],
+        [one(b[1]), b[1], b_dag[1]],
+        3,
+    )
+
+    key(m) = symmetric_canon(NCTSSoS.expval(m))
+    @test mp.linear.pivots[key(b_dag[1])].adjoint
+
+    model, extract = build_jump_model(mp; formulation=:psd_blocks, representation=:complex)
+    set_optimizer(model, SOLVER)
+    set_silent(model)
+    optimize!(model)
+    NCTSSoS._check_solver_status(model)
+
+    @test objective_value(model) ≈ -2.0 atol = 1e-6
+    monomap = extract()
+    @test monomap[key(b[1])] ≈ -1.0im atol = 1e-6
+    @test monomap[key(b_dag[1])] ≈ 1.0im atol = 1e-6
+end
+
+@testset "Moment lowering moment-variable formulation uses cached identity" begin
+    reg, (b, b_dag) = create_bosonic_variables(1:1)
+    objective = 0.0 * one(b[1])
+    P = typeof(objective)
+
+    block = Matrix{P}(undef, 1, 1)
+    block[1, 1] = 1.0 * one(b[1])
+
+    mp = NCTSSoS.MomentProblem(
+        objective,
+        [(:HPSD, block)],
+        [b[1], b_dag[1]],
+        1,
+    )
+
+    model, _ = build_jump_model(mp; formulation=:moment_variables, representation=:real)
+    @test JuMP.num_variables(model) == 2 * length(mp.linear.moments)
+end
+
+@testset "Moment lowering cached pivots report orphans" begin
     reg, (σx, _, _) = create_pauli_variables(1:1)
     one_m = one(σx[1])
     orphan_m = σx[1]
@@ -102,6 +154,13 @@ end
 
     @test length(NCTSSoS.orphan_keys(mp)) == 2
     @test_throws ArgumentError build_jump_model(mp; formulation=:psd_blocks, representation=:complex)
+
+    aux_model, _ = build_jump_model(mp;
+        formulation=:psd_blocks,
+        representation=:complex,
+        orphan_policy=:aux_psd_free,
+    )
+    @test JuMP.num_variables(aux_model) > 0
 
     model, extract = build_jump_model(mp;
         formulation=:psd_blocks,

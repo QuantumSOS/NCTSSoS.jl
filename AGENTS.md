@@ -9,7 +9,7 @@
 - **Per-block classifier output**: one of {Direct Cholesky | Tikhonov+CG | Mazziotti-CG | **Facial reduction needed** | Punt to BM}.
 - **Deliverables**: prerequisites in `test/data/assets/h2_chain_nk2_*` + `demos/h2_periodic_nk2_moment_sos.jl`; driver in `probes/h2_nk2_aastar_diagnostic.jl`; results in `output/phase2/h2_nk2/{summary.md,plots/,blocks/}`.
 - **Out of scope for Phase 2**: solving any SDP, implementing facial reduction, Mazziotti-CG integration into NCTSSoS, the H₄/Nk=2 production-scale run, end-to-end COSMO/BPSDP timing comparisons. Those are Phase 3+ or Paper 5.
-- **Phase 3 infrastructure (parallel track)**: lowering refactor for `MomentProblem → JuMP`. Why: `MOMENT_SOS_PIPELINE_ANALYSIS.md`. How: `LOWERING_REFACTOR_PLAN.md`. Adds a `:psd_blocks` formulation that eliminates the BPSDP 1×1-cone explosion seen at H₂/Nk=2; precondition for Phase 3 H₄/Nk=2 production. Not Phase 2 work, but unblocks it.
+- **Phase 3 infrastructure (parallel track)**: `MomentProblem` enrichment + clean `MomentProblem → JuMP` lowering. Spec: `MOMENT_PROBLEM_ENRICHMENT_PLAN.md`. Caches a `MomentLinearData` view (linear forms, pivots, identity, adjoint map, per-block provenance) on `MomentProblem`, simplifies `lowering.jl` (`:psd_blocks` mode kills the BPSDP 1×1-cone explosion at H₂/Nk=2), and fixes four lowering bugs (Hermitian pivot injectivity, `conj(phase) * X` vs `X / phase`, non-deterministic accumulation, untyped block origin). Precondition for Phase 3 H₄/Nk=2 production. Not Phase 2 work, but unblocks it.
 - **Server policy**: all real runs on `HAI` via `easy-ssh`; Python uses `uv`-managed envs only. Server / local path map preserved in `TASK.md`.
 
 ## Project Layout

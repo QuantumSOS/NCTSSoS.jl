@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
-# Smoke-test the formulation issue analyzed in MOMENT_SOS_PIPELINE_ANALYSIS.md
-# and addressed by LOWERING_REFACTOR_PLAN.md.
+# Smoke-test the formulation issue addressed by MOMENT_PROBLEM_ENRICHMENT_PLAN.md
+# (the BPSDP 1×1-cone explosion at H₂/Nk=2 under the legacy :moment_variables path).
 #
 # This does not implement the MomentProblem lowering. It proves the key BPSDP.jl
 # interface fact: a JuMP PSD-first model reaches BPSDP without free-scalar ->

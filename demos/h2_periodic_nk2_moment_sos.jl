@@ -1072,6 +1072,7 @@ function bpsdp_optimizer_factory(options::Options, cg_iterations::Vector{Int})
         guess_type = :zero,
         print_level = options.bpsdp_print_level,
         progress_monitor = monitor,
+        dependent_rows = :drop,
     )
 end
 
@@ -1184,7 +1185,7 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
         "jump_lowering" => Dict(
             "formulation" => "psd_blocks",
             "representation" => "complex",
-            "orphan_policy" => "aux_psd_free",
+            "orphan_policy" => "free_variables",
         ),
         "bpsdp_options" => Dict(
             "max_iter" => options.bpsdp_max_iter,
@@ -1195,6 +1196,7 @@ function write_solution_side_diagnostics(data, options::Options, jump_data, mate
             "sdp_objective_convergence" => options.bpsdp_obj_tol,
             "sdp_error_convergence" => options.bpsdp_err_tol,
             "guess_type" => "zero",
+            "dependent_rows" => "drop",
         ),
     )
     state_summary = bpsdp_state_summary(raw)
@@ -1232,7 +1234,7 @@ function write_bpsdp_failure!(options::Options, model, cg_iterations::Vector{Int
         "jump_lowering" => Dict(
             "formulation" => "psd_blocks",
             "representation" => "complex",
-            "orphan_policy" => "aux_psd_free",
+            "orphan_policy" => "free_variables",
         ),
         "bpsdp_options" => Dict(
             "max_iter" => options.bpsdp_max_iter,
@@ -1243,6 +1245,7 @@ function write_bpsdp_failure!(options::Options, model, cg_iterations::Vector{Int
             "sdp_objective_convergence" => options.bpsdp_obj_tol,
             "sdp_error_convergence" => options.bpsdp_err_tol,
             "guess_type" => "zero",
+            "dependent_rows" => "drop",
         ),
     )
     state_summary = bpsdp_state_summary(raw)
@@ -1269,7 +1272,7 @@ function solve_with_bpsdp!(data, options::Options, materialized)
         data.moment_problem;
         formulation = :psd_blocks,
         representation = :complex,
-        orphan_policy = :aux_psd_free,
+        orphan_policy = :free_variables,
     )
     jump_data = (; model, extract_monomap)
     cg_iterations = Int[]

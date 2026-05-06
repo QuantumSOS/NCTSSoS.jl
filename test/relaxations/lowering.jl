@@ -78,4 +78,44 @@ end
 
     @test_throws ArgumentError NCTSSoS.discover_pivots(mp)
     @test symmetric_canon(NCTSSoS.expval(orphan_m)) in NCTSSoS.orphan_keys(mp)
+    @test !haskey(NCTSSoS.discover_pivots(mp; orphan_policy=:free_variables), symmetric_canon(NCTSSoS.expval(orphan_m)))
+end
+
+@testset "Moment lowering PSD-block formulation represents orphans as free variables" begin
+    reg, (b, b_dag) = create_bosonic_variables(1:1)
+    linear = 1.0 * b[1] + 1.0 * b_dag[1]
+    objective = -linear
+    P = typeof(objective)
+
+    block = Matrix{P}(undef, 2, 2)
+    block[1, 1] = 1.0 * one(b[1])
+    block[1, 2] = linear
+    block[2, 1] = linear
+    block[2, 2] = 1.0 * one(b[1])
+
+    mp = NCTSSoS.MomentProblem(
+        objective,
+        [(:HPSD, block)],
+        [one(b[1]), b[1], b_dag[1]],
+        3,
+    )
+
+    @test length(NCTSSoS.orphan_keys(mp)) == 2
+    @test_throws ArgumentError build_jump_model(mp; formulation=:psd_blocks, representation=:complex)
+
+    model, extract = build_jump_model(mp;
+        formulation=:psd_blocks,
+        representation=:complex,
+        orphan_policy=:free_variables,
+    )
+    set_optimizer(model, SOLVER)
+    set_silent(model)
+    optimize!(model)
+    NCTSSoS._check_solver_status(model)
+
+    @test objective_value(model) ≈ -1.0 atol = 1e-6
+    monomap = extract()
+    moment_sum = monomap[symmetric_canon(NCTSSoS.expval(b[1]))] +
+                 monomap[symmetric_canon(NCTSSoS.expval(b_dag[1]))]
+    @test real(moment_sum) ≈ 1.0 atol = 1e-6
 end

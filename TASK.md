@@ -2,7 +2,7 @@
 
 - All testing runs on the server via `easy-ssh`; do not run tests locally unless explicitly asked.
 - **Active phase: Phase 2.** Full plan: `PHASE2_PLAN.md`. Phase 1 (H₄ periodic SDP via libsdp / BPSDP.jl with `.dat-c` roundtrip) is **done** and archived to `archive/PHASE1_h4_libsdp_bpsdp_roundtrip.md`.
-- **Phase 3 infrastructure (parallel track, not Phase 2 work):** lowering refactor for `MomentProblem → JuMP`. Why: `MOMENT_SOS_PIPELINE_ANALYSIS.md`. How: `LOWERING_REFACTOR_PLAN.md`. Eliminates the BPSDP 1×1-cone explosion observed at H₂/Nk=2 by adding a `:psd_blocks` formulation. Precondition for Phase 3 H₄/Nk=2 production; can land before or alongside the Phase 2 diagnostic.
+- **Phase 3 infrastructure (parallel track, not Phase 2 work):** `MomentProblem` enrichment + clean lowering. Spec: `MOMENT_PROBLEM_ENRICHMENT_PLAN.md`. Caches a `MomentLinearData` view on `MomentProblem`, eliminating the BPSDP 1×1-cone explosion at H₂/Nk=2 via `:psd_blocks` and fixing four lowering bugs. Precondition for Phase 3 H₄/Nk=2 production; can land before or alongside the Phase 2 diagnostic.
 
 ## Phase 2 — singular $\mathcal{A}\mathcal{A}^{*}$ diagnostic on H₂ / Nk=2
 

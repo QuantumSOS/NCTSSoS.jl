@@ -1,0 +1,75 @@
+max RSS at start                                 1.269 GiB
+== H2/Nk=2 periodic PQG V2RDM Phase-2 build+solve (no ¹D) ==
+integrals                                        /home/ubuntu/NCTSSoS.jl-h4-periodic-v2rdm-benchmark/test/data/assets/h2_chain_nk2_active_2e4o_integrals.txt
+blocking                                         spin
+extra ¹D PSD block                               disabled
+objective                                        H2/Nk=2 active-space Hamiltonian
+particle constraint                              N=4 via moment_eq_constraints
+trace constraints                                TrDαα=1, TrDαβ=4, TrDββ=1, TrQ=66, TrG=52
+singlet S² constraint                            included
+correlative sparsity                             none; single full-system clique
+
+k-points                                         2
+active spatial orbitals per k                    4
+spin-orbital modes                               16
+active electrons total                           4
+HF active energy reconstructed                   -21.204835603744 Ha
+Hamiltonian monomials                            1680
+
+-- Moment support basis --
+identity                                         1
+¹D rows a_p                                      not included
+²D rows a_p a_q, p<q                             120
+²Q rows a†_p a†_q, p<q                           120
+²G rows a†_p a_q                                 256
+total support rows                               497
+
+-- Schouten HPSD blocks --
+¹D                                               not included
+²D                                               [12, 32, 12, 16, 32, 16]
+²Q                                               [12, 32, 12, 16, 32, 16]
+²G                                               [32, 65, 32, 32, 64, 32]
+total HPSD blocks                                18
+largest HPSD block                               65
+block labels                                     twoD_K0_twoSzm2, twoD_K0_twoSz0, twoD_K0_twoSz2, twoD_K1_twoSzm2, twoD_K1_twoSz0, twoD_K1_twoSz2, twoQ_K0_twoSzm2, twoQ_K0_twoSz0, twoQ_K0_twoSz2, twoQ_K1_twoSzm2, twoQ_K1_twoSz0, twoQ_K1_twoSz2, twoG_K0_twoSzm2, twoG_K0_twoSz0, twoG_K0_twoSz2, twoG_K1_twoSzm2, twoG_K1_twoSz0, twoG_K1_twoSz2
+
+-- Symbolic moment problem --
+unique moment-matrix monomials                   2913
+total canonical monomials incl. constraints      9393
+direct real moment variables                     18786
+real-lift PSD scalar rows                        36723
+moment_eq polynomials                            7
+Zero matrix constraints                          983
+Zero complex scalar entries                      983
+direct real zero/equality rows                   1966
+plus solve-time normalization rows               2
+
+-- Phase-2 block artifacts --
+output dir                                       output/phase2/h2_nk2
+dumped blocks                                    18
+inline diagnostic block                          twoG_K0_twoSz0
+
+build walltime                                   9.220 s
+max RSS after build/dump                         2.645 GiB
+
+BPSDP solve is mandatory; optimize! will be called after this summary.
+Artifact: output/phase2/h2_nk2 blocks + solve diagnostics.
+ERROR: LoadError: BPSDP did not return OPTIMAL; got NUMERICAL_ERROR
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:44
+ [2] solve_with_bpsdp!(data::@NamedTuple{nk::Int64, norb::Int64, nelec_per_cell::Int64, total_electrons::Int64, h1e::Dict{Int64, Matrix{ComplexF64}}, eri::Dict{NTuple{4, Int64}, Array{ComplexF64, 4}}, registry::VariableRegistry{FermionicAlgebra, Int8}, vars::@NamedTuple{ann::Dict{Tuple{Int64, Symbol}, Vector{NormalMonomial{FermionicAlgebra, Int8}}}, dag::Dict{Tuple{Int64, Symbol}, Vector{NormalMonomial{FermionicAlgebra, Int8}}}, c_up_k0::Vector{NormalMonomial{FermionicAlgebra, Int8}}, c_up_k0_dag::Vector{NormalMonomial{FermionicAlgebra, Int8}}, c_dn_k0::Vector{NormalMonomial{FermionicAlgebra, Int8}}, c_dn_k0_dag::Vector{NormalMonomial{FermionicAlgebra, Int8}}, c_up_k1::Vector{NormalMonomial{FermionicAlgebra, Int8}}, c_up_k1_dag::Vector{NormalMonomial{FermionicAlgebra, Int8}}, c_dn_k1::Vector{NormalMonomial{FermionicAlgebra, Int8}}, c_dn_k1_dag::Vector{NormalMonomial{FermionicAlgebra, Int8}}}, h2_ham::Polynomial{FermionicAlgebra, Int8, ComplexF64}, objective::Polynomial{FermionicAlgebra, Int8, ComplexF64}, pop::PolyOpt{FermionicAlgebra, Int8, Polynomial{FermionicAlgebra, Int8, ComplexF64}}, meq_constraints::Vector{Polynomial{FermionicAlgebra, Int8, ComplexF64}}, spin_orbitals::Vector{NamedTuple}, row_bases::@NamedTuple{oneD_basis::Vector{NormalMonomial{FermionicAlgebra, Int8}}, twoD_basis::Vector{NormalMonomial{FermionicAlgebra, Int8}}, twoQ_basis::Vector{NormalMonomial{FermionicAlgebra, Int8}}, twoG_basis::Vector{NormalMonomial{FermionicAlgebra, Int8}}}, oneD_blocks::Vector{Any}, twoD_blocks::Vector{Vector{NormalMonomial{FermionicAlgebra, Int8}}}, twoQ_blocks::Vector{Vector{NormalMonomial{FermionicAlgebra, Int8}}}, twoG_blocks::Vector{Vector{NormalMonomial{FermionicAlgebra, Int8}}}, block_labels::Vector{String}, moment_support_basis::Vector{NormalMonomial{FermionicAlgebra, Int8}}, schouten_blocks::Vector{Vector{NormalMonomial{FermionicAlgebra, Int8}}}, term_sparsity::NCTSSoS.TermSparsity{NormalMonomial{FermionicAlgebra, Int8}}, moment_problem::NCTSSoS.MomentProblem{FermionicAlgebra, Int8, NormalMonomial{FermionicAlgebra, Int8}, Polynomial{FermionicAlgebra, Int8, ComplexF64}}, hf_active::Float64}, options::Options, materialized::@NamedTuple{basis::Vector{Vector{Int8}}, basis_to_idx::Dict{Vector{Int8}, Int64}, zero_A::SparseMatrixCSC{Float64, Int64}, zero_rhs::Vector{Float64}, zero_labels::Vector{String}, artifacts::Vector{NamedTuple}})
+   @ Main ~/NCTSSoS.jl-h4-periodic-v2rdm-benchmark/demos/h2_periodic_nk2_moment_sos.jl:1295
+ [3] main(argv::Vector{String})
+   @ Main ~/NCTSSoS.jl-h4-periodic-v2rdm-benchmark/demos/h2_periodic_nk2_moment_sos.jl:1426
+ [4] main()
+   @ Main ~/NCTSSoS.jl-h4-periodic-v2rdm-benchmark/demos/h2_periodic_nk2_moment_sos.jl:1403
+ [5] top-level scope
+   @ ~/NCTSSoS.jl-h4-periodic-v2rdm-benchmark/demos/h2_periodic_nk2_moment_sos.jl:1435
+ [6] include(mod::Module, _path::String)
+   @ Base ./Base.jl:306
+ [7] exec_options(opts::Base.JLOptions)
+   @ Base ./client.jl:317
+ [8] _start()
+   @ Base ./client.jl:550
+in expression starting at /home/ubuntu/NCTSSoS.jl-h4-periodic-v2rdm-benchmark/demos/h2_periodic_nk2_moment_sos.jl:1434

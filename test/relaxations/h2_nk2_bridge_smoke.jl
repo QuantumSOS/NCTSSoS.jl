@@ -21,63 +21,52 @@ else
         return data.moment_problem
     end
 
-    function _bridge_inspection_backend(model)
-        for candidate in (backend(model), unsafe_backend(model))
-            try
-                MOI.get(candidate, MOI.ListOfConstraintTypesPresent())
-                return candidate
-            catch err
-                err isa MOI.GetAttributeNotAllowed || rethrow()
-            end
-        end
-        error("No backend layer exposes MOI.ListOfConstraintTypesPresent()")
-    end
-
-    function _constraint_type_counts(backend)
-        types = MOI.get(backend, MOI.ListOfConstraintTypesPresent())
-        counts = Dict{Tuple{DataType,DataType},Int}()
-        for (F, S) in types
-            counts[(F, S)] = MOI.get(backend, MOI.NumberOfConstraints{F,S}())
-        end
-        return types, counts
-    end
-
-    function _count_psd_1x1(backend, types)
-        total = 0
-        for (F, S) in types
-            S <: MOI.PositiveSemidefiniteConeTriangle || continue
-            for ci in MOI.get(backend, MOI.ListOfConstraintIndices{F,S}())
-                set = MOI.get(backend, MOI.ConstraintSet(), ci)
-                MOI.dimension(set) == 1 && (total += 1)
-            end
-        end
-        return total
-    end
-
-    @testset "H2/Nk=2 :psd_blocks delivers BPSDP-favorable cones" begin
-        mp = _h2_nk2_moment_problem()
-        model, _extract = build_jump_model(mp;
-            formulation=:psd_blocks,
-            representation=:complex,
-            orphan_policy=:aux_psd_free,
+    function _h2_bpsdp_optimizer()
+        return BPSDP.Optimizer(
+            max_iter = 1,
+            cg_max_iter = 5000,
+            mu_update_frequency = 25,
+            penalty_parameter = 0.1,
+            cg_convergence = 1e-12,
+            dynamic_cg_convergence = false,
+            sdp_objective_convergence = 1e-8,
+            sdp_error_convergence = 1e-8,
+            guess_type = :zero,
+            print_level = 0,
+            dependent_rows = :drop,
         )
-        set_optimizer(model, BPSDP.Optimizer)
-        MOI.Utilities.attach_optimizer(model)
+    end
 
-        inspected_backend = _bridge_inspection_backend(model)
-        types, counts = _constraint_type_counts(inspected_backend)
-
-        n_hermitian = 0
-        for ((_, S), count) in counts
-            S <: MOI.HermitianPositiveSemidefiniteConeTriangle && (n_hermitian += count)
-        end
-        n_psd_1x1 = _count_psd_1x1(inspected_backend, types)
-        n_symbolic_hpsd = count(c -> c[1] == :HPSD, mp.constraints)
+    @testset "H2/Nk=2 :psd_blocks uses free orphan variables and survives first BPSDP step" begin
+        mp = _h2_nk2_moment_problem()
         n_orphans = length(NCTSSoS.orphan_keys(mp))
-        n_aux_blocks = cld(n_orphans, NCTSSoS.AUX_ORPHANS_PER_BLOCK)
+        n_symbolic_hpsd = count(c -> c[1] == :HPSD, mp.constraints)
+        @test n_orphans > 0
 
-        @test n_hermitian == n_symbolic_hpsd + n_aux_blocks
-        @test n_psd_1x1 <= n_orphans
-        @test n_psd_1x1 < 100
+        model, _extract = build_jump_model(mp;
+            formulation = :psd_blocks,
+            representation = :complex,
+            orphan_policy = :free_variables,
+        )
+        set_optimizer(model, _h2_bpsdp_optimizer)
+        optimize!(model)
+
+        raw = raw_optimizer(model)
+        dims = getfield(raw, :block_dims)
+        kinds = getfield(raw, :block_kinds)
+        A = getfield(raw, :A)
+        c = getfield(raw, :c)
+        state = getfield(raw, :state)
+
+        @test count(==(:hermitian), kinds) == n_symbolic_hpsd
+        @test count(==(1), dims) >= 2 * n_orphans
+        @test count(j -> diff(A.colptr)[j] == 0 && iszero(c[j]), eachindex(c)) == 0
+        @test size(A, 1) < 42336
+
+        @test termination_status(model) != MOI.NUMERICAL_ERROR
+        @test MOI.get(model, MOI.RawStatusString()) != "cg_failure"
+        @test getfield(state, :status) != :cg_failure
+        @test getfield(state, :iterations) >= 1 || getfield(state, :status) == :optimal
+        @test getfield(state, :inner_iterations) > 0
     end
 end

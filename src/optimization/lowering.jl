@@ -25,6 +25,13 @@ struct PivotResolver{P,B,Z}
     zero_value::Z
 end
 
+struct BlockMomentResolver{P,B,F,Z}
+    pivots::P
+    blocks::B
+    free_values::F
+    zero_value::Z
+end
+
 function (resolver::AffineResolver)(key)
     return get(resolver.values, key, resolver.zero_value)
 end
@@ -34,8 +41,15 @@ function (resolver::PivotResolver)(key)
     return resolver.blocks[pivot.block_idx][pivot.i, pivot.j] / pivot.phase
 end
 
+function (resolver::BlockMomentResolver)(key)
+    pivot = get(resolver.pivots, key, nothing)
+    pivot !== nothing && return resolver.blocks[pivot.block_idx][pivot.i, pivot.j] / pivot.phase
+    return get(resolver.free_values, key, resolver.zero_value)
+end
+
 @inline _resolver_zero(resolver::AffineResolver) = copy(resolver.zero_value)
 @inline _resolver_zero(resolver::PivotResolver) = copy(resolver.zero_value)
+@inline _resolver_zero(resolver::BlockMomentResolver) = copy(resolver.zero_value)
 
 function substitute(poly::Polynomial, resolver)
     expr = _resolver_zero(resolver)
@@ -166,10 +180,12 @@ end
 Discover deterministic PSD/HPSD entry pivots for canonical moment keys.
 A pivot candidate is exactly a single-term polynomial with coefficient in
 `±1, ±im`. The first candidate in `(constraint_idx, i, j)` order wins.
+With `orphan_policy=:free_variables`, orphan keys are reported by `orphan_keys`
+but deliberately not inserted into the pivot map.
 """
 function discover_pivots(mp::MomentProblem; orphan_policy::Symbol=:error)
-    orphan_policy in (:error, :aux_psd_free) ||
-        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error or :aux_psd_free"))
+    orphan_policy in (:error, :free_variables, :aux_psd_free) ||
+        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
 
     pivots = _discover_pivots_unchecked(mp)
     orphans = orphan_keys(mp, pivots)
@@ -179,7 +195,7 @@ function discover_pivots(mp::MomentProblem; orphan_policy::Symbol=:error)
                 "$(length(orphans)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
                 _summarize_canonical_keys(orphans)
             ))
-        else
+        elseif orphan_policy == :aux_psd_free
             _add_aux_pivots!(pivots, orphans, _n_symbolic_psd_blocks(mp) + 1)
         end
     end
@@ -202,6 +218,12 @@ The default `formulation=:moment_variables, representation=:real` preserves the
 historical lowering exactly: real algebras use one free real moment variable per
 canonical key, and complex algebras use split real/imaginary moment variables
 with Hermitian blocks embedded into real PSD cones.
+
+For `formulation=:psd_blocks`, strict pivot moments are represented directly by
+native PSD/Hermitian PSD block entries. Non-pivot orphan moments should use
+`orphan_policy=:free_variables` for the JuMP/BPSDP path. The older auxiliary
+PSD-block packing is mathematically a free-moment construction, but it adds
+unconstrained slack coordinates and is a poor fit for BPSDP's normal equations.
 """
 function build_jump_model(
     mp::MomentProblem{A,T,M,P};
@@ -213,8 +235,8 @@ function build_jump_model(
         throw(ArgumentError("Unsupported formulation $(repr(formulation)); expected :moment_variables or :psd_blocks"))
     representation in (:real, :complex) ||
         throw(ArgumentError("Unsupported representation $(repr(representation)); expected :real or :complex"))
-    orphan_policy in (:error, :aux_psd_free) ||
-        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error or :aux_psd_free"))
+    orphan_policy in (:error, :free_variables, :aux_psd_free) ||
+        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
 
     if formulation == :psd_blocks
         _is_complex_problem(A) ||
@@ -448,6 +470,19 @@ function _declare_aux_orphan_blocks!(
     return n_aux
 end
 
+function _declare_free_orphan_moments!(model, orphan_keys::AbstractVector)
+    free_values = Dict{Any,Any}()
+    isempty(orphan_keys) && return free_values
+
+    n_orphans = length(orphan_keys)
+    @variable(model, orphan_re[1:n_orphans], set_string_name=false)
+    @variable(model, orphan_im[1:n_orphans], set_string_name=false)
+    for (idx, key) in enumerate(orphan_keys)
+        free_values[key] = orphan_re[idx] + im * orphan_im[idx]
+    end
+    return free_values
+end
+
 function _pivot_entry_lookup(pivots::Dict{Any,LoweringPivot})
     lookup = Dict{Tuple{Int,Int,Int},LoweringPivot}()
     for pivot in values(pivots)
@@ -488,34 +523,38 @@ function _build_complex_psd_block_model(
     C = real(eltype(coefficients(mp.objective)))
     model = GenericModel{C}()
 
+    orphan_policy in (:error, :free_variables, :aux_psd_free) ||
+        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
+
     pivots = _discover_pivots_unchecked(mp)
     orphans = orphan_keys(mp, pivots)
-    if !isempty(orphans)
-        if orphan_policy == :error
-            throw(ArgumentError(
-                "$(length(orphans)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
-                _summarize_canonical_keys(orphans)
-            ))
-        elseif orphan_policy != :aux_psd_free
-            throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error or :aux_psd_free"))
-        end
+    if !isempty(orphans) && orphan_policy == :error
+        throw(ArgumentError(
+            "$(length(orphans)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
+            _summarize_canonical_keys(orphans)
+        ))
     end
 
     blocks, constraint_to_block = _declare_psd_block_variables!(model, mp)
-    if orphan_policy == :aux_psd_free && !isempty(orphans)
-        first_aux_block_idx = maximum(keys(blocks)) + 1
-        _declare_aux_orphan_blocks!(model, blocks, length(orphans))
-        _add_aux_pivots!(pivots, orphans, first_aux_block_idx)
+    free_values = Dict{Any,Any}()
+    if !isempty(orphans)
+        if orphan_policy == :aux_psd_free
+            first_aux_block_idx = maximum(keys(blocks)) + 1
+            _declare_aux_orphan_blocks!(model, blocks, length(orphans))
+            _add_aux_pivots!(pivots, orphans, first_aux_block_idx)
+        elseif orphan_policy == :free_variables
+            free_values = _declare_free_orphan_moments!(model, orphans)
+        end
     end
 
     anchor_block = blocks[first(sort!(collect(keys(blocks))))]
     anchor = anchor_block[1, 1]
     zero_complex_moment = zero(C) * real(anchor) + im * (zero(C) * real(anchor))
-    resolver = PivotResolver(pivots, blocks, zero_complex_moment)
+    resolver = BlockMomentResolver(pivots, blocks, free_values, zero_complex_moment)
 
     one_key = symmetric_canon(expval(one(M)))
-    haskey(pivots, one_key) ||
-        throw(ArgumentError("Identity moment has no qualifying PSD/HPSD pivot"))
+    (haskey(pivots, one_key) || haskey(free_values, one_key)) ||
+        throw(ArgumentError("Identity moment has no PSD/HPSD pivot or free-moment variable"))
     @constraint(model, resolver(one_key) == 1)
 
     pivot_entries = _pivot_entry_lookup(pivots)
@@ -534,7 +573,14 @@ function _build_complex_psd_block_model(
     @objective(model, Min, real(obj_expr))
 
     extract_monomap = function ()
-        return Dict(key => value(resolver(key)) for key in keys(pivots))
+        monomap = Dict{Any,Any}()
+        for key in keys(pivots)
+            monomap[key] = value(resolver(key))
+        end
+        for key in keys(free_values)
+            monomap[key] = value(resolver(key))
+        end
+        return monomap
     end
 
     return model, extract_monomap

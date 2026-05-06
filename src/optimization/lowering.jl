@@ -4,19 +4,6 @@
 
 const AUX_ORPHANS_PER_BLOCK = 32
 
-# Compatibility type for the PR-2 diagnostics/tests. The production lowering below
-# consumes `MomentLinearData` directly; this wrapper should disappear with the
-# dead pivot-discovery API in the cleanup PR.
-struct LoweringPivot
-    key::Any
-    constraint_idx::Int
-    block_idx::Int
-    i::Int
-    j::Int
-    phase::ComplexF64
-    cone::Symbol
-end
-
 struct AffineResolver{D,Z}
     values::D
     zero_value::Z
@@ -109,66 +96,6 @@ end
 
 function orphan_keys(mp::MomentProblem)
     return copy(mp.linear.free_keys)
-end
-
-function orphan_keys(mp::MomentProblem, pivots::Dict{Any,LoweringPivot})
-    return [key for key in mp.linear.moments if _dict_get_value_or(pivots, key, nothing) === nothing]
-end
-
-function _linear_pivots_as_lowering_pivots(mp::MomentProblem)
-    L = mp.linear
-    out = Dict{Any,LoweringPivot}()
-    for (key, pivot) in L.pivots
-        constraint_idx = L.psd_block_constraint_idx[pivot.block]
-        cone = L.psd_blocks_lin[pivot.block].meta.cone
-        i = pivot.adjoint ? pivot.col : pivot.row
-        j = pivot.adjoint ? pivot.row : pivot.col
-        phase = pivot.adjoint ? conj(pivot.phase) : pivot.phase
-        out[key] = LoweringPivot(key, constraint_idx, pivot.block, i, j, ComplexF64(phase), cone)
-    end
-    return out
-end
-
-function _add_aux_lowering_pivots!(
-    pivots::Dict{Any,LoweringPivot},
-    orphan_keys::AbstractVector,
-    first_aux_block_idx::Int;
-    orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK,
-)
-    for (offset, key) in enumerate(orphan_keys)
-        local_idx = mod1(offset, orphans_per_block)
-        block_offset = (offset - 1) ÷ orphans_per_block
-        block_idx = first_aux_block_idx + block_offset
-        pivots[key] = LoweringPivot(key, 0, block_idx, 1, 1 + local_idx, ComplexF64(1), :AuxHPSD)
-    end
-    return pivots
-end
-
-"""
-    discover_pivots(mp::MomentProblem; orphan_policy=:error) -> Dict{Any,LoweringPivot}
-
-Compatibility view of the cached `mp.linear.pivots`. New lowering code reads the
-cache directly; this helper remains only until the cleanup PR removes the old
-pivot-discovery surface.
-"""
-function discover_pivots(mp::MomentProblem; orphan_policy::Symbol=:error)
-    orphan_policy in (:error, :free_variables, :aux_psd_free) ||
-        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
-
-    pivots = _linear_pivots_as_lowering_pivots(mp)
-    orphans = mp.linear.free_keys
-    if !isempty(orphans)
-        if orphan_policy == :error
-            throw(ArgumentError(
-                "$(length(orphans)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
-                _summarize_canonical_keys(orphans)
-            ))
-        elseif orphan_policy == :aux_psd_free
-            _add_aux_lowering_pivots!(pivots, orphans, length(mp.linear.psd_blocks_lin) + 1)
-        end
-    end
-
-    return pivots
 end
 
 """

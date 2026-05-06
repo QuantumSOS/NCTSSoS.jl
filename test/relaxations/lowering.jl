@@ -1,6 +1,6 @@
 using Test, NCTSSoS, JuMP
 
-@testset "Moment lowering cached pivot compatibility" begin
+@testset "Moment lowering cached pivots" begin
     reg, (σx, σy, σz) = create_pauli_variables(1:2)
     m_pos = σx[1]
     m_neg = σy[1]
@@ -23,14 +23,15 @@ using Test, NCTSSoS, JuMP
         4,
     )
 
-    pivots = NCTSSoS.discover_pivots(mp; orphan_policy=:free_variables)
+    pivots = mp.linear.pivots
 
     key(m) = symmetric_canon(NCTSSoS.expval(m))
     @test pivots[key(m_pos)].phase == 1 + 0im
     @test pivots[key(m_neg)].phase == -1 + 0im
     @test pivots[key(m_ipos)].phase == 0 + 1im
     @test pivots[key(m_ineg)].phase == 0 - 1im
-    @test (pivots[key(m_pos)].constraint_idx, pivots[key(m_pos)].i, pivots[key(m_pos)].j) == (1, 1, 1)
+    @test (pivots[key(m_pos)].block, pivots[key(m_pos)].row, pivots[key(m_pos)].col) == (1, 1, 1)
+    @test mp.linear.psd_block_constraint_idx[pivots[key(m_pos)].block] == 1
 end
 
 @testset "Moment lowering PSD-block complex formulation solves tiny Hermitian model" begin
@@ -114,7 +115,7 @@ end
     @test JuMP.num_variables(model) == 2 * length(mp.linear.moments)
 end
 
-@testset "Moment lowering cached pivots report orphans" begin
+@testset "Moment lowering cached free keys report orphans" begin
     reg, (σx, _, _) = create_pauli_variables(1:1)
     one_m = one(σx[1])
     orphan_m = σx[1]
@@ -128,9 +129,10 @@ end
         1,
     )
 
-    @test_throws ArgumentError NCTSSoS.discover_pivots(mp)
-    @test symmetric_canon(NCTSSoS.expval(orphan_m)) in NCTSSoS.orphan_keys(mp)
-    @test !haskey(NCTSSoS.discover_pivots(mp; orphan_policy=:free_variables), symmetric_canon(NCTSSoS.expval(orphan_m)))
+    orphan_key = symmetric_canon(NCTSSoS.expval(orphan_m))
+    @test orphan_key in NCTSSoS.orphan_keys(mp)
+    @test orphan_key in mp.linear.free_keys
+    @test !haskey(mp.linear.pivots, orphan_key)
 end
 
 @testset "Moment lowering PSD-block formulation represents orphans as free variables" begin

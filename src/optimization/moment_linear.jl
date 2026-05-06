@@ -279,8 +279,8 @@ ScalarLinearConstraint(form::LinearMomentForm{K,C}, kind::Symbol, origin::Constr
 """
     MomentLinearData{K,C,M}
 
-Derived linear-form view of a `MomentProblem`. This is populated by
-`moment_relax` in a later PR; PR 1 only defines the cache type and invariants.
+Derived linear-form view of a `MomentProblem`. Populated by `moment_relax`
+after all symbolic constraint mutations have completed.
 """
 struct MomentLinearData{K,C,M}
     moments::Vector{K}
@@ -505,21 +505,38 @@ function _assert_psd_blocks(
     return nothing
 end
 
+function _form_coefficient(form::LinearMomentForm{K,C}, key::K) where {K,C}
+    for (candidate, coef) in form
+        key_isequal(candidate, key) && return coef
+    end
+    return zero(C)
+end
+
+function _assert_self_adjoint_form(form::LinearMomentForm{K,C}, adjoint_key::Dict{K,K}) where {K,C}
+    C <: Complex || return nothing
+    rtol = sqrt(eps(float(real(one(C)))))
+    for (key, coef) in form
+        adj = _get_key_value(adjoint_key, key, "adjoint key")
+        adj_coef = _form_coefficient(form, adj)
+        isapprox(adj_coef, conj(coef); atol=0, rtol=rtol) || throw(ArgumentError(
+            "zero constraint form is not self-adjoint at key $(repr(key)): " *
+            "coefficient $(repr(coef)), adjoint coefficient $(repr(adj_coef))"
+        ))
+    end
+    return nothing
+end
+
 function _assert_zero_constraints(
     zero_constraints::Vector{ScalarLinearConstraint{K,C}},
     moments::Vector{K},
+    adjoint_key::Dict{K,K},
 ) where {K,C}
     for zc in zero_constraints
         zc.kind == :zero || throw(ArgumentError(
             "zero_constraints contains constraint of kind $(repr(zc.kind)); expected :zero"
         ))
         _assert_form_keys_in_moment_universe(zc.form, moments)
-        if C <: Complex
-            for (_, coef) in zc.form
-                isapprox(imag(coef), zero(real(coef)); atol=0, rtol=sqrt(eps(float(real(one(C)))))) ||
-                    throw(ArgumentError("zero_constraints must contain real-valued forms; got coefficient $(repr(coef))"))
-            end
-        end
+        _assert_self_adjoint_form(zc.form, adjoint_key)
     end
     return nothing
 end
@@ -623,7 +640,7 @@ function _assert_moment_linear_data_invariants(
     _assert_adjoint_keys(moments, adjoint_key, key_to_monomial)
     _assert_form_keys_in_moment_universe(objective_lin, moments)
     _assert_psd_blocks(psd_blocks_lin, psd_block_constraint_idx, moments)
-    _assert_zero_constraints(zero_constraints, moments)
+    _assert_zero_constraints(zero_constraints, moments, adjoint_key)
     _assert_pivots(moments, pivots, pivot_at, free_keys, adjoint_key, psd_blocks_lin)
     return nothing
 end

@@ -30,6 +30,8 @@ The algebra type `A` determines which cone type to use when solving:
 # Notes
 This is a purely symbolic representation with no JuMP model. Use `solve_moment_problem`
 to instantiate and solve, or `sos_dualize` to convert to the dual SOS problem.
+The cached `linear` field is the source of truth for lowering and SOS dualization;
+do not mutate `objective`, `constraints`, or `total_basis` after construction.
 
 # Examples
 ```julia

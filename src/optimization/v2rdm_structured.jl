@@ -261,11 +261,10 @@ mutable struct _V2RDMAccumulator{T<:Signed,M<:NormalMonomial{FermionicAlgebra,T}
 end
 
 function _v2rdm_get_key(dict::Dict{Vector{T},V}, key::Vector{T}) where {T,V}
-    haskey(dict, key) && return getkey(dict, key, key)
-    for candidate in keys(dict)
-        key_isequal(candidate, key) && return candidate
-    end
-    return nothing
+    # Julia Dict hashes vectors by value.  Do not linearly scan on misses: H4/Nk=2
+    # registers O(10^5) moments, and the scan turns construction into quadratic
+    # molasses.
+    return haskey(dict, key) ? getkey(dict, key, key) : nothing
 end
 
 function _v2rdm_register_key!(acc::_V2RDMAccumulator{T,M}, key::Vector{T}) where {T,M}
@@ -429,16 +428,83 @@ Construct one PQG block as closed-form linear moment entries.  `family` is one
 of `:D`, `:Q`, `:G`, or `:oneD`; `K`/`two_Sz` are metadata for the residual
 symmetry block.
 """
+function _v2rdm_single_term_form(acc::_V2RDMAccumulator{T}, key::Vector{T}) where {T<:Signed}
+    pairs = Pair{Vector{T},ComplexF64}[]
+    _v2rdm_add_term!(pairs, acc, key, 1.0)
+    return _v2rdm_form(acc, pairs)
+end
+
+function _v2rdm_d_entry_form(acc::_V2RDMAccumulator{T}, left::Vector{T}, right::Vector{T}) where {T<:Signed}
+    p, q = Int(left[1]), Int(left[2])
+    r, s = Int(right[1]), Int(right[2])
+    return _v2rdm_single_term_form(acc, T[-q, -p, r, s])
+end
+
+function _v2rdm_oned_entry_form(acc::_V2RDMAccumulator{T}, left::Vector{T}, right::Vector{T}) where {T<:Signed}
+    p = Int(left[1])
+    q = Int(right[1])
+    return _v2rdm_single_term_form(acc, T[-p, q])
+end
+
+function _v2rdm_q_entry_form(acc::_V2RDMAccumulator{T}, left::Vector{T}, right::Vector{T}) where {T<:Signed}
+    # Q row basis stores a_p† a_q† as the canonical word [-q, -p], p < q.
+    p, q = -Int(left[2]), -Int(left[1])
+    r, s = -Int(right[2]), -Int(right[1])
+    pairs = Pair{Vector{T},ComplexF64}[]
+
+    _v2rdm_add_term!(pairs, acc, T[-s, -r, p, q], 1.0)
+    p == r && q == s && _v2rdm_add_term!(pairs, acc, T[], 1.0)
+    q == s && _v2rdm_add_term!(pairs, acc, T[-r, p], -1.0)
+    p == s && _v2rdm_add_term!(pairs, acc, T[-r, q], 1.0)
+    q == r && _v2rdm_add_term!(pairs, acc, T[-s, p], 1.0)
+    p == r && _v2rdm_add_term!(pairs, acc, T[-s, q], -1.0)
+
+    return _v2rdm_form(acc, pairs)
+end
+
+function _v2rdm_g_entry_form(acc::_V2RDMAccumulator{T}, left::Vector{T}, right::Vector{T}) where {T<:Signed}
+    # The K=0 G block includes the identity row.
+    isempty(left) && isempty(right) && return _v2rdm_single_term_form(acc, T[])
+    isempty(left) && return _v2rdm_single_term_form(acc, right)
+    isempty(right) && return _v2rdm_single_term_form(acc, _v2rdm_adjoint_word(left))
+
+    # G row basis is a_p† a_q, stored as [-p, q].
+    p, q = -Int(left[1]), Int(left[2])
+    r, s = -Int(right[1]), Int(right[2])
+    pairs = Pair{Vector{T},ComplexF64}[]
+
+    if p == r
+        _v2rdm_add_term!(pairs, acc, T[-q, s], 1.0)
+    end
+    if q != r && p != s
+        c = q > r ? -1.0 : 1.0
+        c = p > s ? -c : c
+        c1, c2 = q > r ? (q, r) : (r, q)
+        a1, a2 = p > s ? (s, p) : (p, s)
+        _v2rdm_add_term!(pairs, acc, T[-c1, -c2, a1, a2], c)
+    end
+
+    return _v2rdm_form(acc, pairs)
+end
+
 function pqg_block_entries(family::Symbol, K, two_Sz, rows::Vector{M}, acc::_V2RDMAccumulator{T}) where {T<:Signed,M<:NormalMonomial{FermionicAlgebra,T}}
     n = length(rows)
     entries = Matrix{LinearMomentForm{Vector{T},ComplexF64}}(undef, n, n)
-    empty = _v2rdm_empty_form(T)
+
+    entry_form = if family == :D
+        _v2rdm_d_entry_form
+    elseif family == :Q
+        _v2rdm_q_entry_form
+    elseif family == :G
+        _v2rdm_g_entry_form
+    elseif family == :oneD
+        _v2rdm_oned_entry_form
+    else
+        throw(ArgumentError("unknown PQG block family $(repr(family))"))
+    end
 
     for j in 1:n, i in 1:n
-        raw = _v2rdm_raw_dot3(rows[i].word, T[], rows[j].word)
-        pairs = Pair{Vector{T},ComplexF64}[]
-        _v2rdm_add_normal_ordered!(pairs, acc, raw, 1.0)
-        entries[i, j] = isempty(pairs) ? empty : _v2rdm_form(acc, pairs)
+        entries[i, j] = entry_form(acc, rows[i].word, rows[j].word)
     end
     return entries
 end
@@ -576,7 +642,19 @@ function pqg_equality_rows(
     end
 
     # The remaining constraints are quartic, so the symbolic truncation keeps
-    # only the identity row.
+    # only the identity row.  Preserve the symbolic exporter's constraint order:
+    # total-D, Q, G when spin is unresolved; Q, G, then spin-resolved D rows
+    # when the total-D row is replaced by paper-spin constraints.
+    if !spin_resolved_trace
+        cons_idx += 1
+        d_pairs = Pair{Vector{T},ComplexF64}[]
+        for row in row_bases.D
+            _v2rdm_add_normal_ordered!(d_pairs, acc, _v2rdm_raw_dot3(row.word, T[], row.word), 1.0)
+        end
+        raw_d = _v2rdm_raw_scalar_constraint_form(acc, d_pairs, total_electrons * (total_electrons - 1) ÷ 2)
+        _v2rdm_append_complex_zero_rows!(rows, raw_d, acc, adjoint_key, cons_idx, 1)
+    end
+
     cons_idx += 1
     q_pairs = _v2rdm_trace_q_form(acc, row_bases.Q)
     raw_q = _v2rdm_raw_scalar_constraint_form(acc, q_pairs, n_holes * (n_holes - 1) ÷ 2)
@@ -603,14 +681,6 @@ function pqg_equality_rows(
         cons_idx += 1
         raw_bb = _v2rdm_raw_scalar_constraint_form(acc, d_forms.bb, n_beta * (n_beta - 1) ÷ 2)
         _v2rdm_append_complex_zero_rows!(rows, raw_bb, acc, adjoint_key, cons_idx, 1)
-    else
-        cons_idx += 1
-        d_pairs = Pair{Vector{T},ComplexF64}[]
-        for row in row_bases.D
-            _v2rdm_add_normal_ordered!(d_pairs, acc, _v2rdm_raw_dot3(row.word, T[], row.word), 1.0)
-        end
-        raw_d = _v2rdm_raw_scalar_constraint_form(acc, d_pairs, total_electrons * (total_electrons - 1) ÷ 2)
-        _v2rdm_append_complex_zero_rows!(rows, raw_d, acc, adjoint_key, cons_idx, 1)
     end
 
     if singlet_s2

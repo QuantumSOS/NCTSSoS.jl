@@ -985,67 +985,6 @@ end
 # JuMP/BPSDP solve and solution diagnostics.
 # -----------------------------------------------------------------------------
 
-function build_direct_jump_model(mp, block_labels::Vector{String})
-    C = real(eltype(coefficients(mp.objective)))
-    model = JuMP.GenericModel{C}()
-
-    basis, basis_to_idx = moment_basis(mp)
-    n_basis = length(basis)
-    @variable(model, y_re[1:n_basis], set_string_name = false)
-    @variable(model, y_im[1:n_basis], set_string_name = false)
-
-    one_sym = symmetric_canon(NCTSSoS.expval(one(eltype(mp.total_basis))))
-    idx_one = findfirst(==(one_sym), basis)
-    idx_one === nothing && error("identity moment missing from basis")
-
-    eq_refs = NamedTuple[]
-    c = @constraint(model, y_re[idx_one] == 1)
-    push!(eq_refs, (label = "normalization:Re(<1>)=1", ref = c))
-    c = @constraint(model, y_im[idx_one] == 0)
-    push!(eq_refs, (label = "normalization:Im(<1>)=0", ref = c))
-
-    hpsd_refs = NamedTuple[]
-    zero_counter = 0
-    hpsd_counter = 0
-
-    for (cone, mat) in mp.constraints
-        dim = size(mat, 1)
-        mat_re = Matrix{Any}(undef, dim, dim)
-        mat_im = Matrix{Any}(undef, dim, dim)
-        for i in 1:dim, j in 1:dim
-            re_expr, im_expr = NCTSSoS._substitute_complex_poly(mat[i, j], basis_to_idx, y_re, y_im)
-            mat_re[i, j] = re_expr
-            mat_im[i, j] = im_expr
-        end
-
-        if cone == :Zero
-            zero_counter += 1
-            for j in 1:dim, i in 1:dim
-                cref = @constraint(model, mat_re[i, j] == 0)
-                push!(eq_refs, (label = "Zero[$zero_counter]($i,$j):Re", ref = cref))
-                cref = @constraint(model, mat_im[i, j] == 0)
-                push!(eq_refs, (label = "Zero[$zero_counter]($i,$j):Im", ref = cref))
-            end
-        elseif cone == :HPSD
-            hpsd_counter += 1
-            embedded = [
-                [mat_re[i, j] for i in 1:dim, j in 1:dim] [-mat_im[i, j] for i in 1:dim, j in 1:dim]
-                [mat_im[i, j] for i in 1:dim, j in 1:dim] [mat_re[i, j] for i in 1:dim, j in 1:dim]
-            ]
-            cref = @constraint(model, embedded in PSDCone())
-            label = hpsd_counter <= length(block_labels) ? block_labels[hpsd_counter] : "HPSD_$hpsd_counter"
-            push!(hpsd_refs, (label = label, ref = cref, dim = dim))
-        else
-            error("unexpected cone $cone")
-        end
-    end
-
-    obj_re, _ = NCTSSoS._substitute_complex_poly(mp.objective, basis_to_idx, y_re, y_im)
-    @objective(model, Min, obj_re)
-
-    return (; model, y_re, y_im, basis, basis_to_idx, eq_refs, hpsd_refs)
-end
-
 function progress_monitor_factory(cg_iterations::Vector{Int})
     return function (print_level, outer, inner, primal, dual, mu, perr, derr)
         push!(cg_iterations, Int(inner))

@@ -77,7 +77,7 @@ Already implements:
 
 ### The H₂/Nk=2 pathology
 
-From `output/phase2/h2_nk2_bpsdp_bridge_inspect.json`:
+Historical pre-PSD-block bridge inspection showed:
 
 ```
 symbolic complex moments        9393

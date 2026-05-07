@@ -606,11 +606,9 @@ end
 # MomentLinearData direct export
 
 function _dict_get_value_or_value(dict::Dict, key, default)
-    haskey(dict, key) && return dict[key]
-    for (candidate, value) in dict
-        NCTSSoS.key_isequal(candidate, key) && return value
-    end
-    return default
+    # Dict handles vector keys by value in Julia.  Falling back to a full scan on
+    # every miss makes aux-pivot-heavy H4 exports quadratic.
+    return haskey(dict, key) ? dict[key] : default
 end
 
 function _aux_block_dims(n_free::Integer, orphans_per_block::Integer)

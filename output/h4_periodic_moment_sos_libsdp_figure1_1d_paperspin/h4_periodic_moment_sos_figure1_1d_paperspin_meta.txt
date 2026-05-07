@@ -1,0 +1,22 @@
+# libsdp-complex SDPA-sparse export metadata
+sense                       = min
+n_blocks                    = 1529
+n_hpsd_blocks               = 8
+n_aux_blocks                = 1521
+hpsd_block_dims             = 16 16 240 256 240 256 513 512
+aux_block_dim_first_last    = 33 / 33
+n_constraints               = 1305040
+n_objective_entries         = 24548
+n_constraint_entries        = 3100816
+n_unique_canonical_moments  = 172321
+n_hpsd_pivots               = 123649
+n_aux_pivots                = 48672
+n_zero_constraint_matrices  = 4071
+n_dropped_orphan_terms      = 0
+real_part_rows              = 652520
+imag_part_rows              = 652520
+
+# constraint provenance (family => count)
+HPSD-bind            1296896
+Zero-row             8142
+normalization        2

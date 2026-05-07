@@ -44,6 +44,7 @@ module SDPALibsdpExport
 # directly).  A companion text metadata sidecar records block/pivot counts and
 # constraint provenance counts for sanity checks.
 
+import NCTSSoS
 using NCTSSoS: Polynomial, symmetric_canon, expval, monomials, coefficients
 using Printf
 
@@ -597,6 +598,279 @@ function export_libsdp(mp;
                                n_hpsd_pivots,
                                n_aux_pivots,
                                n_zero_components,
+                               n_dropped_orphan_terms,
+                               sense)
+end
+
+# -----------------------------------------------------------------------------
+# MomentLinearData direct export
+
+function _dict_get_value_or_value(dict::Dict, key, default)
+    haskey(dict, key) && return dict[key]
+    for (candidate, value) in dict
+        NCTSSoS.key_isequal(candidate, key) && return value
+    end
+    return default
+end
+
+function _aux_block_dims(n_free::Integer, orphans_per_block::Integer)
+    n_free == 0 && return Int[]
+    dims = Int[]
+    remaining = Int(n_free)
+    while remaining > 0
+        pack = min(Int(orphans_per_block), remaining)
+        push!(dims, pack + 1)
+        remaining -= pack
+    end
+    return dims
+end
+
+function _linear_aux_pivots(::Type{K}, free_keys::AbstractVector{K}, first_aux_block_idx::Int; orphans_per_block::Int) where {K}
+    aux = Dict{K,NCTSSoS.Pivot{ComplexF64}}()
+    for (offset, key) in enumerate(free_keys)
+        local_idx = mod1(offset, orphans_per_block)
+        block_offset = (offset - 1) ÷ orphans_per_block
+        aux[key] = NCTSSoS.Pivot{ComplexF64}(first_aux_block_idx + block_offset, 1, 1 + local_idx, 1.0 + 0.0im, false)
+    end
+    return aux
+end
+
+function _linear_pivot_contribution(pivot::NCTSSoS.Pivot, coef::ComplexF64)
+    if pivot.adjoint
+        return (pivot.block, pivot.col, pivot.row), coef * ComplexF64(pivot.phase)
+    else
+        return (pivot.block, pivot.row, pivot.col), coef * conj(ComplexF64(pivot.phase))
+    end
+end
+
+function _accumulate_linear_form!(
+    lin::Dict{Pivot,ComplexF64},
+    pivots::Dict,
+    aux_pivots::Dict,
+    form,
+    multiplier::ComplexF64,
+    orphans::Dict,
+)
+    for (key, coef0) in form
+        coef = multiplier * ComplexF64(coef0)
+        iszero(coef) && continue
+        pivot = _dict_get_value_or_value(pivots, key, nothing)
+        pivot === nothing && (pivot = _dict_get_value_or_value(aux_pivots, key, nothing))
+        if pivot === nothing
+            orphans[key] = get(orphans, key, 0) + 1
+            continue
+        end
+        pos, contribution = _linear_pivot_contribution(pivot, coef)
+        lin[pos] = get(lin, pos, ComplexF64(0)) + contribution
+    end
+    return lin
+end
+
+function _is_implicit_linear_pivot_binding(block_idx::Int, i::Int, j::Int, form, linear)
+    length(form.terms) == 1 || return false
+    key, coef0 = only(form.terms)
+    pivot = _dict_get_value_or_value(linear.pivots, key, nothing)
+    pivot === nothing && return false
+    pivot.block == block_idx || return false
+    coef = ComplexF64(coef0)
+    phase = ComplexF64(pivot.phase)
+    if !pivot.adjoint
+        return pivot.row == i && pivot.col == j && coef == phase
+    else
+        return pivot.row == j && pivot.col == i && coef * phase == one(coef)
+    end
+end
+
+function _emit_real_equation!(
+    entries::Vector{SparseEntry},
+    rhs_vec::Vector{Float64},
+    constraint_log::Vector{NamedTuple},
+    next_k::Ref{Int},
+    lin::Dict{Pivot, ComplexF64},
+    rhs::Float64,
+    provenance::AbstractString,
+)
+    row_entries = SparseEntry[]
+    nonzero = false
+    for (pos, v) in sort!(collect(lin); by = first)
+        c = conj(v)
+        if abs(c) > COEF_TOL
+            nonzero = true
+            push!(row_entries, SparseEntry(0, pos[1], pos[2], pos[3], real(c), imag(c)))
+        end
+    end
+    if nonzero || abs(rhs) > COEF_TOL
+        k = next_k[]
+        next_k[] += 1
+        for e in row_entries
+            push!(entries, SparseEntry(k, e.blk, e.r, e.c, e.re, e.im))
+        end
+        push!(rhs_vec, rhs)
+        push!(constraint_log, (; k = k, kind = :real, provenance = String(provenance)))
+    end
+    return nothing
+end
+
+"""
+    export_libsdp(linear::MomentLinearData; outdir, basename="problem", sense=:min)
+
+Write a libsdp-complex SDPA-sparse `.dat-c` file directly from the cached linear
+PQG data.  This is the fast-path sibling of `export_libsdp(::MomentProblem)`:
+no symbolic `Polynomial` objects are walked and free moment keys are packed into
+auxiliary HPSD blocks.  Set `legacy_zero_split=true` when you need byte-count
+compatibility with the old symbolic `.dat-c` exporter.
+"""
+function export_libsdp(
+    linear::NCTSSoS.MomentLinearData;
+    outdir::AbstractString,
+    basename::AbstractString = "problem",
+    sense::Symbol = :min,
+    orphans_per_block::Int = 32,
+    legacy_zero_split::Bool = false,
+)
+    sense in (:min, :max) || throw(ArgumentError("sense must be :min or :max"))
+    orphans_per_block >= 1 || throw(ArgumentError("orphans_per_block must be >= 1"))
+    mkpath(outdir)
+
+    hpsd_block_dims = [block.size for block in linear.psd_blocks_lin]
+    n_hpsd_blocks = length(hpsd_block_dims)
+    aux_dims = _aux_block_dims(length(linear.free_keys), orphans_per_block)
+    block_dims = vcat(hpsd_block_dims, aux_dims)
+    n_aux_blocks = length(aux_dims)
+    n_blocks = length(block_dims)
+
+    K = eltype(linear.moments)
+    aux_pivots = _linear_aux_pivots(K, linear.free_keys, n_hpsd_blocks + 1; orphans_per_block)
+    n_hpsd_pivots = length(linear.pivots)
+    n_aux_pivots = length(aux_pivots)
+
+    @info("exporting MomentLinearData", n_hpsd_blocks, n_aux_blocks, n_hpsd_pivots, n_aux_pivots)
+
+    entries = SparseEntry[]
+    rhs_vec = Float64[]
+    constraint_log = NamedTuple[]
+    orphans = Dict{Any,Int}()
+    next_k = Ref{Int}(1)
+
+    # Objective F_0.
+    obj_lin = Dict{Pivot,ComplexF64}()
+    _accumulate_linear_form!(obj_lin, linear.pivots, aux_pivots, linear.objective_lin, 1.0 + 0.0im, orphans)
+    n_objective_entries = 0
+    for (pos, v) in sort!(collect(obj_lin); by = first)
+        c = conj(v)
+        abs(c) > COEF_TOL || continue
+        push!(entries, SparseEntry(0, pos[1], pos[2], pos[3], real(c), imag(c)))
+        n_objective_entries += 1
+    end
+
+    # Normalization y_identity = 1.
+    norm_form = NCTSSoS.LinearMomentForm{K,ComplexF64}(Pair{K,ComplexF64}[linear.identity => 1.0 + 0.0im])
+    norm_lin = Dict{Pivot,ComplexF64}()
+    _accumulate_linear_form!(norm_lin, linear.pivots, aux_pivots, norm_form, 1.0 + 0.0im, orphans)
+    _emit_complex_equation!(entries, rhs_vec, constraint_log, next_k,
+                            norm_lin, 1.0 + 0.0im,
+                            "normalization (identity moment = 1)")
+
+    # PSD/HPSD entry binding equalities.
+    for (b, block) in enumerate(linear.psd_blocks_lin)
+        for j in 1:block.size, i in 1:block.size
+            form = block.entries[i, j]
+            _is_implicit_linear_pivot_binding(b, i, j, form, linear) && continue
+            lin = Dict{Pivot,ComplexF64}((b, i, j) => 1.0 + 0.0im)
+            _accumulate_linear_form!(lin, linear.pivots, aux_pivots, form, -1.0 + 0.0im, orphans)
+            _emit_complex_equation!(entries, rhs_vec, constraint_log, next_k,
+                                    lin, 0.0 + 0.0im,
+                                    "HPSD-bind block=$(b), entry=($i,$j)")
+        end
+    end
+
+    # Lean semantic export: one real row per already-split scalar zero
+    # constraint.  For archived symbolic `.dat-c` count compatibility, opt into
+    # legacy_zero_split=true to emit each scalar component as a complex equation.
+    for (idx, zc) in enumerate(linear.zero_constraints)
+        lin = Dict{Pivot,ComplexF64}()
+        _accumulate_linear_form!(lin, linear.pivots, aux_pivots, zc.form, 1.0 + 0.0im, orphans)
+        if legacy_zero_split
+            _emit_complex_equation!(entries, rhs_vec, constraint_log, next_k,
+                                    lin, 0.0 + 0.0im,
+                                    "Zero-linear constraint=$(idx)")
+        else
+            _emit_real_equation!(entries, rhs_vec, constraint_log, next_k,
+                                 lin, 0.0, "Zero-linear constraint=$(idx)")
+        end
+    end
+
+    n_dropped_orphan_terms = isempty(orphans) ? 0 : sum(values(orphans))
+    isempty(orphans) || error("$(length(orphans)) canonical moments have no pivot; refusing to drop $n_dropped_orphan_terms orphan term occurrences")
+
+    n_constraints = length(rhs_vec)
+    n_constraint_entries = length(entries) - n_objective_entries
+
+    dat_path = joinpath(outdir, basename * ".dat-c")
+    open(dat_path, "w") do io
+        @printf(io, "* libsdp-complex SDPA-sparse export of NCTSSoS MomentLinearData\n")
+        @printf(io, "* sense=%s\n", string(sense))
+        @printf(io, "* pivots=%d (hpsd=%d, aux=%d), blocks=%d (hpsd=%d, aux=%d)\n",
+                n_hpsd_pivots + n_aux_pivots, n_hpsd_pivots, n_aux_pivots,
+                n_blocks, n_hpsd_blocks, n_aux_blocks)
+        @printf(io, "* constraints=%d, F_entries=%d (obj=%d)\n",
+                n_constraints, length(entries), n_objective_entries)
+        @printf(io, "%d\n", n_constraints)
+        @printf(io, "%d\n", n_blocks)
+        for n in block_dims
+            @printf(io, "%d ", n)
+        end
+        @printf(io, "\n")
+        for b in rhs_vec
+            @printf(io, "%.17g ", b)
+        end
+        @printf(io, "\n")
+        for e in entries
+            @printf(io, "%d %d %d %d %.17g %.17g\n",
+                    e.k, e.blk, e.r, e.c, e.re, e.im)
+        end
+    end
+
+    meta_path = joinpath(outdir, basename * "_meta.txt")
+    open(meta_path, "w") do io
+        @printf(io, "# libsdp-complex SDPA-sparse export metadata\n")
+        @printf(io, "source                      = MomentLinearData\n")
+        @printf(io, "sense                       = %s\n", sense)
+        @printf(io, "n_blocks                    = %d\n", n_blocks)
+        @printf(io, "n_hpsd_blocks               = %d\n", n_hpsd_blocks)
+        @printf(io, "n_aux_blocks                = %d\n", n_aux_blocks)
+        @printf(io, "hpsd_block_dims             = %s\n", join(hpsd_block_dims, " "))
+        if n_aux_blocks > 0
+            @printf(io, "aux_block_dim_first_last    = %d / %d\n", first(aux_dims), last(aux_dims))
+        end
+        @printf(io, "n_constraints               = %d\n", n_constraints)
+        @printf(io, "n_objective_entries         = %d\n", n_objective_entries)
+        @printf(io, "n_constraint_entries        = %d\n", n_constraint_entries)
+        @printf(io, "n_unique_canonical_moments  = %d\n", length(linear.moments))
+        @printf(io, "n_hpsd_pivots               = %d\n", n_hpsd_pivots)
+        @printf(io, "n_aux_pivots                = %d\n", n_aux_pivots)
+        @printf(io, "n_zero_constraint_matrices  = %d\n", length(linear.zero_constraints))
+        @printf(io, "n_dropped_orphan_terms      = %d\n", n_dropped_orphan_terms)
+
+        kind_counts = Dict{Symbol,Int}()
+        for log in constraint_log
+            kind_counts[log.kind] = get(kind_counts, log.kind, 0) + 1
+        end
+        @printf(io, "real_part_rows              = %d\n", get(kind_counts, :real, 0))
+        @printf(io, "imag_part_rows              = %d\n", get(kind_counts, :imag, 0))
+    end
+
+    return LibsdpExportSummary(n_blocks,
+                               n_hpsd_blocks,
+                               n_aux_blocks,
+                               block_dims,
+                               n_constraints,
+                               n_objective_entries,
+                               n_constraint_entries,
+                               length(linear.moments),
+                               n_hpsd_pivots,
+                               n_aux_pivots,
+                               length(linear.zero_constraints),
                                n_dropped_orphan_terms,
                                sense)
 end

@@ -124,6 +124,7 @@ include("optimization/problem.jl")
 include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
 include("optimization/moment_linear.jl")
+include("optimization/v2rdm_structured.jl")
 include("optimization/moment.jl")
 include("optimization/lowering.jl")
 include("optimization/sos.jl")
@@ -145,6 +146,7 @@ export SparsityResult, compute_sparsity
 export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult
 export FlatnessResult, test_flatness, flat_extend
 export RobustnessReport, robustness_report
+export build_pqg_moment_data
 export VerificationReport, verify_gns
 
 # Elimination Strategies

@@ -551,9 +551,9 @@ function build_h2_pqg_moment_problem(options::Options)
     objective = h2_ham
     spin_orbitals = build_spin_orbitals(vars; nk, norb)
 
-    meq_constraints = typeof(h2_ham)[
-        total_electron_constraint(vars, h2_ham; norb, total_electrons),
-    ]
+    # The explicit N̂ - N localizing rows are redundant with TrD/TrG plus
+    # the identity-augmented ²G block, and they introduce orphan moments.
+    meq_constraints = typeof(h2_ham)[]
     append!(meq_constraints, trace_constraints(spin_orbitals, h2_ham;
         total_electrons,
         include_total_d = !options.spin_resolved_trace,
@@ -1260,7 +1260,7 @@ function print_summary(data, options::Options, build_seconds::Real, materialized
     @printf("%-48s %s\n", "blocking", string(options.blocking))
     @printf("%-48s %s\n", "extra ¹D PSD block", options.include_one_d ? "included" : "disabled")
     @printf("%-48s %s\n", "objective", "H2/Nk=2 active-space Hamiltonian")
-    @printf("%-48s N=%d via moment_eq_constraints\n", "particle constraint", data.total_electrons)
+    @printf("%-48s dropped; implied by TrD/TrG + identity-augmented ²G\n", "particle constraint")
     if options.spin_resolved_trace
         @printf("%-48s TrDαα=%d, TrDαβ=%d, TrDββ=%d, TrQ=%d, TrG=%d\n", "trace constraints",
             (data.total_electrons ÷ 2) * (data.total_electrons ÷ 2 - 1) ÷ 2,

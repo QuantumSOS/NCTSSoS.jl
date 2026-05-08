@@ -483,9 +483,11 @@ function build_h4_pqg_moment_problem(options::Options)
     objective = h4_ham
     spin_orbitals = build_spin_orbitals(vars; nk, norb)
 
-    meq_constraints = typeof(h4_ham)[
-        total_electron_constraint(vars, h4_ham; nk, norb, total_electrons),
-    ]
+    # The explicit N̂ - N localizing rows are redundant with TrD/TrG plus
+    # the identity-augmented ²G block, and they create orphan moments in the
+    # BPSDP lowering. Keep the physical electron count through TrD/TrQ/TrG,
+    # spin-resolved D traces, and optional singlet S² instead.
+    meq_constraints = typeof(h4_ham)[]
     append!(meq_constraints, trace_constraints(spin_orbitals, h4_ham;
         total_electrons,
         include_total_d = !options.spin_resolved_trace,
@@ -563,6 +565,7 @@ function print_summary(data, options::Options, build_seconds::Real)
     @printf("%-44s %s\n", "integrals", options.integrals_path === nothing ? "Julia deterministic mock" : options.integrals_path)
     @printf("%-44s %s\n", "blocking", string(options.blocking))
     @printf("%-44s %s\n", "extra ¹D PSD block", options.include_one_d ? "included" : "disabled")
+    @printf("%-44s %s\n", "particle constraint", "dropped; implied by TrD/TrG + identity-augmented ²G")
     @printf("%-44s %s\n", "spin-resolved D traces", string(options.spin_resolved_trace))
     @printf("%-44s %s\n", "singlet S² constraint", string(options.singlet_s2))
     println()

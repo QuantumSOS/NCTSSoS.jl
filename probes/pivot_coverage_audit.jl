@@ -52,16 +52,19 @@ end
 
 function build_periodic_pqg_mp(; norb::Int, nelec_per_cell::Int, integrals_path::AbstractString,
         blocking::Symbol=:spin, include_one_d::Bool=false,
-        spin_resolved_trace::Bool=true, singlet_s2::Bool=true)
+        spin_resolved_trace::Bool=true, singlet_s2::Bool=true,
+        include_total_electron_constraint::Bool=true)
     nk = 2
     total_electrons = nk * nelec_per_cell
     h1e, eri = PeriodicPQG.load_integrals_txt(integrals_path; norb)
     registry, vars, ham = PeriodicPQG.build_h4_nk2_hamiltonian(h1e, eri; nk, norb)
     spin_orbitals = PeriodicPQG.build_spin_orbitals(vars; nk, norb)
 
-    meq_constraints = typeof(ham)[
-        PeriodicPQG.total_electron_constraint(vars, ham; norb, total_electrons),
-    ]
+    meq_constraints = typeof(ham)[]
+    if include_total_electron_constraint
+        push!(meq_constraints,
+            PeriodicPQG.total_electron_constraint(vars, ham; norb, total_electrons))
+    end
     append!(meq_constraints, PeriodicPQG.trace_constraints(spin_orbitals, ham;
         total_electrons,
         include_total_d = !spin_resolved_trace,
@@ -116,6 +119,7 @@ function build_h2_chain_nk2()
         include_one_d = false,
         spin_resolved_trace = true,
         singlet_s2 = true,
+        include_total_electron_constraint = false,
     )
 end
 
@@ -193,7 +197,7 @@ function build_cs_failure_E10()
 end
 
 const CASES = [
-    ("h2_chain_nk2", build_h2_chain_nk2, "primary H2/Nk=2 PQG BPSDP target; spin blocks + paper spin constraints"),
+    ("h2_chain_nk2", build_h2_chain_nk2, "primary H2/Nk=2 PQG BPSDP target; no explicit N̂-N constraint; spin blocks + paper spin constraints"),
     ("h4_chain_nk2_proxy_small", build_h4_chain_nk2_proxy_small, "2-k, 4-orbital half-filled PQG proxy for H4; structural audit only"),
     ("pauli_3qubit_ground_state", build_pauli_3qubit_ground_state, "3-qubit periodic Heisenberg, order 2"),
     ("fermionic_4site_hubbard", build_fermionic_4site_hubbard, "4-site periodic Hubbard, half-filled N_up=N_dn=2, order 2"),

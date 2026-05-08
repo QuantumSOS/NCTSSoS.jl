@@ -501,7 +501,12 @@ function write_summary(input_dir::AbstractString, rows::Vector{Dict{String,Any}}
             println(io, "- BPSDP PSD-block solve status: `", termination, "`.")
         end
         println(io, "- Verdict: row/nullspace elimination or facial-reduction-style presolve is a blocking workstream before treating H₄/Nk=2 as a plain BPSDP/Mazziotti-CG run. Direct Cholesky remains viable only for the cleaned `A_full` subblocks that survive that presolve.")
-        println(io, "- Causality note: the BPSDP `cg_failure` is consistent with the measured singular/equality-kernel structure, but this table alone does not prove facial reduction is the only cause; scaling and implementation checks remain follow-up work.")
+        raw_status = solve === nothing ? nothing : object_get(solve, "raw_status")
+        if string(raw_status) == "cg_failure"
+            println(io, "- Causality note: the BPSDP `cg_failure` is consistent with the measured singular/equality-kernel structure, but this table alone does not prove facial reduction is the only cause; scaling and implementation checks remain follow-up work.")
+        else
+            println(io, "- Causality note: no immediate BPSDP `cg_failure` was observed; any remaining singularity is residual algebraic/scaling structure rather than orphan-variable fallout.")
+        end
         println(io)
 
         println(io, "## Per-block decision table")

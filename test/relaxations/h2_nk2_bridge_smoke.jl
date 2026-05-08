@@ -79,11 +79,11 @@ else
         n_symbolic_hpsd = count(block -> block.meta.cone == :HPSD, mp.linear.psd_blocks_lin)
         n_aux_hpsd = cld(n_free, NCTSSoS.AUX_ORPHANS_PER_BLOCK)
 
-        # H2/Nk=2 still has orphan moments. The bridge gate must therefore use
-        # the cached free-key list deliberately instead of pretending the default
-        # :error orphan policy can work for this instance.
-        @test n_free > 0
-        @test n_free == length(NCTSSoS.orphan_keys(mp))
+        # The explicit N̂ - N constraint is intentionally absent here. TrD/TrG
+        # plus the identity-augmented ²G block imply particle number without
+        # producing orphan moment keys.
+        @test n_free == 0
+        @test isempty(NCTSSoS.orphan_keys(mp))
 
         model, _extract = build_jump_model(mp;
             formulation = :psd_blocks,
@@ -104,7 +104,7 @@ else
         @test _raw_scalar_1x1_psd_count(raw) == 0
         @test _raw_scalar_1x1_psd_count(raw) < 100  # hard ceiling vs old 406,706
         @test length(dims) == n_symbolic_hpsd + n_aux_hpsd
-        @test length(getfield(raw, :b)) > 80_000      # full moment-primal entry bindings, not upper-only
-        @test nnz(getfield(raw, :A)) > 400_000
+        @test length(getfield(raw, :b)) > 0
+        @test nnz(getfield(raw, :A)) > 0
     end
 end

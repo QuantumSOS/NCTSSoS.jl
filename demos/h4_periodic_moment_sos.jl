@@ -458,9 +458,11 @@ function build_h4_pqg_moment_problem(options::Options)
     objective = h4_ham
     spin_orbitals = build_spin_orbitals(vars; nk, norb)
 
-    meq_constraints = typeof(h4_ham)[
-        total_electron_constraint(vars, h4_ham; norb, total_electrons),
-    ]
+    # The explicit N̂ - N localizing rows are redundant with TrD/TrG plus
+    # the identity-augmented ²G block, and they create orphan moments in the
+    # BPSDP lowering. Keep the physical electron count through TrD/TrQ/TrG,
+    # spin-resolved D traces, and optional singlet S² instead.
+    meq_constraints = typeof(h4_ham)[]
     append!(meq_constraints, trace_constraints(spin_orbitals, h4_ham;
         total_electrons,
         include_total_d = !options.spin_resolved_trace,
@@ -545,7 +547,7 @@ function print_summary(data, options::Options, build_seconds::Real)
     @printf("%-48s %s\n", "extra ¹D PSD block",
             options.include_one_d ? "included" : "disabled (paper PQG default)")
     @printf("%-48s %s\n", "objective", "H4 active-space Hamiltonian")
-    @printf("%-48s %s\n", "particle constraint", "N=8 via moment_eq_constraints")
+    @printf("%-48s %s\n", "particle constraint", "dropped; implied by TrD/TrG + identity-augmented ²G")
     trace_label = options.spin_resolved_trace ?
         "TrDαα=6, TrDαβ=16, TrDββ=6, TrQ=276, TrG=200" :
         "TrD=28, TrQ=276, TrG=200"

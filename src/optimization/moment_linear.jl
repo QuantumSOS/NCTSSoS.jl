@@ -392,15 +392,12 @@ function _has_key_value(keys, key)
     return any(candidate -> key_isequal(candidate, key), keys)
 end
 
+function _has_key_value(keys::AbstractSet, key)
+    return key in keys
+end
+
 function _get_key_value(dict::Dict{K,V}, key::K, what::AbstractString) where {K,V}
     haskey(dict, key) && return dict[key]
-
-    # `K = Vector{T}` is mutable. This fallback keeps invariant checks value-based
-    # even if Julia's Dict hashing is stricter than `key_isequal` for a key type.
-    for (candidate, value) in dict
-        key_isequal(candidate, key) && return value
-    end
-
     throw(ArgumentError("Missing $what for canonical key $(repr(key))"))
 end
 
@@ -450,7 +447,7 @@ function _assert_identity_key(::Type{M}, identity) where {M}
     return nothing
 end
 
-function _assert_adjoint_keys(moments::Vector{K}, adjoint_key::Dict{K,K}, key_to_monomial::Dict{K,M}) where {K,M}
+function _assert_adjoint_keys(moments::Vector{K}, moment_set, adjoint_key::Dict{K,K}, key_to_monomial::Dict{K,M}) where {K,M}
     length(adjoint_key) == length(moments) || throw(ArgumentError(
         "adjoint_key has $(length(adjoint_key)) entries for $(length(moments)) moments"
     ))
@@ -458,7 +455,7 @@ function _assert_adjoint_keys(moments::Vector{K}, adjoint_key::Dict{K,K}, key_to
     is_complex = _moment_linear_is_complex_monomial(M)
     for key in moments
         adj = _get_key_value(adjoint_key, key, "adjoint key")
-        _has_key_value(moments, adj) || throw(ArgumentError(
+        _has_key_value(moment_set, adj) || throw(ArgumentError(
             "adjoint_key maps $(repr(key)) outside the moment universe to $(repr(adj))"
         ))
 
@@ -483,7 +480,7 @@ _moment_linear_is_complex_monomial(::Type) = true
 function _assert_psd_blocks(
     psd_blocks_lin::Vector{PSDBlockLin{K,C,M}},
     psd_block_constraint_idx::Vector{Int},
-    moments::Vector{K},
+    moments,
 ) where {K,C,M}
     length(psd_blocks_lin) == length(psd_block_constraint_idx) || throw(ArgumentError(
         "psd_blocks_lin has $(length(psd_blocks_lin)) blocks but psd_block_constraint_idx has $(length(psd_block_constraint_idx)) entries"
@@ -528,7 +525,7 @@ end
 
 function _assert_zero_constraints(
     zero_constraints::Vector{ScalarLinearConstraint{K,C}},
-    moments::Vector{K},
+    moments,
     adjoint_key::Dict{K,K},
 ) where {K,C}
     for zc in zero_constraints
@@ -548,6 +545,7 @@ end
 
 function _assert_pivots(
     moments::Vector{K},
+    moment_set,
     pivots::Dict{K,Pivot{C}},
     pivot_at::Dict{Tuple{Int,Int,Int},Vector{K}},
     free_keys::Vector{K},
@@ -560,8 +558,9 @@ function _assert_pivots(
         "pivots and free_keys must cover exactly MomentLinearData.moments"
     ))
 
+    free_key_set = Set(free_keys)
     for key in pivot_keys
-        _has_key_value(free_keys, key) && throw(ArgumentError(
+        _has_key_value(free_key_set, key) && throw(ArgumentError(
             "key $(repr(key)) appears both in pivots and free_keys"
         ))
     end
@@ -569,7 +568,7 @@ function _assert_pivots(
     expected_pivot_at = Dict{Tuple{Int,Int,Int},Vector{K}}()
     is_complex = _moment_linear_is_complex_monomial(M)
     for (key, pivot) in pivots
-        _has_key_value(moments, key) || throw(ArgumentError(
+        _has_key_value(moment_set, key) || throw(ArgumentError(
             "pivot key outside moment universe: $(repr(key))"
         ))
         1 <= pivot.block <= length(psd_blocks_lin) || throw(ArgumentError(
@@ -634,14 +633,16 @@ function _assert_moment_linear_data_invariants(
         ))
     end
 
+    moment_set = Set(moments)
+
     _assert_moment_index(moments, moment_index)
     _assert_key_to_monomial(moments, key_to_monomial)
     _assert_identity_key(M, identity)
-    _assert_adjoint_keys(moments, adjoint_key, key_to_monomial)
-    _assert_form_keys_in_moment_universe(objective_lin, moments)
-    _assert_psd_blocks(psd_blocks_lin, psd_block_constraint_idx, moments)
-    _assert_zero_constraints(zero_constraints, moments, adjoint_key)
-    _assert_pivots(moments, pivots, pivot_at, free_keys, adjoint_key, psd_blocks_lin)
+    _assert_adjoint_keys(moments, moment_set, adjoint_key, key_to_monomial)
+    _assert_form_keys_in_moment_universe(objective_lin, moment_set)
+    _assert_psd_blocks(psd_blocks_lin, psd_block_constraint_idx, moment_set)
+    _assert_zero_constraints(zero_constraints, moment_set, adjoint_key)
+    _assert_pivots(moments, moment_set, pivots, pivot_at, free_keys, adjoint_key, psd_blocks_lin)
     return nothing
 end
 

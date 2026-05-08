@@ -268,6 +268,19 @@ end
         @test zero_constraints[2][1, 1] == 1.0 * σy[1]
     end
 
+    @testset "PSD moment lowering uses triangular cones safely" begin
+        model = JuMP.GenericModel{Float64}()
+        @variable(model, x)
+        @variable(model, y)
+
+        symmetric_mat = [1.0 x; x y]
+        cref = @constraint(model, NCTSSoS._checked_symmetric(symmetric_mat; context="test PSD") in PSDCone())
+        @test constraint_object(cref).set == MOI.PositiveSemidefiniteConeTriangle(2)
+
+        asymmetric_mat = [1.0 x; y 1.0]
+        @test_throws ArgumentError NCTSSoS._checked_symmetric(asymmetric_mat; context="bad PSD")
+    end
+
     @testset "2x2 Hermitian lift keeps the factor-of-2 straight" begin
         reg, (b, b_dag) = create_bosonic_variables(1:1)
         objective = -(1.0 * b[1] + 1.0 * b_dag[1])
@@ -304,6 +317,33 @@ end
         @test abs(imag(recovered_obj)) ≤ 1e-8
         @test norm(recovered_block - recovered_block', Inf) ≤ 1e-8
         @test eigmin(Hermitian((recovered_block + recovered_block') / 2)) ≥ -1e-6
+    end
+
+    @testset "Hermitian SOS dualization handles imaginary block coefficients" begin
+        reg, (b, b_dag) = create_bosonic_variables(1:1)
+        objective = -(ComplexF64(1.0) * b[1] + ComplexF64(1.0) * b_dag[1])
+        block = Matrix{typeof(objective)}(undef, 2, 2)
+        block[1, 1] = 1.0 * one(b[1])
+        block[1, 2] = -1.0im * b[1]
+        block[2, 1] = 1.0im * b_dag[1]
+        block[2, 2] = 1.0 * one(b[1])
+
+        mp = NCTSSoS.MomentProblem(
+            objective,
+            [(:HPSD, block)],
+            [one(b[1]), b[1], b_dag[1]],
+            3,
+        )
+
+        direct = NCTSSoS.solve_moment_problem(mp, SOLVER)
+        sos = NCTSSoS.sos_dualize(mp)
+        set_optimizer(sos.model, SOLVER)
+        set_silent(sos.model)
+        optimize!(sos.model)
+        NCTSSoS._check_solver_status(sos.model)
+
+        @test direct.objective ≈ -2.0 atol = 1e-6
+        @test objective_value(sos.model) ≈ direct.objective atol = 1e-6
     end
 end
 

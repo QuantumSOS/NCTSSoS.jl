@@ -12,6 +12,8 @@ using Test
 
 @testset "Relaxations" begin
     include("interface.jl")
+    include("moment_linear.jl")
+    include("lowering.jl")
     include("sos.jl")
     include("sparsity.jl")
     include("symmetry.jl")

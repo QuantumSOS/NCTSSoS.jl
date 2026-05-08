@@ -29,7 +29,10 @@ using .TestExpectations: expectations_oracle
     # 7. Trace polynomial suite
     include("trace_poly/runtests.jl")
 
-    # 8. Curated problems
+    # 8. Structured V2RDM benchmark fast path
+    include("v2rdm_structured/runtests.jl")
+
+    # 9. Curated problems
     @testset "Problems" begin
         include("problems/bell_inequalities/chsh_simple.jl")
         include("problems/bell_inequalities/pironio_toy.jl")

@@ -263,8 +263,19 @@ Returns a named tuple `(objective, model, n_unique_elements, status)`.
 
 Throws an error if the solver fails (infeasible, unbounded, numerical error).
 """
-function solve_sdp(moment_problem, optimizer; dualize::Bool=true)
+function solve_sdp(
+    moment_problem,
+    optimizer;
+    dualize::Bool=true,
+    formulation::Symbol=:moment_variables,
+    representation::Symbol=:real,
+    orphan_policy::Symbol=:error,
+)
     if dualize
+        if formulation != :moment_variables || representation != :real || orphan_policy != :error
+            throw(ArgumentError("Moment lowering options apply only with dualize=false; SOS relowering is deferred."))
+        end
+
         sos_problem = sos_dualize(moment_problem)
         set_optimizer(sos_problem.model, optimizer)
         optimize!(sos_problem.model)
@@ -276,7 +287,20 @@ function solve_sdp(moment_problem, optimizer; dualize::Bool=true)
             status = status
         )
     else
-        result = solve_moment_problem(moment_problem, optimizer)
+        result = if moment_problem isa MomentProblem
+            solve_moment_problem(
+                moment_problem,
+                optimizer;
+                formulation=formulation,
+                representation=representation,
+                orphan_policy=orphan_policy,
+            )
+        else
+            if formulation != :moment_variables || representation != :real || orphan_policy != :error
+                throw(ArgumentError("State moment lowering does not support formulation/representation options."))
+            end
+            solve_moment_problem(moment_problem, optimizer)
+        end
         status = _check_solver_status(result.model)
         return (
             objective = result.objective,
@@ -481,13 +505,27 @@ This function solves a polynomial optimization problem by:
 
 The moment order is automatically determined from the polynomial degrees if not specified in `solver_config`.
 """
-function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
+function cs_nctssos(
+    pop::OP,
+    solver_config::SolverConfig;
+    dualize::Bool=true,
+    formulation::Symbol=:moment_variables,
+    representation::Symbol=:real,
+    orphan_policy::Symbol=:error,
+) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
     sparsity = compute_sparsity(pop, solver_config)
     _check_symmetry_mvp_support(pop, solver_config, sparsity)
 
     if isnothing(solver_config.symmetry)
         moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
-        result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
+        result = solve_sdp(
+            moment_problem,
+            solver_config.optimizer;
+            dualize=dualize,
+            formulation=formulation,
+            representation=representation,
+            orphan_policy=orphan_policy,
+        )
         return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
     end
 
@@ -497,7 +535,14 @@ function cs_nctssos(pop::OP, solver_config::SolverConfig; dualize::Bool=true) wh
         sparsity.cliques_term_sparsities,
         solver_config.symmetry,
     )
-    result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
+    result = solve_sdp(
+        moment_problem,
+        solver_config.optimizer;
+        dualize=dualize,
+        formulation=formulation,
+        representation=representation,
+        orphan_policy=orphan_policy,
+    )
     return PolyOptResult(
         result.objective,
         sparsity,
@@ -546,7 +591,15 @@ This function performs another term-sparsity iteration of the CS-NCTSSOS method 
 
 Importantly, this does **not** increase the relaxation order or switch to a denser basis. It only updates the raw term-sparsity support at the same order. If that raw support is already at a fixed point, `cs_nctssos_higher` may return exactly the same relaxation and objective value as the previous solve. To obtain a tighter bound in that situation, increase `order` or use a less aggressive sparsity configuration.
 """
-function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
+function cs_nctssos_higher(
+    pop::OP,
+    prev_res::PolyOptResult,
+    solver_config::SolverConfig;
+    dualize::Bool=true,
+    formulation::Symbol=:moment_variables,
+    representation::Symbol=:real,
+    orphan_policy::Symbol=:error,
+) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
     isnothing(solver_config.moment_basis) ||
         throw(ArgumentError("`cs_nctssos_higher` reuses the basis from `prev_res`; do not pass `moment_basis`."))
     isnothing(solver_config.symmetry) ||
@@ -585,7 +638,14 @@ function cs_nctssos_higher(pop::OP, prev_res::PolyOptResult, solver_config::Solv
 
     moment_problem = moment_relax(pop, prev_corr_sparsity, cliques_term_sparsities)
 
-    result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
+    result = solve_sdp(
+        moment_problem,
+        solver_config.optimizer;
+        dualize=dualize,
+        formulation=formulation,
+        representation=representation,
+        orphan_policy=orphan_policy,
+    )
     return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end
 
@@ -622,12 +682,26 @@ capture the objective. For state polynomials with degree-2 terms like ⟨x₁y�
 use `order >= 1`. If `order=0` is specified, it will be automatically computed
 from the maximum polynomial degree.
 """
-function cs_nctssos(pop::PolyOpt{A,T,P}, solver_config::SolverConfig; dualize::Bool=true) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+function cs_nctssos(
+    pop::PolyOpt{A,T,P},
+    solver_config::SolverConfig;
+    dualize::Bool=true,
+    formulation::Symbol=:moment_variables,
+    representation::Symbol=:real,
+    orphan_policy::Symbol=:error,
+) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
     isnothing(solver_config.symmetry) || throw(ArgumentError(
         "Symmetry reduction MVP does not yet support state/trace polynomial optimization."
     ))
     sparsity = compute_sparsity(pop, solver_config)
     moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
-    result = solve_sdp(moment_problem, solver_config.optimizer; dualize)
+    result = solve_sdp(
+        moment_problem,
+        solver_config.optimizer;
+        dualize=dualize,
+        formulation=formulation,
+        representation=representation,
+        orphan_policy=orphan_policy,
+    )
     return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end

@@ -34,7 +34,14 @@ struct Options
     include_one_d::Bool
     spin_resolved_trace::Bool
     singlet_s2::Bool
+    nk::Int
+    norb::Int
+    nelec_per_cell::Int
 end
+
+Options(integrals_path::String, blocking::Symbol, include_one_d::Bool,
+    spin_resolved_trace::Bool, singlet_s2::Bool) =
+    Options(integrals_path, blocking, include_one_d, spin_resolved_trace, singlet_s2, 2, 8, 4)
 
 function parse_options(argv)
     integrals_path = DEFAULT_INTEGRALS
@@ -42,6 +49,9 @@ function parse_options(argv)
     include_one_d = false
     spin_resolved_trace = false
     singlet_s2 = false
+    nk = 2
+    norb = 8
+    nelec_per_cell = 4
 
     for arg in argv
         if startswith(arg, "--integrals=")
@@ -72,6 +82,15 @@ function parse_options(argv)
             singlet_s2 = true
         elseif arg == "--no-singlet-s2"
             singlet_s2 = false
+        elseif startswith(arg, "--nk=")
+            nk = parse(Int, split(arg, "=", limit = 2)[2])
+            nk >= 1 || throw(ArgumentError("--nk must be positive"))
+        elseif startswith(arg, "--norb=")
+            norb = parse(Int, split(arg, "=", limit = 2)[2])
+            norb >= 1 || throw(ArgumentError("--norb must be positive"))
+        elseif startswith(arg, "--nelec-per-cell=")
+            nelec_per_cell = parse(Int, split(arg, "=", limit = 2)[2])
+            nelec_per_cell >= 1 || throw(ArgumentError("--nelec-per-cell must be positive"))
         elseif arg in ("-h", "--help")
             println("Usage: julia --project=. demos/h4_periodic_moment_sos.jl [options]\n")
             println("Options:")
@@ -87,13 +106,17 @@ function parse_options(argv)
             println("  --no-spin-resolved-trace      use one total TrD constraint (default)")
             println("  --singlet-s2                  add Σᵢⱼ D(iα,jβ;jα,iβ) = N/2")
             println("  --no-singlet-s2               do not add singlet S² constraint (default)")
+            println("  --nk=N                        number of k-points; default 2")
+            println("  --norb=N                      active spatial orbitals per k-point; default 8")
+            println("  --nelec-per-cell=N            active electrons per unit cell; default 4")
             exit(0)
         else
             throw(ArgumentError("unknown argument: $arg"))
         end
     end
 
-    return Options(integrals_path, blocking, include_one_d, spin_resolved_trace, singlet_s2)
+    return Options(integrals_path, blocking, include_one_d, spin_resolved_trace, singlet_s2,
+        nk, norb, nelec_per_cell)
 end
 
 bytes_to_gib(bytes::Integer) = bytes / 1024.0^3
@@ -180,35 +203,31 @@ function only_monomial(poly)
     return only(mono)
 end
 
-function build_h4_nk2_hamiltonian(h1e, eri; nk::Int, norb::Int)
-    registry,
-    ((c_up_k0, c_up_k0_dag),
-     (c_dn_k0, c_dn_k0_dag),
-     (c_up_k1, c_up_k1_dag),
-     (c_dn_k1, c_dn_k1_dag)) = create_fermionic_variables([
-        ("c_up_k0", 1:norb),
-        ("c_dn_k0", 1:norb),
-        ("c_up_k1", 1:norb),
-        ("c_dn_k1", 1:norb),
-    ])
+function build_h4_nk_hamiltonian(h1e, eri; nk::Int, norb::Int)
+    specs = Tuple{String,UnitRange{Int}}[]
+    for k in 0:(nk - 1), spin in SPINS
+        push!(specs, ("c_$(spin)_k$(k)", 1:norb))
+    end
 
-    ann = Dict(
-        (0, :up) => c_up_k0,
-        (0, :dn) => c_dn_k0,
-        (1, :up) => c_up_k1,
-        (1, :dn) => c_dn_k1,
-    )
-    dag = Dict(
-        (0, :up) => c_up_k0_dag,
-        (0, :dn) => c_dn_k0_dag,
-        (1, :up) => c_up_k1_dag,
-        (1, :dn) => c_dn_k1_dag,
-    )
+    registry, variable_pairs = create_fermionic_variables(specs)
+    pair_vec = collect(variable_pairs)
+    VecT = typeof(pair_vec[1][1])
+    ann = Dict{Tuple{Int,Symbol},VecT}()
+    dag = Dict{Tuple{Int,Symbol},VecT}()
 
-    ham = (0.0 + 0.0im) * (c_up_k0_dag[1] * c_up_k0[1])
+    idx = 1
+    for k in 0:(nk - 1), spin in SPINS
+        c, c_dag = pair_vec[idx]
+        ann[(k, spin)] = c
+        dag[(k, spin)] = c_dag
+        idx += 1
+    end
+
+    ham = (0.0 + 0.0im) * (dag[(0, :up)][1] * ann[(0, :up)][1])
 
     # One-electron part. Raw h1e is per supercell; divide by Nk for per-cell energy.
     for k in 0:(nk - 1)
+        haskey(h1e, k) || error("missing h1e block for k=$k")
         hk = h1e[k] / nk
         for p in 1:norb, q in 1:norb, spin in SPINS
             coeff = hk[p, q]
@@ -222,6 +241,7 @@ function build_h4_nk2_hamiltonian(h1e, eri; nk::Int, norb::Int)
     spin_channels = ((:up, :up), (:up, :dn), (:dn, :up), (:dn, :dn))
     for key in sort!(collect(keys(eri)))
         k1, k2, k3, k4 = key
+        all(0 <= k < nk for k in key) || error("ERI key $key outside nk=$nk")
         V = eri[key] / nk^2
         for p in 1:norb, r in 1:norb, q in 1:norb, s in 1:norb
             coeff = V[p, r, q, s]
@@ -237,11 +257,12 @@ function build_h4_nk2_hamiltonian(h1e, eri; nk::Int, norb::Int)
     # Remove numerical anti-Hermitian crumbs from integral noise.
     ham = 0.5 * (ham + adjoint(ham))
 
-    vars = (; ann, dag,
-        c_up_k0, c_up_k0_dag, c_dn_k0, c_dn_k0_dag,
-        c_up_k1, c_up_k1_dag, c_dn_k1, c_dn_k1_dag)
+    vars = (; ann, dag)
     return registry, vars, ham
 end
+
+build_h4_nk2_hamiltonian(h1e, eri; nk::Int, norb::Int) =
+    build_h4_nk_hamiltonian(h1e, eri; nk, norb)
 
 function build_spin_orbitals(vars; nk::Int, norb::Int)
     spin_orbitals = NamedTuple[]
@@ -343,16 +364,12 @@ function build_rdm_bases(spin_orbitals)
 end
 
 function total_electron_constraint(vars, ham; norb::Int, total_electrons::Int)
-    n_up = 1.0 * sum(
-        vars.c_up_k0_dag[i] * vars.c_up_k0[i] + vars.c_up_k1_dag[i] * vars.c_up_k1[i]
-        for i in 1:norb
-    )
-    n_dn = 1.0 * sum(
-        vars.c_dn_k0_dag[i] * vars.c_dn_k0[i] + vars.c_dn_k1_dag[i] * vars.c_dn_k1[i]
-        for i in 1:norb
-    )
-
-    return n_up + n_dn - Float64(total_electrons) * one(ham)
+    number_op = zero(ham)
+    ks = sort!(collect(unique(k for (k, _) in keys(vars.ann))))
+    for k in ks, spin in SPINS, i in 1:norb
+        number_op += vars.dag[(k, spin)][i] * vars.ann[(k, spin)][i]
+    end
+    return number_op - Float64(total_electrons) * one(ham)
 end
 
 function trace_constraints(spin_orbitals, ham; total_electrons::Int, include_total_d::Bool = true)
@@ -448,13 +465,13 @@ function single_full_system_clique(registry, moment_support_basis::Vector{NM}, o
 end
 
 function build_h4_pqg_moment_problem(options::Options)
-    nk = 2
-    norb = 8
-    nelec_per_cell = 4
+    nk = options.nk
+    norb = options.norb
+    nelec_per_cell = options.nelec_per_cell
     total_electrons = nk * nelec_per_cell
 
     h1e, eri = load_integrals_txt(options.integrals_path; norb)
-    registry, vars, h4_ham = build_h4_nk2_hamiltonian(h1e, eri; nk, norb)
+    registry, vars, h4_ham = build_h4_nk_hamiltonian(h1e, eri; nk, norb)
     objective = h4_ham
     spin_orbitals = build_spin_orbitals(vars; nk, norb)
 
@@ -539,8 +556,8 @@ function print_summary(data, options::Options, build_seconds::Real)
     stats = constraint_stats(data.moment_problem)
 
     formulation_label = options.include_one_d ?
-        "H4/Nk=2 periodic 1D+PQG V2RDM as an NCTSSoS MomentProblem" :
-        "H4/Nk=2 periodic PQG V2RDM (no ¹D) as an NCTSSoS MomentProblem"
+        "H4/Nk=$(data.nk) periodic 1D+PQG V2RDM as an NCTSSoS MomentProblem" :
+        "H4/Nk=$(data.nk) periodic PQG V2RDM (no ¹D) as an NCTSSoS MomentProblem"
     println("== ", formulation_label, " ==")
     @printf("%-48s %s\n", "integrals", options.integrals_path)
     @printf("%-48s %s\n", "blocking", string(options.blocking))
@@ -548,12 +565,19 @@ function print_summary(data, options::Options, build_seconds::Real)
             options.include_one_d ? "included" : "disabled (paper PQG default)")
     @printf("%-48s %s\n", "objective", "H4 active-space Hamiltonian")
     @printf("%-48s %s\n", "particle constraint", "dropped; implied by TrD/TrG + identity-augmented ²G")
+    n_modes = length(data.spin_orbitals)
+    n_holes = n_modes - data.total_electrons
+    trD = data.total_electrons * (data.total_electrons - 1) ÷ 2
+    trQ = n_holes * (n_holes - 1) ÷ 2
+    trG = data.total_electrons * (n_holes + 1)
+    n_alpha = data.total_electrons ÷ 2
+    n_beta = data.total_electrons ÷ 2
     trace_label = options.spin_resolved_trace ?
-        "TrDαα=6, TrDαβ=16, TrDββ=6, TrQ=276, TrG=200" :
-        "TrD=28, TrQ=276, TrG=200"
+        "TrDαα=$(n_alpha * (n_alpha - 1) ÷ 2), TrDαβ=$(n_alpha * n_beta), TrDββ=$(n_beta * (n_beta - 1) ÷ 2), TrQ=$trQ, TrG=$trG" :
+        "TrD=$trD, TrQ=$trQ, TrG=$trG"
     @printf("%-48s %s\n", "trace constraints", trace_label)
     @printf("%-48s %s\n", "singlet S² constraint",
-            options.singlet_s2 ? "Σᵢⱼ D(iα,jβ;jα,iβ)=4 included" : "disabled")
+            options.singlet_s2 ? "Σᵢⱼ D(iα,jβ;jα,iβ)=$(data.total_electrons / 2) included" : "disabled")
     @printf("%-48s %s\n", "correlative sparsity", "none; single full-system clique")
     println()
 

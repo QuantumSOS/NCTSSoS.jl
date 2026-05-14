@@ -1,0 +1,9 @@
+1778558712 max RSS at start                                 1.125 GiB
+1778558724 == H2/Nk=2 solver benchmark ==
+1778558724 symbolic build walltime                          11.606 s
+1778558724 SCS linear solver                                SCS.IndirectSolver (conjugate gradient)
+1778558724 output dir                                       output/phase2/h2_nk2_solver_benchmark_loose_1e4_repeat_cpu2
+1778558724 
+1778558827 bpsdp          repeat=1 lower=   2.469 s solve=  96.577 s status=OPTIMAL objective=-21.26218080515692
+1778558846 scs_indirect   repeat=1 lower=   0.210 s solve=  18.525 s status=OPTIMAL objective=-21.263753309666367
+1778558846 Wrote benchmark results under output/phase2/h2_nk2_solver_benchmark_loose_1e4_repeat_cpu2

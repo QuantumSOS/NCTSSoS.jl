@@ -23,6 +23,10 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+JSON3 = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
+LinearMaps = "7a12625a-238d-50fd-b39a-03d52299707e"
 
 # Solvers used in the moment-SOS shootout
 BPSDP = "6166ed0a-ac6c-41b8-82ce-cbedd1501067"

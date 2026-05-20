@@ -309,7 +309,8 @@ Configuration for solving polynomial optimization problems.
   current implementation is still intentionally narrow: dense ordinary polynomial
   relaxations only (`cs_algo=NoElimination()`, `ts_algo=NoElimination()`), with
   supported combinations limited to either
-  - `MonoidAlgebra` + `SignedPermutation`, or
+  - `MonoidAlgebra` + `SignedPermutation`,
+  - `PauliAlgebra` + letter-level `SignedPermutation`, or
   - `FermionicAlgebra` + `FermionicModePermutation`, `FermionicSectorSpec`, and optional `FermionicSpinAdaptationSpec` layered on sector blocks.
   Unsupported combinations error instead of silently doing the wrong thing.
 
@@ -372,8 +373,8 @@ function _check_symmetry_mvp_support(
     end
 
     if !isempty(symmetry.generators)
-        A <: MonoidAlgebra || throw(ArgumentError(
-            "`SignedPermutation` symmetry is currently supported only for ordinary polynomial problems over `MonoidAlgebra`. Got `$(nameof(A))`."
+        (A <: MonoidAlgebra || A === PauliAlgebra) || throw(ArgumentError(
+            "`SignedPermutation` symmetry is currently supported only for ordinary polynomial problems over `MonoidAlgebra` or letter-level `PauliAlgebra`. Got `$(nameof(A))`."
         ))
         (isnothing(symmetry.sector) && isnothing(symmetry.spin_adaptation)) || throw(ArgumentError(
             "Fermionic sector splitting / spin adaptation cannot be combined with raw `SignedPermutation` symmetry. Use `FermionicModePermutation` for fermionic problems."

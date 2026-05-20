@@ -369,6 +369,8 @@ struct NCWordSignedPermutationAction{A<:MonoidAlgebra,T<:Integer} <: SymbolicWed
     algebra::Type{A}
 end
 
+struct NCPauliSignedPermutationAction{T<:Integer} <: SymbolicWedderburn.BySignedPermutations end
+
 struct NCFermionicModePermutationAction{T<:Integer} <: SymbolicWedderburn.BySignedPermutations end
 
 struct _FiniteSymmetryGroup{G,T<:Integer} <: GroupsCore.Group
@@ -726,6 +728,15 @@ function SymbolicWedderburn.action(
 end
 
 function SymbolicWedderburn.action(
+    ::NCPauliSignedPermutationAction{T},
+    g::_SignedPermutationGroupElement{T},
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    sign, image = _act_monomial(_sw_group_value(g), mono)
+    return image, sign
+end
+
+function SymbolicWedderburn.action(
     ::NCFermionicModePermutationAction{T},
     g::_FermionicModePermutationGroupElement{Int},
     mono::NormalMonomial{FermionicAlgebra,T},
@@ -739,6 +750,14 @@ function _sw_decompose_half_basis(
     group::_SignedPermutationGroup{T},
 ) where {A<:MonoidAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
     action = NCWordSignedPermutationAction{A,T}(A)
+    return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
+end
+
+function _sw_decompose_half_basis(
+    basis::Vector{NormalMonomial{PauliAlgebra,T}},
+    group::_SignedPermutationGroup{T},
+) where {T<:Integer}
+    action = NCPauliSignedPermutationAction{T}()
     return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
 end
 
@@ -823,6 +842,33 @@ function _act_monomial(
     return sign, image
 end
 
+function _act_monomial(
+    g::SignedPermutation{T},
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    sign = 1
+    word = similar(mono.word)
+    for (i, idx) in pairs(mono.word)
+        letter_sign, dst = _signed_image(g, idx)
+        sign *= letter_sign
+        word[i] = dst
+    end
+
+    simplified_word, phase = simplify(PauliAlgebra, word)
+    phase_sign = if phase == UInt8(0)
+        1
+    elseif phase == UInt8(2)
+        -1
+    else
+        throw(ArgumentError(
+            "Pauli SignedPermutation action produced an ±i phase on $mono; " *
+            "the current Wedderburn adapter supports only real signed permutations."
+        ))
+    end
+    image = NormalMonomial{PauliAlgebra,T}(simplified_word)
+    return sign * phase_sign, image
+end
+
 function _permute_fermionic_word(
     g::FermionicModePermutation,
     word::Vector{T},
@@ -862,6 +908,19 @@ function _act_polynomial(
     poly::Polynomial{A,T,C},
 ) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
     acted_terms = Tuple{C,NormalMonomial{A,T}}[]
+    sizehint!(acted_terms, length(poly.terms))
+    for (coef, mono) in poly.terms
+        sign, image = _act_monomial(g, mono)
+        push!(acted_terms, (coef * sign, image))
+    end
+    return Polynomial(acted_terms)
+end
+
+function _act_polynomial(
+    g::SignedPermutation{T},
+    poly::Polynomial{PauliAlgebra,T,C},
+) where {T<:Integer,C<:Number}
+    acted_terms = Tuple{C,NormalMonomial{PauliAlgebra,T}}[]
     sizehint!(acted_terms, length(poly.terms))
     for (coef, mono) in poly.terms
         sign, image = _act_monomial(g, mono)

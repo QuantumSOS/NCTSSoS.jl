@@ -125,6 +125,10 @@ include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
 include("optimization/moment.jl")
 include("optimization/symmetry.jl")
+
+# SympleQ find-side Pauli symmetry bridge (depends on SymmetrySpec/SignedPermutation)
+include("sympleq/SympleQ.jl")
+
 include("optimization/fermionic_irreps.jl")
 include("optimization/fermionic_spin.jl")
 include("optimization/sos.jl")
@@ -143,6 +147,7 @@ export PolyOpt, polyopt, PolyOptResult, SolverConfig
 export SignedPermutation, FermionicModePermutation, FermionicModeLayout, AbelianIrrepTable
 export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
 export SymmetrySpec, SymmetryReport
+export sympleq_symmetry_spec, clifford_to_signed_permutation
 export SparsityResult, compute_sparsity
 
 # Solver Interface

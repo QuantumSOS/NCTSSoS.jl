@@ -1,0 +1,10 @@
+# Local/generated junk; keep the remote development tree lean.
+*.cov
+*.mem
+lcov.info
+.pi/
+.ropeproject/
+docs/build/
+docs/site/
+.DS_Store
+.coverage/

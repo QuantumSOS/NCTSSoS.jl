@@ -56,14 +56,25 @@ function recover_complex_dual_monomap(moment_problem, model)
 
     coeff_constraints = all_constraints(model, AffExpr, MOI.EqualTo{Float64})
     n_basis = length(basis)
-    length(coeff_constraints) == 2 * n_basis || error(
-        "Expected $(2 * n_basis) coefficient-matching equalities, got $(length(coeff_constraints))."
+    identity_idx = findfirst(key -> isequal(key, moment_problem.linear.identity), basis)
+    identity_idx === nothing && error("Identity moment missing from SOS basis.")
+
+    real_indices = [i for i in 1:n_basis if i != identity_idx]
+    expected_constraints = length(real_indices) + n_basis
+    length(coeff_constraints) == expected_constraints || error(
+        "Expected $(expected_constraints) coefficient-matching equalities, got $(length(coeff_constraints))."
     )
+
+    real_moments = Dict(
+        basis[i] => dual(coeff_constraints[pos])
+        for (pos, i) in enumerate(real_indices)
+    )
+    imag_offset = length(real_indices)
 
     return Dict(
         basis[i] => ComplexF64(
-            dual(coeff_constraints[i]),
-            dual(coeff_constraints[n_basis + i]),
+            i == identity_idx ? 1.0 : real_moments[basis[i]],
+            dual(coeff_constraints[imag_offset + i]),
         )
         for i in 1:n_basis
     )
@@ -125,7 +136,7 @@ solve_summary
 ````
 
 ````
-(primal_objective = -0.7499999966623363, dual_objective = -0.7499999999996073, n_unique_moments = 16, solved_moments = 16, max_recovered_moment_error = 4.449696500152811e-9)
+(primal_objective = -0.7499999966623363, dual_objective = -0.7499999999999774, n_unique_moments = 16, solved_moments = 16, max_recovered_moment_error = 4.4488996930880376e-9)
 ````
 
 The page should fail loudly if exactness or primal/dual consistency regresses.
@@ -168,7 +179,7 @@ raw_summary
 ````
 
 ````
-(rank = 4, full_rank = 4, xi = ComplexF64[-0.0 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, -1.0 + 0.0im], σx₁ = ComplexF64[-0.024 + 0.0im 0.06 + 0.209im 0.06 - 0.23im 0.945 - 0.044im; 0.06 - 0.209im 0.0 + 0.0im -0.302 + 0.897im 0.239 + 0.0im; 0.06 + 0.23im -0.302 - 0.897im 0.024 + 0.0im 0.217 - 0.02im; 0.945 + 0.044im 0.239 - 0.0im 0.217 + 0.02im -0.0 + 0.0im], σz₁ = ComplexF64[0.098 + 0.0im 0.01 - 0.044im -0.243 + 0.93im 0.253 - 0.017im; 0.01 + 0.044im -0.0 + 0.0im -0.076 + 0.242im -0.966 + 0.0im; -0.243 - 0.93im -0.076 - 0.242im -0.098 + 0.0im -0.037 + 0.026im; 0.253 + 0.017im -0.966 - 0.0im -0.037 - 0.026im 0.0 + 0.0im])
+(rank = 4, full_rank = 4, xi = ComplexF64[-0.0 + 0.0im, 0.0 + 0.0im, -0.0 + 0.0im, -1.0 + 0.0im], σx₁ = ComplexF64[-0.076 + 0.0im 0.132 + 0.858im -0.024 - 0.096im -0.481 + 0.011im; 0.132 - 0.858im 0.076 + 0.0im 0.054 - 0.478im 0.093 + 0.032im; -0.024 + 0.096im 0.054 + 0.478im 0.0 + 0.0im 0.871 - 0.0im; -0.481 - 0.011im 0.093 - 0.032im 0.871 + 0.0im -0.0 + 0.0im], σz₁ = ComplexF64[-0.026 + 0.0im 0.045 + 0.296im 0.008 - 0.671im 0.676 - 0.051im; 0.045 - 0.296im 0.026 + 0.0im -0.11 + 0.669im 0.669 + 0.051im; 0.008 + 0.671im -0.11 - 0.669im 0.0 + 0.0im 0.301 + 0.0im; 0.676 + 0.051im 0.669 - 0.051im 0.301 - 0.0im -0.0 + 0.0im])
 ````
 
 The matrices look unfamiliar, but they already satisfy the Pauli algebra.
@@ -186,7 +197,7 @@ raw_representation_errors
 ````
 
 ````
-(σx₁² = 2.5741580761264377e-13, σy₁² = 2.5728063534634455e-13, σz₁² = 2.575266337627533e-13, anticommutator_σx₁σy₁ = 2.259735985058214e-16, commutator_σz₁σz₂ = 2.593058517527379e-16)
+(σx₁² = 6.6010376104073e-13, σy₁² = 6.600199873372157e-13, σz₁² = 6.600844874019348e-13, anticommutator_σx₁σy₁ = 7.241863379578671e-16, commutator_σz₁σz₂ = 5.319991174602325e-16)
 ````
 
 This really is a four-dimensional representation with a normalized cyclic
@@ -275,7 +286,7 @@ joint_eigenbasis_summary
 ````
 
 ````
-(σz₁ = ComplexF64[1.0 - 0.0im 0.0 + 0.0im -0.0 - 0.0im -0.0 - 0.0im; 0.0 - 0.0im 1.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -1.0 - 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im -1.0 - 0.0im], σz₂ = ComplexF64[1.0 - 0.0im -0.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -1.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im -0.0 - 0.0im 1.0 - 0.0im -0.0 + 0.0im; -0.0 - 0.0im 0.0 - 0.0im -0.0 - 0.0im -1.0 + 0.0im], ψ_gns = ComplexF64[-0.0 + 0.0im, 0.707107 - 0.0im, -0.707107 - 0.0im, 0.0 + 0.0im])
+(σz₁ = ComplexF64[1.0 + 0.0im -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im; -0.0 - 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -1.0 + 0.0im -0.0 - 0.0im; -0.0 + 0.0im -0.0 - 0.0im -0.0 + 0.0im -1.0 + 0.0im], σz₂ = ComplexF64[1.0 + 0.0im -0.0 - 0.0im -0.0 - 0.0im 0.0 - 0.0im; -0.0 + 0.0im -1.0 + 0.0im 0.0 - 0.0im -0.0 - 0.0im; -0.0 + 0.0im -0.0 + 0.0im 1.0 - 0.0im -0.0 - 0.0im; 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im], ψ_gns = ComplexF64[-0.0 - 0.0im, 0.707107 + 0.0im, -0.707107 - 0.0im, 0.0 - 0.0im])
 ````
 
 ## Step 4 — Compare with the textbook Pauli matrices
@@ -305,7 +316,7 @@ site_1_matrices
 ````
 
 ````
-(σx₁ = ComplexF64[0.0 + 0.0im -0.0 + 0.0im 1.0 - 0.0im -0.0 + 0.0im; -0.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im 1.0 - 0.0im; 1.0 - 0.0im -0.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 - 0.0im 1.0 + 0.0im -0.0 - 0.0im -0.0 + 0.0im], σy₁ = ComplexF64[-0.0 + 0.0im -0.0 + 0.0im 0.0 - 1.0im 0.0 + 0.0im; 0.0 - 0.0im 0.0 - 0.0im 0.0 + 0.0im -0.0 - 1.0im; -0.0 + 1.0im 0.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im; 0.0 - 0.0im -0.0 + 1.0im -0.0 - 0.0im 0.0 + 0.0im], σz₁ = ComplexF64[1.0 - 0.0im 0.0 + 0.0im -0.0 - 0.0im -0.0 - 0.0im; 0.0 - 0.0im 1.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -1.0 - 0.0im 0.0 + 0.0im; -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im -1.0 - 0.0im])
+(σx₁ = ComplexF64[0.0 + 0.0im -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im; -0.0 - 0.0im 0.0 - 0.0im 0.0 - 0.0im 1.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im -0.0 - 0.0im -0.0 - 0.0im; 0.0 - 0.0im 1.0 - 0.0im -0.0 + 0.0im -0.0 + 0.0im], σy₁ = ComplexF64[-0.0 + 0.0im -0.0 + 0.0im -0.0 - 1.0im 0.0 - 0.0im; -0.0 - 0.0im -0.0 + 0.0im -0.0 - 0.0im 0.0 - 1.0im; -0.0 + 1.0im -0.0 - 0.0im 0.0 - 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 1.0im 0.0 - 0.0im 0.0 - 0.0im], σz₁ = ComplexF64[1.0 + 0.0im -0.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im; -0.0 - 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im -1.0 + 0.0im -0.0 - 0.0im; -0.0 + 0.0im -0.0 - 0.0im -0.0 + 0.0im -1.0 + 0.0im])
 ````
 
 Site 2 should match the second-qubit Pauli operators just as cleanly.
@@ -320,7 +331,7 @@ site_2_matrices
 ````
 
 ````
-(σx₂ = ComplexF64[0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; 1.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 - 0.0im -0.0 - 0.0im -0.0 - 0.0im 1.0 - 0.0im; -0.0 - 0.0im -0.0 - 0.0im 1.0 + 0.0im -0.0 - 0.0im], σy₂ = ComplexF64[-0.0 + 0.0im -0.0 - 1.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 1.0im -0.0 - 0.0im -0.0 - 0.0im -0.0 + 0.0im; 0.0 - 0.0im -0.0 + 0.0im 0.0 - 0.0im -0.0 - 1.0im; 0.0 - 0.0im -0.0 - 0.0im -0.0 + 1.0im 0.0 + 0.0im], σz₂ = ComplexF64[1.0 - 0.0im -0.0 - 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -1.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 - 0.0im -0.0 - 0.0im 1.0 - 0.0im -0.0 + 0.0im; -0.0 - 0.0im 0.0 - 0.0im -0.0 - 0.0im -1.0 + 0.0im])
+(σx₂ = ComplexF64[0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 1.0 + 0.0im -0.0 - 0.0im 0.0 - 0.0im -0.0 - 0.0im; -0.0 - 0.0im -0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 0.0 - 0.0im -0.0 + 0.0im 1.0 - 0.0im -0.0 + 0.0im], σy₂ = ComplexF64[-0.0 + 0.0im 0.0 - 1.0im -0.0 + 0.0im 0.0 - 0.0im; 0.0 + 1.0im -0.0 - 0.0im 0.0 - 0.0im 0.0 + 0.0im; -0.0 - 0.0im 0.0 + 0.0im 0.0 - 0.0im 0.0 - 1.0im; 0.0 + 0.0im 0.0 - 0.0im 0.0 + 1.0im -0.0 - 0.0im], σz₂ = ComplexF64[1.0 + 0.0im -0.0 - 0.0im -0.0 - 0.0im 0.0 - 0.0im; -0.0 + 0.0im -1.0 + 0.0im 0.0 - 0.0im -0.0 - 0.0im; -0.0 + 0.0im -0.0 + 0.0im 1.0 - 0.0im -0.0 - 0.0im; 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im])
 ````
 
 The actual numerical check is basis-independent: every aligned operator should
@@ -339,7 +350,7 @@ alignment_errors
 ````
 
 ````
-(σx₁ = 1.2889765604760883e-13, σy₁ = 1.2890225958686977e-13, σz₁ = 1.2889304950509726e-13, σx₂ = 1.2898109431837067e-13, σy₂ = 1.287893011174029e-13, σz₂ = 1.2891365800728359e-13)
+(σx₁ = 3.298080036610344e-13, σy₁ = 3.298916748758735e-13, σz₁ = 3.298854320828022e-13, σx₂ = 3.298211864772785e-13, σy₂ = 3.3000341671970716e-13, σz₂ = 3.297272587772052e-13)
 ````
 
 Those errors should stay at the solver-noise level.
@@ -369,7 +380,7 @@ hamiltonian_summary
 ````
 
 ````
-(H = ComplexF64[0.25 - 0.0im -0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.0 - 0.0im -0.25 - 0.0im 0.5 - 0.0im 0.0 - 0.0im; -0.0 + 0.0im 0.5 + 0.0im -0.25 + 0.0im -0.0 + 0.0im; 0.0 - 0.0im -0.0 - 0.0im -0.0 + 0.0im 0.25 - 0.0im], deviation_from_reference = 1.9270700290260765e-13)
+(H = ComplexF64[0.25 + 0.0im 0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.0 - 0.0im -0.25 - 0.0im 0.5 - 0.0im -0.0 - 0.0im; -0.0 - 0.0im 0.5 + 0.0im -0.25 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 0.0 - 0.0im 0.0 + 0.0im 0.25 - 0.0im], deviation_from_reference = 4.941880525055683e-13)
 ````
 
 Diagonalizing the aligned Hamiltonian now exposes the familiar spectrum.
@@ -416,7 +427,7 @@ ground_state_check
 ````
 
 ````
-(ψ_gns = ComplexF64[-0.0 + 0.0im, 0.707107 - 0.0im, -0.707107 - 0.0im, 0.0 + 0.0im], ψ_singlet = ComplexF64[0.0 + 0.0im, 0.707107 + 0.0im, -0.707107 + 0.0im, 0.0 + 0.0im], overlap = 0.9999999999999963, eigen_residual = 1.9272887205522792e-13)
+(ψ_gns = ComplexF64[-0.0 - 0.0im, 0.707107 + 0.0im, -0.707107 - 0.0im, 0.0 - 0.0im], ψ_singlet = ComplexF64[0.0 + 0.0im, 0.707107 + 0.0im, -0.707107 + 0.0im, 0.0 + 0.0im], overlap = 1.0000000000000002, eigen_residual = 4.941081469996253e-13)
 ````
 
 The aligned cyclic vector should agree with the singlet directly, not just up

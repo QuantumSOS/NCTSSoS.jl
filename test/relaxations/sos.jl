@@ -56,6 +56,38 @@ end
         @test all(v -> v == 1.0 || v == -1.0, values(C_α_js))
     end
 
+    @testset "SOS dual objective uses affine constant coefficient" begin
+        config = SolverConfig(optimizer=nothing, order=1, cs_algo=NoElimination(), ts_algo=NoElimination())
+        n_symmetric_vars(n) = n * (n + 1) ÷ 2
+
+        reg_real, (u,) = create_unipotent_variables([("u", 1:1)])
+        real_pop = polyopt(1.0 * u[1], reg_real)
+        real_sparsity = compute_sparsity(real_pop, config)
+        real_mp = NCTSSoS.moment_relax(real_pop, real_sparsity.corr_sparsity, real_sparsity.cliques_term_sparsities)
+        real_sos = NCTSSoS.sos_dualize(real_mp)
+        real_expected_vars = sum(n_symmetric_vars(block.size) for block in real_mp.linear.psd_blocks_lin) +
+            length(real_mp.linear.zero_constraints)
+        @test num_variables(real_sos.model) == real_expected_vars
+
+        reg_pauli, (σx, _, _) = create_pauli_variables(1:1)
+        pauli_pop = polyopt(1.0 * σx[1], reg_pauli)
+        pauli_sparsity = compute_sparsity(pauli_pop, config)
+        pauli_mp = NCTSSoS.moment_relax(pauli_pop, pauli_sparsity.corr_sparsity, pauli_sparsity.cliques_term_sparsities)
+        pauli_sos = NCTSSoS.sos_dualize(pauli_mp)
+        pauli_expected_vars = sum(n_symmetric_vars(2 * block.size) for block in pauli_mp.linear.psd_blocks_lin) +
+            length(pauli_mp.linear.zero_constraints)
+        @test num_variables(pauli_sos.model) == pauli_expected_vars
+
+        reg_state, (v,) = create_unipotent_variables([("v", 1:1)])
+        state_objective = (1.0 * ς(v[1])) * one(typeof(v[1]))
+        state_pop = polyopt(state_objective, reg_state)
+        state_sparsity = compute_sparsity(state_pop, config)
+        state_mp = NCTSSoS.moment_relax(state_pop, state_sparsity.corr_sparsity, state_sparsity.cliques_term_sparsities)
+        state_sos = NCTSSoS.sos_dualize(state_mp)
+        state_expected_vars = sum(n_symmetric_vars(size(mat, 1)) for (_cone, mat, _basis) in state_mp.constraints)
+        @test num_variables(state_sos.model) == state_expected_vars
+    end
+
     @testset "State SOS dualization rejects underspecified bases" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
         objective = tr(1.0 * x[1]) * one(typeof(x[1]))

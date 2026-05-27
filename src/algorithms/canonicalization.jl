@@ -46,6 +46,9 @@ cyclic_canon(m::NormalMonomial{PauliAlgebra}) = copy(m.word)
 cyclic_canon(m::NormalMonomial{FermionicAlgebra}) = copy(m.word)
 cyclic_canon(m::NormalMonomial{BosonicAlgebra}) = copy(m.word)
 
+@inline _cyclic_word_lt(a::AbstractVector, b::AbstractVector) =
+    length(a) == length(b) ? a < b : length(a) < length(b)
+
 function cyclic_canon(m::NormalMonomial{A}) where {A<:MonoidAlgebra}
     word = copy(m.word)
     n = length(word)
@@ -54,8 +57,8 @@ function cyclic_canon(m::NormalMonomial{A}) where {A<:MonoidAlgebra}
     best = copy(word)
     for offset in 1:(n-1)
         rotation = [word[mod1(i + offset, n)] for i in 1:n]
-        simplify!(A,rotation)
-        if rotation < best
+        simplify!(A, rotation)
+        if _cyclic_word_lt(rotation, best)
             best = rotation
         end
     end
@@ -81,5 +84,7 @@ cyclic_symmetric_canon(m::NormalMonomial{FermionicAlgebra}) = copy(m.word)
 cyclic_symmetric_canon(m::NormalMonomial{BosonicAlgebra}) = copy(m.word)
 
 function cyclic_symmetric_canon(m::NormalMonomial{A}) where {A<:MonoidAlgebra}
-    return min(cyclic_canon(m), cyclic_canon(adjoint(m)))
+    word = cyclic_canon(m)
+    adj_word = cyclic_canon(adjoint(m))
+    return _cyclic_word_lt(adj_word, word) ? adj_word : word
 end

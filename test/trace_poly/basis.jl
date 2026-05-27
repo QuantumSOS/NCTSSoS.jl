@@ -124,6 +124,30 @@ end
     end
 end
 
+@testset "PHBB17 dense trace count matches NCTSSOS" begin
+    # PHBB17 Example 6.2.2, trace-polynomial formulation. The maximally
+    # entangled trace rewrite uses one local unipotent algebra with six
+    # noncommuting observables; Bob's side is represented by transposed local
+    # matrices, not by a second commuting site.
+    reg, (vars,) = create_unipotent_variables([("v", 1:6)])
+    x = vars[1:3]
+    y = vars[4:6]
+
+    cov(i, j) = tr(x[i] * y[j]) - tr(x[i]) * tr(y[j])
+    objective = -1.0 * (
+        cov(1, 1) + cov(1, 2) + cov(1, 3) +
+        cov(2, 1) + cov(2, 2) - cov(2, 3) +
+        cov(3, 1) - cov(3, 2)
+    ) * one(typeof(x[1]))
+    pop = polyopt(objective, reg)
+
+    sparsity = compute_sparsity(pop, SolverConfig(optimizer=nothing, order=2))
+    moment_problem = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+
+    @test only(length.(only(first(sparsity.cliques_term_sparsities)).block_bases)) == 115
+    @test moment_problem.n_unique_moment_matrix_elements == 1010
+end
+
 @testset "Newton cyclic chip basis" begin
     reg, (x,) = create_noncommutative_variables([("x", 1:2)])
 

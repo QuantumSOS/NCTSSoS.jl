@@ -227,7 +227,7 @@ println("Case 1 (sweet spot):  SDP = $(result₁.objective),  exact = $exact₁,
 ````
 
 ````
-Case 1 (sweet spot):  SDP = -2.99999999992191,  exact = -3.0000000000000004,  gap = 7.809042301687441e-11
+Case 1 (sweet spot):  SDP = -3.0000000000733986,  exact = -3.0000000000000004,  gap = 7.339817642559865e-11
 
 ````
 
@@ -261,7 +261,7 @@ println("Case 2 (trivial):    SDP = $(result₂.objective),  exact = $(round(exa
 ````
 
 ````
-Case 2 (trivial):    SDP = -12.503891555798324,  exact = -12.503892,  gap = 1.3280896382639185e-9
+Case 2 (trivial):    SDP = -12.503891585577948,  exact = -12.503892,  gap = 2.8451538014451216e-8
 
 ````
 
@@ -292,7 +292,7 @@ println("Case 3 (asymmetric): SDP = $(result₃.objective),  exact = $(round(exa
 ````
 
 ````
-Case 3 (asymmetric): SDP = -2.4220784514405147,  exact = -2.422078,  gap = 3.8191672047105385e-14
+Case 3 (asymmetric): SDP = -2.422078451443317,  exact = -2.422078,  gap = 2.7640112421067897e-12
 
 ````
 
@@ -320,7 +320,7 @@ println("Case 4 (hopping):   SDP = $(result₄.objective),  exact = $(round(exac
 ````
 
 ````
-Case 4 (hopping):   SDP = -2.2360679774997916,  exact = -2.236068,  gap = 2.220446049250313e-15
+Case 4 (hopping):   SDP = -2.2360679775444643,  exact = -2.236068,  gap = 4.467493042170645e-11
 
 ````
 
@@ -388,7 +388,7 @@ println("Pauli XX chain:  SDP = $(result₅.objective),  fermionic sweet spot = 
 ````
 
 ````
-Pauli XX chain:  SDP = -2.999999999480303,  fermionic sweet spot = -3.0000000000000004
+Pauli XX chain:  SDP = -3.0000000040682773,  fermionic sweet spot = -3.0000000000000004
 
 ````
 

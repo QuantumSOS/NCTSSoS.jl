@@ -36,10 +36,10 @@ const EXPECTED_TRACE_POLY = (
     ),
     cosmo = (
         Ex_6_1_Dense_d2   = (opt=-0.04671740059436102, sides=[31], nuniq=81),
-        Ex_6_1_Dense_d3   = (opt=-0.031250237578871895, sides=[114], nuniq=395),
+        Ex_6_1_Dense_d3   = (opt=-0.031250237578871895, sides=[108], nuniq=395),
         Ex_6_2_0_Dense_d1 = (opt=-2.8284271246604606,),
-        Ex_6_2_1_Dense_d2 = (opt=-4.000000001047738, sides=[53], nuniq=294),
-        Ex_6_2_2_Dense_d2 = (opt=-5.000000449255744, sides=[115], nuniq=1280),
+        Ex_6_2_1_Dense_d2 = (opt=-4.000000001047738, sides=[53], nuniq=222),
+        Ex_6_2_2_Dense_d2 = (opt=-5.000000449255744, sides=[115], nuniq=1010),
         Ex_6_2_2_TS_d2    = (opt=-4.999999996016442, nuniq=63),
     ),
 )

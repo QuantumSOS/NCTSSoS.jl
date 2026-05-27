@@ -108,9 +108,9 @@ The dualization process involves:
    - `:Zero` constraints -> equality multipliers
    - `:PSD` constraints -> PSDCone (real positive semidefinite)
    - `:HPSD` constraints -> lifted real PSDCone of size `2n × 2n`
-2. Introducing scalar variable `b` to bound the minimum value of the primal
-3. Setting up polynomial equality constraints by matching coefficients
-4. Returning the maximization of `b`
+2. Building coefficient expressions for `objective - Aᴴ(dual)`
+3. Maximizing the affine identity coefficient directly
+4. Constraining all remaining coefficient expressions to zero
 
 For complex algebras (Pauli, Fermionic, Bosonic), Hermitian PSD constraints
 are embedded as real 2n x 2n PSD constraints using the standard construction:
@@ -225,7 +225,8 @@ function _accumulate_dual_contribution!(
     X1 = lifted[i, j] + lifted[n + i, n + j]
     X2 = lifted[n + i, j] - lifted[i, n + j]
 
-    # Coefficient equations are objective - b - Aᴴ(dual) == 0.
+    # Coefficient expressions are objective - Aᴴ(dual); the real identity
+    # coefficient is maximized directly and the rest are constrained to zero.
     # Real(c * (X1 + im*X2)) = c_re*X1 - c_im*X2
     # Imag(c * (X1 + im*X2)) = c_im*X1 + c_re*X2
     add_to_expression!(eqs_re[idx], -c_re, X1)
@@ -261,16 +262,11 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     end
     zero_duals = [@variable(dual_model) for _ in L.zero_constraints]
 
-    # Scalar variable b to bound minimum
-    @variable(dual_model, b)
-    @objective(dual_model, Max, b)
-
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in L.moments]
 
     for (key, coef) in L.objective_lin
         add_to_expression!(fα_constraints[_sos_moment_index(L, key)], coef)
     end
-    add_to_expression!(fα_constraints[_sos_moment_index(L, L.identity)], -one(C), b)
 
     for (block_idx, block) in enumerate(L.psd_blocks_lin)
         dual_block = psd_duals[block_idx]
@@ -296,7 +292,12 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
         end
     end
 
-    @constraint(dual_model, fα_constraints .== 0)
+    # Eliminate the usual scalar bound variable: the real identity coefficient is b.
+    identity_idx = _sos_moment_index(L, L.identity)
+    @objective(dual_model, Max, fα_constraints[identity_idx])
+
+    coefficient_indices = [i for i in eachindex(fα_constraints) if i != identity_idx]
+    isempty(coefficient_indices) || @constraint(dual_model, fα_constraints[coefficient_indices] .== 0)
 
     return SOSProblem(dual_model, length(L.moments))
 end
@@ -349,10 +350,6 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
         end
     end
 
-    # Scalar variable b to bound minimum
-    @variable(dual_model, b)
-    @objective(dual_model, Max, b)
-
     # For state polynomial optimization, we work with expectation values (StateWords)
     # The key insight: expval(<I>*xy) = <xy> = expval(<xy>*I)
     # So we convert NCStateWords to StateWords via expval for comparison
@@ -363,6 +360,12 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     state_basis = _sorted_stateword_basis_from_ncsw(mp.total_basis)
     n_basis = length(state_basis)
     sw_to_idx = Dict(sw => i for (i, sw) in enumerate(state_basis))
+
+    identity_sw = one(SW)
+    identity_idx = searchsortedfirst(state_basis, identity_sw)
+    if identity_idx > n_basis || state_basis[identity_idx] != identity_sw
+        error("Identity StateWord not found in basis - this shouldn't happen")
+    end
 
     # Initialize constraint expressions
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in 1:n_basis]
@@ -380,9 +383,6 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
         add_to_expression!(fα_constraints[sym_idx], coef)
     end
     _throw_missing_state_words(missing_objective_words, "the objective"; source="Relaxation basis")
-
-    # Subtract b from the constant term (identity StateWord)
-    add_to_expression!(fα_constraints[1], -one(C), b)
 
     # Process each constraint matrix by iterating directly over block (row, col) pairs
     # This ensures all StateWord contributions are accumulated correctly across blocks
@@ -411,8 +411,11 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     end
     _throw_missing_state_words(missing_constraint_words, "the constraint matrices"; source="Relaxation basis")
 
-    # All coefficient constraints
-    @constraint(dual_model, fα_constraints .== 0)
+    # Eliminate the usual scalar bound variable: the identity coefficient is b.
+    @objective(dual_model, Max, fα_constraints[identity_idx])
+
+    coefficient_indices = [i for i in eachindex(fα_constraints) if i != identity_idx]
+    isempty(coefficient_indices) || @constraint(dual_model, fα_constraints[coefficient_indices] .== 0)
 
     return SOSProblem(dual_model, n_basis)
 end
@@ -445,10 +448,6 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     end
     zero_duals = [@variable(dual_model) for _ in L.zero_constraints]
 
-    # Scalar variable b
-    @variable(dual_model, b)
-    @objective(dual_model, Max, b)
-
     fα_constraints_re = [zero(GenericAffExpr{RC,VariableRef}) for _ in L.moments]
     fα_constraints_im = [zero(GenericAffExpr{RC,VariableRef}) for _ in L.moments]
 
@@ -457,7 +456,6 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
         add_to_expression!(fα_constraints_re[idx], real(coef))
         add_to_expression!(fα_constraints_im[idx], imag(coef))
     end
-    add_to_expression!(fα_constraints_re[_sos_moment_index(L, L.identity)], -one(RC), b)
 
     for (block_idx, block) in enumerate(L.psd_blocks_lin)
         dual = psd_duals[block_idx]
@@ -487,7 +485,13 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
         end
     end
 
-    @constraint(dual_model, fα_constraints_re .== 0)
+    # Eliminate only the real identity equation; the imaginary identity equation
+    # still enforces a real scalar bound.
+    identity_idx = _sos_moment_index(L, L.identity)
+    @objective(dual_model, Max, fα_constraints_re[identity_idx])
+
+    real_coefficient_indices = [i for i in eachindex(fα_constraints_re) if i != identity_idx]
+    isempty(real_coefficient_indices) || @constraint(dual_model, fα_constraints_re[real_coefficient_indices] .== 0)
     @constraint(dual_model, fα_constraints_im .== 0)
 
     return SOSProblem(dual_model, length(L.moments))

@@ -92,6 +92,13 @@ end
         c = cyclic_canon(m)
         @test c == T[o1s1, o3s2]
         @test c !== m.word
+
+        # Trace + involution must cyclically reduce U_a w U_a to w even when
+        # the shorter representative is lexicographically larger. This is the
+        # PHBB17 trace-polynomial count bug: tr(U₁U₂U₁) = tr(U₂), not a new
+        # degree-3 trace symbol.
+        boundary_reducible = NormalMonomial{UnipotentAlgebra,T}(T[o1s1, o2s1, o1s1])
+        @test cyclic_canon(boundary_reducible) == T[o2s1]
     end
 
     @testset "PauliAlgebra" begin

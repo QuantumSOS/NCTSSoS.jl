@@ -221,7 +221,7 @@ result = cs_nctssos(pop, config)
 ````
 
 ````
-Objective: -1.236067976532652
+Objective: -1.236067981222517
 Correlative Sparsity (BosonicAlgebra): 
 
    maximum clique size: 2
@@ -254,7 +254,7 @@ println("Gap:                       $(round(abs(result.objective - exact_e0); di
 ````
 SDP objective (order 2):  -1.23606798
 Exact ground-state energy: -1.23606798
-Gap:                       1.0e-9
+Gap:                       3.7e-9
 
 ````
 

@@ -374,7 +374,7 @@ println("Gap after refinement:                     $(round(abs(result_can.object
 ````
 
 ````
-Canonical SDP (first sparse pass):        -2.223447
+Canonical SDP (first sparse pass):        -2.223456
 Canonical SDP (refined):                  -2.102748
 Exact half-filled GS:                     -2.102748
 Gap after refinement:                     0.0

@@ -27,6 +27,22 @@ Any SDP solver works — replace `Mosek.Optimizer` with `COSMO.Optimizer` or
 using NCTSSoS, MosekTools
 ````
 
+````
+Precompiling packages...
+   1535.0 ms  ✓ ChordalGraph
+   1997.4 ms  ✓ CliqueTrees → AMDExt
+  40158.6 ms  ✓ MathOptInterface
+  23276.0 ms  ✓ JuMP
+  44074.6 ms  ✓ MathOptInterface → MathOptInterfaceCliqueTreesExt
+  96259.6 ms  ✓ Clarabel
+  31265.3 ms  ✓ NCTSSoS
+  7 dependencies successfully precompiled in 168 seconds. 92 already precompiled.
+Precompiling packages...
+   3410.0 ms  ✓ MosekTools
+  1 dependency successfully precompiled in 4 seconds. 59 already precompiled.
+
+````
+
 ## Key Concepts: Unipotent and Projector Variables
 
 Bell inequalities use two types of measurement operators:
@@ -205,7 +221,7 @@ result = cs_nctssos(pop, solver_config)
 ````
 
 ````
-Objective: -2.82842713216232
+Objective: -2.828427124561678
 Correlative Sparsity (UnipotentAlgebra): 
 
    maximum clique size: 4
@@ -236,7 +252,7 @@ chsh_bound = -result.objective
 ````
 
 ````
-2.82842713216232
+2.828427124561678
 ````
 
 chsh_bound: upper bound on maximal quantum violation (negate since we minimized -f)
@@ -258,7 +274,7 @@ abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
 ````
 
 ````
-7.41612948829129e-9
+1.8451240535455327e-10
 ````
 
 !!! tip "Going further: shrink this SDP with symmetry"
@@ -366,7 +382,7 @@ i3322_bound = -result.objective
 ````
 
 ````
-0.2509397976352535
+0.25093972390866476
 ````
 
 i3322_bound: upper bound on I₃₃₂₂ violation (negate since we minimized -f)
@@ -376,7 +392,7 @@ i3322_bound  # should be close to 0.25
 ````
 
 ````
-0.2509397976352535
+0.25093972390866476
 ````
 
 ---
@@ -413,7 +429,7 @@ bound_dense = -result_dense.objective
 ````
 
 ````
-0.2508757549955246
+0.25087567011299783
 ````
 
 bound_dense: bound without sparsity
@@ -423,7 +439,7 @@ bound_dense
 ````
 
 ````
-0.2508757549955246
+0.25087567011299783
 ````
 
 #### With correlative sparsity (order=6)
@@ -448,7 +464,7 @@ bound_sparse = -result_sparse.objective
 ````
 
 ````
-0.2508754080902566
+0.25087541281436
 ````
 
 bound_sparse: improved bound using sparsity
@@ -458,7 +474,7 @@ bound_sparse  # closer to theoretical 0.25
 ````
 
 ````
-0.2508754080902566
+0.25087541281436
 ````
 
 Improvement in bound:
@@ -468,7 +484,7 @@ bound_dense - bound_sparse  # positive = improvement
 ````
 
 ````
-3.4690526801162136e-7
+2.5729863784018647e-7
 ````
 
 ---
@@ -616,7 +632,7 @@ cov_bound = -result.objective
 ````
 
 ````
-4.999999999618061
+5.000000000001876
 ````
 
 cov_bound: upper bound on covariance Bell violation
@@ -626,7 +642,7 @@ cov_bound  # should be close to 5.0
 ````
 
 ````
-4.999999999618061
+5.000000000001876
 ````
 
 Compare with known quantum value:
@@ -636,7 +652,7 @@ abs(cov_bound - 5.0)  # difference from theoretical value
 ````
 
 ````
-3.8193892493154635e-10
+1.8758328224066645e-12
 ````
 
 #### Step 6: Improve bound using term sparsity and higher-order iteration
@@ -661,7 +677,7 @@ result_ts = cs_nctssos(spop, solver_config_ts)
 
 ````
 State Optimization Result
-Objective: -4.999999997729253
+Objective: -5.000000021561767
 Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
 
    maximum clique size: 6
@@ -691,7 +707,7 @@ result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
 
 ````
 State Optimization Result
-Objective: -4.999999988546256
+Objective: -5.0000000016276065
 Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
 
    maximum clique size: 6
@@ -720,7 +736,7 @@ improved_bound = -result_higher.objective
 ````
 
 ````
-4.999999988546256
+5.0000000016276065
 ````
 
 improved_bound: refined upper bound
@@ -731,7 +747,7 @@ improved_bound: refined upper bound
 ````
 
 ````
-(4.999999988546256, 1.1453743731237864e-8)
+(5.0000000016276065, 1.6276064940257129e-9)
 ````
 
 ---

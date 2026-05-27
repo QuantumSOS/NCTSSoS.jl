@@ -96,7 +96,7 @@ dense_bound = -dense_result.objective
 ````
 
 ````
-2.82842713216232
+2.828427124561678
 ````
 
 Sanity check against the theoretical value:
@@ -106,7 +106,7 @@ abs(dense_bound - 2 * sqrt(2))
 ````
 
 ````
-7.41612948829129e-9
+1.8451240535455327e-10
 ````
 
 The PSD block sizes confirm the dense layout — one block of side 5:
@@ -238,7 +238,7 @@ sym_bound = -sym_result.objective
 ````
 
 ````
-2.828427124727845
+2.8284271101248057
 ````
 
 matched against the theoretical value:
@@ -248,7 +248,7 @@ abs(sym_bound - 2 * sqrt(2))
 ````
 
 ````
-1.8345325258906087e-11
+1.4621384547552907e-8
 ````
 
 and matched against the dense baseline:
@@ -258,7 +258,7 @@ abs(sym_bound - dense_bound)
 ````
 
 ````
-7.434474813550196e-9
+1.4436872142198354e-8
 ````
 
 ## Step 5 — Read the [`SymmetryReport`](@ref)
@@ -331,7 +331,7 @@ sym_result
 ````
 
 ````
-Objective: -2.828427124727845
+Objective: -2.8284271101248057
 Correlative Sparsity (UnipotentAlgebra): 
 
    maximum clique size: 4

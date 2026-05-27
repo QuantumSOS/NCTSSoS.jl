@@ -1,0 +1,24 @@
+# Git / editor / Python cache noise
+.git
+.git/
+.pi/
+__pycache__/
+*.py[cod]
+.DS_Store
+.vscode/
+
+# Julia local build / cache artifacts
+*.jl.cov
+*.jl.mem
+.julia/
+
+# Documentation build output; literate sources stay tracked
+docs/build/
+docs/site/
+
+# Generated integrals + solver outputs — pulled back on demand via `easy-ssh pull`
+integrals/
+output/
+
+# Large / transient scratch artifacts
+tmp/

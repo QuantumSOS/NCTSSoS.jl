@@ -349,11 +349,6 @@ function _v2rdm_raw_imag_part_form(raw::LinearMomentForm{Vector{T},ComplexF64}, 
     return _v2rdm_form(acc, pairs)
 end
 
-function _v2rdm_number_operator_terms(::Type{T}; nk::Int, norb::Int) where {T<:Signed}
-    n_modes = 2 * nk * norb
-    return [T[-mode, mode] for mode in 1:n_modes]
-end
-
 function _v2rdm_identity_key!(acc::_V2RDMAccumulator{T,M}) where {T,M}
     return _v2rdm_register_key!(acc, T[])
 end
@@ -515,16 +510,6 @@ function _v2rdm_raw_scalar_constraint_form(acc::_V2RDMAccumulator{T}, terms::Vec
     return _v2rdm_form(acc, pairs)
 end
 
-function _v2rdm_number_row_form(acc::_V2RDMAccumulator{T}, row::M; nk::Int, norb::Int, total_electrons::Int) where {T<:Signed,M<:NormalMonomial{FermionicAlgebra,T}}
-    pairs = Pair{Vector{T},ComplexF64}[]
-    for nword in _v2rdm_number_operator_terms(T; nk, norb)
-        _v2rdm_add_normal_ordered!(pairs, acc, _v2rdm_raw_dot3(row.word, nword, T[]), 1.0)
-    end
-    # -N * b†
-    _v2rdm_add_normal_ordered!(pairs, acc, _v2rdm_raw_dot3(row.word, T[], T[]), -Float64(total_electrons))
-    return _v2rdm_form(acc, pairs)
-end
-
 function _v2rdm_trace_q_form(acc::_V2RDMAccumulator{T}, Q_rows::Vector{M}) where {T<:Signed,M<:NormalMonomial{FermionicAlgebra,T}}
     pairs = Pair{Vector{T},ComplexF64}[]
     for row in Q_rows
@@ -600,10 +585,10 @@ end
 """
     pqg_equality_rows(...)
 
-Closed-form scalar equality generator for the structured PQG relaxation.  It
-matches the symbolic benchmarker's moment-equality convention: the particle
-number polynomial is applied one-sided to every degree-≤2 PQG row, while the
-quartic trace/S² constraints only use the identity row.
+Closed-form scalar equality generator for the structured PQG relaxation.
+Particle number is enforced through TrD/TrQ/TrG (and the identity-augmented G
+block), not through one-sided `(N̂ - N)` moment rows. Those rows introduce
+off-sector orphan moments and are deliberately absent here.
 """
 function pqg_equality_rows(
     acc::_V2RDMAccumulator{T},
@@ -623,26 +608,10 @@ function pqg_equality_rows(
     n_modes = 2 * nk * norb
     n_holes = n_modes - total_electrons
     rows = ScalarLinearConstraint{Vector{T},ComplexF64}[]
+    cons_idx = 0
 
-    moment_eq_rows = M[]
-    append!(moment_eq_rows, row_bases.oneD)
-    append!(moment_eq_rows, row_bases.D)
-    append!(moment_eq_rows, row_bases.Q)
-    append!(moment_eq_rows, row_bases.G)
-    push!(moment_eq_rows, one(M))
-    sort!(moment_eq_rows)
-    moment_eq_rows = sorted_unique!(moment_eq_rows)
-
-    cons_idx = 1
-    row_idx = 1
-    for row in moment_eq_rows
-        raw = _v2rdm_number_row_form(acc, row; nk, norb, total_electrons)
-        _v2rdm_append_complex_zero_rows!(rows, raw, acc, adjoint_key, cons_idx, row_idx)
-        row_idx += 1
-    end
-
-    # The remaining constraints are quartic, so the symbolic truncation keeps
-    # only the identity row.  Preserve the symbolic exporter's constraint order:
+    # These constraints are quartic, so the symbolic truncation keeps only the
+    # identity row. Preserve the symbolic exporter's constraint order:
     # total-D, Q, G when spin is unresolved; Q, G, then spin-resolved D rows
     # when the total-D row is replaced by paper-spin constraints.
     if !spin_resolved_trace

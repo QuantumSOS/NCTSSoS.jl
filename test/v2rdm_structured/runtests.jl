@@ -53,6 +53,7 @@ end
         @test count(==(:G), families) == 2
         @test all(block.meta.cone == :HPSD for block in linear.psd_blocks_lin)
         @test all(length(block.meta.origin.block_key) == 1 for block in linear.psd_blocks_lin)
+        @test isempty(linear.free_keys)
     end
 
     @testset "layout options change block provenance without external assets" begin

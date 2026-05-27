@@ -445,16 +445,22 @@ function _build_complex_psd_block_model(
         _add_psd_block_bindings!(model, blocks[block_idx], block, resolver, block_idx)
     end
 
-    K = typeof(L.identity)
-    for (cone, mat) in mp.constraints
-        cone == :Zero || continue
-        size(mat, 1) == size(mat, 2) || throw(DimensionMismatch(
-            "complex Zero constraint must be square for PSD-block lowering, got $(size(mat))"
-        ))
-        for j in axes(mat, 2), i in firstindex(mat, 1):j
-            form = _linearize_moment_polynomial(K, LC, mat[i, j])
-            isempty(form) && continue
-            @constraint(model, _eval_form(form, resolver) == zero_complex_moment)
+    if any(cone == :Zero for (cone, _) in mp.constraints)
+        K = typeof(L.identity)
+        for (cone, mat) in mp.constraints
+            cone == :Zero || continue
+            size(mat, 1) == size(mat, 2) || throw(DimensionMismatch(
+                "complex Zero constraint must be square for PSD-block lowering, got $(size(mat))"
+            ))
+            for j in axes(mat, 2), i in firstindex(mat, 1):j
+                form = _linearize_moment_polynomial(K, LC, mat[i, j])
+                isempty(form) && continue
+                @constraint(model, _eval_form(form, resolver) == zero_complex_moment)
+            end
+        end
+    else
+        for zc in L.zero_constraints
+            @constraint(model, real(_eval_form(zc.form, resolver)) == zero(C))
         end
     end
 

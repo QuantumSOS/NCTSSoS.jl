@@ -1,0 +1,1765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Why BPSDP beats COSMO and matches SCS on V2RDM SDPs</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['ui-sans-serif','-apple-system','BlinkMacSystemFont','"Inter"','sans-serif'],
+          mono: ['ui-monospace','SFMono-Regular','"JetBrains Mono"','Menlo','monospace'],
+          serif: ['ui-serif','Georgia','Cambria','"Times New Roman"','serif'],
+        },
+        colors: {
+          ink:   { 950:'#0a0d12', 900:'#0f131a', 800:'#161c25', 700:'#1f2733', 600:'#2a3340' },
+          mist:  { 100:'#e7ecf2', 200:'#c8d0db', 300:'#a4afbe', 400:'#7d8a9c' },
+          accent:{ 400:'#7cd4ff', 500:'#3aa8e6', 600:'#1f7cb4' },
+          warm:  { 400:'#ffb47a', 500:'#f0894a' },
+          good:  { 400:'#7ce6a4' },
+          bad:   { 400:'#ff8a8a' },
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html, body { background: #0a0d12; color: #e7ecf2; }
+  body { font-feature-settings: "ss01","cv11"; }
+  .prose-mine p { line-height: 1.75; }
+  .prose-mine a { color: #7cd4ff; text-decoration: underline; text-decoration-color: rgba(124,212,255,.4); text-underline-offset: 3px; }
+  .prose-mine strong { color: #fff; font-weight: 600; }
+  .quote-text { background: linear-gradient(transparent 60%, rgba(124,212,255,.18) 60%); }
+  .grid-bg {
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(124,212,255,.10), transparent 60%),
+      linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+  }
+  /* tiny syntax highlighting */
+  .tok-kw  { color:#ff9ec6; }
+  .tok-fn  { color:#7cd4ff; }
+  .tok-str { color:#ffb47a; }
+  .tok-num { color:#7ce6a4; }
+  .tok-com { color:#7d8a9c; font-style: italic; }
+  .tok-op  { color:#c8d0db; }
+  /* MathJax-ish inline math via styled spans (no MathJax to keep offline) */
+  .math { font-family: ui-serif, Georgia, serif; font-style: italic; }
+  .math .op { font-style: normal; }
+  /* selection toolbar */
+  #sel-toolbar {
+    position: absolute; z-index: 60; transform: translate(-50%, -100%);
+    display: none; padding: 4px;
+    background: #161c25; border: 1px solid #2a3340; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  }
+  #sel-toolbar button {
+    font-size: 12px; padding: 6px 10px; border-radius: 6px;
+    background: #1f2733; color: #e7ecf2; border: 1px solid #2a3340;
+  }
+  #sel-toolbar button:hover { background: #2a3340; }
+  /* modal */
+  #modal-backdrop { background: rgba(5,8,12,.72); backdrop-filter: blur(4px); }
+  /* toast */
+  #toast { transition: opacity .25s ease, transform .25s ease; }
+  /* anchors */
+  .anchor-target { scroll-margin-top: 80px; }
+  /* details/summary */
+  details > summary { cursor: pointer; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  /* code block scrollbar */
+  pre::-webkit-scrollbar { height: 8px; }
+  pre::-webkit-scrollbar-thumb { background:#2a3340; border-radius: 4px; }
+  /* sidebar */
+  #sidebar { transition: transform .25s ease; }
+  /* tabs */
+  .tab-btn[aria-selected="true"] { background:#1f2733; color:#fff; border-color:#3aa8e6; }
+  /* convergence demo */
+  .legend-dot { width: 10px; height: 10px; border-radius: 999px; display:inline-block; margin-right:6px; }
+</style>
+</head>
+<body class="font-sans antialiased">
+
+<!-- ===================== TOP NAV ===================== -->
+<header class="sticky top-0 z-40 bg-ink-950/80 backdrop-blur border-b border-ink-700">
+  <div class="max-w-5xl mx-auto px-5 py-3 flex items-center gap-3">
+    <a href="#hero" class="font-mono text-sm text-mist-300 hover:text-white">⟁ bpsdp-explainer</a>
+    <nav class="hidden md:flex gap-4 ml-6 text-sm text-mist-300">
+      <a href="#overview" class="hover:text-white">Overview</a>
+      <a href="#core" class="hover:text-white">Concepts</a>
+      <a href="#visual" class="hover:text-white">Visuals</a>
+      <a href="#deep" class="hover:text-white">Deep dive</a>
+      <a href="#evidence" class="hover:text-white">Evidence</a>
+      <a href="#pitfalls" class="hover:text-white">Pitfalls</a>
+      <a href="#interactive" class="hover:text-white">Try it</a>
+    </nav>
+    <div class="ml-auto flex items-center gap-2">
+      <button id="open-sidebar" class="text-xs px-3 py-1.5 rounded-md border border-ink-600 hover:bg-ink-800" aria-label="Open my notes">
+        🗒️ My Notes <span id="notes-count" class="ml-1 text-mist-400"></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== HERO ===================== -->
+<section id="hero" class="grid-bg border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-16 md:py-24">
+    <div class="text-xs uppercase tracking-[0.2em] text-accent-400 font-mono">SDP solvers · V2RDM · H₂/Nk=2</div>
+    <h1 class="mt-3 text-4xl md:text-5xl font-semibold tracking-tight">
+      Why BPSDP beats COSMO and matches SCS<br/>
+      <span class="text-mist-300">on V2RDM SDPs.</span>
+    </h1>
+    <p class="mt-6 text-lg text-mist-200 max-w-3xl prose-mine">
+      A first-principles walkthrough of why a 20-year-old <strong>boundary-point method</strong> outruns
+      modern operator-splitting solvers on the SDP that comes out of variational 2-RDM calculations
+      for H₂ — and what's an artifact of how each solver <em>defines</em> "converged."
+    </p>
+    <div class="mt-8 flex flex-wrap gap-3 text-sm">
+      <span class="px-3 py-1 rounded-full border border-ink-600 bg-ink-800/60">augmented Lagrangian</span>
+      <span class="px-3 py-1 rounded-full border border-ink-600 bg-ink-800/60">ADMM tail</span>
+      <span class="px-3 py-1 rounded-full border border-ink-600 bg-ink-800/60">‖·‖∞ vs ‖·‖₂</span>
+      <span class="px-3 py-1 rounded-full border border-ink-600 bg-ink-800/60">low-rank optimum</span>
+    </div>
+    <div class="mt-10 grid md:grid-cols-3 gap-4 text-sm">
+      <div class="rounded-xl border border-ink-700 bg-ink-900 p-4">
+        <div class="text-mist-400 text-xs font-mono">SETUP</div>
+        <div class="mt-1 text-mist-100">Periodic V2RDM, H₂, Nk=2, active [2e, 4orb]/cell, COSMO+CG / SCS+indirect / BPSDP.jl.</div>
+      </div>
+      <div class="rounded-xl border border-ink-700 bg-ink-900 p-4">
+        <div class="text-mist-400 text-xs font-mono">OBSERVATION</div>
+        <div class="mt-1 text-mist-100">BPSDP ≫ COSMO, BPSDP ≈ SCS on wall clock; BPSDP slightly more accurate.</div>
+      </div>
+      <div class="rounded-xl border border-ink-700 bg-ink-900 p-4">
+        <div class="text-mist-400 text-xs font-mono">PUNCHLINE</div>
+        <div class="mt-1 text-mist-100">Algorithm fits the problem. Plus, "1e-5 = 1e-5" is a lie when norms differ.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== OVERVIEW ===================== -->
+<section id="overview" class="border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-14">
+    <h2 class="text-2xl md:text-3xl font-semibold flex items-center gap-3">
+      Quick overview
+      <button class="ml-auto text-xs px-2 py-1 rounded border border-ink-600 hover:bg-ink-800 ask-section" data-section="overview" data-section-title="Quick overview" aria-label="Ask about this section">💬 Ask about this section</button>
+    </h2>
+    <p class="mt-4 text-mist-200 max-w-3xl prose-mine">
+      Three solvers, one SDP. <strong>SCS</strong> and <strong>COSMO</strong> are first-order
+      operator-splitting methods (ADMM-style). <strong>BPSDP.jl</strong> implements the
+      <strong>boundary-point method</strong> — an inexact augmented Lagrangian that does an
+      eigendecomposition projection at each step. On a problem with many equality constraints,
+      small dense PSD blocks, and a near-rank-1 optimum (your H₂ ground state), the
+      boundary-point method's assumptions match the problem almost exactly. ADMM does not.
+    </p>
+    <div class="mt-8 grid md:grid-cols-2 gap-4">
+      <!-- takeaway cards -->
+      <div class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="text-accent-400 text-xs font-mono uppercase tracking-widest">Takeaway 1</div>
+        <h3 class="mt-1 font-semibold text-lg">ADMM has a "tail." AL doesn't.</h3>
+        <p class="mt-2 text-sm text-mist-200">First-order splitting hits 10⁻³–10⁻⁴ fast, then stalls — each step shaves a constant fraction off the error. Augmented Lagrangian methods like BPM eventually <em>square</em> the error per step, blowing through the stall point.</p>
+      </div>
+      <div class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="text-accent-400 text-xs font-mono uppercase tracking-widest">Takeaway 2</div>
+        <h3 class="mt-1 font-semibold text-lg">Per-iteration, BPM is just cheaper here.</h3>
+        <p class="mt-2 text-sm text-mist-200">One CG on the Gram matrix + a small eigendecomp. SCS/COSMO solve a larger KKT plus extra rescaling machinery on every iteration.</p>
+      </div>
+      <div class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="text-accent-400 text-xs font-mono uppercase tracking-widest">Takeaway 3</div>
+        <h3 class="mt-1 font-semibold text-lg">"Slightly better accuracy" — actually a lot.</h3>
+        <p class="mt-2 text-sm text-mist-200">BPSDP reports ‖·‖₂; COSMO/SCS report ‖·‖∞. At the same numeric tol, BPSDP is being asked for ≈ √m × tighter precision. For Nk=2, that's ~400×.</p>
+      </div>
+      <div class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="text-accent-400 text-xs font-mono uppercase tracking-widest">Takeaway 4</div>
+        <h3 class="mt-1 font-semibold text-lg">Don't generalize from Nk=2.</h3>
+        <p class="mt-2 text-sm text-mist-200">As Nk grows, PSD blocks get bigger and BPM's eigendecomposition cost (O(n³)) eats its lunch. Watch the Nk=3, 4 numbers carefully.</p>
+      </div>
+    </div>
+  </div>
+  <div data-thread-for="overview" class="max-w-5xl mx-auto px-5 pb-10"></div>
+</section>
+
+<!-- ===================== CORE CONCEPTS ===================== -->
+<section id="core" class="border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-14">
+    <h2 class="text-2xl md:text-3xl font-semibold flex items-center gap-3">
+      Core concepts
+      <button class="ml-auto text-xs px-2 py-1 rounded border border-ink-600 hover:bg-ink-800 ask-section" data-section="core" data-section-title="Core concepts">💬 Ask about this section</button>
+    </h2>
+
+    <div class="prose-mine mt-6 space-y-8 text-mist-200 max-w-3xl">
+
+      <div>
+        <h3 class="text-xl font-semibold text-white">What is an SDP?</h3>
+        <p class="mt-2">
+          A <strong>semidefinite program</strong> minimizes a linear function of a matrix variable
+          <span class="math">X</span>, subject to <span class="math">X</span> being symmetric and
+          <strong>positive semidefinite</strong> (all eigenvalues ≥ 0), plus a bunch of linear equalities:
+        </p>
+        <div class="my-4 px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 text-mist-100">
+          minimize ⟨C, X⟩ &nbsp; subject to &nbsp; ⟨A<sub>i</sub>, X⟩ = b<sub>i</sub>, &nbsp; X ⪰ 0.
+        </div>
+        <p>
+          The PSD constraint <span class="math">X ⪰ 0</span> is what makes it harder than linear programming.
+          Every iteration of every solver has to project something onto the PSD cone — and that's an eigendecomposition.
+        </p>
+      </div>
+
+      <div>
+        <h3 class="text-xl font-semibold text-white">What is V2RDM?</h3>
+        <p class="mt-2">
+          <strong>Variational 2-particle reduced density matrix</strong>. Instead of finding the ground-state
+          wavefunction of a many-electron system (exponentially expensive), you optimize directly over the
+          2-electron <em>reduced</em> density matrix <span class="math">D</span>, with side conditions called
+          <strong>N-representability constraints</strong> (PQG, T1/T2, …) that force <span class="math">D</span>
+          to come from <em>some</em> physical wavefunction.
+        </p>
+        <p>
+          The result: an SDP with <strong>several smallish PSD blocks</strong> (one per N-rep condition) and
+          <strong>tens of thousands of equality constraints</strong> (the linear maps between blocks). For your
+          H₂/Nk=2: 6 HPSD cones, ≈ 40 k complex equalities. That shape matters — keep it in mind.
+        </p>
+      </div>
+
+      <div>
+        <h3 class="text-xl font-semibold text-white">Three solver families, one slide</h3>
+        <div class="overflow-x-auto mt-4">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="text-left text-mist-300">
+                <th class="border-b border-ink-700 py-2 pr-4">Solver</th>
+                <th class="border-b border-ink-700 py-2 pr-4">Algorithm class</th>
+                <th class="border-b border-ink-700 py-2 pr-4">Per-iter cost</th>
+                <th class="border-b border-ink-700 py-2">Convergence rate</th>
+              </tr>
+            </thead>
+            <tbody class="text-mist-200">
+              <tr>
+                <td class="py-3 pr-4 font-mono text-accent-400">SCS</td>
+                <td class="py-3 pr-4">ADMM on homogeneous self-dual embedding</td>
+                <td class="py-3 pr-4">KKT solve + eigen-proj + τ-rescale</td>
+                <td class="py-3">linear (with ADMM tail)</td>
+              </tr>
+              <tr>
+                <td class="py-3 pr-4 font-mono text-accent-400">COSMO</td>
+                <td class="py-3 pr-4">ADMM with optional chordal decomposition</td>
+                <td class="py-3 pr-4">KKT solve (CG indirect here) + eigen-proj + scaling</td>
+                <td class="py-3">linear (with ADMM tail)</td>
+              </tr>
+              <tr>
+                <td class="py-3 pr-4 font-mono text-accent-400">BPSDP</td>
+                <td class="py-3 pr-4">Boundary-point method = inexact aug. Lagrangian</td>
+                <td class="py-3 pr-4">CG on AAᵀ + eigen-proj on each block</td>
+                <td class="py-3">linear with rate → 0 as σ → ∞ (≈ superlinear in practice)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-4 text-sm text-mist-300">
+          Both SCS and COSMO are <em>operator splitting</em> — they split the KKT system into pieces that
+          can each be solved efficiently and alternate between them. BPSDP doesn't split: it forms the
+          augmented Lagrangian and minimizes <em>that</em> approximately at each outer step, then updates
+          multipliers. Different design philosophy.
+        </p>
+      </div>
+
+      <div>
+        <h3 class="text-xl font-semibold text-white">The boundary-point method in 60 seconds</h3>
+        <p class="mt-2">
+          Povh, Rendl, Wiegele (2006). The augmented Lagrangian for the dual SDP is:
+        </p>
+        <div class="my-3 px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 text-mist-100 font-mono text-sm">
+          L<sub>σ</sub>(y, Z; X) = bᵀy − ⟨X, Aᵀy + Z − C⟩ + (σ/2)·‖Aᵀy + Z − C‖²
+        </div>
+        <ol class="list-decimal pl-6 space-y-2">
+          <li>Fix <span class="math">X</span>. Minimize over <span class="math">y</span> by solving
+            <span class="math">A Aᵀ y = rhs</span> (a positive-definite Gram system) with CG.</li>
+          <li>Minimize over <span class="math">Z ⪰ 0</span> by an <strong>eigendecomposition</strong> +
+            keep-the-positive-eigenvalues projection.</li>
+          <li>Update the multiplier: <span class="math">X ← X + σ(C − Aᵀy − Z)</span>.</li>
+          <li>Repeat. As <span class="math">σ</span> grows, the iterates "walk along the boundary" of the
+            PSD cone — hence the name.</li>
+        </ol>
+        <p class="text-sm text-mist-300">
+          The whole thing only ever touches the PSD cone via <em>one eigendecomposition per iteration per block</em>.
+          When the blocks are small, that step is essentially free.
+        </p>
+      </div>
+    </div>
+  </div>
+  <div data-thread-for="core" class="max-w-5xl mx-auto px-5 pb-10"></div>
+</section>
+
+<!-- ===================== VISUAL EXPLAINERS ===================== -->
+<section id="visual" class="border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-14">
+    <h2 class="text-2xl md:text-3xl font-semibold flex items-center gap-3">
+      Visual explainers
+      <button class="ml-auto text-xs px-2 py-1 rounded border border-ink-600 hover:bg-ink-800 ask-section" data-section="visual" data-section-title="Visual explainers">💬 Ask about this section</button>
+    </h2>
+
+    <div class="mt-8 grid md:grid-cols-2 gap-6">
+      <!-- DIAGRAM 1: ADMM tail vs AL -->
+      <figure class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <figcaption class="text-mist-300 text-sm mb-2 font-mono">Convergence — the ADMM tail</figcaption>
+        <svg viewBox="0 0 320 200" class="w-full h-auto" aria-label="Convergence comparison">
+          <defs>
+            <linearGradient id="bg1" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#161c25"/>
+              <stop offset="100%" stop-color="#0f131a"/>
+            </linearGradient>
+          </defs>
+          <rect width="320" height="200" fill="url(#bg1)"/>
+          <!-- axes -->
+          <line x1="40" y1="170" x2="310" y2="170" stroke="#2a3340"/>
+          <line x1="40" y1="20"  x2="40"  y2="170" stroke="#2a3340"/>
+          <text x="155" y="190" fill="#7d8a9c" font-size="10" text-anchor="middle">iterations</text>
+          <text x="14" y="100"  fill="#7d8a9c" font-size="10" transform="rotate(-90 14 100)" text-anchor="middle">log₁₀ residual</text>
+          <!-- tol line -->
+          <line x1="40" y1="115" x2="310" y2="115" stroke="#3aa8e6" stroke-dasharray="3 3" opacity=".4"/>
+          <text x="305" y="111" fill="#7cd4ff" font-size="9" text-anchor="end">target tol</text>
+          <!-- ADMM curve: fast then plateau -->
+          <path d="M 50 30 Q 90 60, 130 95 T 220 130 T 310 132" fill="none" stroke="#ff8a8a" stroke-width="2"/>
+          <!-- AL curve: slower start then crashes through -->
+          <path d="M 50 35 Q 110 75, 170 105 Q 220 120, 250 80 Q 280 50, 305 28" fill="none" stroke="#7ce6a4" stroke-width="2"/>
+          <!-- legend -->
+          <g font-size="10" fill="#c8d0db">
+            <rect x="50" y="30" width="0" height="0"/>
+            <circle cx="60" cy="50" r="4" fill="#ff8a8a"/>
+            <text x="70" y="53">ADMM (SCS, COSMO)</text>
+            <circle cx="60" cy="68" r="4" fill="#7ce6a4"/>
+            <text x="70" y="71">Aug. Lagrangian (BPSDP)</text>
+          </g>
+        </svg>
+        <p class="mt-3 text-sm text-mist-300">
+          Schematic. ADMM curves drop fast then flatten near tolerance — that's the famous <em>tail</em>.
+          AL methods catch up and overshoot through the tail because each multiplier update is informed by
+          the current constraint violation, sharpening the next step (see the runner picture in the Deep Dive).
+        </p>
+      </figure>
+
+      <!-- DIAGRAM 2: per-iteration cost -->
+      <figure class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <figcaption class="text-mist-300 text-sm mb-2 font-mono">Per-iteration cost (small dense blocks)</figcaption>
+        <svg viewBox="0 0 320 200" class="w-full h-auto" aria-label="Per-iteration cost stack">
+          <rect width="320" height="200" fill="#0f131a"/>
+          <!-- bars -->
+          <g font-size="10" fill="#c8d0db">
+            <!-- BPSDP -->
+            <text x="20" y="40">BPSDP</text>
+            <rect x="80"  y="30" width="40"  height="20" fill="#7cd4ff"/>
+            <rect x="120" y="30" width="20"  height="20" fill="#1f7cb4"/>
+            <text x="145" y="44">CG on AAᵀ + eigen-proj</text>
+
+            <!-- SCS -->
+            <text x="20" y="100">SCS</text>
+            <rect x="80"  y="90" width="80"  height="20" fill="#ff8a8a"/>
+            <rect x="160" y="90" width="20"  height="20" fill="#1f7cb4"/>
+            <rect x="180" y="90" width="20"  height="20" fill="#ffb47a"/>
+            <text x="205" y="104">KKT + eigen + τ-rescale</text>
+
+            <!-- COSMO -->
+            <text x="20" y="160">COSMO</text>
+            <rect x="80"  y="150" width="100" height="20" fill="#ff8a8a"/>
+            <rect x="180" y="150" width="20"  height="20" fill="#1f7cb4"/>
+            <rect x="200" y="150" width="15"  height="20" fill="#ffb47a"/>
+            <text x="220" y="164">CG-KKT + eigen + scaling</text>
+          </g>
+        </svg>
+        <p class="mt-3 text-sm text-mist-300">
+          Same eigen-projection cost everywhere; the difference is the linear-system stage and the
+          extra "splitting bookkeeping." On small dense blocks, the eigendecomposition is microseconds —
+          so the linear-system block dominates the wall clock, and BPSDP's smaller system wins.
+        </p>
+      </figure>
+
+      <!-- DIAGRAM 3: norm comparison -->
+      <figure class="md:col-span-2 rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <figcaption class="text-mist-300 text-sm mb-2 font-mono">‖·‖∞ vs ‖·‖₂ — the trap</figcaption>
+        <div class="grid md:grid-cols-2 gap-6 items-center">
+          <svg viewBox="0 0 320 160" class="w-full h-auto" aria-label="Norm comparison">
+            <rect width="320" height="160" fill="#0f131a"/>
+            <!-- residual vector: many small entries -->
+            <g>
+              <text x="10" y="20" fill="#c8d0db" font-size="10">residual vector (m ≈ 40k entries)</text>
+              <g transform="translate(10,30)" id="resid-bars">
+                <!-- residual bars (height ~ |r_i|) -->
+              </g>
+            </g>
+            <!-- two boxes -->
+            <g font-size="11">
+              <rect x="20"  y="60"  width="130" height="80" fill="#161c25" stroke="#2a3340"/>
+              <text x="30"  y="80"  fill="#ffb47a">‖r‖∞ = 1.4 × 10⁻⁷</text>
+              <text x="30"  y="100" fill="#c8d0db" font-size="10">"max single-constraint violation"</text>
+              <text x="30"  y="120" fill="#7d8a9c" font-size="10">what COSMO/SCS report</text>
+
+              <rect x="170" y="60"  width="130" height="80" fill="#161c25" stroke="#2a3340"/>
+              <text x="180" y="80"  fill="#7ce6a4">‖r‖₂ = 2.8 × 10⁻⁵</text>
+              <text x="180" y="100" fill="#c8d0db" font-size="10">"total energy of violation"</text>
+              <text x="180" y="120" fill="#7d8a9c" font-size="10">what BPSDP reports</text>
+            </g>
+          </svg>
+          <div class="text-sm text-mist-200 prose-mine">
+            Same residual vector, two numbers. With m equality constraints whose individual residuals are
+            roughly uniform near convergence:
+            <div class="my-2 px-3 py-2 rounded border border-ink-700 bg-ink-950 font-mono text-xs">
+              ‖r‖₂ ≈ √m · ‖r‖∞
+            </div>
+            For H₂/Nk=2, √m ≈ 200. So a BPSDP run reporting <span class="math">2.8 × 10⁻⁵</span> in
+            2-norm is actually at <span class="math">≈ 1.4 × 10⁻⁷</span> in ∞-norm — about
+            <strong>100× tighter than COSMO/SCS at "OPTIMAL."</strong>
+          </div>
+        </div>
+      </figure>
+    </div>
+  </div>
+  <div data-thread-for="visual" class="max-w-5xl mx-auto px-5 pb-10"></div>
+</section>
+
+<!-- ===================== DEEP DIVE ===================== -->
+<section id="deep" class="border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-14">
+    <h2 class="text-2xl md:text-3xl font-semibold flex items-center gap-3">
+      Deep dive: the four reasons
+      <button class="ml-auto text-xs px-2 py-1 rounded border border-ink-600 hover:bg-ink-800 ask-section" data-section="deep" data-section-title="Deep dive: the four reasons">💬 Ask about this section</button>
+    </h2>
+
+    <div class="prose-mine mt-6 space-y-10 text-mist-200 max-w-3xl">
+
+      <article>
+        <h3 class="text-xl font-semibold text-white">1. Two ways to walk to a target</h3>
+        <p class="mt-2">
+          Forget the jargon for a second. Picture two runners trying to land exactly on a target line.
+        </p>
+
+        <figure class="my-5 rounded-xl border border-ink-700 bg-ink-900 p-5">
+          <svg viewBox="0 0 640 320" class="w-full h-auto" aria-label="Two runners halving vs squaring distance">
+            <rect width="640" height="320" fill="#0f131a"/>
+            <line x1="600" y1="30" x2="600" y2="290" stroke="#3aa8e6" stroke-dasharray="3 3"/>
+            <text x="604" y="40" fill="#7cd4ff" font-size="11">target = 0</text>
+
+            <text x="15" y="35" fill="#ff8a8a" font-size="13" font-weight="600">Runner A (ADMM)</text>
+            <text x="15" y="50" fill="#c8d0db" font-size="10">“Cover half the remaining distance every step.”</text>
+            <line x1="40" y1="100" x2="600" y2="100" stroke="#2a3340"/>
+            <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" fill="#c8d0db">
+              <circle cx="40"  cy="100" r="4" fill="#ff8a8a"/><text x="36" y="118">err 1</text>
+              <circle cx="320" cy="100" r="4" fill="#ff8a8a"/><text x="310" y="118">.5</text>
+              <circle cx="460" cy="100" r="4" fill="#ff8a8a"/><text x="452" y="118">.25</text>
+              <circle cx="530" cy="100" r="4" fill="#ff8a8a"/><text x="520" y="118">.125</text>
+              <circle cx="565" cy="100" r="3" fill="#ff8a8a"/>
+              <circle cx="583" cy="100" r="3" fill="#ff8a8a"/>
+              <circle cx="591" cy="100" r="3" fill="#ff8a8a"/>
+              <text x="460" y="86" font-size="9" fill="#ff8a8a">← “tail” — always more left to do</text>
+            </g>
+            <g font-size="9" fill="#7d8a9c">
+              <text x="40"  y="82">step 0</text>
+              <text x="308" y="82">step 1</text>
+              <text x="446" y="82">step 2</text>
+              <text x="518" y="82">step 3</text>
+            </g>
+            <text x="40" y="140" fill="#c8d0db" font-size="10">Each step shaves a constant fraction (here 1/2) off whatever's left.</text>
+            <text x="40" y="154" fill="#c8d0db" font-size="10">Errors: <tspan fill="#ff8a8a" font-family="ui-monospace">1 → 0.5 → 0.25 → 0.125 → 0.0625 → 0.031 → …</tspan></text>
+
+            <text x="15" y="195" fill="#7ce6a4" font-size="13" font-weight="600">Runner B (BPM / aug. Lagrangian)</text>
+            <text x="15" y="210" fill="#c8d0db" font-size="10">“First few steps the same. Once close, take a step that squares the remaining distance.”</text>
+            <line x1="40" y1="260" x2="600" y2="260" stroke="#2a3340"/>
+            <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="9" fill="#c8d0db">
+              <circle cx="40"  cy="260" r="4" fill="#7ce6a4"/><text x="36" y="278">err 1</text>
+              <circle cx="320" cy="260" r="4" fill="#7ce6a4"/><text x="310" y="278">.5</text>
+              <circle cx="544" cy="260" r="4" fill="#7ce6a4"/><text x="534" y="278">.1</text>
+              <circle cx="594" cy="260" r="4" fill="#7ce6a4"/><text x="579" y="278">.01</text>
+              <circle cx="599.5" cy="260" r="3" fill="#7ce6a4"/><text x="540" y="246" font-size="9" fill="#7ce6a4">.0001 → 1e−8 → reaches 0</text>
+            </g>
+            <g font-size="9" fill="#7d8a9c">
+              <text x="40"  y="242">step 0</text>
+              <text x="308" y="242">step 1</text>
+              <text x="532" y="242">step 2</text>
+              <text x="582" y="242">step 3</text>
+            </g>
+            <text x="40" y="300" fill="#c8d0db" font-size="10">Once close, each step squares the remaining error — it crashes through the tail.</text>
+            <text x="40" y="314" fill="#c8d0db" font-size="10">Errors: <tspan fill="#7ce6a4" font-family="ui-monospace">1 → 0.5 → 0.1 → 0.01 → 0.0001 → 1e−8 → …</tspan></text>
+          </svg>
+          <figcaption class="mt-3 text-xs text-mist-400">
+            Both runners start the same. ADMM (Runner A) keeps cutting the gap by a fixed ratio — the tail never closes. BPM (Runner B) accelerates: once close, the next error is roughly the previous one squared. Difference between “linear” and “faster than linear” convergence.
+          </figcaption>
+        </figure>
+
+        <p>
+          Why can BPM do this trick? At each outer step it doesn't iterate blindly: it updates an
+          internal multiplier <span class="math">X</span> using the current constraint violation —
+          the line <span class="math">X ← X + σ(C − Aᵀy − Z)</span>. That's <em>informed feedback</em>,
+          like a thermostat correcting based on the actual room temperature, not a fixed schedule.
+          ADMM has no equivalent.
+        </p>
+
+        <!-- ====== Math behind the picture ====== -->
+        <details class="mt-5 rounded-xl border border-ink-700 bg-ink-950">
+          <summary class="px-5 py-3 text-sm font-semibold text-mist-100 hover:bg-ink-900 rounded-xl">
+            🔬 <span class="text-accent-400">Show the math behind the picture</span>
+            <span class="ml-2 text-mist-400 text-xs">(proximal-point equivalence; Rockafellar 1976)</span>
+          </summary>
+          <div class="px-5 pb-5 pt-1 text-sm text-mist-200 space-y-4">
+
+            <p>
+              <strong class="text-white">Setup.</strong> The standard SDP and its dual:
+            </p>
+            <div class="px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 font-mono text-mist-100 text-sm">
+              (P): &nbsp;&nbsp;min &nbsp;⟨C, X⟩ &nbsp;&nbsp; s.t. &nbsp;𝒜(X) = b, &nbsp; X ⪰ 0<br/>
+              (D): &nbsp;&nbsp;max &nbsp;bᵀy &nbsp;&nbsp; s.t. &nbsp;𝒜*(y) + Z = C, &nbsp; Z ⪰ 0
+            </div>
+            <p>
+              The augmented Lagrangian of (D) with penalty <span class="math">σ &gt; 0</span> and primal
+              variable <span class="math">X</span> playing the role of the multiplier on the equality
+              <span class="math">𝒜*(y) + Z = C</span>:
+            </p>
+            <div class="px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 font-mono text-mist-100 text-sm overflow-x-auto">
+              L_σ(y, Z; X) = − bᵀy + ⟨X, 𝒜*(y) + Z − C⟩ + (σ/2)‖𝒜*(y) + Z − C‖²
+            </div>
+            <p>
+              ALM = minimize <span class="math">L_σ</span> over <span class="math">y</span> and
+              <span class="math">Z ⪰ 0</span>, then update <span class="math">X</span>:
+            </p>
+            <div class="px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 font-mono text-mist-100 text-sm">
+              (yᵏ⁺¹, Zᵏ⁺¹) = argmin L_σ(y, Z; Xᵏ) &nbsp;&nbsp; ( <em>y‑step</em> + <em>Z‑step</em> )<br/>
+              Xᵏ⁺¹ = Xᵏ + σ (𝒜*(yᵏ⁺¹) + Zᵏ⁺¹ − C)
+            </div>
+
+            <p>
+              <strong class="text-white">Rockafellar's identity (1976).</strong> The ALM iteration
+              on (D) is <em>exactly</em> the proximal point algorithm on the dual of (D), i.e. on (P)
+              viewed in <span class="math">X</span>-space:
+            </p>
+            <div class="px-4 py-3 rounded-lg border border-accent-500/40 bg-accent-500/5 font-mono text-accent-400 text-sm">
+              Xᵏ⁺¹ = prox<sub>σ f*</sub>(Xᵏ) &nbsp;≡&nbsp; (I + σ ∂f*)⁻¹ (Xᵏ)
+            </div>
+            <p class="text-mist-300 text-xs">
+              [Rockafellar, <em>Math. Op. Res.</em> 1(2):97–116, 1976, Thm. 4 — the foundational identity.]
+            </p>
+
+            <p>
+              <strong class="text-white">Why this gives superlinear convergence.</strong> The proximal
+              point iteration has the classical rate bound (Rockafellar, <em>SIAM J. Control Opt.</em>
+              14(5):877–898, 1976, Thm. 2):
+            </p>
+            <div class="px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 font-mono text-mist-100 text-sm">
+              ‖Xᵏ⁺¹ − X*‖ &nbsp;≤&nbsp; (a / √(a² + σᵏ²)) · ‖Xᵏ − X*‖
+            </div>
+            <p>
+              for some constant <span class="math">a</span> tied to the dual problem's growth. The
+              contraction factor on the right is <strong>strictly less than 1</strong>, and crucially
+              <strong>shrinks to 0 as σᵏ → ∞</strong>. If you increase <span class="math">σᵏ</span> across
+              outer iterations, you get <strong>Q‑superlinear convergence</strong>:
+            </p>
+            <div class="px-4 py-3 rounded-lg border border-good-400/40 bg-good-400/5 font-mono text-good-400 text-sm">
+              ‖Xᵏ⁺¹ − X*‖ / ‖Xᵏ − X*‖ &nbsp;→&nbsp; 0
+            </div>
+            <p>
+              That's what the runner picture is showing. The exact order of superlinearity depends on
+              how fast <span class="math">σᵏ</span> grows; BPSDP uses an adaptive schedule.
+            </p>
+
+            <p>
+              <strong class="text-white">SDP-specific sharpening.</strong> Cui, Sun &amp; Toh (2019)
+              proved ALM converges <strong>asymptotically superlinearly on SDP</strong> under the
+              second-order sufficient condition at the optimum — a condition that holds generically for
+              chemistry V2RDM problems at non-degenerate ground states (such as H₂ in its closed-shell
+              singlet).
+              <a href="https://arxiv.org/abs/1610.00875" class="text-accent-400">[Cui–Sun–Toh, <em>Math. Prog.</em> 178:381–415, 2019, arXiv:1610.00875]</a>
+            </p>
+
+            <hr class="border-ink-700 my-4"/>
+
+            <p>
+              <strong class="text-white">Why ADMM doesn't get this rate.</strong> Eckstein &amp; Bertsekas
+              (1992) showed that ADMM is equivalent to <strong>Douglas–Rachford splitting</strong>
+              applied to the dual: ADMM iterates are fixed-point iterations of an operator
+              <span class="math">T_ρ</span> at <em>fixed</em> step size <span class="math">ρ</span>.
+              <a href="#" class="text-accent-400" title="Eckstein & Bertsekas, Math. Prog. 55:293-318, 1992">[E‑B 1992]</a>
+            </p>
+            <div class="px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 font-mono text-mist-100 text-sm">
+              zᵏ⁺¹ = T_ρ(zᵏ), &nbsp; T_ρ nonexpansive
+            </div>
+            <p>
+              Two consequences:
+            </p>
+            <ul class="list-disc pl-6 space-y-1">
+              <li>
+                <strong>Worst-case sublinear.</strong> He &amp; Yuan (2012) proved the ergodic rate
+                <span class="math">O(1/k)</span> for general convex problems — i.e. residuals decay only
+                as <span class="math">1/k</span>, not exponentially.
+                <a href="https://doi.org/10.1137/110836936" class="text-accent-400">[He‑Yuan, <em>SIAM J. Numer. Anal.</em> 50(2):700–709, 2012]</a>
+              </li>
+              <li>
+                <strong>Best-case linear, but constant is fixed by ρ.</strong> Under strong convexity +
+                Lipschitz gradient (Deng &amp; Yin 2016) or strict complementarity in SDP (Kang et al.
+                2025), ADMM is Q‑linear with contraction factor <span class="math">q(ρ) &lt; 1</span>. But
+                <span class="math">q(ρ)</span> is bounded away from 0 for any fixed <span class="math">ρ</span>.
+                <a href="https://arxiv.org/abs/2503.20142" class="text-accent-400">[Kang et al., arXiv:2503.20142, 2025]</a>
+              </li>
+            </ul>
+            <p>
+              The structural reason: ADMM lacks the multiplier-update step. There's no <span class="math">σ</span>
+              parameter you can crank up to shrink the contraction factor to zero, because ADMM
+              <em>is</em> already the prox step with <span class="math">σ = ρ</span> baked in. Increasing
+              <span class="math">ρ</span> just trades primal accuracy for dual accuracy — it doesn't add
+              a new level of recursion the way ALM's outer-loop multiplier update does.
+            </p>
+
+            <hr class="border-ink-700 my-4"/>
+
+            <p>
+              <strong class="text-white">Summary table.</strong>
+            </p>
+            <div class="overflow-x-auto">
+            <table class="w-full text-xs border-collapse">
+              <thead>
+                <tr class="text-left text-mist-300">
+                  <th class="border-b border-ink-700 py-2 pr-3">Method</th>
+                  <th class="border-b border-ink-700 py-2 pr-3">Equivalent to</th>
+                  <th class="border-b border-ink-700 py-2 pr-3">Worst-case</th>
+                  <th class="border-b border-ink-700 py-2 pr-3">Best-case (SDP)</th>
+                  <th class="border-b border-ink-700 py-2">Reference</th>
+                </tr>
+              </thead>
+              <tbody class="text-mist-100">
+                <tr>
+                  <td class="py-2 pr-3 font-mono text-good-400">ALM / BPM</td>
+                  <td class="py-2 pr-3">Proximal point on dual</td>
+                  <td class="py-2 pr-3">Q‑linear with rate → 0 as σ → ∞</td>
+                  <td class="py-2 pr-3">Q‑superlinear</td>
+                  <td class="py-2">Rockafellar 1976; Cui–Sun–Toh 2019</td>
+                </tr>
+                <tr>
+                  <td class="py-2 pr-3 font-mono text-bad-400">ADMM</td>
+                  <td class="py-2 pr-3">Douglas–Rachford on dual</td>
+                  <td class="py-2 pr-3">Sublinear O(1/k)</td>
+                  <td class="py-2 pr-3">Q‑linear, rate fixed by ρ</td>
+                  <td class="py-2">Eckstein–Bertsekas 1992; He–Yuan 2012; Kang et al. 2025</td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+
+          </div>
+        </details>
+      </article>
+
+      <article>
+        <h3 class="text-xl font-semibold text-white">2. Per-iteration cost geometry</h3>
+        <p class="mt-2">Compare what one iteration actually does:</p>
+
+        <div class="rounded-xl border border-ink-700 overflow-hidden mt-4">
+          <div class="px-4 py-2 bg-ink-900 border-b border-ink-700 text-sm font-mono text-mist-300 flex items-center">
+            BPM iteration (BPSDP.jl)
+            <button class="ml-auto text-xs px-2 py-1 rounded bg-ink-700 hover:bg-ink-600 copy-code">Copy</button>
+          </div>
+<pre class="p-4 text-xs leading-6 overflow-x-auto bg-ink-950"><code><span class="tok-com"># 1. Solve the Gram system with CG (positive definite, well-conditioned)</span>
+<span class="tok-kw">solve</span>(<span class="tok-fn">A</span>*<span class="tok-fn">A</span><span class="tok-op">'</span>, <span class="tok-fn">rhs</span>)            <span class="tok-com"># size m</span>
+
+<span class="tok-com"># 2. Project each PSD block: eigendecomposition + clip negatives</span>
+<span class="tok-kw">for</span> blk <span class="tok-kw">in</span> psd_blocks
+    F = <span class="tok-fn">eigen</span>(blk)               <span class="tok-com"># O(n_blk^3)</span>
+    blk = F.vectors * <span class="tok-fn">diagm</span>(<span class="tok-fn">max</span>.(F.values, <span class="tok-num">0</span>)) * F.vectors<span class="tok-op">'</span>
+<span class="tok-kw">end</span>
+
+<span class="tok-com"># 3. Multiplier update — a single AXPY</span>
+X = X + σ * (C - A<span class="tok-op">'</span>*y - Z)
+</code></pre>
+        </div>
+
+        <div class="rounded-xl border border-ink-700 overflow-hidden mt-4">
+          <div class="px-4 py-2 bg-ink-900 border-b border-ink-700 text-sm font-mono text-mist-300 flex items-center">
+            ADMM iteration (SCS / COSMO)
+            <button class="ml-auto text-xs px-2 py-1 rounded bg-ink-700 hover:bg-ink-600 copy-code">Copy</button>
+          </div>
+<pre class="p-4 text-xs leading-6 overflow-x-auto bg-ink-950"><code><span class="tok-com"># 1. Solve a *bigger* KKT system over (x, s, y) [SCS adds τ, κ for HSDE]</span>
+<span class="tok-kw">solve</span>([P+ρI A<span class="tok-op">'</span>; A -I/ρ], rhs)   <span class="tok-com"># size n + m</span>
+
+<span class="tok-com"># 2. Project the slack s onto the cone (PSD ⇒ same eigendecomposition)</span>
+s = <span class="tok-fn">project_cone</span>(s_tilde)
+
+<span class="tok-com"># 3. Update dual y, scaling, over-relaxation, residual checks…</span>
+y = y + ρ * (A*x + s - b)
+<span class="tok-fn">apply_scaling!</span>(...); <span class="tok-fn">over_relax!</span>(...)
+<span class="tok-com"># SCS: divide by τ to recover (x, s, y) from HSDE coordinates</span>
+</code></pre>
+        </div>
+
+        <p class="mt-4">
+          Same eigendecomposition cost in both. The difference is everything else. Let
+          <span class="math">m</span> = number of equality constraints, <span class="math">n</span> =
+          total PSD-block dimension, <span class="math">κ</span> = condition number, <span class="math">k_{cg}</span>
+          = inner CG iterations.
+        </p>
+        <div class="overflow-x-auto mt-4">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="text-left text-mist-300">
+                <th class="border-b border-ink-700 py-2 pr-3">Step</th>
+                <th class="border-b border-ink-700 py-2 pr-3">BPM (BPSDP.jl)</th>
+                <th class="border-b border-ink-700 py-2 pr-3">ADMM (SCS / COSMO)</th>
+                <th class="border-b border-ink-700 py-2">Reference</th>
+              </tr>
+            </thead>
+            <tbody class="text-mist-100">
+              <tr>
+                <td class="py-2 pr-3 align-top">Linear system</td>
+                <td class="py-2 pr-3 align-top font-mono text-xs">σ·𝒜𝒜* y = rhs<br/><span class="text-mist-400">m×m, PD, κ(𝒜𝒜*)</span></td>
+                <td class="py-2 pr-3 align-top font-mono text-xs">[P+ρI &nbsp;𝒜*; 𝒜 −I/ρ]·v = rhs<br/><span class="text-mist-400">(n+m)×(n+m), indefinite saddle</span></td>
+                <td class="py-2 align-top text-xs">Povh‑Rendl‑Wiegele 2006 §3; O'Donoghue et al. 2016 §3; Garstka et al. 2021 §3</td>
+              </tr>
+              <tr>
+                <td class="py-2 pr-3 align-top">CG cost</td>
+                <td class="py-2 pr-3 align-top text-xs">O(k_{cg} · nnz(𝒜)), k_{cg} ∼ √κ bounded</td>
+                <td class="py-2 pr-3 align-top text-xs">O(k_{cg} · (nnz(𝒜) + n²)), k_{cg} ∼ κ (saddle)</td>
+                <td class="py-2 align-top text-xs">Saad 2003 (Iter. Meth.), §6.7</td>
+              </tr>
+              <tr>
+                <td class="py-2 pr-3 align-top">Cone projection</td>
+                <td class="py-2 pr-3 align-top text-xs">Eigendecompose each block, clip negatives. O(Σ n_i³)</td>
+                <td class="py-2 pr-3 align-top text-xs">Same operation, same cost.</td>
+                <td class="py-2 align-top text-xs">Higham 1988</td>
+              </tr>
+              <tr>
+                <td class="py-2 pr-3 align-top">Bookkeeping</td>
+                <td class="py-2 pr-3 align-top text-xs">Multiplier AXPY: <span class="font-mono">X ← X + σ(C−𝒜*y−Z)</span></td>
+                <td class="py-2 pr-3 align-top text-xs">τ-rescale (SCS) or Ruiz equilibration + over-relaxation (COSMO)</td>
+                <td class="py-2 align-top text-xs">O'Donoghue 2016 §3.2 (HSDE); Garstka 2021 §5</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="mt-4">
+          <strong>The condition-number argument.</strong> CG converges in roughly
+          <span class="math">O(√κ)</span> iterations for a positive-definite system with condition
+          number <span class="math">κ</span>, and in <span class="math">O(κ)</span> iterations for an
+          indefinite/saddle system (Saad 2003, <em>Iterative Methods for Sparse Linear Systems</em>).
+          BPM's Gram <span class="math">𝒜𝒜*</span> is positive definite; ADMM's KKT is indefinite. So
+          even with the same nnz, BPM does roughly <span class="math">√κ</span> times fewer mat-vecs
+          per outer iteration.
+        </p>
+        <p>
+          <strong>The size argument.</strong> For H₂/Nk=2, <span class="math">n ≈ Σ n_i</span> across
+          6 PSD blocks is small (each block is dense, ~10–30 dim); <span class="math">m ≈ 40 000</span>.
+          BPM's linear system is <span class="math">m × m</span>; ADMM's is <span class="math">(n+m) × (n+m)</span>.
+          Here those are similar in size — the win is mainly conditioning. At larger Nk where blocks
+          grow, the gap can flip.
+        </p>
+      </article>
+
+      <article>
+        <h3 class="text-xl font-semibold text-white">3. Where the accuracy edge comes from</h3>
+        <p class="mt-2">
+          The KKT conditions for the SDP pair (P)–(D) are:
+        </p>
+        <div class="px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 font-mono text-mist-100 text-sm">
+          (i)&nbsp; 𝒜(X) = b &nbsp;&nbsp;<span class="text-mist-400">(primal feas.)</span><br/>
+          (ii)&nbsp; 𝒜*(y) + Z = C &nbsp;&nbsp;<span class="text-mist-400">(dual feas.)</span><br/>
+          (iii)&nbsp; X ⪰ 0, Z ⪰ 0, ⟨X, Z⟩ = 0 &nbsp;&nbsp;<span class="text-mist-400">(complementarity)</span>
+        </div>
+        <p class="mt-3">
+          <strong>BPM/ALM directly reports the KKT residual.</strong> The inner ALM subproblem
+          enforces <span class="math">Z ⪰ 0</span> by construction (eigen-projection). The reported
+          <code>primal_error</code> is <span class="math">‖𝒜(X) − b‖</span> and <code>dual_error</code>
+          is <span class="math">‖𝒜*(y) + Z − C‖</span>. Complementarity <span class="math">⟨X, Z⟩ → 0</span>
+          follows from the boundary-walking property proved in Povh‑Rendl‑Wiegele 2006 §2. The
+          reported residuals <em>are</em> the original KKT residuals.
+        </p>
+        <p class="mt-3">
+          <strong>SCS uses the HSDE — residuals are post-rescaling.</strong> SCS solves an embedded
+          problem in variables <span class="math">(x, s, y, τ, κ)</span> where
+          <span class="math">τ &gt; 0</span> is a scaling factor; the actual primal/dual are
+          <span class="math">x/τ, y/τ</span>. The reported <code>res_pri</code> is computed
+          <em>after</em> dividing by <span class="math">τ</span>:
+        </p>
+        <div class="px-4 py-3 rounded-lg border border-ink-700 bg-ink-900 font-mono text-mist-100 text-sm">
+          res_pri = ‖𝒜(x/τ) + s/τ − b‖_∞
+        </div>
+        <p class="mt-3 text-mist-300 text-sm">
+          See O'Donoghue et al. 2016 §3.2 (HSDE definition) and Eq. (29) for the residual definition.
+          When <span class="math">τ</span> is converging slowly (which happens on stiff problems), the
+          division amplifies any error in the iterates — a finite-precision residue that doesn't appear
+          in BPM.
+          <a href="https://web.stanford.edu/~boyd/papers/pdf/scs.pdf" class="text-accent-400">[SCS paper PDF]</a>
+        </p>
+        <p class="mt-3">
+          <strong>COSMO uses Ruiz equilibration + over-relaxation.</strong> Ruiz scaling (Ruiz 2001) is
+          applied as a preconditioner, so the iterates satisfy the equilibrated problem's splitting
+          equations exactly, not the original problem's KKT. Unscaling at the end leaves a small
+          residue. Over-relaxation (Eckstein‑Bertsekas 1992 §3) further decouples iterate fixed point
+          from KKT.
+        </p>
+        <p class="mt-3">
+          <strong>Add the norm factor.</strong> Per the
+          <a href="#evidence">F1 finding</a>, BPSDP reports <span class="math">‖·‖₂</span> while
+          COSMO/SCS report <span class="math">‖·‖_∞</span>. With
+          <span class="math">‖r‖₂ ≈ √m · ‖r‖_∞</span> and <span class="math">m ≈ 40 000</span>, BPSDP's
+          "slightly better" numbers are actually <strong>~100× tighter</strong> in the same units.
+        </p>
+      </article>
+
+      <article>
+        <h3 class="text-xl font-semibold text-white">4. Why on par with SCS, faster than COSMO</h3>
+        <ul class="list-disc pl-6 space-y-2">
+          <li><strong>SCS is a hard baseline.</strong> A decade of tuning: aggressive equilibration,
+            anchored over-relaxation, mature direct/indirect KKT solvers in C. It's competitive with
+            BPSDP per iteration even though its algorithm class is asymptotically slower for this
+            problem.</li>
+          <li><strong>COSMO's headline feature is chordal sparse SDP, which doesn't apply here.</strong>
+            COSMO uses the Fukuda–Kojima–Murota–Nakata (2001) matrix-completion / chordal-decomposition
+            framework: a large sparse PSD matrix is replaced by smaller dense ones on cliques of size
+            <span class="math">c</span>, reducing eigen-projection from <span class="math">O(n³)</span> to
+            <span class="math">O(c³)</span> per clique. <strong>V2RDM blocks are already small and
+            dense — there is no aggregate sparsity to factor.</strong> Chordal decomposition adds graph
+            processing and consensus constraints with no benefit.
+            <a href="https://doi.org/10.1137/S1052623400366218" class="text-accent-400">[Fukuda et al., <em>SIAM J. Opt.</em> 11(3):647–674, 2001]</a>;
+            <a href="https://arxiv.org/abs/1901.10887" class="text-accent-400">[Garstka et al. 2021, §4]</a>
+          </li>
+          <li><strong>COSMO's <code>CGIndirectKKTSolver</code> is the least-tested branch.</strong> Pure-Julia
+            CG on an indefinite saddle system, without a tuned preconditioner. SCS's indirect path uses
+            a C-implemented LSQR/CG with Ruiz preconditioning. Constant-factor difference is large.
+          </li>
+          <li><strong>BPM doesn't need their machinery here.</strong> No equilibration, no over-relaxation,
+            no HSDE. The Gram <span class="math">𝒜𝒜*</span> is naturally well-scaled when the
+            constraint matrix <span class="math">𝒜</span> is the linear operator of an N-rep SDP.
+          </li>
+        </ul>
+      </article>
+
+      <!-- ===== Key references ===== -->
+      <details class="mt-8 rounded-xl border border-ink-700 bg-ink-950">
+        <summary class="px-5 py-3 text-sm font-semibold text-mist-100 hover:bg-ink-900 rounded-xl">
+          📚 <span class="text-accent-400">Key references for the Deep Dive</span>
+          <span class="ml-2 text-mist-400 text-xs">(all claims above traceable to a paper)</span>
+        </summary>
+        <div class="px-5 pb-5 pt-1 text-sm text-mist-200 space-y-3">
+          <p class="text-xs text-mist-400 uppercase tracking-widest font-mono">ALM / BPM theory</p>
+          <ul class="list-disc pl-6 space-y-1 text-sm">
+            <li><strong>Rockafellar, R. T.</strong> "Augmented Lagrangians and applications of the proximal point algorithm in convex programming." <em>Math. of Op. Res.</em> 1(2):97–116 (1976). — ALM ≡ prox-point on dual.</li>
+            <li><strong>Rockafellar, R. T.</strong> "Monotone operators and the proximal point algorithm." <em>SIAM J. Control Opt.</em> 14(5):877–898 (1976). — the rate bound.</li>
+            <li><strong>Povh, J.; Rendl, F.; Wiegele, A.</strong> "A boundary point method to solve semidefinite programs." <em>Computing</em> 78:277–286 (2006). DOI: 10.1007/s00607-006-0182-2. — BPM origin.</li>
+            <li><strong>Malick, J.; Povh, J.; Rendl, F.; Wiegele, A.</strong> "Regularization methods for semidefinite programming." <em>SIAM J. Opt.</em> 20(1):336–356 (2009). — BPM as a regularization method.</li>
+            <li><strong>Cui, Y.; Sun, D.; Toh, K.-C.</strong> "On the asymptotic superlinear convergence of the augmented Lagrangian method for semidefinite programming with multiple solutions." <em>Math. Prog.</em> 178:381–415 (2019). arXiv:1610.00875. — SDP-specific superlinear result.</li>
+            <li><strong>Mazziotti, D. A.</strong> "Large-scale semidefinite programming for many-electron quantum mechanics." <em>PRL</em> 106:083001 (2011). — BPM adapted for V2RDM.</li>
+          </ul>
+
+          <p class="text-xs text-mist-400 uppercase tracking-widest font-mono mt-4">ADMM theory</p>
+          <ul class="list-disc pl-6 space-y-1 text-sm">
+            <li><strong>Eckstein, J.; Bertsekas, D. P.</strong> "On the Douglas-Rachford splitting method and the proximal point algorithm for maximal monotone operators." <em>Math. Prog.</em> 55:293–318 (1992). — ADMM ≡ DR splitting on dual.</li>
+            <li><strong>He, B.; Yuan, X.</strong> "On the O(1/n) convergence rate of the Douglas–Rachford ADM." <em>SIAM J. Numer. Anal.</em> 50(2):700–709 (2012). — worst-case sublinear.</li>
+            <li><strong>Deng, W.; Yin, W.</strong> "On the global and linear convergence of the generalized alternating direction method of multipliers." <em>J. Sci. Comput.</em> 66:889–916 (2016). — linear under strong convexity.</li>
+            <li><strong>Boyd, S.; Parikh, N.; Chu, E.; Peleato, B.; Eckstein, J.</strong> "Distributed optimization and statistical learning via the ADMM." <em>Found. Trends ML</em> 3(1):1–122 (2011). — the canonical ADMM monograph.</li>
+            <li><strong>Kang, S.; et al.</strong> "Local linear convergence of ADMM for SDP under strict complementarity." arXiv:2503.20142 (2025). — sharp local rate, but acknowledges the "moderate accuracy only" consensus.</li>
+          </ul>
+
+          <p class="text-xs text-mist-400 uppercase tracking-widest font-mono mt-4">Solvers and algorithm details</p>
+          <ul class="list-disc pl-6 space-y-1 text-sm">
+            <li><strong>O'Donoghue, B.; Chu, E.; Parikh, N.; Boyd, S.</strong> "Conic optimization via operator splitting and homogeneous self-dual embedding." <em>JOTA</em> 169:1042–1068 (2016). — SCS algorithm.</li>
+            <li><strong>Garstka, M.; Cannon, M.; Goulart, P.</strong> "COSMO: A conic operator splitting method for convex conic problems." <em>JOTA</em> 190(3):779–810 (2021). arXiv:1901.10887. — COSMO algorithm.</li>
+            <li><strong>Yang, L.; Sun, D.; Toh, K.-C.</strong> "SDPNAL+: a majorized semismooth Newton-CG augmented Lagrangian method for SDP with nonnegative constraints." <em>Math. Prog. Computation</em> 7:331–366 (2015). arXiv:1406.0942. — 95/95 vs 30/95 benchmark.</li>
+            <li><strong>Fukuda, M.; Kojima, M.; Murota, K.; Nakata, K.</strong> "Exploiting sparsity in SDP via matrix completion I." <em>SIAM J. Opt.</em> 11(3):647–674 (2001). — chordal decomp.</li>
+          </ul>
+
+          <p class="text-xs text-mist-400 uppercase tracking-widest font-mono mt-4">Background</p>
+          <ul class="list-disc pl-6 space-y-1 text-sm">
+            <li><strong>Saad, Y.</strong> <em>Iterative Methods for Sparse Linear Systems</em>, 2nd ed. SIAM (2003). — CG and indefinite KKT solvers.</li>
+            <li><strong>Higham, N. J.</strong> "Computing a nearest symmetric positive semidefinite matrix." <em>Lin. Alg. Appl.</em> 103:103–118 (1988). — PSD projection.</li>
+            <li><strong>Ruiz, D.</strong> "A scaling algorithm to equilibrate both rows and columns norms in matrices." Tech. Rep. RAL-TR-2001-034 (2001). — Ruiz equilibration.</li>
+            <li><strong>DePrince III, A. E.</strong> "Variational determination of the two-electron reduced density matrix: a tutorial review." arXiv:2310.10746 (2023). — V2RDM landscape.</li>
+          </ul>
+        </div>
+      </details>
+
+      <!-- Sidebar callout: F1 -->
+      <aside class="mt-8 rounded-xl border border-warm-500/40 bg-warm-500/5 p-5">
+        <div class="text-warm-400 text-xs font-mono uppercase tracking-widest">Finding F1 — read before believing the timing</div>
+        <h4 class="mt-1 font-semibold text-white">"1e-5 = 1e-5" is a lie when the norms differ.</h4>
+        <p class="mt-2 text-sm text-mist-200">
+          COSMO/SCS report <span class="math">‖·‖∞</span>; BPSDP reports <span class="math">‖·‖₂</span>.
+          BPSDP also defaults to <em>purely absolute</em> tolerance (no <span class="math">·(1+‖b‖)</span> term),
+          while COSMO/SCS use mixed abs+rel. At numeric tol <span class="math">10⁻⁵</span> on H₂/Nk=2:
+        </p>
+        <table class="mt-3 w-full text-sm">
+          <thead><tr class="text-left text-mist-300"><th class="py-1">Solver</th><th class="py-1">Reported</th><th class="py-1">Effective ∞-norm threshold</th></tr></thead>
+          <tbody class="text-mist-100">
+            <tr><td class="py-1 font-mono">COSMO</td><td>‖·‖∞</td><td>~ 2 × 10⁻⁵</td></tr>
+            <tr><td class="py-1 font-mono">SCS</td><td>‖·‖∞</td><td>~ 2 × 10⁻⁵</td></tr>
+            <tr><td class="py-1 font-mono">BPSDP</td><td>‖·‖₂</td><td>~ 5 × 10⁻⁸ &nbsp;<span class="text-warm-400">(≈ 400× tighter!)</span></td></tr>
+          </tbody>
+        </table>
+        <p class="mt-3 text-sm text-mist-300">
+          Action: equalize per F1 Option A (set BPSDP tol = √m · ε per case) before publishing the timing comparison.
+          Otherwise the table reads as if BPSDP is doing the same work as the others, which under-sells it.
+        </p>
+      </aside>
+
+    </div>
+  </div>
+  <div data-thread-for="deep" class="max-w-5xl mx-auto px-5 pb-10"></div>
+</section>
+
+<!-- ===================== EVIDENCE ===================== -->
+<section id="evidence" class="border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-14">
+    <h2 class="text-2xl md:text-3xl font-semibold flex items-center gap-3">
+      Evidence — don't take my word for it
+      <button class="ml-auto text-xs px-2 py-1 rounded border border-ink-600 hover:bg-ink-800 ask-section" data-section="evidence" data-section-title="Evidence — don't take my word for it">💬 Ask about this section</button>
+    </h2>
+    <p class="mt-4 text-mist-200 max-w-3xl prose-mine">
+      The claim that ADMM-based solvers (SCS, COSMO) stall at moderate accuracy on stiff conic
+      problems isn't a hot take — it's stated by the solver authors themselves and confirmed by
+      published benchmarks. Here are the receipts.
+    </p>
+
+    <div class="mt-8 space-y-5">
+
+      <!-- 1. SCS authors -->
+      <article class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mist-400 font-mono">
+          <span class="text-accent-400">SOURCE 1</span>
+          <span>O'Donoghue, Chu, Parikh, Boyd</span> ·
+          <span>JOTA 169:1042 (2016) — the SCS paper itself</span>
+        </div>
+        <h3 class="mt-2 font-semibold text-white">SCS authors admit the tail in their own paper.</h3>
+        <blockquote class="mt-3 border-l-2 border-accent-500 pl-4 text-mist-200 italic">
+          “The overall method can reliably provide solutions to modest accuracy after a relatively
+          small number of iterations and can solve large problems far more quickly than interior-point
+          methods. <strong>(It may not be suitable if high accuracy is required, due to the slow
+          ‘tail convergence’ of first-order methods in general, and ADMM in particular.)</strong>”
+        </blockquote>
+        <p class="mt-2 text-xs text-mist-400">
+          DOI: 10.1007/s10957-016-0892-3 ·
+          <a href="https://web.stanford.edu/~boyd/papers/pdf/scs.pdf" class="text-accent-400">PDF</a>
+        </p>
+      </article>
+
+      <!-- 2. COSMO authors -->
+      <article class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mist-400 font-mono">
+          <span class="text-accent-400">SOURCE 2</span>
+          <span>Garstka, Cannon, Goulart</span> ·
+          <span>JOTA 190:779 (2021) — the COSMO paper itself</span>
+        </div>
+        <h3 class="mt-2 font-semibold text-white">COSMO authors say the same.</h3>
+        <blockquote class="mt-3 border-l-2 border-accent-500 pl-4 text-mist-200 italic">
+          “ADMM methods are simple to implement and computationally cheap, even for large problems.
+          <strong>However, they tend to converge slowly to a high accuracy solution</strong> and the
+          detection of infeasibility is more involved compared to interior-point methods. They are
+          therefore most often used in applications <strong>where a modestly accurate solution is
+          sufficient.</strong>”
+        </blockquote>
+        <p class="mt-2 text-xs text-mist-400">
+          DOI: 10.1007/s10957-021-01896-x · arXiv:1901.10887
+        </p>
+      </article>
+
+      <!-- 3. SDPNAL+ benchmark -->
+      <article class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mist-400 font-mono">
+          <span class="text-accent-400">SOURCE 3</span>
+          <span>Yang, Sun, Toh</span> ·
+          <span>Math. Prog. Comp. 7:331 (2015) — SDPNAL+ benchmark</span>
+        </div>
+        <h3 class="mt-2 font-semibold text-white">95 vs. 30: an AL solver dominates ADMM at high accuracy.</h3>
+        <p class="mt-2 text-mist-200">
+          They tested an augmented-Lagrangian solver (SDPNAL+, conceptually a cousin of BPSDP) against
+          an ADMM-based solver (SDPAD) on 95 hard SDPs from quadratic-assignment relaxations,
+          target accuracy <span class="math">10⁻⁶</span>:
+        </p>
+        <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+          <div class="rounded-lg border border-good-400/40 bg-good-400/5 p-4">
+            <div class="text-xs text-good-400 font-mono">SDPNAL+ (aug. Lagrangian)</div>
+            <div class="text-3xl font-mono mt-1 text-good-400">95<span class="text-mist-400 text-base"> / 95</span></div>
+            <div class="text-xs text-mist-300 mt-1">solved to 10⁻⁶</div>
+          </div>
+          <div class="rounded-lg border border-bad-400/40 bg-bad-400/5 p-4">
+            <div class="text-xs text-bad-400 font-mono">SDPAD (ADMM)</div>
+            <div class="text-3xl font-mono mt-1 text-bad-400">30<span class="text-mist-400 text-base"> / 95</span></div>
+            <div class="text-xs text-mist-300 mt-1">solved to 10⁻⁶</div>
+          </div>
+        </div>
+        <blockquote class="mt-4 border-l-2 border-accent-500 pl-4 text-mist-200 italic text-sm">
+          “the last three solvers <strong>typically converge very slowly when [the target accuracy
+          reaches] 10⁻⁴ to 10⁻⁵.</strong>”
+        </blockquote>
+        <p class="mt-2 text-xs text-mist-400">DOI: 10.1007/s12532-015-0082-6 · arXiv:1406.0942</p>
+      </article>
+
+      <!-- 4. QSDPNAL paper -->
+      <article class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mist-400 font-mono">
+          <span class="text-accent-400">SOURCE 4</span>
+          <span>Li, Sun, Toh</span> ·
+          <span>arXiv:1512.08872 (2016) — QSDPNAL</span>
+        </div>
+        <h3 class="mt-2 font-semibold text-white">An explicit theoretical contrast.</h3>
+        <blockquote class="mt-3 border-l-2 border-accent-500 pl-4 text-mist-200 italic">
+          “<strong>ADMM-type methods are incapable of finding accurate solutions for difficult QSDP
+          problems due to its slow local convergence or stagnation.</strong> On the other hand,
+          recent studies on the convergence rate of augmented Lagrangian methods show that, comparing
+          to ADMM-type methods, the ALM can enjoy a faster convergence rate (in fact <strong>asymptotically
+          superlinear</strong>) under milder conditions.”
+        </blockquote>
+        <p class="mt-2 text-xs text-mist-400">
+          “Asymptotically superlinear” is the formal term for what the runner picture above shows:
+          eventually each error is roughly the previous one squared.
+        </p>
+      </article>
+
+      <!-- 5. Quantum chemistry community uses BPSDP -->
+      <article class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mist-400 font-mono">
+          <span class="text-accent-400">SOURCE 5</span>
+          <span>DePrince III</span> ·
+          <span>arXiv:2310.10746 (2023) — v2RDM tutorial review</span>
+        </div>
+        <h3 class="mt-2 font-semibold text-white">Quantum chemistry doesn't even use ADMM solvers.</h3>
+        <blockquote class="mt-3 border-l-2 border-accent-500 pl-4 text-mist-200 italic">
+          “The BPSDP algorithm, originally developed by Wiegele and coworkers [Povh–Rendl–Wiegele],
+          was adapted by Mazziotti for quantum chemical applications in 2012. … the prefactor for
+          the BPSDP algorithm is significantly lower [than RRSDP], which is why it is the
+          <strong>preferred algorithm for large-scale v2RDM calculations.</strong>”
+        </blockquote>
+        <p class="mt-2 text-xs text-mist-400">
+          The implication: SCS / COSMO are not even on the menu in production v2RDM. The accuracy
+          requirements (10⁻⁵–10⁻⁶ in energy gradients) are incompatible with first-order tails.
+        </p>
+      </article>
+
+      <!-- 6. Original BPM paper -->
+      <article class="rounded-xl border border-ink-700 bg-ink-900 p-5">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mist-400 font-mono">
+          <span class="text-accent-400">SOURCE 6</span>
+          <span>Povh, Rendl, Wiegele</span> ·
+          <span>Computing 78:277 (2006) — the original BPM paper</span>
+        </div>
+        <h3 class="mt-2 font-semibold text-white">Where BPSDP comes from — and what it was built for.</h3>
+        <blockquote class="mt-3 border-l-2 border-accent-500 pl-4 text-mist-200 italic">
+          “We investigate the augmented Lagrangian penalty function approach to solve semidefinite
+          programs. … We provide some computational experience with this method and show in
+          particular, that it allows to <strong>compute the theta number of a graph to reasonably
+          high accuracy for instances which are beyond reach by other methods.</strong>”
+        </blockquote>
+        <p class="mt-2 text-xs text-mist-400">DOI: 10.1007/s00607-006-0182-2</p>
+      </article>
+
+      <!-- 7. Recent theory paper -->
+      <article class="rounded-xl border border-warm-500/40 bg-warm-500/5 p-5">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-mist-400 font-mono">
+          <span class="text-warm-400">SOURCE 7 (caveat)</span>
+          <span>Kang et al.</span> ·
+          <span>arXiv:2503.20142 (2025)</span>
+        </div>
+        <h3 class="mt-2 font-semibold text-white">The picture is being refined — but the consensus stands.</h3>
+        <blockquote class="mt-3 border-l-2 border-warm-500 pl-4 text-mist-200 italic">
+          “<strong>A longstanding belief suggests that ADMM is only capable of solving SDPs to
+          moderate accuracy</strong>, primarily due to its sublinear worst-case complexity and
+          empirical observations of slow convergence.”
+        </blockquote>
+        <p class="mt-2 text-xs text-mist-300">
+          This 2025 paper proves that ADMM <em>can</em> achieve local linear convergence under
+          strict complementarity — i.e. the situation isn't as bad as worst-case theory says. But
+          the consensus baseline (“moderate accuracy only”) is exactly what the authors set out to
+          push back against, which means the consensus is real.
+        </p>
+      </article>
+
+    </div>
+
+    <div class="mt-8 rounded-xl border border-ink-700 bg-ink-950 p-5 text-sm text-mist-300">
+      <strong class="text-mist-100">What no one has published yet.</strong> A direct head-to-head
+      benchmark of <em>SCS / COSMO vs. BPSDP on V2RDM SDPs</em>. Your H₂ / Nk∈\{2,3,4\} +
+      H₄ / Nk∈\{2,3\} sweep is closing exactly this gap. That's why the
+      <code>solver-evidence</code> branch matters — the literature has the algorithm-class evidence
+      and has the chemistry-uses-BPSDP fact, but no clean numbers tying them together.
+    </div>
+  </div>
+  <div data-thread-for="evidence" class="max-w-5xl mx-auto px-5 pb-10"></div>
+</section>
+
+<!-- ===================== PITFALLS ===================== -->
+<section id="pitfalls" class="border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-14">
+    <h2 class="text-2xl md:text-3xl font-semibold flex items-center gap-3">
+      Common pitfalls & gotchas
+      <button class="ml-auto text-xs px-2 py-1 rounded border border-ink-600 hover:bg-ink-800 ask-section" data-section="pitfalls" data-section-title="Common pitfalls & gotchas">💬 Ask about this section</button>
+    </h2>
+
+    <div class="mt-6 grid md:grid-cols-2 gap-5">
+      <div class="rounded-xl border border-bad-400/30 bg-bad-400/5 p-5">
+        <h4 class="font-semibold text-bad-400">⚠ Trusting "1e-5 = 1e-5"</h4>
+        <p class="mt-2 text-sm text-mist-200">
+          Different solvers normalize residuals differently. Always check the source.
+          Equalize the <em>effective</em> ∞-norm threshold before comparing wall clocks.
+        </p>
+      </div>
+      <div class="rounded-xl border border-bad-400/30 bg-bad-400/5 p-5">
+        <h4 class="font-semibold text-bad-400">⚠ Generalizing from one instance</h4>
+        <p class="mt-2 text-sm text-mist-200">
+          H₂/Nk=2 is the smallest case in your sweep. The ranking can flip at Nk=3, 4 because BPM's
+          eigendecomposition cost is O(n³) per block and bites as blocks grow.
+        </p>
+      </div>
+      <div class="rounded-xl border border-bad-400/30 bg-bad-400/5 p-5">
+        <h4 class="font-semibold text-bad-400">⚠ Inner CG tolerance drift</h4>
+        <p class="mt-2 text-sm text-mist-200">
+          You used <code class="font-mono text-xs bg-ink-800 px-1 rounded">cg_tol=1e-10</code> + dynamic CG to make BPSDP behave.
+          That's a hint the Gram system is getting harder to solve. Watch CG iteration counts at larger Nk.
+        </p>
+      </div>
+      <div class="rounded-xl border border-bad-400/30 bg-bad-400/5 p-5">
+        <h4 class="font-semibold text-bad-400">⚠ Confusing "feasible" with "optimal"</h4>
+        <p class="mt-2 text-sm text-mist-200">
+          A small primal residual doesn't mean the dual is good, and vice versa. Always report
+          both, plus the duality gap. "Optimal" status from a solver is a contract on its own
+          tolerances, not a universal certificate.</p>
+      </div>
+      <div class="rounded-xl border border-bad-400/30 bg-bad-400/5 p-5">
+        <h4 class="font-semibold text-bad-400">⚠ Assuming COSMO chordal helps</h4>
+        <p class="mt-2 text-sm text-mist-200">
+          COSMO's headline feature is chordal decomposition for sparse SDPs. V2RDM's PSD blocks are
+          small <em>and dense</em>. Decomposition has nothing to bite on — and the bookkeeping costs you.
+        </p>
+      </div>
+      <div class="rounded-xl border border-bad-400/30 bg-bad-400/5 p-5">
+        <h4 class="font-semibold text-bad-400">⚠ Forgetting the orphan-policy contract</h4>
+        <p class="mt-2 text-sm text-mist-200">
+          Per D1 in <code class="font-mono text-xs bg-ink-800 px-1 rounded">plan/decisions.md</code>:
+          if <code class="font-mono text-xs bg-ink-800 px-1 rounded">orphan_keys(mp)</code> is nonzero, stop.
+          Don't add a fallback. Solver-performance numbers from a model with orphans aren't apples to anything.
+        </p>
+      </div>
+    </div>
+  </div>
+  <div data-thread-for="pitfalls" class="max-w-5xl mx-auto px-5 pb-10"></div>
+</section>
+
+<!-- ===================== INTERACTIVE ===================== -->
+<section id="interactive" class="border-b border-ink-700 anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-14">
+    <h2 class="text-2xl md:text-3xl font-semibold flex items-center gap-3">
+      Try it
+      <button class="ml-auto text-xs px-2 py-1 rounded border border-ink-600 hover:bg-ink-800 ask-section" data-section="interactive" data-section-title="Interactive demos">💬 Ask about this section</button>
+    </h2>
+
+    <!-- Demo 1: norm converter -->
+    <div class="mt-8 rounded-xl border border-ink-700 bg-ink-900 p-5">
+      <div class="flex items-center justify-between gap-4">
+        <h3 class="font-semibold text-white">Norm converter</h3>
+        <span class="text-xs text-mist-400 font-mono">‖r‖₂ ≈ √m · ‖r‖∞</span>
+      </div>
+      <p class="mt-2 text-sm text-mist-200">
+        Drag the slider to pick problem size <span class="math">m</span> (number of equality constraints) and
+        target ∞-norm precision. See what BPSDP <em>really</em> needs as its 2-norm tolerance to match.
+      </p>
+      <div class="mt-4 grid md:grid-cols-2 gap-5 text-sm">
+        <label class="block">
+          <div class="flex justify-between text-mist-300"><span>m (equality constraints)</span><span id="m-val" class="font-mono text-accent-400">40 000</span></div>
+          <input id="m-slider" type="range" min="100" max="200000" step="100" value="40000" class="w-full mt-2 accent-accent-500">
+        </label>
+        <label class="block">
+          <div class="flex justify-between text-mist-300"><span>target ∞-norm precision ε</span><span id="eps-val" class="font-mono text-accent-400">1e-5</span></div>
+          <input id="eps-slider" type="range" min="-9" max="-2" step="1" value="-5" class="w-full mt-2 accent-accent-500">
+        </label>
+      </div>
+      <div class="mt-5 grid md:grid-cols-3 gap-4 text-sm">
+        <div class="rounded-lg border border-ink-700 bg-ink-950 p-4">
+          <div class="text-mist-400 text-xs font-mono">COSMO/SCS eps_abs</div>
+          <div class="mt-1 text-lg text-accent-400 font-mono" id="out-cosmo">1e-5</div>
+          <div class="text-mist-400 text-xs">∞-norm, target as-is</div>
+        </div>
+        <div class="rounded-lg border border-ink-700 bg-ink-950 p-4">
+          <div class="text-mist-400 text-xs font-mono">BPSDP needs (2-norm)</div>
+          <div class="mt-1 text-lg text-good-400 font-mono" id="out-bpsdp">2e-3</div>
+          <div class="text-mist-400 text-xs">to match the same ∞-norm precision</div>
+        </div>
+        <div class="rounded-lg border border-ink-700 bg-ink-950 p-4">
+          <div class="text-mist-400 text-xs font-mono">naive 1:1 → BPSDP over-tightens by</div>
+          <div class="mt-1 text-lg text-warm-400 font-mono" id="out-factor">200×</div>
+          <div class="text-mist-400 text-xs">at the same numeric tol</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo 2: convergence playground -->
+    <div class="mt-8 rounded-xl border border-ink-700 bg-ink-900 p-5">
+      <div class="flex items-center justify-between gap-4">
+        <h3 class="font-semibold text-white">ADMM tail vs AL — toy convergence</h3>
+        <div class="flex gap-2">
+          <button class="tab-btn text-xs px-3 py-1 rounded border border-ink-600 hover:bg-ink-800" data-tau="0.92" aria-selected="true">stiff</button>
+          <button class="tab-btn text-xs px-3 py-1 rounded border border-ink-600 hover:bg-ink-800" data-tau="0.7"  aria-selected="false">moderate</button>
+          <button class="tab-btn text-xs px-3 py-1 rounded border border-ink-600 hover:bg-ink-800" data-tau="0.4"  aria-selected="false">easy</button>
+        </div>
+      </div>
+      <p class="mt-2 text-sm text-mist-200">
+        Toy model: ADMM residual decays geometrically with rate <span class="math">τ</span>; AL residual decays
+        geometrically with rate <span class="math">τ</span> that shrinks each "outer" step (so the late-stage rate gets sharper and sharper).
+      </p>
+      <canvas id="conv-canvas" width="640" height="280" class="w-full mt-4 rounded-lg bg-ink-950 border border-ink-700"></canvas>
+      <div class="mt-3 flex gap-5 text-xs text-mist-300">
+        <div><span class="legend-dot" style="background:#ff8a8a"></span>ADMM</div>
+        <div><span class="legend-dot" style="background:#7ce6a4"></span>AL / BPM</div>
+        <div><span class="legend-dot" style="background:#7cd4ff"></span>tolerance</div>
+      </div>
+    </div>
+
+    <!-- Demo 3: quiz -->
+    <div class="mt-8 rounded-xl border border-ink-700 bg-ink-900 p-5">
+      <h3 class="font-semibold text-white">Test your understanding</h3>
+      <div class="mt-4 space-y-4 text-sm">
+        <details class="rounded-lg border border-ink-700 p-3">
+          <summary class="text-mist-100"><strong>Q1.</strong> You see BPSDP report <code>primal_error = 2.8e-5</code> and SCS report <code>res_pri = 1.4e-5</code>. Which one solved the problem more accurately on H₂/Nk=2?</summary>
+          <div class="mt-2 text-mist-300">
+            <strong>BPSDP, by ~100×.</strong> BPSDP reports 2-norm; SCS reports ∞-norm. With m ≈ 40 k, BPSDP's 2.8e-5 / √m ≈ 1.4e-7 in ∞-norm — vs. SCS's 1.4e-5. Always convert before comparing.
+          </div>
+        </details>
+        <details class="rounded-lg border border-ink-700 p-3">
+          <summary class="text-mist-100"><strong>Q2.</strong> Why does BPSDP's per-iteration cost beat COSMO's on small dense PSD blocks?</summary>
+          <div class="mt-2 text-mist-300">
+            Because the eigendecomposition (the cost they share) is microseconds when blocks are tiny.
+            What dominates is the linear-system solve: BPM's is m × m positive definite (the Gram <span class="math">AAᵀ</span>); COSMO's CG-indirect path solves a larger (n + m) × (n + m) saddle-point system. Smaller, better-conditioned system → fewer CG iterations → faster.
+          </div>
+        </details>
+        <details class="rounded-lg border border-ink-700 p-3">
+          <summary class="text-mist-100"><strong>Q3.</strong> When would you expect BPSDP to <em>lose</em> on this benchmark family?</summary>
+          <div class="mt-2 text-mist-300">
+            When the PSD blocks get large, because eigendecomposition is O(n³). Likely at H₂/Nk=4 or H₄/Nk=3 if blocks pass a few hundred dimensions. Also if the Gram <span class="math">AAᵀ</span> conditions poorly — inner CG iteration count balloons.
+          </div>
+        </details>
+        <details class="rounded-lg border border-ink-700 p-3">
+          <summary class="text-mist-100"><strong>Q4.</strong> Why doesn't COSMO's chordal decomposition help here?</summary>
+          <div class="mt-2 text-mist-300">
+            Chordal decomposition exploits sparsity in the PSD blocks. V2RDM blocks are small and dense — there's no aggregate sparsity to factor out. You pay the bookkeeping with no benefit.
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+  <div data-thread-for="interactive" class="max-w-5xl mx-auto px-5 pb-10"></div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="anchor-target">
+  <div class="max-w-5xl mx-auto px-5 py-12 text-sm text-mist-300">
+    <div class="flex flex-wrap gap-3 items-center">
+      <button id="export-md" class="px-3 py-1.5 rounded border border-ink-600 hover:bg-ink-800">Export my notes as Markdown</button>
+      <button onclick="window.print()" class="px-3 py-1.5 rounded border border-ink-600 hover:bg-ink-800">Print / Save as PDF</button>
+      <button id="clear-all-foot" class="px-3 py-1.5 rounded border border-ink-600 hover:bg-ink-800">Clear all my notes</button>
+      <span class="ml-auto text-mist-400 text-xs font-mono">© NCTSSoS · solver-evidence branch · single-file explainer</span>
+    </div>
+    <p class="mt-6 text-xs text-mist-400 max-w-3xl">
+      Built as an interactive companion to <code>plan/findings/residual-norms.md</code>.
+      Tailwind via CDN; everything else is vanilla JS in this file. Open offline; localStorage keeps your notes private to your browser.
+    </p>
+  </div>
+</footer>
+
+<!-- ===================== SELECTION TOOLBAR ===================== -->
+<div id="sel-toolbar" role="toolbar" aria-label="Selection toolbar">
+  <button id="sel-ask" aria-label="Ask about this selection">💬 Ask about this</button>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div id="modal-backdrop" class="absolute inset-0"></div>
+  <div class="relative w-[min(640px,92vw)] max-h-[88vh] overflow-auto rounded-xl border border-ink-600 bg-ink-900 shadow-2xl p-6">
+    <div class="flex items-start gap-3">
+      <h3 id="modal-title" class="text-lg font-semibold">Ask about this</h3>
+      <button id="modal-close" class="ml-auto text-mist-300 hover:text-white" aria-label="Close">✕</button>
+    </div>
+    <div id="modal-section" class="mt-1 text-xs text-mist-400 font-mono"></div>
+    <blockquote id="modal-quote" class="mt-4 hidden border-l-2 border-accent-500 pl-3 text-mist-200 text-sm whitespace-pre-wrap"></blockquote>
+    <textarea id="modal-question" class="mt-4 w-full h-32 rounded-md bg-ink-950 border border-ink-700 p-3 text-sm focus:outline-none focus:border-accent-500" placeholder="What's your question?"></textarea>
+    <div class="mt-4 flex flex-wrap gap-2 justify-end">
+      <button id="modal-copy" class="px-3 py-1.5 rounded-md border border-ink-600 hover:bg-ink-800 text-sm">Copy as LLM Prompt</button>
+      <button id="modal-post" class="px-3 py-1.5 rounded-md bg-accent-500 hover:bg-accent-400 text-ink-950 text-sm font-semibold">Post Comment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SIDEBAR ===================== -->
+<aside id="sidebar" class="fixed top-0 right-0 h-full w-[min(420px,92vw)] bg-ink-900 border-l border-ink-700 z-50 translate-x-full">
+  <div class="p-5 border-b border-ink-700 flex items-center gap-3">
+    <h3 class="font-semibold">My Questions & Notes</h3>
+    <button id="close-sidebar" class="ml-auto text-mist-300 hover:text-white" aria-label="Close sidebar">✕</button>
+  </div>
+  <div class="p-5 flex gap-2">
+    <button id="export-md-sidebar" class="text-xs px-3 py-1.5 rounded border border-ink-600 hover:bg-ink-800">Export All My Questions</button>
+    <button id="clear-all" class="text-xs px-3 py-1.5 rounded border border-ink-600 hover:bg-ink-800">Clear All</button>
+  </div>
+  <div id="sidebar-content" class="px-5 pb-10 overflow-y-auto" style="height: calc(100% - 130px);"></div>
+</aside>
+
+<!-- ===================== TOAST ===================== -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-lg bg-ink-700 border border-ink-600 text-sm opacity-0 pointer-events-none">Copied</div>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script>
+(() => {
+  // ============== Constants ==============
+  const SLUG = 'bpsdp-vs-cosmo-scs';
+  const PAGE_TITLE = 'Why BPSDP beats COSMO and matches SCS on V2RDM SDPs';
+  const STORAGE_KEY = `iex:${SLUG}:comments`;
+  const STORAGE_VERSION = 1;
+
+  // ============== Storage ==============
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { version: STORAGE_VERSION, comments: [] };
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') return { version: STORAGE_VERSION, comments: [] };
+      if (!Array.isArray(obj.comments)) obj.comments = [];
+      return obj;
+    } catch { return { version: STORAGE_VERSION, comments: [] }; }
+  }
+  function save(state) {
+    state.version = STORAGE_VERSION;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+  let state = load();
+
+  // ============== Section registry ==============
+  const sectionMeta = {};
+  document.querySelectorAll('[data-thread-for]').forEach(el => {
+    const id = el.getAttribute('data-thread-for');
+    const sec = document.getElementById(id);
+    if (!sec) return;
+    const h2 = sec.querySelector('h2');
+    sectionMeta[id] = h2 ? h2.firstChild.textContent.trim() : id;
+  });
+
+  // ============== Toast ==============
+  const toast = document.getElementById('toast');
+  let toastTimer;
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translate(-50%, -4px)';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translate(-50%, 0)';
+    }, 1600);
+  }
+
+  // ============== Selection toolbar ==============
+  const toolbar = document.getElementById('sel-toolbar');
+  const selAsk = document.getElementById('sel-ask');
+  let pendingSelection = null;
+
+  function getCurrentSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const text = sel.toString().trim();
+    if (text.length < 3) return null;
+    const range = sel.getRangeAt(0);
+    // confirm selection is within main content (not in modal/sidebar/toolbar)
+    let node = range.commonAncestorContainer;
+    if (node.nodeType === 3) node = node.parentElement;
+    if (node.closest('#modal') || node.closest('#sidebar') || node.closest('#sel-toolbar') || node.closest('header')) return null;
+    const section = node.closest('section[id]');
+    if (!section) return null;
+    return {
+      text,
+      rect: range.getBoundingClientRect(),
+      sectionId: section.id,
+      sectionTitle: sectionMeta[section.id] || section.id,
+    };
+  }
+
+  function showToolbar() {
+    const sel = getCurrentSelection();
+    if (!sel) { toolbar.style.display = 'none'; pendingSelection = null; return; }
+    pendingSelection = sel;
+    const r = sel.rect;
+    const top = window.scrollY + r.top - 8;
+    let left = window.scrollX + r.left + r.width / 2;
+    // clamp
+    const minLeft = 60, maxLeft = window.scrollX + window.innerWidth - 60;
+    if (left < minLeft) left = minLeft;
+    if (left > maxLeft) left = maxLeft;
+    toolbar.style.top  = `${top}px`;
+    toolbar.style.left = `${left}px`;
+    toolbar.style.display = 'block';
+  }
+  function hideToolbar() {
+    toolbar.style.display = 'none';
+    pendingSelection = null;
+  }
+  document.addEventListener('pointerup', () => setTimeout(showToolbar, 10));
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.toString().trim().length < 3) hideToolbar();
+  });
+  document.addEventListener('scroll', hideToolbar, { passive: true });
+  selAsk.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!pendingSelection) return;
+    openModal(pendingSelection);
+    hideToolbar();
+  });
+
+  // ============== Modal ==============
+  const modal = document.getElementById('modal');
+  const modalBackdrop = document.getElementById('modal-backdrop');
+  const modalClose = document.getElementById('modal-close');
+  const modalQuote = document.getElementById('modal-quote');
+  const modalQuestion = document.getElementById('modal-question');
+  const modalPost = document.getElementById('modal-post');
+  const modalCopy = document.getElementById('modal-copy');
+  const modalSection = document.getElementById('modal-section');
+
+  let lastFocus = null;
+  let modalCtx = null;
+
+  function openModal(ctx) {
+    modalCtx = ctx; // { sectionId, sectionTitle, text? }
+    lastFocus = document.activeElement;
+    modalSection.textContent = `Section: ${ctx.sectionTitle}`;
+    if (ctx.text) {
+      modalQuote.textContent = ctx.text;
+      modalQuote.classList.remove('hidden');
+    } else {
+      modalQuote.classList.add('hidden');
+      modalQuote.textContent = '';
+    }
+    modalQuestion.value = '';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => modalQuestion.focus(), 30);
+    document.addEventListener('keydown', onKey);
+  }
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    modalCtx = null;
+    document.removeEventListener('keydown', onKey);
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Tab') {
+      // simple focus trap
+      const focusables = modal.querySelectorAll('button, textarea, input, [tabindex]:not([tabindex="-1"])');
+      const list = Array.from(focusables).filter(el => !el.disabled);
+      if (!list.length) return;
+      const first = list[0], last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
+  modalBackdrop.addEventListener('click', closeModal);
+  modalClose.addEventListener('click', closeModal);
+
+  function llmPrompt(ctx, question) {
+    const head = `Context — from "${PAGE_TITLE}", section "${ctx.sectionTitle}":\n`;
+    const quote = ctx.text ? `\n> ${ctx.text.replace(/\n/g, '\n> ')}\n` : '';
+    return `${head}${quote}\nMy question: ${question}`;
+  }
+  async function copyText(t) {
+    try { await navigator.clipboard.writeText(t); showToast('Copied'); }
+    catch {
+      const ta = document.createElement('textarea');
+      ta.value = t; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); showToast('Copied'); } catch { showToast('Copy failed'); }
+      ta.remove();
+    }
+  }
+  modalCopy.addEventListener('click', () => {
+    if (!modalCtx) return;
+    const q = modalQuestion.value.trim() || '(no question yet)';
+    copyText(llmPrompt(modalCtx, q));
+  });
+  modalPost.addEventListener('click', () => {
+    if (!modalCtx) return;
+    const q = modalQuestion.value.trim();
+    if (!q) { modalQuestion.focus(); return; }
+    const c = {
+      id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      sectionId: modalCtx.sectionId,
+      sectionTitle: modalCtx.sectionTitle,
+      quote: modalCtx.text || '',
+      question: q,
+      timestamp: Date.now(),
+    };
+    state.comments.push(c);
+    save(state);
+    renderThreads();
+    renderSidebar();
+    closeModal();
+    showToast('Comment saved');
+  });
+
+  // ============== Per-section ask buttons ==============
+  document.querySelectorAll('.ask-section').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-section');
+      const title = btn.getAttribute('data-section-title') || id;
+      openModal({ sectionId: id, sectionTitle: title });
+    });
+  });
+
+  // ============== Thread rendering ==============
+  function relTime(ts) {
+    const s = Math.round((Date.now() - ts) / 1000);
+    if (s < 60)        return `${s}s ago`;
+    if (s < 3600)      return `${Math.round(s/60)}m ago`;
+    if (s < 86400)     return `${Math.round(s/3600)}h ago`;
+    return `${Math.round(s/86400)}d ago`;
+  }
+  function abs(ts) { return new Date(ts).toLocaleString(); }
+  function escapeHTML(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  function renderThreads() {
+    document.querySelectorAll('[data-thread-for]').forEach(host => {
+      const id = host.getAttribute('data-thread-for');
+      const list = state.comments.filter(c => c.sectionId === id);
+      if (list.length === 0) {
+        host.innerHTML = `<div class="text-xs text-mist-400 italic">No questions on this section yet.</div>`;
+        return;
+      }
+      host.innerHTML = `
+        <div class="text-xs uppercase tracking-widest text-mist-400 font-mono mb-3">Your questions on this section</div>
+        <ul class="space-y-3">
+          ${list.map(c => `
+            <li class="rounded-lg border border-ink-700 bg-ink-900/60 p-4">
+              <div class="flex items-center text-xs text-mist-400 mb-2">
+                <span title="${escapeHTML(abs(c.timestamp))}">${relTime(c.timestamp)}</span>
+                <button class="ml-auto text-mist-400 hover:text-bad-400" data-del="${c.id}" aria-label="Delete">Delete</button>
+              </div>
+              ${c.quote ? `<blockquote class="border-l-2 border-accent-500 pl-3 text-mist-300 text-sm whitespace-pre-wrap mb-2">${escapeHTML(c.quote)}</blockquote>` : ''}
+              <div class="text-sm text-mist-100">${escapeHTML(c.question)}</div>
+            </li>
+          `).join('')}
+        </ul>
+      `;
+      host.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+        state.comments = state.comments.filter(x => x.id !== b.getAttribute('data-del'));
+        save(state); renderThreads(); renderSidebar();
+      }));
+    });
+    document.getElementById('notes-count').textContent = state.comments.length ? `(${state.comments.length})` : '';
+  }
+
+  // ============== Sidebar ==============
+  const sidebar = document.getElementById('sidebar');
+  const sidebarContent = document.getElementById('sidebar-content');
+  document.getElementById('open-sidebar').addEventListener('click', () => {
+    renderSidebar();
+    sidebar.style.transform = 'translateX(0)';
+  });
+  document.getElementById('close-sidebar').addEventListener('click', () => {
+    sidebar.style.transform = 'translateX(100%)';
+  });
+
+  function renderSidebar() {
+    if (state.comments.length === 0) {
+      sidebarContent.innerHTML = `<div class="text-sm text-mist-400 italic">No notes yet. Select any text on the page or click the per-section ask button.</div>`;
+      return;
+    }
+    const groups = {};
+    state.comments.forEach(c => { (groups[c.sectionId] ||= { title: c.sectionTitle, items: [] }).items.push(c); });
+    sidebarContent.innerHTML = Object.entries(groups).map(([sid, g]) => `
+      <div class="mb-6">
+        <div class="text-xs uppercase tracking-widest text-mist-400 font-mono mb-2">${escapeHTML(g.title)}</div>
+        <ul class="space-y-3">
+          ${g.items.map(c => `
+            <li class="rounded-lg border border-ink-700 bg-ink-950 p-3">
+              <div class="flex items-center text-xs text-mist-400 mb-1">
+                <a href="#${sid}" class="text-accent-400 hover:underline">jump</a>
+                <span class="ml-2" title="${escapeHTML(abs(c.timestamp))}">${relTime(c.timestamp)}</span>
+                <button class="ml-auto text-mist-400 hover:text-bad-400" data-del-side="${c.id}">Delete</button>
+              </div>
+              ${c.quote ? `<blockquote class="border-l-2 border-accent-500 pl-2 text-mist-300 text-xs mb-1 whitespace-pre-wrap">${escapeHTML(c.quote)}</blockquote>` : ''}
+              <div class="text-sm text-mist-100">${escapeHTML(c.question)}</div>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    `).join('');
+    sidebarContent.querySelectorAll('[data-del-side]').forEach(b => b.addEventListener('click', () => {
+      state.comments = state.comments.filter(x => x.id !== b.getAttribute('data-del-side'));
+      save(state); renderThreads(); renderSidebar();
+    }));
+  }
+
+  function exportMarkdown() {
+    if (!state.comments.length) { showToast('Nothing to export'); return; }
+    const groups = {};
+    state.comments.forEach(c => { (groups[c.sectionId] ||= { title: c.sectionTitle, items: [] }).items.push(c); });
+    let md = `# ${PAGE_TITLE} — My Notes\n\n`;
+    Object.values(groups).forEach(g => {
+      md += `## ${g.title}\n\n`;
+      g.items.forEach(c => {
+        if (c.quote) md += `> ${c.quote.split('\n').join('\n> ')}\n\n`;
+        md += `**Q:** ${c.question}\n_${abs(c.timestamp)}_\n\n`;
+      });
+    });
+    copyText(md);
+  }
+  function clearAll() {
+    if (!state.comments.length) { showToast('Already empty'); return; }
+    if (!confirm('Delete all your notes for this page? This cannot be undone.')) return;
+    state.comments = [];
+    save(state); renderThreads(); renderSidebar();
+    showToast('Cleared');
+  }
+  document.getElementById('export-md').addEventListener('click', exportMarkdown);
+  document.getElementById('export-md-sidebar').addEventListener('click', exportMarkdown);
+  document.getElementById('clear-all').addEventListener('click', clearAll);
+  document.getElementById('clear-all-foot').addEventListener('click', clearAll);
+
+  // ============== Code copy buttons ==============
+  document.querySelectorAll('.copy-code').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pre = btn.closest('.rounded-xl').querySelector('pre code');
+      if (pre) copyText(pre.innerText);
+    });
+  });
+
+  // ============== Norm converter ==============
+  const mSlider = document.getElementById('m-slider');
+  const epsSlider = document.getElementById('eps-slider');
+  const mVal = document.getElementById('m-val');
+  const epsVal = document.getElementById('eps-val');
+  const outCosmo = document.getElementById('out-cosmo');
+  const outBpsdp = document.getElementById('out-bpsdp');
+  const outFactor = document.getElementById('out-factor');
+  function fmtSci(x) {
+    if (x === 0) return '0';
+    const e = Math.floor(Math.log10(x));
+    const m = x / Math.pow(10, e);
+    return `${m.toFixed(1)}e${e}`;
+  }
+  function nFmt(n) { return n.toLocaleString('en-US'); }
+  function updateNorm() {
+    const m = parseInt(mSlider.value, 10);
+    const epsExp = parseInt(epsSlider.value, 10);
+    const eps = Math.pow(10, epsExp);
+    const sqrtm = Math.sqrt(m);
+    mVal.textContent = nFmt(m);
+    epsVal.textContent = `1e${epsExp}`;
+    outCosmo.textContent = `1e${epsExp}`;
+    outBpsdp.textContent = fmtSci(eps * sqrtm);
+    outFactor.textContent = `${sqrtm < 100 ? sqrtm.toFixed(0) : Math.round(sqrtm)}×`;
+  }
+  mSlider.addEventListener('input', updateNorm);
+  epsSlider.addEventListener('input', updateNorm);
+  updateNorm();
+
+  // ============== Convergence demo ==============
+  const cvs = document.getElementById('conv-canvas');
+  const ctx = cvs.getContext('2d');
+  let tau = 0.92;
+  function drawConv() {
+    const W = cvs.width, H = cvs.height;
+    ctx.fillStyle = '#0f131a'; ctx.fillRect(0, 0, W, H);
+    // axes
+    const padL = 50, padR = 20, padT = 20, padB = 30;
+    ctx.strokeStyle = '#2a3340';
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, H - padB); ctx.lineTo(W - padR, H - padB); ctx.stroke();
+    // y axis: log10 from 0 down to -10
+    const yMin = -10, yMax = 0;
+    const yPx = (y) => padT + (yMax - y) / (yMax - yMin) * (H - padT - padB);
+    const xPx = (k, K) => padL + k / K * (W - padL - padR);
+    // grid + labels
+    ctx.fillStyle = '#7d8a9c'; ctx.font = '10px ui-sans-serif';
+    for (let g = yMin; g <= yMax; g += 2) {
+      const y = yPx(g);
+      ctx.strokeStyle = '#1f2733';
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillText(`10^${g}`, 6, y + 3);
+    }
+    ctx.fillText('iterations', W / 2 - 20, H - 8);
+    // tolerance
+    const tol = -5;
+    ctx.strokeStyle = '#3aa8e6'; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(padL, yPx(tol)); ctx.lineTo(W - padR, yPx(tol)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#7cd4ff'; ctx.fillText('tolerance 10⁻⁵', W - padR - 100, yPx(tol) - 4);
+
+    const K = 800;
+
+    // ADMM: r_k = r_0 * tau_eff(k)^k where tau_eff degrades toward 1 as we get close to a 'stall floor'.
+    // Stall floor depends on how stiff the problem is.
+    const stallFloor = (tau > 0.85) ? -4.5 : (tau > 0.55 ? -7 : -10);
+    ctx.strokeStyle = '#ff8a8a'; ctx.lineWidth = 2; ctx.beginPath();
+    {
+      let lr = 0;
+      const dropPerIter = Math.log10(tau); // negative
+      for (let k = 0; k <= K; k += 4) {
+        // Asymptote to stallFloor: each step we approach it by a fraction proportional to how far we are.
+        const ideal = lr + 4 * dropPerIter;
+        // pull toward stallFloor (asymptote) — soft min
+        lr = stallFloor + (ideal - stallFloor) * (1 - Math.exp(-Math.abs((lr - stallFloor) * 0.4)));
+        // safety: never below the floor
+        const lrShown = Math.max(lr, stallFloor - 0.05);
+        const x = xPx(k, K), y = yPx(Math.max(lrShown, yMin));
+        if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+
+    // AL/BPM: similar local rate, but every outer step the rate sharpens (multiplier / sigma update).
+    // No stall floor — multiplier updates kick the iterate off the boundary.
+    ctx.strokeStyle = '#7ce6a4'; ctx.lineWidth = 2; ctx.beginPath();
+    {
+      let lr = 0;
+      let localTau = Math.max(tau, 0.85); // start ~ as slow as ADMM (we're not magic at iter 0)
+      const outerEvery = 100;
+      for (let k = 0; k <= K; k += 4) {
+        if (k > 0 && k % outerEvery === 0) {
+          // outer step: σ grows → local rate sharpens
+          localTau = Math.max(0.05, Math.pow(localTau, 1.5));
+        }
+        lr += 4 * Math.log10(localTau);
+        const x = xPx(k, K), y = yPx(Math.max(lr, yMin));
+        if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.setAttribute('aria-selected','false'));
+      btn.setAttribute('aria-selected','true');
+      tau = parseFloat(btn.dataset.tau);
+      drawConv();
+    });
+  });
+  drawConv();
+  window.addEventListener('resize', () => { /* canvas is fixed size; layout handles scale */ });
+
+  // ============== Residual bars (decorative, deterministic) ==============
+  (function residualBars() {
+    const host = document.getElementById('resid-bars');
+    if (!host) return;
+    const N = 80, W = 280;
+    // simple LCG for deterministic pseudo-randomness
+    let s = 1337;
+    const r = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+    let svg = '';
+    for (let i = 0; i < N; i++) {
+      const h = 1 + r() * 8 + (i === 17 ? 4 : 0); // a couple of tall bars
+      const x = (i / N) * W;
+      svg += `<rect x="${x.toFixed(1)}" y="${(15 - h).toFixed(1)}" width="${(W/N - 0.5).toFixed(1)}" height="${h.toFixed(1)}" fill="#7cd4ff" opacity="0.85"/>`;
+    }
+    host.innerHTML = svg;
+  })();
+
+  // ============== Init ==============
+  renderThreads();
+  document.getElementById('notes-count').textContent = state.comments.length ? `(${state.comments.length})` : '';
+})();
+</script>
+</body>
+</html>

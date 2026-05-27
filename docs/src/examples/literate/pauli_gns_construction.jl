@@ -52,14 +52,25 @@ function recover_complex_dual_monomap(moment_problem, model)
 
     coeff_constraints = all_constraints(model, AffExpr, MOI.EqualTo{Float64})
     n_basis = length(basis)
-    length(coeff_constraints) == 2 * n_basis || error(
-        "Expected $(2 * n_basis) coefficient-matching equalities, got $(length(coeff_constraints))."
+    identity_idx = findfirst(key -> isequal(key, moment_problem.linear.identity), basis)
+    identity_idx === nothing && error("Identity moment missing from SOS basis.")
+
+    real_indices = [i for i in 1:n_basis if i != identity_idx]
+    expected_constraints = length(real_indices) + n_basis
+    length(coeff_constraints) == expected_constraints || error(
+        "Expected $(expected_constraints) coefficient-matching equalities, got $(length(coeff_constraints))."
     )
+
+    real_moments = Dict(
+        basis[i] => dual(coeff_constraints[pos])
+        for (pos, i) in enumerate(real_indices)
+    )
+    imag_offset = length(real_indices)
 
     return Dict(
         basis[i] => ComplexF64(
-            dual(coeff_constraints[i]),
-            dual(coeff_constraints[n_basis + i]),
+            i == identity_idx ? 1.0 : real_moments[basis[i]],
+            dual(coeff_constraints[imag_offset + i]),
         )
         for i in 1:n_basis
     )

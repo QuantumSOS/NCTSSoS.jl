@@ -988,6 +988,11 @@ function term_sparsities(
     return term_sparse_list
 end
 
+@inline function _sorted_contains(xs::AbstractVector, x)
+    idx = searchsortedfirst(xs, x)
+    return idx <= length(xs) && xs[idx] == x
+end
+
 """
     get_term_sparsity_graph(cons_support, activated_supp, bases) for NCStateWord
 
@@ -1015,7 +1020,7 @@ function get_term_sparsity_graph(
             found = false
             for ncsw in monomials(connected_lr)
                 canon_sw = symmetric_canon(expval(ncsw))
-                if canon_sw in sorted_activated_supp
+                if _sorted_contains(sorted_activated_supp, canon_sw)
                     found = true
                     break
                 end
@@ -1023,7 +1028,7 @@ function get_term_sparsity_graph(
             if !found
                 for ncsw in monomials(connected_rl)
                     canon_sw = symmetric_canon(expval(ncsw))
-                    if canon_sw in sorted_activated_supp
+                    if _sorted_contains(sorted_activated_supp, canon_sw)
                         found = true
                         break
                     end

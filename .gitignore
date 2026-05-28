@@ -16,6 +16,7 @@ deps/src/
 
 # Build artifacts and generated output
 build/
+output/
 docs/build/
 docs/site/
 

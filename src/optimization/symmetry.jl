@@ -145,6 +145,272 @@ function FermionicModePermutation(pairs::Pair...)
     return FermionicModePermutation(images)
 end
 
+const _PAULI_X_TYPE = 0
+const _PAULI_Y_TYPE = 1
+const _PAULI_Z_TYPE = 2
+
+"""
+    CliffordSymmetry
+
+Finite Clifford conjugation action on Pauli words.
+
+The action is stored as signed images of Pauli-basis words:
+`source => (sign, target)`, with `sign ∈ {-1, +1}`. Omitted basis
+letters are fixed. Named constructors provide the standard gate actions:
+`CliffordSymmetry(:H, q)`, `CliffordSymmetry(:S, q)`,
+`CliffordSymmetry(:CNOT, control, target)`, and
+`CliffordSymmetry(:SWAP, q1, q2)`.
+"""
+struct CliffordSymmetry{T<:Integer}
+    nqubits::Int
+    images::Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}
+end
+
+function _clifford_validate_nqubits(nqubits::Integer)
+    n = Int(nqubits)
+    n > 0 || throw(ArgumentError("CliffordSymmetry needs a positive number of qubits; got $n."))
+    return n
+end
+
+function _clifford_validate_site(site::Integer)
+    q = Int(site)
+    q > 0 || throw(ArgumentError("CliffordSymmetry qubit sites must be positive; got $q."))
+    return q
+end
+
+function _clifford_max_site(mono::NormalMonomial{PauliAlgebra})
+    max_site = 0
+    for idx in mono.word
+        max_site = max(max_site, _pauli_site(idx))
+    end
+    return max_site
+end
+
+function _clifford_copy_monomial(mono::NormalMonomial{PauliAlgebra,T}) where {T<:Integer}
+    return NormalMonomial{PauliAlgebra,T}(copy(mono.word))
+end
+
+function _clifford_infer_nqubits(
+    images::AbstractDict{NormalMonomial{PauliAlgebra,T},<:Tuple{<:Integer,NormalMonomial{PauliAlgebra,T}}},
+    nqubits,
+) where {T<:Integer}
+    inferred = 0
+    for (src, (_, dst)) in images
+        inferred = max(inferred, _clifford_max_site(src), _clifford_max_site(dst))
+    end
+
+    if isnothing(nqubits)
+        inferred > 0 || throw(ArgumentError(
+            "CliffordSymmetry cannot infer `nqubits` from an empty image dictionary."
+        ))
+        return inferred
+    end
+
+    n = _clifford_validate_nqubits(nqubits)
+    inferred <= n || throw(ArgumentError(
+        "CliffordSymmetry image dictionary references site $inferred outside nqubits=$n."
+    ))
+    return n
+end
+
+function CliffordSymmetry(
+    images::AbstractDict{NormalMonomial{PauliAlgebra,T},<:Tuple{<:Integer,NormalMonomial{PauliAlgebra,T}}};
+    nqubits=nothing,
+) where {T<:Integer}
+    n = _clifford_infer_nqubits(images, nqubits)
+    normalized = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+
+    for (src_raw, (sign_raw, dst_raw)) in images
+        sign = Int(sign_raw)
+        sign ∈ (-1, 1) || throw(ArgumentError(
+            "CliffordSymmetry signs must be ±1; got $sign for source word $src_raw."
+        ))
+
+        src = _clifford_copy_monomial(src_raw)
+        dst = _clifford_copy_monomial(dst_raw)
+
+        if isone(src)
+            sign == 1 && isone(dst) || throw(ArgumentError("CliffordSymmetry must fix the identity word."))
+            continue
+        end
+
+        if sign != 1 || dst != src
+            normalized[src] = (sign, dst)
+        end
+    end
+
+    return CliffordSymmetry{T}(n, normalized)
+end
+
+function _clifford_gate_nqubits(nqubits, sites::Integer...)
+    max_site = maximum(_clifford_validate_site(site) for site in sites)
+    isnothing(nqubits) && return max_site
+    n = _clifford_validate_nqubits(nqubits)
+    max_site <= n || throw(ArgumentError(
+        "CliffordSymmetry gate references site $max_site outside nqubits=$n."
+    ))
+    return n
+end
+
+function _pauli_letter(::Type{T}, site::Integer, pauli_type::Integer) where {T<:Integer}
+    return NormalMonomial{PauliAlgebra,T}(T[convert(T, _pauli_index(site, pauli_type))])
+end
+
+function _pauli_word(::Type{T}, letters::Pair{<:Integer,<:Integer}...) where {T<:Integer}
+    raw = T[convert(T, _pauli_index(site, pauli_type)) for (site, pauli_type) in letters]
+    word, phase = simplify(PauliAlgebra, raw)
+    sign = _phase_to_clifford_sign(phase)
+    return sign, NormalMonomial{PauliAlgebra,T}(word)
+end
+
+function _pauli_unsigned_word(::Type{T}, letters::Pair{<:Integer,<:Integer}...) where {T<:Integer}
+    sign, mono = _pauli_word(T, letters...)
+    sign == 1 || throw(ArgumentError(
+        "Internal Clifford gate image construction produced a negative Pauli phase."
+    ))
+    return mono
+end
+
+function CliffordSymmetry(
+    gate::Symbol,
+    sites::Integer...;
+    nqubits=nothing,
+    integer_type::Type{T}=Int,
+) where {T<:Integer}
+    gate_key = Symbol(uppercase(String(gate)))
+
+    if gate_key === :H
+        length(sites) == 1 || throw(ArgumentError("CliffordSymmetry(:H, q) needs exactly one qubit site."))
+        q = _clifford_validate_site(only(sites))
+        n = _clifford_gate_nqubits(nqubits, q)
+        x = _pauli_letter(T, q, _PAULI_X_TYPE)
+        y = _pauli_letter(T, q, _PAULI_Y_TYPE)
+        z = _pauli_letter(T, q, _PAULI_Z_TYPE)
+        return CliffordSymmetry(Dict(x => (1, z), y => (-1, y), z => (1, x)); nqubits=n)
+    elseif gate_key === :S
+        length(sites) == 1 || throw(ArgumentError("CliffordSymmetry(:S, q) needs exactly one qubit site."))
+        q = _clifford_validate_site(only(sites))
+        n = _clifford_gate_nqubits(nqubits, q)
+        x = _pauli_letter(T, q, _PAULI_X_TYPE)
+        y = _pauli_letter(T, q, _PAULI_Y_TYPE)
+        return CliffordSymmetry(Dict(x => (1, y), y => (-1, x)); nqubits=n)
+    elseif gate_key === :CNOT
+        length(sites) == 2 || throw(ArgumentError(
+            "CliffordSymmetry(:CNOT, control, target) needs exactly two qubit sites."
+        ))
+        control = _clifford_validate_site(sites[1])
+        target = _clifford_validate_site(sites[2])
+        control != target || throw(ArgumentError("CliffordSymmetry(:CNOT, control, target) needs distinct sites."))
+        n = _clifford_gate_nqubits(nqubits, control, target)
+
+        x_control = _pauli_letter(T, control, _PAULI_X_TYPE)
+        y_control = _pauli_letter(T, control, _PAULI_Y_TYPE)
+        z_target = _pauli_letter(T, target, _PAULI_Z_TYPE)
+        y_target = _pauli_letter(T, target, _PAULI_Y_TYPE)
+
+        images = Dict(
+            x_control => (1, _pauli_unsigned_word(T, control => _PAULI_X_TYPE, target => _PAULI_X_TYPE)),
+            y_control => (1, _pauli_unsigned_word(T, control => _PAULI_Y_TYPE, target => _PAULI_X_TYPE)),
+            z_target => (1, _pauli_unsigned_word(T, control => _PAULI_Z_TYPE, target => _PAULI_Z_TYPE)),
+            y_target => (1, _pauli_unsigned_word(T, control => _PAULI_Z_TYPE, target => _PAULI_Y_TYPE)),
+        )
+        return CliffordSymmetry(images; nqubits=n)
+    elseif gate_key === :SWAP
+        length(sites) == 2 || throw(ArgumentError("CliffordSymmetry(:SWAP, q1, q2) needs exactly two qubit sites."))
+        q1 = _clifford_validate_site(sites[1])
+        q2 = _clifford_validate_site(sites[2])
+        q1 != q2 || throw(ArgumentError("CliffordSymmetry(:SWAP, q1, q2) needs distinct sites."))
+        n = _clifford_gate_nqubits(nqubits, q1, q2)
+
+        images = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+        for pauli_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+            images[_pauli_letter(T, q1, pauli_type)] = (1, _pauli_letter(T, q2, pauli_type))
+            images[_pauli_letter(T, q2, pauli_type)] = (1, _pauli_letter(T, q1, pauli_type))
+        end
+        return CliffordSymmetry(images; nqubits=n)
+    end
+
+    throw(ArgumentError(
+        "Unknown Clifford gate `:$gate`. Supported gates are :H, :S, :CNOT, and :SWAP."
+    ))
+end
+
+function Base.show(io::IO, g::CliffordSymmetry)
+    print(io, "CliffordSymmetry(nqubits=$(g.nqubits), images=$(length(g.images)))")
+end
+
+Base.:(==)(a::CliffordSymmetry, b::CliffordSymmetry) =
+    a.nqubits == b.nqubits && a.images == b.images
+Base.hash(g::CliffordSymmetry, h::UInt) = hash((g.nqubits, g.images), h)
+
+function _phase_to_clifford_sign(phase::UInt8)
+    phase_mod = phase % UInt8(4)
+    phase_mod == UInt8(0) && return 1
+    phase_mod == UInt8(2) && return -1
+    throw(ArgumentError(
+        "Clifford conjugation of a Hermitian Pauli word produced a non-real phase. " *
+        "Check that the supplied images define a valid Pauli Clifford action."
+    ))
+end
+
+function _convert_clifford_symmetry(::Type{T}, g::CliffordSymmetry) where {T<:Integer}
+    images = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+    for (src, (sign, dst)) in g.images
+        src_t = NormalMonomial{PauliAlgebra,T}(T.(src.word))
+        dst_t = NormalMonomial{PauliAlgebra,T}(T.(dst.word))
+        images[src_t] = (sign, dst_t)
+    end
+    return CliffordSymmetry(images; nqubits=g.nqubits)
+end
+
+function _clifford_letter_image(
+    g::CliffordSymmetry{T},
+    idx::T,
+) where {T<:Integer}
+    letter = NormalMonomial{PauliAlgebra,T}(T[idx])
+    return get(g.images, letter, (1, letter))
+end
+
+function _act_monomial(
+    g::CliffordSymmetry{T},
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    direct = get(g.images, mono, nothing)
+    isnothing(direct) || return direct
+
+    sign = 1
+    word = T[]
+    for idx in mono.word
+        letter_sign, image = _clifford_letter_image(g, idx)
+        sign *= letter_sign
+        append!(word, image.word)
+    end
+
+    image_word, phase = simplify(PauliAlgebra, word)
+    sign *= _phase_to_clifford_sign(phase)
+    return sign, NormalMonomial{PauliAlgebra,T}(image_word)
+end
+
+function _act_monomial(
+    g::CliffordSymmetry,
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    return _act_monomial(_convert_clifford_symmetry(T, g), mono)
+end
+
+function _act_polynomial(
+    g::CliffordSymmetry,
+    poly::Polynomial{PauliAlgebra,T,C},
+) where {T<:Integer,C<:Number}
+    acted_terms = Tuple{C,NormalMonomial{PauliAlgebra,T}}[]
+    sizehint!(acted_terms, length(poly.terms))
+    for (coef, mono) in poly.terms
+        sign, image = _act_monomial(g, mono)
+        push!(acted_terms, (coef * sign, image))
+    end
+    return Polynomial(acted_terms)
+end
+
 """
     AbelianIrrepTable
 

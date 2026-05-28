@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clifford Symmetry-Adapted Basis for Pauli SOS Relaxations</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        bg: { DEFAULT: '#0f1117', card: '#181b25', hover: '#1e2230' },
+        accent: { DEFAULT: '#60a5fa', dim: '#3b82f680', glow: '#3b82f620' },
+        mint: '#34d399',
+        coral: '#fb7185',
+        gold: '#fbbf24',
+      },
+      fontFamily: {
+        sans: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { background: #0f1117; color: #e2e8f0; }
+  ::selection { background: #3b82f640; color: #fff; }
+  .prose h2 { scroll-margin-top: 5rem; }
+  .math { font-family: 'Cambria Math', 'Latin Modern Math', serif; font-style: italic; }
+  .math-block {
+    background: #181b25; border-left: 3px solid #3b82f6; padding: 1rem 1.25rem;
+    border-radius: 0.5rem; overflow-x: auto; font-family: 'Cambria Math', serif;
+    font-size: 1.05rem; line-height: 1.8;
+  }
+  pre code { font-size: 0.88rem; line-height: 1.6; }
+  .kw { color: #c084fc; } .fn { color: #60a5fa; } .tp { color: #34d399; }
+  .cm { color: #64748b; font-style: italic; } .st { color: #fbbf24; }
+  .op { color: #fb7185; } .nb { color: #f472b6; }
+  .section-ask-btn {
+    opacity: 0; transition: opacity 150ms;
+  }
+  .section-wrapper:hover .section-ask-btn,
+  .section-ask-btn:focus { opacity: 1; }
+  @media (max-width: 768px) { .section-ask-btn { opacity: 0.7; } }
+  .comment-card { animation: fadeIn 200ms ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .toast { animation: toastIn 200ms ease-out, toastOut 200ms ease-in 1.8s forwards; }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } }
+  @keyframes toastOut { to { opacity: 0; transform: translateY(-10px); } }
+  details summary { cursor: pointer; }
+  details summary::-webkit-details-marker { display: none; }
+  details[open] summary .chevron { transform: rotate(90deg); }
+  .chevron { transition: transform 150ms; display: inline-block; }
+  .tab-btn.active { border-color: #60a5fa; color: #60a5fa; background: #3b82f610; }
+  .quiz-reveal { max-height: 0; overflow: hidden; transition: max-height 300ms ease; }
+  .quiz-reveal.open { max-height: 200px; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff; color: #000; }
+    .math-block { border-color: #000; background: #f8f8f8; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ====== SELECTION TOOLBAR ====== -->
+<div id="sel-toolbar" class="fixed z-[100] hidden no-print" role="tooltip">
+  <button onclick="openModalFromSelection()" class="flex items-center gap-1.5 bg-accent text-bg font-semibold text-sm px-3 py-1.5 rounded-full shadow-lg shadow-accent/30 hover:bg-blue-300 transition-colors" aria-label="Ask about selected text">
+    💬 Ask about this
+  </button>
+</div>
+
+<!-- ====== COMMENT MODAL ====== -->
+<div id="comment-modal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 no-print" role="dialog" aria-modal="true" aria-label="Ask a question">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeModal()"></div>
+  <div class="relative bg-bg-card border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4">
+    <button onclick="closeModal()" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl" aria-label="Close">&times;</button>
+    <h3 class="text-lg font-bold text-white">Ask a Question</h3>
+    <div id="modal-quote" class="hidden border-l-2 border-accent pl-3 text-sm text-gray-300 italic max-h-24 overflow-y-auto"></div>
+    <p id="modal-section-label" class="text-xs text-gray-500"></p>
+    <textarea id="modal-textarea" rows="3" placeholder="Type your question…" class="w-full bg-bg border border-gray-600 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-500 focus:border-accent focus:outline-none resize-y"></textarea>
+    <div class="flex gap-3">
+      <button onclick="postComment()" class="flex-1 bg-accent text-bg font-semibold py-2 rounded-lg hover:bg-blue-300 transition-colors">Post Comment</button>
+      <button onclick="copyAsPrompt()" class="flex-1 border border-accent text-accent font-semibold py-2 rounded-lg hover:bg-accent/10 transition-colors">Copy as LLM Prompt</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== NOTES SIDEBAR ====== -->
+<div id="notes-sidebar" class="fixed top-0 right-0 h-full w-full sm:w-96 bg-bg-card border-l border-gray-700 z-[150] translate-x-full transition-transform duration-200 no-print overflow-y-auto">
+  <div class="p-5 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-bold text-white">📒 My Questions &amp; Notes</h2>
+      <button onclick="toggleNotes()" class="text-gray-400 hover:text-white text-xl" aria-label="Close notes">&times;</button>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="exportAllNotes()" class="flex-1 text-xs bg-accent/10 text-accent border border-accent/30 rounded-lg py-1.5 hover:bg-accent/20 transition-colors">Export All as Markdown</button>
+      <button onclick="clearAllNotes()" class="text-xs bg-coral/10 text-coral border border-coral/30 rounded-lg px-3 py-1.5 hover:bg-coral/20 transition-colors">Clear All</button>
+    </div>
+    <div id="notes-list" class="space-y-4 text-sm"></div>
+  </div>
+</div>
+
+<!-- ====== TOAST ====== -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] hidden no-print">
+  <div class="bg-mint text-bg font-semibold text-sm px-4 py-2 rounded-full shadow-lg toast"></div>
+</div>
+
+<!-- ====== NAV ====== -->
+<nav class="fixed top-0 left-0 right-0 z-50 bg-bg/80 backdrop-blur-md border-b border-gray-800 no-print">
+  <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+    <a href="#hero" class="font-bold text-accent text-sm tracking-tight">Clifford SAB Explainer</a>
+    <div class="flex items-center gap-3">
+      <button onclick="toggleNotes()" class="text-gray-400 hover:text-accent text-sm flex items-center gap-1" aria-label="Open notes">📒 <span class="hidden sm:inline">Notes</span> <span id="notes-badge" class="hidden bg-accent text-bg text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center"></span></button>
+    </div>
+  </div>
+</nav>
+
+<!-- ====== MAIN CONTENT ====== -->
+<main class="max-w-4xl mx-auto px-4 pt-20 pb-24 prose prose-invert space-y-16" id="main-content">
+
+  <!-- ===== HERO ===== -->
+  <section id="hero" class="space-y-4">
+    <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
+      Clifford Symmetry-Adapted Basis<br>
+      <span class="text-accent">for Pauli SOS Relaxations</span>
+    </h1>
+    <p class="text-lg text-gray-300 max-w-2xl">
+      Exploit the structure of the Clifford group to <strong class="text-white">block-diagonalize</strong> large semidefinite programs in quantum optimization — making intractable problems tractable.
+    </p>
+    <div class="bg-accent/10 border border-accent/30 rounded-xl p-4 text-sm text-gray-300">
+      <strong class="text-accent">Why this matters:</strong> When you optimize over quantum states using SOS (sum-of-squares) relaxations, you build big matrices. Symmetry can shatter them into small, independent blocks — cutting compute time from hours to seconds. The Clifford group is the <em>natural</em> symmetry group of Pauli-algebra problems, but wiring it in is surprisingly subtle.
+    </div>
+  </section>
+
+  <!-- ===== QUICK OVERVIEW ===== -->
+  <section id="overview" class="section-wrapper space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white">Quick Overview</h2>
+      <button class="section-ask-btn text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors" onclick="openModalForSection('overview','Quick Overview')">💬 Ask about this section</button>
+    </div>
+    <p class="text-gray-300">
+      NCTSSoS.jl is a Julia library that optimizes noncommutative polynomials via <strong class="text-white">moment/SOS hierarchies</strong> — a way to relax hard quantum optimization problems into semidefinite programs (SDPs). This branch adds <strong class="text-white">Clifford symmetry reduction</strong> for Pauli-algebra problems, block-diagonalizing the SDP so it's cheaper to solve.
+    </p>
+    <div class="grid sm:grid-cols-2 gap-3">
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-accent font-semibold text-sm">🧩 Pauli Algebra</div>
+        <div class="text-gray-400 text-sm">Quantum observables built from tensor products of I, X, Y, Z matrices — the language of qubit physics.</div>
+      </div>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-mint font-semibold text-sm">🔄 Clifford Group</div>
+        <div class="text-gray-400 text-sm">The group of unitaries that permute Pauli operators (up to ±1 signs) under conjugation. Includes H, S, CNOT.</div>
+      </div>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-gold font-semibold text-sm">📐 Symmetry-Adapted Basis</div>
+        <div class="text-gray-400 text-sm">A change of basis that splits a big matrix into independent blocks aligned with the group's irreducible representations.</div>
+      </div>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-coral font-semibold text-sm">⚡ The Payoff</div>
+        <div class="text-gray-400 text-sm">Instead of one N×N SDP, solve several n<sub>i</sub>×n<sub>i</sub> SDPs where Σn<sub>i</sub>² ≪ N². Exponential-feeling speedup.</div>
+      </div>
+    </div>
+    <div id="comments-overview" class="space-y-2"></div>
+  </section>
+
+  <!-- ===== CORE CONCEPTS ===== -->
+  <section id="core-concepts" class="section-wrapper space-y-8">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white">Core Concepts</h2>
+      <button class="section-ask-btn text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors" onclick="openModalForSection('core-concepts','Core Concepts')">💬 Ask about this section</button>
+    </div>
+
+    <!-- Pauli matrices -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">1. Pauli Matrices — The Alphabet</h3>
+      <p class="text-gray-300">
+        Every qubit observable can be written as a linear combination of four 2×2 matrices:
+      </p>
+      <div class="math-block">
+        I = <span class="text-gray-500">⎡1 0⎤</span>, &nbsp;
+        X = <span class="text-gray-500">⎡0 1⎤</span>, &nbsp;
+        Y = <span class="text-gray-500">⎡0 -i⎤</span>, &nbsp;
+        Z = <span class="text-gray-500">⎡1 &nbsp;0⎤</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="text-gray-500">⎣0 1⎦</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <span class="text-gray-500">⎣1 0⎦</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <span class="text-gray-500">⎣i &nbsp;0⎦</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <span class="text-gray-500">⎣0 -1⎦</span>
+      </div>
+      <p class="text-gray-300">
+        For <span class="math">n</span> qubits, a <strong class="text-white">Pauli word</strong> is a tensor product like <span class="math">X ⊗ Z ⊗ I</span> — one Pauli per qubit site. There are 4<sup>n</sup> such words, and they form a basis for all <span class="math">2ⁿ × 2ⁿ</span> Hermitian matrices.
+      </p>
+      <p class="text-gray-300">
+        In NCTSSoS.jl, a Pauli word is stored as a <code class="text-accent font-mono text-sm">NormalMonomial{PauliAlgebra}</code> — an immutable sequence of per-site labels plus a global phase.
+      </p>
+    </div>
+
+    <!-- SOS relaxation -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">2. SOS / Moment Relaxations — The Optimization Trick</h3>
+      <p class="text-gray-300">
+        Suppose you want the <strong class="text-white">minimum eigenvalue</strong> of a Hamiltonian <span class="math">H</span> (a Hermitian operator written as a sum of Pauli words). Direct diagonalization costs 2<sup>n</sup>, which blows up fast.
+      </p>
+      <p class="text-gray-300">
+        <strong class="text-white">Moment/SOS relaxation</strong> replaces this with a semidefinite program (SDP): build a <strong class="text-white">moment matrix</strong> <span class="math">Γ</span> whose entries are "expected values" of Pauli words, constrain <span class="math">Γ ⪰ 0</span> (positive semidefinite), and minimize <span class="math">⟨H⟩ = Tr(H · Γ)</span>. This gives a <em>lower bound</em> on the true ground-state energy, and it often converges as you increase the relaxation order.
+      </p>
+      <p class="text-gray-300">
+        The catch: the moment matrix grows polynomially in the number of Pauli words you include — and that number grows exponentially in <span class="math">n</span>. A 10-qubit order-2 moment matrix can be thousands of rows wide. Solving the SDP is <span class="math">O(N³)</span> where <span class="math">N</span> is the matrix dimension.
+      </p>
+    </div>
+
+    <!-- Symmetry-adapted basis -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">3. Symmetry-Adapted Basis — Block-Diagonalize Everything</h3>
+      <p class="text-gray-300">
+        Here's the key insight: if your Hamiltonian <span class="math">H</span> commutes with a group of symmetries <span class="math">G</span>, then <strong class="text-white">the optimal moment matrix respects those symmetries too</strong>. By <a href="https://en.wikipedia.org/wiki/Schur%27s_lemma" class="text-accent underline decoration-accent/30 hover:decoration-accent">Schur's lemma</a>, you can change basis so the moment matrix becomes block-diagonal — one block per irreducible representation (irrep) of <span class="math">G</span>.
+      </p>
+      <!-- SVG: block diag -->
+      <div class="bg-bg-card rounded-xl p-6 flex items-center justify-center">
+        <svg viewBox="0 0 520 160" class="w-full max-w-md" aria-label="Block diagonalization diagram">
+          <!-- Big matrix -->
+          <rect x="10" y="10" width="140" height="140" rx="6" fill="none" stroke="#64748b" stroke-width="2"/>
+          <rect x="15" y="15" width="130" height="130" rx="4" fill="#3b82f610"/>
+          <text x="80" y="85" text-anchor="middle" fill="#94a3b8" font-size="14" font-family="system-ui">N × N</text>
+          <text x="80" y="165" text-anchor="middle" fill="#64748b" font-size="11" font-family="system-ui">Moment matrix Γ</text>
+          <!-- Arrow -->
+          <text x="195" y="82" fill="#60a5fa" font-size="28" font-family="system-ui">→</text>
+          <text x="190" y="105" fill="#64748b" font-size="10" font-family="system-ui">SAB</text>
+          <!-- Block 1 -->
+          <rect x="250" y="10" width="60" height="60" rx="4" fill="none" stroke="#34d399" stroke-width="2"/>
+          <rect x="253" y="13" width="54" height="54" rx="3" fill="#34d39910"/>
+          <text x="280" y="44" text-anchor="middle" fill="#34d399" font-size="11" font-family="system-ui">n₁×n₁</text>
+          <!-- Block 2 -->
+          <rect x="320" y="10" width="45" height="45" rx="4" fill="none" stroke="#fbbf24" stroke-width="2"/>
+          <rect x="323" y="13" width="39" height="39" rx="3" fill="#fbbf2410"/>
+          <text x="342" y="37" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="system-ui">n₂</text>
+          <!-- Block 3 -->
+          <rect x="375" y="10" width="45" height="45" rx="4" fill="none" stroke="#fb7185" stroke-width="2"/>
+          <rect x="378" y="13" width="39" height="39" rx="3" fill="#fb718510"/>
+          <text x="397" y="37" text-anchor="middle" fill="#fb7185" font-size="10" font-family="system-ui">n₃</text>
+          <!-- Block 4 -->
+          <rect x="430" y="10" width="30" height="30" rx="4" fill="none" stroke="#c084fc" stroke-width="2"/>
+          <rect x="433" y="13" width="24" height="24" rx="3" fill="#c084fc10"/>
+          <!-- Dots -->
+          <text x="490" y="30" fill="#64748b" font-size="14" font-family="system-ui">…</text>
+          <text x="370" y="165" text-anchor="middle" fill="#64748b" font-size="11" font-family="system-ui">Independent blocks (one per irrep)</text>
+          <!-- Σ annotation -->
+          <text x="370" y="115" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="system-ui">Σ nᵢ² ≪ N²</text>
+          <text x="370" y="135" text-anchor="middle" fill="#60a5fa" font-size="12" font-family="system-ui">⇒ much cheaper SDP</text>
+        </svg>
+      </div>
+      <p class="text-gray-300">
+        Think of it like this: instead of solving one giant jigsaw puzzle, you sort the pieces by color first. Each color-pile is its own small puzzle, and the total work is far less.
+      </p>
+    </div>
+
+    <!-- Clifford group -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">4. The Clifford Group — Pauli's Natural Symmetry</h3>
+      <p class="text-gray-300">
+        A <strong class="text-white">Clifford gate</strong> is a unitary <span class="math">U</span> that maps every Pauli word to another Pauli word (up to ±1 sign) under conjugation:
+      </p>
+      <div class="math-block">
+        U · P · U† = ±P'
+      </div>
+      <p class="text-gray-300">
+        where <span class="math">P</span> and <span class="math">P'</span> are both Pauli words. The set of all such unitaries forms the <strong class="text-white">Clifford group</strong>. The key single-qubit Cliffords are:
+      </p>
+
+      <!-- Gate tabs -->
+      <div class="bg-bg-card border border-gray-700 rounded-xl overflow-hidden">
+        <div class="flex border-b border-gray-700 overflow-x-auto" role="tablist">
+          <button class="tab-btn active border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-gray-400 whitespace-nowrap" onclick="showTab(this,'tab-h')" role="tab">Hadamard (H)</button>
+          <button class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-gray-400 whitespace-nowrap" onclick="showTab(this,'tab-s')" role="tab">Phase (S)</button>
+          <button class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-gray-400 whitespace-nowrap" onclick="showTab(this,'tab-cnot')" role="tab">CNOT</button>
+          <button class="tab-btn border-b-2 border-transparent px-4 py-2.5 text-sm font-medium text-gray-400 whitespace-nowrap" onclick="showTab(this,'tab-swap')" role="tab">SWAP</button>
+        </div>
+        <div id="tab-h" class="tab-panel p-4 space-y-2">
+          <p class="text-gray-300 text-sm">The <strong class="text-white">Hadamard gate</strong> swaps the X and Z axes, leaving Y (up to sign):</p>
+          <div class="font-mono text-sm space-y-1">
+            <div><span class="text-accent">H</span> · <span class="text-mint">X</span> · <span class="text-accent">H†</span> = <span class="text-gold">Z</span></div>
+            <div><span class="text-accent">H</span> · <span class="text-mint">Y</span> · <span class="text-accent">H†</span> = <span class="text-coral">−Y</span></div>
+            <div><span class="text-accent">H</span> · <span class="text-mint">Z</span> · <span class="text-accent">H†</span> = <span class="text-gold">X</span></div>
+          </div>
+          <p class="text-gray-400 text-xs">Notice the sign flip on Y. Tracking these signs is what makes Clifford SAB harder than plain permutation groups.</p>
+        </div>
+        <div id="tab-s" class="tab-panel p-4 space-y-2 hidden">
+          <p class="text-gray-300 text-sm">The <strong class="text-white">S gate</strong> (phase gate) rotates X→Y in the equatorial plane:</p>
+          <div class="font-mono text-sm space-y-1">
+            <div><span class="text-accent">S</span> · <span class="text-mint">X</span> · <span class="text-accent">S†</span> = <span class="text-gold">Y</span></div>
+            <div><span class="text-accent">S</span> · <span class="text-mint">Y</span> · <span class="text-accent">S†</span> = <span class="text-coral">−X</span></div>
+            <div><span class="text-accent">S</span> · <span class="text-mint">Z</span> · <span class="text-accent">S†</span> = <span class="text-gold">Z</span></div>
+          </div>
+          <p class="text-gray-400 text-xs">Z is fixed — S is a rotation about the Z axis by π/2.</p>
+        </div>
+        <div id="tab-cnot" class="tab-panel p-4 space-y-2 hidden">
+          <p class="text-gray-300 text-sm">The <strong class="text-white">CNOT</strong> (controlled-NOT) is a 2-qubit gate. It <em>entangles</em> the action across sites:</p>
+          <div class="font-mono text-sm space-y-1">
+            <div><span class="text-accent">CNOT</span> · <span class="text-mint">IX</span> · <span class="text-accent">CNOT†</span> = <span class="text-gold">XX</span> <span class="text-gray-500">← site 2 now affects site 1!</span></div>
+            <div><span class="text-accent">CNOT</span> · <span class="text-mint">XI</span> · <span class="text-accent">CNOT†</span> = <span class="text-gold">XI</span></div>
+            <div><span class="text-accent">CNOT</span> · <span class="text-mint">ZI</span> · <span class="text-accent">CNOT†</span> = <span class="text-gold">ZZ</span></div>
+            <div><span class="text-accent">CNOT</span> · <span class="text-mint">IZ</span> · <span class="text-accent">CNOT†</span> = <span class="text-gold">IZ</span></div>
+          </div>
+          <p class="text-gray-400 text-xs">This is why the existing registry-level SAB can't handle Cliffords: CNOT mixes indices across sites.</p>
+        </div>
+        <div id="tab-swap" class="tab-panel p-4 space-y-2 hidden">
+          <p class="text-gray-300 text-sm">The <strong class="text-white">SWAP gate</strong> exchanges two qubits:</p>
+          <div class="font-mono text-sm space-y-1">
+            <div><span class="text-accent">SWAP</span> · <span class="text-mint">XZ</span> · <span class="text-accent">SWAP†</span> = <span class="text-gold">ZX</span></div>
+            <div><span class="text-accent">SWAP</span> · <span class="text-mint">YI</span> · <span class="text-accent">SWAP†</span> = <span class="text-gold">IY</span></div>
+          </div>
+          <p class="text-gray-400 text-xs">SWAP is a simple permutation of sites — but it's still a Clifford. Spatial symmetries like lattice reflections are SWAP-like.</p>
+        </div>
+      </div>
+
+      <p class="text-gray-300">
+        The Clifford group is <strong class="text-white">finite</strong> (up to global phase) and completely characterized by its action on Pauli words. For <span class="math">n</span> qubits, the Clifford group has order ~2<sup>n²+2n</sup> — manageable for small <span class="math">n</span>, but you typically work with a small subgroup specified by a handful of generators.
+      </p>
+    </div>
+
+    <!-- Symplectic representation -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">5. The Symplectic Tableau — How to Store a Clifford</h3>
+      <p class="text-gray-300">
+        A Pauli word on <span class="math">n</span> qubits can be encoded as a binary vector of length <span class="math">2n</span>: the first <span class="math">n</span> bits track which sites have X or Y (the "X part"), the last <span class="math">n</span> track Z or Y (the "Z part"). Plus a sign bit.
+      </p>
+      <div class="math-block">
+        XYZ &nbsp;→&nbsp; x-part: [1,1,0], z-part: [0,1,1], sign: +1<br>
+        <span class="text-gray-500">(X has x=1,z=0; Y has x=1,z=1; Z has x=0,z=1)</span>
+      </div>
+      <p class="text-gray-300">
+        A Clifford gate's conjugation action is a <strong class="text-white">linear map over 𝔽₂</strong> (the field with two elements) on these binary vectors, represented by a <span class="math">2n × 2n</span> <strong class="text-white">symplectic matrix</strong> plus sign corrections. This is the <strong class="text-white">stabilizer tableau</strong> representation — O(n²) storage, O(n²) application.
+      </p>
+      <details class="bg-bg-card border border-gray-700 rounded-xl">
+        <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+          <span class="chevron text-accent">▶</span> Why "symplectic"?
+        </summary>
+        <div class="px-4 pb-4 text-sm text-gray-400 space-y-2">
+          <p>Two Pauli words either commute or anticommute. The symplectic form <span class="math">⟨a, b⟩ = aᵀ Ω b mod 2</span> (where Ω is the standard symplectic matrix) computes this: 0 = commute, 1 = anticommute. Clifford gates must preserve commutation relations, which means their binary representation must be a <strong>symplectic matrix</strong> — one that satisfies <span class="math">M Ω Mᵀ = Ω</span> over 𝔽₂.</p>
+          <p>This is the same structure as classical Hamiltonian mechanics, just over a finite field. Not a coincidence — both are about preserving a bilinear form.</p>
+        </div>
+      </details>
+    </div>
+
+    <!-- Monomial action -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">6. The Monomial Action — Where the Subtlety Lives</h3>
+      <p class="text-gray-300">
+        In the existing SAB code for fermionic algebras, symmetries act by <strong class="text-white">signed permutations of registry indices</strong> — shuffle the variable labels, maybe flip some signs. That's because fermionic symmetries are essentially site-local.
+      </p>
+      <p class="text-gray-300">
+        Clifford symmetries on Pauli words are <strong class="text-white">strictly more general</strong>:
+      </p>
+      <ul class="text-gray-300 space-y-2 ml-4 text-sm">
+        <li>• <strong class="text-white">Site-mixing:</strong> CNOT sends <span class="font-mono">IX → XX</span>. The image involves <em>both</em> sites, not just one. You can't decompose this as "permute site 1, then permute site 2."</li>
+        <li>• <strong class="text-white">Sign flips:</strong> Hadamard sends <span class="font-mono">Y → −Y</span>. These signs must propagate correctly through monomials (products of Pauli words at different orders).</li>
+        <li>• <strong class="text-white">Monomial-level action:</strong> For an order-<span class="math">d</span> monomial (a product of <span class="math">d</span> Pauli words), the Clifford acts on each word independently, then the signs multiply. The permutation of basis monomials isn't decomposable into per-generator permutations.</li>
+      </ul>
+      <p class="text-gray-300">
+        This means the integration must wire Clifford actions at the <strong class="text-white">monomial basis level</strong>, not the registry level. SymbolicWedderburn handles this via its <code class="text-accent font-mono text-sm">BySignedPermutations</code> action type — but the group elements must know how to produce the signed permutation on the full monomial list.
+      </p>
+    </div>
+
+    <div id="comments-core-concepts" class="space-y-2"></div>
+  </section>
+
+  <!-- ===== VISUAL EXPLAINER: ARCHITECTURE ===== -->
+  <section id="architecture" class="section-wrapper space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white">Architecture &amp; Data Flow</h2>
+      <button class="section-ask-btn text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors" onclick="openModalForSection('architecture','Architecture & Data Flow')">💬 Ask about this section</button>
+    </div>
+
+    <!-- Pipeline SVG -->
+    <div class="bg-bg-card border border-gray-700 rounded-xl p-6">
+      <p class="text-xs text-gray-500 mb-4">The optimization pipeline with Clifford SAB reduction:</p>
+      <svg viewBox="0 0 700 280" class="w-full" aria-label="Optimization pipeline diagram">
+        <!-- Step 1: User Input -->
+        <rect x="10" y="20" width="130" height="60" rx="8" fill="#181b25" stroke="#60a5fa" stroke-width="1.5"/>
+        <text x="75" y="45" text-anchor="middle" fill="#60a5fa" font-size="11" font-family="system-ui" font-weight="600">User defines</text>
+        <text x="75" y="62" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">H (Pauli poly)</text>
+        <text x="75" y="74" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">+ Clifford generators</text>
+
+        <!-- Arrow -->
+        <line x1="145" y1="50" x2="175" y2="50" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Step 2: Group closure -->
+        <rect x="180" y="20" width="120" height="60" rx="8" fill="#181b25" stroke="#34d399" stroke-width="1.5"/>
+        <text x="240" y="45" text-anchor="middle" fill="#34d399" font-size="11" font-family="system-ui" font-weight="600">Group closure</text>
+        <text x="240" y="62" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">CliffordSymmetryGroup</text>
+
+        <!-- Arrow -->
+        <line x1="305" y1="50" x2="335" y2="50" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Step 3: SAB -->
+        <rect x="340" y="10" width="150" height="80" rx="8" fill="#181b25" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="415" y="35" text-anchor="middle" fill="#fbbf24" font-size="11" font-family="system-ui" font-weight="600">SymbolicWedderburn</text>
+        <text x="415" y="52" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">symmetry_adapted_basis()</text>
+        <text x="415" y="67" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">→ irreps + basis change</text>
+        <text x="415" y="82" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">→ block structure</text>
+
+        <!-- Arrow -->
+        <line x1="495" y1="50" x2="525" y2="50" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- Step 4: Block SDP -->
+        <rect x="530" y="20" width="120" height="60" rx="8" fill="#181b25" stroke="#fb7185" stroke-width="1.5"/>
+        <text x="590" y="42" text-anchor="middle" fill="#fb7185" font-size="11" font-family="system-ui" font-weight="600">Block-diagonal</text>
+        <text x="590" y="58" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">SDP (JuMP)</text>
+        <text x="590" y="72" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="system-ui">→ COSMO solve</text>
+
+        <!-- Lower: type hierarchy -->
+        <text x="10" y="130" fill="#64748b" font-size="11" font-family="system-ui" font-weight="600">Key types (new in blue):</text>
+
+        <rect x="10" y="145" width="160" height="35" rx="6" fill="#3b82f615" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="4"/>
+        <text x="90" y="167" text-anchor="middle" fill="#60a5fa" font-size="11" font-family="monospace">CliffordSymmetry</text>
+
+        <rect x="190" y="145" width="190" height="35" rx="6" fill="#3b82f615" stroke="#60a5fa" stroke-width="1.5" stroke-dasharray="4"/>
+        <text x="285" y="167" text-anchor="middle" fill="#60a5fa" font-size="11" font-family="monospace">CliffordSymmetryGroup</text>
+
+        <rect x="400" y="145" width="150" height="35" rx="6" fill="#181b25" stroke="#475569" stroke-width="1.5"/>
+        <text x="475" y="167" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">symmetry.jl (existing)</text>
+
+        <rect x="570" y="145" width="120" height="35" rx="6" fill="#181b25" stroke="#475569" stroke-width="1.5"/>
+        <text x="630" y="167" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">polyopt()</text>
+
+        <!-- Connections -->
+        <line x1="170" y1="162" x2="190" y2="162" stroke="#3b82f680" stroke-width="1" stroke-dasharray="3"/>
+        <line x1="380" y1="162" x2="400" y2="162" stroke="#47556980" stroke-width="1" stroke-dasharray="3"/>
+        <line x1="550" y1="162" x2="570" y2="162" stroke="#47556980" stroke-width="1" stroke-dasharray="3"/>
+
+        <!-- Storage detail -->
+        <text x="10" y="210" fill="#64748b" font-size="11" font-family="system-ui" font-weight="600">CliffordSymmetry storage:</text>
+        <rect x="10" y="220" width="680" height="50" rx="6" fill="#181b25" stroke="#475569" stroke-width="1"/>
+        <text x="25" y="240" fill="#c084fc" font-size="11" font-family="monospace">symplectic_matrix</text>
+        <text x="175" y="240" fill="#64748b" font-size="11" font-family="system-ui">: 2n×2n over 𝔽₂</text>
+        <text x="335" y="240" fill="#34d399" font-size="11" font-family="monospace">sign_bits</text>
+        <text x="420" y="240" fill="#64748b" font-size="11" font-family="system-ui">: n-vector of ±1</text>
+        <text x="565" y="240" fill="#fbbf24" font-size="11" font-family="monospace">n_qubits</text>
+        <text x="640" y="240" fill="#64748b" font-size="11" font-family="system-ui">: Int</text>
+        <text x="25" y="260" fill="#64748b" font-size="10" font-family="system-ui">Action: P ↦ (±1, P') via symplectic multiply + sign correction. O(n²) per Pauli word.</text>
+
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/></marker></defs>
+      </svg>
+    </div>
+
+    <div id="comments-architecture" class="space-y-2"></div>
+  </section>
+
+  <!-- ===== DEEP DIVE ===== -->
+  <section id="deep-dive" class="section-wrapper space-y-8">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white">Deep Dive</h2>
+      <button class="section-ask-btn text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors" onclick="openModalForSection('deep-dive','Deep Dive')">💬 Ask about this section</button>
+    </div>
+
+    <!-- Existing SAB code -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">What the Existing SAB Code Does</h3>
+      <p class="text-gray-300">
+        The file <code class="text-accent font-mono text-sm">src/optimization/symmetry.jl</code> (1669 lines) implements a symmetry-adapted basis reduction MVP. It currently handles <strong class="text-white">signed permutations of registry indices</strong> — the kind of symmetry where each generator shuffles variable labels and maybe flips signs, but each variable maps to exactly one other variable.
+      </p>
+      <p class="text-gray-300">
+        The flow: take the basis of monomials in the moment matrix, compute how each group generator permutes them (with signs), feed this to <code class="text-accent font-mono text-sm">SymbolicWedderburn.symmetry_adapted_basis()</code>, get back block structure + basis-change matrices, and build independent smaller SDPs.
+      </p>
+      <p class="text-gray-300">
+        This works for fermionic particle-number symmetries (number-conserving unitaries permute Fock-space basis states by index) but <strong class="text-white">breaks for Clifford symmetries</strong> because CNOT-type gates mix indices across sites.
+      </p>
+    </div>
+
+    <!-- The gap -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">The Gap to Bridge</h3>
+      <p class="text-gray-300">The core challenge is: SymbolicWedderburn needs to know how each group element permutes (with signs) the monomial basis. For Cliffords:</p>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-3">
+        <div class="flex items-start gap-3">
+          <span class="text-accent font-bold text-lg">1</span>
+          <div>
+            <p class="text-sm text-white font-medium">Build the Clifford action on single Pauli words</p>
+            <p class="text-xs text-gray-400">A Clifford <span class="math">U</span> maps each basis Pauli word <span class="math">P</span> to <span class="math">±P'</span>. This is a signed permutation on the 4<sup>n</sup>-element basis. Compute it via the symplectic tableau.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-mint font-bold text-lg">2</span>
+          <div>
+            <p class="text-sm text-white font-medium">Extend to degree-<em>d</em> monomials</p>
+            <p class="text-xs text-gray-400">A monomial of degree <span class="math">d</span> is a product <span class="math">P₁ · P₂ · … · Pₐ</span>. The Clifford acts on each factor: <span class="math">U(P₁P₂…Pₐ)U† = (UP₁U†)(UP₂U†)…(UPₐU†)</span>. Signs multiply. The result may need re-normalization to a canonical monomial.</p>
+          </div>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-gold font-bold text-lg">3</span>
+          <div>
+            <p class="text-sm text-white font-medium">Satisfy the SymbolicWedderburn action interface</p>
+            <p class="text-xs text-gray-400">Package the signed permutation of monomials in the form SW expects: a <code class="font-mono text-accent">GroupsCore.Group</code> with elements that produce signed permutations on the basis.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Annotated pseudocode -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">Pseudocode: Clifford Conjugation</h3>
+      <p class="text-gray-300">Here's the core computation — how a Clifford element acts on a Pauli word, in tableau form:</p>
+      <div class="relative bg-bg-card border border-gray-700 rounded-xl overflow-hidden">
+        <button onclick="copyCode(this)" class="absolute top-2 right-2 text-xs text-gray-500 hover:text-accent border border-gray-600 rounded px-2 py-0.5 hover:border-accent transition-colors" aria-label="Copy code">Copy</button>
+        <pre class="p-4 overflow-x-auto"><code><span class="cm"># Input: CliffordSymmetry U (tableau: M ∈ F₂^{2n×2n}, signs ∈ {±1}^{4^n})</span>
+<span class="cm">#        Pauli word P encoded as (x, z) ∈ F₂^{2n}, sign s ∈ {+1,-1}</span>
+
+<span class="kw">function</span> <span class="fn">conjugate</span>(U::<span class="tp">CliffordSymmetry</span>, P::<span class="tp">PauliWord</span>)
+    <span class="cm"># Step 1: Apply the symplectic matrix to the binary vector</span>
+    (x′, z′) = U.symplectic_matrix * [P.x; P.z]  <span class="cm"># mod 2</span>
+
+    <span class="cm"># Step 2: Compute the sign correction</span>
+    <span class="cm"># This is the tricky part — involves the "phase polynomial"</span>
+    <span class="cm"># of the tableau, tracking how X/Z generators pick up signs</span>
+    sign′ = <span class="fn">compute_conjugation_sign</span>(U, P)
+
+    <span class="cm"># Step 3: Return the new Pauli word with corrected sign</span>
+    <span class="kw">return</span> (sign′ * P.sign, <span class="fn">PauliWord</span>(x′, z′))
+<span class="kw">end</span>
+
+<span class="cm"># For a degree-d monomial M = P₁ · P₂ · … · Pₐ:</span>
+<span class="kw">function</span> <span class="fn">conjugate</span>(U::<span class="tp">CliffordSymmetry</span>, M::<span class="tp">PauliMonomial</span>)
+    total_sign = <span class="nb">1</span>
+    new_factors = []
+    <span class="kw">for</span> Pᵢ <span class="kw">in</span> M.factors
+        (sᵢ, Pᵢ′) = <span class="fn">conjugate</span>(U, Pᵢ)
+        total_sign *= sᵢ
+        <span class="fn">push!</span>(new_factors, Pᵢ′)
+    <span class="kw">end</span>
+    <span class="cm"># Re-canonicalize the product (Pauli algebra rewrite rules)</span>
+    <span class="kw">return</span> <span class="fn">canonicalize</span>(total_sign, new_factors)
+<span class="kw">end</span></code></pre>
+      </div>
+    </div>
+
+    <!-- Implementation plan -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">Implementation Plan (7 Steps)</h3>
+      <div class="space-y-2">
+        <details class="bg-bg-card border border-gray-700 rounded-xl group">
+          <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+            <span class="chevron text-accent">▶</span>
+            <span class="text-white font-semibold">Step 1:</span> Read & understand existing code
+            <span class="ml-auto text-xs text-gray-500">Prep</span>
+          </summary>
+          <div class="px-4 pb-4 text-sm text-gray-400">
+            Read <code class="text-accent">src/optimization/symmetry.jl</code> end-to-end. Understand the SymbolicWedderburn action contract. Read <code class="text-accent">src/simplification/pauli.jl</code> and the <code class="text-accent">TwistedGroupAlgebra</code> portions of <code class="text-accent">src/types/algebra.jl</code> to understand how Pauli words are stored and rewritten.
+          </div>
+        </details>
+        <details class="bg-bg-card border border-gray-700 rounded-xl">
+          <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+            <span class="chevron text-accent">▶</span>
+            <span class="text-white font-semibold">Step 2:</span> Prototype CliffordSymmetry type
+            <span class="ml-auto text-xs text-gray-500">Core</span>
+          </summary>
+          <div class="px-4 pb-4 text-sm text-gray-400">
+            Define the struct with symplectic matrix + sign bits. Implement the conjugation action on a single <code class="text-accent">NormalMonomial{PauliAlgebra}</code>. Unit-test against hand-computed examples: H on X, S on Y, CNOT on IX, etc.
+          </div>
+        </details>
+        <details class="bg-bg-card border border-gray-700 rounded-xl">
+          <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+            <span class="chevron text-accent">▶</span>
+            <span class="text-white font-semibold">Step 3:</span> Group closure + GroupsCore interface
+            <span class="ml-auto text-xs text-gray-500">Core</span>
+          </summary>
+          <div class="px-4 pb-4 text-sm text-gray-400">
+            <code class="text-accent">CliffordSymmetryGroup</code>: take a list of generators, compute the full group by closure. Implement <code class="text-accent">GroupsCore.Group</code> methods so SymbolicWedderburn can iterate and multiply elements. Include a <code class="text-accent">closure(generators)</code> helper that builds the multiplication table.
+          </div>
+        </details>
+        <details class="bg-bg-card border border-gray-700 rounded-xl">
+          <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+            <span class="chevron text-accent">▶</span>
+            <span class="text-white font-semibold">Step 4:</span> Wire into SymbolicWedderburn
+            <span class="ml-auto text-xs text-gray-500">Integration</span>
+          </summary>
+          <div class="px-4 pb-4 text-sm text-gray-400">
+            Generalize <code class="text-accent">symmetry.jl</code> so it accepts a Clifford group acting on the Pauli monomial basis. Define the action type (likely <code class="text-accent">BySignedPermutations</code>) and implement the callbacks that map (group element, basis monomial) → (sign, permuted monomial index).
+          </div>
+        </details>
+        <details class="bg-bg-card border border-gray-700 rounded-xl">
+          <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+            <span class="chevron text-accent">▶</span>
+            <span class="text-white font-semibold">Step 5:</span> Glue into polyopt
+            <span class="ml-auto text-xs text-gray-500">API</span>
+          </summary>
+          <div class="px-4 pb-4 text-sm text-gray-400">
+            Let the user attach a <code class="text-accent">CliffordSymmetryGroup</code> to a Pauli <code class="text-accent">polyopt()</code> call, the same way fermionic symmetries are attached. The reduction pipeline should be transparent: same API, different group type, automatic block decomposition.
+          </div>
+        </details>
+        <details class="bg-bg-card border border-gray-700 rounded-xl">
+          <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+            <span class="chevron text-accent">▶</span>
+            <span class="text-white font-semibold">Step 6:</span> Tests
+            <span class="ml-auto text-xs text-gray-500">Quality</span>
+          </summary>
+          <div class="px-4 pb-4 text-sm text-gray-400">
+            At minimum: a 2-qubit case (Heisenberg + SWAP) and a 3-qubit case with multiple non-trivial irreps. Verify the SAB-reduced optimum matches the unreduced optimum to COSMO tolerance. Add reviewed expectation fixtures.
+          </div>
+        </details>
+        <details class="bg-bg-card border border-gray-700 rounded-xl">
+          <summary class="px-4 py-3 text-sm font-medium text-gray-300 flex items-center gap-2">
+            <span class="chevron text-accent">▶</span>
+            <span class="text-white font-semibold">Step 7:</span> Docs example
+            <span class="ml-auto text-xs text-gray-500">Docs</span>
+          </summary>
+          <div class="px-4 pb-4 text-sm text-gray-400">
+            One Literate example in <code class="text-accent">docs/src/examples/literate/</code> mirroring the style of <code class="text-accent">h2_fermionic_symmetry.jl</code>. E.g., 2-qubit Heisenberg with SWAP symmetry, or TFIM with reflection × Z₂ spin-flip. Run <code class="text-accent">make examples</code> then <code class="text-accent">make servedocs</code>.
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- Worked example -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">Worked Example: 2-Qubit Heisenberg + SWAP</h3>
+      <p class="text-gray-300">The 2-qubit isotropic Heisenberg Hamiltonian is:</p>
+      <div class="math-block">
+        H = XX + YY + ZZ
+      </div>
+      <p class="text-gray-300">
+        This has SWAP symmetry: swapping the two qubits leaves <span class="math">H</span> invariant. The SWAP group is {I, SWAP} ≅ ℤ₂, with two irreps: the symmetric (trivial) and antisymmetric (sign) representations.
+      </p>
+      <p class="text-gray-300">
+        The 16 Pauli words on 2 qubits split under SWAP into:
+      </p>
+      <ul class="text-gray-300 text-sm ml-4 space-y-1">
+        <li>• <strong class="text-mint">Symmetric (10 words):</strong> II, XX, YY, ZZ, and the 6 symmetric combos like XI+IX, XY+YX, …</li>
+        <li>• <strong class="text-coral">Antisymmetric (6 words):</strong> the 6 antisymmetric combos like XI−IX, XY−YX, …</li>
+      </ul>
+      <p class="text-gray-300">
+        The order-1 moment matrix (16×16) block-diagonalizes into a 10×10 and a 6×6 block. That's 100 + 36 = 136 entries instead of 256 — a ~47% reduction. At higher orders and more qubits, the savings compound dramatically.
+      </p>
+    </div>
+
+    <div id="comments-deep-dive" class="space-y-2"></div>
+  </section>
+
+  <!-- ===== PITFALLS ===== -->
+  <section id="pitfalls" class="section-wrapper space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white">Common Pitfalls &amp; Gotchas</h2>
+      <button class="section-ask-btn text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors" onclick="openModalForSection('pitfalls','Common Pitfalls & Gotchas')">💬 Ask about this section</button>
+    </div>
+
+    <div class="space-y-4">
+      <div class="bg-coral/5 border border-coral/20 rounded-xl p-4 space-y-2">
+        <div class="text-coral font-semibold text-sm">⚠️ Multi-qubit Cliffords aren't site-local</div>
+        <p class="text-gray-400 text-sm">The existing SAB code assumes each symmetry generator permutes variables independently per site. CNOT breaks this: <span class="font-mono">IX → XX</span> creates cross-site dependence. You <strong>must</strong> work at the assembled-monomial level, not the per-site registry level. This is the single biggest architectural change.</p>
+      </div>
+
+      <div class="bg-coral/5 border border-coral/20 rounded-xl p-4 space-y-2">
+        <div class="text-coral font-semibold text-sm">⚠️ Signs matter and propagate non-trivially</div>
+        <p class="text-gray-400 text-sm">Hadamard sends Y → −Y. For a degree-2 monomial containing two Y factors, the total sign flips twice and cancels. Mess up one sign, and the block decomposition is silently wrong — the SDP will still solve, but give a garbage bound. Test with known analytic results.</p>
+      </div>
+
+      <div class="bg-coral/5 border border-coral/20 rounded-xl p-4 space-y-2">
+        <div class="text-coral font-semibold text-sm">⚠️ Group closure can be expensive</div>
+        <p class="text-gray-400 text-sm">The n-qubit Clifford group grows as ~2<sup>n²+2n</sup>. Even for n=3 that's ~92,000 elements. Only use user-supplied subgroups, and cap the closure computation. Consider storing the Cayley table eagerly for small groups and switching to a Schreier-Sims style approach if performance demands it later.</p>
+      </div>
+
+      <div class="bg-gold/5 border border-gold/20 rounded-xl p-4 space-y-2">
+        <div class="text-gold font-semibold text-sm">💡 Canonicalization after conjugation</div>
+        <p class="text-gray-400 text-sm">After applying a Clifford to a Pauli monomial, the result must be re-canonicalized using the Pauli algebra's simplification rules (in <code class="text-accent font-mono text-xs">src/simplification/pauli.jl</code>). Two Pauli words multiply with a phase: <span class="font-mono">XY = iZ</span>. If your monomial has adjacent factors on the same site, they'll contract.</p>
+      </div>
+
+      <div class="bg-gold/5 border border-gold/20 rounded-xl p-4 space-y-2">
+        <div class="text-gold font-semibold text-sm">💡 Dict vs. tableau: start simple</div>
+        <p class="text-gray-400 text-sm">The TASK.md suggests starting with a dict-of-images representation (just store where each Pauli word maps to) and switching to the symplectic tableau only if performance requires it. This is wise — get correctness first. The tableau math is straightforward but sign tracking is finicky to debug.</p>
+      </div>
+    </div>
+
+    <div id="comments-pitfalls" class="space-y-2"></div>
+  </section>
+
+  <!-- ===== PROJECT STATUS ===== -->
+  <section id="status" class="section-wrapper space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white">Current Project Status</h2>
+      <button class="section-ask-btn text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors" onclick="openModalForSection('status','Current Project Status')">💬 Ask about this section</button>
+    </div>
+
+    <div class="bg-bg-card border border-gray-700 rounded-xl p-5 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-3 h-3 rounded-full bg-gold animate-pulse"></div>
+        <span class="font-semibold text-white">Branch:</span>
+        <code class="text-accent font-mono text-sm">feat/clifford-pauli-symmetry-adapted-basis</code>
+      </div>
+      <div class="text-sm text-gray-400">
+        Freshly set up worktree. Branched from <code class="text-accent font-mono text-xs">feat/fermionic-symmetry-adapted-basis</code> at commit <code class="font-mono text-xs text-gray-500">2fd6397</code>. <strong class="text-white">Zero implementation commits</strong> — clean slate with all the inherited SAB machinery available.
+      </div>
+
+      <div class="border-t border-gray-700 pt-4 space-y-3">
+        <p class="text-sm font-medium text-white">Checklist:</p>
+        <div class="space-y-2 text-sm">
+          <div class="flex items-center gap-2"><span class="text-mint">✅</span><span class="text-gray-400">Inherited SAB MVP (symmetry.jl, SymbolicWedderburn integration)</span></div>
+          <div class="flex items-center gap-2"><span class="text-mint">✅</span><span class="text-gray-400">Fermionic symmetry as reference pattern</span></div>
+          <div class="flex items-center gap-2"><span class="text-mint">✅</span><span class="text-gray-400">TASK.md with full spec + design questions</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-600">⬜</span><span class="text-gray-500">CliffordSymmetry type + conjugation action</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-600">⬜</span><span class="text-gray-500">CliffordSymmetryGroup + GroupsCore interface</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-600">⬜</span><span class="text-gray-500">SAB integration (monomial-level action)</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-600">⬜</span><span class="text-gray-500">polyopt glue</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-600">⬜</span><span class="text-gray-500">Tests (2-qubit, 3-qubit)</span></div>
+          <div class="flex items-center gap-2"><span class="text-gray-600">⬜</span><span class="text-gray-500">Docs example</span></div>
+        </div>
+      </div>
+
+      <div class="border-t border-gray-700 pt-4 space-y-2">
+        <p class="text-sm font-medium text-gold">Open design decisions:</p>
+        <ul class="text-sm text-gray-400 ml-4 space-y-1">
+          <li>• <strong class="text-white">Action level:</strong> Registry-level vs. monomial-level? (Likely monomial, because of CNOT)</li>
+          <li>• <strong class="text-white">Storage:</strong> Start with dict-of-images or go straight to tableau?</li>
+          <li>• <strong class="text-white">Input format:</strong> Named gates (:H, :S, :CNOT) vs. raw tableaus for v1?</li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="comments-status" class="space-y-2"></div>
+  </section>
+
+  <!-- ===== QUIZ ===== -->
+  <section id="quiz" class="section-wrapper space-y-6">
+    <div class="flex items-center justify-between">
+      <h2 class="text-2xl font-bold text-white">Test Your Understanding</h2>
+      <button class="section-ask-btn text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors" onclick="openModalForSection('quiz','Test Your Understanding')">💬 Ask about this section</button>
+    </div>
+
+    <div class="space-y-4">
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4">
+        <p class="text-sm text-white font-medium mb-2">Q1: Why can't the existing fermionic SAB code handle Clifford symmetries out of the box?</p>
+        <button onclick="this.nextElementSibling.classList.toggle('open')" class="text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors">Reveal answer</button>
+        <div class="quiz-reveal mt-2 text-sm text-gray-400">
+          <p>Because the existing code assumes symmetries are <strong>signed permutations of registry indices</strong> (each variable maps independently to another variable). Multi-qubit Cliffords like CNOT mix variables across sites — <code>IX → XX</code> — which can't be expressed as an index-level permutation. The action must be defined on assembled monomials.</p>
+        </div>
+      </div>
+
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4">
+        <p class="text-sm text-white font-medium mb-2">Q2: What does <code class="text-accent font-mono">H · Y · H†</code> equal, and why does the sign matter?</p>
+        <button onclick="this.nextElementSibling.classList.toggle('open')" class="text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors">Reveal answer</button>
+        <div class="quiz-reveal mt-2 text-sm text-gray-400">
+          <p><code>H · Y · H† = −Y</code>. The sign matters because it determines how Pauli monomials transform: for a degree-2 monomial <code>YY</code>, the sign flips twice and cancels (giving <code>+YY</code>), while for <code>YX</code> it flips once (giving <code>−YZ</code>). Getting signs wrong silently corrupts the block decomposition.</p>
+        </div>
+      </div>
+
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4">
+        <p class="text-sm text-white font-medium mb-2">Q3: Why is the Clifford action on binary vectors a "symplectic" matrix?</p>
+        <button onclick="this.nextElementSibling.classList.toggle('open')" class="text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors">Reveal answer</button>
+        <div class="quiz-reveal mt-2 text-sm text-gray-400">
+          <p>Because Clifford gates must preserve the commutation relations between Pauli operators. Two Paulis either commute or anticommute, and this is captured by the symplectic inner product <code>⟨a,b⟩ = aᵀΩb mod 2</code>. Preserving this form is exactly the definition of a symplectic matrix over 𝔽₂.</p>
+        </div>
+      </div>
+
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4">
+        <p class="text-sm text-white font-medium mb-2">Q4: If the 2-qubit SWAP group splits 16 Pauli words into blocks of size 10 and 6, what's the speedup factor for the SDP?</p>
+        <button onclick="this.nextElementSibling.classList.toggle('open')" class="text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors">Reveal answer</button>
+        <div class="quiz-reveal mt-2 text-sm text-gray-400">
+          <p>SDP cost scales as O(N³). Without SAB: 16³ = 4096. With SAB: 10³ + 6³ = 1000 + 216 = 1216. That's about a <strong>3.4× speedup</strong>. Modest for 2 qubits, but the ratio improves dramatically with more qubits and richer symmetry groups (more irreps = more/smaller blocks).</p>
+        </div>
+      </div>
+
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4">
+        <p class="text-sm text-white font-medium mb-2">Q5: Why does the TASK.md recommend starting with a dict-of-images instead of the symplectic tableau?</p>
+        <button onclick="this.nextElementSibling.classList.toggle('open')" class="text-xs text-accent border border-accent/30 rounded-full px-3 py-1 hover:bg-accent/10 transition-colors">Reveal answer</button>
+        <div class="quiz-reveal mt-2 text-sm text-gray-400">
+          <p>Because correctness is harder to verify with the tableau approach — the sign computation involves a "phase polynomial" that's easy to get wrong. A dict {PauliWord → (sign, PauliWord)} is trivially inspectable and debuggable. You can validate it against hand computations, then swap in the O(n²) tableau representation later if performance requires it.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="comments-quiz" class="space-y-2"></div>
+  </section>
+
+  <!-- ===== FOOTER ===== -->
+  <footer id="footer" class="border-t border-gray-800 pt-8 space-y-4 no-print">
+    <div class="flex flex-wrap gap-3">
+      <button onclick="window.print()" class="text-sm text-gray-400 border border-gray-700 rounded-lg px-4 py-2 hover:text-white hover:border-gray-500 transition-colors">🖨️ Print / Save as PDF</button>
+      <button onclick="exportAllNotes()" class="text-sm text-gray-400 border border-gray-700 rounded-lg px-4 py-2 hover:text-white hover:border-gray-500 transition-colors">📋 Export notes as Markdown</button>
+    </div>
+    <p class="text-xs text-gray-600">
+      Generated for the NCTSSoS.jl project — <code class="font-mono">feat/clifford-pauli-symmetry-adapted-basis</code> branch. Content reflects TASK.md as of 2025-05-28.
+    </p>
+  </footer>
+
+</main>
+
+<script>
+// ==================== STATE ====================
+const SLUG = 'clifford-pauli-sab';
+const STORAGE_KEY = `iex:${SLUG}:comments`;
+const PAGE_TITLE = 'Clifford Symmetry-Adapted Basis for Pauli SOS Relaxations';
+
+function loadComments() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { version: 1, comments: [] };
+    const data = JSON.parse(raw);
+    if (data.version === 1) return data;
+    return { version: 1, comments: [] };
+  } catch { return { version: 1, comments: [] }; }
+}
+
+function saveComments(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ==================== SELECTION TOOLBAR ====================
+let currentSelection = { text: '', sectionId: '', sectionTitle: '' };
+
+function getSection(node) {
+  let el = node.nodeType === 3 ? node.parentElement : node;
+  while (el && el.id !== 'main-content') {
+    if (el.classList && el.classList.contains('section-wrapper')) {
+      const h = el.querySelector('h2');
+      return { id: el.id, title: h ? h.textContent.trim() : el.id };
+    }
+    el = el.parentElement;
+  }
+  return { id: 'hero', title: 'Hero' };
+}
+
+function updateToolbar() {
+  const sel = window.getSelection();
+  const toolbar = document.getElementById('sel-toolbar');
+  if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+    toolbar.classList.add('hidden');
+    return;
+  }
+  const text = sel.toString().trim();
+  if (text.length < 3) { toolbar.classList.add('hidden'); return; }
+
+  const main = document.getElementById('main-content');
+  if (!main.contains(sel.anchorNode)) { toolbar.classList.add('hidden'); return; }
+
+  const range = sel.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+  const sec = getSection(sel.anchorNode);
+  currentSelection = { text, sectionId: sec.id, sectionTitle: sec.title };
+
+  toolbar.classList.remove('hidden');
+  let top = rect.top + window.scrollY - 40;
+  let left = rect.left + window.scrollX + rect.width / 2 - 75;
+  left = Math.max(8, Math.min(left, window.innerWidth - 170));
+  top = Math.max(60, top);
+  toolbar.style.top = top + 'px';
+  toolbar.style.left = left + 'px';
+}
+
+document.addEventListener('pointerup', () => setTimeout(updateToolbar, 10));
+document.addEventListener('selectionchange', () => setTimeout(updateToolbar, 10));
+
+// ==================== MODAL ====================
+let modalContext = { quote: '', sectionId: '', sectionTitle: '' };
+let previousFocus = null;
+
+function openModal(quote, sectionId, sectionTitle) {
+  modalContext = { quote, sectionId, sectionTitle };
+  previousFocus = document.activeElement;
+  const modal = document.getElementById('comment-modal');
+  const quoteEl = document.getElementById('modal-quote');
+  const labelEl = document.getElementById('modal-section-label');
+  const textarea = document.getElementById('modal-textarea');
+
+  if (quote) {
+    quoteEl.textContent = quote.length > 300 ? quote.slice(0, 300) + '…' : quote;
+    quoteEl.classList.remove('hidden');
+  } else {
+    quoteEl.classList.add('hidden');
+  }
+  labelEl.textContent = `Section: ${sectionTitle}`;
+  textarea.value = '';
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  setTimeout(() => textarea.focus(), 50);
+  document.getElementById('sel-toolbar').classList.add('hidden');
+}
+
+function closeModal() {
+  const modal = document.getElementById('comment-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  if (previousFocus) previousFocus.focus();
+}
+
+function openModalFromSelection() {
+  openModal(currentSelection.text, currentSelection.sectionId, currentSelection.sectionTitle);
+  window.getSelection().removeAllRanges();
+}
+
+function openModalForSection(sectionId, sectionTitle) {
+  openModal('', sectionId, sectionTitle);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ==================== COMMENTS ====================
+function postComment() {
+  const textarea = document.getElementById('modal-textarea');
+  const question = textarea.value.trim();
+  if (!question) { textarea.focus(); return; }
+
+  const comment = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    sectionId: modalContext.sectionId,
+    sectionTitle: modalContext.sectionTitle,
+    quote: modalContext.quote,
+    question,
+    timestamp: Date.now()
+  };
+
+  const data = loadComments();
+  data.comments.push(comment);
+  saveComments(data);
+  renderComments();
+  updateBadge();
+  closeModal();
+  showToast('Comment saved!');
+}
+
+function deleteComment(id) {
+  const data = loadComments();
+  data.comments = data.comments.filter(c => c.id !== id);
+  saveComments(data);
+  renderComments();
+  updateBadge();
+  renderNotesList();
+}
+
+function copyAsPrompt() {
+  const textarea = document.getElementById('modal-textarea');
+  const question = textarea.value.trim();
+  if (!question) { textarea.focus(); return; }
+
+  let prompt = `Context — from "${PAGE_TITLE}", section "${modalContext.sectionTitle}":\n\n`;
+  if (modalContext.quote) prompt += `> ${modalContext.quote}\n\n`;
+  prompt += `My question: ${question}`;
+
+  navigator.clipboard.writeText(prompt).then(() => {
+    showToast('Copied to clipboard!');
+    closeModal();
+  });
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function renderComments() {
+  const data = loadComments();
+  const sections = ['overview', 'core-concepts', 'architecture', 'deep-dive', 'pitfalls', 'status', 'quiz'];
+  sections.forEach(secId => {
+    const container = document.getElementById(`comments-${secId}`);
+    if (!container) return;
+    const secComments = data.comments.filter(c => c.sectionId === secId);
+    if (secComments.length === 0) {
+      container.innerHTML = '<p class="text-xs text-gray-600 italic">No questions on this section yet.</p>';
+      return;
+    }
+    container.innerHTML = secComments.map(c => `
+      <div class="comment-card bg-bg-card border border-gray-700 rounded-lg p-3 space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-gray-500" title="${new Date(c.timestamp).toLocaleString()}">${timeAgo(c.timestamp)}</span>
+          <button onclick="deleteComment('${c.id}')" class="text-xs text-gray-600 hover:text-coral transition-colors" aria-label="Delete comment">Delete</button>
+        </div>
+        ${c.quote ? `<blockquote class="border-l-2 border-accent/40 pl-2 text-xs text-gray-400 italic max-h-16 overflow-hidden">${escHtml(c.quote)}</blockquote>` : ''}
+        <p class="text-sm text-gray-300">${escHtml(c.question)}</p>
+      </div>
+    `).join('');
+  });
+}
+
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// ==================== BADGE ====================
+function updateBadge() {
+  const data = loadComments();
+  const badge = document.getElementById('notes-badge');
+  const count = data.comments.length;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.classList.remove('hidden');
+    badge.classList.add('flex');
+  } else {
+    badge.classList.add('hidden');
+    badge.classList.remove('flex');
+  }
+}
+
+// ==================== NOTES SIDEBAR ====================
+function toggleNotes() {
+  const sidebar = document.getElementById('notes-sidebar');
+  const isOpen = !sidebar.classList.contains('translate-x-full');
+  if (isOpen) {
+    sidebar.classList.add('translate-x-full');
+  } else {
+    sidebar.classList.remove('translate-x-full');
+    renderNotesList();
+  }
+}
+
+function renderNotesList() {
+  const data = loadComments();
+  const list = document.getElementById('notes-list');
+  if (data.comments.length === 0) {
+    list.innerHTML = '<p class="text-gray-500 italic text-sm">No notes yet. Select text and click "Ask about this" to start.</p>';
+    return;
+  }
+  const grouped = {};
+  data.comments.forEach(c => {
+    if (!grouped[c.sectionTitle]) grouped[c.sectionTitle] = [];
+    grouped[c.sectionTitle].push(c);
+  });
+  list.innerHTML = Object.entries(grouped).map(([title, comments]) => `
+    <div class="space-y-2">
+      <h3 class="text-xs font-semibold text-accent uppercase tracking-wider">${escHtml(title)}</h3>
+      ${comments.map(c => `
+        <div class="bg-bg border border-gray-700 rounded-lg p-3 space-y-1.5">
+          ${c.quote ? `<blockquote class="border-l-2 border-accent/40 pl-2 text-xs text-gray-400 italic">${escHtml(c.quote.slice(0, 150))}${c.quote.length > 150 ? '…' : ''}</blockquote>` : ''}
+          <p class="text-sm text-gray-300">${escHtml(c.question)}</p>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-gray-600">${timeAgo(c.timestamp)}</span>
+            <button onclick="deleteComment('${c.id}')" class="text-xs text-gray-600 hover:text-coral">Delete</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function exportAllNotes() {
+  const data = loadComments();
+  if (data.comments.length === 0) { showToast('No notes to export.'); return; }
+  const grouped = {};
+  data.comments.forEach(c => {
+    if (!grouped[c.sectionTitle]) grouped[c.sectionTitle] = [];
+    grouped[c.sectionTitle].push(c);
+  });
+  let md = `# ${PAGE_TITLE} — My Notes\n\n`;
+  Object.entries(grouped).forEach(([title, comments]) => {
+    md += `## ${title}\n\n`;
+    comments.forEach(c => {
+      if (c.quote) md += `> ${c.quote}\n\n`;
+      md += `**Q:** ${c.question}\n_${new Date(c.timestamp).toLocaleString()}_\n\n`;
+    });
+  });
+  navigator.clipboard.writeText(md).then(() => showToast('Notes copied as Markdown!'));
+}
+
+function clearAllNotes() {
+  if (!confirm('Delete all your questions and notes? This cannot be undone.')) return;
+  saveComments({ version: 1, comments: [] });
+  renderComments();
+  updateBadge();
+  renderNotesList();
+  showToast('All notes cleared.');
+}
+
+// ==================== TABS ====================
+function showTab(btn, panelId) {
+  const parent = btn.closest('.bg-bg-card');
+  parent.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  parent.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  btn.classList.add('active');
+  document.getElementById(panelId).classList.remove('hidden');
+}
+
+// ==================== CODE COPY ====================
+function copyCode(btn) {
+  const pre = btn.closest('.relative').querySelector('pre code');
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1500);
+  });
+}
+
+// ==================== TOAST ====================
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.querySelector('div').textContent = msg;
+  toast.classList.remove('hidden');
+  setTimeout(() => toast.classList.add('hidden'), 2200);
+}
+
+// ==================== INIT ====================
+renderComments();
+updateBadge();
+</script>
+</body>
+</html>

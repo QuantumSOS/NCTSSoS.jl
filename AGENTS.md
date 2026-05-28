@@ -86,3 +86,10 @@ Optimization flow: `polyopt()` → `cs_nctssos()` → `compute_sparsity()` → m
 ## Commit & Pull Request Guidelines
 - Commit messages (recent): `feat: ...`, `fix(scope): ...`, `docs: ...`, `ci: ...` (often with `(#PR)` on merge/squash).
 - PRs: small diffs, clear description, and a short “How to test” section (e.g., `make test`). Note any solver requirements (e.g., Mosek-only example regeneration).
+
+<skill>
+  <name>interactive-html-explainer</name>
+  <description>Create a single self-contained interactive HTML learning notebook for any topic, with text-selection quoting, local commenting threads, and one-click "Copy as LLM prompt". Use whenever the user asks for an interactive explainer page, a notebook-style HTML write-up, a "learnable" or "askable" HTML document, or any rich explanatory page where the reader should be able to highlight content and ask questions about specific parts.
+</description>
+  <location>/Users/exaclior/coding_agents/pi-excalibur/skills/interactive-html-explainer/SKILL.md</location>
+</skill>

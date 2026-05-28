@@ -102,6 +102,44 @@ end
         @test occursin("±1", sprint(showerror, err))
     end
 
+    @testset "CliffordSymmetry named gates act on Pauli words" begin
+        _, (σx, σy, σz) = create_pauli_variables(1:2)
+        act(g, mono) = NCTSSoS._act_monomial(g, mono)
+        mono(poly) = only(monomials(poly))
+
+        h = CliffordSymmetry(:H, 1)
+        @test h.nqubits == 1
+        @test act(h, σx[1]) == (1, σz[1])
+        @test act(h, σy[1]) == (-1, σy[1])
+        @test act(h, σz[1]) == (1, σx[1])
+
+        s = CliffordSymmetry(:S, 1)
+        @test act(s, σx[1]) == (1, σy[1])
+        @test act(s, σy[1]) == (-1, σx[1])
+        @test act(s, σz[1]) == (1, σz[1])
+
+        cnot = CliffordSymmetry(:CNOT, 1, 2)
+        @test cnot.nqubits == 2
+        @test act(cnot, σx[1]) == (1, mono(σx[1] * σx[2]))
+        @test act(cnot, σy[1]) == (1, mono(σy[1] * σx[2]))
+        @test act(cnot, σz[2]) == (1, mono(σz[1] * σz[2]))
+        @test act(cnot, σy[2]) == (1, mono(σz[1] * σy[2]))
+        @test act(cnot, mono(σx[1] * σx[2])) == (1, σx[1])
+        @test act(cnot, mono(σx[1] * σz[2])) == (-1, mono(σy[1] * σy[2]))
+
+        swap = CliffordSymmetry(:SWAP, 1, 2)
+        @test act(swap, σx[1]) == (1, σx[2])
+        @test act(swap, σy[2]) == (1, σy[1])
+        @test act(swap, mono(σx[1] * σz[2])) == (1, mono(σz[1] * σx[2]))
+
+        heisenberg = sum(ComplexF64(1 / 4) * op[1] * op[2] for op in (σx, σy, σz))
+        @test NCTSSoS._act_polynomial(swap, heisenberg) == heisenberg
+
+        err = _capture_exception(() -> CliffordSymmetry(:CNOT, 1, 1))
+        @test err isa ArgumentError
+        @test occursin("distinct sites", sprint(showerror, err))
+    end
+
     @testset "symmetry helpers cover invariant constraints and scalar reductions" begin
         reg, (x,) = create_unipotent_variables([("x", 1:2)])
         invariant_poly = 1.0 * (x[1] + x[2])

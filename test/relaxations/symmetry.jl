@@ -138,6 +138,135 @@ end
         err = _capture_exception(() -> CliffordSymmetry(:CNOT, 1, 1))
         @test err isa ArgumentError
         @test occursin("distinct sites", sprint(showerror, err))
+
+        err = _capture_exception(() -> CliffordSymmetry(Dict(mono(σx[1] * σx[2]) => (1, σx[1]))))
+        @test err isa ArgumentError
+        @test occursin("single-Pauli-letter", sprint(showerror, err))
+
+        err = _capture_exception(() -> CliffordSymmetry(Dict(σx[1] => (1, one(σx[1]))); nqubits=1))
+        @test err isa ArgumentError
+        @test occursin("non-identity", sprint(showerror, err))
+
+        raw_images = Dict{NormalMonomial{PauliAlgebra,UInt8},Tuple{Int,NormalMonomial{PauliAlgebra,UInt8}}}(
+            NormalMonomial{PauliAlgebra,UInt8}(UInt8[1]) =>
+                (2, NormalMonomial{PauliAlgebra,UInt8}(UInt8[3])),
+        )
+        err = _capture_exception(() -> CliffordSymmetry{UInt8}(1, raw_images))
+        @test err isa ArgumentError
+        @test occursin("signs must be", sprint(showerror, err))
+
+        bad_pauli_index = NormalMonomial{PauliAlgebra,Int}(Int[-1])
+        good_pauli_index = NormalMonomial{PauliAlgebra,Int}(Int[1])
+        err = _capture_exception(() -> CliffordSymmetry(Dict(bad_pauli_index => (1, good_pauli_index)); nqubits=1))
+        @test err isa ArgumentError
+        @test occursin("non-positive Pauli index", sprint(showerror, err))
+
+        err = _capture_exception(() -> CliffordSymmetry(Dict(
+            σx[1] => (1, mono(σx[1] * σx[2])),
+            σz[1] => (1, mono(σz[1] * σz[2])),
+        ); nqubits=2))
+        @test err isa ArgumentError
+        @test occursin("commutation/anticommutation", sprint(showerror, err))
+
+        _, (τx, τy, τz) = create_pauli_variables(1:4)
+        err = _capture_exception(() -> CliffordSymmetry(Dict(
+            τx[1] => (1, mono(τx[2] * τx[3])),
+            τy[1] => (1, mono(τy[2] * τx[3] * τx[4])),
+            τz[1] => (1, mono(τz[2] * τx[4])),
+        ); nqubits=4))
+        @test err isa ArgumentError
+        @test occursin("commutation/anticommutation", sprint(showerror, err))
+
+        err = _capture_exception(() -> CliffordSymmetry(Dict(
+            σy[1] => (1, σz[1]),
+            σz[1] => (1, σy[1]),
+        ); nqubits=1))
+        @test err isa ArgumentError
+        @test occursin("Pauli multiplication", sprint(showerror, err))
+    end
+
+    @testset "CliffordSymmetryGroup closure matches SymbolicWedderburn action convention" begin
+        _, (σx, _, σz) = create_pauli_variables(1:2)
+        mono(poly) = only(monomials(poly))
+
+        h_group = CliffordSymmetryGroup(CliffordSymmetry(:H, 1); integer_type=UInt8)
+        s_group = CliffordSymmetryGroup(CliffordSymmetry(:S, 1); integer_type=UInt8)
+        hs_group = CliffordSymmetryGroup(CliffordSymmetry(:H, 1), CliffordSymmetry(:S, 1); integer_type=UInt8)
+        cnot_group = CliffordSymmetryGroup(CliffordSymmetry(:CNOT, 1, 2); integer_type=UInt8)
+        swap_group = CliffordSymmetryGroup(CliffordSymmetry(:SWAP, 1, 2); integer_type=UInt8)
+
+        @test length(h_group) == 2
+        @test length(s_group) == 4
+        @test length(hs_group) == 24
+        @test length(cnot_group) == 2
+        @test length(swap_group) == 2
+        @test NCTSSoS.GroupsCore.order(Int, only(NCTSSoS.GroupsCore.gens(h_group))) == 2
+
+        action = NCTSSoS.NCPauliCliffordAction{UInt8}()
+        probe = mono(σx[1] * σz[2])
+        for group in (cnot_group, hs_group), g in collect(group), h in collect(group)
+            lhs = SW.action(action, g * h, probe)
+            mid_mono, mid_sign = SW.action(action, g, probe)
+            rhs_mono, rhs_sign = SW.action(action, h, mid_mono)
+            @test lhs == (rhs_mono, mid_sign * rhs_sign)
+        end
+
+        high_swap = CliffordSymmetry(:SWAP, 999, 1000; nqubits=1000, integer_type=UInt16)
+        high_domain = UInt16[NCTSSoS._pauli_index(999, 0)]
+        high_group = CliffordSymmetryGroup(high_swap; nqubits=1000, integer_type=UInt16, domain=high_domain)
+        @test length(high_group) == 2
+        @test length(high_group.inner.domain) == 6
+
+        spec = SymmetrySpec(CliffordSymmetry(:SWAP, 1, 2))
+        @test length(spec.clifford_generators) == 1
+    end
+
+    @testset "Pauli Clifford symmetry wires into moment relaxation" begin
+        reg, (σx, σy, σz) = create_pauli_variables(1:2)
+        heisenberg = sum(ComplexF64(1 / 4) * op[1] * op[2] for op in (σx, σy, σz))
+        pop = polyopt(heisenberg, reg)
+        basis = [one(σx[1]); σx; σy; σz]
+        cfg = SolverConfig(
+            optimizer=nothing,
+            moment_basis=basis,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=SymmetrySpec(CliffordSymmetry(:SWAP, 1, 2)),
+        )
+        sparsity = compute_sparsity(pop, cfg)
+
+        @test NCTSSoS._check_symmetry_mvp_support(pop, cfg, sparsity) === nothing
+        _, report = NCTSSoS.moment_relax_symmetric(
+            pop,
+            sparsity.corr_sparsity,
+            sparsity.cliques_term_sparsities,
+            cfg.symmetry,
+        )
+
+        @test report.group_order == 2
+        @test report.psd_block_sizes == [4, 3]
+        @test maximum(report.psd_block_sizes) < length(basis)
+        @test all(==(:wedderburn), report.block_provenance)
+
+        single_reg, (τx, _, τz) = create_pauli_variables(1:1)
+        z_pop = polyopt(1.0 * τz[1], single_reg)
+        z_basis = [one(τx[1]); τz]
+        z_cfg = SolverConfig(
+            optimizer=nothing,
+            moment_basis=z_basis,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=SymmetrySpec(CliffordSymmetry(:S, 1)),
+        )
+        z_sparsity = compute_sparsity(z_pop, z_cfg)
+        _, z_report = NCTSSoS.moment_relax_symmetric(
+            z_pop,
+            z_sparsity.corr_sparsity,
+            z_sparsity.cliques_term_sparsities,
+            z_cfg.symmetry,
+        )
+        @test z_report.group_order == 4
+        @test z_report.psd_block_sizes == [2]
     end
 
     @testset "symmetry helpers cover invariant constraints and scalar reductions" begin

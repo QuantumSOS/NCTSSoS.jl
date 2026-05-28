@@ -88,8 +88,9 @@ ordinary_size_summary
 
 # #### Solve both relaxations
 
-dense_result = cs_nctssos(pop, dense_cfg);
-chip_result = cs_nctssos(pop, chip_cfg);
+dense_result, chip_result = redirect_stdout(devnull) do
+    cs_nctssos(pop, dense_cfg), cs_nctssos(pop, chip_cfg)
+end;
 # Each result is a `PolyOptResult`; compare the bound and the SDP size.
 
 @assert isapprox(chip_result.objective, dense_result.objective; atol=1e-6)
@@ -169,8 +170,9 @@ trace_size_summary
 
 # #### Solve both relaxations
 
-dense_trace_result = cs_nctssos(trace_pop, dense_trace_cfg);
-chip_trace_result = cs_nctssos(trace_pop, chip_trace_cfg);
+dense_trace_result, chip_trace_result = redirect_stdout(devnull) do
+    cs_nctssos(trace_pop, dense_trace_cfg), cs_nctssos(trace_pop, chip_trace_cfg)
+end;
 # The Newton cyclic chip basis is a basis reduction only; the relaxation value
 # should match the dense order-2 tracial solve.
 

@@ -85,7 +85,7 @@ result = cs_nctssos(spop, solver_config);
 ````
 
 ````
-result.objective = -0.046717378455481205
+result.objective = -0.04671737845555294
 
 ````
 

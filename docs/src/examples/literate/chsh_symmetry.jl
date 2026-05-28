@@ -229,23 +229,21 @@ sym_result
 #
 # This is the central trade-off: NCTSSoS uses the symmetry-adapted basis only
 # **internally**, to decide how to slice one PSD block into several smaller
-# ones, and emits the result back in monomial coordinates. The downside is
-# that the current MVP only handles cases where every isotypic block is a
-# `1\times 1` scalar (multiplicity-free, scalar blocks); the upside is that
-# nothing else in the package — registries, polynomials, sparsity, GNS
-# reconstruction — has to change.
+# ones, and emits the result back in monomial coordinates. The deliberate
+# limitation is not scalar blocks anymore; it is the boundary around dense,
+# single-clique, ordinary-polynomial relaxations with one supported symmetry
+# family at a time.
 #
 # See [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for the full
 # picture, including:
 #
-# - the supported MVP scope (dense, single clique, ordinary `PolyOpt` over
-#   `MonoidAlgebra`, real signed permutations, multiplicity-free / scalar
-#   blocks only),
+# - the supported MVP scope (`MonoidAlgebra` + `SignedPermutation`,
+#   `PauliAlgebra` + `CliffordSymmetry`, or `FermionicAlgebra` with the
+#   fermionic symmetry specs),
 # - the fail-fast behavior on unsupported cases (term sparsity, multiple
-#   cliques, non-invariant objectives, basis closure failures, multiplicity
-#   `> 1`, non-scalar blocks, state/trace problems, [`cs_nctssos_higher`](@ref),
-#   and monomap-based GNS reconstruction from symmetry-reduced solves, which
-#   still needs dense unreduced moments), and
+#   cliques, non-invariant objectives, basis closure failures, state/trace
+#   problems, [`cs_nctssos_higher`](@ref), and GNS reconstruction from
+#   symmetry-reduced solves), and
 # - the boundary between what NCTSSoS does locally and what
 #   [`SymbolicWedderburn`](https://github.com/kalmarek/SymbolicWedderburn.jl)
 #   computes for it.

@@ -149,7 +149,7 @@ moment_summary
 ````
 
 ````
-(objective = -0.999999938049795, unique_moments = 78, solved_moments = 78)
+(objective = -0.999999938169451, unique_moments = 78, solved_moments = 78)
 ````
 
 `moment_summary` shows the certified bound together with the size of the
@@ -199,7 +199,7 @@ extraction_summary
 ````
 
 ````
-(rank = 5, full_rank = 9, xi = [-0.995501, -0.0, 0.0, -0.0, -0.094753], A1 = [-0.0 0.996 0.0 -0.0 -0.0; 0.996 0.0 0.0 0.0 0.095; 0.0 0.0 -0.0 0.745 0.0; -0.0 0.0 0.745 0.0 0.0; -0.0 0.095 0.0 0.0 0.0], A2 = [0.0 0.0 -0.769 -0.0 0.0; 0.0 -1.0 -0.0 -0.0 0.0; -0.769 -0.0 -0.0 0.0 0.473; -0.0 -0.0 0.0 -0.0 0.0; 0.0 0.0 0.473 0.0 -0.0])
+(rank = 5, full_rank = 9, xi = [-0.995501, 0.0, -0.0, -0.0, 0.094753], A1 = [0.0 0.996 0.0 -0.0 -0.0; 0.996 -0.0 0.0 0.0 -0.095; 0.0 0.0 -0.0 -0.745 -0.0; -0.0 0.0 -0.745 0.0 -0.0; -0.0 -0.095 -0.0 -0.0 0.0], A2 = [-0.0 -0.0 0.769 -0.0 0.0; -0.0 -1.0 -0.0 0.0 0.0; 0.769 -0.0 0.0 -0.0 0.473; -0.0 0.0 -0.0 0.0 -0.0; 0.0 0.0 0.473 -0.0 -0.0])
 ````
 
 `extraction_summary` exposes the `5 × 5` operators in a compact form.
@@ -236,10 +236,10 @@ round.(eigenvalues, digits=6)
 ````
 5-element Vector{Float64}:
  -1.0
- -0.53687
- -0.0
+ -0.536873
   0.0
-  0.53687
+  0.0
+  0.536873
 ````
 
 `eigenvalues` shows that the extracted model attains the lower bound `-1`.
@@ -275,7 +275,7 @@ moment_check
 ````
 
 ````
-(basis_size = 15, max_error = 3.045198293527562e-8)
+(basis_size = 15, max_error = 3.040815432786559e-8)
 ````
 
 `moment_check` confirms that the reconstructed model reproduces the SDP

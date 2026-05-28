@@ -448,7 +448,7 @@ bound_sparse = -result_sparse.objective
 ````
 
 ````
-0.2508754080902566
+0.2508754081750242
 ````
 
 bound_sparse: improved bound using sparsity
@@ -458,7 +458,7 @@ bound_sparse  # closer to theoretical 0.25
 ````
 
 ````
-0.2508754080902566
+0.2508754081750242
 ````
 
 Improvement in bound:
@@ -468,7 +468,7 @@ bound_dense - bound_sparse  # positive = improvement
 ````
 
 ````
-3.4690526801162136e-7
+3.4682050042977863e-7
 ````
 
 ---
@@ -661,7 +661,7 @@ result_ts = cs_nctssos(spop, solver_config_ts)
 
 ````
 State Optimization Result
-Objective: -4.999999997729253
+Objective: -4.999999997729249
 Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
 
    maximum clique size: 6
@@ -691,7 +691,7 @@ result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
 
 ````
 State Optimization Result
-Objective: -4.999999988546256
+Objective: -4.999999988540701
 Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
 
    maximum clique size: 6
@@ -720,7 +720,7 @@ improved_bound = -result_higher.objective
 ````
 
 ````
-4.999999988546256
+4.999999988540701
 ````
 
 improved_bound: refined upper bound
@@ -731,7 +731,7 @@ improved_bound: refined upper bound
 ````
 
 ````
-(4.999999988546256, 1.1453743731237864e-8)
+(4.999999988540701, 1.1459299287253089e-8)
 ````
 
 ---

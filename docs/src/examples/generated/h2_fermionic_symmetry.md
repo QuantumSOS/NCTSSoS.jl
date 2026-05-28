@@ -504,7 +504,7 @@ symspec = SymmetrySpec(sector = sector, spin_adaptation = spin)
 ````
 
 ````
-NCTSSoS.SymmetrySpec(NCTSSoS.SignedPermutation[], NCTSSoS.FermionicModePermutation[], NCTSSoS.FermionicSectorSpec(NCTSSoS.FermionicModeLayout(Dict(4 => 2, 2 => 2, 3 => 1, 1 => 1), Dict(4 => -1, 2 => 1, 3 => -1, 1 => 1), Dict{Int64, Any}(2 => :B1u, 1 => :Ag), NCTSSoS.AbelianIrrepTable{Symbol, typeof(Main.var"##288".h2_irrep_multiply), typeof(identity)}(:Ag, Main.var"##288".h2_irrep_multiply, identity)), true, true, true, true), NCTSSoS.FermionicSpinAdaptationSpec(NCTSSoS.FermionicModeLayout(Dict(4 => 2, 2 => 2, 3 => 1, 1 => 1), Dict(4 => -1, 2 => 1, 3 => -1, 1 => 1), Dict{Int64, Any}(2 => :B1u, 1 => :Ag), NCTSSoS.AbelianIrrepTable{Symbol, typeof(Main.var"##288".h2_irrep_multiply), typeof(identity)}(:Ag, Main.var"##288".h2_irrep_multiply, identity)), 1.0e-8, false), true)
+NCTSSoS.SymmetrySpec(NCTSSoS.SignedPermutation[], NCTSSoS.FermionicModePermutation[], NCTSSoS.CliffordSymmetry[], NCTSSoS.FermionicSectorSpec(NCTSSoS.FermionicModeLayout(Dict(4 => 2, 2 => 2, 3 => 1, 1 => 1), Dict(4 => -1, 2 => 1, 3 => -1, 1 => 1), Dict{Int64, Any}(2 => :B1u, 1 => :Ag), NCTSSoS.AbelianIrrepTable{Symbol, typeof(Main.var"##288".h2_irrep_multiply), typeof(identity)}(:Ag, Main.var"##288".h2_irrep_multiply, identity)), true, true, true, true), NCTSSoS.FermionicSpinAdaptationSpec(NCTSSoS.FermionicModeLayout(Dict(4 => 2, 2 => 2, 3 => 1, 1 => 1), Dict(4 => -1, 2 => 1, 3 => -1, 1 => 1), Dict{Int64, Any}(2 => :B1u, 1 => :Ag), NCTSSoS.AbelianIrrepTable{Symbol, typeof(Main.var"##288".h2_irrep_multiply), typeof(identity)}(:Ag, Main.var"##288".h2_irrep_multiply, identity)), 1.0e-8, false), true)
 ````
 
 ---

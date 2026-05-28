@@ -1,10 +1,10 @@
 # [Extending Symmetry Support: The Fermionic Case](@id extending-symmetry)
 
 The companion page [Symmetry-Adapted Basis](@ref symmetry-adapted-basis)
-documents what the **dense, monoid-algebra, signed-permutation MVP** does and
-intentionally does not. This page is a contributor-facing audit of what would
-have to be true — and what is currently not true — for that same machinery to
-work for fermionic problems (`FermionicAlgebra <: PBWAlgebra`).
+documents what the **dense, ordinary-polynomial symmetry path** does and
+intentionally does not. This page is a contributor-facing audit of what remains
+hard when extending that machinery beyond the narrow supported actions, using
+fermionic problems (`FermionicAlgebra <: PBWAlgebra`) as the worked example.
 
 The motivation for being concrete: every limitation listed below is enforced
 by a fail-fast check in `src/optimization/symmetry.jl`. Lifting them is not
@@ -20,36 +20,40 @@ ordering of work can be done with eyes open.
 ## [Audience and scope](@id ext-sym-audience)
 
 This page is aimed at contributors planning to extend symmetry-adapted
-basis support, and at users who want to understand why their fermionic
-problem cannot use `SolverConfig(; symmetry = ...)` today even though the
-underlying mathematics is well-understood. It is not a tutorial; it assumes
-familiarity with the [Symmetry-Adapted Basis](@ref symmetry-adapted-basis)
-page and with `FermionicAlgebra`.
+basis support, and at users who want to understand why a fermionic symmetry
+outside the supported mode-permutation / sector / spin path cannot use
+`SolverConfig(; symmetry = ...)` today even though the underlying mathematics
+is well-understood. It is not a tutorial; it assumes familiarity with the
+[Symmetry-Adapted Basis](@ref symmetry-adapted-basis) page and with
+`FermionicAlgebra`.
 
 ## [Two axes of limitation](@id ext-sym-axes)
 
-The current MVP errors out for fermionic problems because of *both*
-algebra-specific and algebra-general assumptions. Mixing the two makes
-"what's missing for fermions?" sound bigger than it is.
+Unsupported fermionic extensions fail for two different reasons:
+*algebra-specific* normal-ordering issues and *algebra-general* limitations of
+the dense symmetry path. Mixing the two makes "what's missing for fermions?"
+sound bigger than it is.
 
 - **Algebra-specific**: assumptions that hold for monoid algebras but not for
   PBW algebras such as `FermionicAlgebra`. Examples: "the action of a group
   element on a basis monomial returns a single basis monomial", "the
   symmetric canonicalization is the identity".
-- **Algebra-general**: assumptions that the MVP makes for *any* algebra and
-  that limit it even on the monoid path. Examples: "multiplicity-free
-  decompositions only", "single clique, no term sparsity".
+- **Algebra-general**: assumptions that the dense symmetry path makes for
+  *any* algebra. Examples: "single clique", "no term sparsity", and "no GNS
+  reconstruction from symmetry-reduced moments".
 
-A realistic fermionic MVP requires fixing the algebra-specific items only.
-Lifting the algebra-general items is the same problem in any algebra and is
-strictly larger work.
+The supported fermionic MVP is deliberately the strict mode-permutation /
+sector / spin subcase. Lifting the algebra-general items is the same problem
+in any algebra and is strictly larger work.
 
 ## [The ten items](@id ext-sym-items)
 
 ### [1. Lift the algebra gate (algebra-specific, trivial)](@id ext-sym-1-gate)
 
-Every public entry point in `src/optimization/symmetry.jl` is gated
-`A <: MonoidAlgebra`:
+Historically, every public entry point in `src/optimization/symmetry.jl` was
+gated on `A <: MonoidAlgebra`. The current code has explicit gates for the
+supported monoid, Pauli, and fermionic paths, but any new algebra/action pair
+still has to audit the same call chain:
 
 - `_check_symmetry_mvp_support` (in `src/optimization/interface.jl`)
 - `moment_relax_symmetric`
@@ -60,9 +64,9 @@ Every public entry point in `src/optimization/symmetry.jl` is gated
 - `_reduce_constraint_matrix_symmetric`
 - `_collect_reduced_basis`, `_add_moment_eq_constraints_symmetric!`
 
-Mechanically relaxing those bounds is a few-line change. It is also
-**meaningless on its own**: every item below describes something that would
-then be silently wrong rather than loudly wrong.
+Mechanically relaxing a gate is a few-line change. It is also **meaningless on
+its own**: every item below describes something that would then be silently
+wrong rather than loudly wrong.
 
 ### [2. The PBW expansion problem (algebra-specific, the real core change)](@id ext-sym-2-pbw)
 
@@ -144,8 +148,8 @@ SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
 this is wrong. Two coordinated fixes are needed:
 
 - Thread `MP_C` (or `Complex{Float64}` when `_is_complex_problem(A)`) through
-  `_sw_decompose_half_basis` and `_reduce_to_scalar_blocks_sw`.
-- Switch the cone for the reduced 1×1 blocks. The existing
+  `_sw_decompose_half_basis` and the transformed-block reduction helpers.
+- Switch the cone for the reduced blocks. The existing
   `_is_complex_problem(A) ? :HPSD : :PSD` already covers the constraint cone,
   but the local sign tracking in `_OrbitReducer.phase` is `Int`-valued. For
   genuinely complex-character actions (most fermionic point groups don't have
@@ -205,25 +209,21 @@ The fix is the same `mode_permutation` helper proposed in item 3, plus a
 slightly smarter `_symmetry_domain` that, for `FermionicAlgebra`, also
 asserts that the user-supplied permutation respects the `+i ↔ -i` pairing.
 
-### [8. Multiplicity-free / scalar-block restriction (algebra-general)](@id ext-sym-8-mult-free)
+### [8. Higher-dimensional symmetry blocks (algebra-general)](@id ext-sym-8-mult-free)
 
-The current code throws on `multiplicity > 1`, `!issimple`, or block
-`size > 1`. This is the same wall the monoid path hits, but **fermionic
-problems hit it much sooner**: the symmetry groups of physical interest
-(point groups with E or T irreps, spin SU(2), space groups) almost always
-have multi-dimensional irreps.
+The dense symmetry path now keeps the block sizes returned by
+`SymbolicWedderburn` and checks transformed off-block coupling. That lifted the
+old scalar-only restriction for ordinary dense solves.
 
-Lifting the restriction requires:
+What remains hard is carrying those richer symmetry coordinates through the
+parts of the package that still expect a dense unreduced moment table:
 
-- Building actual `d × d` PSD blocks (one per isotypic component, where `d`
-  is the irrep dimension), not collapsing to scalars.
-- Tracking the equivariant projectors that turn entries of the original
-  moment matrix into entries of the reduced block.
-- Off-block vanishing checks that no longer reduce to "this scalar is zero"
-  but to "this `d × d` matrix is zero".
+- GNS reconstruction and optimizer extraction from symmetry-reduced moments.
+- Sparse/clique decompositions where each clique may only preserve a subgroup.
+- Any future action whose representation has nontrivial complex phases rather
+  than the current ±1 orbit bookkeeping.
 
-This is the largest single piece of *new* work on this page and is not
-fermion-specific.
+This remaining work is not fermion-specific.
 
 ### [9. Composition with sparsity (algebra-general, practically critical for fermions)](@id ext-sym-9-sparsity)
 
@@ -255,24 +255,15 @@ include:
 
 ## [Honest verdict](@id ext-sym-verdict)
 
-**For a fermionic MVP that does what the CHSH MVP does today** — dense,
-single clique, multiplicity-free, scalar blocks, real signed-permutation
-actions restricted to mode permutations with ±1 phases — the realistic work
-is items **1, 2 (escape-hatch form), 4, and 7**, plus a regression test and
-a docs example. That is a few hundred lines of carefully written code and a
-couple of focused days. The mechanical part is type-relaxation and threading
-the complex coefficient type through; the genuinely subtle bit is convincing
-yourself that the orbit reducer's sign bookkeeping survives renormal-ordering.
+**For the supported fermionic MVP** — dense, single clique, pure mode
+permutations plus optional sector/spin splitting — the critical restriction is
+that acting on a basis monomial must still produce a single normal-ordered
+monomial up to sign. That is the line that keeps the orbit reducer simple.
 
-**For anything more ambitious** — particle-hole, multi-dimensional irreps,
-sparsity composition — you are no longer in MVP territory. Items 3 and 8
-each require a richer intermediate representation that the package does not
-maintain today. Item 8 in particular is the wall the monoid path will also
-hit; doing it right means giving up on "the output is an ordinary
-`MomentProblem`" (see the
-[corresponding section](@ref sab-output) of the main symmetry manual page)
-and admitting that for non-scalar isotypic blocks the JuMP model does need
-to know about block structure beyond what scalar moments can express.
+**For anything more ambitious** — particle-hole, continuous U(1) phases,
+sparsity composition, or GNS reconstruction from reduced moments — you are no
+longer in MVP territory. Those features require a richer intermediate
+representation than a monomial orbit representative with a ±1 phase.
 
 **The single highest-leverage piece of work that is not symmetry-specific**
 is implementing `symmetric_canon` (item 5) and `LinearAlgebra.adjoint`
@@ -283,37 +274,35 @@ the symmetry code can lean on.
 
 ## [Recommended ordering for one focused week](@id ext-sym-week)
 
-If a contributor had one week and wanted to land a defensible fermionic MVP:
+If a contributor had one week and wanted to extend the current fermionic path
+without making a mess:
 
 1. Item 5 (real `symmetric_canon` for fermions) and item 6 (real
    `adjoint(::NormalMonomial{FermionicAlgebra})`) — both fall out of the same
    word-level helper, both are reusable beyond symmetry. **Day 1.**
-2. Item 1 (relax the algebra gate) and item 7 (`mode_permutation` helper +
-   fermion-aware domain check). **Day 2.**
-3. Item 2 in its escape-hatch form: convince yourself, with a written-down
-   argument and a property test, that pure mode permutations on
-   normal-ordered fermionic words produce single normal-ordered words up to
-   sign. Then keep `_act_monomial`'s single-monomial return type and add an
-   assertion that the `simplify` output is a singleton. **Days 3–4.**
-4. Item 4 (`Float64` → `Complex{Float64}` plumbing where required). **Day 4.**
-5. Item 10: 2-site Hubbard regression with known answer; expectation
-   fixture; extend the existing Fermionic Ground State Literate page.
-   **Day 5.**
+2. Pick one new finite action and prove, with a property test, whether it maps
+   every supported basis monomial to a single normal-ordered monomial up to
+   sign. If not, stop; it needs a polynomial-valued action, not a patch.
+   **Days 2–3.**
+3. Thread complex character support only if the chosen action actually needs
+   it. Do not make the whole path complex because it sounds general. **Day 4.**
+4. Add one reviewed solver regression and one docs example in the nearest
+   existing Literate page. **Day 5.**
 
-What is **not** in that week: items 3 (particle-hole, U(1)), 8 (non-scalar
-blocks), 9 (sparsity composition). Each of those is its own project.
+What is **not** in that week: particle-hole/U(1) actions that expand basis
+monomials, GNS/reconstruction from symmetry-reduced moments, and sparsity
+composition. Each of those is its own project.
 
 ## [What this looks like for other algebras](@id ext-sym-other-algebras)
 
 The same audit applies to the other non-monoid algebras with predictable
 substitutions:
 
-- **`PauliAlgebra` (`TwistedGroupAlgebra`)**: item 2's polynomial-valued
-  action question reduces to "phase-valued action" (a single twisted
-  monomial with a `{±1, ±i}` phase), which is closer to monoid algebras
-  than fermions are. Items 3 and 7 are not fermion-specific issues here
-  but show up differently because Pauli operators are self-adjoint and
-  have no creation/annihilation tag. Items 4–6 apply directly.
+- **`PauliAlgebra` (`TwistedGroupAlgebra`)**: the supported path uses
+  [`CliffordSymmetry`](@ref NCTSSoS.CliffordSymmetry), where Clifford
+  conjugation maps each Hermitian Pauli word to another Pauli word with a real
+  sign after simplification. General phase-valued or continuous actions remain
+  outside the MVP for the same reason as fermionic U(1) phases.
 - **`BosonicAlgebra` (`PBWAlgebra`)**: structurally analogous to fermions
   (PBW expansion is a sum of monomials), but bosonic normal ordering does
   not introduce signs from anticommutation, so item 2's sign bookkeeping is

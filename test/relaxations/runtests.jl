@@ -20,4 +20,5 @@ using Test
     include("gns.jl")
     include("gns_pipeline.jl")
     include("dualization.jl")
+    include("manidsdp_extension.jl")
 end

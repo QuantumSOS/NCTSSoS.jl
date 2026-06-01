@@ -14,6 +14,12 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SymbolicWedderburn = "858aa9a9-4c7c-4c62-b466-2421203962a2"
 
+[weakdeps]
+ManiDSDP = "3450b6af-5fea-4166-99b5-489dcd6e2977"
+
+[extensions]
+NCTSSoSManiDSDPExt = "ManiDSDP"
+
 [compat]
 Aqua = "0.8.13"
 COSMO = "0.8.9"
@@ -25,6 +31,7 @@ ExplicitImports = "1.11.3"
 Graphs = "1.5"
 GroupsCore = "0.5"
 JuMP = "1.26.0"
+ManiDSDP = "0.1"
 LinearAlgebra = "1.12"
 SparseArrays = "1.12"
 SymbolicWedderburn = "0.4"

@@ -60,6 +60,26 @@ It is a successor to [NCTSSOS](https://github.com/wangjie212/NCTSSOS).
 | `MaximalElimination` | Maximal cliques |
 | `AsIsElimination` | No reordering |
 
+### Optional ManiDSDP backend for Pauli SOS relaxations
+
+If `ManiDSDP.jl` is present and loaded with NCTSSoS, a package extension routes
+supported Pauli-algebra SOS-dual relaxations directly into ManiDSDP's native
+`DualSDP` form instead of building the intermediate JuMP SOS model:
+
+```julia
+using NCTSSoS, ManiDSDP
+
+config = SolverConfig(
+    optimizer = ManiDSDP.Optimizer,
+    order = 1,
+)
+result = cs_nctssos(pauli_problem, config)
+```
+
+This MVP computes the objective for pure Pauli moment-matrix relaxations. It
+intentionally rejects equality/localizing blocks and other shapes rather than
+silently changing the SDP.
+
 ## Installation
 
 <p>

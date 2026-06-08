@@ -19,6 +19,23 @@ notes = "Spinful 4-site 1D Hubbard ring with doubled fermionic modes. This is th
     nuniq = 2517
 
 [[cases]]
+id = "open_n2_u4_dimer_order2"
+notes = "Open two-site spinful Hubbard dimer with doubled fermionic modes, t = 1 and U = 4, canonical total particle number N = 2 enforced by `moment_eq_constraints`. `objective` is the reviewed dense order-2 COSMO value. The exact half-filled dimer energy is U/2 - sqrt((U/2)^2 + 4 t^2) = -0.8284271247461903."
+
+    [cases.expected]
+    objective = -0.8284271069571899
+    sides = [37]
+    nuniq = 163
+
+[[cases]]
+id = "open_n2_u4_dimer_order2_spin_symmetry"
+notes = "Open two-site spinful Hubbard dimer with N = 2, sector splitting by parity/number/S_z, finite site-swap symmetry, and Casimir-based S^2 spin adaptation. `objective` is the reviewed symmetry-adapted order-2 COSMO value and `sides` records the symmetry-reduced PSD block sizes from the same run."
+
+    [cases.expected]
+    objective = -0.828427159549658
+    sides = [1, 2, 1, 1, 1, 2, 2, 3, 2, 2, 2, 1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+[[cases]]
 id = "periodic_n4_u4_order2_canonical"
 notes = "Spinful 4-site 1D Hubbard ring, canonical half-filling (N_up=2, N_dn=2). Uses moment_eq_constraints for one-sided localizing of particle-number constraints. Exact half-filled sector GS is -2.102748483462074."
 

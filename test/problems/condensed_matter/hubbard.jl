@@ -9,10 +9,12 @@
 # lower bound. The canonical test uses `moment_eq_constraints` to fix
 # (N_up, N_dn) = (2, 2) via one-sided localizing constraints g|ψ⟩ = 0.
 #
-# The two-site periodic ring is still useful because its unconstrained ground
-# state already sits in the half-filled sector. The four-site ring exercises the
-# actual N=4, t=1, U=4 model both as a grand-canonical Hamiltonian (full-Fock
-# lower bound) and as a canonical half-filling problem.
+# The open two-site dimer is the smallest exact symmetry benchmark here: it has
+# one honest bond, a closed-form N=2 singlet energy, and clean site-swap / S_z /
+# S^2 structure. The two-site periodic ring is still useful because its
+# unconstrained ground state already sits in the half-filled sector. The four-site
+# ring exercises the actual N=4, t=1, U=4 model both as a grand-canonical
+# Hamiltonian (full-Fock lower bound) and as a canonical half-filling problem.
 
 using Test, NCTSSoS, JuMP, LinearAlgebra
 import NCTSSoS: degree
@@ -93,6 +95,51 @@ function _hubbard_problem(nsites::Int; t::Real, U::Real, periodic::Bool)
 
     return registry, (c_up, c_up_dag), (c_dn, c_dn_dag), hopping + interaction
 end
+
+function _hubbard_mode_layout(c_up, c_dn)
+    nsites = length(c_up)
+    up_modes = Int[Int(op.word[1]) for op in c_up]
+    dn_modes = Int[Int(op.word[1]) for op in c_dn]
+
+    return FermionicModeLayout(
+        Dict(vcat(
+            [up_modes[i] => i for i in 1:nsites],
+            [dn_modes[i] => i for i in 1:nsites],
+        ));
+        spin2_of=Dict(vcat(
+            [up_modes[i] => 1 for i in 1:nsites],
+            [dn_modes[i] => -1 for i in 1:nsites],
+        )),
+    )
+end
+
+function _hubbard_site_swap_generator(c_up, c_dn)
+    nsites = length(c_up)
+    up_modes = Int[Int(op.word[1]) for op in c_up]
+    dn_modes = Int[Int(op.word[1]) for op in c_dn]
+
+    images = Dict{Int,Int}()
+    for i in 1:nsites
+        images[up_modes[i]] = up_modes[mod1(i + 1, nsites)]
+        images[dn_modes[i]] = dn_modes[mod1(i + 1, nsites)]
+    end
+
+    return FermionicModePermutation(images)
+end
+
+function _hubbard_site_swap_symmetry(c_up, c_dn)
+    return SymmetrySpec(
+        fermionic_generators=[_hubbard_site_swap_generator(c_up, c_dn)],
+        sector=FermionicSectorSpec(
+            mode_layout=_hubbard_mode_layout(c_up, c_dn),
+            split_parity=true,
+            split_number=true,
+            split_spin=true,
+        ),
+    )
+end
+
+_hubbard_open_dimer_ground_state_energy(t::Real, U::Real) = U / 2 - sqrt((U / 2)^2 + 4 * t^2)
 
 function _sector_indices(nsites::Int; nup::Int, ndn::Int)
     nmodes = 2 * nsites
@@ -192,5 +239,121 @@ end
         @test result.objective > -3.5  # must not drop to full-Fock GS
         @test reduce(vcat, result.moment_matrix_sizes) == oracle.sides
         @test result.n_unique_moment_matrix_elements == oracle.nuniq
+    end
+
+    @testset "Open two-site dimer (canonical N=2 with sector, swap, and spin adaptation)" begin
+        N = 2
+        t = 1.0
+        U = 4.0
+        dense_oracle = expectations_oracle(HUBBARD_EXPECTATIONS_PATH, "open_n2_u4_dimer_order2")
+        adapted_oracle = expectations_oracle(HUBBARD_EXPECTATIONS_PATH, "open_n2_u4_dimer_order2_spin_symmetry")
+
+        registry, (c_up, c_up_dag), (c_dn, c_dn_dag), ham = _hubbard_problem(N; t, U, periodic=false)
+        exact_hamiltonian = _hubbard_fermion_poly_matrix(ham, 2 * N)
+        exact_e0 = _sector_ground_state_energy(exact_hamiltonian, N; nup=1, ndn=1)
+        analytic_e0 = _hubbard_open_dimer_ground_state_energy(t, U)
+        n_total = 1.0 * sum(c_up_dag[i] * c_up[i] + c_dn_dag[i] * c_dn[i] for i in 1:N)
+        pop = polyopt(ham, registry; moment_eq_constraints=[n_total - 2.0 * one(ham)])
+
+        dense = cs_nctssos(
+            pop,
+            SolverConfig(
+                optimizer=SOLVER,
+                order=2,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+            ),
+        )
+
+        mode_layout = _hubbard_mode_layout(c_up, c_dn)
+        sector = FermionicSectorSpec(
+            mode_layout=mode_layout,
+            split_parity=true,
+            split_number=true,
+            split_spin=true,
+        )
+        spin = FermionicSpinAdaptationSpec(mode_layout=mode_layout)
+        sector_only = cs_nctssos(
+            pop,
+            SolverConfig(
+                optimizer=SOLVER,
+                order=2,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+                symmetry=SymmetrySpec(sector=sector),
+            ),
+        )
+        adapted = cs_nctssos(
+            pop,
+            SolverConfig(
+                optimizer=SOLVER,
+                order=2,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+                symmetry=SymmetrySpec(
+                    fermionic_generators=[_hubbard_site_swap_generator(c_up, c_dn)],
+                    sector=sector,
+                    spin_adaptation=spin,
+                ),
+            ),
+        )
+
+        @test exact_e0 ≈ analytic_e0 atol = 1e-12
+        @test dense.objective ≈ dense_oracle.opt atol = 5e-6
+        @test dense.objective ≈ exact_e0 atol = 5e-6
+        @test dense.n_unique_moment_matrix_elements == dense_oracle.nuniq
+        @test reduce(vcat, dense.moment_matrix_sizes) == dense_oracle.sides
+
+        @test sector_only.objective ≈ dense.objective atol = 5e-6
+        @test sector_only.objective ≈ exact_e0 atol = 5e-6
+        @test !isnothing(sector_only.symmetry)
+
+        @test adapted.objective ≈ adapted_oracle.opt atol = 5e-6
+        @test adapted.objective ≈ dense.objective atol = 5e-6
+        @test adapted.objective ≈ exact_e0 atol = 5e-6
+        @test !isnothing(adapted.symmetry)
+        @test adapted.symmetry.group_order == 2
+        @test adapted.symmetry.psd_block_sizes == adapted_oracle.sides
+        @test maximum(adapted.symmetry.psd_block_sizes) < maximum(reduce(vcat, dense.moment_matrix_sizes))
+        @test maximum(adapted.symmetry.psd_block_sizes) < maximum(sector_only.symmetry.psd_block_sizes)
+        spin_labels = Set(label.total_spin2 for label in adapted.symmetry.block_labels if label isa FermionicSpinBlockLabel)
+        @test 0 in spin_labels
+        @test 2 in spin_labels
+    end
+
+    @testset "Periodic two-site ring (canonical half-filling with symmetry sectors)" begin
+        N = 2
+        t = 1.0
+        U = 4.0
+
+        registry, (c_up, c_up_dag), (c_dn, c_dn_dag), ham = _hubbard_problem(N; t, U, periodic=true)
+        n_up_total = 1.0 * sum(c_up_dag[i] * c_up[i] for i in 1:N)
+        n_dn_total = 1.0 * sum(c_dn_dag[i] * c_dn[i] for i in 1:N)
+        pop = polyopt(
+            ham,
+            registry;
+            moment_eq_constraints=[
+                n_up_total - 1.0 * one(ham),
+                n_dn_total - 1.0 * one(ham),
+            ],
+        )
+
+        dense = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, order=2))
+        symmetric = cs_nctssos(
+            pop,
+            SolverConfig(
+                optimizer=SOLVER,
+                order=2,
+                symmetry=_hubbard_site_swap_symmetry(c_up, c_dn),
+            ),
+        )
+
+        @test symmetric.objective ≈ dense.objective atol = 1e-5
+        @test !isnothing(symmetric.symmetry)
+        @test symmetric.symmetry.group_order == 2
+        @test maximum(symmetric.symmetry.psd_block_sizes) < maximum(reduce(vcat, dense.moment_matrix_sizes))
+        @test any(label -> label isa FermionicSectorLabel && label.number == 0 && label.spin2 == 0, symmetric.symmetry.block_labels)
+        @test any(label -> label isa FermionicSectorLabel && label.number == 1 && label.spin2 == 1, symmetric.symmetry.block_labels)
+        @test any(label -> label isa FermionicSectorLabel && label.number == 1 && label.spin2 == -1, symmetric.symmetry.block_labels)
     end
 end

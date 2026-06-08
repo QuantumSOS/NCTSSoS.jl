@@ -44,6 +44,8 @@ using .TestExpectations: expectations_oracle
         include("problems/condensed_matter/ising.jl")
         include("problems/condensed_matter/hubbard.jl")
         include("problems/condensed_matter/bose_hubbard.jl")
+        include("problems/fermionic/fermionic.jl")
+        include("problems/fermionic/fermionic_symmetry.jl")
         include("problems/fermionic/fermionic_chain.jl")
         include("problems/fermionic/xy_model.jl")
         include("problems/fermionic/free_fermion.jl")

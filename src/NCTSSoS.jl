@@ -128,6 +128,8 @@ include("optimization/v2rdm_structured.jl")
 include("optimization/moment.jl")
 include("optimization/lowering.jl")
 include("optimization/symmetry.jl")
+include("optimization/fermionic_irreps.jl")
+include("optimization/fermionic_spin.jl")
 include("optimization/sos.jl")
 include("optimization/interface.jl")
 include("optimization/gns.jl")
@@ -141,7 +143,9 @@ include("optimization/gns_diagnostics.jl")
 
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
-export SignedPermutation, SymmetrySpec, SymmetryReport
+export SignedPermutation, FermionicModePermutation, FermionicModeLayout, AbelianIrrepTable
+export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
+export SymmetrySpec, SymmetryReport
 export SparsityResult, compute_sparsity
 
 # Solver Interface

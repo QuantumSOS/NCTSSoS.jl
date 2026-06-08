@@ -34,6 +34,9 @@ what is supported, the MVP scope, and the CHSH reference acceptance case.
 
 ```@docs
 NCTSSoS.SignedPermutation
+NCTSSoS.FermionicModePermutation
+NCTSSoS.CliffordSymmetry
+NCTSSoS.CliffordSymmetryGroup
 NCTSSoS.SymmetrySpec
 NCTSSoS.SymmetryReport
 ```

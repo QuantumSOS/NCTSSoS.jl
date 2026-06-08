@@ -143,7 +143,7 @@ include("optimization/gns_diagnostics.jl")
 
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
-export SignedPermutation, FermionicModePermutation, FermionicModeLayout, AbelianIrrepTable
+export SignedPermutation, FermionicModePermutation, CliffordSymmetry, CliffordSymmetryGroup, FermionicModeLayout, AbelianIrrepTable
 export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
 export SymmetrySpec, SymmetryReport
 export SparsityResult, compute_sparsity

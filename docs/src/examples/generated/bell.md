@@ -27,22 +27,6 @@ Any SDP solver works — replace `Mosek.Optimizer` with `COSMO.Optimizer` or
 using NCTSSoS, MosekTools
 ````
 
-````
-Precompiling packages...
-   1535.0 ms  ✓ ChordalGraph
-   1997.4 ms  ✓ CliqueTrees → AMDExt
-  40158.6 ms  ✓ MathOptInterface
-  23276.0 ms  ✓ JuMP
-  44074.6 ms  ✓ MathOptInterface → MathOptInterfaceCliqueTreesExt
-  96259.6 ms  ✓ Clarabel
-  31265.3 ms  ✓ NCTSSoS
-  7 dependencies successfully precompiled in 168 seconds. 92 already precompiled.
-Precompiling packages...
-   3410.0 ms  ✓ MosekTools
-  1 dependency successfully precompiled in 4 seconds. 59 already precompiled.
-
-````
-
 ## Key Concepts: Unipotent and Projector Variables
 
 Bell inequalities use two types of measurement operators:

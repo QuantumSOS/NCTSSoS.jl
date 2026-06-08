@@ -42,6 +42,7 @@ using .TestExpectations: expectations_oracle
         include("problems/benchmarks/e4_chained_wood.jl")
         include("problems/benchmarks/e5_broyden_tridiagonal.jl")
         include("problems/condensed_matter/ising.jl")
+        include("problems/condensed_matter/heisenberg_symmetry.jl")
         include("problems/condensed_matter/hubbard.jl")
         include("problems/condensed_matter/bose_hubbard.jl")
         include("problems/fermionic/fermionic.jl")

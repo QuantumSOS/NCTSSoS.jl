@@ -15,7 +15,9 @@ Finite signed permutation acting on registry indices.
 Stored images are `(sign, target_index)` pairs with `sign ∈ {-1, +1}`.
 Indices not listed in `images` are fixed.
 
-This is the only symmetry action supported by the current MVP reduction path.
+Use this for monoid-algebra registry-index symmetries. Pauli problems should
+use [`CliffordSymmetry`](@ref), and fermionic problems should use
+[`FermionicModePermutation`](@ref) plus optional sector/spin specs.
 """
 struct SignedPermutation{T<:Integer}
     images::Dict{T,Tuple{Int,T}}
@@ -145,6 +147,602 @@ function FermionicModePermutation(pairs::Pair...)
     return FermionicModePermutation(images)
 end
 
+const _PAULI_X_TYPE = 0
+const _PAULI_Y_TYPE = 1
+const _PAULI_Z_TYPE = 2
+
+"""
+    CliffordSymmetry
+
+Finite Clifford conjugation action on Pauli words.
+
+The action is stored as signed images of Pauli-basis words:
+`source => (sign, target)`, with `sign ∈ {-1, +1}`. Omitted basis
+letters are fixed. Named constructors provide the standard gate actions:
+`CliffordSymmetry(:H, q)`, `CliffordSymmetry(:S, q)`,
+`CliffordSymmetry(:CNOT, control, target)`, and
+`CliffordSymmetry(:SWAP, q1, q2)`.
+"""
+struct CliffordSymmetry{T<:Integer}
+    nqubits::Int
+    images::Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}
+
+    function CliffordSymmetry{T}(
+        nqubits::Integer,
+        images::Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}},
+    ) where {T<:Integer}
+        g = new{T}(_clifford_validate_nqubits(nqubits), images)
+        _validate_clifford_symmetry(g)
+        return g
+    end
+end
+
+function _clifford_validate_nqubits(nqubits::Integer)
+    n = Int(nqubits)
+    n > 0 || throw(ArgumentError("CliffordSymmetry needs a positive number of qubits; got $n."))
+    return n
+end
+
+function _clifford_validate_site(site::Integer)
+    q = Int(site)
+    q > 0 || throw(ArgumentError("CliffordSymmetry qubit sites must be positive; got $q."))
+    return q
+end
+
+function _clifford_max_site(mono::NormalMonomial{PauliAlgebra})
+    max_site = 0
+    for idx in mono.word
+        idx > 0 || throw(ArgumentError(
+            "CliffordSymmetry image dictionary contains non-positive Pauli index $idx."
+        ))
+        max_site = max(max_site, _pauli_site(idx))
+    end
+    return max_site
+end
+
+function _clifford_copy_monomial(mono::NormalMonomial{PauliAlgebra,T}) where {T<:Integer}
+    return NormalMonomial{PauliAlgebra,T}(copy(mono.word))
+end
+
+function _clifford_validate_pauli_indices(
+    mono::NormalMonomial{PauliAlgebra},
+    nqubits::Integer,
+    label::AbstractString,
+)
+    for idx in mono.word
+        idx > 0 || throw(ArgumentError(
+            "CliffordSymmetry $label contains non-positive Pauli index $idx."
+        ))
+        site = _pauli_site(idx)
+        site <= nqubits || throw(ArgumentError(
+            "CliffordSymmetry $label references site $site outside nqubits=$nqubits."
+        ))
+    end
+    return nothing
+end
+
+function _clifford_validate_domain_indices(domain::AbstractVector{<:Integer}, nqubits::Integer)
+    for idx in domain
+        idx > 0 || throw(ArgumentError(
+            "CliffordSymmetry active domain contains non-positive Pauli index $idx."
+        ))
+        site = _pauli_site(idx)
+        site <= nqubits || throw(ArgumentError(
+            "CliffordSymmetry active domain references site $site outside nqubits=$nqubits."
+        ))
+    end
+    return nothing
+end
+
+@inline _clifford_sign_phase(sign::Integer) = sign == 1 ? UInt8(0) : UInt8(2)
+
+function _pauli_anticommutes(
+    a::NormalMonomial{PauliAlgebra,T},
+    b::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    parity = false
+    i = firstindex(a.word)
+    j = firstindex(b.word)
+
+    while i <= lastindex(a.word) && j <= lastindex(b.word)
+        ai = a.word[i]
+        bj = b.word[j]
+        site_a = _pauli_site(ai)
+        site_b = _pauli_site(bj)
+
+        if site_a == site_b
+            parity = xor(parity, _pauli_type(ai) != _pauli_type(bj))
+            i += 1
+            j += 1
+        elseif site_a < site_b
+            i += 1
+        else
+            j += 1
+        end
+    end
+
+    return parity
+end
+
+function _clifford_letter_action(
+    g::CliffordSymmetry{T},
+    site::Integer,
+    pauli_type::Integer,
+) where {T<:Integer}
+    idx = convert(T, _pauli_index(site, pauli_type))
+    return _act_monomial(g, NormalMonomial{PauliAlgebra,T}(T[idx]))
+end
+
+function _assert_clifford_preserves_local_product(
+    g::CliffordSymmetry{T},
+    site::Integer,
+    left_type::Int,
+    right_type::Int,
+) where {T<:Integer}
+    product_phase, result_type = _pauli_product(left_type, right_type)
+    result_type == -1 && return nothing
+
+    left_sign, left_image = _clifford_letter_action(g, site, left_type)
+    right_sign, right_image = _clifford_letter_action(g, site, right_type)
+    result_sign, result_image = _clifford_letter_action(g, site, result_type)
+
+    product_word, image_phase = simplify(PauliAlgebra, vcat(left_image.word, right_image.word))
+    product_image = NormalMonomial{PauliAlgebra,T}(product_word)
+    product_image == result_image || throw(ArgumentError(
+        "CliffordSymmetry images must preserve Pauli multiplication on site $site."
+    ))
+
+    lhs_phase = (image_phase + _clifford_sign_phase(left_sign * right_sign)) % UInt8(4)
+    rhs_phase = (product_phase + _clifford_sign_phase(result_sign)) % UInt8(4)
+    lhs_phase == rhs_phase || throw(ArgumentError(
+        "CliffordSymmetry images must preserve Pauli multiplication phases on site $site."
+    ))
+
+    return nothing
+end
+
+function _clifford_infer_nqubits(
+    images::AbstractDict{NormalMonomial{PauliAlgebra,T},<:Tuple{<:Integer,NormalMonomial{PauliAlgebra,T}}},
+    nqubits,
+) where {T<:Integer}
+    inferred = 0
+    for (src, (_, dst)) in images
+        inferred = max(inferred, _clifford_max_site(src), _clifford_max_site(dst))
+    end
+
+    if isnothing(nqubits)
+        inferred > 0 || throw(ArgumentError(
+            "CliffordSymmetry cannot infer `nqubits` from an empty image dictionary."
+        ))
+        return inferred
+    end
+
+    n = _clifford_validate_nqubits(nqubits)
+    inferred <= n || throw(ArgumentError(
+        "CliffordSymmetry image dictionary references site $inferred outside nqubits=$n."
+    ))
+    return n
+end
+
+function CliffordSymmetry(
+    images::AbstractDict{NormalMonomial{PauliAlgebra,T},<:Tuple{<:Integer,NormalMonomial{PauliAlgebra,T}}};
+    nqubits=nothing,
+) where {T<:Integer}
+    n = _clifford_infer_nqubits(images, nqubits)
+    normalized = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+
+    for (src_raw, (sign_raw, dst_raw)) in images
+        sign = Int(sign_raw)
+        sign ∈ (-1, 1) || throw(ArgumentError(
+            "CliffordSymmetry signs must be ±1; got $sign for source word $src_raw."
+        ))
+
+        src = _clifford_copy_monomial(src_raw)
+        dst = _clifford_copy_monomial(dst_raw)
+
+        _clifford_validate_pauli_indices(src, n, "source word")
+        _clifford_validate_pauli_indices(dst, n, "target word")
+
+        if isone(src)
+            sign == 1 && isone(dst) || throw(ArgumentError("CliffordSymmetry must fix the identity word."))
+            continue
+        end
+        length(src.word) == 1 || throw(ArgumentError(
+            "CliffordSymmetry image dictionaries currently accept only single-Pauli-letter sources; got $src."
+        ))
+        !isone(dst) || throw(ArgumentError(
+            "CliffordSymmetry must map non-identity Pauli letters to non-identity Pauli words."
+        ))
+
+        if sign != 1 || dst != src
+            normalized[src] = (sign, dst)
+        end
+    end
+
+    return CliffordSymmetry{T}(n, normalized)
+end
+
+function _clifford_gate_nqubits(nqubits, sites::Integer...)
+    max_site = maximum(_clifford_validate_site(site) for site in sites)
+    isnothing(nqubits) && return max_site
+    n = _clifford_validate_nqubits(nqubits)
+    max_site <= n || throw(ArgumentError(
+        "CliffordSymmetry gate references site $max_site outside nqubits=$n."
+    ))
+    return n
+end
+
+function _pauli_letter(::Type{T}, site::Integer, pauli_type::Integer) where {T<:Integer}
+    return NormalMonomial{PauliAlgebra,T}(T[convert(T, _pauli_index(site, pauli_type))])
+end
+
+function _pauli_word(::Type{T}, letters::Pair{<:Integer,<:Integer}...) where {T<:Integer}
+    raw = T[convert(T, _pauli_index(site, pauli_type)) for (site, pauli_type) in letters]
+    word, phase = simplify(PauliAlgebra, raw)
+    sign = _phase_to_clifford_sign(phase)
+    return sign, NormalMonomial{PauliAlgebra,T}(word)
+end
+
+function _pauli_unsigned_word(::Type{T}, letters::Pair{<:Integer,<:Integer}...) where {T<:Integer}
+    sign, mono = _pauli_word(T, letters...)
+    sign == 1 || throw(ArgumentError(
+        "Internal Clifford gate image construction produced a negative Pauli phase."
+    ))
+    return mono
+end
+
+function CliffordSymmetry(
+    gate::Symbol,
+    sites::Integer...;
+    nqubits=nothing,
+    integer_type::Type{T}=Int,
+) where {T<:Integer}
+    gate_key = Symbol(uppercase(String(gate)))
+
+    if gate_key === :H
+        length(sites) == 1 || throw(ArgumentError("CliffordSymmetry(:H, q) needs exactly one qubit site."))
+        q = _clifford_validate_site(only(sites))
+        n = _clifford_gate_nqubits(nqubits, q)
+        x = _pauli_letter(T, q, _PAULI_X_TYPE)
+        y = _pauli_letter(T, q, _PAULI_Y_TYPE)
+        z = _pauli_letter(T, q, _PAULI_Z_TYPE)
+        return CliffordSymmetry(Dict(x => (1, z), y => (-1, y), z => (1, x)); nqubits=n)
+    elseif gate_key === :S
+        length(sites) == 1 || throw(ArgumentError("CliffordSymmetry(:S, q) needs exactly one qubit site."))
+        q = _clifford_validate_site(only(sites))
+        n = _clifford_gate_nqubits(nqubits, q)
+        x = _pauli_letter(T, q, _PAULI_X_TYPE)
+        y = _pauli_letter(T, q, _PAULI_Y_TYPE)
+        return CliffordSymmetry(Dict(x => (1, y), y => (-1, x)); nqubits=n)
+    elseif gate_key === :CNOT
+        length(sites) == 2 || throw(ArgumentError(
+            "CliffordSymmetry(:CNOT, control, target) needs exactly two qubit sites."
+        ))
+        control = _clifford_validate_site(sites[1])
+        target = _clifford_validate_site(sites[2])
+        control != target || throw(ArgumentError("CliffordSymmetry(:CNOT, control, target) needs distinct sites."))
+        n = _clifford_gate_nqubits(nqubits, control, target)
+
+        x_control = _pauli_letter(T, control, _PAULI_X_TYPE)
+        y_control = _pauli_letter(T, control, _PAULI_Y_TYPE)
+        z_target = _pauli_letter(T, target, _PAULI_Z_TYPE)
+        y_target = _pauli_letter(T, target, _PAULI_Y_TYPE)
+
+        images = Dict(
+            x_control => (1, _pauli_unsigned_word(T, control => _PAULI_X_TYPE, target => _PAULI_X_TYPE)),
+            y_control => (1, _pauli_unsigned_word(T, control => _PAULI_Y_TYPE, target => _PAULI_X_TYPE)),
+            z_target => (1, _pauli_unsigned_word(T, control => _PAULI_Z_TYPE, target => _PAULI_Z_TYPE)),
+            y_target => (1, _pauli_unsigned_word(T, control => _PAULI_Z_TYPE, target => _PAULI_Y_TYPE)),
+        )
+        return CliffordSymmetry(images; nqubits=n)
+    elseif gate_key === :SWAP
+        length(sites) == 2 || throw(ArgumentError("CliffordSymmetry(:SWAP, q1, q2) needs exactly two qubit sites."))
+        q1 = _clifford_validate_site(sites[1])
+        q2 = _clifford_validate_site(sites[2])
+        q1 != q2 || throw(ArgumentError("CliffordSymmetry(:SWAP, q1, q2) needs distinct sites."))
+        n = _clifford_gate_nqubits(nqubits, q1, q2)
+
+        images = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+        for pauli_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+            images[_pauli_letter(T, q1, pauli_type)] = (1, _pauli_letter(T, q2, pauli_type))
+            images[_pauli_letter(T, q2, pauli_type)] = (1, _pauli_letter(T, q1, pauli_type))
+        end
+        return CliffordSymmetry(images; nqubits=n)
+    end
+
+    throw(ArgumentError(
+        "Unknown Clifford gate `:$gate`. Supported gates are :H, :S, :CNOT, and :SWAP."
+    ))
+end
+
+function Base.show(io::IO, g::CliffordSymmetry)
+    print(io, "CliffordSymmetry(nqubits=$(g.nqubits), images=$(length(g.images)))")
+end
+
+Base.:(==)(a::CliffordSymmetry, b::CliffordSymmetry) =
+    a.nqubits == b.nqubits && a.images == b.images
+Base.hash(g::CliffordSymmetry, h::UInt) = hash((g.nqubits, g.images), h)
+
+function _phase_to_clifford_sign(phase::UInt8)
+    phase_mod = phase % UInt8(4)
+    phase_mod == UInt8(0) && return 1
+    phase_mod == UInt8(2) && return -1
+    throw(ArgumentError(
+        "Clifford conjugation of a Hermitian Pauli word produced a non-real phase. " *
+        "Check that the supplied images define a valid Pauli Clifford action."
+    ))
+end
+
+function _convert_clifford_symmetry(
+    ::Type{T},
+    g::CliffordSymmetry;
+    nqubits::Integer=g.nqubits,
+) where {T<:Integer}
+    n = _clifford_validate_nqubits(nqubits)
+    g.nqubits <= n || throw(ArgumentError(
+        "Cannot shrink CliffordSymmetry from nqubits=$(g.nqubits) to nqubits=$n."
+    ))
+
+    images = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+    for (src, (sign, dst)) in g.images
+        src_t = NormalMonomial{PauliAlgebra,T}(T.(src.word))
+        dst_t = NormalMonomial{PauliAlgebra,T}(T.(dst.word))
+        images[src_t] = (sign, dst_t)
+    end
+    return CliffordSymmetry(images; nqubits=n)
+end
+
+function _clifford_letter_image(
+    g::CliffordSymmetry{T},
+    idx::T,
+) where {T<:Integer}
+    letter = NormalMonomial{PauliAlgebra,T}(T[idx])
+    return get(g.images, letter, (1, letter))
+end
+
+function _act_monomial(
+    g::CliffordSymmetry{T},
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    direct = get(g.images, mono, nothing)
+    isnothing(direct) || return direct
+
+    sign = 1
+    word = T[]
+    for idx in mono.word
+        letter_sign, image = _clifford_letter_image(g, idx)
+        sign *= letter_sign
+        append!(word, image.word)
+    end
+
+    image_word, phase = simplify(PauliAlgebra, word)
+    sign *= _phase_to_clifford_sign(phase)
+    return sign, NormalMonomial{PauliAlgebra,T}(image_word)
+end
+
+function _act_monomial(
+    g::CliffordSymmetry,
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    return _act_monomial(_convert_clifford_symmetry(T, g), mono)
+end
+
+function _act_polynomial(
+    g::CliffordSymmetry,
+    poly::Polynomial{PauliAlgebra,T,C},
+) where {T<:Integer,C<:Number}
+    acted_terms = Tuple{C,NormalMonomial{PauliAlgebra,T}}[]
+    sizehint!(acted_terms, length(poly.terms))
+    for (coef, mono) in poly.terms
+        sign, image = _act_monomial(g, mono)
+        push!(acted_terms, (coef * sign, image))
+    end
+    return Polynomial(acted_terms)
+end
+
+function _clifford_letter_domain(::Type{T}, nqubits::Integer) where {T<:Integer}
+    n = _clifford_validate_nqubits(nqubits)
+    return T[convert(T, _pauli_index(site, pauli_type)) for site in 1:n for pauli_type in 0:2]
+end
+
+function _clifford_nqubits_from_domain(domain::AbstractVector{<:Integer})
+    max_site = 0
+    for idx in domain
+        max_site = max(max_site, _pauli_site(idx))
+    end
+    return max_site
+end
+
+function _clifford_max_generator_nqubits(generators::AbstractVector{<:CliffordSymmetry})
+    isempty(generators) && throw(ArgumentError("CliffordSymmetryGroup needs at least one generator."))
+    return maximum(g.nqubits for g in generators)
+end
+
+function _compose_clifford_symmetries(
+    left::CliffordSymmetry{T},
+    right::CliffordSymmetry{T},
+    domain::AbstractVector{T},
+) where {T<:Integer}
+    n = max(left.nqubits, right.nqubits, _clifford_nqubits_from_domain(domain))
+    images = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+
+    for idx in domain
+        src = NormalMonomial{PauliAlgebra,T}(T[idx])
+        sign_right, mid = _act_monomial(right, src)
+        sign_left, dst = _act_monomial(left, mid)
+        sign = sign_left * sign_right
+        if sign != 1 || dst != src
+            images[src] = (sign, dst)
+        end
+    end
+
+    return CliffordSymmetry(images; nqubits=n)
+end
+
+function _clifford_action_signature(g::CliffordSymmetry{T}, idx::T) where {T<:Integer}
+    sign, image = _act_monomial(g, NormalMonomial{PauliAlgebra,T}(T[idx]))
+    return (sign, Tuple(image.word))
+end
+
+function _clifford_push_site_letters!(domain::Set{T}, site::Integer) where {T<:Integer}
+    for pauli_type in 0:2
+        push!(domain, convert(T, _pauli_index(site, pauli_type)))
+    end
+    return domain
+end
+
+function _clifford_add_site_to_domain!(domain::Set{T}, queue::Vector{T}, site::Integer) where {T<:Integer}
+    for pauli_type in 0:2
+        idx = convert(T, _pauli_index(site, pauli_type))
+        if !(idx in domain)
+            push!(domain, idx)
+            push!(queue, idx)
+        end
+    end
+    return domain
+end
+
+# Full Clifford validation only needs sites touched by a nontrivial source or
+# target image. Untouched sites are fixed pointwise, so checking all `nqubits`
+# would turn sparse local gates into an accidental O(n²) constructor.
+function _clifford_active_validation_domain(g::CliffordSymmetry{T}) where {T<:Integer}
+    touched = Set{T}()
+    sizehint!(touched, 3 * length(g.images))
+
+    for (source, (_, image)) in g.images
+        for idx in source.word
+            _clifford_push_site_letters!(touched, _pauli_site(idx))
+        end
+        for idx in image.word
+            _clifford_push_site_letters!(touched, _pauli_site(idx))
+        end
+    end
+
+    return sort!(collect(touched))
+end
+
+function _clifford_action_closed_domain(
+    generators::AbstractVector{CliffordSymmetry{T}},
+    seeds::AbstractVector{T},
+) where {T<:Integer}
+    domain = Set{T}()
+    queue = T[]
+
+    for idx in seeds
+        idx > 0 || throw(ArgumentError(
+            "Clifford symmetry domain contains non-positive Pauli index $idx."
+        ))
+        _clifford_add_site_to_domain!(domain, queue, _pauli_site(idx))
+    end
+
+    for generator in generators
+        for idx in _clifford_active_validation_domain(generator)
+            _clifford_add_site_to_domain!(domain, queue, _pauli_site(idx))
+        end
+    end
+
+    if isempty(domain)
+        _clifford_add_site_to_domain!(domain, queue, 1)
+    end
+
+    head = 1
+    while head <= length(queue)
+        idx = queue[head]
+        head += 1
+        source = NormalMonomial{PauliAlgebra,T}(T[idx])
+        for generator in generators
+            _, image = _act_monomial(generator, source)
+            for image_idx in image.word
+                _clifford_add_site_to_domain!(domain, queue, _pauli_site(image_idx))
+            end
+        end
+    end
+
+    return sort!(collect(domain))
+end
+
+function _validate_clifford_symmetry(g::CliffordSymmetry{T}) where {T<:Integer}
+    return _validate_clifford_symmetry(g, T[])
+end
+
+function _validate_clifford_symmetry(g::CliffordSymmetry{T}, domain::AbstractVector{T}) where {T<:Integer}
+    required_nqubits = _clifford_nqubits_from_domain(domain)
+    g.nqubits >= required_nqubits || throw(ArgumentError(
+        "CliffordSymmetry acts on $(g.nqubits) qubits but the active domain reaches site $required_nqubits."
+    ))
+    _clifford_validate_domain_indices(domain, g.nqubits)
+
+    if !isempty(domain)
+        domain_set = Set(domain)
+        for idx in domain
+            _, image = _act_monomial(g, NormalMonomial{PauliAlgebra,T}(T[idx]))
+            for image_idx in image.word
+                image_idx in domain_set || throw(ArgumentError(
+                    "CliffordSymmetry sends active Pauli index $idx outside the action-closed domain: $image_idx."
+                ))
+            end
+        end
+    end
+
+    for (source, (sign, image)) in g.images
+        sign ∈ (-1, 1) || throw(ArgumentError(
+            "CliffordSymmetry signs must be ±1; got $sign for source word $source."
+        ))
+        _clifford_validate_pauli_indices(source, g.nqubits, "source word")
+        _clifford_validate_pauli_indices(image, g.nqubits, "target word")
+        isone(source) && throw(ArgumentError("CliffordSymmetry image dictionaries must not store the identity word."))
+        length(source.word) == 1 || throw(ArgumentError(
+            "CliffordSymmetry image dictionaries currently accept only single-Pauli-letter sources; got $source."
+        ))
+        !isone(image) || throw(ArgumentError(
+            "CliffordSymmetry must map non-identity Pauli letters to non-identity Pauli words."
+        ))
+    end
+
+    validation_domain = _clifford_active_validation_domain(g)
+    isempty(validation_domain) && return nothing
+
+    letter_images = Tuple{NormalMonomial{PauliAlgebra,T},NormalMonomial{PauliAlgebra,T}}[]
+    image_words = Set{Tuple{Vararg{T}}}()
+    sizehint!(letter_images, length(validation_domain))
+    source_sites = Set{Int}()
+
+    for idx in validation_domain
+        source = NormalMonomial{PauliAlgebra,T}(T[idx])
+        _clifford_validate_pauli_indices(source, g.nqubits, "source word")
+
+        _, image = _act_monomial(g, source)
+        !isone(image) || throw(ArgumentError(
+            "CliffordSymmetry must map non-identity Pauli letters to non-identity Pauli words."
+        ))
+        _clifford_validate_pauli_indices(image, g.nqubits, "target word")
+
+        word_key = Tuple(image.word)
+        word_key in image_words && throw(ArgumentError(
+            "CliffordSymmetry must map Pauli letters injectively up to sign on the active domain."
+        ))
+        push!(image_words, word_key)
+        push!(letter_images, (source, image))
+        haskey(g.images, source) && push!(source_sites, _pauli_site(idx))
+    end
+
+    for i in eachindex(letter_images), j in (i + 1):lastindex(letter_images)
+        source_i, image_i = letter_images[i]
+        source_j, image_j = letter_images[j]
+        _pauli_anticommutes(source_i, source_j) == _pauli_anticommutes(image_i, image_j) || throw(ArgumentError(
+            "CliffordSymmetry images must preserve Pauli commutation/anticommutation relations."
+        ))
+    end
+
+    for site in source_sites
+        for (left_type, right_type) in ((0, 1), (1, 2), (2, 0), (1, 0), (2, 1), (0, 2))
+            _assert_clifford_preserves_local_product(g, site, left_type, right_type)
+        end
+    end
+
+    return nothing
+end
+
 """
     AbelianIrrepTable
 
@@ -228,6 +826,7 @@ Symmetry configuration for dense ordinary polynomial relaxations.
 
 Supported pieces today:
 - signed permutations on monoid-algebra registry indices;
+- Clifford conjugation actions on Pauli words;
 - fermionic mode permutations on physical modes;
 - fermionic sector splitting by parity / particle number / `S_z` / Abelian irreps;
 - fermionic SU(2) spin adaptation layered on top of fixed-sector blocks.
@@ -237,6 +836,7 @@ Unsupported combinations fail loudly instead of quietly doing nonsense.
 struct SymmetrySpec
     generators::Vector{SignedPermutation}
     fermionic_generators::Vector{FermionicModePermutation}
+    clifford_generators::Vector{CliffordSymmetry}
     sector::Union{Nothing,FermionicSectorSpec}
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}
     check_invariance::Bool
@@ -244,17 +844,29 @@ struct SymmetrySpec
     function SymmetrySpec(
         generators::Vector{SignedPermutation},
         fermionic_generators::Vector{FermionicModePermutation},
+        clifford_generators::Vector{CliffordSymmetry},
         sector::Union{Nothing,FermionicSectorSpec},
         spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec},
         check_invariance::Bool,
     )
-        isempty(generators) && isempty(fermionic_generators) && isnothing(sector) && isnothing(spin_adaptation) && throw(ArgumentError(
-            "`SymmetrySpec` needs at least one finite action, fermionic sector split, or spin adaptation."
+        isempty(generators) && isempty(fermionic_generators) && isempty(clifford_generators) &&
+            isnothing(sector) && isnothing(spin_adaptation) && throw(ArgumentError(
+                "`SymmetrySpec` needs at least one finite action, fermionic sector split, or spin adaptation."
+            ))
+
+        n_finite_actions = count(!isempty, (generators, fermionic_generators, clifford_generators))
+        n_finite_actions <= 1 || throw(ArgumentError(
+            "`SymmetrySpec` does not yet support mixing `SignedPermutation`, `FermionicModePermutation`, and `CliffordSymmetry` actions in the same spec."
         ))
-        !isempty(generators) && (!isempty(fermionic_generators) || !isnothing(sector) || !isnothing(spin_adaptation)) && throw(ArgumentError(
-            "`SymmetrySpec` does not yet support mixing raw `SignedPermutation` actions with fermionic mode permutations, sector splitting, or spin adaptation in the same spec."
+
+        !isempty(generators) && (!isnothing(sector) || !isnothing(spin_adaptation)) && throw(ArgumentError(
+            "Fermionic sector splitting / spin adaptation cannot be combined with raw `SignedPermutation` symmetry. Use `FermionicModePermutation` for fermionic problems."
         ))
-        return new(generators, fermionic_generators, sector, spin_adaptation, check_invariance)
+        !isempty(clifford_generators) && (!isnothing(sector) || !isnothing(spin_adaptation)) && throw(ArgumentError(
+            "Fermionic sector splitting / spin adaptation cannot be combined with `CliffordSymmetry` symmetry."
+        ))
+
+        return new(generators, fermionic_generators, clifford_generators, sector, spin_adaptation, check_invariance)
     end
 end
 
@@ -264,7 +876,7 @@ function SymmetrySpec(
 )
     isempty(generators) && throw(ArgumentError("`SymmetrySpec` needs at least one generator."))
     converted = SignedPermutation[generator for generator in generators]
-    return SymmetrySpec(converted, FermionicModePermutation[], nothing, nothing, check_invariance)
+    return SymmetrySpec(converted, FermionicModePermutation[], CliffordSymmetry[], nothing, nothing, check_invariance)
 end
 
 function SymmetrySpec(generators::SignedPermutation...; check_invariance::Bool=true)
@@ -281,7 +893,7 @@ function SymmetrySpec(
         "`SymmetrySpec` needs at least one fermionic mode permutation, sector split, or spin adaptation."
     ))
     converted = FermionicModePermutation[generator for generator in fermionic_generators]
-    return SymmetrySpec(SignedPermutation[], converted, sector, spin_adaptation, check_invariance)
+    return SymmetrySpec(SignedPermutation[], converted, CliffordSymmetry[], sector, spin_adaptation, check_invariance)
 end
 
 function SymmetrySpec(
@@ -299,9 +911,23 @@ function SymmetrySpec(
 end
 
 function SymmetrySpec(
+    clifford_generators::AbstractVector{<:CliffordSymmetry};
+    check_invariance::Bool=true,
+)
+    isempty(clifford_generators) && throw(ArgumentError("`SymmetrySpec` needs at least one Clifford generator."))
+    converted = CliffordSymmetry[generator for generator in clifford_generators]
+    return SymmetrySpec(SignedPermutation[], FermionicModePermutation[], converted, nothing, nothing, check_invariance)
+end
+
+function SymmetrySpec(clifford_generators::CliffordSymmetry...; check_invariance::Bool=true)
+    return SymmetrySpec(collect(clifford_generators); check_invariance)
+end
+
+function SymmetrySpec(
     ;
     generators::AbstractVector{<:SignedPermutation}=SignedPermutation[],
     fermionic_generators::AbstractVector{<:FermionicModePermutation}=FermionicModePermutation[],
+    clifford_generators::AbstractVector{<:CliffordSymmetry}=CliffordSymmetry[],
     sector::Union{Nothing,FermionicSectorSpec}=nothing,
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}=nothing,
     check_invariance::Bool=true,
@@ -309,6 +935,7 @@ function SymmetrySpec(
     return SymmetrySpec(
         SignedPermutation[generator for generator in generators],
         FermionicModePermutation[generator for generator in fermionic_generators],
+        CliffordSymmetry[generator for generator in clifford_generators],
         sector,
         spin_adaptation,
         check_invariance,
@@ -371,6 +998,8 @@ end
 
 struct NCFermionicModePermutationAction{T<:Integer} <: SymbolicWedderburn.BySignedPermutations end
 
+struct NCPauliCliffordAction{T<:Integer} <: SymbolicWedderburn.BySignedPermutations end
+
 struct _FiniteSymmetryGroup{G,T<:Integer} <: GroupsCore.Group
     domain::Vector{T}
     elements::Vector{G}
@@ -389,6 +1018,109 @@ const _SignedPermutationGroup{T} = _FiniteSymmetryGroup{SignedPermutation{T},T}
 const _SignedPermutationGroupElement{T} = _FiniteSymmetryGroupElement{SignedPermutation{T},T}
 const _FermionicModePermutationGroup{T} = _FiniteSymmetryGroup{FermionicModePermutation{T},T}
 const _FermionicModePermutationGroupElement{T} = _FiniteSymmetryGroupElement{FermionicModePermutation{T},T}
+
+"""
+    CliffordSymmetryGroup(generators...; nqubits=nothing, integer_type=Int, domain=nothing)
+
+Finite `GroupsCore` group generated by [`CliffordSymmetry`](@ref) actions.
+Most users should pass `SymmetrySpec(CliffordSymmetry(...))` through
+`SolverConfig`; this constructor is for direct action tests and advanced use.
+Pass `domain` to restrict enumeration to the action-closed Pauli-letter domain
+needed by a local high-index action.
+"""
+struct CliffordSymmetryGroup{T<:Integer} <: GroupsCore.Group
+    inner::_FiniteSymmetryGroup{CliffordSymmetry{T},T}
+end
+
+struct CliffordSymmetryGroupElement{T<:Integer} <: GroupsCore.GroupElement
+    group::CliffordSymmetryGroup{T}
+    index::Int
+end
+
+function CliffordSymmetryGroup(
+    generators::AbstractVector{<:CliffordSymmetry};
+    nqubits=nothing,
+    integer_type::Type{T}=Int,
+    domain=nothing,
+) where {T<:Integer}
+    generator_nqubits = _clifford_max_generator_nqubits(generators)
+    seed_nqubits = isnothing(domain) ? 0 : _clifford_nqubits_from_domain(collect(domain))
+    inferred_nqubits = max(generator_nqubits, seed_nqubits)
+    n = isnothing(nqubits) ? inferred_nqubits : _clifford_validate_nqubits(nqubits)
+    inferred_nqubits <= n || throw(ArgumentError(
+        "CliffordSymmetryGroup cannot shrink generators/domain acting on $inferred_nqubits qubits to nqubits=$n."
+    ))
+
+    converted = CliffordSymmetry{T}[
+        _convert_clifford_symmetry(T, generator; nqubits=n) for generator in generators
+    ]
+    action_domain = if isnothing(domain)
+        _clifford_letter_domain(T, n)
+    else
+        seeds = T[convert(T, idx) for idx in domain]
+        _clifford_action_closed_domain(converted, seeds)
+    end
+
+    group = _enumerate_symmetry_group(converted, action_domain)
+    return CliffordSymmetryGroup{T}(_sw_finite_action_group(converted, group, action_domain))
+end
+
+function CliffordSymmetryGroup(
+    generators::CliffordSymmetry...;
+    nqubits=nothing,
+    integer_type::Type{T}=Int,
+    domain=nothing,
+) where {T<:Integer}
+    return CliffordSymmetryGroup(collect(generators); nqubits, integer_type=T, domain)
+end
+
+@inline _clifford_group_value(g::CliffordSymmetryGroupElement{T}) where {T<:Integer} =
+    g.group.inner.elements[g.index]
+
+Base.eltype(::Type{CliffordSymmetryGroup{T}}) where {T<:Integer} = CliffordSymmetryGroupElement{T}
+Base.IteratorSize(::Type{<:CliffordSymmetryGroup}) = Base.HasLength()
+Base.length(G::CliffordSymmetryGroup) = length(G.inner)
+
+function Base.iterate(G::CliffordSymmetryGroup{T}, state::Int=1) where {T<:Integer}
+    state > length(G) && return nothing
+    return CliffordSymmetryGroupElement{T}(G, state), state + 1
+end
+
+Base.one(G::CliffordSymmetryGroup{T}) where {T<:Integer} = CliffordSymmetryGroupElement{T}(G, 1)
+Base.parent(g::CliffordSymmetryGroupElement) = g.group
+Base.copy(g::CliffordSymmetryGroupElement) = g
+Base.isone(g::CliffordSymmetryGroupElement) = g.index == 1
+
+function Base.:(==)(a::CliffordSymmetryGroupElement{T}, b::CliffordSymmetryGroupElement{T}) where {T<:Integer}
+    return a.group.inner.domain == b.group.inner.domain && _clifford_group_value(a) == _clifford_group_value(b)
+end
+
+function Base.hash(g::CliffordSymmetryGroupElement, h::UInt)
+    return hash((g.group.inner.domain, _clifford_group_value(g)), h)
+end
+
+function GroupsCore.order(::Type{I}, G::CliffordSymmetryGroup) where {I<:Integer}
+    return convert(I, length(G))
+end
+
+function GroupsCore.order(::Type{I}, g::CliffordSymmetryGroupElement) where {I<:Integer}
+    return convert(I, g.group.inner.element_orders[g.index])
+end
+
+function GroupsCore.gens(G::CliffordSymmetryGroup{T}) where {T<:Integer}
+    return [CliffordSymmetryGroupElement{T}(G, idx) for idx in G.inner.generator_indices]
+end
+
+function Base.inv(g::CliffordSymmetryGroupElement{T}) where {T<:Integer}
+    return CliffordSymmetryGroupElement{T}(g.group, g.group.inner.inv_table[g.index])
+end
+
+function Base.:(*)(a::CliffordSymmetryGroupElement{T}, b::CliffordSymmetryGroupElement{T}) where {T<:Integer}
+    a.group.inner.domain == b.group.inner.domain && a.group.inner.elements == b.group.inner.elements || throw(ArgumentError(
+        "Cannot multiply elements from different CliffordSymmetryGroups."
+    ))
+    return CliffordSymmetryGroupElement{T}(a.group, a.group.inner.mult_table[a.index, b.index])
+end
 
 @inline _signed_image(g::SignedPermutation{T}, idx::T) where {T<:Integer} = get(g.images, idx, (1, idx))
 @inline _signed_image_signature(g::SignedPermutation{T}, idx::T) where {T<:Integer} = _signed_image(g, idx)
@@ -413,9 +1145,11 @@ end
 function _convert_symmetry_spec(::Type{T}, spec::SymmetrySpec) where {T<:Integer}
     converted = SignedPermutation[_convert_signed_permutation(T, g) for g in spec.generators]
     fermionic = FermionicModePermutation[_convert_fermionic_mode_permutation(Int, g) for g in spec.fermionic_generators]
+    clifford = CliffordSymmetry[_convert_clifford_symmetry(T, g) for g in spec.clifford_generators]
     return SymmetrySpec(
         generators=converted,
         fermionic_generators=fermionic,
+        clifford_generators=clifford,
         sector=spec.sector,
         spin_adaptation=spec.spin_adaptation,
         check_invariance=spec.check_invariance,
@@ -511,15 +1245,23 @@ function _symmetry_key(g::FermionicModePermutation{T}, domain::AbstractVector{T}
     return Tuple(_mode_image(g, idx) for idx in domain)
 end
 
+function _symmetry_key(g::CliffordSymmetry{T}, domain::AbstractVector{T}) where {T<:Integer}
+    return Tuple(_clifford_action_signature(g, idx) for idx in domain)
+end
+
 _validate_finite_action(g::SignedPermutation{T}, domain::AbstractVector{T}) where {T<:Integer} =
     _validate_signed_permutation(g, domain)
 _validate_finite_action(g::FermionicModePermutation{T}, domain::AbstractVector{T}) where {T<:Integer} =
     _validate_fermionic_mode_permutation(g, domain)
+_validate_finite_action(g::CliffordSymmetry{T}, domain::AbstractVector{T}) where {T<:Integer} =
+    _validate_clifford_symmetry(g, domain)
 
 _compose_finite_actions(left::SignedPermutation{T}, right::SignedPermutation{T}, domain::AbstractVector{T}) where {T<:Integer} =
     _compose_signed_permutations(left, right, domain)
 _compose_finite_actions(left::FermionicModePermutation{T}, right::FermionicModePermutation{T}, domain::AbstractVector{T}) where {T<:Integer} =
     _compose_fermionic_mode_permutations(left, right, domain)
+_compose_finite_actions(left::CliffordSymmetry{T}, right::CliffordSymmetry{T}, domain::AbstractVector{T}) where {T<:Integer} =
+    _compose_clifford_symmetries(left, right, domain)
 
 _inverse_finite_action(g::SignedPermutation{T}, domain::AbstractVector{T}) where {T<:Integer} = begin
     images = Dict{T,Tuple{Int,T}}()
@@ -543,6 +1285,11 @@ end
 
 _identity_finite_action(::Type{SignedPermutation{T}}) where {T<:Integer} = _identity_signed_permutation(T)
 _identity_finite_action(::Type{FermionicModePermutation{T}}) where {T<:Integer} = _identity_fermionic_mode_permutation(T)
+function _identity_finite_action(::Type{CliffordSymmetry{T}}, domain::AbstractVector{T}) where {T<:Integer}
+    n = max(1, _clifford_nqubits_from_domain(domain))
+    return CliffordSymmetry(Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}(); nqubits=n)
+end
+_identity_finite_action(::Type{G}, _domain::AbstractVector) where {G} = _identity_finite_action(G)
 
 function _enumerate_symmetry_group(spec::SymmetrySpec, domain::Vector{T}) where {T<:Integer}
     isempty(domain) && throw(ArgumentError("Symmetry reduction needs a non-empty active variable domain."))
@@ -555,6 +1302,13 @@ function _enumerate_symmetry_group(spec::SymmetrySpec, domain::Vector{T}) where 
             _convert_fermionic_mode_permutation(T, g) for g in spec.fermionic_generators
         ]
         return _enumerate_symmetry_group(generators, domain)
+    elseif !isempty(spec.clifford_generators)
+        nqubits = max(_clifford_nqubits_from_domain(domain), _clifford_max_generator_nqubits(spec.clifford_generators))
+        generators = CliffordSymmetry{T}[
+            _convert_clifford_symmetry(T, g; nqubits) for g in spec.clifford_generators
+        ]
+        clifford_domain = _clifford_action_closed_domain(generators, domain)
+        return _enumerate_symmetry_group(generators, clifford_domain)
     end
 
     throw(ArgumentError("`SymmetrySpec` does not contain any finite symmetry generators."))
@@ -567,7 +1321,7 @@ function _enumerate_symmetry_group(generators::Vector{G}, domain::Vector{T}) whe
         _validate_finite_action(generator, domain)
     end
 
-    identity = _identity_finite_action(G)
+    identity = _identity_finite_action(G, domain)
     seen = Dict{Any,G}(_symmetry_key(identity, domain) => identity)
     queue = G[identity]
 
@@ -640,7 +1394,7 @@ function _sw_finite_action_group(
     group::Vector{G},
     domain::Vector{T},
 ) where {G,T<:Integer}
-    identity = _identity_finite_action(G)
+    identity = _identity_finite_action(G, domain)
     identity_key = _symmetry_key(identity, domain)
     elements = G[identity]
     for g in group
@@ -671,12 +1425,11 @@ function _sw_finite_action_group(
 
     inv_table = Vector{Int}(undef, n)
     for i in 1:n
-        inverse = _inverse_finite_action(elements[i], domain)
-        idx = get(lookup, _symmetry_key(inverse, domain), 0)
-        idx == 0 && throw(ArgumentError(
+        inverse_idx = findfirst(j -> mult_table[i, j] == 1 && mult_table[j, i] == 1, 1:n)
+        isnothing(inverse_idx) && throw(ArgumentError(
             "Internal symmetry error: enumerated symmetry group is missing an inverse element."
         ))
-        inv_table[i] = idx
+        inv_table[i] = inverse_idx
     end
 
     element_orders = ones(Int, n)
@@ -734,6 +1487,15 @@ function SymbolicWedderburn.action(
     return image, sign
 end
 
+function SymbolicWedderburn.action(
+    ::NCPauliCliffordAction{T},
+    g::CliffordSymmetryGroupElement{T},
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    sign, image = _act_monomial(_clifford_group_value(g), mono)
+    return image, sign
+end
+
 function _sw_decompose_half_basis(
     basis::Vector{M},
     group::_SignedPermutationGroup{T},
@@ -748,6 +1510,25 @@ function _sw_decompose_half_basis(
 ) where {T<:Integer}
     action = NCFermionicModePermutationAction{T}()
     return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
+end
+
+function _sw_decompose_half_basis(
+    basis::Vector{NormalMonomial{PauliAlgebra,T}},
+    group::CliffordSymmetryGroup{T},
+) where {T<:Integer}
+    action = NCPauliCliffordAction{T}()
+    return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
+end
+
+@inline _sw_action_elements(group::_FiniteSymmetryGroup) = group.elements
+@inline _sw_action_elements(group::CliffordSymmetryGroup) = group.inner.elements
+
+function _basis_action_is_trivial(basis::AbstractVector{M}, sw_group) where {M<:NormalMonomial}
+    for g in _sw_action_elements(sw_group), mono in basis
+        sign, image = _act_monomial(g, mono)
+        (sign == 1 && image == mono) || return false
+    end
+    return true
 end
 
 function _symmetry_support(poly::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
@@ -1192,12 +1973,12 @@ end
 function _reduce_constraint_matrix_symmetric(
     mat::Matrix{P},
     basis::Vector{M},
-    sw_group::_FiniteSymmetryGroup,
+    sw_group,
     reducer::Union{Nothing,_OrbitReducer{A,T}};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C},M<:NormalMonomial{A,T}}
-    if length(basis) == 1
+    if length(basis) == 1 || _basis_action_is_trivial(basis, sw_group)
         return [_maybe_orbit_reduce_matrix(mat, reducer; atol)]
     end
 
@@ -1418,6 +2199,11 @@ function moment_relax_symmetric(
             "Fermionic spin adaptation is only supported for `FermionicAlgebra`; got `$(nameof(A))`."
         ))
     end
+    if !isempty(symmetry.clifford_generators)
+        A === PauliAlgebra || throw(ArgumentError(
+            "Clifford symmetry is only supported for `PauliAlgebra`; got `$(nameof(A))`."
+        ))
+    end
 
     moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
     total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
@@ -1449,6 +2235,14 @@ function moment_relax_symmetric(
         domain = _mode_symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
         group = _enumerate_symmetry_group(symmetry, domain)
         sw_group = _sw_fermionic_mode_permutation_group(symmetry, group, domain)
+    elseif !isempty(symmetry.clifford_generators)
+        support_domain = _symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
+        nqubits = max(
+            _clifford_nqubits_from_domain(support_domain),
+            _clifford_max_generator_nqubits(symmetry.clifford_generators),
+        )
+        sw_group = CliffordSymmetryGroup(symmetry.clifford_generators; nqubits, integer_type=T, domain=support_domain)
+        group = CliffordSymmetry{T}[_clifford_group_value(element) for element in sw_group]
     end
 
     if !isnothing(group)

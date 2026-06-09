@@ -63,6 +63,25 @@ for h in 0.1:0.2:2.0
 end
 ````
 
+````
+Precompiling packages...
+   1753.2 ms  ✓ LuxurySparse
+   1846.8 ms  ✓ TreeWidthSolver
+   2668.7 ms  ✓ SymEngine
+   1345.5 ms  ✓ CliqueTrees → TreeWidthSolverExt
+   4579.4 ms  ✓ StatsBase
+   3291.1 ms  ✓ OMEinsumContractionOrders
+   5332.5 ms  ✓ YaoArrayRegister
+   3474.1 ms  ✓ OMEinsum
+   9112.5 ms  ✓ YaoBlocks
+   1655.3 ms  ✓ YaoSym
+   2045.5 ms  ✓ YaoToEinsum
+   2492.9 ms  ✓ YaoPlots
+   3880.0 ms  ✓ Yao
+  13 dependencies successfully precompiled in 26 seconds. 163 already precompiled.
+
+````
+
 ## Computing Lower Bounds with Semidefinite Programming
 
 Now we obtain rigorous lower bounds on the ground-state energy using

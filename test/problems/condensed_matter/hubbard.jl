@@ -229,9 +229,12 @@ end
         n_dn_total = 1.0 * sum(c_dn_dag[i] * c_dn[i] for i in 1:N)
         cons_nup = n_up_total - 2.0 * one(ham)
         cons_ndn = n_dn_total - 2.0 * one(ham)
+        helper_constraints = particle_number_constraint(registry, c_up => 2, c_dn => 2)
+
+        @test helper_constraints == [cons_nup, cons_ndn]
 
         # Canonical: use moment_eq_constraints for state sector constraints
-        pop = polyopt(ham, registry; moment_eq_constraints=[cons_nup, cons_ndn])
+        pop = polyopt(ham, registry; moment_eq_constraints=helper_constraints)
         result = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, order=2))
 
         @test result.objective ≈ oracle.opt atol = 1e-6

@@ -69,6 +69,47 @@ end
 @inline _is_hermitian_polynomial(poly::Polynomial) = iszero(poly - adjoint(poly))
 @inline _validate_polyopt_problem_data(::AbstractPolynomial, _eq_constraints, _ineq_constraints, _moment_eq_constraints) = nothing
 
+@inline _convert_polyopt_constraint(::Type{P}, poly::P, _label::Symbol, _i::Int) where {P<:AbstractPolynomial} = poly
+
+@inline _is_finite_coefficient(x::Real) = isfinite(x)
+@inline _is_finite_coefficient(x::Complex) = isfinite(real(x)) && isfinite(imag(x))
+@inline _is_finite_coefficient(::Number) = true
+
+function _convert_polyopt_coefficient(::Type{C}, coef, label::Symbol, i::Int) where {C<:Number}
+    converted = try
+        C(coef)
+    catch err
+        throw(ArgumentError(
+            "$(label)[$i] has coefficient $(repr(coef)) that cannot be converted " *
+            "to objective coefficient type $C."
+        ))
+    end
+    _is_finite_coefficient(converted) || throw(ArgumentError(
+        "$(label)[$i] has coefficient $(repr(coef)) that converts to non-finite $C value $(repr(converted))."
+    ))
+    return converted
+end
+
+function _convert_polyopt_constraint(
+    ::Type{Polynomial{A,T,C}},
+    poly::Polynomial{A,T,C2},
+    label::Symbol,
+    i::Int,
+) where {A<:AlgebraType,T<:Integer,C<:Number,C2<:Number}
+    converted_terms = Tuple{C,NormalMonomial{A,T}}[
+        (_convert_polyopt_coefficient(C, coef, label, i), mono) for (coef, mono) in terms(poly)
+    ]
+    return Polynomial(converted_terms)
+end
+
+function _convert_polyopt_constraint(::Type{P}, poly, label::Symbol, i::Int) where {P<:AbstractPolynomial}
+    throw(ArgumentError("$(label)[$i] must be convertible to objective polynomial type $P; got $(typeof(poly))."))
+end
+
+function _convert_polyopt_constraints(::Type{P}, constraints::AbstractVector, label::Symbol) where {P<:AbstractPolynomial}
+    return P[_convert_polyopt_constraint(P, poly, label, i) for (i, poly) in pairs(constraints)]
+end
+
 function _validate_polyopt_problem_data(
     objective::Polynomial{A,T,C},
     _eq_constraints,
@@ -122,6 +163,7 @@ For state-polynomial inputs, the stored polynomial type is the promoted
 # Notes
 - Algebra type `A` is inferred from the registry
 - Coefficient type cannot be an integer subtype (JuMP solver requirement)
+- Constraint coefficients are converted to the objective coefficient type when the algebra and index types match
 - Simplification rules are determined by the algebra type, not manual flags
 - For complex-algebra polynomial problems (`PauliAlgebra`, `FermionicAlgebra`, `BosonicAlgebra`),
   the objective and inequality constraints must be Hermitian. Non-Hermitian PSD constraints are
@@ -156,21 +198,25 @@ See also: [`PolyOpt`](@ref), [`VariableRegistry`](@ref), [`NCStatePolynomial`](@
 function polyopt(
     objective::P,
     registry::VariableRegistry{A,T};
-    eq_constraints::Vector{P}=P[],
-    ineq_constraints::Vector{P}=P[],
-    moment_eq_constraints::Vector{P}=P[]
+    eq_constraints::AbstractVector=P[],
+    ineq_constraints::AbstractVector=P[],
+    moment_eq_constraints::AbstractVector=P[]
 ) where {P<:AbstractPolynomial, A<:AlgebraType, T<:Integer}
     C = coeff_type(P)
     if C <: Integer
         throw(ArgumentError("Polynomial coefficients cannot be integers (not supported by JuMP solvers). Use Float64 or other floating-point types."))
     end
 
-    _validate_polyopt_problem_data(objective, eq_constraints, ineq_constraints, moment_eq_constraints)
+    eq_cons = _convert_polyopt_constraints(P, eq_constraints, :eq_constraints)
+    ineq_cons = _convert_polyopt_constraints(P, ineq_constraints, :ineq_constraints)
+    meq_cons = _convert_polyopt_constraints(P, moment_eq_constraints, :moment_eq_constraints)
+
+    _validate_polyopt_problem_data(objective, eq_cons, ineq_cons, meq_cons)
 
     # Deduplicate constraints
-    eq_cons = unique!(copy(eq_constraints))
-    ineq_cons = unique!(copy(ineq_constraints))
-    meq_cons = unique!(copy(moment_eq_constraints))
+    unique!(eq_cons)
+    unique!(ineq_cons)
+    unique!(meq_cons)
 
     return PolyOpt{A,T,P}(objective, eq_cons, ineq_cons, meq_cons, registry)
 end

@@ -42,6 +42,21 @@ NCTSSoS.SymmetrySpec
 NCTSSoS.SymmetryReport
 ```
 
+## SympleQ Automatic Symmetry Detection
+
+The SympleQ pipeline recognizes Clifford symmetries of Pauli Hamiltonians
+automatically from the binary symplectic tableau. See
+[Pauli Symmetry Reduction](@ref pauli-clifford-symmetry) for a worked example.
+
+```@docs
+NCTSSoS.sympleq_symmetry_spec
+NCTSSoS.sympleq_clifford_symmetry
+NCTSSoS.SymplecticTableau
+NCTSSoS.SymplecticMatrix
+NCTSSoS.PhaseVector
+NCTSSoS.SympleQGenerator
+```
+
 ## Basis Selection
 
 ```@docs

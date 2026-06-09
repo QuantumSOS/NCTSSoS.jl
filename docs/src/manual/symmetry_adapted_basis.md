@@ -82,12 +82,19 @@ The current MVP is intentionally narrow and is enforced by fail-fast checks in
 - **Single clique** — exactly one correlative-sparsity clique.
 - **Ordinary polynomial problems** — `PolyOpt` over `Polynomial`. State and
   trace polynomial problems are not yet supported on the symmetry path.
-- **Monoid algebras only** — `A <: MonoidAlgebra` (i.e.
-  `NonCommutative`, `Projector`, `Unipotent`). PBW algebras (Bosonic,
-  Fermionic) and `TwistedGroupAlgebra` (Pauli) are not yet supported.
-- **Real signed-permutation actions only** — every group element acts on
-  registry indices via a permutation possibly composed with a sign of ``\pm 1``
-  per index. No general orthogonal action, no complex characters.
+- **Monoid or Pauli algebras** — `A <: MonoidAlgebra` (i.e.
+  `NonCommutative`, `Projector`, `Unipotent`) with
+  [`SignedPermutation`](@ref) actions, or `PauliAlgebra` with
+  [`CliffordSymmetry`](@ref) actions. PBW algebras (Bosonic, Fermionic)
+  use [`FermionicModePermutation`](@ref) with optional sector/spin
+  splitting. See [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry)
+  for a worked Pauli example and
+  [`sympleq_symmetry_spec`](@ref) for automatic Clifford detection.
+- **Real signed-permutation or Clifford actions** — monoid-algebra group
+  elements act on registry indices via permutations with ``\pm 1`` signs;
+  Pauli group elements act via Clifford conjugation
+  (``g \cdot P = U_g P U_g^\dagger``). No general orthogonal action, no
+  complex characters.
 - **Multiplicity-free decompositions only** — every isotypic component returned
   by the internal decomposition must have multiplicity 1 and reduce to a scalar
   (1×1) block.
@@ -383,8 +390,11 @@ of this same boundary, not a rewrite of the rest of the package.
 
 ## See also
 
-- The runnable walk-through:
-  [CHSH with Symmetry Reduction](@ref chsh-symmetry).
+- The runnable walk-throughs:
+  [CHSH with Symmetry Reduction](@ref chsh-symmetry) (signed permutations
+  on unipotent variables) and
+  [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry) (Clifford gates
+  and SympleQ automatic detection on Pauli Hamiltonians).
 - The contributor-facing roadmap for lifting MVP limitations (with the
   fermionic case as the worked example):
   [Extending Symmetry Support](@ref extending-symmetry).

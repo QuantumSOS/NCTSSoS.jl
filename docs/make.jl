@@ -23,6 +23,7 @@ makedocs(;
         "Examples"=>Any[
             "Bell inequalities"=>"examples/generated/bell.md",
             "CHSH with Symmetry Reduction"=>"examples/generated/chsh_symmetry.md",
+            "Pauli Symmetry (Clifford + SympleQ)"=>"examples/generated/pauli_clifford_symmetry.md",
             "CHSH GNS Reconstruction"=>"examples/generated/chsh_gns_reconstruction.md",
             "Trace Polynomial"=>"examples/generated/trace_poly.md",
             "Newton Chip Method"=>"examples/generated/newton_chip_method.md",

@@ -129,6 +129,7 @@ include("optimization/v2rdm_structured.jl")
 include("optimization/moment.jl")
 include("optimization/lowering.jl")
 include("optimization/symmetry.jl")
+include("sympleq/SympleQ.jl")
 include("optimization/fermionic_irreps.jl")
 include("optimization/fermionic_spin.jl")
 include("optimization/sos.jl")
@@ -147,6 +148,8 @@ export PolyOpt, polyopt, PolyOptResult, SolverConfig
 export SignedPermutation, FermionicModePermutation, CliffordSymmetry, CliffordSymmetryGroup, FermionicModeLayout, AbelianIrrepTable
 export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
 export SymmetrySpec, SymmetryReport
+export SymplecticTableau, SymplecticMatrix, PhaseVector, SympleQGenerator
+export sympleq_generators, sympleq_clifford_symmetry, sympleq_symmetry_spec
 export SparsityResult, compute_sparsity
 export particle_number_constraint
 

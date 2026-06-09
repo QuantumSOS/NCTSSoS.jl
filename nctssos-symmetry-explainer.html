@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Symmetry Support in NCTSSoS.jl</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        brand: { 50:'#eef2ff', 100:'#e0e7ff', 200:'#c7d2fe', 300:'#a5b4fc', 400:'#818cf8', 500:'#6366f1', 600:'#4f46e5', 700:'#4338ca', 800:'#3730a3', 900:'#312e81' },
+        surface: { 800:'#1e1b2e', 900:'#13111c', 950:'#0c0a14' }
+      }
+    }
+  }
+}
+</script>
+<style>
+  :root { --comment-highlight: rgba(99,102,241,0.15); }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  .prose-content h3 { scroll-margin-top: 80px; }
+  .code-block { position:relative; background: #1a1a2e; border-radius:8px; overflow:hidden; }
+  .code-block pre { padding:1.25rem; overflow-x:auto; margin:0; font-size:0.85rem; line-height:1.6; }
+  .code-block .copy-btn { position:absolute; top:0.5rem; right:0.5rem; }
+  .kw { color:#c792ea; } .fn { color:#82aaff; } .str { color:#c3e88d; }
+  .num { color:#f78c6c; } .cm { color:#546e7a; font-style:italic; } .tp { color:#ffcb6b; }
+  .op { color:#89ddff; } .sym { color:#f07178; }
+  .highlight-comment { background: var(--comment-highlight); border-radius:2px; }
+  .section-ask { opacity:0.6; transition: opacity 0.15s; }
+  .section-ask:hover { opacity:1; }
+  .comment-card { border-left: 3px solid #6366f1; }
+  .toast { animation: toast-in 0.2s ease-out; }
+  @keyframes toast-in { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  .modal-backdrop { animation: fade-in 0.15s ease-out; }
+  @keyframes fade-in { from { opacity:0; } to { opacity:1; } }
+  details summary { cursor: pointer; }
+  details summary::marker { color: #818cf8; }
+  .tab-active { border-bottom: 2px solid #6366f1; color: #a5b4fc; }
+  .tab-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
+  svg text { font-family: 'Segoe UI', system-ui, sans-serif; }
+</style>
+</head>
+<body class="bg-surface-900 text-gray-200 min-h-screen">
+
+<!-- ============================================================ -->
+<!-- NAV BAR -->
+<!-- ============================================================ -->
+<nav class="sticky top-0 z-40 bg-surface-950/90 backdrop-blur border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <span class="text-brand-400 font-bold text-lg tracking-tight">NCTSSoS</span>
+    <span class="text-gray-500 text-sm hidden sm:inline">Symmetry Explainer</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <button id="notesToggle" class="px-3 py-1.5 text-xs rounded-md bg-brand-600/20 text-brand-300 hover:bg-brand-600/40 transition" aria-label="Open notes panel">
+      📝 My Notes <span id="noteCount" class="ml-1 bg-brand-600/50 px-1.5 py-0.5 rounded-full text-[10px]">0</span>
+    </button>
+  </div>
+</nav>
+
+<!-- ============================================================ -->
+<!-- SELECTION TOOLBAR (hidden, positioned on selection) -->
+<!-- ============================================================ -->
+<div id="selToolbar" class="fixed z-50 hidden" role="tooltip">
+  <button id="selAskBtn" class="bg-brand-600 text-white text-xs px-3 py-1.5 rounded-lg shadow-lg hover:bg-brand-500 transition flex items-center gap-1" aria-label="Ask about selected text">
+    💬 Ask about this
+  </button>
+</div>
+
+<!-- ============================================================ -->
+<!-- COMMENT MODAL -->
+<!-- ============================================================ -->
+<div id="commentModal" class="fixed inset-0 z-50 hidden modal-backdrop" role="dialog" aria-modal="true" aria-label="Ask a question">
+  <div class="absolute inset-0 bg-black/60" id="modalBackdrop"></div>
+  <div class="relative z-10 max-w-lg mx-auto mt-[12vh] bg-surface-800 rounded-xl shadow-2xl border border-gray-700 p-6" id="modalContent">
+    <button id="modalClose" class="absolute top-3 right-3 text-gray-500 hover:text-gray-300 text-lg" aria-label="Close modal">✕</button>
+    <h3 class="text-brand-300 font-semibold text-sm mb-3">Ask a Question</h3>
+    <div id="modalQuote" class="hidden bg-surface-950 border-l-2 border-brand-500 px-3 py-2 text-xs text-gray-400 mb-3 rounded-r max-h-24 overflow-y-auto italic"></div>
+    <div id="modalSectionCtx" class="text-xs text-gray-500 mb-2"></div>
+    <textarea id="modalInput" rows="3" class="w-full bg-surface-950 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none" placeholder="Type your question…"></textarea>
+    <div class="flex gap-2 mt-3 justify-end">
+      <button id="btnCopyPrompt" class="px-4 py-2 rounded-lg text-xs bg-gray-700 text-gray-200 hover:bg-gray-600 transition">📋 Copy as LLM Prompt</button>
+      <button id="btnPostComment" class="px-4 py-2 rounded-lg text-xs bg-brand-600 text-white hover:bg-brand-500 transition">💬 Post Comment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- NOTES SIDEBAR -->
+<!-- ============================================================ -->
+<div id="notesSidebar" class="fixed inset-y-0 right-0 z-40 w-full max-w-md bg-surface-800 border-l border-gray-700 shadow-2xl transform translate-x-full transition-transform duration-200 overflow-y-auto">
+  <div class="p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-brand-300 font-bold text-lg">My Questions & Notes</h2>
+      <button id="sidebarClose" class="text-gray-500 hover:text-gray-300" aria-label="Close notes">✕</button>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <button id="btnExportAll" class="px-3 py-1.5 text-xs rounded-md bg-brand-600/20 text-brand-300 hover:bg-brand-600/40 transition">📋 Export All</button>
+      <button id="btnClearAll" class="px-3 py-1.5 text-xs rounded-md bg-red-600/20 text-red-300 hover:bg-red-600/40 transition">🗑 Clear All</button>
+    </div>
+    <div id="sidebarContent" class="space-y-4 text-sm"></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- TOAST -->
+<!-- ============================================================ -->
+<div id="toastContainer" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
+
+<!-- ============================================================ -->
+<!-- MAIN CONTENT -->
+<!-- ============================================================ -->
+<main class="max-w-3xl mx-auto px-4 pb-20 prose-content">
+
+<!-- HERO -->
+<section id="sec-hero" class="pt-12 pb-8" data-section="Hero">
+  <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-100 leading-tight mb-3">
+    Symmetry Reduction in <span class="text-brand-400">NCTSSoS.jl</span>
+  </h1>
+  <p class="text-lg text-gray-400 max-w-xl mb-4">
+    How the library exploits the symmetry of your optimization problem to shrink the SDP the solver actually sees — without touching the rest of the package.
+  </p>
+  <div class="bg-brand-600/10 border border-brand-700/40 rounded-lg px-4 py-3 text-sm text-brand-200">
+    <strong>Why this matters:</strong> A symmetry-adapted basis can turn one huge PSD constraint into several tiny ones. For the CHSH Bell inequality, a 5×5 moment matrix becomes three independent 1×1 blocks — same answer, orders-of-magnitude less solver work.
+  </div>
+  <div id="comments-sec-hero" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- QUICK OVERVIEW -->
+<section id="sec-overview" class="pb-10" data-section="Quick Overview">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Quick Overview
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Quick Overview" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+  <p class="text-gray-300 mb-5">
+    NCTSSoS uses a <strong>thin-adapter architecture</strong>: symmetry reduction lives in a single file (<code class="text-brand-300 text-xs">src/optimization/symmetry.jl</code>) and only takes over one job — constructing a smaller <code class="text-brand-300 text-xs">MomentProblem</code>. Everything upstream (algebra, registries, polynomials, sparsity) and downstream (JuMP, solver, result types) is unchanged.
+  </p>
+
+  <div class="grid sm:grid-cols-2 gap-3">
+    <div class="bg-surface-800 rounded-lg p-4 border border-gray-700/50">
+      <div class="text-brand-400 font-bold text-sm mb-1">🔀 Three Symmetry Actions</div>
+      <p class="text-xs text-gray-400">SignedPermutation for monoid algebras, CliffordSymmetry for Pauli algebras, FermionicModePermutation for fermionic algebras</p>
+    </div>
+    <div class="bg-surface-800 rounded-lg p-4 border border-gray-700/50">
+      <div class="text-brand-400 font-bold text-sm mb-1">🧱 Block Diagonalization</div>
+      <p class="text-xs text-gray-400">One big PSD block → several smaller blocks via SymbolicWedderburn's representation-theoretic decomposition</p>
+    </div>
+    <div class="bg-surface-800 rounded-lg p-4 border border-gray-700/50">
+      <div class="text-brand-400 font-bold text-sm mb-1">🎯 Orbit Reduction</div>
+      <p class="text-xs text-gray-400">Monomials in the same orbit map to a single representative, collapsing many moment variables into few</p>
+    </div>
+    <div class="bg-surface-800 rounded-lg p-4 border border-gray-700/50">
+      <div class="text-brand-400 font-bold text-sm mb-1">🛡️ Fail-Fast Checks</div>
+      <p class="text-xs text-gray-400">Invariance, basis closure, and off-block vanishing are all checked — wrong but plausible answers are prevented</p>
+    </div>
+  </div>
+  <div id="comments-sec-overview" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- CORE CONCEPTS -->
+<section id="sec-core" class="pb-10" data-section="Core Concepts">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Core Concepts
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Core Concepts" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+
+  <h3 id="concept-what-is-sab" class="text-lg font-semibold text-gray-100 mt-6 mb-2">What is a symmetry-adapted basis?</h3>
+  <p class="text-gray-300 mb-3">
+    Suppose your optimization problem has a <strong>symmetry group G</strong> — relabel the operators in some prescribed way (possibly with sign flips), and the objective and constraints come back unchanged.
+  </p>
+  <p class="text-gray-300 mb-3">
+    Then the <strong>moment matrix</strong> M<sub>B</sub> (indexed by a half-basis B of monomials) <em>commutes</em> with the group action. By a standard result from representation theory, there exists a change-of-basis U that block-diagonalizes M:
+  </p>
+  <div class="bg-surface-800 rounded-lg p-4 border border-gray-700/50 mb-3 text-center text-gray-200">
+    U<sup>T</sup> M<sub>B</sub> U = blockdiag(M<sup>(1)</sup>, M<sup>(2)</sup>, …)
+  </div>
+  <p class="text-gray-300 mb-3">
+    Each block M<sup>(i)</sup> corresponds to one <strong>isotypic component</strong> — an irreducible representation of G (or a direct sum of copies of one). Because off-diagonal coupling vanishes, the single large PSD constraint M<sub>B</sub> ≽ 0 becomes several smaller independent constraints M<sup>(i)</sup> ≽ 0. <strong>Same physics, smaller SDP.</strong>
+  </p>
+
+  <h3 id="concept-thin-adapter" class="text-lg font-semibold text-gray-100 mt-8 mb-2">The thin-adapter design decision</h3>
+  <p class="text-gray-300 mb-3">
+    There are two ways to bolt symmetry adaptation onto a moment-SOS package:
+  </p>
+  <ol class="list-decimal list-inside text-gray-300 mb-3 space-y-1 pl-2">
+    <li><strong>Rewrite-the-package:</strong> Replace monomial coordinates with isotypic-component coordinates everywhere — polynomials, registries, simplification, sparsity.</li>
+    <li><strong>Thin adapter:</strong> Keep everything in monomial coordinates. Use the symmetry-adapted basis only to decide <em>how to slice</em> one PSD constraint into several, then emit smaller blocks back in monomial coordinates.</li>
+  </ol>
+  <p class="text-gray-300 mb-3">
+    NCTSSoS deliberately takes approach <strong>(2)</strong>. The output of the symmetry path is an ordinary <code class="text-brand-300 text-xs">MomentProblem</code> — just with fewer moment variables and several small PSD blocks instead of one big one.
+  </p>
+  <div class="bg-yellow-900/20 border border-yellow-700/40 rounded-lg px-4 py-3 text-xs text-yellow-200 mb-3">
+    <strong>Trade-off:</strong> This means the feature is currently dense-only and ordinary-polynomial-only. It doesn't compose with correlative/term sparsity, state/trace polynomial optimization, or GNS reconstruction yet. But the entire non-symmetry code surface has zero regression risk.
+  </div>
+
+  <h3 id="concept-orbit-reduction" class="text-lg font-semibold text-gray-100 mt-8 mb-2">Orbit reduction</h3>
+  <p class="text-gray-300 mb-3">
+    Beyond block-diagonalization, the symmetry group identifies <strong>orbits</strong> of monomials — sets of monomials that are mapped to each other under the group action. Within each orbit, all monomials must take the same moment value (up to sign). NCTSSoS picks one canonical representative per orbit and rewrites the entire relaxation in terms of these representatives.
+  </p>
+  <p class="text-gray-300 mb-3">
+    When an orbit has <strong>inconsistent signs</strong> (some group elements map a monomial to +representative, others to −representative), the moment is forced to zero and dropped entirely. This is the orbit-reduction step in <code class="text-brand-300 text-xs">_build_orbit_reducer</code>.
+  </p>
+
+  <h3 id="concept-symmetry-spec" class="text-lg font-semibold text-gray-100 mt-8 mb-2">SymmetrySpec: the user-facing entry point</h3>
+  <p class="text-gray-300 mb-3">
+    Users supply generators via a <code class="text-brand-300 text-xs">SymmetrySpec</code>, passed through the <code class="text-brand-300 text-xs">symmetry</code> keyword of <code class="text-brand-300 text-xs">SolverConfig</code>. The spec wraps one symmetry family at a time:
+  </p>
+  <div class="code-block mb-4">
+    <button class="copy-btn px-2 py-1 text-[10px] rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition" data-code="symmetry-spec-code" aria-label="Copy code">Copy</button>
+    <pre id="symmetry-spec-code"><span class="cm"># Monoid algebra: signed permutations on registry indices</span>
+spec = <span class="fn">SymmetrySpec</span>(alice_swap, bob_swap, party_swap)
+
+<span class="cm"># Pauli algebra: Clifford conjugation on Pauli words</span>
+spec = <span class="fn">SymmetrySpec</span>(<span class="fn">CliffordSymmetry</span>(<span class="sym">:SWAP</span>, <span class="num">1</span>, <span class="num">2</span>))
+
+<span class="cm"># Fermionic: mode permutations + sector splitting + spin adaptation</span>
+spec = <span class="fn">SymmetrySpec</span>(
+    perm_generator;
+    sector = <span class="fn">FermionicSectorSpec</span>(
+        mode_layout = layout,
+        split_parity = <span class="kw">true</span>,
+        split_number = <span class="kw">true</span>,
+        split_spin   = <span class="kw">true</span>,
+        split_irrep  = <span class="kw">true</span>,
+    ),
+    spin_adaptation = <span class="fn">FermionicSpinAdaptationSpec</span>(mode_layout = layout),
+)</pre>
+  </div>
+
+  <div id="comments-sec-core" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- VISUAL EXPLAINERS -->
+<section id="sec-visual" class="pb-10" data-section="Visual Explainers">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Visual Explainers
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Visual Explainers" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+
+  <h3 class="text-lg font-semibold text-gray-100 mb-3">The symmetry pipeline</h3>
+  <p class="text-gray-300 mb-4 text-sm">When you pass a <code class="text-brand-300 text-xs">SymmetrySpec</code> to <code class="text-brand-300 text-xs">SolverConfig</code>, <code class="text-brand-300 text-xs">cs_nctssos</code> routes through <code class="text-brand-300 text-xs">moment_relax_symmetric</code> instead of the regular <code class="text-brand-300 text-xs">moment_relax</code>. Here is what happens inside:</p>
+
+  <svg viewBox="0 0 700 520" class="w-full max-w-2xl mx-auto mb-6" role="img" aria-label="Symmetry reduction pipeline diagram">
+    <defs>
+      <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#818cf8"/></marker>
+    </defs>
+    <!-- Step boxes -->
+    <rect x="40" y="15" width="620" height="50" rx="8" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="350" y="35" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">1. User supplies SymmetrySpec (generators)</text>
+    <text x="350" y="50" text-anchor="middle" fill="#9ca3af" font-size="9">SignedPermutation | CliffordSymmetry | FermionicModePermutation</text>
+
+    <line x1="350" y1="65" x2="350" y2="85" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="85" width="620" height="42" rx="8" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="350" y="105" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">2. Enumerate finite group (BFS closure on active domain)</text>
+    <text x="350" y="118" text-anchor="middle" fill="#9ca3af" font-size="9">_enumerate_symmetry_group → multiplication table, inverse table, orders</text>
+
+    <line x1="350" y1="127" x2="350" y2="147" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="147" width="620" height="42" rx="8" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="350" y="167" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">3. Check invariance of objective & constraints</text>
+    <text x="350" y="180" text-anchor="middle" fill="#f87171" font-size="9">⚡ Errors if any polynomial changes under any group element</text>
+
+    <line x1="350" y1="189" x2="350" y2="209" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="209" width="620" height="42" rx="8" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="350" y="229" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">4. Check basis closure (every monomial maps back into the basis)</text>
+    <text x="350" y="242" text-anchor="middle" fill="#f87171" font-size="9">⚡ Errors if any basis element is sent outside</text>
+
+    <line x1="350" y1="251" x2="350" y2="271" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="271" width="300" height="50" rx="8" fill="#1e1b2e" stroke="#6366f1" stroke-width="2"/>
+    <text x="190" y="291" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="bold">5. NCTSSoS-local action</text>
+    <text x="190" y="306" text-anchor="middle" fill="#9ca3af" font-size="9">_act_monomial → sign + image</text>
+
+    <rect x="360" y="271" width="300" height="50" rx="8" fill="#1e1b2e" stroke="#22c55e" stroke-width="2"/>
+    <text x="510" y="291" text-anchor="middle" fill="#86efac" font-size="11" font-weight="bold">6. SymbolicWedderburn</text>
+    <text x="510" y="306" text-anchor="middle" fill="#9ca3af" font-size="9">symmetry_adapted_basis → isotypic blocks</text>
+
+    <line x1="340" y1="296" x2="360" y2="296" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+    <line x1="350" y1="321" x2="350" y2="341" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="341" width="620" height="42" rx="8" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="350" y="361" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">7. Orbit reduction → one representative per orbit, zero-orbits dropped</text>
+    <text x="350" y="374" text-anchor="middle" fill="#9ca3af" font-size="9">_build_orbit_reducer → rewrite objective & constraints</text>
+
+    <line x1="350" y1="383" x2="350" y2="403" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="40" y="403" width="620" height="42" rx="8" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="350" y="423" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">8. Off-block vanishing check (|entry| ≤ 1e-10)</text>
+    <text x="350" y="436" text-anchor="middle" fill="#f87171" font-size="9">⚡ Errors on inconsistencies between declared symmetry and algebra</text>
+
+    <line x1="350" y1="445" x2="350" y2="465" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+
+    <rect x="100" y="465" width="500" height="42" rx="8" fill="#312e81" stroke="#6366f1" stroke-width="2"/>
+    <text x="350" y="485" text-anchor="middle" fill="#e0e7ff" font-size="12" font-weight="bold">9. Emit reduced MomentProblem + SymmetryReport</text>
+    <text x="350" y="500" text-anchor="middle" fill="#a5b4fc" font-size="9">Ordinary monomial moments — downstream code unchanged</text>
+  </svg>
+
+  <h3 class="text-lg font-semibold text-gray-100 mt-8 mb-3">Type hierarchy for symmetry actions</h3>
+  <svg viewBox="0 0 700 280" class="w-full max-w-2xl mx-auto mb-6" role="img" aria-label="Symmetry type hierarchy">
+    <rect x="220" y="10" width="260" height="36" rx="6" fill="#312e81" stroke="#6366f1" stroke-width="1.5"/>
+    <text x="350" y="33" text-anchor="middle" fill="#e0e7ff" font-size="12" font-weight="bold">SymmetrySpec</text>
+
+    <line x1="200" y1="70" x2="350" y2="46" stroke="#818cf8" stroke-width="1"/>
+    <line x1="350" y1="46" x2="350" y2="70" stroke="#818cf8" stroke-width="1"/>
+    <line x1="500" y1="70" x2="350" y2="46" stroke="#818cf8" stroke-width="1"/>
+
+    <!-- Left: SignedPermutation -->
+    <rect x="50" y="70" width="200" height="80" rx="6" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="150" y="92" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">SignedPermutation</text>
+    <text x="150" y="107" text-anchor="middle" fill="#9ca3af" font-size="9">Algebra: MonoidAlgebra</text>
+    <text x="150" y="119" text-anchor="middle" fill="#9ca3af" font-size="9">(NonCommutative, Projector,</text>
+    <text x="150" y="131" text-anchor="middle" fill="#9ca3af" font-size="9">Unipotent)</text>
+    <text x="150" y="145" text-anchor="middle" fill="#6ee7b7" font-size="9">±1 sign per registry index</text>
+
+    <!-- Center: CliffordSymmetry -->
+    <rect x="265" y="70" width="170" height="80" rx="6" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="350" y="92" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">CliffordSymmetry</text>
+    <text x="350" y="107" text-anchor="middle" fill="#9ca3af" font-size="9">Algebra: PauliAlgebra</text>
+    <text x="350" y="121" text-anchor="middle" fill="#6ee7b7" font-size="9">Conjugation on Pauli words</text>
+    <text x="350" y="135" text-anchor="middle" fill="#9ca3af" font-size="9">H, S, CNOT, SWAP, custom</text>
+
+    <!-- Right: FermionicModePermutation -->
+    <rect x="450" y="70" width="220" height="80" rx="6" fill="#1e1b2e" stroke="#4338ca" stroke-width="1.5"/>
+    <text x="560" y="92" text-anchor="middle" fill="#a5b4fc" font-size="11" font-weight="bold">FermionicModePermutation</text>
+    <text x="560" y="107" text-anchor="middle" fill="#9ca3af" font-size="9">Algebra: FermionicAlgebra</text>
+    <text x="560" y="121" text-anchor="middle" fill="#6ee7b7" font-size="9">Unsigned mode permutation</text>
+    <text x="560" y="135" text-anchor="middle" fill="#9ca3af" font-size="9">+ sector + spin adaptation</text>
+
+    <!-- Bottom: fermionic extras -->
+    <line x1="560" y1="150" x2="560" y2="170" stroke="#818cf8" stroke-width="1"/>
+    <rect x="380" y="170" width="160" height="36" rx="6" fill="#1e1b2e" stroke="#22c55e" stroke-width="1"/>
+    <text x="460" y="193" text-anchor="middle" fill="#86efac" font-size="9" font-weight="bold">FermionicSectorSpec</text>
+
+    <rect x="550" y="170" width="160" height="36" rx="6" fill="#1e1b2e" stroke="#22c55e" stroke-width="1"/>
+    <text x="630" y="193" text-anchor="middle" fill="#86efac" font-size="9" font-weight="bold">FermionicSpinAdaptationSpec</text>
+
+    <line x1="460" y1="170" x2="560" y2="150" stroke="#22c55e" stroke-width="1"/>
+    <line x1="630" y1="170" x2="560" y2="150" stroke="#22c55e" stroke-width="1"/>
+
+    <!-- Sector spec details -->
+    <rect x="380" y="215" width="160" height="55" rx="6" fill="#0c0a14" stroke="#22c55e" stroke-width="0.5" stroke-dasharray="3,3"/>
+    <text x="460" y="232" text-anchor="middle" fill="#9ca3af" font-size="8">split_parity ✓</text>
+    <text x="460" y="244" text-anchor="middle" fill="#9ca3af" font-size="8">split_number ✓</text>
+    <text x="460" y="256" text-anchor="middle" fill="#9ca3af" font-size="8">split_spin ✓ · split_irrep ✓</text>
+  </svg>
+
+  <h3 class="text-lg font-semibold text-gray-100 mt-8 mb-3">CHSH: before and after symmetry</h3>
+  <svg viewBox="0 0 700 200" class="w-full max-w-2xl mx-auto mb-6" role="img" aria-label="CHSH before and after symmetry reduction">
+    <!-- Before -->
+    <text x="150" y="20" text-anchor="middle" fill="#a5b4fc" font-size="12" font-weight="bold">Before (Dense)</text>
+    <rect x="75" y="30" width="150" height="150" rx="4" fill="#312e81" stroke="#6366f1" stroke-width="2"/>
+    <text x="150" y="110" text-anchor="middle" fill="#e0e7ff" font-size="14" font-weight="bold">5 × 5</text>
+    <text x="150" y="128" text-anchor="middle" fill="#9ca3af" font-size="9">11 moment vars</text>
+    <text x="150" y="141" text-anchor="middle" fill="#9ca3af" font-size="9">1 PSD block</text>
+
+    <!-- Arrow -->
+    <line x1="245" y1="105" x2="365" y2="105" stroke="#818cf8" stroke-width="2" marker-end="url(#arrowhead)"/>
+    <text x="305" y="95" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="bold">G = ⟨3 generators⟩</text>
+    <text x="305" y="120" text-anchor="middle" fill="#9ca3af" font-size="9">|G| = 16</text>
+
+    <!-- After -->
+    <text x="505" y="20" text-anchor="middle" fill="#6ee7b7" font-size="12" font-weight="bold">After (Symmetric)</text>
+    <rect x="405" y="75" width="40" height="40" rx="3" fill="#064e3b" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="425" y="100" text-anchor="middle" fill="#e0e7ff" font-size="10" font-weight="bold">1×1</text>
+
+    <rect x="460" y="75" width="40" height="40" rx="3" fill="#064e3b" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="480" y="100" text-anchor="middle" fill="#e0e7ff" font-size="10" font-weight="bold">1×1</text>
+
+    <rect x="515" y="75" width="40" height="40" rx="3" fill="#064e3b" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="535" y="100" text-anchor="middle" fill="#e0e7ff" font-size="10" font-weight="bold">1×1</text>
+
+    <text x="480" y="140" text-anchor="middle" fill="#9ca3af" font-size="9">1 invariant moment</text>
+    <text x="480" y="155" text-anchor="middle" fill="#9ca3af" font-size="9">3 PSD blocks</text>
+    <text x="480" y="170" text-anchor="middle" fill="#6ee7b7" font-size="9">objective = −2√2 ✓</text>
+  </svg>
+
+  <div id="comments-sec-visual" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- DEEP DIVE -->
+<section id="sec-deep" class="pb-10" data-section="Deep Dive">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Deep Dive: The Three Symmetry Actions
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Deep Dive" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+
+  <!-- TABS -->
+  <div class="flex border-b border-gray-700 mb-4">
+    <button class="deep-tab tab-active px-4 py-2 text-sm" data-tab="tab-signed">SignedPermutation</button>
+    <button class="deep-tab tab-inactive px-4 py-2 text-sm" data-tab="tab-clifford">CliffordSymmetry</button>
+    <button class="deep-tab tab-inactive px-4 py-2 text-sm" data-tab="tab-fermionic">Fermionic</button>
+  </div>
+
+  <!-- Tab: SignedPermutation -->
+  <div id="tab-signed" class="deep-tab-content">
+    <p class="text-gray-300 mb-3">
+      For <strong>MonoidAlgebra</strong> problems (NonCommutative, Projector, Unipotent), symmetries act as signed permutations on registry indices — the integers that internally identify each variable. A <code class="text-brand-300 text-xs">SignedPermutation</code> stores <code class="text-brand-300 text-xs">(sign, target_index)</code> pairs with sign ∈ {−1, +1}.
+    </p>
+    <div class="code-block mb-4">
+      <button class="copy-btn px-2 py-1 text-[10px] rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition" data-code="signed-perm-code" aria-label="Copy code">Copy</button>
+      <pre id="signed-perm-code"><span class="cm"># CHSH: Alice swap swaps A₁ ↔ A₂, flips sign of B₂</span>
+alice_swap = <span class="fn">SignedPermutation</span>(
+    A[<span class="num">1</span>].word[<span class="num">1</span>] => A[<span class="num">2</span>].word[<span class="num">1</span>],        <span class="cm"># A₁ → A₂</span>
+    A[<span class="num">2</span>].word[<span class="num">1</span>] => A[<span class="num">1</span>].word[<span class="num">1</span>],        <span class="cm"># A₂ → A₁</span>
+    B[<span class="num">2</span>].word[<span class="num">1</span>] => (<span class="num">-1</span>, B[<span class="num">2</span>].word[<span class="num">1</span>]), <span class="cm"># B₂ → −B₂</span>
+)
+<span class="cm"># Indices not listed are fixed (B₁ stays B₁)</span></pre>
+    </div>
+    <p class="text-gray-300 mb-3 text-sm">
+      Internally, <code class="text-brand-300 text-xs">_act_monomial(g, mono)</code> walks the monomial's word, maps each letter through the signed permutation, accumulates the sign, then re-sorts the word into normal form.
+    </p>
+    <details class="bg-surface-800 rounded-lg border border-gray-700/50 mb-3">
+      <summary class="px-4 py-2 text-sm text-brand-300 font-semibold">When to use SignedPermutation</summary>
+      <div class="px-4 py-3 text-xs text-gray-400">
+        Use <code>SignedPermutation</code> when your variables live in a <strong>MonoidAlgebra</strong> (NonCommutative, Projector, or Unipotent) and your symmetry is a relabeling of registry indices, possibly with sign flips. This is the right choice for Bell inequalities (CHSH, etc.) and abstract NC polynomial eigenvalue problems. For Pauli problems, use <code>CliffordSymmetry</code> instead — it handles Pauli phase tracking that <code>SignedPermutation</code> cannot.
+      </div>
+    </details>
+  </div>
+
+  <!-- Tab: CliffordSymmetry -->
+  <div id="tab-clifford" class="deep-tab-content hidden">
+    <p class="text-gray-300 mb-3">
+      For <strong>PauliAlgebra</strong> problems, symmetries are Clifford conjugation actions on Pauli words. Named constructors provide standard gates:
+    </p>
+    <div class="code-block mb-4">
+      <button class="copy-btn px-2 py-1 text-[10px] rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition" data-code="clifford-code" aria-label="Copy code">Copy</button>
+      <pre id="clifford-code"><span class="cm"># Hadamard on qubit 1: X₁ ↔ Z₁, Y₁ → −Y₁</span>
+h1 = <span class="fn">CliffordSymmetry</span>(<span class="sym">:H</span>, <span class="num">1</span>)
+
+<span class="cm"># S gate on qubit 2: X₂ → Y₂, Y₂ → −X₂</span>
+s2 = <span class="fn">CliffordSymmetry</span>(<span class="sym">:S</span>, <span class="num">2</span>)
+
+<span class="cm"># CNOT with control 1, target 2</span>
+cnot = <span class="fn">CliffordSymmetry</span>(<span class="sym">:CNOT</span>, <span class="num">1</span>, <span class="num">2</span>)
+
+<span class="cm"># SWAP qubits 1 and 2</span>
+swap = <span class="fn">CliffordSymmetry</span>(<span class="sym">:SWAP</span>, <span class="num">1</span>, <span class="num">2</span>)
+
+<span class="cm"># 2-site Heisenberg with SWAP symmetry</span>
+spec = <span class="fn">SymmetrySpec</span>(<span class="fn">CliffordSymmetry</span>(<span class="sym">:SWAP</span>, <span class="num">1</span>, <span class="num">2</span>))</pre>
+    </div>
+    <p class="text-gray-300 mb-3 text-sm">
+      Clifford actions are validated rigorously: sources must be single Pauli letters, images must be non-identity Pauli words, the map must be injective up to sign, and both <strong>commutation relations</strong> and <strong>local multiplication phases</strong> must be preserved. Custom image dictionaries are accepted too.
+    </p>
+    <p class="text-gray-300 mb-3 text-sm">
+      Under the hood, <code class="text-brand-300 text-xs">_act_monomial(g, mono)</code> maps each Pauli letter through the image dictionary, concatenates the results, then calls <code class="text-brand-300 text-xs">simplify(PauliAlgebra, word)</code> to restore normal form and extract the accumulated Pauli phase (+1 or −1 for Hermitian words).
+    </p>
+    <div class="bg-surface-800 rounded-lg border border-gray-700/50 px-4 py-3 text-xs text-gray-400 mb-3">
+      <strong>Example result:</strong> A 2-site Heisenberg model <code>H = ¼(σx₁σx₂ + σy₁σy₂ + σz₁σz₂)</code> with SWAP symmetry produces group order 2, PSD block sizes [4, 3] (down from [7]), and objective −0.75 (exact singlet energy).
+    </div>
+  </div>
+
+  <!-- Tab: Fermionic -->
+  <div id="tab-fermionic" class="deep-tab-content hidden">
+    <p class="text-gray-300 mb-3">
+      Fermionic symmetry has the richest structure. It composes three independent mechanisms:
+    </p>
+    <ol class="list-decimal list-inside text-gray-300 mb-4 space-y-2 pl-2 text-sm">
+      <li>
+        <strong>FermionicModePermutation</strong> — permutations of physical mode IDs. Unlike <code class="text-brand-300 text-xs">SignedPermutation</code>, these are unsigned; signs come from re-normal-ordering the fermionic word (anticommutation).
+      </li>
+      <li>
+        <strong>FermionicSectorSpec</strong> — splits the basis into blocks by quantum numbers:
+        <ul class="list-disc list-inside ml-4 mt-1 text-xs text-gray-400 space-y-0.5">
+          <li><code>split_parity</code>: even/odd number of operators</li>
+          <li><code>split_number</code>: particle number (creators − annihilators)</li>
+          <li><code>split_spin</code>: total S<sub>z</sub></li>
+          <li><code>split_irrep</code>: Abelian point-group irrep label</li>
+        </ul>
+      </li>
+      <li>
+        <strong>FermionicSpinAdaptationSpec</strong> — SU(2) spin adaptation using the total S² Casimir operator, layered on top of sector splits. Within each (number, S<sub>z</sub>) sector, it further block-diagonalizes by total spin S.
+      </li>
+    </ol>
+    <div class="code-block mb-4">
+      <button class="copy-btn px-2 py-1 text-[10px] rounded bg-gray-700 text-gray-300 hover:bg-gray-600 transition" data-code="fermionic-code" aria-label="Copy code">Copy</button>
+      <pre id="fermionic-code"><span class="cm"># H₂ / STO-3G: 4 spin-orbitals, inversion symmetry</span>
+layout = <span class="fn">FermionicModeLayout</span>(
+    <span class="fn">Dict</span>(<span class="num">1</span> => <span class="num">1</span>, <span class="num">2</span> => <span class="num">1</span>, <span class="num">3</span> => <span class="num">2</span>, <span class="num">4</span> => <span class="num">2</span>);  <span class="cm"># orbital_of</span>
+    spin2_of  = <span class="fn">Dict</span>(<span class="num">1</span> => <span class="num">1</span>, <span class="num">2</span> => <span class="num">-1</span>, <span class="num">3</span> => <span class="num">1</span>, <span class="num">4</span> => <span class="num">-1</span>),
+    irrep_of  = <span class="fn">Dict</span>(<span class="num">1</span> => <span class="sym">:Ag</span>, <span class="num">2</span> => <span class="sym">:B1u</span>),
+    irrep_table = <span class="fn">AbelianIrrepTable</span>(<span class="sym">:Ag</span>;
+        multiply = (a, b) -> a == b ? <span class="sym">:Ag</span> : <span class="sym">:B1u</span>,
+    ),
+)
+
+spec = <span class="fn">SymmetrySpec</span>(
+    <span class="fn">FermionicModePermutation</span>[];       <span class="cm"># no spatial perm needed here</span>
+    sector = <span class="fn">FermionicSectorSpec</span>(
+        mode_layout  = layout,
+        split_parity = <span class="kw">true</span>,
+        split_number = <span class="kw">true</span>,
+        split_spin   = <span class="kw">true</span>,
+        split_irrep  = <span class="kw">true</span>,
+    ),
+    spin_adaptation = <span class="fn">FermionicSpinAdaptationSpec</span>(
+        mode_layout = layout,
+    ),
+)</pre>
+    </div>
+    <p class="text-gray-300 text-sm">
+      The H₂/STO-3G example in the docs shows this in action: an order-2 dense moment matrix of side ~50 is reduced to a largest PSD block of side 3, recovering the exact electronic ground-state energy.
+    </p>
+  </div>
+
+  <div id="comments-sec-deep" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- DEEP DIVE 2: NCTSSoS vs SymbolicWedderburn boundary -->
+<section id="sec-boundary" class="pb-10" data-section="Architecture Boundary">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Architecture Boundary: Who Does What
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Architecture Boundary" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+
+  <div class="grid sm:grid-cols-2 gap-4 mb-4">
+    <div class="bg-surface-800 rounded-lg p-4 border-2 border-brand-700/60">
+      <h4 class="text-brand-300 font-bold text-sm mb-2">NCTSSoS (local)</h4>
+      <ul class="text-xs text-gray-400 space-y-1.5 list-disc list-inside">
+        <li>User-facing types: <code>SignedPermutation</code>, <code>CliffordSymmetry</code>, <code>FermionicModePermutation</code>, <code>SymmetrySpec</code>, <code>SymmetryReport</code></li>
+        <li>Active-domain computation</li>
+        <li>Group enumeration (BFS closure)</li>
+        <li>The NC-word action <code>_act_monomial</code> (algebra-specific simplification + Pauli phase tracking)</li>
+        <li>Invariance &amp; basis-closure checks</li>
+        <li>Orbit reduction + zero-orbit handling</li>
+        <li>Final <code>MomentProblem</code> construction</li>
+      </ul>
+    </div>
+    <div class="bg-surface-800 rounded-lg p-4 border-2 border-green-700/60">
+      <h4 class="text-green-300 font-bold text-sm mb-2">SymbolicWedderburn (external)</h4>
+      <ul class="text-xs text-gray-400 space-y-1.5 list-disc list-inside">
+        <li>Computing characters of the group action</li>
+        <li>Identifying isotypic components</li>
+        <li>Building the change-of-basis rows</li>
+        <li>Called via <code>symmetry_adapted_basis(Float64, group, action, basis)</code></li>
+      </ul>
+      <div class="mt-3 text-[10px] text-gray-500 border-t border-gray-700 pt-2">
+        The thin adapter: a <code>BySignedPermutations</code> action type, a <code>GroupsCore.Group</code> wrapper (mult/inv/order tables), and an <code>action(…, g, mono)</code> method. That's the entire glue surface.
+      </div>
+    </div>
+  </div>
+  <p class="text-gray-400 text-sm">
+    This boundary is clean enough that either side can be upgraded independently. NCTSSoS does not know about irreducible representations. SymbolicWedderburn does not know about Pauli phases or fermionic normal ordering.
+  </p>
+
+  <div id="comments-sec-boundary" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- PITFALLS & GOTCHAS -->
+<section id="sec-pitfalls" class="pb-10" data-section="Pitfalls & Gotchas">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Common Pitfalls & Gotchas
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Pitfalls & Gotchas" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+
+  <div class="space-y-3">
+    <div class="bg-red-900/10 border border-red-700/40 rounded-lg px-4 py-3">
+      <h4 class="text-red-300 font-bold text-sm mb-1">🚫 Using SignedPermutation for Pauli problems</h4>
+      <p class="text-xs text-gray-400">SignedPermutation does not track Pauli phases. If you try it on PauliAlgebra variables, you'll get an <code>ArgumentError</code>. Use <code>CliffordSymmetry</code> instead — it handles the ±i phases from Pauli commutation.</p>
+    </div>
+    <div class="bg-red-900/10 border border-red-700/40 rounded-lg px-4 py-3">
+      <h4 class="text-red-300 font-bold text-sm mb-1">🚫 Symmetry + sparsity (not supported yet)</h4>
+      <p class="text-xs text-gray-400">The symmetry path requires <code>cs_algo = NoElimination()</code> and <code>ts_algo = NoElimination()</code>. Combining symmetry with correlative or term sparsity will error out. This is the main current limitation.</p>
+    </div>
+    <div class="bg-red-900/10 border border-red-700/40 rounded-lg px-4 py-3">
+      <h4 class="text-red-300 font-bold text-sm mb-1">🚫 Non-invariant objective passes silently</h4>
+      <p class="text-xs text-gray-400">If you set <code>check_invariance = false</code> but your objective is actually not invariant, the solver will happily return a wrong answer. This option exists for performance (the check scales with group size × problem size), but only use it when you've independently verified invariance.</p>
+    </div>
+    <div class="bg-red-900/10 border border-red-700/40 rounded-lg px-4 py-3">
+      <h4 class="text-red-300 font-bold text-sm mb-1">🚫 Basis too small for the group action</h4>
+      <p class="text-xs text-gray-400">If a group element sends a half-basis monomial outside the basis, you get a clear error. Fix: either use a larger <code>moment_basis</code> or remove the offending generator. The basis must be closed under the group action.</p>
+    </div>
+    <div class="bg-red-900/10 border border-red-700/40 rounded-lg px-4 py-3">
+      <h4 class="text-red-300 font-bold text-sm mb-1">🚫 State/trace polynomials</h4>
+      <p class="text-xs text-gray-400">Symmetry reduction is currently ordinary-polynomial only. State and trace polynomial problems (<code>NCStatePolynomial</code>) are not yet supported on the symmetry path.</p>
+    </div>
+    <div class="bg-yellow-900/10 border border-yellow-700/40 rounded-lg px-4 py-3">
+      <h4 class="text-yellow-300 font-bold text-sm mb-1">⚠️ GNS reconstruction not available</h4>
+      <p class="text-xs text-gray-400">The GNS reconstruction path expects a dense unreduced moment table. A symmetry-reduced solve only builds the reduced moment problem, so GNS is not available from symmetry-reduced results today.</p>
+    </div>
+    <div class="bg-yellow-900/10 border border-yellow-700/40 rounded-lg px-4 py-3">
+      <h4 class="text-yellow-300 font-bold text-sm mb-1">⚠️ Mixing action families</h4>
+      <p class="text-xs text-gray-400">You cannot mix <code>SignedPermutation</code>, <code>CliffordSymmetry</code>, and <code>FermionicModePermutation</code> generators in a single <code>SymmetrySpec</code>. Each spec wraps exactly one family.</p>
+    </div>
+  </div>
+
+  <div id="comments-sec-pitfalls" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- INTERACTIVE ELEMENTS -->
+<section id="sec-interactive" class="pb-10" data-section="Interactive Elements">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Test Your Understanding
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Interactive Elements" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+
+  <div class="space-y-4">
+    <div class="bg-surface-800 rounded-lg border border-gray-700/50 p-4">
+      <p class="text-sm text-gray-200 font-semibold mb-2">Q1: Why does NCTSSoS use a "thin adapter" instead of rewriting the package around isotypic coordinates?</p>
+      <details>
+        <summary class="text-xs text-brand-400 cursor-pointer">Reveal answer</summary>
+        <p class="text-xs text-gray-400 mt-2">Because the thin adapter has zero regression risk on the non-symmetry code surface. The entire algebra hierarchy, registries, simplification rules, sparsity machinery, JuMP construction, and result types remain untouched. The symmetry feature is concentrated in one file and one boundary. The trade-off: it's dense-only today.</p>
+      </details>
+    </div>
+    <div class="bg-surface-800 rounded-lg border border-gray-700/50 p-4">
+      <p class="text-sm text-gray-200 font-semibold mb-2">Q2: What two things does orbit reduction do to moment variables?</p>
+      <details>
+        <summary class="text-xs text-brand-400 cursor-pointer">Reveal answer</summary>
+        <p class="text-xs text-gray-400 mt-2">(1) It replaces all monomials in the same orbit with a single canonical representative (up to ±1 sign). (2) When an orbit has inconsistent signs — some group elements map to +rep, others to −rep — the moment is forced to zero and dropped entirely.</p>
+      </details>
+    </div>
+    <div class="bg-surface-800 rounded-lg border border-gray-700/50 p-4">
+      <p class="text-sm text-gray-200 font-semibold mb-2">Q3: You're optimizing a Pauli Hamiltonian that's invariant under swapping qubits 1 and 2. Which type do you use?</p>
+      <details>
+        <summary class="text-xs text-brand-400 cursor-pointer">Reveal answer</summary>
+        <p class="text-xs text-gray-400 mt-2"><code>CliffordSymmetry(:SWAP, 1, 2)</code>. Even though a SWAP is conceptually a permutation, Pauli algebra has internal phases (iXY = Z, etc.) that <code>SignedPermutation</code> cannot track. The library will error if you try <code>SignedPermutation</code> on <code>PauliAlgebra</code>.</p>
+      </details>
+    </div>
+    <div class="bg-surface-800 rounded-lg border border-gray-700/50 p-4">
+      <p class="text-sm text-gray-200 font-semibold mb-2">Q4: Why can't symmetry reduction compose with correlative sparsity today?</p>
+      <details>
+        <summary class="text-xs text-brand-400 cursor-pointer">Reveal answer</summary>
+        <p class="text-xs text-gray-400 mt-2">The symmetry path currently requires a single dense clique. With correlative sparsity, the problem would be split into multiple cliques, and the symmetry group might not preserve each clique's basis independently. Composing the two would need a more careful treatment of how orbits interact with clique boundaries.</p>
+      </details>
+    </div>
+    <div class="bg-surface-800 rounded-lg border border-gray-700/50 p-4">
+      <p class="text-sm text-gray-200 font-semibold mb-2">Q5: What are the three independent mechanisms that compose in fermionic symmetry?</p>
+      <details>
+        <summary class="text-xs text-brand-400 cursor-pointer">Reveal answer</summary>
+        <p class="text-xs text-gray-400 mt-2">(1) <strong>FermionicModePermutation</strong> — permutations of physical modes. (2) <strong>FermionicSectorSpec</strong> — splitting the basis by parity, particle number, S<sub>z</sub>, and/or Abelian irrep. (3) <strong>FermionicSpinAdaptationSpec</strong> — SU(2) spin adaptation via the S² Casimir, layered on top of sectors.</p>
+      </details>
+    </div>
+  </div>
+
+  <div id="comments-sec-interactive" class="mt-3 space-y-2"></div>
+</section>
+
+<!-- SCOPE TABLE -->
+<section id="sec-scope" class="pb-10" data-section="Scope & Limitations">
+  <h2 class="text-2xl font-bold text-gray-100 mb-4 flex items-center gap-2">
+    Current Scope & Limitations
+    <button class="section-ask text-xs text-brand-400" data-section-ask="Scope & Limitations" aria-label="Ask about this section">💬 Ask about this section</button>
+  </h2>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm text-left border-collapse">
+      <thead>
+        <tr class="border-b border-gray-700 text-gray-400 text-xs uppercase">
+          <th class="py-2 pr-4">Feature</th>
+          <th class="py-2 pr-4">Status</th>
+          <th class="py-2">Notes</th>
+        </tr>
+      </thead>
+      <tbody class="text-gray-300 text-xs">
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">Dense relaxation</td><td class="text-green-400">✅ Supported</td><td>Single clique, no term sparsity</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">Correlative sparsity</td><td class="text-red-400">❌ Not yet</td><td>Errors on non-NoElimination</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">Term sparsity</td><td class="text-red-400">❌ Not yet</td><td>Errors on non-NoElimination</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">SignedPermutation (monoid)</td><td class="text-green-400">✅ Supported</td><td>NC, Projector, Unipotent</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">CliffordSymmetry (Pauli)</td><td class="text-green-400">✅ Supported</td><td>H, S, CNOT, SWAP, custom</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">FermionicModePermutation</td><td class="text-green-400">✅ Supported</td><td>+ sector + spin adaptation</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">State/trace polynomials</td><td class="text-red-400">❌ Not yet</td><td>Errors with clear message</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">cs_nctssos_higher</td><td class="text-red-400">❌ Not yet</td><td>Higher iterations unsupported</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">GNS reconstruction</td><td class="text-red-400">❌ Not yet</td><td>Needs dense unreduced moments</td></tr>
+        <tr class="border-b border-gray-800"><td class="py-2 pr-4 font-medium">Mixing action families</td><td class="text-red-400">❌ Not supported</td><td>One family per SymmetrySpec</td></tr>
+        <tr><td class="py-2 pr-4 font-medium">Continuous groups</td><td class="text-red-400">❌ Out of scope</td><td>Finite groups only</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="comments-sec-scope" class="mt-3 space-y-2"></div>
+</section>
+
+</main>
+
+<!-- ============================================================ -->
+<!-- FOOTER -->
+<!-- ============================================================ -->
+<footer class="border-t border-gray-800 py-8 px-4 text-center text-xs text-gray-600">
+  <div class="flex justify-center gap-4 mb-3">
+    <button onclick="window.print()" class="px-3 py-1.5 rounded-md bg-gray-800 text-gray-400 hover:bg-gray-700 transition">🖨 Print / Save PDF</button>
+  </div>
+  <p>NCTSSoS.jl Symmetry Explainer · Built with Tailwind CSS</p>
+</footer>
+
+<!-- ============================================================ -->
+<!-- JAVASCRIPT -->
+<!-- ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  const SLUG = 'nctssos-symmetry';
+  const STORAGE_KEY = `iex:${SLUG}:comments`;
+  const PAGE_TITLE = 'Symmetry Support in NCTSSoS.jl';
+
+  // ---- Persistence ----
+  function loadComments() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { version: 1, comments: [] };
+      const data = JSON.parse(raw);
+      if (data.version === 1) return data;
+      return { version: 1, comments: [] };
+    } catch { return { version: 1, comments: [] }; }
+  }
+  function saveComments(data) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }
+  let store = loadComments();
+
+  // ---- Toast ----
+  function showToast(msg) {
+    const container = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = 'toast bg-brand-600 text-white text-xs px-4 py-2 rounded-lg shadow-lg';
+    t.textContent = msg;
+    container.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+  }
+
+  // ---- Time formatting ----
+  function timeAgo(ts) {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  }
+  function absTime(ts) { return new Date(ts).toLocaleString(); }
+
+  // ---- Section helpers ----
+  function getSectionForNode(node) {
+    let el = node.nodeType === 3 ? node.parentElement : node;
+    while (el && el !== document.body) {
+      if (el.dataset && el.dataset.section) return el.dataset.section;
+      el = el.parentElement;
+    }
+    return 'General';
+  }
+  function getSectionId(sectionName) {
+    const sections = document.querySelectorAll('[data-section]');
+    for (const s of sections) {
+      if (s.dataset.section === sectionName) return s.id;
+    }
+    return 'sec-hero';
+  }
+
+  // ---- Render comments ----
+  function renderComments() {
+    // Clear all comment containers
+    document.querySelectorAll('[id^="comments-"]').forEach(c => c.innerHTML = '');
+
+    const grouped = {};
+    for (const c of store.comments) {
+      if (!grouped[c.sectionId]) grouped[c.sectionId] = [];
+      grouped[c.sectionId].push(c);
+    }
+
+    for (const [sectionId, comments] of Object.entries(grouped)) {
+      const container = document.getElementById(`comments-${sectionId}`);
+      if (!container) continue;
+      for (const c of comments) {
+        const card = document.createElement('div');
+        card.className = 'comment-card bg-surface-800 rounded-r-lg px-3 py-2 text-xs';
+        let html = `<div class="flex justify-between items-start mb-1">
+          <span class="text-gray-500" title="${absTime(c.timestamp)}">${timeAgo(c.timestamp)}</span>
+          <button class="text-red-400/50 hover:text-red-400 text-[10px]" data-delete="${c.id}">Delete</button>
+        </div>`;
+        if (c.quote) html += `<blockquote class="text-gray-500 italic border-l-2 border-brand-700 pl-2 mb-1 text-[11px]">${esc(c.quote)}</blockquote>`;
+        html += `<p class="text-gray-300">${esc(c.question)}</p>`;
+        card.innerHTML = html;
+        container.appendChild(card);
+      }
+    }
+
+    // Empty states
+    document.querySelectorAll('[id^="comments-"]').forEach(c => {
+      if (c.children.length === 0) {
+        c.innerHTML = '<p class="text-gray-700 text-[10px] italic">No questions on this section yet.</p>';
+      }
+    });
+
+    updateNoteCount();
+    renderSidebar();
+  }
+
+  function updateNoteCount() {
+    document.getElementById('noteCount').textContent = store.comments.length;
+  }
+
+  // ---- Sidebar ----
+  function renderSidebar() {
+    const container = document.getElementById('sidebarContent');
+    container.innerHTML = '';
+    if (store.comments.length === 0) {
+      container.innerHTML = '<p class="text-gray-600 text-xs italic">No notes yet. Select text and click "Ask about this" to start.</p>';
+      return;
+    }
+
+    const grouped = {};
+    for (const c of store.comments) {
+      const title = c.sectionTitle || 'General';
+      if (!grouped[title]) grouped[title] = [];
+      grouped[title].push(c);
+    }
+
+    for (const [title, comments] of Object.entries(grouped)) {
+      const group = document.createElement('div');
+      group.innerHTML = `<h3 class="text-brand-300 font-semibold text-xs mb-2">${esc(title)}</h3>`;
+      for (const c of comments) {
+        const card = document.createElement('div');
+        card.className = 'comment-card bg-surface-950 rounded-r-lg px-3 py-2 text-xs mb-2';
+        let html = `<div class="flex justify-between items-start mb-1">
+          <span class="text-gray-500" title="${absTime(c.timestamp)}">${timeAgo(c.timestamp)}</span>
+          <button class="text-red-400/50 hover:text-red-400 text-[10px]" data-delete="${c.id}">Delete</button>
+        </div>`;
+        if (c.quote) html += `<blockquote class="text-gray-500 italic border-l-2 border-brand-700 pl-2 mb-1 text-[11px]">${esc(c.quote)}</blockquote>`;
+        html += `<p class="text-gray-300">${esc(c.question)}</p>`;
+        card.innerHTML = html;
+        group.appendChild(card);
+      }
+      container.appendChild(group);
+    }
+  }
+
+  // ---- Selection toolbar ----
+  const selToolbar = document.getElementById('selToolbar');
+  const selAskBtn = document.getElementById('selAskBtn');
+  let currentSelection = { text: '', section: '', sectionId: '' };
+
+  function handleSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      selToolbar.classList.add('hidden');
+      return;
+    }
+
+    const text = sel.toString().trim();
+    if (text.length < 3) { selToolbar.classList.add('hidden'); return; }
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const sectionName = getSectionForNode(range.startContainer);
+
+    currentSelection = { text, section: sectionName, sectionId: getSectionId(sectionName) };
+
+    let top = rect.top - 40;
+    let left = rect.left + rect.width / 2 - 70;
+    top = Math.max(8, top);
+    left = Math.max(8, Math.min(left, window.innerWidth - 160));
+
+    selToolbar.style.top = `${top}px`;
+    selToolbar.style.left = `${left}px`;
+    selToolbar.classList.remove('hidden');
+  }
+
+  document.addEventListener('pointerup', () => setTimeout(handleSelection, 10));
+  document.addEventListener('selectionchange', () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) selToolbar.classList.add('hidden');
+  });
+
+  // ---- Modal ----
+  const modal = document.getElementById('commentModal');
+  const modalQuote = document.getElementById('modalQuote');
+  const modalSectionCtx = document.getElementById('modalSectionCtx');
+  const modalInput = document.getElementById('modalInput');
+  const modalContent = document.getElementById('modalContent');
+  let modalContext = { quote: '', section: '', sectionId: '' };
+  let previousFocus = null;
+
+  function openModal(quote, section, sectionId) {
+    previousFocus = document.activeElement;
+    modalContext = { quote, section, sectionId };
+
+    if (quote) {
+      modalQuote.textContent = quote.length > 300 ? quote.slice(0, 300) + '…' : quote;
+      modalQuote.classList.remove('hidden');
+    } else {
+      modalQuote.classList.add('hidden');
+    }
+    modalSectionCtx.textContent = `Section: ${section}`;
+    modalInput.value = '';
+    modal.classList.remove('hidden');
+    setTimeout(() => modalInput.focus(), 50);
+  }
+
+  function closeModal() {
+    modal.classList.add('hidden');
+    if (previousFocus) previousFocus.focus();
+  }
+
+  selAskBtn.addEventListener('click', () => {
+    selToolbar.classList.add('hidden');
+    openModal(currentSelection.text, currentSelection.section, currentSelection.sectionId);
+  });
+
+  document.getElementById('modalBackdrop').addEventListener('click', closeModal);
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+  // Trap focus in modal
+  modalContent.addEventListener('keydown', e => {
+    if (e.key !== 'Tab') return;
+    const focusable = modalContent.querySelectorAll('button, textarea, [tabindex]:not([tabindex="-1"])');
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+
+  // Post comment
+  document.getElementById('btnPostComment').addEventListener('click', () => {
+    const q = modalInput.value.trim();
+    if (!q) return;
+    const comment = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      sectionId: modalContext.sectionId,
+      sectionTitle: modalContext.section,
+      quote: modalContext.quote || '',
+      question: q,
+      timestamp: Date.now(),
+    };
+    store.comments.push(comment);
+    saveComments(store);
+    renderComments();
+    closeModal();
+    showToast('Comment saved!');
+  });
+
+  // Copy as LLM prompt
+  document.getElementById('btnCopyPrompt').addEventListener('click', () => {
+    const q = modalInput.value.trim();
+    if (!q) { showToast('Please type a question first'); return; }
+    let prompt = `Context — from "${PAGE_TITLE}", section "${modalContext.section}":`;
+    if (modalContext.quote) prompt += `\n\n> ${modalContext.quote}`;
+    prompt += `\n\nMy question: ${q}`;
+    navigator.clipboard.writeText(prompt).then(() => showToast('Copied to clipboard!'));
+  });
+
+  // Section ask buttons
+  document.querySelectorAll('.section-ask').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sectionName = btn.dataset.sectionAsk;
+      openModal('', sectionName, getSectionId(sectionName));
+    });
+  });
+
+  // Delete comment
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('[data-delete]');
+    if (!btn) return;
+    const id = btn.dataset.delete;
+    store.comments = store.comments.filter(c => c.id !== id);
+    saveComments(store);
+    renderComments();
+  });
+
+  // ---- Notes sidebar ----
+  const sidebar = document.getElementById('notesSidebar');
+  document.getElementById('notesToggle').addEventListener('click', () => {
+    sidebar.classList.toggle('translate-x-full');
+  });
+  document.getElementById('sidebarClose').addEventListener('click', () => {
+    sidebar.classList.add('translate-x-full');
+  });
+
+  // Export all
+  document.getElementById('btnExportAll').addEventListener('click', () => {
+    if (store.comments.length === 0) { showToast('No notes to export'); return; }
+    const grouped = {};
+    for (const c of store.comments) {
+      const t = c.sectionTitle || 'General';
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(c);
+    }
+    let md = `# ${PAGE_TITLE} — My Notes\n`;
+    for (const [title, comments] of Object.entries(grouped)) {
+      md += `\n## ${title}\n`;
+      for (const c of comments) {
+        if (c.quote) md += `\n> ${c.quote}\n`;
+        md += `\n**Q:** ${c.question}\n_${new Date(c.timestamp).toLocaleString()}_\n`;
+      }
+    }
+    navigator.clipboard.writeText(md).then(() => showToast('Exported to clipboard as Markdown!'));
+  });
+
+  // Clear all
+  document.getElementById('btnClearAll').addEventListener('click', () => {
+    if (!confirm('Delete all your notes on this page?')) return;
+    store = { version: 1, comments: [] };
+    saveComments(store);
+    renderComments();
+    showToast('All notes cleared');
+  });
+
+  // ---- Tabs ----
+  document.querySelectorAll('.deep-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.deep-tab').forEach(t => { t.className = t.className.replace('tab-active', 'tab-inactive'); });
+      tab.className = tab.className.replace('tab-inactive', 'tab-active');
+      document.querySelectorAll('.deep-tab-content').forEach(c => c.classList.add('hidden'));
+      document.getElementById(tab.dataset.tab).classList.remove('hidden');
+    });
+  });
+
+  // ---- Code copy buttons ----
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const codeEl = document.getElementById(btn.dataset.code);
+      if (!codeEl) return;
+      const text = codeEl.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = 'Copy', 1500);
+      });
+    });
+  });
+
+  // ---- Utility ----
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // ---- Init ----
+  renderComments();
+
+})();
+</script>
+</body>
+</html>

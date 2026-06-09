@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Symmetry-Adapted Basis + Clifford-Pauli Symmetry</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          bg:        "#0b0f17",
+          "bg-card": "#131a26",
+          "bg-soft": "#0f1622",
+          accent:    "#7dd3fc",   // sky
+          accent2:   "#a78bfa",   // violet
+          good:      "#34d399",
+          warn:      "#fbbf24",
+          bad:       "#f87171",
+        },
+        fontFamily: {
+          mono: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { -webkit-font-smoothing: antialiased; }
+
+  /* Jargon term chips */
+  .term {
+    border-bottom: 1px dashed #7dd3fc;
+    color: #bae6fd;
+    cursor: help;
+    text-decoration: none;
+  }
+  .term:focus { outline: 2px solid #7dd3fc; outline-offset: 2px; border-radius: 2px; }
+
+  /* Hand-rolled syntax tokens */
+  .tok-c  { color: #6b7a90; font-style: italic; }   /* comment */
+  .tok-k  { color: #a78bfa; }                        /* keyword */
+  .tok-f  { color: #7dd3fc; }                        /* function */
+  .tok-s  { color: #34d399; }                        /* string  */
+  .tok-n  { color: #fbbf24; }                        /* number  */
+
+  .prose-tight p { margin: 0.4rem 0; }
+  details > summary { cursor: pointer; list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+
+  ::selection { background: #7dd3fc44; }
+
+  .section-rule { background: linear-gradient(90deg,#7dd3fc55,transparent); height:1px; }
+  .matrix-cell { transition: fill 150ms ease; }
+</style>
+</head>
+<body class="bg-bg text-gray-300 font-sans antialiased">
+
+<!-- ============ FLOATING SELECTION TOOLBAR ============ -->
+<div id="sel-toolbar" class="fixed z-[100] hidden no-print">
+  <button id="sel-ask"
+    class="bg-accent text-bg text-sm font-semibold px-3 py-1.5 rounded-lg shadow-lg hover:brightness-110 transition"
+    aria-label="Ask about the selected text">💬 Ask about this</button>
+</div>
+
+<!-- ============ JARGON POPOVER ============ -->
+<div id="term-pop" class="fixed z-[120] hidden max-w-xs no-print" role="tooltip">
+  <div class="bg-bg-card border border-accent/40 rounded-lg shadow-xl p-3 text-sm leading-relaxed text-gray-200">
+    <div id="term-pop-word" class="text-accent font-semibold mb-1"></div>
+    <div id="term-pop-def"></div>
+  </div>
+</div>
+
+<!-- ============ COMMENT MODAL ============ -->
+<div id="comment-modal" class="fixed inset-0 z-[200] hidden items-center justify-center p-4 no-print" role="dialog" aria-modal="true" aria-label="Ask a question">
+  <div id="modal-backdrop" class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+  <div class="relative bg-bg-card border border-gray-700 rounded-2xl shadow-2xl w-full max-w-lg p-5 space-y-4">
+    <h3 class="text-lg font-bold text-white">Ask a question</h3>
+    <blockquote id="modal-quote" class="hidden border-l-2 border-accent pl-3 text-sm text-gray-300 italic max-h-28 overflow-y-auto"></blockquote>
+    <p id="modal-section-label" class="text-xs text-gray-500"></p>
+    <textarea id="modal-textarea" rows="3" placeholder="What do you want to understand about this?"
+      class="w-full bg-bg border border-gray-600 rounded-lg p-3 text-sm text-gray-200 placeholder-gray-500 focus:border-accent focus:outline-none resize-y"></textarea>
+    <div class="flex flex-wrap gap-2 justify-end">
+      <button id="modal-copy" class="border border-accent2 text-accent2 hover:bg-accent2/10 text-sm font-semibold px-4 py-2 rounded-lg transition">Copy as LLM prompt</button>
+      <button id="modal-post" class="bg-accent text-bg hover:brightness-110 text-sm font-semibold px-4 py-2 rounded-lg transition">Post comment</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NOTES SIDEBAR ============ -->
+<div id="notes-sidebar" class="fixed top-0 right-0 h-full w-full sm:w-96 bg-bg-card border-l border-gray-700 z-[150] translate-x-full transition-transform duration-200 no-print overflow-y-auto">
+  <div class="p-5 space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-bold text-white">📒 My questions &amp; notes</h2>
+      <button onclick="toggleNotes(false)" class="text-gray-400 hover:text-white text-2xl leading-none" aria-label="Close notes">&times;</button>
+    </div>
+    <div class="flex gap-2">
+      <button id="notes-export" class="flex-1 border border-accent text-accent hover:bg-accent/10 text-xs font-semibold px-3 py-2 rounded-lg transition">Export all (Markdown)</button>
+      <button id="notes-clear" class="border border-bad text-bad hover:bg-bad/10 text-xs font-semibold px-3 py-2 rounded-lg transition">Clear all</button>
+    </div>
+    <div id="notes-list" class="space-y-4 text-sm"></div>
+  </div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] hidden no-print">
+  <div class="bg-good text-bg text-sm font-semibold px-4 py-2 rounded-lg shadow-lg"></div>
+</div>
+
+<!-- ============ TOP NAV ============ -->
+<header class="fixed top-0 inset-x-0 z-[90] bg-bg/80 backdrop-blur border-b border-gray-800 no-print">
+  <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+    <span class="font-bold text-white text-sm sm:text-base">SAB × Clifford-Pauli</span>
+    <div class="flex items-center gap-3">
+      <input id="search" type="search" placeholder="Search sections  (⌘/Ctrl-K)"
+        class="hidden sm:block bg-bg-soft border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:border-accent focus:outline-none w-56" />
+      <button onclick="toggleNotes(true)" class="text-gray-300 hover:text-accent text-sm flex items-center gap-1" aria-label="Open my notes">
+        📒 <span class="hidden sm:inline">Notes</span>
+        <span id="notes-badge" class="hidden bg-accent text-bg text-xs font-bold rounded-full min-w-5 h-5 px-1 items-center justify-center inline-flex"></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-3xl mx-auto px-4 pt-20 pb-24 space-y-16" id="main-content">
+
+  <!-- ============ HERO ============ -->
+  <section id="hero" data-title="Overview" class="space-y-5">
+    <p class="text-accent2 font-mono text-xs uppercase tracking-widest">NCTSSoS.jl · symmetry reduction</p>
+    <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
+      Symmetry-Adapted Basis,<br/>plus Clifford-Pauli symmetry
+    </h1>
+    <p class="text-lg text-gray-300 leading-relaxed">
+      How to take one <strong class="text-white">big positive-semidefinite block</strong> in a moment relaxation and,
+      using the problem's symmetry, slice it into several <strong class="text-white">small independent blocks</strong> —
+      the same optimal value, a dramatically cheaper SDP. And how the new code lets a
+      <span class="term" data-term="Clifford group">Clifford group</span> supply that symmetry for
+      <span class="term" data-term="Pauli operators">Pauli</span> (qubit) problems.
+    </p>
+    <div class="bg-bg-card border border-accent/30 rounded-xl p-4 text-sm text-gray-300">
+      <span class="text-accent font-semibold">Why this matters:</span>
+      An SDP's cost explodes with the size of its PSD block. If your objective and constraints don't change under
+      some symmetry, you are solving the same little problem many times over. Block-diagonalization removes that
+      redundancy <em>exactly</em> — no approximation, just less arithmetic.
+    </div>
+    <p class="text-xs text-gray-500">
+      Audience note: this assumes you already know polynomial optimization (SOS, moment matrices, the PSD constraint,
+      the relaxation hierarchy). It assumes <em>no</em> abstract algebra — every group-theory term is a
+      <span class="term" data-term="dashed underline">dashed-underlined</span> chip you can click for a one-line plain-English definition.
+    </p>
+  </section>
+
+  <div class="section-rule"></div>
+
+  <!-- ============ QUICK OVERVIEW ============ -->
+  <section id="overview" data-title="Quick Overview" class="space-y-6">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-2xl font-bold text-white">Quick overview</h2>
+      <button class="ask-section shrink-0 text-xs text-gray-400 hover:text-accent border border-gray-700 hover:border-accent rounded-lg px-2 py-1 transition" data-section="overview" data-title="Quick Overview">💬 Ask about this section</button>
+    </div>
+
+    <p class="leading-relaxed">
+      You already build a moment matrix indexed by a basis of monomials and demand it be
+      positive semidefinite. The <strong class="text-white">symmetry-adapted basis (SAB)</strong> is a change of
+      coordinates on that basis, chosen so the moment matrix becomes
+      <span class="term" data-term="block-diagonal">block-diagonal</span>. You then solve each block on its own.
+      The <strong class="text-white">Clifford-Pauli</strong> piece is simply <em>where the symmetry comes from</em>
+      when your variables are Pauli operators: a Clifford gate, acting by
+      <span class="term" data-term="conjugation">conjugation</span>, shuffles Pauli words and maybe flips a sign — a
+      <span class="term" data-term="signed permutation">signed permutation</span> of your basis, which is exactly what
+      the reduction machinery needs.
+    </p>
+
+    <div class="grid sm:grid-cols-2 gap-4">
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-accent font-semibold text-sm">1 · The lever</div>
+        <p class="text-sm text-gray-300">If a finite group leaves the objective <em>and</em> all constraints unchanged, the moment matrix is forced to commute with that group. Commuting matrices share a block structure.</p>
+      </div>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-accent font-semibold text-sm">2 · The payoff</div>
+        <p class="text-sm text-gray-300">One <code class="text-accent2">n×n</code> PSD constraint becomes several smaller ones. Example below: a <code class="text-accent2">7×7</code> block splits cleanly into <code class="text-accent2">4×4</code> and <code class="text-accent2">3×3</code>.</p>
+      </div>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-accent font-semibold text-sm">3 · The Pauli twist</div>
+        <p class="text-sm text-gray-300">For qubit problems, <span class="term" data-term="Clifford group">Clifford</span> gates (H, S, CNOT, SWAP) conjugate Paulis to ±Paulis. That ± sign is why a plain permutation isn't enough — you need <em>signed</em> permutations.</p>
+      </div>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 space-y-1">
+        <div class="text-accent font-semibold text-sm">4 · The discipline</div>
+        <p class="text-sm text-gray-300">The code is deliberately strict: it <em>errors</em> if the symmetry doesn't actually preserve the problem, if the basis isn't closed, or if the gate isn't a genuine Clifford. Wrong-but-quiet is the enemy.</p>
+      </div>
+    </div>
+    <div class="comments space-y-2" id="comments-overview"></div>
+  </section>
+
+  <div class="section-rule"></div>
+
+  <!-- ============ CORE CONCEPTS ============ -->
+  <section id="core" data-title="Core Concepts" class="space-y-8">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-2xl font-bold text-white">Core concepts, simplest first</h2>
+      <button class="ask-section shrink-0 text-xs text-gray-400 hover:text-accent border border-gray-700 hover:border-accent rounded-lg px-2 py-1 transition" data-section="core" data-title="Core Concepts">💬 Ask about this section</button>
+    </div>
+
+    <!-- 1 -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">1 · The bottleneck you already know</h3>
+      <p class="leading-relaxed">
+        Your moment relaxation picks a basis of monomials \(Q = (q_1, \dots, q_n)\) and builds the moment matrix
+        \(M_{ij} = \langle q_i^\dagger q_j\rangle\), then demands \(M \succeq 0\). The interior-point solver's work
+        scales steeply with \(n\) — roughly like \(n^3\) per iteration just for the linear algebra, worse once you
+        count the number of moment variables. Halving \(n\) is not a 2× win; it can be a 5–10× win. So the whole
+        game is: <strong class="text-white">make the PSD block smaller without changing the answer.</strong>
+      </p>
+    </div>
+
+    <!-- 2 -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">2 · A symmetry of the problem</h3>
+      <p class="leading-relaxed">
+        Suppose there's an operation \(g\) — say "swap qubit 1 and qubit 2" — that rearranges your variables but
+        leaves the objective and every constraint <span class="term" data-term="invariant">invariant</span>. Collect
+        all such operations and you get a <span class="term" data-term="group">group</span> \(G\). The way each
+        \(g \in G\) shuffles your monomials is a <span class="term" data-term="group action">group action</span>.
+      </p>
+      <p class="leading-relaxed">
+        Group the monomials by what the action does to them: an <span class="term" data-term="orbit">orbit</span> is
+        the full set of monomials reachable from one starting monomial by applying every \(g\). The punchline you can
+        feel without any algebra: <strong class="text-white">monomials in the same orbit must have the same
+        expectation value</strong> (up to a sign the action might introduce). So they should share a single moment
+        variable instead of getting one each. That alone shrinks the variable count.
+      </p>
+    </div>
+
+    <!-- 3 -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">3 · Why symmetry forces a block structure</h3>
+      <p class="leading-relaxed">
+        Here is the one genuinely non-elementary idea, told without machinery. Write each operation \(g\) as a matrix
+        \(\rho(g)\) that permutes (and sign-flips) the basis — that's a
+        <span class="term" data-term="representation">representation</span>. Because \(g\) preserves the problem, the
+        moment matrix \(M\) <em>commutes</em> with every \(\rho(g)\): \(\rho(g)\,M = M\,\rho(g)\). The set of all
+        matrices that commute with the whole group is called the
+        <span class="term" data-term="commutant">commutant</span>, and \(M\) is trapped inside it.
+      </p>
+      <p class="leading-relaxed">
+        Now the key fact (<span class="term" data-term="Schur's lemma">Schur's lemma</span>): you can re-coordinate the
+        space into indivisible pieces — <span class="term" data-term="irreducible representation">irreducible
+        representations</span> — and a matrix that commutes with the group <em>cannot mix different pieces</em>. In the
+        right coordinates, \(M\) is <span class="term" data-term="block-diagonal">block-diagonal</span>: zero between
+        pieces, free inside each piece. Finding that coordinate change algorithmically is the
+        <span class="term" data-term="Wedderburn decomposition">Wedderburn decomposition</span>, and the library
+        <code class="text-accent2">SymbolicWedderburn.jl</code> does exactly this.
+      </p>
+      <div class="bg-bg-soft border-l-2 border-accent2 pl-4 py-2 text-sm text-gray-300">
+        <strong class="text-accent2">The intuition in one line:</strong> symmetry says "these directions are
+        interchangeable," and a matrix that respects interchangeable directions can't couple them — so it falls apart
+        into blocks.
+      </div>
+    </div>
+
+    <!-- 4 -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">4 · The symmetry-adapted basis itself</h3>
+      <p class="leading-relaxed">
+        The <strong class="text-white">symmetry-adapted basis</strong> <em>is</em> that coordinate change. Instead of
+        indexing \(M\) by raw monomials \(q_1,\dots,q_n\), you index it by carefully chosen <em>combinations</em> of
+        monomials, sorted so that everything transforming the same way sits together (each such group is an
+        <span class="term" data-term="isotypic component">isotypic component</span>, and it becomes one block). Same
+        matrix, same eigenvalues, same optimum — just written in coordinates where the block structure is visible and
+        the solver can attack each block alone.
+      </p>
+    </div>
+
+    <!-- 5 -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">5 · The Pauli alphabet</h3>
+      <p class="leading-relaxed">
+        Now specialize to qubit problems. The variables are <span class="term" data-term="Pauli operators">Pauli
+        operators</span> \(X, Y, Z\) sitting on <span class="term" data-term="qubit / site">sites</span> (qubits). A
+        monomial here is a <span class="term" data-term="Pauli word">Pauli word</span> like \(X_1 Z_2\). The algebra
+        is simple and rigid:
+      </p>
+      <ul class="text-sm space-y-1 ml-1">
+        <li>• <strong class="text-white">Each squares to identity:</strong> \(X^2 = Y^2 = Z^2 = I\).</li>
+        <li>• <strong class="text-white">Different sites commute:</strong> \(X_1\) and \(Z_2\) don't interfere.</li>
+        <li>• <strong class="text-white">Same site is cyclic:</strong> \(XY = iZ,\; YZ = iX,\; ZX = iY\) (and reversed gives \(-i\)).</li>
+      </ul>
+      <p class="leading-relaxed text-sm text-gray-400">
+        That \(i\) is a <span class="term" data-term="phase">phase</span>. It's why multiplying Pauli words sometimes
+        spits out factors of \(\pm i\) that must be tracked and, for a valid symmetry, must collapse to a real \(\pm 1\).
+      </p>
+    </div>
+
+    <!-- 6 -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">6 · The Clifford group: Pauli's natural symmetry</h3>
+      <p class="leading-relaxed">
+        Where do symmetries of a Pauli problem come from? The <span class="term" data-term="Clifford group">Clifford
+        group</span>. A Clifford operation \(U\) has one defining magic property: when you
+        <span class="term" data-term="conjugation">conjugate</span> a Pauli word — sandwich it as \(U P U^{-1}\) — you
+        always get back <strong class="text-white">another Pauli word, times \(\pm 1\)</strong>. It never produces a
+        messy sum. (Formally, the Clifford group is the <span class="term" data-term="normalizer">normalizer</span> of
+        the Pauli group.)
+      </p>
+      <p class="leading-relaxed">
+        Read that again with the earlier idea in mind: conjugation by a Clifford maps each basis monomial to
+        <em>one</em> other basis monomial with a sign. That is precisely a
+        <span class="term" data-term="signed permutation">signed permutation</span> of the basis — the exact input the
+        Wedderburn machinery wants. So Clifford gates are the bridge: they are the symmetries that keep your Pauli
+        basis closed, with only a harmless \(\pm\) bookkeeping.
+      </p>
+    </div>
+
+    <div class="comments space-y-2" id="comments-core"></div>
+  </section>
+
+  <div class="section-rule"></div>
+
+  <!-- ============ VISUAL EXPLAINERS ============ -->
+  <section id="visuals" data-title="Visual Explainers" class="space-y-8">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-2xl font-bold text-white">Pictures that do the explaining</h2>
+      <button class="ask-section shrink-0 text-xs text-gray-400 hover:text-accent border border-gray-700 hover:border-accent rounded-lg px-2 py-1 transition" data-section="visuals" data-title="Visual Explainers">💬 Ask about this section</button>
+    </div>
+
+    <!-- SVG 1: big block -> two blocks -->
+    <figure class="bg-bg-card border border-gray-700 rounded-xl p-5 space-y-3">
+      <figcaption class="text-sm text-gray-400">Before vs. after: one 7×7 PSD block becomes a 4×4 and a 3×3. The dark
+        off-block cells are forced to zero by the symmetry.</figcaption>
+      <svg viewBox="0 0 640 240" class="w-full" role="img" aria-label="A 7x7 matrix transforming into a block-diagonal 4x4 plus 3x3">
+        <!-- left: full 7x7 -->
+        <g transform="translate(20,30)">
+          <text x="84" y="-10" fill="#9ca3af" font-size="12" text-anchor="middle">raw basis — full block</text>
+          <g id="grid-full"></g>
+          <rect x="0" y="0" width="168" height="168" fill="none" stroke="#7dd3fc" stroke-width="2" rx="3"/>
+        </g>
+        <!-- arrow -->
+        <g transform="translate(250,114)">
+          <line x1="0" y1="0" x2="80" y2="0" stroke="#a78bfa" stroke-width="2" marker-end="url(#ar)"/>
+          <text x="40" y="-10" fill="#a78bfa" font-size="11" text-anchor="middle">SAB</text>
+          <text x="40" y="20" fill="#6b7a90" font-size="10" text-anchor="middle">change of basis</text>
+        </g>
+        <!-- right: block diagonal -->
+        <g transform="translate(372,30)">
+          <text x="84" y="-10" fill="#9ca3af" font-size="12" text-anchor="middle">adapted basis — blocks</text>
+          <g id="grid-block"></g>
+          <rect x="0"  y="0"  width="96" height="96" fill="none" stroke="#34d399" stroke-width="2" rx="3"/>
+          <rect x="96" y="96" width="72" height="72" fill="none" stroke="#fbbf24" stroke-width="2" rx="3"/>
+        </g>
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#a78bfa"/>
+          </marker>
+        </defs>
+      </svg>
+    </figure>
+
+    <!-- SVG 2: orbits under SWAP -->
+    <figure class="bg-bg-card border border-gray-700 rounded-xl p-5 space-y-3">
+      <figcaption class="text-sm text-gray-400">Where the blocks come from: SWAP pairs each site-1 Pauli with its
+        site-2 twin. Symmetric combinations (+) gather into one block; antisymmetric combinations (−) into another.</figcaption>
+      <svg viewBox="0 0 640 250" class="w-full" role="img" aria-label="Orbits of basis monomials under the SWAP action, forming a symmetric and an antisymmetric block">
+        <!-- column: basis -->
+        <g font-size="13" fill="#e5e7eb" font-family="ui-monospace, monospace">
+          <text x="40" y="24" fill="#9ca3af" font-size="12">basis (7)</text>
+          <text x="40" y="55">I</text>
+          <text x="40" y="85">X₁</text><text x="95" y="85">X₂</text>
+          <text x="40" y="115">Y₁</text><text x="95" y="115">Y₂</text>
+          <text x="40" y="145">Z₁</text><text x="95" y="145">Z₂</text>
+          <!-- swap arcs -->
+          <g stroke="#a78bfa" stroke-width="1.5" fill="none">
+            <path d="M58 80 q26 -16 38 0"/>
+            <path d="M58 110 q26 -16 38 0"/>
+            <path d="M58 140 q26 -16 38 0"/>
+          </g>
+          <text x="150" y="86" fill="#a78bfa" font-size="11">⇄</text>
+          <text x="150" y="116" fill="#a78bfa" font-size="11">⇄</text>
+          <text x="150" y="146" fill="#a78bfa" font-size="11">⇄</text>
+        </g>
+        <!-- symmetric block -->
+        <g transform="translate(300,20)">
+          <rect x="0" y="0" width="150" height="150" rx="6" fill="#34d39915" stroke="#34d399" stroke-width="1.5"/>
+          <text x="75" y="22" text-anchor="middle" fill="#34d399" font-size="12">symmetric block (4×4)</text>
+          <g font-size="12" fill="#d1fae5" font-family="ui-monospace, monospace" text-anchor="middle">
+            <text x="75" y="55">I</text>
+            <text x="75" y="80">X₁ + X₂</text>
+            <text x="75" y="105">Y₁ + Y₂</text>
+            <text x="75" y="130">Z₁ + Z₂</text>
+          </g>
+        </g>
+        <!-- antisymmetric block -->
+        <g transform="translate(470,55)">
+          <rect x="0" y="0" width="150" height="120" rx="6" fill="#fbbf2415" stroke="#fbbf24" stroke-width="1.5"/>
+          <text x="75" y="22" text-anchor="middle" fill="#fbbf24" font-size="12">antisym. block (3×3)</text>
+          <g font-size="12" fill="#fef3c7" font-family="ui-monospace, monospace" text-anchor="middle">
+            <text x="75" y="55">X₁ − X₂</text>
+            <text x="75" y="80">Y₁ − Y₂</text>
+            <text x="75" y="105">Z₁ − Z₂</text>
+          </g>
+        </g>
+      </svg>
+    </figure>
+
+    <!-- SVG 3: pipeline -->
+    <figure class="bg-bg-card border border-gray-700 rounded-xl p-5 space-y-3">
+      <figcaption class="text-sm text-gray-400">The data flow. Symmetry slots in <em>between</em> building the basis and
+        emitting the SDP — it transforms the relaxation, it does not replace the engine.</figcaption>
+      <svg viewBox="0 0 640 150" class="w-full" role="img" aria-label="Pipeline: problem to basis to symmetry reduction to small PSD blocks to SDP">
+        <defs>
+          <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#475569"/>
+          </marker>
+        </defs>
+        <g font-size="11" text-anchor="middle">
+          <g><rect x="8"  y="40" width="104" height="56" rx="8" fill="#131a26" stroke="#475569"/><text x="60" y="64" fill="#e5e7eb">polyopt</text><text x="60" y="80" fill="#6b7a90">Pauli problem</text></g>
+          <g><rect x="140" y="40" width="116" height="56" rx="8" fill="#131a26" stroke="#475569"/><text x="198" y="64" fill="#e5e7eb">compute_sparsity</text><text x="198" y="80" fill="#6b7a90">basis Q</text></g>
+          <g><rect x="284" y="34" width="132" height="68" rx="8" fill="#131a26" stroke="#7dd3fc" stroke-width="1.6"/><text x="350" y="58" fill="#7dd3fc">moment_relax_</text><text x="350" y="73" fill="#7dd3fc">symmetric</text><text x="350" y="90" fill="#6b7a90">Wedderburn + orbits</text></g>
+          <g><rect x="444" y="40" width="92" height="56" rx="8" fill="#131a26" stroke="#34d399"/><text x="490" y="64" fill="#e5e7eb">small blocks</text><text x="490" y="80" fill="#6b7a90">[4×4, 3×3]</text></g>
+          <g><rect x="560" y="40" width="72" height="56" rx="8" fill="#131a26" stroke="#475569"/><text x="596" y="68" fill="#e5e7eb">solve_sdp</text></g>
+          <line x1="112" y1="68" x2="138" y2="68" stroke="#475569" stroke-width="1.5" marker-end="url(#ar2)"/>
+          <line x1="256" y1="68" x2="282" y2="68" stroke="#475569" stroke-width="1.5" marker-end="url(#ar2)"/>
+          <line x1="416" y1="68" x2="442" y2="68" stroke="#475569" stroke-width="1.5" marker-end="url(#ar2)"/>
+          <line x1="536" y1="68" x2="558" y2="68" stroke="#475569" stroke-width="1.5" marker-end="url(#ar2)"/>
+        </g>
+      </svg>
+    </figure>
+
+    <div class="comments space-y-2" id="comments-visuals"></div>
+  </section>
+
+  <div class="section-rule"></div>
+
+  <!-- ============ DEEP DIVE ============ -->
+  <section id="deep" data-title="Deep Dive" class="space-y-8">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-2xl font-bold text-white">Deep dive: how the code does it</h2>
+      <button class="ask-section shrink-0 text-xs text-gray-400 hover:text-accent border border-gray-700 hover:border-accent rounded-lg px-2 py-1 transition" data-section="deep" data-title="Deep Dive">💬 Ask about this section</button>
+    </div>
+
+    <!-- the seam -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">The seam: a transformation, not a rewrite</h3>
+      <p class="leading-relaxed">
+        The design choice that keeps this sane: symmetry is a pass that consumes the already-built symbolic relaxation
+        and emits a <em>smaller, ordinary</em> moment problem. The solver, the dualizer, the sparsity code — all
+        untouched. When you set <code class="text-accent2">SolverConfig(symmetry = …)</code>, the build routes through
+        <code class="text-accent2">moment_relax_symmetric(…)</code> instead of the plain path, and everything
+        downstream still sees a normal <code class="text-accent2">MomentProblem</code> — it just has several small PSD
+        blocks instead of one big one.
+      </p>
+    </div>
+
+    <!-- pipeline numbered -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">What <code class="text-accent2">moment_relax_symmetric</code> actually does</h3>
+      <ol class="space-y-2 text-sm">
+        <li class="flex gap-3"><span class="text-accent font-mono">1</span><span><strong class="text-white">Enumerate the group</strong> from your generators (e.g. <code class="text-accent2">CliffordSymmetry(:SWAP, 1, 2)</code>) into a finite <code class="text-accent2">CliffordSymmetryGroup</code>.</span></li>
+        <li class="flex gap-3"><span class="text-accent font-mono">2</span><span><strong class="text-white">Check invariance (strict).</strong> Every group element must leave the objective and all constraints unchanged, or it throws. No silent wrongness.</span></li>
+        <li class="flex gap-3"><span class="text-accent font-mono">3</span><span><strong class="text-white">Check closure (strict).</strong> Acting on any basis monomial must land back inside the same basis's span, or it throws.</span></li>
+        <li class="flex gap-3"><span class="text-accent font-mono">4</span><span><strong class="text-white">Decompose the half-basis</strong> with <code class="text-accent2">SymbolicWedderburn.symmetry_adapted_basis</code>, using the Pauli-Clifford action as a <code class="text-accent2">BySignedPermutations</code> action.</span></li>
+        <li class="flex gap-3"><span class="text-accent font-mono">5</span><span><strong class="text-white">Block-diagonalize</strong> the symbolic PSD matrix into the adapted blocks.</span></li>
+        <li class="flex gap-3"><span class="text-accent font-mono">6</span><span><strong class="text-white">Orbit-reduce the moment variables:</strong> monomials in one orbit collapse to a single representative (carrying its ± sign).</span></li>
+        <li class="flex gap-3"><span class="text-accent font-mono">7</span><span><strong class="text-white">Emit a smaller <code class="text-accent2">MomentProblem</code></strong> and a <code class="text-accent2">SymmetryReport</code> (group order, block sizes, invariant-moment count).</span></li>
+      </ol>
+    </div>
+
+    <!-- worked example -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">Worked example: 2-qubit Heisenberg + SWAP</h3>
+      <p class="leading-relaxed">
+        This is a real regression test in the repo. The Heisenberg interaction
+        \(H = \tfrac14(X_1X_2 + Y_1Y_2 + Z_1Z_2)\) is obviously unchanged if you swap the two qubits — that's the
+        symmetry. Order-1 basis: \(\{I, X_1, X_2, Y_1, Y_2, Z_1, Z_2\}\), so one dense \(7\times7\) block.
+      </p>
+
+      <div class="rounded-xl overflow-hidden border border-gray-700">
+        <div class="flex items-center justify-between bg-bg-soft px-4 py-2 text-xs text-gray-400">
+          <span>Julia — enabling Clifford symmetry</span>
+          <button class="copy-btn text-accent hover:brightness-110 font-semibold" aria-label="Copy code">Copy</button>
+        </div>
+<pre class="bg-bg-card p-4 overflow-x-auto text-sm font-mono leading-relaxed"><code><span class="tok-c"># 2-qubit Heisenberg interaction over the Pauli algebra</span>
+reg, (σx, σy, σz) = <span class="tok-f">create_pauli_variables</span>(<span class="tok-n">1</span>:<span class="tok-n">2</span>)
+H     = <span class="tok-f">sum</span>((<span class="tok-n">1</span>/<span class="tok-n">4</span>) * op[<span class="tok-n">1</span>] * op[<span class="tok-n">2</span>] <span class="tok-k">for</span> op <span class="tok-k">in</span> (σx, σy, σz))   <span class="tok-c"># ¼(X₁X₂+Y₁Y₂+Z₁Z₂)</span>
+pop   = <span class="tok-f">polyopt</span>(H, reg)
+basis = [<span class="tok-f">one</span>(σx[<span class="tok-n">1</span>]); σx; σy; σz]                       <span class="tok-c"># I, X₁, X₂, Y₁, Y₂, Z₁, Z₂  (7 words)</span>
+
+cfg = <span class="tok-f">SolverConfig</span>(
+    moment_basis = basis,
+    cs_algo      = <span class="tok-f">NoElimination</span>(),                    <span class="tok-c"># dense: one PSD block</span>
+    ts_algo      = <span class="tok-f">NoElimination</span>(),
+    symmetry     = <span class="tok-f">SymmetrySpec</span>(<span class="tok-f">CliffordSymmetry</span>(<span class="tok-s">:SWAP</span>, <span class="tok-n">1</span>, <span class="tok-n">2</span>)),  <span class="tok-c"># swap the two qubits</span>
+)
+
+_, report = <span class="tok-f">moment_relax_symmetric</span>(pop, sparsity.corr_sparsity,
+                                   sparsity.cliques_term_sparsities, cfg.symmetry)
+
+report.group_order      <span class="tok-c"># 2</span>
+report.psd_block_sizes  <span class="tok-c"># [4, 3]  ← the 7×7 block split into a 4×4 and a 3×3</span></code></pre>
+      </div>
+
+      <p class="leading-relaxed text-sm">
+        Why \([4,3]\)? SWAP pairs each site-1 Pauli with its site-2 twin and fixes \(I\). The
+        <span class="term" data-term="orbit">orbits</span> are \(\{I\},\{X_1,X_2\},\{Y_1,Y_2\},\{Z_1,Z_2\}\). The
+        <strong class="text-good">symmetric</strong> combinations \(I,\,X_1{+}X_2,\,Y_1{+}Y_2,\,Z_1{+}Z_2\) form a
+        \(4\times4\) block; the <strong class="text-warn">antisymmetric</strong> ones
+        \(X_1{-}X_2,\,Y_1{-}Y_2,\,Z_1{-}Z_2\) form a \(3\times3\) block. Off-block entries are forced to zero. The
+        reported <code class="text-accent2">block_provenance</code> is <code class="text-accent2">:wedderburn</code>
+        for both.
+      </p>
+    </div>
+
+    <!-- the action code -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">The heart: conjugation as a signed-permutation action</h3>
+      <p class="leading-relaxed">
+        A <code class="text-accent2">CliffordSymmetry</code> stores the action as signed images of <em>single</em>
+        Pauli letters, e.g. <code class="text-accent2">σx[1] =&gt; (+1, σz[1])</code>. The named constructors fill these
+        in for you: <code class="text-accent2">:H</code> gives \(X\!\to\!Z,\,Y\!\to\!-Y,\,Z\!\to\!X\);
+        <code class="text-accent2">:S</code> gives \(X\!\to\!Y,\,Y\!\to\!-X,\,Z\!\to\!Z\); and so on. To act on a
+        whole word, you map each letter, multiply the images, re-simplify to Pauli normal form, and accumulate the
+        sign:
+      </p>
+      <div class="rounded-xl overflow-hidden border border-gray-700">
+        <div class="flex items-center justify-between bg-bg-soft px-4 py-2 text-xs text-gray-400">
+          <span>Julia — the monomial action (paraphrased from <code>symmetry.jl</code>)</span>
+          <button class="copy-btn text-accent hover:brightness-110 font-semibold" aria-label="Copy code">Copy</button>
+        </div>
+<pre class="bg-bg-card p-4 overflow-x-auto text-sm font-mono leading-relaxed"><code><span class="tok-k">function</span> <span class="tok-f">_act_monomial</span>(g::CliffordSymmetry, mono::NormalMonomial{PauliAlgebra})
+    sign = <span class="tok-n">1</span>
+    word = Int[]
+    <span class="tok-k">for</span> idx <span class="tok-k">in</span> mono.word
+        letter_sign, image = <span class="tok-f">_clifford_letter_image</span>(g, idx)  <span class="tok-c"># σ ↦ (±1, σ′)</span>
+        sign *= letter_sign
+        <span class="tok-f">append!</span>(word, image.word)
+    <span class="tok-k">end</span>
+    image_word, phase = <span class="tok-f">simplify</span>(PauliAlgebra, word)        <span class="tok-c"># XY→iZ, σ²→I, sort sites</span>
+    sign *= <span class="tok-f">_phase_to_clifford_sign</span>(phase)                 <span class="tok-c"># ±i ⇒ error; +1/−1 ⇒ keep</span>
+    <span class="tok-k">return</span> sign, <span class="tok-f">NormalMonomial</span>{PauliAlgebra}(image_word)
+<span class="tok-k">end</span></code></pre>
+      </div>
+      <p class="leading-relaxed text-sm text-gray-400">
+        The <code class="text-accent2">_phase_to_clifford_sign</code> guard is the safety rail: a genuine Clifford
+        conjugation of a Hermitian Pauli word can only produce a real \(\pm 1\). If multiplication leaves a leftover
+        \(\pm i\), the supplied images were <em>not</em> a valid Clifford and the code errors instead of fabricating a
+        nonsensical "symmetry."
+      </p>
+    </div>
+
+    <!-- orbit reduction subtlety -->
+    <div class="space-y-3">
+      <h3 class="text-xl font-semibold text-white">A pretty subtlety: orbits that must be zero</h3>
+      <p class="leading-relaxed">
+        Because the permutation is <em>signed</em>, walking around an orbit can return you to where you started but
+        with a flipped sign. If a monomial \(m\) maps back to itself with sign \(-1\), then \(\langle m\rangle = -\langle
+        m\rangle\), which forces \(\langle m\rangle = 0\). The orbit reducer detects exactly this: when the signs around
+        an orbit are inconsistent, it marks the whole orbit's moment variable as identically zero rather than merging
+        it. That's not a bug to work around — it's a free constraint the symmetry hands you.
+      </p>
+    </div>
+
+    <div class="comments space-y-2" id="comments-deep"></div>
+  </section>
+
+  <div class="section-rule"></div>
+
+  <!-- ============ PITFALLS ============ -->
+  <section id="pitfalls" data-title="Pitfalls" class="space-y-5">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-2xl font-bold text-white">Common pitfalls &amp; gotchas</h2>
+      <button class="ask-section shrink-0 text-xs text-gray-400 hover:text-accent border border-gray-700 hover:border-accent rounded-lg px-2 py-1 transition" data-section="pitfalls" data-title="Pitfalls">💬 Ask about this section</button>
+    </div>
+
+    <div class="space-y-3">
+      <div class="bg-bg-card border-l-4 border-bad rounded-r-lg p-4">
+        <div class="font-semibold text-bad text-sm">The symmetry doesn't actually preserve the problem</div>
+        <p class="text-sm text-gray-300 mt-1">If your group changes the objective or a constraint, the reduction is silently <em>wrong</em>. The code defends you: <code class="text-accent2">check_invariance</code> is on by default and throws. Don't disable it unless you've proven invariance by hand.</p>
+      </div>
+      <div class="bg-bg-card border-l-4 border-bad rounded-r-lg p-4">
+        <div class="font-semibold text-bad text-sm">The basis isn't closed under the action</div>
+        <p class="text-sm text-gray-300 mt-1">Block-diagonalization only works if acting on a basis monomial lands back in the basis's span. If it escapes, you'd be projecting onto the wrong space. The closure check throws with the offending image.</p>
+      </div>
+      <div class="bg-bg-card border-l-4 border-warn rounded-r-lg p-4">
+        <div class="font-semibold text-warn text-sm">Forgetting the sign (plain vs. signed permutation)</div>
+        <p class="text-sm text-gray-300 mt-1">Clifford conjugation gives \(\pm\) Pauli words. Treating it as an unsigned permutation merges orbits that should cancel, and you lose the "this moment is zero" constraints. The action <em>must</em> be a <span class="term" data-term="signed permutation">signed permutation</span>.</p>
+      </div>
+      <div class="bg-bg-card border-l-4 border-warn rounded-r-lg p-4">
+        <div class="font-semibold text-warn text-sm">Supplying images that aren't a real Clifford</div>
+        <p class="text-sm text-gray-300 mt-1">Custom image dictionaries are validated: they must preserve commutation/anticommutation between letters and same-site Pauli multiplication. Garbage in → <code class="text-accent2">ArgumentError</code>, not garbage out. Sources must also be single Pauli letters.</p>
+      </div>
+      <div class="bg-bg-card border-l-4 border-accent2 rounded-r-lg p-4">
+        <div class="font-semibold text-accent2 text-sm">Expecting it to compose with everything (yet)</div>
+        <p class="text-sm text-gray-300 mt-1">This slice is deliberately dense and strict: one clique, no term sparsity, <span class="term" data-term="multiplicity">multiplicity</span>-free blocks. Repeated irreps, multi-clique composition, and term-sparsity interplay are explicitly out of scope and will error rather than guess.</p>
+      </div>
+    </div>
+    <div class="comments space-y-2" id="comments-pitfalls"></div>
+  </section>
+
+  <div class="section-rule"></div>
+
+  <!-- ============ INTERACTIVE ============ -->
+  <section id="interactive" data-title="Interactive" class="space-y-8">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-2xl font-bold text-white">Play with it</h2>
+      <button class="ask-section shrink-0 text-xs text-gray-400 hover:text-accent border border-gray-700 hover:border-accent rounded-lg px-2 py-1 transition" data-section="interactive" data-title="Interactive">💬 Ask about this section</button>
+    </div>
+
+    <!-- tabs: gate tables -->
+    <div class="space-y-3">
+      <h3 class="text-lg font-semibold text-white">The four named Clifford gates</h3>
+      <p class="text-sm text-gray-400">Each gate is fully described by what its conjugation does to single Pauli letters. The rest follows by multiplying.</p>
+      <div class="flex flex-wrap gap-2" id="gate-tabs">
+        <button class="gate-tab px-3 py-1.5 rounded-lg text-sm font-semibold border border-accent bg-accent text-bg" data-gate="H">H</button>
+        <button class="gate-tab px-3 py-1.5 rounded-lg text-sm font-semibold border border-gray-700 text-gray-300 hover:border-accent" data-gate="S">S</button>
+        <button class="gate-tab px-3 py-1.5 rounded-lg text-sm font-semibold border border-gray-700 text-gray-300 hover:border-accent" data-gate="CNOT">CNOT</button>
+        <button class="gate-tab px-3 py-1.5 rounded-lg text-sm font-semibold border border-gray-700 text-gray-300 hover:border-accent" data-gate="SWAP">SWAP</button>
+      </div>
+      <div id="gate-panel" class="bg-bg-card border border-gray-700 rounded-xl p-4 font-mono text-sm"></div>
+    </div>
+
+    <!-- live demo: act on a Pauli -->
+    <div class="space-y-3">
+      <h3 class="text-lg font-semibold text-white">Apply a single-qubit Clifford to a Pauli</h3>
+      <p class="text-sm text-gray-400">Watch the \(\pm 1\) sign appear. This is the whole "signed permutation" idea in one click.</p>
+      <div class="bg-bg-card border border-gray-700 rounded-xl p-4 flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">gate</span>
+          <select id="demo-gate" class="bg-bg-soft border border-gray-700 rounded-lg px-3 py-1.5 text-sm">
+            <option value="H">H</option><option value="S">S</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-gray-500">conjugate</span>
+          <select id="demo-pauli" class="bg-bg-soft border border-gray-700 rounded-lg px-3 py-1.5 text-sm">
+            <option value="X">X</option><option value="Y">Y</option><option value="Z">Z</option>
+          </select>
+        </div>
+        <div class="text-accent text-xl font-mono">→</div>
+        <div id="demo-out" class="text-xl font-mono text-white px-3 py-1 rounded-lg bg-bg-soft border border-accent/40 min-w-24 text-center"></div>
+      </div>
+    </div>
+
+    <!-- glossary accordion -->
+    <div class="space-y-3">
+      <h3 class="text-lg font-semibold text-white">Glossary (every chip in one place)</h3>
+      <div id="glossary" class="space-y-2"></div>
+    </div>
+
+    <div class="comments space-y-2" id="comments-interactive"></div>
+  </section>
+
+  <div class="section-rule"></div>
+
+  <!-- ============ QUIZ ============ -->
+  <section id="quiz" data-title="Quiz" class="space-y-5">
+    <div class="flex items-center justify-between gap-3">
+      <h2 class="text-2xl font-bold text-white">Test your understanding</h2>
+      <button class="ask-section shrink-0 text-xs text-gray-400 hover:text-accent border border-gray-700 hover:border-accent rounded-lg px-2 py-1 transition" data-section="quiz" data-title="Quiz">💬 Ask about this section</button>
+    </div>
+    <div id="quiz-list" class="space-y-3"></div>
+    <div class="comments space-y-2" id="comments-quiz"></div>
+  </section>
+
+  <!-- ============ FOOTER ============ -->
+  <footer id="footer" class="border-t border-gray-800 pt-8 space-y-4 no-print">
+    <div class="flex flex-wrap gap-3">
+      <button id="footer-export" class="border border-accent text-accent hover:bg-accent/10 text-sm font-semibold px-4 py-2 rounded-lg transition">Export my notes (Markdown)</button>
+      <button onclick="window.print()" class="border border-gray-600 text-gray-300 hover:border-accent hover:text-accent text-sm font-semibold px-4 py-2 rounded-lg transition">Save / print as PDF</button>
+    </div>
+    <p class="text-xs text-gray-600">
+      An interactive explainer for <code>NCTSSoS.jl</code>'s symmetry-adapted basis + Clifford-Pauli reduction.
+      Select any text to ask about it; your notes live only in this browser (localStorage). Built as a single
+      self-contained file.
+    </p>
+  </footer>
+</main>
+
+<script>
+/* =========================================================================
+   CONFIG
+   ========================================================================= */
+const SLUG = "sab-clifford-pauli";
+const PAGE_TITLE = "Symmetry-Adapted Basis + Clifford-Pauli Symmetry";
+const LS_KEY = `iex:${SLUG}:comments`;
+
+/* =========================================================================
+   GLOSSARY DATA  (jargon chips + accordion)
+   ========================================================================= */
+const TERMS = {
+  "group": "A set of reversible operations you can compose: doing two in a row stays in the set, and every one can be undone.",
+  "group action": "A rule for how each operation in a group rearranges the objects you care about — here, the monomials in your basis.",
+  "orbit": "All the monomials you can reach from one starting monomial by applying every group operation. They must share one expectation value (up to a sign).",
+  "invariant": "Unchanged by the symmetry: applying any group operation gives back exactly the same polynomial.",
+  "representation": "Writing each group operation as a matrix acting on a vector space, so 'compose operations' becomes 'multiply matrices'.",
+  "irreducible representation": "A representation that cannot be split any further — the smallest indivisible building block of how the group acts.",
+  "Schur's lemma": "A matrix that commutes with an irreducible representation must be a single number times the identity. This is precisely what forces block structure.",
+  "Wedderburn decomposition": "The theorem (and algorithm) that splits a symmetric matrix into independent smaller blocks, one family per irreducible representation.",
+  "commutant": "All matrices that commute with every group operation. The moment matrix is trapped inside it, which is what makes it block-diagonalizable.",
+  "isotypic component": "The chunk of the basis that transforms in one particular irreducible way. Each becomes one block of the reduced matrix.",
+  "block-diagonal": "A big matrix that is zero everywhere except inside several small square blocks on the diagonal, so each block can be solved on its own.",
+  "Pauli operators": "The three quantum 'spin' operators X, Y, Z on a qubit. Each squares to the identity.",
+  "Pauli word": "A product of Pauli operators across different qubits, like X on qubit 1 times Z on qubit 2 (written X₁Z₂).",
+  "qubit / site": "One quantum bit. A 'site' just means which qubit an operator acts on.",
+  "conjugation": "Sandwiching: turning operator P into U P U⁻¹. For a Clifford U this sends a Pauli word to ± another Pauli word.",
+  "Clifford group": "The set of operations whose conjugation maps every Pauli word to ± another Pauli word — the natural symmetries of Pauli problems.",
+  "normalizer": "The operations that keep a set closed under conjugation. The Clifford group is exactly the normalizer of the Pauli group.",
+  "signed permutation": "A reshuffling of basis items that may also flip a sign (+1 or −1) on each item.",
+  "phase": "A complex multiplier like i or −1 that appears when you multiply Paulis on the same site. For a valid symmetry it must collapse to a real ±1.",
+  "multiplicity": "How many times the same irreducible pattern appears. Greater than 1 makes the reduced block non-scalar and isn't supported in this slice.",
+  "dashed underline": "Exactly this: a clickable term chip. Click it to read a one-sentence plain-English definition.",
+};
+
+/* =========================================================================
+   JARGON POPOVER
+   ========================================================================= */
+const termPop = document.getElementById("term-pop");
+const termPopWord = document.getElementById("term-pop-word");
+const termPopDef = document.getElementById("term-pop-def");
+
+function showTermPop(el) {
+  const key = el.dataset.term;
+  const def = TERMS[key];
+  if (!def) return;
+  termPopWord.textContent = key;
+  termPopDef.textContent = def;
+  termPop.classList.remove("hidden");
+  const r = el.getBoundingClientRect();
+  const pw = Math.min(320, window.innerWidth - 24);
+  termPop.style.width = pw + "px";
+  let left = r.left + r.width / 2 - pw / 2;
+  left = Math.max(12, Math.min(left, window.innerWidth - pw - 12));
+  let top = r.bottom + 8;
+  termPop.style.left = left + "px";
+  termPop.style.top = top + "px";
+  // if it would overflow bottom, place above
+  requestAnimationFrame(() => {
+    const ph = termPop.offsetHeight;
+    if (top + ph > window.innerHeight - 12) {
+      termPop.style.top = (r.top - ph - 8) + "px";
+    }
+  });
+}
+function hideTermPop() { termPop.classList.add("hidden"); }
+
+function wireTerms() {
+  document.querySelectorAll(".term").forEach(el => {
+    el.setAttribute("tabindex", "0");
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", `Definition of ${el.dataset.term}`);
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!termPop.classList.contains("hidden") && termPop.dataset.for === el.dataset.term) {
+        hideTermPop(); termPop.dataset.for = "";
+      } else {
+        showTermPop(el); termPop.dataset.for = el.dataset.term;
+      }
+    });
+    el.addEventListener("mouseenter", () => showTermPop(el));
+    el.addEventListener("mouseleave", () => { if (termPop.dataset.for !== el.dataset.term) hideTermPop(); });
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showTermPop(el); } });
+  });
+}
+document.addEventListener("click", (e) => { if (!e.target.closest("#term-pop") && !e.target.closest(".term")) { hideTermPop(); termPop.dataset.for = ""; } });
+
+/* build glossary accordion */
+function buildGlossary() {
+  const wrap = document.getElementById("glossary");
+  Object.entries(TERMS).filter(([k]) => k !== "dashed underline").sort((a,b)=>a[0].localeCompare(b[0])).forEach(([k, v]) => {
+    const d = document.createElement("details");
+    d.className = "bg-bg-card border border-gray-700 rounded-lg group";
+    d.innerHTML = `<summary class="px-4 py-2.5 text-sm font-semibold text-accent flex items-center justify-between">
+        <span>${k}</span><span class="text-gray-500 group-open:rotate-180 transition">▾</span></summary>
+      <div class="px-4 pb-3 text-sm text-gray-300">${v}</div>`;
+    wrap.appendChild(d);
+  });
+}
+
+/* =========================================================================
+   SVG MATRIX FIGURE (draw cells for full vs. block-diagonal)
+   ========================================================================= */
+function drawMatrices() {
+  const NS = "http://www.w3.org/2000/svg";
+  const cell = 24;
+  // full 7x7 — every cell active
+  const full = document.getElementById("grid-full");
+  if (full) {
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) {
+      const rect = document.createElementNS(NS, "rect");
+      rect.setAttribute("x", c*cell); rect.setAttribute("y", r*cell);
+      rect.setAttribute("width", cell-1.5); rect.setAttribute("height", cell-1.5);
+      rect.setAttribute("rx", 2);
+      rect.setAttribute("fill", "#7dd3fc"); rect.setAttribute("opacity", "0.55");
+      full.appendChild(rect);
+    }
+  }
+  // block-diagonal: 4x4 (rows/cols 0-3) and 3x3 (rows/cols 4-6); rest zero
+  const block = document.getElementById("grid-block");
+  if (block) {
+    for (let r = 0; r < 7; r++) for (let c = 0; c < 7; c++) {
+      const inA = r < 4 && c < 4;
+      const inB = r >= 4 && c >= 4;
+      const rect = document.createElementNS(NS, "rect");
+      rect.setAttribute("x", c*cell); rect.setAttribute("y", r*cell);
+      rect.setAttribute("width", cell-1.5); rect.setAttribute("height", cell-1.5);
+      rect.setAttribute("rx", 2);
+      if (inA)      { rect.setAttribute("fill", "#34d399"); rect.setAttribute("opacity", "0.65"); }
+      else if (inB) { rect.setAttribute("fill", "#fbbf24"); rect.setAttribute("opacity", "0.65"); }
+      else          { rect.setAttribute("fill", "#1f2937"); rect.setAttribute("opacity", "0.6"); }
+      block.appendChild(rect);
+    }
+  }
+}
+
+/* =========================================================================
+   GATE TABS + DEMO
+   ========================================================================= */
+const GATE_TABLES = {
+  H:   { rows: [["X₁","Z₁","+"],["Y₁","Y₁","−"],["Z₁","X₁","+"]], note: "Hadamard on qubit 1. Swaps X↔Z, flips the sign of Y." },
+  S:   { rows: [["X₁","Y₁","+"],["Y₁","X₁","−"],["Z₁","Z₁","+"]], note: "Phase gate on qubit 1. Rotates X→Y→−X→−Y in the X–Y plane; fixes Z." },
+  CNOT:{ rows: [["X₁","X₁X₂","+"],["Y₁","Y₁X₂","+"],["Z₁","Z₁","+"],["X₂","X₂","+"],["Y₂","Z₁Y₂","+"],["Z₂","Z₁Z₂","+"]], note: "Control = qubit 1, target = qubit 2. Spreads X off the control and Z off the target." },
+  SWAP:{ rows: [["X₁","X₂","+"],["Y₁","Y₂","+"],["Z₁","Z₂","+"],["X₂","X₁","+"],["Y₂","Y₁","+"],["Z₂","Z₁","+"]], note: "Exchange qubits 1 and 2. Every Pauli hops to the other site, no sign flips." },
+};
+function renderGate(gate) {
+  const t = GATE_TABLES[gate];
+  const panel = document.getElementById("gate-panel");
+  panel.innerHTML =
+    `<div class="text-xs text-gray-500 mb-3 font-sans">${t.note}</div>` +
+    `<div class="grid grid-cols-[auto_auto_auto] gap-x-4 gap-y-1.5 items-center w-max">` +
+    t.rows.map(([from, to, sign]) =>
+      `<span class="text-accent2">${from}</span>
+       <span class="text-gray-600">⟼</span>
+       <span class="${sign==='−'?'text-bad':'text-good'}">${sign==='−'?'−':''}${to}</span>`
+    ).join("") + `</div>`;
+}
+function wireGateTabs() {
+  document.querySelectorAll(".gate-tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".gate-tab").forEach(b => {
+        b.classList.remove("bg-accent","text-bg","border-accent");
+        b.classList.add("border-gray-700","text-gray-300");
+      });
+      btn.classList.add("bg-accent","text-bg","border-accent");
+      btn.classList.remove("border-gray-700","text-gray-300");
+      renderGate(btn.dataset.gate);
+    });
+  });
+  renderGate("H");
+}
+
+const DEMO = {
+  H: { X:["Z","+"], Y:["Y","−"], Z:["X","+"] },
+  S: { X:["Y","+"], Y:["X","−"], Z:["Z","+"] },
+};
+function runDemo() {
+  const g = document.getElementById("demo-gate").value;
+  const p = document.getElementById("demo-pauli").value;
+  const [img, sign] = DEMO[g][p];
+  const out = document.getElementById("demo-out");
+  out.innerHTML = `<span class="${sign==='−'?'text-bad':'text-good'}">${sign==='−'?'−':'+'}</span>${img}`;
+}
+
+/* =========================================================================
+   QUIZ
+   ========================================================================= */
+const QUIZ = [
+  { q: "Why does enabling a valid symmetry shrink the SDP without changing the optimum?",
+    a: "Because the moment matrix is forced to commute with the group, so a change of basis makes it block-diagonal. Solving the small blocks is equivalent to solving the big matrix — it's an exact reformulation, not a relaxation of the relaxation." },
+  { q: "A Clifford gate conjugates a Pauli word to what?",
+    a: "To ± another single Pauli word. Never a sum. That is the defining property of the Clifford group (the normalizer of the Pauli group), and it's why the action is a signed permutation of the basis." },
+  { q: "In the Heisenberg + SWAP example, why do the blocks come out as [4, 3] and not [7]?",
+    a: "SWAP fixes I and pairs each site-1 Pauli with its site-2 twin. The symmetric combinations {I, X₁+X₂, Y₁+Y₂, Z₁+Z₂} make a 4×4 block; the antisymmetric {X₁−X₂, Y₁−Y₂, Z₁−Z₂} make a 3×3 block. Off-block entries are zero." },
+  { q: "What happens if a monomial maps back to itself under the action but with a −1 sign?",
+    a: "Its expectation must satisfy ⟨m⟩ = −⟨m⟩, so ⟨m⟩ = 0. The orbit reducer detects the sign conflict and marks that moment variable as identically zero — a free constraint." },
+  { q: "You pass a group that changes the objective. What does the code do?",
+    a: "It throws. check_invariance is on by default and the reduction refuses to run on a non-invariant symmetry. Strict-and-loud beats fast-and-wrong." },
+];
+function buildQuiz() {
+  const wrap = document.getElementById("quiz-list");
+  QUIZ.forEach((item, i) => {
+    const d = document.createElement("details");
+    d.className = "bg-bg-card border border-gray-700 rounded-xl group";
+    d.innerHTML = `<summary class="px-4 py-3 text-sm font-semibold text-white flex items-start gap-3">
+        <span class="text-accent font-mono shrink-0">Q${i+1}</span>
+        <span class="flex-1">${item.q}</span>
+        <span class="text-gray-500 group-open:rotate-180 transition shrink-0">▾</span></summary>
+      <div class="px-4 pb-4 pl-12 text-sm text-gray-300 leading-relaxed">${item.a}</div>`;
+    wrap.appendChild(d);
+  });
+}
+
+/* =========================================================================
+   CODE COPY BUTTONS
+   ========================================================================= */
+function wireCopyButtons() {
+  document.querySelectorAll(".copy-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const pre = btn.closest(".rounded-xl").querySelector("pre code");
+      navigator.clipboard.writeText(pre.innerText).then(() => toast("Code copied"));
+    });
+  });
+}
+
+/* =========================================================================
+   COMMENTING SYSTEM
+   ========================================================================= */
+function loadComments() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_KEY));
+    if (raw && raw.version === 1 && Array.isArray(raw.comments)) return raw.comments;
+  } catch (e) {}
+  return [];
+}
+function saveComments(list) {
+  localStorage.setItem(LS_KEY, JSON.stringify({ version: 1, comments: list }));
+}
+let COMMENTS = loadComments();
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s/60); if (m < 60) return `${m} minute${m>1?"s":""} ago`;
+  const h = Math.floor(m/60); if (h < 24) return `${h} hour${h>1?"s":""} ago`;
+  const d = Math.floor(h/24); return `${d} day${d>1?"s":""} ago`;
+}
+function escHtml(str) {
+  return (str||"").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
+}
+
+function renderAll() {
+  // per-section threads
+  document.querySelectorAll(".comments").forEach(c => {
+    const sec = c.id.replace("comments-","");
+    const items = COMMENTS.filter(x => x.sectionId === sec);
+    if (items.length === 0) {
+      c.innerHTML = `<p class="text-xs text-gray-600 italic">No questions on this section yet.</p>`;
+      return;
+    }
+    c.innerHTML = items.map(cardHtml).join("");
+  });
+  wireCommentCards();
+  // badge
+  const badge = document.getElementById("notes-badge");
+  if (COMMENTS.length) { badge.textContent = COMMENTS.length; badge.classList.remove("hidden"); badge.classList.add("inline-flex"); }
+  else { badge.classList.add("hidden"); }
+  renderNotesSidebar();
+}
+function cardHtml(c) {
+  return `<div class="bg-bg-soft border border-gray-700 rounded-lg p-3 space-y-2" data-id="${c.id}">
+    <div class="flex items-center justify-between">
+      <span class="text-xs text-gray-500" title="${new Date(c.timestamp).toLocaleString()}">${timeAgo(c.timestamp)}</span>
+      <button class="del-btn text-bad/70 hover:text-bad text-xs" data-id="${c.id}" aria-label="Delete comment">Delete</button>
+    </div>
+    ${c.quote ? `<blockquote class="border-l-2 border-accent pl-2 text-xs text-gray-400 italic">${escHtml(c.quote)}</blockquote>` : ""}
+    <p class="text-sm text-gray-200">${escHtml(c.question)}</p>
+  </div>`;
+}
+function wireCommentCards() {
+  document.querySelectorAll(".del-btn").forEach(b => {
+    b.onclick = () => { COMMENTS = COMMENTS.filter(x => x.id !== b.dataset.id); saveComments(COMMENTS); renderAll(); };
+  });
+}
+
+/* ---- modal ---- */
+const modal = document.getElementById("comment-modal");
+const modalQuote = document.getElementById("modal-quote");
+const modalLabel = document.getElementById("modal-section-label");
+const modalText = document.getElementById("modal-textarea");
+let pendingContext = null;
+let lastFocused = null;
+
+function openModal(ctx) {
+  pendingContext = ctx;
+  lastFocused = document.activeElement;
+  if (ctx.quote) { modalQuote.textContent = ctx.quote; modalQuote.classList.remove("hidden"); }
+  else { modalQuote.classList.add("hidden"); }
+  modalLabel.textContent = `Section: ${ctx.sectionTitle}`;
+  modalText.value = "";
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+  setTimeout(() => modalText.focus(), 30);
+  hideSelToolbar(); hideTermPop();
+}
+function closeModal() {
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+  pendingContext = null;
+  if (lastFocused) lastFocused.focus();
+}
+document.getElementById("modal-backdrop").onclick = closeModal;
+document.getElementById("modal-post").onclick = () => {
+  const q = modalText.value.trim();
+  if (!q) { modalText.focus(); return; }
+  COMMENTS.push({
+    id: "c" + Date.now() + Math.random().toString(36).slice(2,6),
+    sectionId: pendingContext.sectionId,
+    sectionTitle: pendingContext.sectionTitle,
+    quote: pendingContext.quote || "",
+    question: q,
+    timestamp: Date.now(),
+  });
+  saveComments(COMMENTS);
+  closeModal();
+  renderAll();
+  toast("Comment saved");
+};
+document.getElementById("modal-copy").onclick = () => {
+  const q = modalText.value.trim() || "(no question typed yet)";
+  const block =
+`Context — from "${PAGE_TITLE}", section "${pendingContext.sectionTitle}":
+
+> ${pendingContext.quote || pendingContext.sectionTitle}
+
+My question: ${q}`;
+  navigator.clipboard.writeText(block).then(() => toast("LLM prompt copied"));
+};
+
+/* focus trap */
+modal.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  const f = modal.querySelectorAll("textarea, button");
+  const first = f[0], last = f[f.length-1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+
+/* ---- section context helper ---- */
+function sectionContextFor(node, quote) {
+  const sec = node.closest("section");
+  const sectionId = sec ? sec.id : "overview";
+  const sectionTitle = sec ? (sec.dataset.title || sec.id) : "Overview";
+  // map hero to overview thread
+  const id = (sectionId === "hero") ? "overview" : sectionId;
+  const title = (sectionId === "hero") ? "Quick Overview" : sectionTitle;
+  return { sectionId: id, sectionTitle: title, quote: quote || "" };
+}
+
+/* ---- per-section ask buttons ---- */
+function wireAskButtons() {
+  document.querySelectorAll(".ask-section").forEach(btn => {
+    btn.onclick = () => openModal({ sectionId: btn.dataset.section, sectionTitle: btn.dataset.title, quote: "" });
+  });
+}
+
+/* ---- selection toolbar ---- */
+const selToolbar = document.getElementById("sel-toolbar");
+const selAsk = document.getElementById("sel-ask");
+let savedSelection = null;
+function hideSelToolbar() { selToolbar.classList.add("hidden"); }
+function handleSelection() {
+  const sel = window.getSelection();
+  const text = sel && sel.toString().trim();
+  if (!text || text.length < 2) { hideSelToolbar(); return; }
+  const node = sel.anchorNode;
+  if (!node) { hideSelToolbar(); return; }
+  const main = document.getElementById("main-content");
+  const container = node.nodeType === 3 ? node.parentElement : node;
+  if (!main.contains(container)) { hideSelToolbar(); return; }
+  if (container.closest("#comment-modal, #notes-sidebar, pre")) { hideSelToolbar(); return; }
+  const range = sel.getRangeAt(0);
+  const r = range.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) { hideSelToolbar(); return; }
+  savedSelection = { text, node: container };
+  selToolbar.classList.remove("hidden");
+  const tw = 150;
+  let left = r.left + r.width/2 - tw/2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+  let top = r.top - 44;
+  if (top < 8) top = r.bottom + 8;
+  selToolbar.style.left = left + "px";
+  selToolbar.style.top = top + "px";
+}
+document.addEventListener("pointerup", () => setTimeout(handleSelection, 10));
+document.addEventListener("selectionchange", () => {
+  const sel = window.getSelection();
+  if (!sel || !sel.toString().trim()) hideSelToolbar();
+});
+selAsk.onclick = () => {
+  if (!savedSelection) return;
+  openModal(sectionContextFor(savedSelection.node, savedSelection.text));
+};
+
+/* ---- notes sidebar ---- */
+const sidebar = document.getElementById("notes-sidebar");
+function toggleNotes(open) {
+  const isOpen = !sidebar.classList.contains("translate-x-full");
+  const show = (open === undefined) ? !isOpen : open;
+  sidebar.classList.toggle("translate-x-full", !show);
+  if (show) renderNotesSidebar();
+}
+function renderNotesSidebar() {
+  const list = document.getElementById("notes-list");
+  if (COMMENTS.length === 0) { list.innerHTML = `<p class="text-gray-600 italic">No notes yet. Select text or use “Ask about this section”.</p>`; return; }
+  const groups = {};
+  COMMENTS.forEach(c => { (groups[c.sectionTitle] ||= []).push(c); });
+  list.innerHTML = Object.entries(groups).map(([title, items]) =>
+    `<div class="space-y-2">
+      <h3 class="text-xs font-semibold text-accent uppercase tracking-wider">${escHtml(title)}</h3>
+      ${items.map(cardHtml).join("")}
+    </div>`).join("");
+  list.querySelectorAll(".del-btn").forEach(b => {
+    b.onclick = () => { COMMENTS = COMMENTS.filter(x => x.id !== b.dataset.id); saveComments(COMMENTS); renderAll(); };
+  });
+}
+function exportMarkdown() {
+  if (COMMENTS.length === 0) { toast("No notes to export"); return; }
+  const groups = {};
+  COMMENTS.forEach(c => { (groups[c.sectionTitle] ||= []).push(c); });
+  let md = `# ${PAGE_TITLE} — My Notes\n\n`;
+  for (const [title, items] of Object.entries(groups)) {
+    md += `## ${title}\n\n`;
+    for (const c of items) {
+      if (c.quote) md += `> ${c.quote}\n\n`;
+      md += `**Q:** ${c.question}\n_${new Date(c.timestamp).toLocaleString()}_\n\n`;
+    }
+  }
+  navigator.clipboard.writeText(md).then(() => toast("All notes copied as Markdown"));
+}
+document.getElementById("notes-export").onclick = exportMarkdown;
+document.getElementById("footer-export").onclick = exportMarkdown;
+document.getElementById("notes-clear").onclick = () => {
+  if (COMMENTS.length === 0) { toast("Nothing to clear"); return; }
+  if (confirm("Delete all your saved questions and notes? This cannot be undone.")) {
+    COMMENTS = []; saveComments(COMMENTS); renderAll(); toast("Notes cleared");
+  }
+};
+
+/* ---- toast ---- */
+let toastTimer = null;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.firstElementChild.textContent = msg;
+  t.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add("hidden"), 1900);
+}
+
+/* ---- search ---- */
+const search = document.getElementById("search");
+function wireSearch() {
+  if (!search) return;
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase();
+    document.querySelectorAll("main > section").forEach(sec => {
+      if (!q) { sec.style.display = ""; return; }
+      const txt = (sec.dataset.title + " " + sec.textContent).toLowerCase();
+      sec.style.display = txt.includes(q) ? "" : "none";
+    });
+  });
+}
+
+/* ---- global keys ---- */
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (!modal.classList.contains("hidden")) closeModal();
+    else if (!sidebar.classList.contains("translate-x-full")) toggleNotes(false);
+    else { hideTermPop(); hideSelToolbar(); }
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault(); if (search) search.focus();
+  }
+});
+window.addEventListener("scroll", () => { hideTermPop(); hideSelToolbar(); }, { passive: true });
+
+/* =========================================================================
+   INIT
+   ========================================================================= */
+wireTerms();
+buildGlossary();
+drawMatrices();
+wireGateTabs();
+buildQuiz();
+wireCopyButtons();
+wireAskButtons();
+wireSearch();
+document.getElementById("demo-gate").addEventListener("change", runDemo);
+document.getElementById("demo-pauli").addEventListener("change", runDemo);
+runDemo();
+renderAll();
+toggleNotes(false);
+</script>
+</body>
+</html>

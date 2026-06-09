@@ -120,6 +120,7 @@ include("util/helpers.jl")
 # Optimization Framework
 # ============================================================================
 
+include("optimization/particle_number.jl")
 include("optimization/problem.jl")
 include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
@@ -147,6 +148,7 @@ export SignedPermutation, FermionicModePermutation, CliffordSymmetry, CliffordSy
 export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
 export SymmetrySpec, SymmetryReport
 export SparsityResult, compute_sparsity
+export particle_number_constraint
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult

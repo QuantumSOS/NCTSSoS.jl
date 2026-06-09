@@ -269,6 +269,137 @@ end
         @test z_report.psd_block_sizes == [2]
     end
 
+    @testset "SympleQ recognizes Pauli Hamiltonian Clifford symmetry" begin
+        reg, (σx, σy, σz) = create_pauli_variables(1:1)
+        hamiltonian = 1.0 * (σx[1] + σz[1])
+        spec = sympleq_symmetry_spec(hamiltonian)
+
+        swap_idx = findfirst(spec.clifford_generators) do g
+            NCTSSoS._act_polynomial(g, hamiltonian) == hamiltonian &&
+                NCTSSoS._act_monomial(g, σx[1]) == (1, σz[1]) &&
+                NCTSSoS._act_monomial(g, σz[1]) == (1, σx[1]) &&
+                NCTSSoS._act_monomial(g, σy[1]) == (-1, σy[1])
+        end
+        @test !isnothing(swap_idx)
+        generator = spec.clifford_generators[swap_idx]
+
+        fixed_term = 1.0 * σx[1]
+        fixed_spec = sympleq_symmetry_spec(fixed_term)
+        @test any(fixed_spec.clifford_generators) do g
+            NCTSSoS._act_polynomial(g, fixed_term) == fixed_term &&
+                NCTSSoS._act_monomial(g, σx[1]) == (1, σx[1]) &&
+                NCTSSoS._act_monomial(g, σz[1]) == (-1, σz[1])
+        end
+
+        signed_hamiltonian = 1.0 * (σx[1] - σz[1])
+        signed_generators = sympleq_symmetry_spec(signed_hamiltonian).clifford_generators
+        @test any(signed_generators) do g
+            NCTSSoS._act_polynomial(g, signed_hamiltonian) == signed_hamiltonian &&
+                NCTSSoS._act_monomial(g, σx[1]) == (-1, σz[1]) &&
+                NCTSSoS._act_monomial(g, σz[1]) == (-1, σx[1])
+        end
+
+        pop = polyopt(hamiltonian, reg)
+        basis = [one(σx[1]), σx[1], σz[1]]
+        cfg = SolverConfig(
+            optimizer=nothing,
+            moment_basis=basis,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=spec,
+        )
+        sparsity = compute_sparsity(pop, cfg)
+        @test NCTSSoS._check_symmetry_mvp_support(pop, cfg, sparsity) === nothing
+        _, report = NCTSSoS.moment_relax_symmetric(
+            pop,
+            sparsity.corr_sparsity,
+            sparsity.cliques_term_sparsities,
+            cfg.symmetry,
+        )
+
+        @test report.group_order == 2
+        @test sort(report.psd_block_sizes) == [1, 2]
+
+        _, (τx, τy, _) = create_pauli_variables(1:2)
+        xy_pair = 1.0 * (τx[1] * τx[2] + τy[1] * τy[2])
+        phase_spec = sympleq_symmetry_spec(xy_pair)
+        @test any(phase_spec.clifford_generators) do g
+            NCTSSoS._act_polynomial(g, xy_pair) == xy_pair &&
+                NCTSSoS._act_monomial(g, τx[1]) == (1, τy[1]) &&
+                NCTSSoS._act_monomial(g, τy[1]) == (-1, τx[1])
+        end
+    end
+
+    @testset "SympleQ deterministic internals" begin
+        reg, (σx, σy, σz) = create_pauli_variables(1:3)
+        hamiltonian = 2.0 * σx[1] + 2.0 * σz[1] + 3.0 * σx[2] * σz[3]
+        tab = SymplecticTableau(hamiltonian)
+
+        @test length(tab) == 3
+        @test size(tab) == (3, 6)
+        @test sprint(show, tab) == "SymplecticTableau(3 terms, 3 qubits)"
+        @test tab.coeffs == [2.0 + 0.0im, 2.0 + 0.0im, 3.0 + 0.0im]
+        @test tab.nqubits == 3
+
+        y_row, y_eta = NCTSSoS._pauli_word_to_symplectic(σy[2], 3)
+        @test y_eta == 1
+        @test y_row == UInt8[0, 1, 0, 0, 1, 0]
+        y_word, eta_back = NCTSSoS._symplectic_row_to_pauli_word(y_row, UInt8)
+        @test eta_back == 1
+        @test y_word == σy[2].word
+        @test NCTSSoS._single_pauli_letter_from_symplectic(y_row, UInt8) == (only(σy[2].word), Int8(1))
+        @test isnothing(NCTSSoS._single_pauli_letter_from_symplectic(UInt8[1, 1, 0, 0], UInt8))
+
+        products = NCTSSoS.symplectic_product_matrix(tab)
+        @test products == UInt8[0 1 0; 1 0 0; 0 0 0]
+        graph = NCTSSoS.anticommutation_graph(tab)
+        @test sprint(show, graph) == "SympleQGraph(3 vertices, 1 edges, 3 Pauli vertices, 0 cycle vertices)"
+        @test graph.colors == [(:pauli, 2.0), (:pauli, 2.0), (:pauli, 3.0)]
+
+        cycle_tab = SymplecticTableau(1.0 * (σx[1] + σx[2] + σx[1] * σx[2]))
+        @test NCTSSoS.pauli_cycle_basis(cycle_tab) == [[1, 2, 3]]
+        augmented = NCTSSoS.cycle_augmented_graph(cycle_tab)
+        @test augmented.cycles == [[1, 2, 3]]
+        @test augmented.auxiliary_vertices == [4]
+        @test_throws ArgumentError NCTSSoS.pauli_cycle_basis(cycle_tab; cycle_strategy=:minimal_circuits)
+
+        @test_throws ArgumentError NCTSSoS.TermPermutation([1, 1])
+        swap_perm = NCTSSoS.TermPermutation([2, 1, 3])
+        @test length(swap_perm) == 3
+        @test swap_perm[1] == 2
+        @test !isone(swap_perm)
+        @test sprint(show, swap_perm) == "TermPermutation([2, 1, 3])"
+
+        automorphisms = NCTSSoS.automorphism_generators(graph; backend=:backtracking)
+        @test any(perm -> perm.images == [2, 1, 3], automorphisms)
+        @test NCTSSoS.automorphism_generators(graph; backend=:bliss) == automorphisms
+        @test_throws ArgumentError NCTSSoS.automorphism_generators(graph; backend=:nauty)
+
+        S = NCTSSoS.symplectic_matrix_from_permutation(tab, swap_perm)
+        @test sprint(show, S) == "SymplecticMatrix(6×6)"
+        @test size(S) == (6, 6)
+        @test Matrix(S) == S.data
+        @test NCTSSoS.is_symplectic_matrix(S)
+        @test NCTSSoS._gf2_matmul(tab.paulis, S.data) == tab.paulis[swap_perm.images, :]
+        @test_throws ArgumentError NCTSSoS.symplectic_matrix_from_permutation(tab, NCTSSoS.TermPermutation([1, 2]))
+        @test_throws ArgumentError NCTSSoS.SymplecticMatrix(ones(Int, 2, 3))
+        @test_throws ArgumentError NCTSSoS.SymplecticMatrix(ones(Int, 3, 3))
+
+        phase = PhaseVector(zeros(Int8, 6), true)
+        @test length(phase) == 6
+        @test phase[1] == 0
+        generator = NCTSSoS.SympleQGenerator(swap_perm, S, phase, true)
+        clifford = sympleq_clifford_symmetry(generator; integer_type=UInt8)
+        @test NCTSSoS._act_polynomial(clifford, hamiltonian) == hamiltonian
+        @test NCTSSoS._act_monomial(clifford, σx[1]) == (1, σz[1])
+        @test NCTSSoS._act_monomial(clifford, σz[1]) == (1, σx[1])
+
+        recovered_phase = NCTSSoS.recover_phase_vector(tab, swap_perm, S)
+        @test recovered_phase.verified
+        @test NCTSSoS.sympleq_generators(hamiltonian) isa Vector{NCTSSoS.SympleQGenerator}
+        @test_throws ArgumentError sympleq_symmetry_spec(1.0 * one(σx[1]))
+    end
+
     @testset "symmetry helpers cover invariant constraints and scalar reductions" begin
         reg, (x,) = create_unipotent_variables([("x", 1:2)])
         invariant_poly = 1.0 * (x[1] + x[2])

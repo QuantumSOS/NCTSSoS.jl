@@ -37,6 +37,8 @@ NCTSSoS.SignedPermutation
 NCTSSoS.FermionicModePermutation
 NCTSSoS.CliffordSymmetry
 NCTSSoS.CliffordSymmetryGroup
+NCTSSoS.sympleq_symmetry_spec
+NCTSSoS.clifford_to_clifford_symmetry
 NCTSSoS.SymmetrySpec
 NCTSSoS.SymmetryReport
 ```

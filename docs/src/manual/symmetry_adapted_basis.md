@@ -14,6 +14,14 @@ basis*), this large PSD constraint splits into several smaller, independent PSD
 blocks, one per isotypic component. NCTSSoS exploits this to shrink the SDP
 the user actually sends to the solver.
 
+This page covers the **exploit** half of the symmetry story: consuming a
+group that is already known. The complementary **find** half — discovering
+Clifford symmetry groups automatically from a Pauli Hamiltonian, including
+symmetries that fix no individual term and that inspection routinely misses —
+is covered in [Clifford Symmetry Detection](@ref clifford-symmetry-detection).
+The worked comparison of manual, detected, and combined groups is in
+[Pauli Symmetry Reduction](@ref pauli-clifford-symmetry).
+
 This page describes how that support is wired in **today**, what is and isn't
 in scope, and how the pieces interact. It is intentionally aligned with the
 implemented MVP, not a broader future redesign.
@@ -178,11 +186,26 @@ function performs the following steps in order:
    it entirely. The objective, every constraint matrix, and every constraint
    block is rewritten in terms of these representatives. The constraint
    matrices, after the change of basis induced by the
-   `SymbolicWedderburn`-supplied projectors, are also checked to reduce to a
-   single 1×1 scalar block per isotypic component (off-block entries must
-   vanish numerically, within `_SYMMETRY_ATOL = 1e-10`); this catches
-   inconsistencies between the declared symmetry and the actual algebraic
-   structure.
+   `SymbolicWedderburn`-supplied projectors, are also checked to be
+   block-diagonal across isotypic components (off-block entries must vanish,
+   within `_SYMMETRY_ATOL = 1e-10`); this catches inconsistencies between
+   the declared symmetry and the actual algebraic structure. How that
+   off-block certificate is computed is controlled by the `offblock_check`
+   option of [`SymmetrySpec`](@ref):
+
+   - `:randomized` (default) evaluates every off-diagonal block at
+     deterministic pseudo-random values of the orbit-reduced moment
+     variables and bounds the result. Each transformed entry is a *linear*
+     form in those variables, so vanishing at independent generic points
+     certifies the symbolic property; two independent draws are used, and
+     the whole certificate runs as dense numeric linear algebra instead of
+     symbolic polynomial arithmetic — on large relaxations this is the
+     difference between seconds and minutes of construction time.
+   - `:full` expands each off-diagonal block symbolically and asserts every
+     polynomial entry vanishes. Slowest, but failures point at a specific
+     entry — use it to diagnose a failing `:randomized` certificate.
+   - `:off` skips the certificate. Only appropriate when re-running a spec
+     that has already passed verification on the same problem.
 
 The function returns both the reduced `MomentProblem` and a
 [`SymmetryReport`](@ref) summarizing what happened: group order, number of
@@ -241,8 +264,10 @@ the `MomentProblem` differ:
 - What used to be one large PSD block is now several small blocks (in the MVP
   scope, all 1×1).
 - Off-block constraint entries that, after the change of basis and orbit
-  reduction, must vanish are explicitly checked to be ``\le`` `_SYMMETRY_ATOL`
-  in absolute value; if any leak through, the call errors out.
+  reduction, must vanish are certified to do so (symbolically with
+  `offblock_check = :full`, or via the default `:randomized` evaluation
+  certificate); if the certificate fails, the call errors out instead of
+  silently emitting an unsound relaxation.
 
 This is the central pragmatic gain of the architecture: **no downstream code
 had to change**. `JuMP`, `Dualization`, `solve_sdp`, the result types, and the

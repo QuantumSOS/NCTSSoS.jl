@@ -400,6 +400,47 @@ end
         @test_throws ArgumentError sympleq_symmetry_spec(1.0 * one(σx[1]))
     end
 
+    @testset "SympleQ Witt extension scales past 10 qubits" begin
+        # GF(2) affine solver behind the Witt extension step.
+        A = UInt8[1 0 1; 0 1 1]
+        b = UInt8[1, 0]
+        particular, kernel = NCTSSoS._gf2_affine_solution_space(A, b)
+        @test mod.(Int.(A) * Int.(particular), 2) == Int.(b)
+        @test length(kernel) == 1
+        @test mod.(Int.(A) * Int.(only(kernel)), 2) == [0, 0]
+        # Inconsistent system: x₁ = 0 and x₁ = 1.
+        @test NCTSSoS._gf2_affine_solution_space(UInt8[1 0; 1 0], UInt8[0, 1]) === nothing
+
+        # Rank-deficient target extension satisfies the pairing constraints and
+        # stays independent of the target rows (dim 6, rank-2 partial basis).
+        D = UInt8[1 0 0 0 0 0; 0 1 0 0 0 0]
+        R = UInt8[0 1 0 0 0 0; 1 0 0 0 0 0]
+        d = NCTSSoS._choose_domain_extension(D)
+        r = NCTSSoS._choose_target_extension(d, D, R)
+        @test !NCTSSoS._gf2_row_in_span(r, R)
+        for i in axes(D, 1)
+            @test NCTSSoS._gf2_pairing(d, view(D, i, :)) == NCTSSoS._gf2_pairing(r, view(R, i, :))
+        end
+
+        # 12-site Heisenberg ring: the binary symplectic dimension is 24 and the
+        # tableau has GF(2) rank deficiency 2, so every detected automorphism
+        # exercises the Witt extension. The pre-linear-solve implementation
+        # enumerated all 2^dim GF(2) vectors and refused dim > 20 outright,
+        # which silently collapsed the detected group on ≥ 11 qubits.
+        n_ring = 12
+        _, (ρx, ρy, ρz) = create_pauli_variables(1:n_ring)
+        ring_h = sum(
+            ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, n_ring)]
+            for op in (ρx, ρy, ρz) for i in 1:n_ring
+        )
+        ring_spec = sympleq_symmetry_spec(ring_h)
+        @test length(ring_spec.clifford_generators) >= 3
+        @test all(
+            g -> NCTSSoS._act_polynomial(g, ring_h) == ring_h,
+            ring_spec.clifford_generators,
+        )
+    end
+
     @testset "symmetry helpers cover invariant constraints and scalar reductions" begin
         reg, (x,) = create_unipotent_variables([("x", 1:2)])
         invariant_poly = 1.0 * (x[1] + x[2])
@@ -761,5 +802,128 @@ end
         @test spin_res.symmetry.psd_block_sizes == [2, 1]
         @test Set(label.total_spin2 for label in spin_res.symmetry.block_labels if label isa FermionicSpinBlockLabel) == Set([0, 2])
         @test maximum(spin_res.symmetry.psd_block_sizes) < only(flatten_sizes(plain.moment_matrix_sizes))
+    end
+end
+
+@testset "Off-diagonal block certificate" begin
+    # Shared fixture: 2-site Heisenberg, order-1 basis, SWAP Clifford symmetry.
+    function _offblock_fixture()
+        reg, (σx, σy, σz) = create_pauli_variables(1:2)
+        heisenberg = sum(ComplexF64(1 / 4) * op[1] * op[2] for op in (σx, σy, σz))
+        pop = polyopt(heisenberg, reg)
+        basis = [one(σx[1]); σx; σy; σz]
+        spec = SymmetrySpec(CliffordSymmetry(:SWAP, 1, 2))
+        cfg = SolverConfig(
+            optimizer=nothing,
+            moment_basis=basis,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=spec,
+        )
+        sparsity = compute_sparsity(pop, cfg)
+        return pop, spec, sparsity
+    end
+
+    @testset "all modes produce the same reduction on a valid spec" begin
+        pop, _, sparsity = _offblock_fixture()
+        reports = map((:full, :randomized, :off)) do mode
+            spec = SymmetrySpec(CliffordSymmetry(:SWAP, 1, 2); offblock_check=mode)
+            mp, report = NCTSSoS.moment_relax_symmetric(
+                pop,
+                sparsity.corr_sparsity,
+                sparsity.cliques_term_sparsities,
+                spec,
+            )
+            (mp, report)
+        end
+        for (mp, report) in reports
+            @test report.group_order == 2
+            @test report.psd_block_sizes == [4, 3]
+            @test mp.n_unique_moment_matrix_elements == reports[1][1].n_unique_moment_matrix_elements
+        end
+    end
+
+    @testset "solved objectives agree across modes" begin
+        pop, _, _ = _offblock_fixture()
+        reg, (σx, σy, σz) = create_pauli_variables(1:2)
+        heisenberg = sum(ComplexF64(1 / 4) * op[1] * op[2] for op in (σx, σy, σz))
+        pop = polyopt(heisenberg, reg)
+        basis = [one(σx[1]); σx; σy; σz]
+        objectives = map((:full, :randomized, :off)) do mode
+            cfg = SolverConfig(
+                optimizer=SOLVER,
+                moment_basis=basis,
+                cs_algo=NoElimination(),
+                ts_algo=NoElimination(),
+                symmetry=SymmetrySpec(CliffordSymmetry(:SWAP, 1, 2); offblock_check=mode),
+            )
+            cs_nctssos(pop, cfg).objective
+        end
+        for obj in objectives
+            @test obj ≈ -0.75 atol = 1e-4
+        end
+    end
+
+    @testset "corrupted symmetry-adapted basis is caught by :full and :randomized but not :off" begin
+        pop, spec, sparsity = _offblock_fixture()
+        corr = sparsity.corr_sparsity
+        cts = sparsity.cliques_term_sparsities
+        basis = only(corr.clq_mom_mtx_bases)
+        T = eltype(basis).parameters[2]  # NormalMonomial{PauliAlgebra,T} index type
+
+        support_domain = NCTSSoS._symmetry_domain(pop, corr, cts)
+        nqubits = max(
+            NCTSSoS._clifford_nqubits_from_domain(support_domain),
+            NCTSSoS._clifford_max_generator_nqubits(spec.clifford_generators),
+        )
+        sw_group = CliffordSymmetryGroup(
+            spec.clifford_generators;
+            nqubits, integer_type=T, domain=support_domain,
+        )
+        group = NCTSSoS.CliffordSymmetry{T}[NCTSSoS._clifford_group_value(el) for el in sw_group]
+        total_basis, _, _ = NCTSSoS._polynomial_total_basis(pop, corr, cts)
+        reducer = NCTSSoS._build_orbit_reducer(total_basis, group)
+
+        MP_C = NCTSSoS._moment_problem_coeff_type(PauliAlgebra, ComplexF64)
+        MP_P = NCTSSoS.Polynomial{PauliAlgebra,T,MP_C}
+        _, raw_mat = NCTSSoS._build_constraint_matrix(one(pop.objective), basis, :HPSD)
+        mat = NCTSSoS._convert_polynomial_matrix(MP_P, raw_mat)
+
+        blocks = NCTSSoS._sw_decompose_half_basis(basis, sw_group)
+        row_bases = [Matrix(b) for b in blocks]
+        @test length(row_bases) == 2
+
+        # Sanity: the genuine decomposition passes every mode.
+        for mode in (:full, :randomized, :off)
+            result = NCTSSoS._reduce_transformed_blocks(
+                mat, row_bases, reducer; offblock_check=mode,
+            )
+            @test length(result) == 2
+        end
+
+        # Corrupt the basis: swap a row between the two isotypic blocks. The
+        # diagonal blocks then no longer carry the full PSD constraint and the
+        # off-diagonal blocks are nonzero.
+        corrupted = deepcopy(row_bases)
+        tmp = copy(corrupted[1][end, :])
+        corrupted[1][end, :] = corrupted[2][1, :]
+        corrupted[2][1, :] = tmp
+
+        @test_throws ArgumentError NCTSSoS._reduce_transformed_blocks(
+            mat, corrupted, reducer; offblock_check=:full,
+        )
+        @test_throws ArgumentError NCTSSoS._reduce_transformed_blocks(
+            mat, corrupted, reducer; offblock_check=:randomized,
+        )
+        # :off skips the certificate — this documents the risk of disabling it.
+        @test length(NCTSSoS._reduce_transformed_blocks(
+            mat, corrupted, reducer; offblock_check=:off,
+        )) == 2
+    end
+
+    @testset "invalid offblock_check mode is rejected" begin
+        @test_throws ArgumentError SymmetrySpec(
+            CliffordSymmetry(:SWAP, 1, 2); offblock_check=:bogus,
+        )
     end
 end

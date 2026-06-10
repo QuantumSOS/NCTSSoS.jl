@@ -17,6 +17,7 @@ makedocs(;
             "Sparsities"=>"manual/sparsities.md",
             "Symmetry-Adapted Basis"=>"manual/symmetry_adapted_basis.md",
             "Extending Symmetry Support"=>"manual/extending_symmetry.md",
+            "Clifford Symmetry Detection"=>"manual/clifford_symmetry_detection.md",
             "SDP Relaxation"=>"manual/sdp_relaxation.md",
             "Optimizers"=>"manual/optimizers.md"
         ],

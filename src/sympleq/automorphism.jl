@@ -35,7 +35,37 @@ function _automorphism_order(g::SympleQGraph)
     for color in g.colors
         color_counts[color] = get(color_counts, color, 0) + 1
     end
-    return sort!(collect(1:n), by=v -> (color_counts[g.colors[v]], -Graphs.degree(g.graph, v), v))
+
+    # Adjacency-first greedy order: after seeding with a most-constrained
+    # vertex, always place next an unordered vertex with the largest number of
+    # already-ordered neighbours (ties: smaller colour class, higher degree,
+    # lower index). Each placement is then immediately constrained by edges to
+    # previously placed vertices, which prunes the backtracking search far
+    # earlier than a connectivity-blind order. The enumerated automorphism set
+    # is unchanged — only the traversal order differs.
+    key(v) = (color_counts[g.colors[v]], -Graphs.degree(g.graph, v), v)
+    order = Int[]
+    placed = falses(n)
+    ordered_neighbors = zeros(Int, n)
+
+    for _ in 1:n
+        best = 0
+        for v in 1:n
+            placed[v] && continue
+            if best == 0 ||
+               ordered_neighbors[v] > ordered_neighbors[best] ||
+               (ordered_neighbors[v] == ordered_neighbors[best] && key(v) < key(best))
+                best = v
+            end
+        end
+        push!(order, best)
+        placed[best] = true
+        for u in Graphs.neighbors(g.graph, best)
+            ordered_neighbors[u] += 1
+        end
+    end
+
+    return order
 end
 
 function _automorphism_candidates(g::SympleQGraph)

@@ -95,7 +95,7 @@ function sympleq_generators(
         S = try
             symplectic_matrix_from_permutation(tab, perm)
         catch err
-            @warn "Skipping graph automorphism that is not a symplectic tableau action." exception=(err, catch_backtrace())
+            @warn "Skipping graph automorphism that is not a symplectic tableau action." error=sprint(showerror, err)
             continue
         end
         phase = recover_phase_vector(tab, perm, S)

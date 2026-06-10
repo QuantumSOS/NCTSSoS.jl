@@ -108,22 +108,6 @@ function _gf2_append_row(rows::AbstractMatrix{<:Integer}, row::AbstractVector{<:
     return vcat(UInt8.(mod.(rows, 2)), reshape(UInt8.(mod.(row, 2)), 1, :))
 end
 
-function _all_gf2_vectors(dim::Integer)
-    dim <= 20 || throw(ArgumentError(
-        "SympleQ rank-deficient synthesis currently enumerates GF(2)^$dim; refusing dimensions > 20."
-    ))
-    vectors = Vector{UInt8}[]
-    sizehint!(vectors, 2^dim)
-    for mask in 0:(UInt(1) << dim) - UInt(1)
-        v = zeros(UInt8, dim)
-        for bit in 1:dim
-            ((mask >> (bit - 1)) & UInt(1)) == UInt(1) && (v[bit] = 1)
-        end
-        push!(vectors, v)
-    end
-    return vectors
-end
-
 function _standard_gf2_vectors(dim::Integer)
     vectors = Vector{UInt8}[]
     for i in 1:dim
@@ -139,10 +123,40 @@ function _choose_domain_extension(D::AbstractMatrix{<:Integer})
     for v in _standard_gf2_vectors(dim)
         _gf2_row_in_span(v, D) || return v
     end
-    for v in _all_gf2_vectors(dim)
-        _gf2_row_in_span(v, D) || return v
-    end
+    # If every standard basis vector lies in span(D), the span is the whole
+    # space, so no independent extension exists.
     throw(ArgumentError("No independent GF(2) domain extension vector exists."))
+end
+
+"""
+    _gf2_affine_solution_space(A, b)
+
+Solve `A x = b` over GF(2). Returns `(particular, kernel_basis)`, or `nothing`
+when the system is inconsistent.
+"""
+function _gf2_affine_solution_space(A::AbstractMatrix{<:Integer}, b::AbstractVector{<:Integer})
+    size(A, 1) == length(b) || throw(DimensionMismatch("GF(2) solve has incompatible right-hand side."))
+    nvars = size(A, 2)
+    if isempty(b)
+        return zeros(UInt8, nvars), _gf2_nullspace_basis(zeros(UInt8, 0, nvars))
+    end
+
+    augmented = hcat(UInt8.(mod.(A, 2)), reshape(UInt8.(mod.(b, 2)), :, 1))
+    rref, pivots = _gf2_rref(augmented)
+    rhs_col = nvars + 1
+
+    for r in axes(rref, 1)
+        if rref[r, rhs_col] == 1 && all(rref[r, c] == 0 for c in 1:nvars)
+            return nothing
+        end
+    end
+
+    x = zeros(UInt8, nvars)
+    for (r, pivot_col) in enumerate(pivots)
+        pivot_col <= nvars || continue
+        x[pivot_col] = rref[r, rhs_col]
+    end
+    return x, _gf2_nullspace_basis(A)
 end
 
 function _choose_target_extension(
@@ -151,16 +165,34 @@ function _choose_target_extension(
     R::AbstractMatrix{<:Integer},
 )
     dim = size(R, 2)
-    for candidate in _all_gf2_vectors(dim)
-        _gf2_row_in_span(candidate, R) && continue
-        ok = true
-        for i in axes(D, 1)
-            if _gf2_pairing(domain_vector, view(D, i, :)) != _gf2_pairing(candidate, view(R, i, :))
-                ok = false
-                break
-            end
+    half = dim ÷ 2
+    nrows = size(R, 1)
+
+    # The pairing constraints on the candidate are linear over GF(2):
+    #     ⟨candidate, R_i⟩ = ⟨domain_vector, D_i⟩   for all i,
+    # with ⟨a, b⟩ = a ⋅ (b Ω) and Ω swapping the X/Z halves. Solve that linear
+    # system and pick any solution outside span(R); Witt's extension theorem
+    # guarantees one exists whenever the partial map is a genuine isometry.
+    # (This replaces an earlier enumeration of all 2^dim GF(2) vectors, which
+    # was exponential in the qubit count.)
+    A = zeros(UInt8, nrows, dim)
+    b = zeros(UInt8, nrows)
+    @inbounds for i in 1:nrows
+        for j in 1:half
+            A[i, j] = UInt8(isodd(R[i, half + j]))
+            A[i, half + j] = UInt8(isodd(R[i, j]))
         end
-        ok && return candidate
+        b[i] = _gf2_pairing(domain_vector, view(D, i, :))
+    end
+
+    solution = _gf2_affine_solution_space(A, b)
+    if solution !== nothing
+        particular, kernel = solution
+        _gf2_row_in_span(particular, R) || return particular
+        for direction in kernel
+            _gf2_row_in_span(direction, R) && continue
+            return particular .⊻ direction
+        end
     end
     throw(ArgumentError(
         "Failed to extend the partial Pauli isometry to a full symplectic basis. " *

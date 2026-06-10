@@ -832,6 +832,26 @@ Supported pieces today:
 - fermionic SU(2) spin adaptation layered on top of fixed-sector blocks.
 
 Unsupported combinations fail loudly instead of quietly doing nonsense.
+
+# Soundness checks
+
+- `check_invariance::Bool = true`: verify the objective and constraints are
+  fixed by every group element before reducing.
+- `offblock_check::Symbol = :randomized`: how to certify that the
+  symmetry-adapted off-diagonal blocks of each constraint matrix vanish (the
+  property that makes replacing one big PSD block by the small diagonal
+  blocks exact):
+  - `:randomized` (default) — evaluate every off-diagonal block at
+    deterministic pseudo-random values of the orbit-reduced moment variables
+    and check the result is numerically zero. Since each block entry is
+    *linear* in those variables, vanishing at independent generic points
+    certifies the symbolic property; two independent draws are used. Runs in
+    BLAS time instead of polynomial arithmetic time.
+  - `:full` — expand every off-diagonal block symbolically and assert each
+    polynomial entry vanishes (the most expensive but entry-level diagnosis;
+    use this to debug a failing `:randomized` certificate).
+  - `:off` — skip the certificate entirely. Only safe when the generators are
+    known-correct (e.g. re-running a spec that already passed).
 """
 struct SymmetrySpec
     generators::Vector{SignedPermutation}
@@ -840,6 +860,7 @@ struct SymmetrySpec
     sector::Union{Nothing,FermionicSectorSpec}
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}
     check_invariance::Bool
+    offblock_check::Symbol
 
     function SymmetrySpec(
         generators::Vector{SignedPermutation},
@@ -848,7 +869,11 @@ struct SymmetrySpec
         sector::Union{Nothing,FermionicSectorSpec},
         spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec},
         check_invariance::Bool,
+        offblock_check::Symbol=:randomized,
     )
+        offblock_check in (:full, :randomized, :off) || throw(ArgumentError(
+            "`offblock_check` must be `:full`, `:randomized`, or `:off`; got `$(repr(offblock_check))`."
+        ))
         isempty(generators) && isempty(fermionic_generators) && isempty(clifford_generators) &&
             isnothing(sector) && isnothing(spin_adaptation) && throw(ArgumentError(
                 "`SymmetrySpec` needs at least one finite action, fermionic sector split, or spin adaptation."
@@ -866,21 +891,22 @@ struct SymmetrySpec
             "Fermionic sector splitting / spin adaptation cannot be combined with `CliffordSymmetry` symmetry."
         ))
 
-        return new(generators, fermionic_generators, clifford_generators, sector, spin_adaptation, check_invariance)
+        return new(generators, fermionic_generators, clifford_generators, sector, spin_adaptation, check_invariance, offblock_check)
     end
 end
 
 function SymmetrySpec(
     generators::AbstractVector{<:SignedPermutation};
     check_invariance::Bool=true,
+    offblock_check::Symbol=:randomized,
 )
     isempty(generators) && throw(ArgumentError("`SymmetrySpec` needs at least one generator."))
     converted = SignedPermutation[generator for generator in generators]
-    return SymmetrySpec(converted, FermionicModePermutation[], CliffordSymmetry[], nothing, nothing, check_invariance)
+    return SymmetrySpec(converted, FermionicModePermutation[], CliffordSymmetry[], nothing, nothing, check_invariance, offblock_check)
 end
 
-function SymmetrySpec(generators::SignedPermutation...; check_invariance::Bool=true)
-    return SymmetrySpec(collect(generators); check_invariance)
+function SymmetrySpec(generators::SignedPermutation...; check_invariance::Bool=true, offblock_check::Symbol=:randomized)
+    return SymmetrySpec(collect(generators); check_invariance, offblock_check)
 end
 
 function SymmetrySpec(
@@ -888,12 +914,13 @@ function SymmetrySpec(
     sector::Union{Nothing,FermionicSectorSpec}=nothing,
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}=nothing,
     check_invariance::Bool=true,
+    offblock_check::Symbol=:randomized,
 )
     isempty(fermionic_generators) && isnothing(sector) && isnothing(spin_adaptation) && throw(ArgumentError(
         "`SymmetrySpec` needs at least one fermionic mode permutation, sector split, or spin adaptation."
     ))
     converted = FermionicModePermutation[generator for generator in fermionic_generators]
-    return SymmetrySpec(SignedPermutation[], converted, CliffordSymmetry[], sector, spin_adaptation, check_invariance)
+    return SymmetrySpec(SignedPermutation[], converted, CliffordSymmetry[], sector, spin_adaptation, check_invariance, offblock_check)
 end
 
 function SymmetrySpec(
@@ -901,26 +928,29 @@ function SymmetrySpec(
     sector::Union{Nothing,FermionicSectorSpec}=nothing,
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}=nothing,
     check_invariance::Bool=true,
+    offblock_check::Symbol=:randomized,
 )
     return SymmetrySpec(
         collect(fermionic_generators);
         sector=sector,
         spin_adaptation=spin_adaptation,
         check_invariance=check_invariance,
+        offblock_check=offblock_check,
     )
 end
 
 function SymmetrySpec(
     clifford_generators::AbstractVector{<:CliffordSymmetry};
     check_invariance::Bool=true,
+    offblock_check::Symbol=:randomized,
 )
     isempty(clifford_generators) && throw(ArgumentError("`SymmetrySpec` needs at least one Clifford generator."))
     converted = CliffordSymmetry[generator for generator in clifford_generators]
-    return SymmetrySpec(SignedPermutation[], FermionicModePermutation[], converted, nothing, nothing, check_invariance)
+    return SymmetrySpec(SignedPermutation[], FermionicModePermutation[], converted, nothing, nothing, check_invariance, offblock_check)
 end
 
-function SymmetrySpec(clifford_generators::CliffordSymmetry...; check_invariance::Bool=true)
-    return SymmetrySpec(collect(clifford_generators); check_invariance)
+function SymmetrySpec(clifford_generators::CliffordSymmetry...; check_invariance::Bool=true, offblock_check::Symbol=:randomized)
+    return SymmetrySpec(collect(clifford_generators); check_invariance, offblock_check)
 end
 
 function SymmetrySpec(
@@ -931,6 +961,7 @@ function SymmetrySpec(
     sector::Union{Nothing,FermionicSectorSpec}=nothing,
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}=nothing,
     check_invariance::Bool=true,
+    offblock_check::Symbol=:randomized,
 )
     return SymmetrySpec(
         SignedPermutation[generator for generator in generators],
@@ -939,6 +970,7 @@ function SymmetrySpec(
         sector,
         spin_adaptation,
         check_invariance,
+        offblock_check,
     )
 end
 
@@ -1932,13 +1964,138 @@ function _append_transformed_offblock_zero_constraints!(
     return nothing
 end
 
+# SplitMix64 mixer: deterministic, dependency-free source of generic weights
+# for the randomized off-block certificate. Pure integer ops, so the weights
+# are reproducible across runs and platforms.
+@inline function _splitmix64(x::UInt64)
+    x += 0x9e3779b97f4a7c15
+    x = (x ⊻ (x >> 30)) * 0xbf58476d1ce4e5b9
+    x = (x ⊻ (x >> 27)) * 0x94d049bb133111eb
+    return x ⊻ (x >> 31)
+end
+
+# Deterministic pseudo-random weight in (-1, 1) for variable `idx` under `seed`.
+@inline function _pseudorandom_weight(idx::Int, seed::UInt64)
+    bits = _splitmix64(seed ⊻ _splitmix64(UInt64(idx)))
+    return Float64(bits >> 11) / 9.007199254740992e15 * 2.0 - 1.0
+end
+
+"""
+    _verify_offblocks_randomized(mat, row_bases, reducer; atol, context, ntrials)
+
+Certify that all off-diagonal symmetry-adapted blocks `Uᵢ mat Uⱼ†` (`i ≠ j`)
+vanish after orbit reduction, without expanding them symbolically.
+
+Each transformed entry is a *linear form* in the orbit-reduced moment
+variables. A linear form that evaluates to ~0 at independent generic points
+has ~0 coefficients, which is exactly what the `:full` check asserts
+entry-by-entry. So: replace every canonical moment variable with a
+deterministic pseudo-random weight, collapse `mat` to a numeric matrix, do
+the congruence transform in BLAS, and bound the off-diagonal blocks. Repeats
+with `ntrials` independent weight draws.
+
+Throws the same kind of `ArgumentError` as the `:full` check on failure.
+"""
+function _verify_offblocks_randomized(
+    mat::Matrix{P},
+    row_bases::Vector{<:AbstractMatrix},
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    atol::Float64=_SYMMETRY_ATOL,
+    context::AbstractString="constraint matrix",
+    ntrials::Int=2,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    length(row_bases) <= 1 && return nothing
+
+    n = size(mat, 1)
+    size(mat, 2) == n || throw(ArgumentError("$context must be square for the off-block certificate."))
+
+    # Sparse linear-form representation: mat = Σ_k A_k y_k with COO triplets.
+    var_index = Dict{NormalMonomial{A,T},Int}()
+    coo_rows = Int[]
+    coo_cols = Int[]
+    coo_vars = Int[]
+    coo_coefs = ComplexF64[]
+
+    for col in axes(mat, 2), row in axes(mat, 1)
+        for (coef, mono) in mat[row, col].terms
+            local key
+            phase = 1
+            if reducer === nothing
+                key = mono
+            else
+                sym_mono = _symmetric_monomial(mono)
+                haskey(reducer.representative, sym_mono) || throw(ArgumentError(
+                    "Symmetry reducer is missing the monomial $sym_mono."
+                ))
+                phase = reducer.phase[sym_mono]
+                phase == 0 && continue
+                key = reducer.representative[sym_mono]
+            end
+            push!(coo_rows, row)
+            push!(coo_cols, col)
+            push!(coo_vars, get!(var_index, key, length(var_index) + 1))
+            push!(coo_coefs, ComplexF64(coef) * phase)
+        end
+    end
+
+    nvars = length(var_index)
+    nvars == 0 && return nothing
+
+    U = Matrix{ComplexF64}(reduce(vcat, (Matrix(b) for b in row_bases)))
+    block_sizes = Int[size(b, 1) for b in row_bases]
+    stops = cumsum(block_sizes)
+
+    cmax = maximum(abs, coo_coefs)
+    unorm2 = maximum(sum(abs2, U; dims=2))
+    tol = atol * max(1.0, cmax) * max(1.0, unorm2) * nvars
+
+    A_num = Matrix{ComplexF64}(undef, n, n)
+    for trial in 1:ntrials
+        seed = _splitmix64(0x4e435453536f5342 + UInt64(trial))  # "NCTSSoSB"
+        weights = [_pseudorandom_weight(k, seed) for k in 1:nvars]
+
+        Base.fill!(A_num, zero(ComplexF64))
+        @inbounds for t in eachindex(coo_rows)
+            A_num[coo_rows[t], coo_cols[t]] += coo_coefs[t] * weights[coo_vars[t]]
+        end
+
+        transformed = U * A_num * U'
+
+        for bj in eachindex(block_sizes), bi in eachindex(block_sizes)
+            bi == bj && continue
+            (block_sizes[bi] == 0 || block_sizes[bj] == 0) && continue
+            rows = (bi == 1 ? 1 : stops[bi-1] + 1):stops[bi]
+            cols = (bj == 1 ? 1 : stops[bj-1] + 1):stops[bj]
+            violation = maximum(abs, view(transformed, rows, cols))
+            violation <= tol || throw(ArgumentError(
+                "$context off-diagonal block ($bi, $bj) should vanish after symmetry reduction, " *
+                "but the randomized certificate found magnitude $violation (tolerance $tol, trial $trial). " *
+                "The supplied symmetry generators are likely not exact symmetries of this problem. " *
+                "Rerun with `offblock_check = :full` in `SymmetrySpec` for an entry-level diagnosis."
+            ))
+        end
+    end
+
+    return nothing
+end
+
 function _reduce_transformed_blocks(
     mat::Matrix{P},
     row_bases::Vector{<:AbstractMatrix},
     reducer::Union{Nothing,_OrbitReducer};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
+    offblock_check::Symbol=:full,
 ) where {P<:Polynomial}
+    if offblock_check === :randomized
+        _verify_offblocks_randomized(mat, row_bases, reducer; atol, context)
+        return _diagonal_transformed_blocks(mat, row_bases, reducer; atol)
+    elseif offblock_check === :off
+        return _diagonal_transformed_blocks(mat, row_bases, reducer; atol)
+    elseif offblock_check !== :full
+        throw(ArgumentError("`offblock_check` must be `:full`, `:randomized`, or `:off`; got `$(repr(offblock_check))`."))
+    end
+
     for i in 1:length(row_bases), j in (i+1):length(row_bases)
         off_block = _maybe_orbit_reduce_matrix(
             _transform_polynomial_block(mat, row_bases[i], row_bases[j]; atol),
@@ -1977,6 +2134,7 @@ function _reduce_constraint_matrix_symmetric(
     reducer::Union{Nothing,_OrbitReducer{A,T}};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
+    offblock_check::Symbol=:full,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C},M<:NormalMonomial{A,T}}
     if length(basis) == 1 || _basis_action_is_trivial(basis, sw_group)
         return [_maybe_orbit_reduce_matrix(mat, reducer; atol)]
@@ -1984,7 +2142,7 @@ function _reduce_constraint_matrix_symmetric(
 
     blocks = _sw_decompose_half_basis(basis, sw_group)
     row_bases = [Matrix(block) for block in blocks]
-    return _reduce_transformed_blocks(mat, row_bases, reducer; atol, context)
+    return _reduce_transformed_blocks(mat, row_bases, reducer; atol, context, offblock_check)
 end
 
 function _validate_fermionic_sector_spec(sector::FermionicSectorSpec)
@@ -2347,6 +2505,7 @@ function moment_relax_symmetric(
                                 reducer;
                                 atol,
                                 context="$context sector $(sector_block.label)",
+                                offblock_check=symmetry.offblock_check,
                             )
                         else
                             _append_transformed_offblock_zero_constraints!(
@@ -2379,6 +2538,7 @@ function moment_relax_symmetric(
                             reducer;
                             atol,
                             context=context,
+                            offblock_check=symmetry.offblock_check,
                         )
                     diagonal_labels = fill(nothing, length(diagonal_blocks))
                     diagonal_provenance = fill(isnothing(sw_group) ? :identity : :wedderburn, length(diagonal_blocks))

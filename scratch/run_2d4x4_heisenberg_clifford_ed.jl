@@ -46,6 +46,25 @@ function solver_optimizer()
             "alpha" => 1.0,
             "scaling" => 10,
         )
+    elseif solver in ("cosmo_cg", "cosmo-cg")
+        HAS_COSMO || throw(ArgumentError("SOLVER=cosmo_cg requested but COSMO is unavailable."))
+        isdefined(COSMO, :CGIndirectKKTSolver) || throw(ArgumentError(
+            "SOLVER=cosmo_cg requires COSMO.CGIndirectKKTSolver. Import/install IterativeSolvers and LinearMaps before loading COSMO."
+        ))
+        return optimizer_with_attributes(
+            COSMO.Optimizer,
+            "verbose" => true,
+            "eps_abs" => 1e-6,
+            "eps_rel" => 1e-6,
+            "eps_prim_inf" => 1e-6,
+            "eps_dual_inf" => 1e-6,
+            "max_iter" => parse(Int, get(ENV, "COSMO_MAX_ITER", "50000")),
+            "rho" => 1.0,
+            "adaptive_rho" => true,
+            "alpha" => 1.0,
+            "scaling" => 10,
+            "kkt_solver" => COSMO.CGIndirectKKTSolver,
+        )
     elseif solver == "clarabel"
         return optimizer_with_attributes(Clarabel.Optimizer, "verbose" => false)
     elseif solver == "mosek"
@@ -64,6 +83,11 @@ const RUN_DENSE = get(ENV, "RUN_DENSE", "1") != "0"
 const SYMMETRY_MODE = get(ENV, "SYMMETRY_MODE", "lattice")  # none, tx, translations, lattice, spin, full
 const RELAX_ORDER = parse(Int, get(ENV, "RELAX_ORDER", "1"))
 const OFFBLOCK_CHECK = Symbol(get(ENV, "OFFBLOCK_CHECK", "randomized"))
+const DUALIZE = lowercase(get(ENV, "DUALIZE", "1")) ∉ ("0", "false", "no")
+const FORMULATION = Symbol(get(ENV, "FORMULATION", "moment_variables"))
+const REPRESENTATION = Symbol(get(ENV, "REPRESENTATION", "real"))
+const ORPHAN_POLICY = Symbol(get(ENV, "ORPHAN_POLICY", "error"))
+const SILENT_SOLVER = lowercase(get(ENV, "SILENT_SOLVER", "1")) ∉ ("0", "false", "no")
 
 site(i, j) = LI[CartesianIndex(mod1(i, Lx), mod1(j, Ly))]
 coord(s) = Tuple(CartesianIndices((1:Lx, 1:Ly))[s])
@@ -309,7 +333,33 @@ function run_sdp_case(label, pop, basis, optimizer; symmetry=nothing, order::Int
         end
 
         stage("solve_sdp start")
-        timings[:solve_sdp] = @elapsed sdp_result = NCTSSoS.solve_sdp(moment_problem, config.optimizer)
+        println("  dualize = ", DUALIZE)
+        println("  formulation = ", FORMULATION)
+        println("  representation = ", REPRESENTATION)
+        println("  orphan_policy = ", ORPHAN_POLICY)
+        flush(stdout)
+        timings[:solve_sdp] = @elapsed sdp_result = if DUALIZE
+            NCTSSoS.solve_sdp(
+                moment_problem,
+                config.optimizer;
+                dualize=true,
+            )
+        else
+            direct_result = NCTSSoS.solve_moment_problem(
+                moment_problem,
+                config.optimizer;
+                silent=SILENT_SOLVER,
+                formulation=FORMULATION,
+                representation=REPRESENTATION,
+                orphan_policy=ORPHAN_POLICY,
+            )
+            (
+                objective=direct_result.objective,
+                model=direct_result.model,
+                n_unique_elements=direct_result.n_unique_elements,
+                status=NCTSSoS._check_solver_status(direct_result.model),
+            )
+        end
         println("  solve_sdp seconds = ", timings[:solve_sdp])
         println("  solver status = ", sdp_result.status)
         flush(stdout)
@@ -347,6 +397,7 @@ end
 function main()
     println("Started: ", Dates.now())
     println("Model: 4x4 periodic Heisenberg, N=", N, ", bonds=", length(BONDS), ", relaxation order=", RELAX_ORDER, ", offblock_check=", OFFBLOCK_CHECK)
+    println("SDP options: dualize=", DUALIZE, ", formulation=", FORMULATION, ", representation=", REPRESENTATION, ", orphan_policy=", ORPHAN_POLICY, ", silent_solver=", SILENT_SOLVER)
 
     ed = run_ed()
     @printf("\nED ground energy      = %.12f\n", ed.energy)

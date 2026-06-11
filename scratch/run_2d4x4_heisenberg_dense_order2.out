@@ -1,0 +1,73 @@
+Started: 2026-06-10T20:12:50.653
+Model: 4x4 periodic Heisenberg, N=16, bonds=32, relaxation order=2
+
+== Exact diagonalization: Sz=0 matrix-free Lanczos ==
+Hilbert dimension in Sz=0 sector: 12870 / 65536
+ED Lanczos iter   1: E = -0.528380166664, Δ = Inf, residual = 2.470e+00
+ED Lanczos iter   2: E = -3.274034876195, Δ = 2.746e+00, residual = 2.546e+00
+ED Lanczos iter   3: E = -5.331156914586, Δ = 2.057e+00, residual = 2.536e+00
+ED Lanczos iter   4: E = -6.913426732515, Δ = 1.582e+00, residual = 2.437e+00
+ED Lanczos iter   5: E = -8.161987524423, Δ = 1.249e+00, residual = 2.214e+00
+ED Lanczos iter   6: E = -9.212703086791, Δ = 1.051e+00, residual = 2.176e+00
+ED Lanczos iter   7: E = -10.212658190400, Δ = 1.000e+00, residual = 2.041e+00
+ED Lanczos iter   8: E = -10.867345507309, Δ = 6.547e-01, residual = 1.408e+00
+ED Lanczos iter   9: E = -11.116143367994, Δ = 2.488e-01, residual = 7.934e-01
+ED Lanczos iter  10: E = -11.189875209556, Δ = 7.373e-02, residual = 4.209e-01
+ED Lanczos iter  11: E = -11.211866911763, Δ = 2.199e-02, residual = 2.337e-01
+ED Lanczos iter  12: E = -11.219443924036, Δ = 7.577e-03, residual = 1.441e-01
+ED Lanczos iter  13: E = -11.222728247921, Δ = 3.284e-03, residual = 1.049e-01
+ED Lanczos iter  14: E = -11.224806048264, Δ = 2.078e-03, residual = 8.975e-02
+ED Lanczos iter  15: E = -11.226432658153, Δ = 1.627e-03, residual = 7.728e-02
+ED Lanczos iter  16: E = -11.227489898240, Δ = 1.057e-03, residual = 5.663e-02
+ED Lanczos iter  17: E = -11.228029520249, Δ = 5.396e-04, residual = 4.087e-02
+ED Lanczos iter  18: E = -11.228315439225, Δ = 2.859e-04, residual = 2.866e-02
+ED Lanczos iter  19: E = -11.228435489907, Δ = 1.201e-04, residual = 1.634e-02
+ED Lanczos iter  20: E = -11.228470112670, Δ = 3.462e-05, residual = 8.544e-03
+ED Lanczos iter  21: E = -11.228479645347, Δ = 9.533e-06, residual = 4.549e-03
+ED Lanczos iter  22: E = -11.228482347334, Δ = 2.702e-06, residual = 2.337e-03
+ED Lanczos iter  23: E = -11.228483028406, Δ = 6.811e-07, residual = 1.096e-03
+ED Lanczos iter  24: E = -11.228483171972, Δ = 1.436e-07, residual = 4.934e-04
+ED Lanczos iter  25: E = -11.228483201247, Δ = 2.928e-08, residual = 2.208e-04
+ED Lanczos iter  26: E = -11.228483207074, Δ = 5.827e-09, residual = 9.561e-05
+ED Lanczos iter  27: E = -11.228483208159, Δ = 1.085e-09, residual = 4.153e-05
+ED Lanczos iter  28: E = -11.228483208371, Δ = 2.117e-10, residual = 1.868e-05
+ED Lanczos iter  29: E = -11.228483208415, Δ = 4.433e-11, residual = 8.905e-06
+ED Lanczos iter  30: E = -11.228483208426, Δ = 1.023e-11, residual = 4.410e-06
+ED Lanczos iter  31: E = -11.228483208428, Δ = 2.537e-12, residual = 2.132e-06
+ED Lanczos iter  32: E = -11.228483208429, Δ = 5.720e-13, residual = 9.351e-07
+ED Lanczos iter  33: E = -11.228483208429, Δ = 1.066e-13, residual = 4.087e-07
+ED Lanczos iter  34: E = -11.228483208429, Δ = 2.487e-14, residual = 1.910e-07
+ED Lanczos iter  35: E = -11.228483208429, Δ = 7.105e-15, residual = 8.918e-08
+ED Lanczos iter  36: E = -11.228483208429, Δ = 7.105e-15, residual = 3.904e-08
+ED Lanczos iter  37: E = -11.228483208429, Δ = 0.000e+00, residual = 1.630e-08
+ED Lanczos iter  38: E = -11.228483208429, Δ = 7.105e-15, residual = 6.581e-09
+ED Lanczos iter  39: E = -11.228483208429, Δ = 7.105e-15, residual = 2.571e-09
+ED Lanczos iter  40: E = -11.228483208429, Δ = 0.000e+00, residual = 1.013e-09
+ED Lanczos iter  41: E = -11.228483208429, Δ = 0.000e+00, residual = 3.933e-10
+ED Lanczos iter  42: E = -11.228483208429, Δ = 3.553e-15, residual = 1.554e-10
+ED Lanczos iter  43: E = -11.228483208429, Δ = 1.421e-14, residual = 6.004e-11
+ED Lanczos iter  44: E = -11.228483208429, Δ = 7.105e-15, residual = 2.226e-11
+ED Lanczos iter  45: E = -11.228483208429, Δ = 3.553e-15, residual = 8.258e-12
+
+ED ground energy      = -11.228483208429
+ED per site           = -0.701780200527
+ED iterations         = 45
+ED residual estimate  = 8.258e-12
+ED wall time          = 0.387 s
+
+== Build NCTSSoS Pauli Hamiltonian ==
+Pauli terms           = 96
+order-1 basis size    = 49
+using automatic dense order-2 moment basis
+
+About to solve dense order-2 baseline...
+[2026-06-10T20:12:51.544] compute_sparsity start
+  compute_sparsity seconds = 5.186974257
+  pre-symmetry moment matrix sizes = [[1129]]
+  clique count = 1
+  clique variable sizes = [48]
+[2026-06-10T20:12:57.383] symmetry support check start
+  support_check seconds = 0.029598614
+[2026-06-10T20:12:57.413] moment_relax start
+  moment_relax seconds = 16.073674104
+[2026-06-10T20:13:13.487] solve_sdp start

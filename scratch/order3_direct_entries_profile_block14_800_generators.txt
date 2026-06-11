@@ -1,0 +1,62 @@
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+   ╎617  @Base/client.jl:550  _start()
+   ╎ 617  @Base/client.jl:317  exec_options(opts::Base.JLOptions)
+   ╎  617  @Base/Base.jl:306  include(mod::Module, _path::String)
+   ╎   617  @Base/loading.jl:2934  _include(mapexpr::Function, mod::Module, _pa…
+   ╎    617  @Base/loading.jl:2874  include_string(mapexpr::typeof(identity), m…
+   ╎     617  @Base/boot.jl:489  eval(m::Module, e::Any)
+   ╎    ╎ 617  @NCTSSoS/…entries.jl:115  main()
+   ╎    ╎  617  @Base/timing.jl:461  macro expansion
+   ╎    ╎   617  @NCTSSoS/…entries.jl:116  macro expansion
+   ╎    ╎    617  @Profile/…Profile.jl:60  macro expansion
+ 68╎    ╎     617  @NCTSSoS/…ntries.jl:118  macro expansion
+   ╎    ╎    ╎ 535  @NCTSSoS/…metry.jl:2129  _transformed_entry_from_sparse_sup…
+   ╎    ╎    ╎  45   @NCTSSoS/…metry.jl:2160  _transformed_entry_from_sparse_su…
+   ╎    ╎    ╎   33   @NCTSSoS/…lpers.jl:189  _neat_dot3
+   ╎    ╎    ╎    27   @NCTSSoS/…pers.jl:157  _neat_dot3(a::Vector{UInt8}, m::V…
+   ╎    ╎    ╎     26   @Base/array.jl:376  similar
+ 26╎    ╎    ╎    ╎ 26   @Base/boot.jl:648  Array
+   ╎    ╎    ╎  476  @NCTSSoS/…metry.jl:2162  _transformed_entry_from_sparse_su…
+   ╎    ╎    ╎   475  @NCTSSoS/…etry.jl:2085  _accumulate_reduced_term!
+   ╎    ╎    ╎    468  @NCTSSoS/…etry.jl:2106  _accumulate_reduced_term!(acc::D…
+   ╎    ╎    ╎     21   @NCTSSoS/…try.jl:1846  _lazy_orbit_reduce!(reducer::NCT…
+   ╎    ╎    ╎    ╎ 21   @Base/dict.jl:548  haskey
+   ╎    ╎    ╎     22   @NCTSSoS/…try.jl:1862  _lazy_orbit_reduce!(reducer::NCT…
+  1╎    ╎    ╎     29   @NCTSSoS/…try.jl:1861  _lazy_orbit_reduce!(reducer::NCT…
+   ╎    ╎    ╎    ╎ 20   @Base/dict.jl:363  setindex!(h::Dict{NormalMonomial{Pa…
+   ╎    ╎    ╎     41   @NCTSSoS/…try.jl:1844  _lazy_orbit_reduce!(reducer::NCT…
+   ╎    ╎    ╎    ╎ 41   @NCTSSoS/…try.jl:1770  _symmetric_monomial
+   ╎    ╎    ╎    ╎  34   @NCTSSoS/…ion.jl:19  symmetric_canon
+  2╎    ╎    ╎     290  @NCTSSoS/…try.jl:1843  _lazy_orbit_reduce!(reducer::NCT…
+   ╎    ╎    ╎    ╎ 27   @NCTSSoS/…try.jl:515  _act_monomial(g::CliffordSymmetr…
+   ╎    ╎    ╎    ╎ 48   @NCTSSoS/…try.jl:518  _act_monomial(g::CliffordSymmetr…
+   ╎    ╎    ╎    ╎  48   @NCTSSoS/…uli.jl:213  simplify
+   ╎    ╎    ╎    ╎   23   @NCTSSoS/…uli.jl:145  simplify!(::Type{PauliAlgebra}…
+   ╎    ╎    ╎    ╎    23   @Base/sort.jl:1733  sort!
+   ╎    ╎    ╎    ╎     23   @Base/sort.jl:1740  #sort!#23
+   ╎    ╎    ╎    ╎    ╎ 23   @Base/sort.jl:561  _sort!
+   ╎    ╎    ╎    ╎    ╎  23   @Base/sort.jl:686  _sort!
+   ╎    ╎    ╎    ╎    ╎   23   @Base/sort.jl:747  _sort!
+   ╎    ╎    ╎    ╎    ╎    23   @Base/sort.jl:0  _sort!
+  1╎    ╎    ╎    ╎ 187  @NCTSSoS/…try.jl:513  _act_monomial(g::CliffordSymmetr…
+  2╎    ╎    ╎    ╎  88   @NCTSSoS/…try.jl:500  _clifford_letter_image(g::Cliff…
+   ╎    ╎    ╎    ╎   84   @Base/dict.jl:503  get
+  1╎    ╎    ╎    ╎    22   @Base/dict.jl:249  ht_keyindex(h::Dict{NormalMonomi…
+   ╎    ╎    ╎    ╎     21   @Base/…ators.jl:178  isequal
+   ╎    ╎    ╎    ╎    ╎ 21   @NCTSSoS/…l.jl:282  ==
+   ╎    ╎    ╎    ╎    ╎  21   @NCTSSoS/…l.jl:88  _eq_same_algebra
+   ╎    ╎    ╎    ╎    36   @Base/dict.jl:242  ht_keyindex(h::Dict{NormalMonomi…
+   ╎    ╎    ╎    ╎     32   @Base/dict.jl:128  hashindex
+   ╎    ╎    ╎    ╎    ╎ 32   @Base/…shing.jl:28  hash
+   ╎    ╎    ╎    ╎    ╎  32   @NCTSSoS/…l.jl:294  hash
+   ╎    ╎    ╎    ╎    ╎   32   @NCTSSoS/…l.jl:100  _hash_with_algebra
+   ╎    ╎    ╎    ╎  95   @NCTSSoS/…try.jl:499  _clifford_letter_image(g::Cliff…
+   ╎    ╎    ╎    ╎   89   @Base/array.jl:405  getindex
+   ╎    ╎    ╎    ╎    25   @Base/boot.jl:647  Array
+ 25╎    ╎    ╎    ╎     25   @Base/boot.jl:588  GenericMemory
+ 64╎    ╎    ╎    ╎    64   @Base/boot.jl:648  Array
+   ╎633  @Base/task.jl:868  task_done_hook(t::Task)
+   ╎ 633  @Base/task.jl:1228  wait()
+633╎  633  @Base/task.jl:1216  poptask(W::Base.IntrusiveLinkedListSynchronized{…
+Total snapshots: 1266. Utilization: 50% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.

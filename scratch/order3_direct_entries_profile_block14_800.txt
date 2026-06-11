@@ -1,0 +1,383 @@
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+     ╎16960 @Base/client.jl:550  _start()
+     ╎ 16960 @Base/client.jl:317  exec_options(opts::Base.JLOptions)
+     ╎  16960 @Base/Base.jl:306  include(mod::Module, _path::String)
+     ╎   16960 @Base/loading.jl:2934  _include(mapexpr::Function, mod::Module, …
+     ╎    16960 @Base/loading.jl:2874  include_string(mapexpr::typeof(identity)…
+     ╎     16960 @Base/boot.jl:489  eval(m::Module, e::Any)
+     ╎    ╎ 16960 @NCTSSoS/…ntries.jl:112  main()
+     ╎    ╎  16960 @Base/timing.jl:461  macro expansion
+     ╎    ╎   16960 @NCTSSoS/…tries.jl:113  macro expansion
+     ╎    ╎    16960 @Profile/…ofile.jl:60  macro expansion
+   85╎    ╎     16960 @NCTSSoS/…tries.jl:115  macro expansion
+     ╎    ╎    ╎ 16857 @NCTSSoS/…etry.jl:2118  _transformed_entry_from_sparse_s…
+     ╎    ╎    ╎  26    @NCTSSoS/…try.jl:2149  _transformed_entry_from_sparse_s…
+     ╎    ╎    ╎  16820 @NCTSSoS/…try.jl:2151  _transformed_entry_from_sparse_s…
+     ╎    ╎    ╎   16820 @NCTSSoS/…try.jl:2074  _accumulate_reduced_term!
+    5╎    ╎    ╎    16814 @NCTSSoS/…try.jl:2095  _accumulate_reduced_term!(acc:…
+     ╎    ╎    ╎     26    @NCTSSoS/…ry.jl:1822  _lazy_orbit_reduce!(reducer::N…
+     ╎    ╎    ╎    ╎ 26    @Base/dict.jl:548  haskey
+    8╎    ╎    ╎     31    @NCTSSoS/…ry.jl:1823  _lazy_orbit_reduce!(reducer::N…
+     ╎    ╎    ╎     38    @NCTSSoS/…ry.jl:1851  _lazy_orbit_reduce!(reducer::N…
+     ╎    ╎    ╎     42    @NCTSSoS/…ry.jl:1850  _lazy_orbit_reduce!(reducer::N…
+     ╎    ╎    ╎    ╎ 20    @Base/dict.jl:363  setindex!(h::Dict{NormalMonomial…
+     ╎    ╎    ╎    ╎  20    @Base/dict.jl:337  _setindex!
+     ╎    ╎    ╎    ╎ 22    @Base/dict.jl:356  setindex!(h::Dict{NormalMonomial…
+    5╎    ╎    ╎     337   @NCTSSoS/…ry.jl:1838  _lazy_orbit_reduce!(reducer::N…
+   31╎    ╎    ╎    ╎ 31    @Base/…otion.jl:637  ==
+    2╎    ╎    ╎    ╎ 301   @Base/dict.jl:476  getindex
+     ╎    ╎    ╎    ╎  97    @Base/dict.jl:249  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎   97    @Base/…tors.jl:178  isequal
+     ╎    ╎    ╎    ╎    97    @NCTSSoS/…l.jl:282  ==
+     ╎    ╎    ╎    ╎     97    @NCTSSoS/…l.jl:88  _eq_same_algebra
+   21╎    ╎    ╎    ╎    ╎ 21    @Base/…ray.jl:2108  ==
+     ╎    ╎    ╎    ╎    ╎ 70    @Base/…ray.jl:2116  ==
+   70╎    ╎    ╎    ╎    ╎  70    @Base/cmem.jl:56  memcmp
+     ╎    ╎    ╎    ╎  145   @Base/dict.jl:242  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎   137   @Base/dict.jl:128  hashindex
+     ╎    ╎    ╎    ╎    137   @Base/…hing.jl:28  hash
+     ╎    ╎    ╎    ╎     137   @NCTSSoS/…l.jl:294  hash
+    6╎    ╎    ╎    ╎    ╎ 137   @NCTSSoS/….jl:100  _hash_with_algebra
+     ╎    ╎    ╎    ╎    ╎  63    @Base/…ay.jl:3581  hash(A::Vector{UInt8}, h::…
+     ╎    ╎    ╎    ╎    ╎   63    @Base/…ing.jl:89  hash
+     ╎    ╎    ╎    ╎    ╎    63    @Base/…ng.jl:87  hash
+     ╎    ╎    ╎    ╎    ╎     54    @Base/…ng.jl:78  hash_uint64
+     ╎    ╎    ╎     431   @NCTSSoS/…ry.jl:1836  _lazy_orbit_reduce!(reducer::N…
+   18╎    ╎    ╎    ╎ 427   @Base/dict.jl:476  getindex
+    4╎    ╎    ╎    ╎  29    @Base/dict.jl:246  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎   25    @Base/dict.jl:133  isslotempty
+   23╎    ╎    ╎    ╎    23    @Base/…tion.jl:637  ==
+     ╎    ╎    ╎    ╎  323   @Base/dict.jl:242  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎   303   @Base/dict.jl:128  hashindex
+     ╎    ╎    ╎    ╎    303   @Base/…hing.jl:28  hash
+     ╎    ╎    ╎    ╎     303   @NCTSSoS/…l.jl:294  hash
+    7╎    ╎    ╎    ╎    ╎ 303   @NCTSSoS/….jl:100  _hash_with_algebra
+     ╎    ╎    ╎    ╎    ╎  46    @Base/…ay.jl:3576  hash(A::Vector{UInt8}, h::…
+     ╎    ╎    ╎    ╎    ╎   44    @Base/…le.jl:580  hash
+     ╎    ╎    ╎    ╎    ╎    44    @Base/…ng.jl:87  hash
+     ╎    ╎    ╎    ╎    ╎     37    @Base/…ng.jl:78  hash_uint64
+     ╎    ╎    ╎    ╎    ╎  65    @Base/…ng.jl:33  hash
+     ╎    ╎    ╎    ╎    ╎   65    @Base/…ing.jl:79  hash_uint
+     ╎    ╎    ╎    ╎    ╎  74    @Base/…ay.jl:3582  hash(A::Vector{UInt8}, h::…
+    6╎    ╎    ╎    ╎    ╎   74    @Base/…ay.jl:901  iterate
+   68╎    ╎    ╎    ╎    ╎    68    @Base/int.jl:519  <
+     ╎    ╎    ╎    ╎    ╎  104   @Base/…ay.jl:3581  hash(A::Vector{UInt8}, h::…
+     ╎    ╎    ╎    ╎    ╎   104   @Base/…ing.jl:89  hash
+     ╎    ╎    ╎    ╎    ╎    104   @Base/…ng.jl:87  hash
+     ╎    ╎    ╎    ╎    ╎     83    @Base/…ng.jl:78  hash_uint64
+     ╎    ╎    ╎    ╎    ╎    ╎ 26    @Base/…ng.jl:49  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎  26    @Base/…rs.jl:642  +
+   26╎    ╎    ╎    ╎    ╎    ╎   26    @Base/int.jl:87  +
+     ╎    ╎    ╎     688   @NCTSSoS/…ry.jl:1837  _lazy_orbit_reduce!(reducer::N…
+    1╎    ╎    ╎    ╎ 688   @Base/dict.jl:548  haskey
+   21╎    ╎    ╎    ╎  21    @Base/dict.jl:236  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎  25    @Base/dict.jl:255  ht_keyindex(h::Dict{NormalMonom…
+   23╎    ╎    ╎    ╎   23    @Base/int.jl:87  +
+    5╎    ╎    ╎    ╎  42    @Base/dict.jl:246  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎   37    @Base/dict.jl:133  isslotempty
+   26╎    ╎    ╎    ╎    26    @Base/…tion.jl:637  ==
+     ╎    ╎    ╎    ╎  47    @Base/dict.jl:248  ht_keyindex(h::Dict{NormalMonom…
+   47╎    ╎    ╎    ╎   47    @Base/…ials.jl:386  getindex
+     ╎    ╎    ╎    ╎  239   @Base/dict.jl:242  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎   224   @Base/dict.jl:128  hashindex
+     ╎    ╎    ╎    ╎    224   @Base/…hing.jl:28  hash
+     ╎    ╎    ╎    ╎     224   @NCTSSoS/…l.jl:294  hash
+    3╎    ╎    ╎    ╎    ╎ 224   @NCTSSoS/….jl:100  _hash_with_algebra
+     ╎    ╎    ╎    ╎    ╎  38    @Base/…ay.jl:3582  hash(A::Vector{UInt8}, h::…
+    3╎    ╎    ╎    ╎    ╎   38    @Base/…ay.jl:901  iterate
+   35╎    ╎    ╎    ╎    ╎    35    @Base/int.jl:519  <
+     ╎    ╎    ╎    ╎    ╎  62    @Base/…ng.jl:33  hash
+     ╎    ╎    ╎    ╎    ╎   62    @Base/…ing.jl:79  hash_uint
+     ╎    ╎    ╎    ╎    ╎  91    @Base/…ay.jl:3581  hash(A::Vector{UInt8}, h::…
+     ╎    ╎    ╎    ╎    ╎   91    @Base/…ing.jl:89  hash
+     ╎    ╎    ╎    ╎    ╎    91    @Base/…ng.jl:87  hash
+     ╎    ╎    ╎    ╎    ╎     75    @Base/…ng.jl:78  hash_uint64
+     ╎    ╎    ╎    ╎    ╎    ╎ 20    @Base/…ng.jl:46  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎ 21    @Base/…ng.jl:51  hash_64_64
+   21╎    ╎    ╎    ╎    ╎    ╎  21    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎  281   @Base/dict.jl:249  ht_keyindex(h::Dict{NormalMonom…
+     ╎    ╎    ╎    ╎   281   @Base/…tors.jl:178  isequal
+     ╎    ╎    ╎    ╎    281   @NCTSSoS/…l.jl:282  ==
+     ╎    ╎    ╎    ╎     281   @NCTSSoS/…l.jl:88  _eq_same_algebra
+     ╎    ╎    ╎    ╎    ╎ 74    @Base/…ray.jl:2116  ==
+   74╎    ╎    ╎    ╎    ╎  74    @Base/cmem.jl:56  memcmp
+  187╎    ╎    ╎    ╎    ╎ 187   @Base/…ray.jl:2108  ==
+     ╎    ╎    ╎     1022  @NCTSSoS/…ry.jl:1835  _lazy_orbit_reduce!(reducer::N…
+     ╎    ╎    ╎    ╎ 1022  @NCTSSoS/…ry.jl:1763  _symmetric_monomial
+     ╎    ╎    ╎    ╎  40    @NCTSSoS/…al.jl:261  NormalMonomial
+     ╎    ╎    ╎    ╎   40    @Base/…edim.jl:989  any
+     ╎    ╎    ╎    ╎    40    @Base/…edim.jl:989  #any#756
+     ╎    ╎    ╎    ╎  205   @NCTSSoS/…al.jl:262  NormalMonomial
+     ╎    ╎    ╎    ╎   32    @NCTSSoS/…li.jl:64  _validate_word(::Type{PauliAl…
+     ╎    ╎    ╎    ╎    32    @NCTSSoS/…s.jl:387  _pauli_site
+   32╎    ╎    ╎    ╎     32    @Base/int.jl:301  div
+     ╎    ╎    ╎    ╎   109   @NCTSSoS/…li.jl:60  _validate_word(::Type{PauliAl…
+     ╎    ╎    ╎    ╎    109   @NCTSSoS/…s.jl:41  _is_site_sorted_pauli
+     ╎    ╎    ╎    ╎     109   @Base/sort.jl:88  issorted
+     ╎    ╎    ╎    ╎    ╎ 109   @Base/sort.jl:95  #issorted#1
+     ╎    ╎    ╎    ╎    ╎  108   @Base/sort.jl:57  issorted
+     ╎    ╎    ╎    ╎    ╎   108   @Base/…ng.jl:120  lt
+     ╎    ╎    ╎    ╎    ╎    29    @Base/…ng.jl:118  lt
+     ╎    ╎    ╎    ╎    ╎     29    @Base/…rs.jl:477  isless
+   29╎    ╎    ╎    ╎    ╎    ╎ 29    @Base/int.jl:83  <
+     ╎    ╎    ╎    ╎    ╎    79    @NCTSSoS/…jl:387  _pauli_site
+   79╎    ╎    ╎    ╎    ╎     79    @Base/int.jl:301  div
+     ╎    ╎    ╎    ╎  777   @NCTSSoS/…on.jl:19  symmetric_canon
+     ╎    ╎    ╎    ╎   180   @Base/array.jl:355  copy
+     ╎    ╎    ╎    ╎    179   @Base/…mory.jl:125  unsafe_copyto!
+  179╎    ╎    ╎    ╎     179   @Base/cmem.jl:28  memmove
+     ╎    ╎    ╎    ╎   262   @Base/array.jl:354  copy
+  260╎    ╎    ╎    ╎    260   @Base/boot.jl:588  GenericMemory
+  321╎    ╎    ╎    ╎   334   @Base/array.jl:356  copy
+   33╎    ╎    ╎     14131 @NCTSSoS/…ry.jl:1834  _lazy_orbit_reduce!(reducer::N…
+     ╎    ╎    ╎    ╎ 26    @NCTSSoS/…ry.jl:516  _act_monomial(g::CliffordSymme…
+   21╎    ╎    ╎    ╎  26    @Base/array.jl:901  iterate
+    1╎    ╎    ╎    ╎ 233   @NCTSSoS/…ry.jl:520  _act_monomial(g::CliffordSymme…
+     ╎    ╎    ╎    ╎  66    @NCTSSoS/…al.jl:261  NormalMonomial
+     ╎    ╎    ╎    ╎   66    @Base/…edim.jl:989  any
+     ╎    ╎    ╎    ╎    66    @Base/…edim.jl:989  #any#756
+   38╎    ╎    ╎    ╎     38    @Base/…yall.jl:128  _any
+    4╎    ╎    ╎    ╎  166   @NCTSSoS/…al.jl:262  NormalMonomial
+     ╎    ╎    ╎    ╎   23    @NCTSSoS/…li.jl:64  _validate_word(::Type{PauliAl…
+     ╎    ╎    ╎    ╎    23    @NCTSSoS/…s.jl:387  _pauli_site
+   23╎    ╎    ╎    ╎     23    @Base/int.jl:301  div
+     ╎    ╎    ╎    ╎   97    @NCTSSoS/…li.jl:60  _validate_word(::Type{PauliAl…
+     ╎    ╎    ╎    ╎    97    @NCTSSoS/…s.jl:41  _is_site_sorted_pauli
+     ╎    ╎    ╎    ╎     97    @Base/sort.jl:88  issorted
+     ╎    ╎    ╎    ╎    ╎ 97    @Base/sort.jl:95  #issorted#1
+     ╎    ╎    ╎    ╎    ╎  97    @Base/sort.jl:57  issorted
+     ╎    ╎    ╎    ╎    ╎   97    @Base/…ng.jl:120  lt
+     ╎    ╎    ╎    ╎    ╎    79    @NCTSSoS/…jl:387  _pauli_site
+   79╎    ╎    ╎    ╎    ╎     79    @Base/int.jl:301  div
+     ╎    ╎    ╎    ╎ 271   @NCTSSoS/…ry.jl:511  _act_monomial(g::CliffordSymme…
+     ╎    ╎    ╎    ╎  271   @Base/array.jl:405  getindex
+  271╎    ╎    ╎    ╎   271   @Base/boot.jl:648  Array
+     ╎    ╎    ╎    ╎ 870   @NCTSSoS/…ry.jl:507  _act_monomial(g::CliffordSymme…
+    6╎    ╎    ╎    ╎  864   @Base/dict.jl:503  get
+     ╎    ╎    ╎    ╎   21    @Base/dict.jl:238  ht_keyindex(h::Dict{NormalMono…
+   21╎    ╎    ╎    ╎    21    @Base/…iler.jl:54  getproperty
+   30╎    ╎    ╎    ╎   30    @Base/dict.jl:236  ht_keyindex(h::Dict{NormalMono…
+    9╎    ╎    ╎    ╎   95    @Base/dict.jl:246  ht_keyindex(h::Dict{NormalMono…
+     ╎    ╎    ╎    ╎    86    @Base/dict.jl:133  isslotempty
+   26╎    ╎    ╎    ╎     26    @Base/…tion.jl:637  ==
+   60╎    ╎    ╎    ╎     60    @Base/…ials.jl:386  getindex
+     ╎    ╎    ╎    ╎   135   @Base/dict.jl:242  ht_keyindex(h::Dict{NormalMono…
+     ╎    ╎    ╎    ╎    131   @Base/dict.jl:128  hashindex
+     ╎    ╎    ╎    ╎     131   @Base/…hing.jl:28  hash
+     ╎    ╎    ╎    ╎    ╎ 131   @NCTSSoS/….jl:294  hash
+    7╎    ╎    ╎    ╎    ╎  129   @NCTSSoS/….jl:100  _hash_with_algebra
+     ╎    ╎    ╎    ╎    ╎   21    @Base/…ay.jl:3576  hash(A::Vector{UInt8}, h:…
+     ╎    ╎    ╎    ╎    ╎    20    @Base/…le.jl:580  hash
+     ╎    ╎    ╎    ╎    ╎     20    @Base/…ng.jl:87  hash
+     ╎    ╎    ╎    ╎    ╎   59    @Base/…ay.jl:3581  hash(A::Vector{UInt8}, h:…
+     ╎    ╎    ╎    ╎    ╎    59    @Base/…ng.jl:89  hash
+     ╎    ╎    ╎    ╎    ╎     59    @Base/…ng.jl:87  hash
+     ╎    ╎    ╎    ╎    ╎    ╎ 55    @Base/…ng.jl:78  hash_uint64
+     ╎    ╎    ╎    ╎   186   @Base/dict.jl:237  ht_keyindex(h::Dict{NormalMono…
+     ╎    ╎    ╎    ╎    186   @Base/dict.jl:705  isempty
+  186╎    ╎    ╎    ╎     186   @Base/…tion.jl:637  ==
+  356╎    ╎    ╎    ╎   356   @Base/dict.jl:241  ht_keyindex(h::Dict{NormalMono…
+     ╎    ╎    ╎    ╎ 1666  @NCTSSoS/…ry.jl:515  _act_monomial(g::CliffordSymme…
+     ╎    ╎    ╎    ╎  115   @Base/array.jl:1354  append!
+  115╎    ╎    ╎    ╎   115   @Base/…tials.jl:11  length
+     ╎    ╎    ╎    ╎  709   @Base/array.jl:1356  append!
+     ╎    ╎    ╎    ╎   709   @Base/array.jl:299  copyto!
+     ╎    ╎    ╎    ╎    41    @Base/array.jl:304  _copyto_impl!
+    8╎    ╎    ╎    ╎     35    @Base/…rray.jl:699  checkbounds
+     ╎    ╎    ╎    ╎    ╎ 27    @Base/…ray.jl:689  checkbounds
+     ╎    ╎    ╎    ╎    ╎  27    @Base/…ray.jl:757  checkindex
+     ╎    ╎    ╎    ╎    624   @Base/array.jl:308  _copyto_impl!
+     ╎    ╎    ╎    ╎     624   @Base/…mory.jl:125  unsafe_copyto!
+  624╎    ╎    ╎    ╎    ╎ 624   @Base/cmem.jl:28  memmove
+     ╎    ╎    ╎    ╎  842   @Base/array.jl:1355  append!
+     ╎    ╎    ╎    ╎   22    @Base/array.jl:1123  _growend!
+   22╎    ╎    ╎    ╎    22    @Base/…iler.jl:54  getproperty
+   13╎    ╎    ╎    ╎   33    @Base/array.jl:1130  _growend!
+   20╎    ╎    ╎    ╎    20    @Base/int.jl:83  <
+    4╎    ╎    ╎    ╎   43    @Base/array.jl:1122  _growend!
+     ╎    ╎    ╎    ╎    39    @Base/…tors.jl:472  >=
+   39╎    ╎    ╎    ╎     39    @Base/int.jl:520  <=
+   42╎    ╎    ╎    ╎   731   @Base/array.jl:1131  _growend!
+     ╎    ╎    ╎    ╎    27    @Base/array.jl:1151  (::Base.var"#_growend!##0#_…
+   27╎    ╎    ╎    ╎     27    @Base/boot.jl:594  memoryref
+     ╎    ╎    ╎    ╎    37    @Base/array.jl:1147  (::Base.var"#_growend!##0#_…
+   44╎    ╎    ╎    ╎    44    @Base/array.jl:1156  (::Base.var"#_growend!##0#_…
+   54╎    ╎    ╎    ╎    54    @Base/array.jl:1131  (::Base.var"#_growend!##0#_…
+     ╎    ╎    ╎    ╎    66    @Base/array.jl:1152  (::Base.var"#_growend!##0#_…
+     ╎    ╎    ╎    ╎     26    @Base/…mory.jl:125  unsafe_copyto!
+   26╎    ╎    ╎    ╎    ╎ 26    @Base/cmem.jl:28  memmove
+     ╎    ╎    ╎    ╎     27    @Base/…mory.jl:119  unsafe_copyto!
+   27╎    ╎    ╎    ╎    ╎ 27    @Base/boot.jl:595  memoryref
+     ╎    ╎    ╎    ╎    414   @Base/array.jl:1148  (::Base.var"#_growend!##0#_…
+     ╎    ╎    ╎    ╎     413   @Base/Base.jl:76  array_new_memory
+  408╎    ╎    ╎    ╎    ╎ 408   @Base/boot.jl:588  GenericMemory
+     ╎    ╎    ╎    ╎ 1806  @NCTSSoS/…ry.jl:518  _act_monomial(g::CliffordSymme…
+   17╎    ╎    ╎    ╎  1806  @NCTSSoS/…li.jl:213  simplify
+   24╎    ╎    ╎    ╎   24    @NCTSSoS/…i.jl:176  simplify!(::Type{PauliAlgebra…
+     ╎    ╎    ╎    ╎   25    @NCTSSoS/…i.jl:163  simplify!(::Type{PauliAlgebra…
+     ╎    ╎    ╎    ╎    25    @Base/range.jl:5  Colon
+     ╎    ╎    ╎    ╎     25    @Base/range.jl:415  UnitRange
+   18╎    ╎    ╎    ╎    ╎ 25    @Base/…nge.jl:426  unitrange_last
+    4╎    ╎    ╎    ╎   35    @NCTSSoS/…i.jl:185  simplify!(::Type{PauliAlgebra…
+   24╎    ╎    ╎    ╎    24    @Base/array.jl:1478  resize!(a::Vector{UInt8}, n…
+   28╎    ╎    ╎    ╎   39    @NCTSSoS/…i.jl:151  simplify!(::Type{PauliAlgebra…
+   13╎    ╎    ╎    ╎   50    @NCTSSoS/…i.jl:0  simplify!(::Type{PauliAlgebra},…
+   37╎    ╎    ╎    ╎    37    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎   50    @NCTSSoS/…i.jl:178  simplify!(::Type{PauliAlgebra…
+     ╎    ╎    ╎    ╎    42    @Base/boot.jl:959  UInt8
+     ╎    ╎    ╎    ╎     42    @Base/boot.jl:899  toUInt8
+   42╎    ╎    ╎    ╎    ╎ 42    @Base/boot.jl:837  checked_trunc_uint
+     ╎    ╎    ╎    ╎   54    @NCTSSoS/…i.jl:152  simplify!(::Type{PauliAlgebra…
+     ╎    ╎    ╎    ╎    23    @NCTSSoS/…s.jl:387  _pauli_site
+     ╎    ╎    ╎    ╎     23    @Base/int.jl:1015  -
+   23╎    ╎    ╎    ╎    ╎ 23    @Base/int.jl:86  -
+     ╎    ╎    ╎    ╎   60    @NCTSSoS/…i.jl:162  simplify!(::Type{PauliAlgebra…
+     ╎    ╎    ╎    ╎    60    @NCTSSoS/…s.jl:409  _pauli_type
+   60╎    ╎    ╎    ╎     60    @Base/int.jl:302  rem
+    7╎    ╎    ╎    ╎   78    @NCTSSoS/…i.jl:156  simplify!(::Type{PauliAlgebra…
+     ╎    ╎    ╎    ╎    63    @NCTSSoS/…s.jl:387  _pauli_site
+   63╎    ╎    ╎    ╎     63    @Base/int.jl:301  div
+     ╎    ╎    ╎    ╎   173   @Base/array.jl:355  copy
+     ╎    ╎    ╎    ╎    172   @Base/…mory.jl:125  unsafe_copyto!
+  172╎    ╎    ╎    ╎     172   @Base/cmem.jl:28  memmove
+     ╎    ╎    ╎    ╎   207   @Base/array.jl:354  copy
+  202╎    ╎    ╎    ╎    202   @Base/boot.jl:588  GenericMemory
+  253╎    ╎    ╎    ╎   255   @Base/array.jl:356  copy
+     ╎    ╎    ╎    ╎   711   @NCTSSoS/…i.jl:145  simplify!(::Type{PauliAlgebra…
+     ╎    ╎    ╎    ╎    711   @Base/sort.jl:1733  sort!
+     ╎    ╎    ╎    ╎     711   @Base/sort.jl:1740  #sort!#23
+     ╎    ╎    ╎    ╎    ╎ 711   @Base/sort.jl:561  _sort!
+     ╎    ╎    ╎    ╎    ╎  709   @Base/sort.jl:686  _sort!
+     ╎    ╎    ╎    ╎    ╎   709   @Base/…rt.jl:747  _sort!
+    5╎    ╎    ╎    ╎    ╎    707   @Base/sort.jl:0  _sort!
+    6╎    ╎    ╎    ╎    ╎     25    @Base/…rt.jl:840  _sort!(v::Vector{UInt8},…
+     ╎    ╎    ╎    ╎    ╎     125   @Base/…rt.jl:849  _sort!(v::Vector{UInt8},…
+  125╎    ╎    ╎    ╎    ╎    ╎ 125   @Base/int.jl:86  -
+  132╎    ╎    ╎    ╎    ╎     132   @Base/…rt.jl:0  _sort!(v::Vector{UInt8}, :…
+  147╎    ╎    ╎    ╎    ╎     150   @Base/…rt.jl:852  _sort!(v::Vector{UInt8},…
+   27╎    ╎    ╎    ╎    ╎     227   @Base/…rt.jl:845  _sort!(v::Vector{UInt8},…
+     ╎    ╎    ╎    ╎    ╎    ╎ 200   @Base/…ng.jl:120  lt
+     ╎    ╎    ╎    ╎    ╎    ╎  23    @Base/…ng.jl:118  lt
+     ╎    ╎    ╎    ╎    ╎    ╎   23    @Base/…rs.jl:477  isless
+   23╎    ╎    ╎    ╎    ╎    ╎    23    @Base/int.jl:83  <
+     ╎    ╎    ╎    ╎    ╎    ╎  177   @NCTSSoS/…jl:387  _pauli_site
+  177╎    ╎    ╎    ╎    ╎    ╎   177   @Base/int.jl:301  div
+   69╎    ╎    ╎    ╎ 9158  @NCTSSoS/…ry.jl:513  _act_monomial(g::CliffordSymme…
+   25╎    ╎    ╎    ╎  25    @Base/…tials.jl:0  _clifford_letter_image(g::Cliff…
+   25╎    ╎    ╎    ╎  25    @Base/dict.jl:236  ht_keyindex(h::Dict{NormalMonom…
+   65╎    ╎    ╎    ╎  65    @NCTSSoS/…ry.jl:495  _clifford_letter_image(g::Cli…
+     ╎    ╎    ╎    ╎  3292  @NCTSSoS/…ry.jl:499  _clifford_letter_image(g::Cli…
+   14╎    ╎    ╎    ╎   196   @NCTSSoS/…l.jl:262  NormalMonomial
+   27╎    ╎    ╎    ╎    27    @NCTSSoS/…i.jl:0  _validate_word(::Type{PauliAlg…
+    9╎    ╎    ╎    ╎    75    @NCTSSoS/…i.jl:58  _validate_word(::Type{PauliAl…
+   25╎    ╎    ╎    ╎     25    @Base/int.jl:520  <=
+   41╎    ╎    ╎    ╎     41    @Base/…ials.jl:11  length
+   80╎    ╎    ╎    ╎    80    @NCTSSoS/…i.jl:57  _validate_word(::Type{PauliAl…
+     ╎    ╎    ╎    ╎   3091  @Base/array.jl:405  getindex
+     ╎    ╎    ╎    ╎    901   @Base/boot.jl:647  Array
+  901╎    ╎    ╎    ╎     901   @Base/boot.jl:588  GenericMemory
+ 2190╎    ╎    ╎    ╎    2190  @Base/boot.jl:648  Array
+   50╎    ╎    ╎    ╎  5664  @NCTSSoS/…ry.jl:500  _clifford_letter_image(g::Cli…
+   32╎    ╎    ╎    ╎   80    @Base/dict.jl:504  get
+   48╎    ╎    ╎    ╎    48    @Base/…ials.jl:386  getindex
+   31╎    ╎    ╎    ╎   5534  @Base/dict.jl:503  get
+     ╎    ╎    ╎    ╎    31    @Base/dict.jl:243  ht_keyindex(h::Dict{NormalMon…
+   31╎    ╎    ╎    ╎     31    @Base/…iler.jl:54  getproperty
+   49╎    ╎    ╎    ╎    49    @Base/int.jl:0  ht_keyindex(h::Dict{NormalMonomi…
+    1╎    ╎    ╎    ╎    58    @Base/dict.jl:237  ht_keyindex(h::Dict{NormalMon…
+     ╎    ╎    ╎    ╎     57    @Base/dict.jl:705  isempty
+   57╎    ╎    ╎    ╎    ╎ 57    @Base/…ion.jl:637  ==
+  162╎    ╎    ╎    ╎    162   @Base/dict.jl:236  ht_keyindex(h::Dict{NormalMon…
+   32╎    ╎    ╎    ╎    216   @Base/dict.jl:246  ht_keyindex(h::Dict{NormalMon…
+     ╎    ╎    ╎    ╎     184   @Base/dict.jl:133  isslotempty
+   25╎    ╎    ╎    ╎    ╎ 25    @Base/…als.jl:386  getindex
+  159╎    ╎    ╎    ╎    ╎ 159   @Base/…ion.jl:637  ==
+     ╎    ╎    ╎    ╎    953   @Base/dict.jl:248  ht_keyindex(h::Dict{NormalMon…
+  953╎    ╎    ╎    ╎     953   @Base/…ials.jl:386  getindex
+     ╎    ╎    ╎    ╎    1190  @Base/dict.jl:242  ht_keyindex(h::Dict{NormalMon…
+     ╎    ╎    ╎    ╎     56    @Base/dict.jl:129  hashindex
+   56╎    ╎    ╎    ╎    ╎ 56    @Base/int.jl:86  -
+     ╎    ╎    ╎    ╎     62    @Base/dict.jl:130  hashindex
+     ╎    ╎    ╎    ╎    ╎ 62    @Base/dict.jl:122  _shorthash7
+     ╎    ╎    ╎    ╎    ╎  28    @Base/int.jl:540  >>
+   28╎    ╎    ╎    ╎    ╎   28    @Base/int.jl:534  >>
+   34╎    ╎    ╎    ╎    ╎  34    @Base/int.jl:378  |
+     ╎    ╎    ╎    ╎     1072  @Base/dict.jl:128  hashindex
+     ╎    ╎    ╎    ╎    ╎ 1072  @Base/…hing.jl:28  hash
+     ╎    ╎    ╎    ╎    ╎  1072  @NCTSSoS/….jl:294  hash
+   24╎    ╎    ╎    ╎    ╎   1072  @NCTSSoS/…jl:100  _hash_with_algebra
+     ╎    ╎    ╎    ╎    ╎    26    @Base/…ay.jl:3579  hash(A::Vector{UInt8}, h…
+   26╎    ╎    ╎    ╎    ╎     26    @Base/int.jl:83  <
+   66╎    ╎    ╎    ╎    ╎    66    @Base/…ay.jl:3571  hash(A::Vector{UInt8}, h…
+     ╎    ╎    ╎    ╎    ╎    80    @Base/…ay.jl:3582  hash(A::Vector{UInt8}, h…
+     ╎    ╎    ╎    ╎    ╎     80    @Base/…ay.jl:901  iterate
+   80╎    ╎    ╎    ╎    ╎    ╎ 80    @Base/int.jl:519  <
+     ╎    ╎    ╎    ╎    ╎    140   @Base/…ay.jl:3581  hash(A::Vector{UInt8}, h…
+     ╎    ╎    ╎    ╎    ╎     140   @Base/…ng.jl:89  hash
+     ╎    ╎    ╎    ╎    ╎    ╎ 140   @Base/…ng.jl:87  hash
+   24╎    ╎    ╎    ╎    ╎    ╎  24    @Base/int.jl:86  -
+     ╎    ╎    ╎    ╎    ╎    ╎  115   @Base/…ng.jl:78  hash_uint64
+     ╎    ╎    ╎    ╎    ╎    ╎   23    @Base/…ng.jl:51  hash_64_64
+   23╎    ╎    ╎    ╎    ╎    ╎    23    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎    ╎    ╎   31    @Base/…ng.jl:48  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎   35    @Base/…ng.jl:45  hash_64_64
+   34╎    ╎    ╎    ╎    ╎    ╎    34    @Base/int.jl:327  ~
+     ╎    ╎    ╎    ╎    ╎    340   @Base/…ay.jl:3576  hash(A::Vector{UInt8}, h…
+     ╎    ╎    ╎    ╎    ╎     323   @Base/…le.jl:580  hash
+     ╎    ╎    ╎    ╎    ╎    ╎ 323   @Base/…ng.jl:87  hash
+     ╎    ╎    ╎    ╎    ╎    ╎  60    @Base/int.jl:1015  *
+   60╎    ╎    ╎    ╎    ╎    ╎   60    @Base/int.jl:88  *
+     ╎    ╎    ╎    ╎    ╎    ╎  263   @Base/…ng.jl:78  hash_uint64
+     ╎    ╎    ╎    ╎    ╎    ╎   28    @Base/…ng.jl:50  hash_64_64
+   27╎    ╎    ╎    ╎    ╎    ╎    27    @Base/int.jl:379  xor
+     ╎    ╎    ╎    ╎    ╎    ╎   43    @Base/…ng.jl:45  hash_64_64
+   34╎    ╎    ╎    ╎    ╎    ╎    34    @Base/int.jl:327  ~
+     ╎    ╎    ╎    ╎    ╎    ╎   43    @Base/…ng.jl:51  hash_64_64
+   43╎    ╎    ╎    ╎    ╎    ╎    43    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎    ╎    ╎   60    @Base/…ng.jl:49  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎    60    @Base/…rs.jl:642  +
+   60╎    ╎    ╎    ╎    ╎    ╎     60    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎    ╎    ╎   72    @Base/…ng.jl:48  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎    26    @Base/int.jl:540  >>
+   26╎    ╎    ╎    ╎    ╎    ╎     26    @Base/int.jl:534  >>
+   46╎    ╎    ╎    ╎    ╎    ╎    46    @Base/int.jl:379  xor
+     ╎    ╎    ╎    ╎    ╎    393   @Base/…ng.jl:33  hash
+     ╎    ╎    ╎    ╎    ╎     393   @Base/…ng.jl:79  hash_uint
+     ╎    ╎    ╎    ╎    ╎    ╎ 26    @Base/…ng.jl:47  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎  26    @Base/…rs.jl:642  +
+   26╎    ╎    ╎    ╎    ╎    ╎   26    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎    ╎    ╎ 26    @Base/…ng.jl:45  hash_64_64
+   26╎    ╎    ╎    ╎    ╎    ╎  26    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎    ╎    ╎ 31    @Base/…ng.jl:51  hash_64_64
+   31╎    ╎    ╎    ╎    ╎    ╎  31    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎    ╎    ╎ 54    @Base/…ng.jl:50  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎  20    @Base/int.jl:540  >>
+   20╎    ╎    ╎    ╎    ╎    ╎   20    @Base/int.jl:534  >>
+   34╎    ╎    ╎    ╎    ╎    ╎  34    @Base/int.jl:379  xor
+     ╎    ╎    ╎    ╎    ╎    ╎ 63    @Base/…ng.jl:49  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎  63    @Base/…rs.jl:642  +
+   63╎    ╎    ╎    ╎    ╎    ╎   63    @Base/int.jl:87  +
+     ╎    ╎    ╎    ╎    ╎    ╎ 87    @Base/…ng.jl:46  hash_64_64
+   37╎    ╎    ╎    ╎    ╎    ╎  37    @Base/int.jl:379  xor
+     ╎    ╎    ╎    ╎    ╎    ╎  50    @Base/int.jl:540  >>
+   50╎    ╎    ╎    ╎    ╎    ╎   50    @Base/int.jl:534  >>
+     ╎    ╎    ╎    ╎    ╎    ╎ 106   @Base/…ng.jl:48  hash_64_64
+     ╎    ╎    ╎    ╎    ╎    ╎  32    @Base/int.jl:540  >>
+   32╎    ╎    ╎    ╎    ╎    ╎   32    @Base/int.jl:534  >>
+   74╎    ╎    ╎    ╎    ╎    ╎  74    @Base/int.jl:379  xor
+   18╎    ╎    ╎    ╎    2786  @Base/dict.jl:249  ht_keyindex(h::Dict{NormalMon…
+     ╎    ╎    ╎    ╎     2768  @Base/…tors.jl:178  isequal
+     ╎    ╎    ╎    ╎    ╎ 2768  @NCTSSoS/….jl:282  ==
+     ╎    ╎    ╎    ╎    ╎  2768  @NCTSSoS/….jl:88  _eq_same_algebra
+     ╎    ╎    ╎    ╎    ╎   84    @Base/…ay.jl:2109  ==
+   84╎    ╎    ╎    ╎    ╎    84    @Base/…er.jl:54  getproperty
+     ╎    ╎    ╎    ╎    ╎   89    @Base/…ay.jl:2110  ==
+   89╎    ╎    ╎    ╎    ╎    89    @Base/…er.jl:54  getproperty
+     ╎    ╎    ╎    ╎    ╎   884   @Base/…ay.jl:2116  ==
+  884╎    ╎    ╎    ╎    ╎    884   @Base/…em.jl:56  memcmp
+ 1706╎    ╎    ╎    ╎    ╎   1707  @Base/…ay.jl:2108  ==
+     ╎16968 @Base/task.jl:868  task_done_hook(t::Task)
+     ╎ 16968 @Base/task.jl:1228  wait()
+16968╎  16968 @Base/task.jl:1216  poptask(W::Base.IntrusiveLinkedListSynchroniz…
+Total snapshots: 33936. Utilization: 50% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.

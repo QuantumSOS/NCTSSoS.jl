@@ -236,7 +236,7 @@ end
         sparsity = compute_sparsity(pop, cfg)
 
         @test NCTSSoS._check_symmetry_mvp_support(pop, cfg, sparsity) === nothing
-        _, report = NCTSSoS.moment_relax_symmetric(
+        mp, report = NCTSSoS.moment_relax_symmetric(
             pop,
             sparsity.corr_sparsity,
             sparsity.cliques_term_sparsities,
@@ -247,6 +247,26 @@ end
         @test report.psd_block_sizes == [4, 3]
         @test maximum(report.psd_block_sizes) < length(basis)
         @test all(==(:wedderburn), report.block_provenance)
+
+        off_cfg = SolverConfig(
+            optimizer=nothing,
+            moment_basis=basis,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=SymmetrySpec(CliffordSymmetry(:SWAP, 1, 2); offblock_check=:off),
+        )
+        off_sparsity = compute_sparsity(pop, off_cfg)
+        off_mp, off_report = NCTSSoS.moment_relax_symmetric(
+            pop,
+            off_sparsity.corr_sparsity,
+            off_sparsity.cliques_term_sparsities,
+            off_cfg.symmetry,
+        )
+        @test off_report.group_order == report.group_order
+        @test off_report.invariant_moment_count == report.invariant_moment_count
+        @test off_report.psd_block_sizes == report.psd_block_sizes
+        @test off_mp.objective == mp.objective
+        @test off_mp.constraints == mp.constraints
 
         single_reg, (τx, _, τz) = create_pauli_variables(1:1)
         z_pop = polyopt(1.0 * τz[1], single_reg)

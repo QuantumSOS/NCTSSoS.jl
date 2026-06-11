@@ -1,0 +1,81 @@
+ Count  Overhead File                    Line Function
+ =====  ======== ====                    ==== ========
+    21         0 @NCTSSoS/…imization/symmetry.jl 1846 _lazy_orbit_reduce!(reducer::NCTS…
+    22         0 @Base/genericmemory.jl  125 unsafe_copyto!
+    22        22 @Base/cmem.jl            28 memmove
+    22         0 @NCTSSoS/…imization/symmetry.jl 1862 _lazy_orbit_reduce!(reducer::NCTS…
+    24         0 @NCTSSoS/…mplification/pauli.jl  145 simplify!(::Type{PauliAlgebra}, w…
+    24         0 @Base/sort.jl          1733 sort!
+    24         0 @Base/sort.jl          1740 #sort!#23
+    24         0 @Base/sort.jl           561 _sort!
+    24         0 @Base/sort.jl           686 _sort!
+    24         0 @Base/sort.jl           747 _sort!
+    24         0 @Base/sort.jl             ? _sort!
+    24         0 @Base/ordering.jl       120 lt
+    25         1 @NCTSSoS/src/types/monomial.jl  262 NormalMonomial
+    26         0 @Base/boot.jl           647 Array
+    26        26 @Base/int.jl             87 +
+    26        26 @Base/array.jl         2108 ==
+    26        26 @Base/int.jl            301 div
+    26         0 @Base/array.jl          376 similar
+    27        27 @Base/essentials.jl     386 getindex
+    27         0 @NCTSSoS/…imization/symmetry.jl  515 _act_monomial(g::CliffordSymmetry…
+    27        25 @Base/array.jl          356 copy
+    27         0 @Base/hashing.jl         33 hash
+    27         0 @Base/hashing.jl         79 hash_uint
+    27         0 @NCTSSoS/src/util/helpers.jl  387 _pauli_site
+    27         0 @NCTSSoS/src/util/helpers.jl  157 _neat_dot3(a::Vector{UInt8}, m::V…
+    29         1 @NCTSSoS/…imization/symmetry.jl 1861 _lazy_orbit_reduce!(reducer::NCTS…
+    33         0 @NCTSSoS/src/util/helpers.jl  189 _neat_dot3
+    35        35 @Base/int.jl            327 ~
+    35         0 @Base/dict.jl           168 rehash!(h::Dict{NormalMonomial{Pa…
+    37         0 @Base/hashing.jl         45 hash_64_64
+    39         1 @Base/dict.jl           249 ht_keyindex(h::Dict{NormalMonomia…
+    39         0 @Base/operators.jl      178 isequal
+    39         0 @NCTSSoS/src/types/monomial.jl  282 ==
+    39         0 @NCTSSoS/src/types/monomial.jl   88 _eq_same_algebra
+    40         0 @NCTSSoS/…s/canonicalization.jl   19 symmetric_canon
+    40         0 @Base/dict.jl           548 haskey
+    41         0 @Base/dict.jl           337 _setindex!
+    41         0 @NCTSSoS/…imization/symmetry.jl 1844 _lazy_orbit_reduce!(reducer::NCTS…
+    43         0 @Base/dict.jl           363 setindex!(h::Dict{NormalMonomial{…
+    45         0 @NCTSSoS/…imization/symmetry.jl 2160 _transformed_entry_from_sparse_su…
+    46         0 @Base/abstractarray.jl 3576 hash(A::Vector{UInt8}, h::UInt64)
+    46         0 @Base/tuple.jl          580 hash
+    48         0 @NCTSSoS/…imization/symmetry.jl 1770 _symmetric_monomial
+    48         0 @NCTSSoS/…imization/symmetry.jl  518 _act_monomial(g::CliffordSymmetry…
+    50        50 @Base/boot.jl           588 GenericMemory
+    56         0 @Base/hashing.jl         78 hash_uint64
+    60         0 @NCTSSoS/…mplification/pauli.jl  213 simplify
+    62         0 @Base/hashing.jl         87 hash
+    63         0 @Base/dict.jl           242 ht_keyindex(h::Dict{NormalMonomia…
+    88         2 @NCTSSoS/…imization/symmetry.jl  500 _clifford_letter_image(g::Cliffor…
+    91         0 @Base/dict.jl           503 get
+    95         0 @NCTSSoS/…imization/symmetry.jl  499 _clifford_letter_image(g::Cliffor…
+    95         0 @Base/array.jl          405 getindex
+   100       100 @Base/boot.jl           648 Array
+   102         0 @Base/dict.jl           128 hashindex
+   102         0 @Base/hashing.jl         28 hash
+   102         0 @NCTSSoS/src/types/monomial.jl  294 hash
+   102         0 @NCTSSoS/src/types/monomial.jl  100 _hash_with_algebra
+   187         1 @NCTSSoS/…imization/symmetry.jl  513 _act_monomial(g::CliffordSymmetry…
+   290         2 @NCTSSoS/…imization/symmetry.jl 1843 _lazy_orbit_reduce!(reducer::NCTS…
+   468         0 @NCTSSoS/…imization/symmetry.jl 2106 _accumulate_reduced_term!(acc::Di…
+   475         0 @NCTSSoS/…imization/symmetry.jl 2085 _accumulate_reduced_term!
+   476         0 @NCTSSoS/…imization/symmetry.jl 2162 _transformed_entry_from_sparse_su…
+   535         0 @NCTSSoS/…imization/symmetry.jl 2129 _transformed_entry_from_sparse_su…
+   617         0 @Base/client.jl         550 _start()
+   617         0 @Base/client.jl         317 exec_options(opts::Base.JLOptions)
+   617         0 @Base/Base.jl           306 include(mod::Module, _path::Strin…
+   617         0 @Base/loading.jl       2934 _include(mapexpr::Function, mod::…
+   617         0 @Base/loading.jl       2874 include_string(mapexpr::typeof(id…
+   617         0 @Base/boot.jl           489 eval(m::Module, e::Any)
+   617         0 @NCTSSoS/…er3_direct_entries.jl  115 main()
+   617         0 @Base/timing.jl         461 macro expansion
+   617         0 @NCTSSoS/…er3_direct_entries.jl  116 macro expansion
+   617         0 @Profile/src/Profile.jl   60 macro expansion
+   617        68 @NCTSSoS/…er3_direct_entries.jl  118 macro expansion
+   633         0 @Base/task.jl           868 task_done_hook(t::Task)
+   633         0 @Base/task.jl          1228 wait()
+   633       633 @Base/task.jl          1216 poptask(W::Base.IntrusiveLinkedLi…
+Total snapshots: 1266. Utilization: 50% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.

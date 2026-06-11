@@ -1024,6 +1024,25 @@ struct _OrbitReducer{A<:AlgebraType,T<:Integer}
     phase::Dict{NormalMonomial{A,T},Int}
 end
 
+mutable struct _LazyOrbitReducer{A<:AlgebraType,T<:Integer,G,H}
+    group::G
+    orbit_generators::H
+    reduction::Dict{NormalMonomial{A,T},Tuple{NormalMonomial{A,T},Int8}}
+end
+
+function _LazyOrbitReducer(
+    ::Type{A},
+    ::Type{T},
+    group::G,
+    orbit_generators::H=group,
+) where {A<:AlgebraType,T<:Integer,G,H}
+    return _LazyOrbitReducer{A,T,G,H}(
+        group,
+        orbit_generators,
+        Dict{NormalMonomial{A,T},Tuple{NormalMonomial{A,T},Int8}}(),
+    )
+end
+
 struct NCWordSignedPermutationAction{A<:MonoidAlgebra,T<:Integer} <: SymbolicWedderburn.BySignedPermutations
     algebra::Type{A}
 end
@@ -1745,6 +1764,8 @@ function _check_basis_closure(
     return nothing
 end
 
+@inline _symmetric_monomial(mono::NormalMonomial{PauliAlgebra,T}) where {T<:Integer} = mono
+
 @inline function _symmetric_monomial(mono::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     return NormalMonomial{A,T}(symmetric_canon(mono))
 end
@@ -1800,6 +1821,48 @@ function _build_orbit_reducer(
     return _OrbitReducer{A,T}(representative, phase)
 end
 
+function _lazy_orbit_reduce!(
+    reducer::_LazyOrbitReducer{A,T},
+    mono::NormalMonomial{A,T},
+) where {A<:AlgebraType,T<:Integer}
+    sym = _symmetric_monomial(mono)
+    cached = get(reducer.reduction, sym, nothing)
+    cached === nothing || return cached
+
+    orbit_phase = Dict{NormalMonomial{A,T},Int8}(sym => Int8(1))
+    queue = NormalMonomial{A,T}[sym]
+    queue_head = 1
+    zero_orbit = false
+
+    while queue_head <= length(queue)
+        current = queue[queue_head]
+        queue_head += 1
+        current_phase = orbit_phase[current]
+        for g in reducer.orbit_generators
+            sign, image = _act_monomial(g, current)
+            image_sym = _symmetric_monomial(image)
+            candidate_phase = Int8(current_phase * sign)
+            if haskey(orbit_phase, image_sym)
+                orbit_phase[image_sym] == candidate_phase || (zero_orbit = true)
+            else
+                orbit_phase[image_sym] = candidate_phase
+                push!(queue, image_sym)
+            end
+        end
+    end
+
+    orbit_rep = first(keys(orbit_phase))
+    for orbit_mono in keys(orbit_phase)
+        isless(orbit_mono, orbit_rep) && (orbit_rep = orbit_mono)
+    end
+    rep_phase = orbit_phase[orbit_rep]
+    for (orbit_mono, mono_phase) in orbit_phase
+        reducer.reduction[orbit_mono] = (orbit_rep, zero_orbit ? Int8(0) : Int8(mono_phase * rep_phase))
+    end
+
+    return reducer.reduction[sym]
+end
+
 function _chop_polynomial(
     poly::Polynomial{A,T,C};
     atol::Float64=_SYMMETRY_ATOL,
@@ -1828,6 +1891,23 @@ function _orbit_reduce_polynomial(
         orbit_phase = reducer.phase[sym_mono]
         orbit_phase == 0 && continue
         push!(reduced_terms, (coef * orbit_phase, reducer.representative[sym_mono]))
+    end
+
+    return _chop_polynomial(Polynomial(reduced_terms); atol)
+end
+
+function _orbit_reduce_polynomial(
+    poly::Polynomial{A,T,C},
+    reducer::_LazyOrbitReducer{A,T};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    reduced_terms = Tuple{C,NormalMonomial{A,T}}[]
+    sizehint!(reduced_terms, length(poly.terms))
+
+    for (coef, mono) in poly.terms
+        representative, orbit_phase = _lazy_orbit_reduce!(reducer, mono)
+        orbit_phase == 0 && continue
+        push!(reduced_terms, (coef * orbit_phase, representative))
     end
 
     return _chop_polynomial(Polynomial(reduced_terms); atol)
@@ -1922,6 +2002,66 @@ function _transform_polynomial_block(
     return transformed
 end
 
+function _sparse_row_supports(U::SparseMatrixCSC{Tv,Ti}; atol::Float64=_SYMMETRY_ATOL) where {Tv<:Number,Ti<:Integer}
+    Ut = SparseMatrixCSC(transpose(U))
+    indices = Vector{Vector{Ti}}(undef, size(U, 1))
+    values = Vector{Vector{Tv}}(undef, size(U, 1))
+
+    for row in 1:size(U, 1)
+        lo = Ut.colptr[row]
+        hi = Ut.colptr[row + 1] - 1
+        row_indices = Ti[]
+        row_values = Tv[]
+        sizehint!(row_indices, max(0, hi - lo + 1))
+        sizehint!(row_values, max(0, hi - lo + 1))
+        for ptr in lo:hi
+            val = Ut.nzval[ptr]
+            abs(val) <= atol && continue
+            push!(row_indices, Ut.rowval[ptr])
+            push!(row_values, val)
+        end
+        indices[row] = row_indices
+        values[row] = row_values
+    end
+
+    return indices, values
+end
+
+function _transform_polynomial_block(
+    mat::Matrix{P},
+    U_left::SparseMatrixCSC{<:Number},
+    U_right::SparseMatrixCSC{<:Number};
+    scale::Number=1,
+    atol::Float64=_SYMMETRY_ATOL,
+) where {P<:Polynomial}
+    size(U_left, 2) == size(mat, 1) || throw(DimensionMismatch("left transform width does not match matrix rows"))
+    size(U_right, 2) == size(mat, 2) || throw(DimensionMismatch("right transform width does not match matrix columns"))
+
+    left_indices, left_values = _sparse_row_supports(U_left; atol)
+    right_indices, right_values = _sparse_row_supports(U_right; atol)
+    transformed = Matrix{P}(undef, size(U_left, 1), size(U_right, 1))
+
+    for j in axes(transformed, 2), i in axes(transformed, 1)
+        acc = zero(P)
+        li = left_indices[i]
+        lv = left_values[i]
+        rj = right_indices[j]
+        rv = right_values[j]
+        for q in eachindex(rj)
+            b = rj[q]
+            right_coeff = conj(rv[q])
+            for p in eachindex(li)
+                coeff = lv[p] * right_coeff
+                abs(coeff) <= atol && continue
+                acc += coeff * mat[li[p], b]
+            end
+        end
+        transformed[i, j] = _chop_polynomial(scale == 1 ? acc : scale * acc; atol)
+    end
+
+    return transformed
+end
+
 function _diagonal_transformed_blocks(
     mat::Matrix{P},
     row_bases::Vector{<:AbstractMatrix},
@@ -1936,6 +2076,262 @@ function _diagonal_transformed_blocks(
             atol,
         )
         push!(diagonal_blocks, _chop_polynomial_matrix(diagonal; atol))
+    end
+    return diagonal_blocks
+end
+
+function _accumulate_reduced_term!(
+    acc::Dict{M,C},
+    coef,
+    mono::M,
+    reducer::Union{Nothing,_OrbitReducer{A,T},_LazyOrbitReducer{A,T}};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T}}
+    abs(coef) <= atol && return acc
+    key = mono
+    reduced_coef = coef
+
+    if reducer isa _OrbitReducer
+        sym_mono = _symmetric_monomial(mono)
+        haskey(reducer.representative, sym_mono) || throw(ArgumentError(
+            "Symmetry reducer is missing the monomial $sym_mono."
+        ))
+        phase = reducer.phase[sym_mono]
+        phase == 0 && return acc
+        key = reducer.representative[sym_mono]
+        reduced_coef *= phase
+    elseif reducer isa _LazyOrbitReducer
+        key, phase = _lazy_orbit_reduce!(reducer, mono)
+        phase == 0 && return acc
+        reduced_coef *= phase
+    end
+
+    c = convert(C, reduced_coef)
+    acc[key] = get(acc, key, zero(C)) + c
+    return acc
+end
+
+function _polynomial_from_accumulator(
+    acc::Dict{M,C};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T}}
+    terms = Tuple{C,M}[]
+    sizehint!(terms, length(acc))
+    for (mono, coef) in acc
+        abs(coef) <= atol && continue
+        push!(terms, (coef, mono))
+    end
+    return _chop_polynomial(Polynomial(terms); atol)
+end
+
+@inline function _is_one_polynomial(poly::Polynomial)
+    return length(poly.terms) == 1 && isone(poly.terms[1][1]) && isone(poly.terms[1][2])
+end
+
+function _pauli_canonical_product(
+    left::NormalMonomial{PauliAlgebra,T},
+    right::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    left_word = left.word
+    right_word = right.word
+    out = T[]
+    sizehint!(out, length(left_word) + length(right_word))
+    phase_k = UInt8(0)
+    i = firstindex(left_word)
+    j = firstindex(right_word)
+
+    @inbounds while i <= lastindex(left_word) && j <= lastindex(right_word)
+        left_idx = left_word[i]
+        right_idx = right_word[j]
+        left_site = _pauli_site(left_idx)
+        right_site = _pauli_site(right_idx)
+        if left_site < right_site
+            push!(out, left_idx)
+            i += 1
+        elseif right_site < left_site
+            push!(out, right_idx)
+            j += 1
+        else
+            delta_k, result_type = _pauli_product(_pauli_type(left_idx), _pauli_type(right_idx))
+            phase_k = (phase_k + delta_k) % UInt8(4)
+            result_type == -1 || push!(out, T(_pauli_index(left_site, result_type)))
+            i += 1
+            j += 1
+        end
+    end
+
+    @inbounds while i <= lastindex(left_word)
+        push!(out, left_word[i])
+        i += 1
+    end
+    @inbounds while j <= lastindex(right_word)
+        push!(out, right_word[j])
+        j += 1
+    end
+
+    return _coeff_to_number(PauliAlgebra, phase_k), NormalMonomial{PauliAlgebra,T}(out)
+end
+
+function _transformed_pauli_identity_entry_from_sparse_supports(
+    basis::Vector{M},
+    left_indices::AbstractVector{<:Integer},
+    left_values::AbstractVector{<:Number},
+    right_indices::AbstractVector{<:Integer},
+    right_values::AbstractVector{<:Number},
+    reducer::Union{Nothing,_OrbitReducer{PauliAlgebra,T},_LazyOrbitReducer{PauliAlgebra,T}},
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {T<:Integer,CMP<:Number,M<:NormalMonomial{PauliAlgebra,T},MP<:Polynomial{PauliAlgebra,T,CMP}}
+    acc = Dict{M,CMP}()
+
+    for q in eachindex(right_indices)
+        b = Int(right_indices[q])
+        right_coeff = conj(right_values[q])
+        col_mono = basis[b]
+        for p in eachindex(left_indices)
+            transform_coeff = left_values[p] * right_coeff
+            abs(transform_coeff) <= atol && continue
+
+            a = Int(left_indices[p])
+            term_coef, term_mono = _pauli_canonical_product(basis[a], col_mono)
+            _accumulate_reduced_term!(
+                acc,
+                transform_coeff * term_coef,
+                term_mono,
+                reducer;
+                atol,
+            )
+        end
+    end
+
+    return _polynomial_from_accumulator(acc; atol)
+end
+
+function _transformed_entry_from_sparse_supports(
+    poly::Polynomial{A,T,CP},
+    basis::Vector{M},
+    left_indices::AbstractVector{<:Integer},
+    left_values::AbstractVector{<:Number},
+    right_indices::AbstractVector{<:Integer},
+    right_values::AbstractVector{<:Number},
+    reducer::Union{Nothing,_OrbitReducer{A,T},_LazyOrbitReducer{A,T}},
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,CP<:Number,CMP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP}}
+    if A === PauliAlgebra && _is_one_polynomial(poly)
+        return _transformed_pauli_identity_entry_from_sparse_supports(
+            basis,
+            left_indices,
+            left_values,
+            right_indices,
+            right_values,
+            reducer,
+            MP;
+            atol,
+        )
+    end
+
+    acc = Dict{M,CMP}()
+
+    for q in eachindex(right_indices)
+        b = Int(right_indices[q])
+        right_coeff = conj(right_values[q])
+        col_mono = basis[b]
+        for p in eachindex(left_indices)
+            transform_coeff = left_values[p] * right_coeff
+            abs(transform_coeff) <= atol && continue
+
+            a = Int(left_indices[p])
+            row_mono = basis[a]
+            for (c_row, row_word) in row_mono
+                conj_row = _conj_coef(A, c_row)
+                for (c_col, col_word) in col_mono
+                    basis_coeff = transform_coeff * conj_row * c_col
+                    abs(basis_coeff) <= atol && continue
+                    for (coef, mono) in poly.terms
+                        combined_coeff = basis_coeff * coef
+                        abs(combined_coeff) <= atol && continue
+                        simplified = simplify(A, _neat_dot3(row_word, mono, col_word))
+                        for (term_coef, term_mono) in _simplified_to_terms(A, simplified, T)
+                            _accumulate_reduced_term!(
+                                acc,
+                                combined_coeff * term_coef,
+                                term_mono,
+                                reducer;
+                                atol,
+                            )
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return _polynomial_from_accumulator(acc; atol)
+end
+
+function _transform_constraint_block_from_basis(
+    poly::Polynomial{A,T,CP},
+    basis::Vector{M},
+    row_basis::SparseMatrixCSC{<:Number},
+    reducer::Union{Nothing,_OrbitReducer{A,T},_LazyOrbitReducer{A,T}},
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+    hermitian::Bool=false,
+) where {A<:AlgebraType,T<:Integer,CP<:Number,CMP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP}}
+    row_indices, row_values = _sparse_row_supports(row_basis; atol)
+    block = Matrix{MP}(undef, size(row_basis, 1), size(row_basis, 1))
+
+    if hermitian
+        for j in axes(block, 2), i in firstindex(axes(block, 1)):j
+            block[i, j] = _transformed_entry_from_sparse_supports(
+                poly,
+                basis,
+                row_indices[i],
+                row_values[i],
+                row_indices[j],
+                row_values[j],
+                reducer,
+                MP;
+                atol,
+            )
+            i == j || (block[j, i] = convert(MP, adjoint(block[i, j])))
+        end
+    else
+        for j in axes(block, 2), i in axes(block, 1)
+            block[i, j] = _transformed_entry_from_sparse_supports(
+                poly,
+                basis,
+                row_indices[i],
+                row_values[i],
+                row_indices[j],
+                row_values[j],
+                reducer,
+                MP;
+                atol,
+            )
+        end
+    end
+
+    return block
+end
+
+function _diagonal_transformed_blocks_from_basis(
+    poly::Polynomial{A,T,CP},
+    basis::Vector{M},
+    row_bases::Vector{<:SparseMatrixCSC},
+    reducer::Union{Nothing,_OrbitReducer{A,T},_LazyOrbitReducer{A,T}},
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+    hermitian::Bool=false,
+) where {A<:AlgebraType,T<:Integer,CP<:Number,CMP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP}}
+    diagonal_blocks = Matrix{MP}[]
+    sizehint!(diagonal_blocks, length(row_bases))
+    for row_basis in row_bases
+        push!(
+            diagonal_blocks,
+            _transform_constraint_block_from_basis(poly, basis, row_basis, reducer, MP; atol, hermitian),
+        )
     end
     return diagonal_blocks
 end
@@ -2127,6 +2523,11 @@ function _reduce_transformed_blocks(
     return _diagonal_transformed_blocks(mat, row_bases, reducer; atol)
 end
 
+function _symmetry_sparse_row_bases(basis::Vector{M}, sw_group) where {M<:NormalMonomial}
+    blocks = _sw_decompose_half_basis(basis, sw_group)
+    return [sparse(block) for block in blocks]
+end
+
 function _reduce_constraint_matrix_symmetric(
     mat::Matrix{P},
     basis::Vector{M},
@@ -2140,9 +2541,28 @@ function _reduce_constraint_matrix_symmetric(
         return [_maybe_orbit_reduce_matrix(mat, reducer; atol)]
     end
 
-    blocks = _sw_decompose_half_basis(basis, sw_group)
-    row_bases = [Matrix(block) for block in blocks]
+    row_bases = _symmetry_sparse_row_bases(basis, sw_group)
     return _reduce_transformed_blocks(mat, row_bases, reducer; atol, context, offblock_check)
+end
+
+function _reduce_constraint_matrix_symmetric(
+    poly::Polynomial{A,T,CP},
+    basis::Vector{M},
+    sw_group,
+    reducer::Union{Nothing,_OrbitReducer{A,T},_LazyOrbitReducer{A,T}},
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+    context::AbstractString="constraint matrix",
+    hermitian::Bool=false,
+) where {A<:AlgebraType,T<:Integer,CP<:Number,CMP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP}}
+    if length(basis) == 1 || _basis_action_is_trivial(basis, sw_group)
+        _, raw_mat = _build_constraint_matrix(poly, basis, _is_complex_problem(A) ? :HPSD : :PSD)
+        mat = _convert_polynomial_matrix(MP, raw_mat)
+        return [_maybe_orbit_reduce_matrix(mat, reducer; atol)]
+    end
+
+    row_bases = _symmetry_sparse_row_bases(basis, sw_group)
+    return _diagonal_transformed_blocks_from_basis(poly, basis, row_bases, reducer, MP; atol, hermitian)
 end
 
 function _validate_fermionic_sector_spec(sector::FermionicSectorSpec)
@@ -2302,7 +2722,7 @@ function _add_moment_eq_constraints_symmetric!(
     pop::PolyOpt{A,T,PP},
     moment_eq_row_bases::Vector{M},
     moment_eq_row_basis_degrees::Vector{Int},
-    reducer::Union{Nothing,_OrbitReducer{A,T}},
+    reducer::Union{Nothing,_OrbitReducer{A,T},_LazyOrbitReducer{A,T}},
     ::Type{MP};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
@@ -2363,10 +2783,17 @@ function moment_relax_symmetric(
         ))
     end
 
-    moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
-    total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
+    direct_offblock_path = isnothing(sector) && isnothing(spin_adaptation) &&
+        symmetry.offblock_check === :off && isempty(pop.moment_eq_constraints) &&
+        (!isempty(symmetry.generators) || !isempty(symmetry.fermionic_generators) || !isempty(symmetry.clifford_generators))
+
+    moment_matrix_basis = direct_offblock_path ? M[] : _moment_matrix_basis(cliques_term_sparsities)
+    total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees = if direct_offblock_path
+        M[], M[], Int[]
+    else
         _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
-    _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
+    end
+    direct_offblock_path || _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
 
     active_modes = if A === FermionicAlgebra && (!isnothing(sector) || !isnothing(spin_adaptation) || !isempty(symmetry.fermionic_generators))
         _mode_symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
@@ -2381,6 +2808,7 @@ function moment_relax_symmetric(
 
     group = nothing
     sw_group = nothing
+    lazy_orbit_generators = nothing
     reducer = nothing
     group_order = 1
 
@@ -2388,10 +2816,14 @@ function moment_relax_symmetric(
         spec = _convert_symmetry_spec(T, symmetry)
         domain = _symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
         group = _enumerate_symmetry_group(spec, domain)
+        lazy_orbit_generators = spec.generators
         sw_group = _sw_signed_permutation_group(spec, group, domain)
     elseif !isempty(symmetry.fermionic_generators)
         domain = _mode_symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
         group = _enumerate_symmetry_group(symmetry, domain)
+        lazy_orbit_generators = FermionicModePermutation{T}[
+            _convert_fermionic_mode_permutation(T, g) for g in symmetry.fermionic_generators
+        ]
         sw_group = _sw_fermionic_mode_permutation_group(symmetry, group, domain)
     elseif !isempty(symmetry.clifford_generators)
         support_domain = _symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
@@ -2399,7 +2831,10 @@ function moment_relax_symmetric(
             _clifford_nqubits_from_domain(support_domain),
             _clifford_max_generator_nqubits(symmetry.clifford_generators),
         )
-        sw_group = CliffordSymmetryGroup(symmetry.clifford_generators; nqubits, integer_type=T, domain=support_domain)
+        lazy_orbit_generators = CliffordSymmetry{T}[
+            _convert_clifford_symmetry(T, g; nqubits) for g in symmetry.clifford_generators
+        ]
+        sw_group = CliffordSymmetryGroup(lazy_orbit_generators; nqubits, integer_type=T, domain=support_domain)
         group = CliffordSymmetry{T}[_clifford_group_value(element) for element in sw_group]
     end
 
@@ -2435,7 +2870,7 @@ function moment_relax_symmetric(
             end
         end
 
-        reducer = _build_orbit_reducer(total_basis, group)
+        reducer = direct_offblock_path ? _LazyOrbitReducer(A, T, group, lazy_orbit_generators) : _build_orbit_reducer(total_basis, group)
         group_order = length(group)
     end
 
@@ -2467,13 +2902,18 @@ function moment_relax_symmetric(
         for (poly_idx, (term_sparsity, poly)) in enumerate(zip(term_sparsities, polys))
             for (block_idx, basis) in enumerate(term_sparsity.block_bases)
                 cone = poly in pop.eq_constraints ? :Zero : psd_cone
-                _, raw_mat = _build_constraint_matrix(poly, basis, cone)
-                mat = _convert_polynomial_matrix(MP_P, raw_mat)
-
                 diagonal_blocks = Matrix{MP_P}[]
                 diagonal_labels = Any[]
                 diagonal_provenance = Symbol[]
                 context = "clique $clique_idx block $block_idx for polynomial $poly_idx"
+
+                use_direct_symmetric_blocks = isnothing(sector) && !isnothing(sw_group) && symmetry.offblock_check === :off
+                mat = if use_direct_symmetric_blocks
+                    Matrix{MP_P}(undef, 0, 0)
+                else
+                    _, raw_mat = _build_constraint_matrix(poly, basis, cone)
+                    _convert_polynomial_matrix(MP_P, raw_mat)
+                end
 
                 if !isnothing(sector)
                     neutral_label = _neutral_fermionic_sector_label(sector)
@@ -2529,8 +2969,20 @@ function moment_relax_symmetric(
                         append!(diagonal_provenance, [block.provenance for block in transform_blocks])
                     end
                 else
-                    diagonal_blocks = isnothing(sw_group) ?
-                        [_maybe_orbit_reduce_matrix(mat, reducer; atol)] :
+                    diagonal_blocks = if isnothing(sw_group)
+                        [_maybe_orbit_reduce_matrix(mat, reducer; atol)]
+                    elseif use_direct_symmetric_blocks
+                        _reduce_constraint_matrix_symmetric(
+                            convert(MP_P, poly),
+                            basis,
+                            sw_group,
+                            reducer,
+                            MP_P;
+                            atol,
+                            context=context,
+                            hermitian=(cone == :PSD || cone == :HPSD),
+                        )
+                    else
                         _reduce_constraint_matrix_symmetric(
                             mat,
                             basis,
@@ -2540,6 +2992,7 @@ function moment_relax_symmetric(
                             context=context,
                             offblock_check=symmetry.offblock_check,
                         )
+                    end
                     diagonal_labels = fill(nothing, length(diagonal_blocks))
                     diagonal_provenance = fill(isnothing(sw_group) ? :identity : :wedderburn, length(diagonal_blocks))
                 end
@@ -2614,7 +3067,7 @@ function moment_relax_symmetric(
         count(mono -> !isone(mono), reduced_moment_basis),
         reduced_moment_block_sizes,
         length(only(corr_sparsity.clq_mom_mtx_bases)),
-        length(moment_matrix_basis),
+        isempty(moment_matrix_basis) ? length(reduced_total_basis) : length(moment_matrix_basis),
         moment_block_labels,
         moment_block_provenance,
     )

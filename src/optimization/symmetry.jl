@@ -1758,7 +1758,9 @@ function _check_basis_closure(
         _, image = _act_monomial(g, mono)
         image in lookup || throw(ArgumentError(
             "Symmetry reduction requires closure of the action on $label. " *
-            "Basis element $mono maps outside the basis to $image."
+            "Basis element $mono maps outside the basis to $image. " *
+            "If you supplied `moment_basis`, include every symmetry image of every basis element " *
+            "or remove the offending symmetry generator."
         ))
     end
     return nothing

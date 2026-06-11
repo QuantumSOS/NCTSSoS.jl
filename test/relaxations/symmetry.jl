@@ -340,6 +340,34 @@ end
         @test report.group_order == 2
         @test sort(report.psd_block_sizes) == [1, 2]
 
+        bad_reg, (ρx, _, ρz) = create_pauli_variables(1:2)
+        bad_hamiltonian = 1.0 * (ρx[1] + ρz[1] + ρx[2])
+        bad_pop = polyopt(bad_hamiltonian, bad_reg)
+        bad_basis = [
+            one(ρx[1]),
+            ρx[1],
+            ρz[1],
+            ρx[2],
+            only(monomials(ρx[1] * ρx[2])),
+        ]
+        bad_cfg = SolverConfig(
+            optimizer=nothing,
+            moment_basis=bad_basis,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=sympleq_symmetry_spec(bad_hamiltonian),
+        )
+        bad_sparsity = compute_sparsity(bad_pop, bad_cfg)
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            bad_pop,
+            bad_sparsity.corr_sparsity,
+            bad_sparsity.cliques_term_sparsities,
+            bad_cfg.symmetry,
+        ))
+        @test err isa ArgumentError
+        @test occursin("moment basis of clique", sprint(showerror, err))
+        @test occursin("include every symmetry image", sprint(showerror, err))
+
         _, (τx, τy, _) = create_pauli_variables(1:2)
         xy_pair = 1.0 * (τx[1] * τx[2] + τy[1] * τy[2])
         phase_spec = sympleq_symmetry_spec(xy_pair)

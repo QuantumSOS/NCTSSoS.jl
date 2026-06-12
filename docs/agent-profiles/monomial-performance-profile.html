@@ -75,6 +75,15 @@ tailwind.config = {
     <code class="text-accent">word concat → simplify → dict lookup</code> over hundreds of thousands of basis pairs.
     Every wasted allocation there is multiplied by <i>n²·k</i> — it shows up directly as GC time and cache misses at problem scale.</p>
   </div>
+  <div class="mt-4 bg-panel border border-good/40 rounded-xl p-5 max-w-3xl">
+    <p class="text-sm"><b class="text-good">Triage update (2026-06-12, branch <code>perf/monomial-allocations</code>):</b>
+    end-to-end solves are solver-dominated (NCTSSoS ≈0.1% of a COSMO run), but the <em>build phase</em> is
+    <b class="text-warn">94% NCTSSoS-owned allocation</b> — 8 GB churn / 29% GC at N=18, with <code>moment_relax</code>
+    as the dominant phase and a measured <b class="text-good">≥96% interning hit rate</b>.
+    Verdict: <b>Tier 1 go now</b> (with non-mutating public constructors + property tests),
+    <b>Tier 2 go as a profile-directed sprint after Tier 1</b> (gates: N=18 ≤ 2 GB, GC &lt; 10%, ≥2× wall),
+    <b>Tier 3 deferred behind explicit triggers</b>. Full reasoning in §4 of the companion markdown.</p>
+  </div>
 </header>
 
 <!-- ============================ OVERVIEW ============================ -->

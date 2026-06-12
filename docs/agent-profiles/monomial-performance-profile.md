@@ -145,13 +145,83 @@ Only after Tiers 1–2, and only if profiles still show monomial plumbing:
   bearing for binary search and canonical forms; fix the *paths into* the
   invariant instead.
 
-## 4. Reproduction
+
+
+## 4. Triage (2026-06-12, branch `perf/monomial-allocations`)
+
+Follow-up measurements to decide scope, plus an adversarial review pass.
+
+### New evidence
+
+| Measurement | Result |
+|---|---|
+| End-to-end `cs_nctssos`, Heisenberg N=6, order 2, COSMO | 30 s, 2.3 GB, GC 0.4%. Stack-attributed: COSMO ≈45% + 51% Base (solver linalg), JuMP/MOI/Dualization 4%, **NCTSSoS ≈0.1%** |
+| Build-only (`compute_sparsity` + `moment_relax`) scaling | N=6: 0.05 s / 90 MB · N=10: 0.46 s / 738 MB · N=14: 2.6 s / 2.9 GB, **26% GC** · N=18: 8.3 s / 8.0 GB, **29% GC** — GC fraction climbs with N |
+| Build-only allocation ownership (N=14, `Profile.Allocs`) | NCTSSoS assembly logic 59.7%, monomial/poly plumbing 34.7%, other NCTSSoS 5.6%, JuMP/MOI ≈0% — **94% NCTSSoS-owned** |
+| Phase split (N=14) | `compute_sparsity` 0.21 s / 0.4 GB vs **`moment_relax` 2.7 s / 2.5 GB** — the villain is moment assembly |
+| Interning keystone (distinct canonical words / triple products) | N=6: 0.94% · N=10: 3.4% — **≥96% interning hit rate, assumption holds** |
+
+### Decisions
+
+- **Tier 1 — GO now**, with guardrails from review:
+  - Public `Polynomial(::Vector)` constructors stay **non-mutating**; the
+    in-place `sort!` lives in an internal owned-buffer path
+    (`_process_terms!`-style), used only at audited call sites.
+  - Trusted constructor stays private; document per-algebra `simplify!`
+    postconditions; never wrap a reusable scratch buffer without copying.
+  - Custom hash must keep the contract: incorporate algebra type **and** the
+    seed `h`, preserve `isequal`/`hash` consistency; add cross-algebra
+    collision tests.
+  - Differential property tests across **all** algebras (random words,
+    duplicate-heavy term lists, zero coefficients, PBW expansions) — not just
+    the Pauli/Heisenberg path the prototype used.
+- **Tier 2 — GO, as a separate profile-directed sprint after Tier 1 lands.**
+  Promotion is now evidence-backed (8 GB churn / 29% GC at N=18, 94%
+  NCTSSoS-owned, ≥96% interning hit rate, `moment_relax` identified as the
+  dominant phase). Guardrails:
+  - Line-level allocation table of `moment_relax` *before* implementing;
+    target the top sites, not the micro-paths by assumption.
+  - Never store the scratch buffer as a `Dict` key — probe by scratch,
+    store a copy on first sight (mutable-key footgun).
+  - Track **peak RSS**, not just allocation churn; interning retains memory.
+  - Acceptance gates: N=18 build ≤ 2 GB churn, GC < 10%, wall ≥ 2× faster,
+    peak RSS not worse.
+- **Tier 3 — defer implementation; define triggers instead of a flat no.**
+  Re-profile after Tier 2. Trigger a representation *spike* (not a rewrite) if
+  word storage/hash/`==` still exceeds ~25% of build allocations, or if N≥30
+  Pauli workloads remain build-bound with the production solver (Mosek).
+  Option B (symplectic Pauli) remains the only order-of-magnitude candidate
+  and can be scoped as an internal assembly representation only.
+
+### Verdict on “should we push for even less allocation?”
+
+**Yes for the build path, no for the representation rewrite — yet.**
+End-to-end wall clock is solver-dominated (NCTSSoS ≈0.1% of a COSMO solve),
+so zero-allocation as a goal in itself buys nothing user-visible there. But the
+build phase is 94% NCTSSoS-owned allocation with GC% climbing in N — that’s
+real headroom and a scaling risk for N=30–50 targets. Tier 1 + Tier 2 attack
+exactly that with measured justification; Tier 3 stays gated on post-Tier-2
+profiles with the production solver.
+
+### Evidence limits (kept honest)
+
+- The end-to-end ratio is COSMO-specific and N=6-sized; Mosek shrinks solve
+  time and shifts the ratio toward build. Re-measure with Mosek before any
+  Tier 3 call.
+- Allocation churn ≠ peak RSS; the 8 GB figure is GC pressure, not footprint.
+- Profile sample attribution misses BLAS threads.
+- The interning saturation was measured on Heisenberg-type supports; check one
+  non-chain Hamiltonian during the Tier 2 sprint.
+
+## 5. Reproduction
 
 Profiling scripts used (not committed): `/tmp/mono_profile.jl`,
 `/tmp/mono_profile2.jl`, `/tmp/mono_proto.jl` — Pauli N=10 setup as above;
-`@timed` loops + `Profile.Allocs` with `sample_rate=0.1`.
+`@timed` loops + `Profile.Allocs` with `sample_rate=0.1`. Triage scripts:
+`/tmp/e2e_profile2.jl` (stack-attributed end-to-end), `/tmp/build_scaling.jl`,
+`/tmp/build_allocs.jl`, `/tmp/triage_extra.jl` (phase split + saturation).
 
-## 5. Incidental findings
+## 6. Incidental findings
 
 - The inner `Polynomial{A,T,C}` constructor's docstring says it "enforces
   invariants: sorted, deduplicated, non-zero coefficients" — it does not; it

@@ -89,16 +89,36 @@ are correctly distinguished (e.g., Pauli `[1,2]` ≠ Fermionic `[1,2]`).
 end
 
 """
+    _hash_word_vector(word::Vector, h::UInt) -> UInt
+
+Allocation-free hash for the monomial word vector.
+
+For normal monomial word lengths this mirrors Julia's `hash(::AbstractArray, h)`
+combiner for dense one-dimensional vectors: array seed, axis first/last tuples,
+then scalar element hashes. Reimplementing it here avoids the small allocation in
+Julia 1.12's generic array hashing while preserving existing hash order for the
+short vectors used as monomial words.
+"""
+@inline function _hash_word_vector(word::Vector, h::UInt)
+    h += Base.hash_abstractarray_seed
+    h = hash((firstindex(word),), h)
+    h = hash((lastindex(word),), h)
+    @inbounds for x in word
+        h = hash(x, h)
+    end
+    return h
+end
+
+"""
     _hash_with_algebra(::Type{A}, payload, h::UInt) -> UInt
 
 Internal helper that incorporates the algebra type `A` into the hash.
 
 This maintains the hash/equality contract: since monomials from different algebras
 are never equal (even with identical payloads), their hashes must also differ.
-The algebra type is hashed first, then combined with the payload hash.
 """
-@inline _hash_with_algebra(::Type{A}, payload, h::UInt) where {A<:AlgebraType} =
-    hash(A, hash(payload, h))
+@inline _hash_with_algebra(::Type{A}, payload::Vector, h::UInt) where {A<:AlgebraType} =
+    hash(A, _hash_word_vector(payload, h))
 
 """
     coeff_type(::Type{T}) -> Type{<:Number}
@@ -316,15 +336,7 @@ The hash includes both the algebra type `A` and the word vector, ensuring that
 monomials from different algebras with the same word have different hashes.
 This maintains the hash/equality contract: if `m1 == m2`, then `hash(m1) == hash(m2)`.
 """
-function Base.hash(m::NormalMonomial{A}, h::UInt) where {A<:AlgebraType}
-    h = hash(:NormalMonomial, h)
-    h = hash(A, h)
-    h = hash(length(m.word), h)
-    @inbounds for x in m.word
-        h = hash(x, h)
-    end
-    return h
-end
+Base.hash(m::NormalMonomial{A}, h::UInt) where {A<:AlgebraType} = _hash_with_algebra(A, m.word, h)
 
 """
     degree(m::NormalMonomial) -> Int

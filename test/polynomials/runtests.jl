@@ -17,6 +17,7 @@ nc_word(ids::Integer...; site::Integer=1) = nc_word(NC_INDEX_T, ids...; site=sit
     include("composed_monomial.jl")
     include("polynomial.jl")
     include("arithmetic.jl")
+    include("performance_paths.jl")
     include("compare.jl")
     include("canonicalization.jl")
     include("simplify.jl")

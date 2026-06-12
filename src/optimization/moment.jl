@@ -583,6 +583,14 @@ function _polynomial_total_basis(
         total_basis = sorted_union(total_basis, meq_monomials)
     end
 
+    if !isempty(pop.scalar_moment_eq_constraints)
+        scalar_monomials = NormalMonomial{A,TI}[]
+        for g in pop.scalar_moment_eq_constraints
+            append!(scalar_monomials, monomials(g))
+        end
+        total_basis = sorted_union(total_basis, scalar_monomials)
+    end
+
     return convert(Vector{M}, total_basis), moment_eq_row_bases, moment_eq_row_basis_degrees
 end
 
@@ -639,6 +647,14 @@ function _validate_polynomial_relaxation_support(
         _throw_missing_polynomial_monomials(
             _missing_polynomial_monomials(poly, available_moments),
             "inequality constraint $i";
+            source
+        )
+    end
+
+    for (i, poly) in pairs(pop.scalar_moment_eq_constraints)
+        _throw_missing_polynomial_monomials(
+            _missing_polynomial_monomials(poly, available_moments),
+            "scalar moment equality constraint $i";
             source
         )
     end
@@ -700,12 +716,51 @@ function _append_constraint!(
     return nothing
 end
 
+function _extra_psd_total_basis(
+    extra_psd_blocks,
+    ::Type{M},
+) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T}}
+    isempty(extra_psd_blocks) && return M[]
+
+    basis = M[]
+    for block in extra_psd_blocks
+        for poly in block.matrix
+            append!(basis, monomials(poly))
+        end
+    end
+    return convert(Vector{M}, sorted_unique!(basis))
+end
+
+function _append_extra_psd_blocks!(
+    constraints::Vector{Tuple{Symbol,Matrix{MP}}},
+    block_meta_by_constraint::Dict{Int,BlockMeta{M}},
+    extra_psd_blocks,
+    psd_cone::Symbol,
+    ::Type{MP},
+) where {A<:AlgebraType,T<:Integer,CMP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP}}
+    for (block_idx, block) in pairs(extra_psd_blocks)
+        block.cone == psd_cone || throw(ArgumentError(
+            "extra_psd_blocks[$block_idx] uses cone $(repr(block.cone)); expected $(repr(psd_cone)) for $(nameof(A))"
+        ))
+        before = length(constraints)
+        _append_constraint!(constraints, block.cone, block.matrix, MP)
+        for constraint_idx in (before + 1):length(constraints)
+            block_meta_by_constraint[constraint_idx] = BlockMeta{M}(
+                block.cone,
+                block.origin,
+                M[block.row_labels...],
+            )
+        end
+    end
+    return nothing
+end
+
 # =============================================================================
 # Moment Relaxation (Unified)
 # =============================================================================
 
 """
-    moment_relax(pop::PolyOpt{A,TI,P}, corr_sparsity::CorrelativeSparsity, cliques_term_sparsities::Vector{Vector{TermSparsity{M}}})
+    moment_relax(pop::PolyOpt{A,TI,P}, corr_sparsity, cliques_term_sparsities; extra_psd_blocks=[])
 
 Construct a symbolic moment relaxation of a polynomial optimization problem.
 
@@ -713,6 +768,8 @@ Construct a symbolic moment relaxation of a polynomial optimization problem.
 - `pop::PolyOpt{A,TI,P}`: The polynomial optimization problem
 - `corr_sparsity::CorrelativeSparsity`: Correlative sparsity structure with cliques
 - `cliques_term_sparsities`: Term sparsity for each clique
+- `extra_psd_blocks`: Optional physical PSD/HPSD moment blocks from helpers like
+  [`rdm_block`](@ref) and [`curvature_block`](@ref)
 
 # Returns
 - `MomentProblem{A,T,M,P}`: Symbolic moment problem ready for dualization or direct solving
@@ -741,7 +798,8 @@ See also: [`MomentProblem`](@ref), [`sos_dualize`](@ref)
 function moment_relax(
     pop::PolyOpt{A,TI,P},
     corr_sparsity::CorrelativeSparsity{A,TI,P,M,Nothing},
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}};
+    extra_psd_blocks=PhysicalPSDConstraint[],
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
 
     # Unique moment variables are determined by moment matrices only (poly = 1),
@@ -752,6 +810,9 @@ function moment_relax(
 
     total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
         _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+    if !isempty(extra_psd_blocks)
+        total_basis = sorted_union(total_basis, _extra_psd_total_basis(extra_psd_blocks, M))
+    end
     _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
 
     # NOTE: For fermionic algebras, we do NOT filter odd-parity monomials from the basis.
@@ -807,9 +868,16 @@ function moment_relax(
         end
     end
 
+    # Add user-supplied physical PSD/HPSD moment blocks.
+    _append_extra_psd_blocks!(constraints, block_meta_by_constraint, extra_psd_blocks, psd_cone, MP_P)
+
     # Add parity superselection constraints for fermionic algebras.
     # This enforces that odd-parity moment entries are zero.
     _append_parity_constraints!(constraints, A, MP_P)
+
+    # Add scalar moment equalities ℓ(p) = 0. These are not operator identities
+    # and must not receive row/column localizing multipliers.
+    _append_scalar_moment_eq_constraints!(constraints, pop, MP_P)
 
     # Add one-sided localizing constraints for moment equality constraints.
     # These implement g|ψ⟩ = 0 via ⟨b_i† g⟩ = 0 for all basis elements b_i.
@@ -822,6 +890,43 @@ function moment_relax(
         n_unique_moment_matrix_elements;
         block_meta_by_constraint=block_meta_by_constraint,
     )
+end
+
+
+# =============================================================================
+# Scalar Moment Equality Constraints
+# =============================================================================
+
+"""
+    _append_scalar_moment_eq_constraints!(constraints, pop, P)
+
+Add scalar moment equalities `ℓ(p) = 0` as 1×1 Zero constraints. Unlike
+`moment_eq_constraints`, these are not state-vector constraints `p|ψ⟩ = 0` and
+therefore are not multiplied by row bases.
+"""
+function _append_scalar_moment_eq_constraints!(
+    constraints::Vector{Tuple{Symbol,Matrix{MP}}},
+    pop::PolyOpt{A,T,PP},
+    ::Type{MP},
+) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
+    isempty(pop.scalar_moment_eq_constraints) && return nothing
+
+    for g in pop.scalar_moment_eq_constraints
+        poly = convert(MP, g)
+        iszero(poly) && continue
+        _append_constraint!(constraints, :Zero, reshape([poly], 1, 1), MP)
+    end
+    return nothing
+end
+
+function _add_scalar_moment_eq_constraints!(
+    mp::MomentProblem{A,T,M,MP},
+    pop::PolyOpt{A,T,PP},
+) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
+    before = length(mp.constraints)
+    _append_scalar_moment_eq_constraints!(mp.constraints, pop, MP)
+    length(mp.constraints) == before || _refresh_moment_linear!(mp)
+    return nothing
 end
 
 

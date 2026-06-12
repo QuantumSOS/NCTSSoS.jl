@@ -82,6 +82,15 @@ using Test, NCTSSoS
         @test err_meq isa ArgumentError
         @test occursin("moment_eq_constraints are not yet supported", sprint(showerror, err_meq))
 
+        err_scalar_meq = try
+            polyopt(objective_sp, reg; scalar_moment_eq_constraints=[eq_sp])
+            nothing
+        catch e
+            e
+        end
+        @test err_scalar_meq isa ArgumentError
+        @test occursin("scalar_moment_eq_constraints are not yet supported", sprint(showerror, err_scalar_meq))
+
         # The public constructor rejects moment_eq_constraints first; keep the
         # internal state-moment fallback explicit too so it does not silently rot.
         P = typeof(pop_state.objective)

@@ -63,11 +63,12 @@ struct PolyOpt{A<:AlgebraType,T<:Integer,P<:AbstractPolynomial} <: OptimizationP
     eq_constraints::Vector{P}
     ineq_constraints::Vector{P}
     moment_eq_constraints::Vector{P}
+    scalar_moment_eq_constraints::Vector{P}
     registry::VariableRegistry{A,T}
 end
 
 @inline _is_hermitian_polynomial(poly::Polynomial) = iszero(poly - adjoint(poly))
-@inline _validate_polyopt_problem_data(::AbstractPolynomial, _eq_constraints, _ineq_constraints, _moment_eq_constraints) = nothing
+@inline _validate_polyopt_problem_data(::AbstractPolynomial, _eq_constraints, _ineq_constraints, _moment_eq_constraints, _scalar_moment_eq_constraints) = nothing
 
 @inline _convert_polyopt_constraint(::Type{P}, poly::P, _label::Symbol, _i::Int) where {P<:AbstractPolynomial} = poly
 
@@ -115,6 +116,7 @@ function _validate_polyopt_problem_data(
     _eq_constraints,
     ineq_constraints,
     _moment_eq_constraints,
+    _scalar_moment_eq_constraints,
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     _is_complex_problem(A) || return nothing
 
@@ -154,6 +156,9 @@ non-commutative words.
 - `moment_eq_constraints`: One-sided moment equality constraints encoding
   state conditions `g|ψ⟩ = 0` via `⟨b† g⟩ = 0` inside the relaxation. Default: empty.
   Currently supported for ordinary polynomial optimization, not state/trace problems.
+- `scalar_moment_eq_constraints`: Scalar moment equalities `ℓ(p) = 0`. These are
+  not operator identities and do not get left/right localizing multipliers.
+  Use this for eigenstate commutator conditions such as `ℓ([H,u]) = 0`.
 
 # Returns
 A `PolyOpt{A,T,P}` structure representing the optimization problem.
@@ -200,7 +205,8 @@ function polyopt(
     registry::VariableRegistry{A,T};
     eq_constraints::AbstractVector=P[],
     ineq_constraints::AbstractVector=P[],
-    moment_eq_constraints::AbstractVector=P[]
+    moment_eq_constraints::AbstractVector=P[],
+    scalar_moment_eq_constraints::AbstractVector=P[]
 ) where {P<:AbstractPolynomial, A<:AlgebraType, T<:Integer}
     C = coeff_type(P)
     if C <: Integer
@@ -210,15 +216,17 @@ function polyopt(
     eq_cons = _convert_polyopt_constraints(P, eq_constraints, :eq_constraints)
     ineq_cons = _convert_polyopt_constraints(P, ineq_constraints, :ineq_constraints)
     meq_cons = _convert_polyopt_constraints(P, moment_eq_constraints, :moment_eq_constraints)
+    scalar_meq_cons = _convert_polyopt_constraints(P, scalar_moment_eq_constraints, :scalar_moment_eq_constraints)
 
-    _validate_polyopt_problem_data(objective, eq_cons, ineq_cons, meq_cons)
+    _validate_polyopt_problem_data(objective, eq_cons, ineq_cons, meq_cons, scalar_meq_cons)
 
     # Deduplicate constraints
     unique!(eq_cons)
     unique!(ineq_cons)
     unique!(meq_cons)
+    unique!(scalar_meq_cons)
 
-    return PolyOpt{A,T,P}(objective, eq_cons, ineq_cons, meq_cons, registry)
+    return PolyOpt{A,T,P}(objective, eq_cons, ineq_cons, meq_cons, scalar_meq_cons, registry)
 end
 
 @inline function _lift_to_nc_state_poly(
@@ -244,7 +252,8 @@ function polyopt(
     registry::VariableRegistry{A,T};
     eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
     ineq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
-    moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
+    moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
+    scalar_moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
 ) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     NCSP = NCStatePolynomial{C,ST,A,T}
     return polyopt(
@@ -258,6 +267,9 @@ function polyopt(
         ],
         moment_eq_constraints=NCSP[
             _lift_to_nc_state_constraint(NCSP, con) for con in moment_eq_constraints
+        ],
+        scalar_moment_eq_constraints=NCSP[
+            _lift_to_nc_state_constraint(NCSP, con) for con in scalar_moment_eq_constraints
         ]
     )
 end
@@ -267,14 +279,24 @@ function polyopt(
     registry::VariableRegistry{A,T};
     eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[],
     ineq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[],
-    moment_eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[]
+    moment_eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[],
+    scalar_moment_eq_constraints::Vector{NCStatePolynomial{C,ST,A,T}}=NCStatePolynomial{C,ST,A,T}[]
 ) where {C<:Number,ST<:StateType,A<:MonoidAlgebra,T<:Integer}
     _validate_identity_nc_words(objective, "objective")
     isempty(moment_eq_constraints) || throw(ArgumentError(
         "moment_eq_constraints are not yet supported for state polynomial optimization."
     ))
+    isempty(scalar_moment_eq_constraints) || throw(ArgumentError(
+        "scalar_moment_eq_constraints are not yet supported for state polynomial optimization."
+    ))
     return invoke(polyopt, Tuple{AbstractPolynomial, VariableRegistry{A,T}},
-        objective, registry; eq_constraints=eq_constraints, ineq_constraints=ineq_constraints, moment_eq_constraints=moment_eq_constraints)
+        objective,
+        registry;
+        eq_constraints=eq_constraints,
+        ineq_constraints=ineq_constraints,
+        moment_eq_constraints=moment_eq_constraints,
+        scalar_moment_eq_constraints=scalar_moment_eq_constraints,
+    )
 end
 
 """
@@ -303,7 +325,8 @@ function polyopt(
     registry::VariableRegistry{A,T};
     eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
     ineq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
-    moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
+    moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
+    scalar_moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
 ) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
     throw(ArgumentError("`polyopt(::StatePolynomial, ...)` is only supported for state/trace problems over `MonoidAlgebra`; got `$(nameof(A))`. This algebra is not supported by the state-polynomial optimization pipeline."))
 end
@@ -313,7 +336,8 @@ function polyopt(
     registry::VariableRegistry;
     eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
     ineq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
-    moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
+    moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[],
+    scalar_moment_eq_constraints::AbstractVector=StatePolynomial{C,ST,A,T}[]
 ) where {C<:Number,ST<:StateType,A<:AlgebraType,T<:Integer}
     throw(ArgumentError("`polyopt(::StatePolynomial, ...)` requires the objective and registry to use the same algebra and index types; got objective type `$(typeof(objective))` with registry type `$(typeof(registry))`."))
 end
@@ -562,6 +586,9 @@ function Base.show(io::IO, pop::OptimizationProblem{A,P}) where {A,P}
 
         Moment equality constraints ($(length(pop.moment_eq_constraints))):
             $(isempty(pop.moment_eq_constraints) ? "(none)" : cons_str(pop.moment_eq_constraints, true))
+
+        Scalar moment equality constraints ($(length(pop.scalar_moment_eq_constraints))):
+            $(isempty(pop.scalar_moment_eq_constraints) ? "(none)" : cons_str(pop.scalar_moment_eq_constraints, true))
 
         Variables ($nvars):
             $var_str

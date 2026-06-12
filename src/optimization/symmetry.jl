@@ -1598,6 +1598,9 @@ function _symmetry_domain(
     for poly in pop.moment_eq_constraints
         union!(used, _symmetry_support(poly))
     end
+    for poly in pop.scalar_moment_eq_constraints
+        union!(used, _symmetry_support(poly))
+    end
 
     for basis in corr_sparsity.clq_mom_mtx_bases
         for mono in basis
@@ -1724,6 +1727,9 @@ function _check_symmetry_invariance(
     end
     for (i, poly) in pairs(pop.moment_eq_constraints)
         _check_polynomial_invariance("moment equality constraint $i", poly, group)
+    end
+    for (i, poly) in pairs(pop.scalar_moment_eq_constraints)
+        _check_polynomial_invariance("scalar moment equality constraint $i", poly, group)
     end
 
     return nothing
@@ -2297,6 +2303,26 @@ function _collect_reduced_basis(
     return sorted_unique!(basis)
 end
 
+function _add_scalar_moment_eq_constraints_symmetric!(
+    constraints::Vector{Tuple{Symbol, Matrix{MP}}},
+    pop::PolyOpt{A,T,PP},
+    reducer::Union{Nothing,_OrbitReducer{A,T}},
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
+    isempty(pop.scalar_moment_eq_constraints) && return nothing
+
+    for g in pop.scalar_moment_eq_constraints
+        poly = convert(MP, g)
+        poly = reducer === nothing ? _chop_polynomial(poly; atol) :
+            _orbit_reduce_polynomial(_chop_polynomial(poly; atol), reducer; atol)
+        iszero(poly) && continue
+        _append_constraint!(constraints, :Zero, reshape([poly], 1, 1), MP)
+    end
+
+    return nothing
+end
+
 function _add_moment_eq_constraints_symmetric!(
     constraints::Vector{Tuple{Symbol, Matrix{MP}}},
     pop::PolyOpt{A,T,PP},
@@ -2585,7 +2611,21 @@ function moment_relax_symmetric(
                 "Fermionic sector splitting currently supports only sector-neutral moment equality constraints. Got label $label for moment equality constraint $i."
             ))
         end
+        for (i, g) in pairs(pop.scalar_moment_eq_constraints)
+            label = _fermionic_polynomial_sector_label(convert(MP_P, g), sector, "scalar moment equality constraint $i")
+            label == neutral_label || throw(ArgumentError(
+                "Fermionic sector splitting currently supports only sector-neutral scalar moment equality constraints. Got label $label for scalar moment equality constraint $i."
+            ))
+        end
     end
+
+    _add_scalar_moment_eq_constraints_symmetric!(
+        constraints,
+        pop,
+        reducer,
+        MP_P;
+        atol,
+    )
 
     _add_moment_eq_constraints_symmetric!(
         constraints,

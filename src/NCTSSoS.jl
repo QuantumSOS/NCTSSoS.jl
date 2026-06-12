@@ -125,6 +125,7 @@ include("optimization/problem.jl")
 include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
 include("optimization/moment_linear.jl")
+include("optimization/physical_constraints.jl")
 include("optimization/v2rdm_structured.jl")
 include("optimization/moment.jl")
 include("optimization/lowering.jl")
@@ -152,6 +153,7 @@ export SymplecticTableau, SymplecticMatrix, PhaseVector, SympleQGenerator
 export sympleq_generators, sympleq_clifford_symmetry, sympleq_symmetry_spec
 export SparsityResult, compute_sparsity
 export particle_number_constraint
+export PhysicalPSDConstraint, commutator_constraints, curvature_block, rdm_block, rdm_blocks
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult

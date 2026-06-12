@@ -149,7 +149,7 @@ Returns 1 for trivial problems (empty or zero-degree polynomials).
 """
 function compute_relaxation_order(pop::OptimizationProblem, user_order::Int)::Int
     iszero(user_order) || return user_order
-    all_polys = [pop.objective; pop.eq_constraints; pop.ineq_constraints; pop.moment_eq_constraints]
+    all_polys = [pop.objective; pop.eq_constraints; pop.ineq_constraints; pop.moment_eq_constraints; pop.scalar_moment_eq_constraints]
     max_deg = maximum(degree(poly) for poly in all_polys)
     isfinite(max_deg) ? max(1, ceil(Int, max_deg / 2)) : 1
 end
@@ -514,7 +514,7 @@ function compute_sparsity(pop::PolyOpt{A,T,P}, solver_config::SolverConfig) wher
 end
 
 """
-    cs_nctssos(pop::PolyOpt{P}, solver_config::SolverConfig; dualize::Bool=true) where {P}
+    cs_nctssos(pop::PolyOpt{P}, solver_config::SolverConfig; dualize=true, extra_psd_blocks=[])
 
 Solve a polynomial optimization problem using the CS-NCTSSOS method with correlative sparsity and term sparsity exploitation.
 
@@ -524,6 +524,9 @@ Solve a polynomial optimization problem using the CS-NCTSSOS method with correla
 
 # Keyword Arguments
 - `dualize::Bool=true`: Whether to dualize the moment relaxation to a sum-of-squares problem
+- `extra_psd_blocks`: Additional polynomial-valued PSD/HPSD moment blocks, such as
+  `rdm_block(...)` or `curvature_block(...)`. These are scalar moment constraints
+  on the current relaxation and are not supported together with symmetry reduction yet.
 
 # Returns
 - `PolyOptResult`: Result containing the objective value, correlative sparsity structure, and term sparsity information
@@ -544,12 +547,18 @@ function cs_nctssos(
     formulation::Symbol=:moment_variables,
     representation::Symbol=:real,
     orphan_policy::Symbol=:error,
+    extra_psd_blocks=PhysicalPSDConstraint[],
 ) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
     sparsity = compute_sparsity(pop, solver_config)
     _check_symmetry_mvp_support(pop, solver_config, sparsity)
 
     if isnothing(solver_config.symmetry)
-        moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+        moment_problem = moment_relax(
+            pop,
+            sparsity.corr_sparsity,
+            sparsity.cliques_term_sparsities;
+            extra_psd_blocks=extra_psd_blocks,
+        )
         result = solve_sdp(
             moment_problem,
             solver_config.optimizer;
@@ -560,6 +569,10 @@ function cs_nctssos(
         )
         return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
     end
+
+    isempty(extra_psd_blocks) || throw(ArgumentError(
+        "extra_psd_blocks are not yet supported together with symmetry reduction."
+    ))
 
     moment_problem, symmetry_report = moment_relax_symmetric(
         pop,

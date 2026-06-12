@@ -28,6 +28,16 @@ NCTSSoS.cs_nctssos_higher
 NCTSSoS.PolyOptResult
 ```
 
+## Ground-State Physical Constraints
+
+```@docs
+NCTSSoS.PhysicalPSDConstraint
+NCTSSoS.commutator_constraints
+NCTSSoS.curvature_block
+NCTSSoS.rdm_block
+NCTSSoS.rdm_blocks
+```
+
 ## Symmetry Reduction
 
 See [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for an overview of

@@ -13,6 +13,7 @@ using Test
 @testset "Relaxations" begin
     include("interface.jl")
     include("particle_number.jl")
+    include("physical_constraints.jl")
     include("moment_linear.jl")
     include("lowering.jl")
     include("sos.jl")

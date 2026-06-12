@@ -99,8 +99,10 @@ then scalar element hashes. Reimplementing it here avoids the small allocation i
 Julia 1.12's generic array hashing while preserving existing hash order for the
 short vectors used as monomial words.
 """
+const _HASH_ABSTRACTARRAY_SEED = UInt === UInt64 ? UInt(0x7e2d6fb6448beb77) : UInt(0xd4514ce5)
+
 @inline function _hash_word_vector(word::Vector, h::UInt)
-    h += Base.hash_abstractarray_seed
+    h += _HASH_ABSTRACTARRAY_SEED
     h = hash((firstindex(word),), h)
     h = hash((lastindex(word),), h)
     @inbounds for x in word

@@ -167,7 +167,7 @@ end
 function _moment_linear_adjoint_monomial(mono::NormalMonomial{A,T}) where {A<:PBWAlgebra,T<:Signed}
     raw_adj_word = similar(mono.word, length(mono.word))
     raw_adj_word .= .-@view(mono.word[end:-1:1])
-    adj_terms = _simplified_to_terms(A, simplify(A, raw_adj_word), T)
+    adj_terms = _simplified_to_terms(A, simplify!(A, raw_adj_word), T)
     length(adj_terms) == 1 || throw(ArgumentError(
         "Adjoint of PBW monomial $(repr(mono)) expanded to $(length(adj_terms)) terms; " *
         "MomentLinearData requires a single canonical adjoint key"
@@ -468,7 +468,7 @@ function _build_constraint_matrix(
             # For each (c_row, row_word) in row_mono and (c_col, col_word) in col_mono,
             # compute conj(c_row) * c_col * sum over poly terms
             element_poly = sum(
-                _conj_coef(A, c_row) * c_col * coef * Polynomial(_simplified_to_terms(A, simplify(A, _neat_dot3(row_word, mono, col_word)), T))
+                _conj_coef(A, c_row) * c_col * coef * Polynomial(_simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, mono, col_word)), T))
                 for (c_row, row_word) in row_mono
                 for (c_col, col_word) in col_mono
                 for (coef, mono) in poly.terms
@@ -532,7 +532,7 @@ function _moment_matrix_basis(
                 for col_mono in basis
                 for (_, row_word) in row_mono
                 for (_, col_word) in col_mono
-                for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, one_word, col_word)), T)
+                for (_, mono) in _simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, one_word, col_word)), T)
             ]
             for basis in term_sparsities[1].block_bases
         ])
@@ -552,8 +552,7 @@ function _polynomial_total_basis(
              for m in last.(poly.terms)
              for (_, row_word) in row_mono
              for (_, col_word) in col_mono
-             for (_, mono) in _simplified_to_terms(A, simplify(A, _neat_dot3(row_word, m, col_word)), TI)]
-            for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
+             for (_, mono) in _simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, m, col_word)), TI)]            for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
             for basis in term_sparsity.block_bases
             for row_mono in basis
             for col_mono in basis
@@ -573,7 +572,7 @@ function _polynomial_total_basis(
                 for (_, row_word) in row_mono
                     for (_, mono) in g.terms
                         product = _neat_dot3(row_word, mono, one_word)
-                        for (_, m) in _simplified_to_terms(A, simplify(A, product), TI)
+                        for (_, m) in _simplified_to_terms(A, simplify!(A, product), TI)
                             push!(meq_monomials, m)
                         end
                     end
@@ -867,7 +866,7 @@ function _append_moment_eq_constraints!(
         for row_mono in row_bases
             # Build b_i† * g (one-sided: no right multiplier)
             poly = sum(
-                _conj_coef(A, c_row) * coef * Polynomial(_simplified_to_terms(A, simplify(A, _neat_dot3(row_word, mono, one_mono)), T))
+                _conj_coef(A, c_row) * coef * Polynomial(_simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, mono, one_mono)), T))
                 for (c_row, row_word) in row_mono
                 for (coef, mono) in g.terms;
                 init=zero(MP)

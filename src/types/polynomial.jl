@@ -79,7 +79,8 @@ See also: [`NormalMonomial`](@ref), [`coefficients`](@ref), [`monomials`](@ref)
 struct Polynomial{A<:AlgebraType,T<:Integer,C<:Number} <: AbstractPolynomial{C}
     terms::Vector{Tuple{C,NormalMonomial{A,T}}}
 
-    # Inner constructor enforces invariants: sorted, deduplicated, non-zero coefficients
+    # Trusted storage path. Callers must provide sorted, deduplicated, non-zero terms.
+    # Public outer constructors enforce invariants before reaching this inner constructor.
     function Polynomial{A,T,C}(
         input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
     ) where {A<:AlgebraType,T<:Integer,C<:Number}
@@ -110,34 +111,66 @@ This is the core algorithm for maintaining polynomial invariants.
 function _process_terms(
     input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}, ::Type{C}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
-    isempty(input_terms) && return input_terms
+    if isempty(input_terms)
+        return Tuple{C,NormalMonomial{A,T}}[]
+    elseif length(input_terms) == 1
+        coef, mono = input_terms[1]
+        return iszero(coef) ? Tuple{C,NormalMonomial{A,T}}[] : Tuple{C,NormalMonomial{A,T}}[(coef, mono)]
+    end
 
-    # Sort by monomial
-    sorted = sort(input_terms; by=t -> t[2])
+    return _process_terms!(copy(input_terms), C)
+end
 
-    # Combine duplicates and filter zeros
-    result = Tuple{C,NormalMonomial{A,T}}[]
-    current_coef, current_mono = sorted[1]
+"""
+    _process_terms!(owned_terms, C) -> Vector{Tuple{C,NormalMonomial}}
 
-    for i in 2:length(sorted)
-        coef_i, mono_i = sorted[i]
+Internal in-place term canonicalization for owned buffers.
+Sorts by monomial, combines duplicates, and removes zero coefficients.
+Call only when the vector is freshly allocated by the caller and is not aliased
+by user code. Public constructors use `_process_terms` and do not mutate inputs.
+"""
+function _process_terms!(
+    owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}}, ::Type{C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    if isempty(owned_terms)
+        return owned_terms
+    elseif length(owned_terms) == 1
+        iszero(owned_terms[1][1]) && empty!(owned_terms)
+        return owned_terms
+    end
+
+    sort!(owned_terms; by=t -> t[2])
+
+    write_idx = 0
+    current_coef, current_mono = owned_terms[1]
+
+    @inbounds for i in 2:length(owned_terms)
+        coef_i, mono_i = owned_terms[i]
         if mono_i == current_mono
             current_coef += coef_i
         else
             if !iszero(current_coef)
-                push!(result, (current_coef, current_mono))
+                write_idx += 1
+                owned_terms[write_idx] = (current_coef, current_mono)
             end
-            current_mono = mono_i
             current_coef = coef_i
+            current_mono = mono_i
         end
     end
 
-    # Don't forget the last accumulated term
     if !iszero(current_coef)
-        push!(result, (current_coef, current_mono))
+        write_idx += 1
+        owned_terms[write_idx] = (current_coef, current_mono)
     end
 
-    return result
+    resize!(owned_terms, write_idx)
+    return owned_terms
+end
+
+@inline function _polynomial_from_owned_terms!(
+    owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    return Polynomial{A,T,C}(_process_terms!(owned_terms, C))
 end
 
 # =============================================================================
@@ -200,12 +233,6 @@ julia> coefficients(p)[1]
 function Polynomial(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     C = coeff_type(A)
     return Polynomial((one(C), m))
-end
-
-function Polynomial(
-    pairs::Vector{Tuple{CIn,NormalMonomial{A,T}}},
-) where {CIn,A<:AlgebraType,T<:Integer}
-    return Polynomial{A,T,CIn}(pairs)
 end
 
 """

@@ -256,13 +256,38 @@ true
 struct NormalMonomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     word::Vector{T}
 
-    # Inner constructor: validate no zeros, then validate algebra invariants.
+    # Public inner constructor: validate no zeros, then validate algebra invariants.
     function NormalMonomial{A,T}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
         any(iszero, word) && throw(ArgumentError("NormalMonomial word must not contain zeros"))
         _validate_word(A, word)
         new{A,T}(word)
     end
 
+    # Private trusted path. Do not call this with user input.
+    function NormalMonomial{A,T}(word::Vector{T}, ::Val{:trusted}) where {A<:AlgebraType,T<:Integer}
+        new{A,T}(word)
+    end
+
+end
+
+"""
+    _unchecked_monomial(::Type{A}, word::Vector{T}) -> NormalMonomial{A,T}
+
+Internal trusted constructor for words already proven to be canonical.
+
+Contract for callers:
+- `word` came from `simplify!`/`simplify` for algebra `A`, or is an already
+  canonical identity/monomial word assembled from canonical monomials.
+- `word` contains no zero indices. Some `simplify!` methods skip zero filtering
+  on length-0/1 fast paths, so this is the caller's responsibility.
+- `word` is owned by the resulting monomial. Never wrap a reusable scratch
+  buffer without copying first, and never mutate it after wrapping.
+
+Public `NormalMonomial` constructors keep validating. This path exists only to
+avoid revalidating fresh simplification results on hot multiplication paths.
+"""
+@inline function _unchecked_monomial(::Type{A}, word::Vector{T}) where {A<:AlgebraType,T<:Integer}
+    return NormalMonomial{A,T}(word, Val(:trusted))
 end
 
 """
@@ -291,7 +316,15 @@ The hash includes both the algebra type `A` and the word vector, ensuring that
 monomials from different algebras with the same word have different hashes.
 This maintains the hash/equality contract: if `m1 == m2`, then `hash(m1) == hash(m2)`.
 """
-Base.hash(m::NormalMonomial{A}, h::UInt) where {A} = _hash_with_algebra(A, m.word, h)
+function Base.hash(m::NormalMonomial{A}, h::UInt) where {A<:AlgebraType}
+    h = hash(:NormalMonomial, h)
+    h = hash(A, h)
+    h = hash(length(m.word), h)
+    @inbounds for x in m.word
+        h = hash(x, h)
+    end
+    return h
+end
 
 """
     degree(m::NormalMonomial) -> Int

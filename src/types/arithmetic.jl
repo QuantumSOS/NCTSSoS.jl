@@ -198,7 +198,7 @@ function Base.:(*)(
     C = coeff_type(A)
     coef, mono = _mul_term(m1, m2)
     iszero(coef) && return zero(Polynomial{A,T,C})
-    return Polynomial{A,T,C}([(C(coef), mono)])
+    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[(C(coef), mono)])
 end
 
 function Base.:(*)(
@@ -501,7 +501,7 @@ Negate a Polynomial (negate all coefficients).
 """
 function Base.:(-)(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
     negated_terms = Tuple{C,NormalMonomial{A,T}}[(-c, m) for (c, m) in p.terms]
-    return Polynomial{A,T,C}(negated_terms)
+    return _unchecked_polynomial(negated_terms)
 end
 
 # =============================================================================
@@ -607,7 +607,7 @@ function Base.:(*)(
     NC = promote_type(typeof(c), C)
     iszero(c) && return zero(Polynomial{A,T,NC})
     scaled_terms = Tuple{NC,NormalMonomial{A,T}}[(NC(c * coef), m) for (coef, m) in p.terms]
-    return Polynomial{A,T,NC}(scaled_terms)
+    return _unchecked_polynomial(scaled_terms)
 end
 
 Base.:(*)(p::Polynomial, c::Number) = c * p

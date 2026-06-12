@@ -94,7 +94,14 @@ function _exercise_multiplication_family(::Type{A}, monos::Vector{NormalMonomial
     input_snapshot = copy(input_terms)
     p = Polynomial(input_terms)
     @test input_terms == input_snapshot  # public constructor must not sort! caller storage
-    @test p == Polynomial(Tuple{C,NormalMonomial{A,T}}[(C(1), monos[2]), (C(4), monos[4])])
+
+    parametric_input = copy(input_terms)
+    p_parametric = Polynomial{A,T,C}(parametric_input)
+    @test parametric_input == input_snapshot
+
+    expected_p = Polynomial(Tuple{C,NormalMonomial{A,T}}[(C(1), monos[2]), (C(4), monos[4])])
+    @test p == expected_p
+    @test p_parametric == expected_p
 
     q = Polynomial(Tuple{C,NormalMonomial{A,T}}[
         (C(-2), monos[4]),

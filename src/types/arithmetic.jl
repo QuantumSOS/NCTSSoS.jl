@@ -607,7 +607,7 @@ function Base.:(*)(
     NC = promote_type(typeof(c), C)
     iszero(c) && return zero(Polynomial{A,T,NC})
     scaled_terms = Tuple{NC,NormalMonomial{A,T}}[(NC(c * coef), m) for (coef, m) in p.terms]
-    return _unchecked_polynomial(scaled_terms)
+    return _polynomial_from_owned_terms!(scaled_terms)
 end
 
 Base.:(*)(p::Polynomial, c::Number) = c * p

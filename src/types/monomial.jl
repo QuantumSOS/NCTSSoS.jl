@@ -300,8 +300,7 @@ Internal trusted constructor for words already proven to be canonical.
 Contract for callers:
 - `word` came from `simplify!`/`simplify` for algebra `A`, or is an already
   canonical identity/monomial word assembled from canonical monomials.
-- `word` contains no zero indices. Some `simplify!` methods skip zero filtering
-  on length-0/1 fast paths, so this is the caller's responsibility.
+- `word` contains no zero indices.
 - `word` is owned by the resulting monomial. Never wrap a reusable scratch
   buffer without copying first, and never mutate it after wrapping.
 

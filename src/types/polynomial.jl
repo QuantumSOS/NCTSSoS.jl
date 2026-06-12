@@ -320,10 +320,11 @@ true
 ```
 """
 function Polynomial{A,T,C}(c::Number) where {A<:AlgebraType,T<:Integer,C<:Number}
-    if iszero(c)
+    coef = C(c)
+    if iszero(coef)
         return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[])
     end
-    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[(C(c), one(NormalMonomial{A,T}))])
+    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[(coef, one(NormalMonomial{A,T}))])
 end
 
 # =============================================================================
@@ -355,7 +356,7 @@ julia> coefficients(p_float)[1]
 function Base.convert(::Type{Polynomial{A,T,C2}}, p::Polynomial{A,T,C1}) where {A<:AlgebraType,T<:Integer,C1<:Number,C2<:Number}
     C1 === C2 && return p
     new_terms = Tuple{C2,NormalMonomial{A,T}}[(C2(c), m) for (c, m) in p.terms]
-    return _unchecked_polynomial(new_terms)
+    return _polynomial_from_owned_terms!(new_terms)
 end
 
 function Base.convert(
@@ -363,7 +364,7 @@ function Base.convert(
 ) where {A<:AlgebraType,T1<:Integer,T2<:Integer,C1<:Number,C2<:Number}
     (T1 === T2 && C1 === C2) && return p
     new_terms = Tuple{C2,NormalMonomial{A,T2}}[(C2(c), NormalMonomial{A,T2}(T2.(m.word))) for (c, m) in p.terms]
-    return _unchecked_polynomial(new_terms)
+    return _polynomial_from_owned_terms!(new_terms)
 end
 
 # Identity conversion (no-op)

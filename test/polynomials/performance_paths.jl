@@ -178,6 +178,24 @@ end
         _exercise_multiplication_family(BosonicAlgebra, _canonical_monomials(BosonicAlgebra, boson_words))
     end
 
+    @testset "Trusted-constructor guardrails" begin
+        for (A, T) in (
+            (NonCommutativeAlgebra, UInt16),
+            (UnipotentAlgebra, UInt16),
+            (PauliAlgebra, UInt8),
+        )
+            terms_from_zero = NCTSSoS._simplified_to_terms(A, simplify(A, T[0]), T)
+            @test length(terms_from_zero) == 1
+            @test isone(only(terms_from_zero)[2])
+        end
+
+        m = NormalMonomial{NonCommutativeAlgebra,UInt16}(UInt16[nc_idx(UInt16, 1, 1)])
+        tiny = Polynomial(Tuple{Float16,typeof(m)}[(Float16(1e-4), m)])
+        @test iszero(Float16(1e-4) * tiny)
+        @test iszero(convert(Polynomial{NonCommutativeAlgebra,UInt16,Float16}, Polynomial(Tuple{Float64,typeof(m)}[(1e-8, m)])))
+        @test iszero(Polynomial{NonCommutativeAlgebra,UInt16,Float16}(1e-8))
+    end
+
     @testset "NormalMonomial hash contract" begin
         seed1 = UInt(0x12345678)
         seed2 = UInt(0x87654321)

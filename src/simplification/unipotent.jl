@@ -92,6 +92,8 @@ Returns the simplified word vector (mutated in place).
 2. Apply U²=I via stack (remove consecutive pairs)
 """
 function simplify!(::Type{UnipotentAlgebra},word::Vector{T}) where {T<:Unsigned}
+    filter!(!iszero, word)
+
     # Empty or single: nothing to simplify
     length(word) <= 1 && return word
 

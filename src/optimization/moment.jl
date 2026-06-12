@@ -139,6 +139,14 @@ end
 
 @inline _moment_key(::Type{K}, mono::NormalMonomial) where {K} = convert(K, symmetric_canon(expval(mono)))
 
+# For non-monoid algebras, Arbitrary-state canonicalization is currently the
+# identity representative. Avoid constructing a StateSymbol just to copy its word.
+@inline function _moment_key(
+    ::Type{Vector{T}}, mono::NormalMonomial{A,T}
+) where {A<:Union{TwistedGroupAlgebra,PBWAlgebra},T<:Integer}
+    return copy(mono.word)
+end
+
 @inline _moment_linear_half_safe_real_type(::Type{C}) where {C<:Number} = typeof(real(one(C)) / 2)
 
 @inline function _moment_linear_coeff_type(::Type{A}, ::Type{C}) where {A<:AlgebraType,C<:Number}
@@ -195,36 +203,42 @@ function _close_adjoint_keys!(key_to_monomial::Dict{K,M}, ::Type{K}, ::Type{A}) 
     return nothing
 end
 
-function _linearize_moment_polynomial(::Type{K}, ::Type{C}, poly::P) where {K,C,A<:AlgebraType,T<:Integer,PC<:Number,P<:Polynomial{A,T,PC}}
+function _linearize_moment_polynomial(
+    ::Type{K}, ::Type{C}, poly::P
+) where {K,C,A<:AlgebraType,T<:Integer,PC<:Number,P<:Polynomial{A,T,PC}}
     pairs = Pair{K,C}[]
+    sizehint!(pairs, length(poly.terms))
     for (coef, mono) in simplify(poly)
-        iszero(coef) && continue
-        push!(pairs, _moment_key(K, mono) => convert(C, coef))
+        converted = convert(C, coef)
+        iszero(converted) && continue
+        push!(pairs, _moment_key(K, mono) => converted)
     end
-    return LinearMomentForm{K,C}(pairs)
+    return _linear_moment_form_from_owned_pairs!(pairs)
 end
 
 function _real_part_form(form::LinearMomentForm{K,C}, adjoint_key::Dict{K,K}) where {K,C}
     half = convert(C, 0.5)
     pairs = Pair{K,C}[]
+    sizehint!(pairs, 2 * length(form))
     for (key, coef) in form
         adj = _get_key_value(adjoint_key, key, "adjoint key")
         push!(pairs, key => half * coef)
         push!(pairs, adj => half * convert(C, conj(coef)))
     end
-    return LinearMomentForm{K,C}(pairs)
+    return _linear_moment_form_from_owned_pairs!(pairs)
 end
 
 function _imag_part_form(form::LinearMomentForm{K,C}, adjoint_key::Dict{K,K}) where {K,C}
     neg_half_im = convert(C, -0.5im)
     pos_half_im = convert(C, 0.5im)
     pairs = Pair{K,C}[]
+    sizehint!(pairs, 2 * length(form))
     for (key, coef) in form
         adj = _get_key_value(adjoint_key, key, "adjoint key")
         push!(pairs, key => neg_half_im * coef)
         push!(pairs, adj => pos_half_im * convert(C, conj(coef)))
     end
-    return LinearMomentForm{K,C}(pairs)
+    return _linear_moment_form_from_owned_pairs!(pairs)
 end
 
 function _append_zero_linear_constraints!(
@@ -459,21 +473,37 @@ function _build_constraint_matrix(
     local_basis::Vector{M},
     cone::Symbol
 ) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T}}
-    # Each matrix element is a polynomial: bilinear expansion over basis terms
-    moment_mtx = Matrix{Polynomial{A,T,C}}(undef, length(local_basis), length(local_basis))
+    # Each matrix element is a polynomial: bilinear expansion over basis terms.
+    # Accumulate raw terms directly; constructing one tiny Polynomial per product
+    # is allocator bait and dominates large moment assembly.
+    EC = promote_type(C, coeff_type(A))
+    EP = Polynomial{A,T,EC}
+    moment_mtx = Matrix{EP}(undef, length(local_basis), length(local_basis))
 
     for (i, row_mono) in enumerate(local_basis)
         for (j, col_mono) in enumerate(local_basis)
-            # Build polynomial for this matrix element with full bilinear expansion
-            # For each (c_row, row_word) in row_mono and (c_col, col_word) in col_mono,
-            # compute conj(c_row) * c_col * sum over poly terms
-            element_poly = sum(
-                _conj_coef(A, c_row) * c_col * coef * Polynomial(_simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, mono, col_word)), T))
-                for (c_row, row_word) in row_mono
+            element_terms = Tuple{EC,NormalMonomial{A,T}}[]
+            sizehint!(element_terms, length(row_mono) * length(col_mono) * length(poly.terms))
+
+            for (c_row, row_word) in row_mono
+                conj_row = _conj_coef(A, c_row)
                 for (c_col, col_word) in col_mono
-                for (coef, mono) in poly.terms
-            )
-            moment_mtx[i, j] = element_poly
+                    row_col_coef = conj_row * c_col
+                    for (coef, mono) in poly.terms
+                        scale = row_col_coef * coef
+                        _push_scaled_simplified_terms!(
+                            element_terms,
+                            scale,
+                            A,
+                            simplify!(A, _neat_dot3(row_word, mono, col_word)),
+                            T,
+                            EC,
+                        )
+                    end
+                end
+            end
+
+            moment_mtx[i, j] = _polynomial_from_owned_terms!(element_terms)
         end
     end
 
@@ -520,24 +550,120 @@ function _truncate_moment_eq_row_bases(
     return iszero(len) ? M[] : all_moment_bases[1:len]
 end
 
+@inline function _remember_simplified_monomials!(
+    basis::Dict{M,Nothing},
+    ::Type{A},
+    simplified::Vector{T},
+    ::Type{T},
+) where {A<:MonoidAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
+    basis[_unchecked_monomial(A, simplified)] = nothing
+    return basis
+end
+
+@inline function _remember_simplified_monomials!(
+    basis::Dict{M,Nothing},
+    ::Type{A},
+    simplified::Tuple{Vector{T},UInt8},
+    ::Type{T},
+) where {A<:TwistedGroupAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
+    word, phase_k = simplified
+    phase_k == 0x04 && return basis
+    basis[_unchecked_monomial(A, word)] = nothing
+    return basis
+end
+
+@inline function _remember_simplified_monomials!(
+    basis::Dict{M,Nothing},
+    ::Type{A},
+    simplified::Vector{Tuple{Int,Vector{T}}},
+    ::Type{T},
+) where {A<:PBWAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
+    for (coef, word) in simplified
+        iszero(coef) && continue
+        basis[_unchecked_monomial(A, word)] = nothing
+    end
+    return basis
+end
+
+@inline function _push_scaled_simplified_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    scale,
+    ::Type{A},
+    simplified::Vector{T},
+    ::Type{T},
+    ::Type{C},
+) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
+    coef = C(scale)
+    iszero(coef) || push!(terms, (coef, _unchecked_monomial(A, simplified)))
+    return terms
+end
+
+@inline function _push_scaled_simplified_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    scale,
+    ::Type{A},
+    simplified::Tuple{Vector{T},UInt8},
+    ::Type{T},
+    ::Type{C},
+) where {A<:TwistedGroupAlgebra,T<:Integer,C<:Number}
+    word, phase_k = simplified
+    phase_k == 0x04 && return terms
+    coef = C(scale) * C(_coeff_to_number(A, phase_k))
+    iszero(coef) || push!(terms, (coef, _unchecked_monomial(A, word)))
+    return terms
+end
+
+@inline function _push_scaled_simplified_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    scale,
+    ::Type{A},
+    simplified::Vector{Tuple{Int,Vector{T}}},
+    ::Type{T},
+    ::Type{C},
+) where {A<:PBWAlgebra,T<:Integer,C<:Number}
+    base_coef = C(scale)
+    iszero(base_coef) && return terms
+    for (prod_coef, word) in simplified
+        iszero(prod_coef) && continue
+        coef = base_coef * C(prod_coef)
+        iszero(coef) || push!(terms, (coef, _unchecked_monomial(A, word)))
+    end
+    return terms
+end
+
+@inline function _sorted_basis_keys(basis::Dict{M,Nothing}) where {M}
+    result = collect(keys(basis))
+    sort!(result)
+    return result
+end
+
 function _moment_matrix_basis(
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T}}
     one_word = one(NormalMonomial{A,T})
-    basis = sorted_union(map(cliques_term_sparsities) do term_sparsities
-        reduce(vcat, [
-            [
-                mono
-                for row_mono in basis
-                for col_mono in basis
-                for (_, row_word) in row_mono
-                for (_, col_word) in col_mono
-                for (_, mono) in _simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, one_word, col_word)), T)
-            ]
-            for basis in term_sparsities[1].block_bases
-        ])
-    end...)
-    return convert(Vector{M}, basis)
+    basis = Dict{M,Nothing}()
+
+    for term_sparsities in cliques_term_sparsities
+        for block_basis in term_sparsities[1].block_bases
+            sizehint!(basis, length(basis) + length(block_basis)^2)
+            for row_mono in block_basis
+                for col_mono in block_basis
+                    for (_, row_word) in row_mono
+                        for (_, col_word) in col_mono
+                            _remember_simplified_monomials!(
+                                basis,
+                                A,
+                                simplify!(A, _neat_dot3(row_word, one_word, col_word)),
+                                T,
+                            )
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return _sorted_basis_keys(basis)
 end
 
 function _polynomial_total_basis(
@@ -546,24 +672,36 @@ function _polynomial_total_basis(
     cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
     one_word = one(NormalMonomial{A,TI})
-    total_basis = sorted_union(map(zip(corr_sparsity.clq_cons, cliques_term_sparsities)) do (cons_idx, term_sparsities)
-        reduce(vcat, [
-            [mono
-             for m in last.(poly.terms)
-             for (_, row_word) in row_mono
-             for (_, col_word) in col_mono
-             for (_, mono) in _simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, m, col_word)), TI)]            for (poly, term_sparsity) in zip([one(pop.objective); corr_sparsity.cons[cons_idx]], term_sparsities)
-            for basis in term_sparsity.block_bases
-            for row_mono in basis
-            for col_mono in basis
-        ])
-    end...)
+    total_basis = Dict{M,Nothing}()
+
+    for (cons_idx, term_sparsities) in zip(corr_sparsity.clq_cons, cliques_term_sparsities)
+        for (poly, term_sparsity) in zip((one(pop.objective), corr_sparsity.cons[cons_idx]...), term_sparsities)
+            for block_basis in term_sparsity.block_bases
+                sizehint!(total_basis, length(total_basis) + length(poly.terms) * length(block_basis)^2)
+                for row_mono in block_basis
+                    for col_mono in block_basis
+                        for (_, row_word) in row_mono
+                            for (_, col_word) in col_mono
+                                for (_, mono) in poly.terms
+                                    _remember_simplified_monomials!(
+                                        total_basis,
+                                        A,
+                                        simplify!(A, _neat_dot3(row_word, mono, col_word)),
+                                        TI,
+                                    )
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
 
     moment_eq_row_bases = M[]
     moment_eq_row_basis_degrees = Int[]
 
     if !isempty(pop.moment_eq_constraints)
-        meq_monomials = NormalMonomial{A,TI}[]
         moment_eq_row_bases, moment_eq_row_basis_degrees = _collect_moment_eq_row_bases(cliques_term_sparsities)
         for g in pop.moment_eq_constraints
             row_bases = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, g)
@@ -572,17 +710,14 @@ function _polynomial_total_basis(
                 for (_, row_word) in row_mono
                     for (_, mono) in g.terms
                         product = _neat_dot3(row_word, mono, one_word)
-                        for (_, m) in _simplified_to_terms(A, simplify!(A, product), TI)
-                            push!(meq_monomials, m)
-                        end
+                        _remember_simplified_monomials!(total_basis, A, simplify!(A, product), TI)
                     end
                 end
             end
         end
-        total_basis = sorted_union(total_basis, meq_monomials)
     end
 
-    return convert(Vector{M}, total_basis), moment_eq_row_bases, moment_eq_row_basis_degrees
+    return _sorted_basis_keys(total_basis), moment_eq_row_bases, moment_eq_row_basis_degrees
 end
 
 function _summarize_normal_monomials(words; limit::Int=5)
@@ -606,19 +741,41 @@ function _missing_polynomial_monomials(
     available_moments::AbstractSet
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
     missing = NormalMonomial{A,T}[]
+    K = eltype(available_moments)
     for mono in monomials(poly)
-        canon_mono = symmetric_canon(expval(mono))
+        canon_mono = _moment_key(K, mono)
         canon_mono in available_moments || push!(missing, mono)
     end
     return missing
 end
+
+function _missing_polynomial_monomials(
+    poly::P,
+    available_moments::AbstractSet
+) where {A<:Union{TwistedGroupAlgebra,PBWAlgebra},T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    missing = NormalMonomial{A,T}[]
+    for mono in monomials(poly)
+        mono.word in available_moments || push!(missing, mono)
+    end
+    return missing
+end
+
+_moment_matrix_element_count(::Type{A}, basis) where {A<:AlgebraType} =
+    length(_sorted_symmetric_basis(basis))
+_moment_matrix_element_count(::Type{A}, basis) where {A<:Union{TwistedGroupAlgebra,PBWAlgebra}} =
+    length(basis)
+
+_available_moment_set(::Type{A}, total_basis) where {A<:AlgebraType} =
+    Set(_sorted_symmetric_basis(total_basis))
+_available_moment_set(::Type{A}, total_basis) where {A<:Union{TwistedGroupAlgebra,PBWAlgebra}} =
+    Set(m.word for m in total_basis)
 
 function _validate_polynomial_relaxation_support(
     pop::PolyOpt{A,TI,P},
     total_basis::AbstractVector;
     source::AbstractString="Relaxation basis"
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C}}
-    available_moments = Set(_sorted_symmetric_basis(total_basis))
+    available_moments = _available_moment_set(A, total_basis)
 
     _throw_missing_polynomial_monomials(
         _missing_polynomial_monomials(pop.objective, available_moments),
@@ -747,7 +904,7 @@ function moment_relax(
     # not by the full set of localizing matrices.
     # For Monomial bases, we expand over all term pairs from the bilinear form.
     moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
-    n_unique_moment_matrix_elements = length(_sorted_symmetric_basis(moment_matrix_basis))
+    n_unique_moment_matrix_elements = _moment_matrix_element_count(A, moment_matrix_basis)
 
     total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
         _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
@@ -865,12 +1022,23 @@ function _append_moment_eq_constraints!(
 
         for row_mono in row_bases
             # Build b_i† * g (one-sided: no right multiplier)
-            poly = sum(
-                _conj_coef(A, c_row) * coef * Polynomial(_simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, mono, one_mono)), T))
-                for (c_row, row_word) in row_mono
-                for (coef, mono) in g.terms;
-                init=zero(MP)
-            )
+            terms = Tuple{CMP,NormalMonomial{A,T}}[]
+            sizehint!(terms, length(row_mono) * length(g.terms))
+            for (c_row, row_word) in row_mono
+                conj_row = _conj_coef(A, c_row)
+                for (coef, mono) in g.terms
+                    _push_scaled_simplified_terms!(
+                        terms,
+                        conj_row * coef,
+                        A,
+                        simplify!(A, _neat_dot3(row_word, mono, one_mono)),
+                        T,
+                        CMP,
+                    )
+                end
+            end
+
+            poly = _polynomial_from_owned_terms!(terms)
             iszero(poly) && continue
 
             constraint_mat = Matrix{MP}(undef, 1, 1)

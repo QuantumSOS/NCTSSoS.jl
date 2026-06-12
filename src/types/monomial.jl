@@ -301,8 +301,11 @@ Contract for callers:
 - `word` came from `simplify!`/`simplify` for algebra `A`, or is an already
   canonical identity/monomial word assembled from canonical monomials.
 - `word` contains no zero indices.
-- `word` is owned by the resulting monomial. Never wrap a reusable scratch
-  buffer without copying first, and never mutate it after wrapping.
+- `word` is owned by the resulting monomial. Never store a monomial that
+  wraps a reusable scratch buffer (copy the word first), and never mutate the
+  word after wrapping. Wrapping a buffer for a *transient* probe (hash/equality
+  lookup or ordering comparison that is discarded before the buffer is reused)
+  is allowed.
 
 Public `NormalMonomial` constructors keep validating. This path exists only to
 avoid revalidating fresh simplification results on hot multiplication paths.

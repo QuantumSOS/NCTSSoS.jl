@@ -485,6 +485,7 @@ function _build_constraint_matrix(
     EP = Polynomial{A,T,EC}
     moment_mtx = Matrix{EP}(undef, length(local_basis), length(local_basis))
 
+    buf = T[]  # scratch word reused across all products
     for (i, row_mono) in enumerate(local_basis)
         for (j, col_mono) in enumerate(local_basis)
             element_terms = Tuple{EC,NormalMonomial{A,T}}[]
@@ -496,11 +497,11 @@ function _build_constraint_matrix(
                     row_col_coef = conj_row * c_col
                     for (coef, mono) in poly.terms
                         scale = row_col_coef * coef
-                        _push_scaled_simplified_terms!(
+                        _push_scaled_buffered_terms!(
                             element_terms,
                             scale,
                             A,
-                            simplify!(A, _neat_dot3(row_word, mono, col_word)),
+                            simplify!(A, _neat_dot3!(buf, row_word, mono, col_word)),
                             T,
                             EC,
                         )
@@ -636,6 +637,84 @@ end
     return terms
 end
 
+# Buffered variants of `_push_scaled_simplified_terms!`: `simplified` may alias
+# a reusable scratch buffer (Monoid/TwistedGroup `simplify!` mutates in place),
+# so the word is copied at insertion time — and only then. PBW `simplify!`
+# returns fresh words, so its variant delegates without copying.
+@inline function _push_scaled_buffered_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    scale,
+    ::Type{A},
+    simplified::Vector{T},
+    ::Type{T},
+    ::Type{C},
+) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
+    coef = C(scale)
+    iszero(coef) || push!(terms, (coef, _unchecked_monomial(A, copy(simplified))))
+    return terms
+end
+
+@inline function _push_scaled_buffered_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    scale,
+    ::Type{A},
+    simplified::Tuple{Vector{T},UInt8},
+    ::Type{T},
+    ::Type{C},
+) where {A<:TwistedGroupAlgebra,T<:Integer,C<:Number}
+    word, phase_k = simplified
+    phase_k == 0x04 && return terms
+    coef = C(scale) * C(_coeff_to_number(A, phase_k))
+    iszero(coef) || push!(terms, (coef, _unchecked_monomial(A, copy(word))))
+    return terms
+end
+
+@inline function _push_scaled_buffered_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    scale,
+    ::Type{A},
+    simplified::Vector{Tuple{Int,Vector{T}}},
+    ::Type{T},
+    ::Type{C},
+) where {A<:PBWAlgebra,T<:Integer,C<:Number}
+    return _push_scaled_simplified_terms!(terms, scale, A, simplified, T, C)
+end
+
+# Buffered variants of `_remember_simplified_monomials!`: probe the Dict with a
+# transient buffer-aliased wrapper and copy the word only on first insertion.
+@inline function _remember_buffered_monomials!(
+    basis::Dict{M,Nothing},
+    ::Type{A},
+    simplified::Vector{T},
+    ::Type{T},
+) where {A<:MonoidAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
+    probe = _unchecked_monomial(A, simplified)  # transient: aliases the buffer
+    haskey(basis, probe) || (basis[_unchecked_monomial(A, copy(simplified))] = nothing)
+    return basis
+end
+
+@inline function _remember_buffered_monomials!(
+    basis::Dict{M,Nothing},
+    ::Type{A},
+    simplified::Tuple{Vector{T},UInt8},
+    ::Type{T},
+) where {A<:TwistedGroupAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
+    word, phase_k = simplified
+    phase_k == 0x04 && return basis
+    probe = _unchecked_monomial(A, word)  # transient: aliases the buffer
+    haskey(basis, probe) || (basis[_unchecked_monomial(A, copy(word))] = nothing)
+    return basis
+end
+
+@inline function _remember_buffered_monomials!(
+    basis::Dict{M,Nothing},
+    ::Type{A},
+    simplified::Vector{Tuple{Int,Vector{T}}},
+    ::Type{T},
+) where {A<:PBWAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
+    return _remember_simplified_monomials!(basis, A, simplified, T)
+end
+
 @inline function _sorted_basis_keys(basis::Dict{M,Nothing}) where {M}
     result = collect(keys(basis))
     sort!(result)
@@ -647,6 +726,7 @@ function _moment_matrix_basis(
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T}}
     one_word = one(NormalMonomial{A,T})
     basis = Dict{M,Nothing}()
+    buf = T[]  # scratch word reused across all products
 
     for term_sparsities in cliques_term_sparsities
         for block_basis in term_sparsities[1].block_bases
@@ -655,10 +735,10 @@ function _moment_matrix_basis(
                 for col_mono in block_basis
                     for (_, row_word) in row_mono
                         for (_, col_word) in col_mono
-                            _remember_simplified_monomials!(
+                            _remember_buffered_monomials!(
                                 basis,
                                 A,
-                                simplify!(A, _neat_dot3(row_word, one_word, col_word)),
+                                simplify!(A, _neat_dot3!(buf, row_word, one_word, col_word)),
                                 T,
                             )
                         end
@@ -678,6 +758,7 @@ function _polynomial_total_basis(
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
     one_word = one(NormalMonomial{A,TI})
     total_basis = Dict{M,Nothing}()
+    buf = TI[]  # scratch word reused across all products
 
     for (cons_idx, term_sparsities) in zip(corr_sparsity.clq_cons, cliques_term_sparsities)
         for (poly, term_sparsity) in zip((one(pop.objective), corr_sparsity.cons[cons_idx]...), term_sparsities)
@@ -688,10 +769,10 @@ function _polynomial_total_basis(
                         for (_, row_word) in row_mono
                             for (_, col_word) in col_mono
                                 for (_, mono) in poly.terms
-                                    _remember_simplified_monomials!(
+                                    _remember_buffered_monomials!(
                                         total_basis,
                                         A,
-                                        simplify!(A, _neat_dot3(row_word, mono, col_word)),
+                                        simplify!(A, _neat_dot3!(buf, row_word, mono, col_word)),
                                         TI,
                                     )
                                 end
@@ -714,8 +795,8 @@ function _polynomial_total_basis(
             for row_mono in row_bases
                 for (_, row_word) in row_mono
                     for (_, mono) in g.terms
-                        product = _neat_dot3(row_word, mono, one_word)
-                        _remember_simplified_monomials!(total_basis, A, simplify!(A, product), TI)
+                        _neat_dot3!(buf, row_word, mono, one_word)
+                        _remember_buffered_monomials!(total_basis, A, simplify!(A, buf), TI)
                     end
                 end
             end
@@ -1020,6 +1101,7 @@ function _append_moment_eq_constraints!(
 
     one_mono = one(NormalMonomial{A,T})
     meq_constraints = Tuple{Symbol, Matrix{MP}}[]
+    buf = T[]  # scratch word reused across all products
 
     for g in pop.moment_eq_constraints
         row_bases = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, g)
@@ -1032,11 +1114,11 @@ function _append_moment_eq_constraints!(
             for (c_row, row_word) in row_mono
                 conj_row = _conj_coef(A, c_row)
                 for (coef, mono) in g.terms
-                    _push_scaled_simplified_terms!(
+                    _push_scaled_buffered_terms!(
                         terms,
                         conj_row * coef,
                         A,
-                        simplify!(A, _neat_dot3(row_word, mono, one_mono)),
+                        simplify!(A, _neat_dot3!(buf, row_word, mono, one_mono)),
                         T,
                         CMP,
                     )

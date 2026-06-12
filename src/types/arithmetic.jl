@@ -124,6 +124,25 @@ end
     return (_unchecked_monomial(A, word),)
 end
 
+"""
+    _copy_if_buffer_aliased(::Type{A}, m::NormalMonomial{A,T}) -> NormalMonomial{A,T}
+
+Return a monomial safe to store when `m` came from simplifying a reusable
+scratch buffer (`_neat_dot3!`/`neat_dot!` + `simplify!`).
+
+For Monoid/TwistedGroup algebras `simplify!` mutates its input in place, so a
+buffer-derived monomial aliases the buffer and its word must be copied before
+it escapes. PBW `simplify!` always returns fresh words, so `m` is returned
+as-is.
+"""
+@inline function _copy_if_buffer_aliased(
+    ::Type{A}, m::NormalMonomial{A,T}
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    return _unchecked_monomial(A, copy(m.word))
+end
+
+@inline _copy_if_buffer_aliased(::Type{A}, m::NormalMonomial{A,T}) where {A<:PBWAlgebra,T<:Integer} = m
+
 function _simplified_monomials(
     ::Type{A}, simplified::Vector{Tuple{Int,Vector{T}}}, ::Type{T}
 ) where {A<:PBWAlgebra,T<:Integer}

@@ -189,6 +189,78 @@ function _neat_dot3(
     return _neat_dot3(a.word, m.word, b.word)
 end
 
+"""
+    _neat_dot3!(buf::Vector{T}, a, m, b) -> Vector{T}
+
+In-place variant of [`_neat_dot3`](@ref): write the raw word for
+adjoint(a) * m * b into the reusable scratch buffer `buf` (resized to fit)
+and return it.
+
+`buf` must not alias `a`, `m`, or `b`. The returned vector IS `buf`, so for
+Monoid/TwistedGroup algebras the result of `simplify!(A, buf)` also aliases
+`buf` — callers must copy the word before storing it in any long-lived
+structure (see `_copy_if_buffer_aliased`). PBW `simplify!` returns fresh
+words that never alias the buffer.
+"""
+@inline function _neat_dot3!(
+    buf::Vector{T}, a::Vector{T}, m::Vector{T}, b::Vector{T}
+) where {T<:Unsigned}
+    la, lm, lb = length(a), length(m), length(b)
+    resize!(buf, la + lm + lb)
+    @inbounds for k in 1:la
+        buf[k] = a[la - k + 1]
+    end
+    copyto!(buf, la + 1, m, 1, lm)
+    copyto!(buf, la + lm + 1, b, 1, lb)
+    return buf
+end
+
+@inline function _neat_dot3!(
+    buf::Vector{T}, a::Vector{T}, m::Vector{T}, b::Vector{T}
+) where {T<:Signed}
+    la, lm, lb = length(a), length(m), length(b)
+    resize!(buf, la + lm + lb)
+    @inbounds for k in 1:la
+        buf[k] = -a[la - k + 1]  # adjoint: reverse + negate
+    end
+    copyto!(buf, la + 1, m, 1, lm)
+    copyto!(buf, la + lm + 1, b, 1, lb)
+    return buf
+end
+
+@inline function _neat_dot3!(
+    buf::Vector{T}, a::NormalMonomial{A,T}, m::NormalMonomial{A,T}, b::NormalMonomial{A,T}
+) where {A<:AlgebraType,T<:Integer}
+    return _neat_dot3!(buf, a.word, m.word, b.word)
+end
+
+"""
+    neat_dot!(buf::Vector{T}, a::Vector{T}, b::Vector{T}) -> Vector{T}
+
+In-place variant of [`neat_dot`](@ref): write the raw word for adjoint(a) * b
+into the reusable scratch buffer `buf` (resized to fit) and return it.
+Same aliasing contract as [`_neat_dot3!`](@ref).
+"""
+@inline function neat_dot!(buf::Vector{T}, a::Vector{T}, b::Vector{T}) where {T<:Unsigned}
+    la, lb = length(a), length(b)
+    resize!(buf, la + lb)
+    @inbounds for k in 1:la
+        buf[k] = a[la - k + 1]
+    end
+    copyto!(buf, la + 1, b, 1, lb)
+    return buf
+end
+
+@inline function neat_dot!(buf::Vector{T}, a::Vector{T}, b::Vector{T}) where {T<:Signed}
+    la, lb = length(a), length(b)
+    resize!(buf, la + lb)
+    @inbounds for k in 1:la
+        buf[k] = -a[la - k + 1]  # adjoint: reverse + negate
+    end
+    copyto!(buf, la + 1, b, 1, lb)
+    return buf
+end
+
 # =============================================================================
 # Shared Helper Functions for Fermionic/Bosonic Algebras
 # =============================================================================

@@ -77,10 +77,11 @@ Returns the sorted word vector (mutated in place).
 3. Within each site: preserve order exactly
 """
 function simplify!(::Type{NonCommutativeAlgebra}, word::Vector{T}) where {T<:Unsigned}
+    filter!(!iszero, word)
+
     # Empty or single: nothing to simplify
     length(word) <= 1 && return word
 
-    filter!(!iszero, word)
     # Stable sort by site: operators on different sites commute, within-site order preserved
     _stable_sort_by_site!(word)
     return word

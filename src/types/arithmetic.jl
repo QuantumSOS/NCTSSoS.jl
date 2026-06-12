@@ -66,7 +66,7 @@ function _simplified_to_terms(
     ::Type{A}, simplified::Vector{T}, ::Type{T}
 ) where {A<:MonoidAlgebra,T<:Integer}
     C = coeff_type(A)
-    mono = NormalMonomial{A,T}(simplified)
+    mono = _unchecked_monomial(A, simplified)
     return [(one(C), mono)]
 end
 
@@ -78,7 +78,7 @@ function _simplified_to_terms(
     # phase_k == _TG_ZERO means zero result (shouldn't happen for valid inputs)
     phase_k == 0x04 && return Tuple{C,NormalMonomial{A,T}}[]
     coef = _coeff_to_number(A, phase_k)
-    mono = NormalMonomial{A,T}(word)
+    mono = _unchecked_monomial(A, word)
     return [(coef, mono)]
 end
 
@@ -89,10 +89,148 @@ function _simplified_to_terms(
     terms = Tuple{C,NormalMonomial{A,T}}[]
     for (c, word) in simplified
         iszero(c) && continue
-        mono = NormalMonomial{A,T}(word)
+        mono = _unchecked_monomial(A, word)
         push!(terms, (C(c), mono))
     end
     return terms
+end
+
+"""
+    _simplified_monomials(::Type{A}, simplified, ::Type{T}) where {A,T}
+
+Like [`_simplified_to_terms`](@ref) but yields only the resulting monomials,
+without allocating a `Vector` of `(coeff, monomial)` tuples for the
+Monoid/TwistedGroup cases (which always produce at most one term).
+
+Returns a tuple for Monoid/TwistedGroup algebras and a `Vector` for PBW
+algebras; callers should only iterate the result.
+
+Ownership contract matches `_simplified_to_terms`: `simplified` must be a
+freshly-simplified result the caller owns (it is wrapped via
+`_unchecked_monomial` without copying).
+"""
+@inline function _simplified_monomials(
+    ::Type{A}, simplified::Vector{T}, ::Type{T}
+) where {A<:MonoidAlgebra,T<:Integer}
+    return (_unchecked_monomial(A, simplified),)
+end
+
+@inline function _simplified_monomials(
+    ::Type{A}, simplified::Tuple{Vector{T},UInt8}, ::Type{T}
+) where {A<:TwistedGroupAlgebra,T<:Integer}
+    word, phase_k = simplified
+    # phase_k == 0x04 encodes the zero result
+    phase_k == 0x04 && return ()
+    return (_unchecked_monomial(A, word),)
+end
+
+"""
+    _copy_if_buffer_aliased(::Type{A}, m::NormalMonomial{A,T}) -> NormalMonomial{A,T}
+
+Return a monomial safe to store when `m` came from simplifying a reusable
+scratch buffer (`_neat_dot3!`/`neat_dot!` + `simplify!`).
+
+For Monoid/TwistedGroup algebras `simplify!` mutates its input in place, so a
+buffer-derived monomial aliases the buffer and its word must be copied before
+it escapes. PBW `simplify!` always returns fresh words, so `m` is returned
+as-is.
+"""
+@inline function _copy_if_buffer_aliased(
+    ::Type{A}, m::NormalMonomial{A,T}
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
+    return _unchecked_monomial(A, copy(m.word))
+end
+
+@inline _copy_if_buffer_aliased(::Type{A}, m::NormalMonomial{A,T}) where {A<:PBWAlgebra,T<:Integer} = m
+
+function _simplified_monomials(
+    ::Type{A}, simplified::Vector{Tuple{Int,Vector{T}}}, ::Type{T}
+) where {A<:PBWAlgebra,T<:Integer}
+    monos = NormalMonomial{A,T}[]
+    sizehint!(monos, length(simplified))
+    for (c, word) in simplified
+        iszero(c) && continue
+        push!(monos, _unchecked_monomial(A, word))
+    end
+    return monos
+end
+
+# =============================================================================
+# Internal multiplication kernels
+# =============================================================================
+
+@inline function _combined_word(m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
+    n1 = length(m1.word)
+    n2 = length(m2.word)
+    combined = Vector{T}(undef, n1 + n2)
+    copyto!(combined, 1, m1.word, 1, n1)
+    copyto!(combined, n1 + 1, m2.word, 1, n2)
+    return combined
+end
+
+@inline function _mul_term(
+    m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}
+) where {A<:MonoidAlgebra,T<:Integer}
+    C = coeff_type(A)
+    isempty(m1.word) && return (one(C), m2)
+    isempty(m2.word) && return (one(C), m1)
+
+    word = _combined_word(m1, m2)
+    simplified = simplify!(A, word)
+    return (one(C), _unchecked_monomial(A, simplified))
+end
+
+@inline function _mul_term(
+    m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}
+) where {A<:TwistedGroupAlgebra,T<:Integer}
+    C = coeff_type(A)
+    isempty(m1.word) && return (one(C), m2)
+    isempty(m2.word) && return (one(C), m1)
+
+    word = _combined_word(m1, m2)
+    simplified_word, phase_k = simplify!(A, word)
+    phase_k == 0x04 && return (zero(C), one(NormalMonomial{A,T}))
+    return (C(_coeff_to_number(A, phase_k)), _unchecked_monomial(A, simplified_word))
+end
+
+@inline function _push_product_terms!(
+    result_terms::Vector{Tuple{NC,NormalMonomial{A,T}}},
+    scale,
+    m1::NormalMonomial{A,T},
+    m2::NormalMonomial{A,T},
+    ::Type{NC},
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer,NC<:Number}
+    prod_coef, prod_mono = _mul_term(m1, m2)
+    total_coef = NC(scale) * NC(prod_coef)
+    iszero(total_coef) || push!(result_terms, (total_coef, prod_mono))
+    return result_terms
+end
+
+@inline function _push_product_terms!(
+    result_terms::Vector{Tuple{NC,NormalMonomial{A,T}}},
+    scale,
+    m1::NormalMonomial{A,T},
+    m2::NormalMonomial{A,T},
+    ::Type{NC},
+) where {A<:PBWAlgebra,T<:Integer,NC<:Number}
+    base_coef = NC(scale)
+    iszero(base_coef) && return result_terms
+
+    if isempty(m1.word)
+        push!(result_terms, (base_coef, m2))
+        return result_terms
+    elseif isempty(m2.word)
+        push!(result_terms, (base_coef, m1))
+        return result_terms
+    end
+
+    word = _combined_word(m1, m2)
+    simplified = simplify!(A, word)
+    for (prod_coef, prod_mono) in _simplified_to_terms(A, simplified, T)
+        total_coef = base_coef * NC(prod_coef)
+        iszero(total_coef) || push!(result_terms, (total_coef, prod_mono))
+    end
+    return result_terms
 end
 
 # =============================================================================
@@ -116,19 +254,21 @@ Polynomial with 1 term
 """
 function Base.:(*)(
     m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}
-) where {A<:AlgebraType,T<:Integer}
+) where {A<:Union{MonoidAlgebra,TwistedGroupAlgebra},T<:Integer}
     C = coeff_type(A)
-    # Handle identity cases
-    isempty(m1.word) && return Polynomial([(one(C), m2)])
-    isempty(m2.word) && return Polynomial([(one(C), m1)])
+    coef, mono = _mul_term(m1, m2)
+    iszero(coef) && return zero(Polynomial{A,T,C})
+    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[(C(coef), mono)])
+end
 
-    # Concatenate and simplify
-    combined = vcat(m1.word, m2.word)
-    simplified = simplify(A, combined)
-    terms = _simplified_to_terms(A, simplified, T)
-
-    isempty(terms) && return zero(Polynomial{A,T,C})
-    return Polynomial(terms)
+function Base.:(*)(
+    m1::NormalMonomial{A,T}, m2::NormalMonomial{A,T}
+) where {A<:PBWAlgebra,T<:Integer}
+    C = coeff_type(A)
+    result_terms = Tuple{C,NormalMonomial{A,T}}[]
+    sizehint!(result_terms, 1)
+    _push_product_terms!(result_terms, one(C), m1, m2, C)
+    return _polynomial_from_owned_terms!(result_terms)
 end
 
 # =============================================================================
@@ -152,11 +292,11 @@ function Base.:(^)(m::NormalMonomial{A,T}, n::Integer) where {A<:AlgebraType,T<:
 
     # Repeat word n times, then simplify
     repeated_word = repeat(m.word, n)
-    simplified = simplify(A, repeated_word)
+    simplified = simplify!(A, repeated_word)
     terms = _simplified_to_terms(A, simplified, T)
 
     isempty(terms) && return zero(Polynomial{A,T,C})
-    return Polynomial(terms)
+    return _polynomial_from_owned_terms!(terms)
 end
 
 # =============================================================================
@@ -272,19 +412,17 @@ function Base.:(*)(
     isempty(p.terms) && return zero(Polynomial{A,T,C})
     isempty(m.word) && return p  # m is identity
 
-    # Delegate to NormalMonomial × NormalMonomial → Polynomial, then sum
     DC = coeff_type(A)
     NC = promote_type(C, DC)
-    result = zero(Polynomial{A,T,NC})
+    result_terms = Tuple{NC,NormalMonomial{A,T}}[]
+    sizehint!(result_terms, length(p.terms))
 
     for (coef, mono) in p.terms
         iszero(coef) && continue
-        # m * mono returns a Polynomial
-        prod_poly = m * mono
-        result = result + coef * prod_poly
+        _push_product_terms!(result_terms, coef, m, mono, NC)
     end
 
-    return result
+    return _polynomial_from_owned_terms!(result_terms)
 end
 
 """
@@ -298,19 +436,17 @@ function Base.:(*)(
     isempty(p.terms) && return zero(Polynomial{A,T,C})
     isempty(m.word) && return p  # m is identity
 
-    # Delegate to NormalMonomial × NormalMonomial → Polynomial, then sum
     DC = coeff_type(A)
     NC = promote_type(C, DC)
-    result = zero(Polynomial{A,T,NC})
+    result_terms = Tuple{NC,NormalMonomial{A,T}}[]
+    sizehint!(result_terms, length(p.terms))
 
     for (coef, mono) in p.terms
         iszero(coef) && continue
-        # mono * m returns a Polynomial
-        prod_poly = mono * m
-        result = result + coef * prod_poly
+        _push_product_terms!(result_terms, coef, mono, m, NC)
     end
 
-    return result
+    return _polynomial_from_owned_terms!(result_terms)
 end
 
 # =============================================================================
@@ -376,38 +512,17 @@ function Base.:(*)(
     DC = coeff_type(A)
     NC = promote_type(C, DC)
     result_terms = Tuple{NC,NormalMonomial{A,T}}[]
+    sizehint!(result_terms, length(p1.terms) * length(p2.terms))
 
     for (coef1, mono1) in p1.terms
         iszero(coef1) && continue
         for (coef2, mono2) in p2.terms
             iszero(coef2) && continue
-            base_coef = coef1 * coef2
-
-            # Handle identity cases
-            if isempty(mono1.word)
-                push!(result_terms, (NC(base_coef), mono2))
-                continue
-            end
-            if isempty(mono2.word)
-                push!(result_terms, (NC(base_coef), mono1))
-                continue
-            end
-
-            # Multiply monomials: concatenate and simplify
-            combined = vcat(mono1.word, mono2.word)
-            simplified = simplify(A, combined)
-            prod_terms = _simplified_to_terms(A, simplified, T)
-
-            for (c_prod, m_prod) in prod_terms
-                total_coef = NC(base_coef * c_prod)
-                iszero(total_coef) && continue
-                push!(result_terms, (total_coef, m_prod))
-            end
+            _push_product_terms!(result_terms, coef1 * coef2, mono1, mono2, NC)
         end
     end
 
-    isempty(result_terms) && return zero(Polynomial{A,T,NC})
-    return Polynomial(result_terms)
+    return _polynomial_from_owned_terms!(result_terms)
 end
 
 # =============================================================================
@@ -446,7 +561,7 @@ Negate a Polynomial (negate all coefficients).
 """
 function Base.:(-)(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
     negated_terms = Tuple{C,NormalMonomial{A,T}}[(-c, m) for (c, m) in p.terms]
-    return Polynomial{A,T,C}(negated_terms)
+    return _unchecked_polynomial(negated_terms)
 end
 
 # =============================================================================
@@ -474,12 +589,12 @@ function LinearAlgebra.adjoint(
         raw_adj_word = similar(mono.word, length(mono.word))
         raw_adj_word .= .-@view(mono.word[end:-1:1])
 
-        for (adj_coef, adj_mono) in _simplified_to_terms(A, simplify(A, raw_adj_word), T)
+        for (adj_coef, adj_mono) in _simplified_to_terms(A, simplify!(A, raw_adj_word), T)
             push!(adj_terms, (CAdj(conj(coef)) * CAdj(adj_coef), adj_mono))
         end
     end
 
-    return Polynomial(adj_terms)
+    return _polynomial_from_owned_terms!(adj_terms)
 end
 
 function LinearAlgebra.adjoint(
@@ -552,7 +667,7 @@ function Base.:(*)(
     NC = promote_type(typeof(c), C)
     iszero(c) && return zero(Polynomial{A,T,NC})
     scaled_terms = Tuple{NC,NormalMonomial{A,T}}[(NC(c * coef), m) for (coef, m) in p.terms]
-    return Polynomial{A,T,NC}(scaled_terms)
+    return _polynomial_from_owned_terms!(scaled_terms)
 end
 
 Base.:(*)(p::Polynomial, c::Number) = c * p

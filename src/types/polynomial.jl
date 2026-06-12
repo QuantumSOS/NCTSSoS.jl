@@ -79,20 +79,26 @@ See also: [`NormalMonomial`](@ref), [`coefficients`](@ref), [`monomials`](@ref)
 struct Polynomial{A<:AlgebraType,T<:Integer,C<:Number} <: AbstractPolynomial{C}
     terms::Vector{Tuple{C,NormalMonomial{A,T}}}
 
-    # Inner constructor enforces invariants: sorted, deduplicated, non-zero coefficients
+    # Public parametric constructor: canonicalizes caller-provided storage.
     function Polynomial{A,T,C}(
         input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
+    ) where {A<:AlgebraType,T<:Integer,C<:Number}
+        return new{A,T,C}(_process_terms(input_terms, C))
+    end
+
+    # Private trusted path. Callers must provide sorted, deduplicated, non-zero terms.
+    function Polynomial{A,T,C}(
+        input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}, ::Val{:trusted}
     ) where {A<:AlgebraType,T<:Integer,C<:Number}
         return new{A,T,C}(input_terms)
     end
 end
 
-# Delegate explicit type calls to the inner constructor
+# Delegate inferred type calls to the public parametric constructor.
 function Polynomial(
     input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
-    processed = _process_terms(input_terms, C)
-    return Polynomial{A,T,C}(processed)
+    return Polynomial{A,T,C}(input_terms)
 end
 
 """
@@ -110,34 +116,72 @@ This is the core algorithm for maintaining polynomial invariants.
 function _process_terms(
     input_terms::Vector{Tuple{C,NormalMonomial{A,T}}}, ::Type{C}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
-    isempty(input_terms) && return input_terms
+    if isempty(input_terms)
+        return Tuple{C,NormalMonomial{A,T}}[]
+    elseif length(input_terms) == 1
+        coef, mono = input_terms[1]
+        return iszero(coef) ? Tuple{C,NormalMonomial{A,T}}[] : Tuple{C,NormalMonomial{A,T}}[(coef, mono)]
+    end
 
-    # Sort by monomial
-    sorted = sort(input_terms; by=t -> t[2])
+    return _process_terms!(copy(input_terms), C)
+end
 
-    # Combine duplicates and filter zeros
-    result = Tuple{C,NormalMonomial{A,T}}[]
-    current_coef, current_mono = sorted[1]
+"""
+    _process_terms!(owned_terms, C) -> Vector{Tuple{C,NormalMonomial}}
 
-    for i in 2:length(sorted)
-        coef_i, mono_i = sorted[i]
+Internal in-place term canonicalization for owned buffers.
+Sorts by monomial, combines duplicates, and removes zero coefficients.
+Call only when the vector is freshly allocated by the caller and is not aliased
+by user code. Public constructors use `_process_terms` and do not mutate inputs.
+"""
+function _process_terms!(
+    owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}}, ::Type{C}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    if isempty(owned_terms)
+        return owned_terms
+    elseif length(owned_terms) == 1
+        iszero(owned_terms[1][1]) && empty!(owned_terms)
+        return owned_terms
+    end
+
+    sort!(owned_terms; by=t -> t[2])
+
+    write_idx = 0
+    current_coef, current_mono = owned_terms[1]
+
+    @inbounds for i in 2:length(owned_terms)
+        coef_i, mono_i = owned_terms[i]
         if mono_i == current_mono
             current_coef += coef_i
         else
             if !iszero(current_coef)
-                push!(result, (current_coef, current_mono))
+                write_idx += 1
+                owned_terms[write_idx] = (current_coef, current_mono)
             end
-            current_mono = mono_i
             current_coef = coef_i
+            current_mono = mono_i
         end
     end
 
-    # Don't forget the last accumulated term
     if !iszero(current_coef)
-        push!(result, (current_coef, current_mono))
+        write_idx += 1
+        owned_terms[write_idx] = (current_coef, current_mono)
     end
 
-    return result
+    resize!(owned_terms, write_idx)
+    return owned_terms
+end
+
+@inline function _unchecked_polynomial(
+    owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    return Polynomial{A,T,C}(owned_terms, Val(:trusted))
+end
+
+@inline function _polynomial_from_owned_terms!(
+    owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    return _unchecked_polynomial(_process_terms!(owned_terms, C))
 end
 
 # =============================================================================
@@ -164,9 +208,9 @@ julia> length(terms(p))
 function Polynomial(t::Tuple{C,NormalMonomial{A,T}}) where {A<:AlgebraType,T<:Integer,C<:Number}
     coef, _ = t
     if iszero(coef)
-        return Polynomial{A,T,C}(Tuple{C,NormalMonomial{A,T}}[])
+        return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[])
     end
-    return Polynomial{A,T,C}([t])
+    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[t])
 end
 
 
@@ -202,12 +246,6 @@ function Polynomial(m::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
     return Polynomial((one(C), m))
 end
 
-function Polynomial(
-    pairs::Vector{Tuple{CIn,NormalMonomial{A,T}}},
-) where {CIn,A<:AlgebraType,T<:Integer}
-    return Polynomial{A,T,CIn}(pairs)
-end
-
 """
     Polynomial(t::Tuple{Vector{T},UInt8}) where {T<:Integer}
 
@@ -232,10 +270,7 @@ function Polynomial(t::Tuple{Vector{T},UInt8}) where {T<:Integer}
     # Convert phase encoding to complex coefficient
     coef = _phase_to_complex(phase)
     mono = NormalMonomial{PauliAlgebra,T}(word)
-    if iszero(coef)
-        return Polynomial{PauliAlgebra,T,ComplexF64}(Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[])
-    end
-    return Polynomial{PauliAlgebra,T,ComplexF64}([(coef, mono)])
+    return _unchecked_polynomial(Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[(coef, mono)])
 end
 
 # _phase_to_complex helper is in util/helpers.jl
@@ -282,10 +317,11 @@ true
 ```
 """
 function Polynomial{A,T,C}(c::Number) where {A<:AlgebraType,T<:Integer,C<:Number}
-    if iszero(c)
-        return Polynomial{A,T,C}(Tuple{C,NormalMonomial{A,T}}[])
+    coef = C(c)
+    if iszero(coef)
+        return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[])
     end
-    return Polynomial{A,T,C}([(C(c), one(NormalMonomial{A,T}))])
+    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[(coef, one(NormalMonomial{A,T}))])
 end
 
 # =============================================================================
@@ -316,16 +352,16 @@ julia> coefficients(p_float)[1]
 """
 function Base.convert(::Type{Polynomial{A,T,C2}}, p::Polynomial{A,T,C1}) where {A<:AlgebraType,T<:Integer,C1<:Number,C2<:Number}
     C1 === C2 && return p
-    new_terms = [(C2(c), m) for (c, m) in p.terms]
-    return Polynomial{A,T,C2}(new_terms)
+    new_terms = Tuple{C2,NormalMonomial{A,T}}[(C2(c), m) for (c, m) in p.terms]
+    return _polynomial_from_owned_terms!(new_terms)
 end
 
 function Base.convert(
     ::Type{Polynomial{A,T2,C2}}, p::Polynomial{A,T1,C1}
 ) where {A<:AlgebraType,T1<:Integer,T2<:Integer,C1<:Number,C2<:Number}
     (T1 === T2 && C1 === C2) && return p
-    new_terms = [(C2(c), NormalMonomial{A,T2}(T2.(m.word))) for (c, m) in p.terms]
-    return Polynomial{A,T2,C2}(new_terms)
+    new_terms = Tuple{C2,NormalMonomial{A,T2}}[(C2(c), NormalMonomial{A,T2}(T2.(m.word))) for (c, m) in p.terms]
+    return _polynomial_from_owned_terms!(new_terms)
 end
 
 # Identity conversion (no-op)
@@ -354,7 +390,7 @@ julia> length(terms(p))
 ```
 """
 function Base.zero(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    return Polynomial{A,T,C}(Tuple{C,NormalMonomial{A,T}}[])
+    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[])
 end
 
 """
@@ -386,7 +422,7 @@ julia> coefficients(p)
 ```
 """
 function Base.one(::Type{Polynomial{A,T,C}}) where {A<:AlgebraType,T<:Integer,C<:Number}
-    return Polynomial{A,T,C}([(one(C), one(NormalMonomial{A,T}))])
+    return _unchecked_polynomial(Tuple{C,NormalMonomial{A,T}}[(one(C), one(NormalMonomial{A,T}))])
 end
 
 """
@@ -405,7 +441,7 @@ Create a shallow copy of the polynomial.
 """
 function Base.copy(p::Polynomial{A,T,C}) where {A<:AlgebraType,T<:Integer,C<:Number}
     # Shallow copy: coefficients are immutable; monomials share underlying word storage.
-    return Polynomial{A,T,C}(copy(p.terms))
+    return _unchecked_polynomial(copy(p.terms))
 end
 
 """

@@ -137,6 +137,7 @@ Phase encoding: 0 → 1, 1 → i, 2 → -1, 3 → -i
 """
 function simplify!(::Type{PauliAlgebra}, word::Vector{T}) where {T<:Integer}
     phase_k = UInt8(0)  # Start with phase = 1 = (im)^0
+    filter!(!iszero, word)
 
     # Empty or single: nothing to simplify
     length(word) <= 1 && return (word, phase_k)

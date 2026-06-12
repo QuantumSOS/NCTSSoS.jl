@@ -49,24 +49,45 @@ struct LinearMomentForm{K,C}
             push!(terms, convert(K, key) => converted)
         end
 
-        sort!(terms; by=x -> x.first, lt=key_lt)
-
-        out = Pair{K,C}[]
-        for (key, coef) in terms
-            if !isempty(out) && key_isequal(out[end].first, key)
-                combined = out[end].second + coef
-                if iszero(combined)
-                    pop!(out)
-                else
-                    out[end] = out[end].first => combined
-                end
-            else
-                push!(out, key => coef)
-            end
-        end
-
-        return new{K,C}(out)
+        return _linear_moment_form_from_owned_pairs!(terms)
     end
+
+    function LinearMomentForm{K,C}(terms::Vector{Pair{K,C}}, ::Val{:trusted}) where {K,C}
+        return new{K,C}(terms)
+    end
+end
+
+function _linear_moment_form_from_owned_pairs!(terms::Vector{Pair{K,C}}) where {K,C}
+    isempty(terms) && return LinearMomentForm{K,C}(terms, Val(:trusted))
+
+    sort!(terms; by=x -> x.first, lt=key_lt)
+
+    write_idx = 0
+    current_key = terms[1].first
+    current_coef = terms[1].second
+
+    @inbounds for i in 2:length(terms)
+        key = terms[i].first
+        coef = terms[i].second
+        if key_isequal(current_key, key)
+            current_coef += coef
+        else
+            if !iszero(current_coef)
+                write_idx += 1
+                terms[write_idx] = current_key => current_coef
+            end
+            current_key = key
+            current_coef = coef
+        end
+    end
+
+    if !iszero(current_coef)
+        write_idx += 1
+        terms[write_idx] = current_key => current_coef
+    end
+
+    resize!(terms, write_idx)
+    return LinearMomentForm{K,C}(terms, Val(:trusted))
 end
 
 LinearMomentForm(pairs::AbstractVector{<:Pair{K,C}}) where {K,C} =
@@ -552,14 +573,17 @@ function _assert_pivots(
     adjoint_key::Dict{K,K},
     psd_blocks_lin::Vector{PSDBlockLin{K,C,M}},
 ) where {K,C,M}
-    pivot_keys = collect(keys(pivots))
-    union_keys = vcat(pivot_keys, free_keys)
-    _keys_match(union_keys, moments) || throw(ArgumentError(
+    free_key_set = Set(free_keys)
+    length(pivots) + length(free_keys) == length(moments) || throw(ArgumentError(
         "pivots and free_keys must cover exactly MomentLinearData.moments"
     ))
+    for key in moments
+        (haskey(pivots, key) || _has_key_value(free_key_set, key)) || throw(ArgumentError(
+            "pivots and free_keys must cover moment key $(repr(key))"
+        ))
+    end
 
-    free_key_set = Set(free_keys)
-    for key in pivot_keys
+    for key in keys(pivots)
         _has_key_value(free_key_set, key) && throw(ArgumentError(
             "key $(repr(key)) appears both in pivots and free_keys"
         ))
@@ -588,13 +612,19 @@ function _assert_pivots(
         push!(get!(expected_pivot_at, (pivot.block, pivot.row, pivot.col), K[]), key)
     end
 
-    _keys_match(collect(keys(expected_pivot_at)), collect(keys(pivot_at))) || throw(ArgumentError(
+    length(expected_pivot_at) == length(pivot_at) || throw(ArgumentError(
         "pivot_at keys do not match pivot positions"
     ))
+    for position in keys(expected_pivot_at)
+        haskey(pivot_at, position) || throw(ArgumentError(
+            "pivot_at keys do not match pivot positions"
+        ))
+    end
 
     for (position, keys_at_position) in pivot_at
         expected_keys = expected_pivot_at[position]
-        _keys_match(keys_at_position, expected_keys) || throw(ArgumentError(
+        (length(keys_at_position) == length(expected_keys) &&
+            all(key -> _has_key_value(expected_keys, key), keys_at_position)) || throw(ArgumentError(
             "pivot_at[$position] does not list exactly the keys pivoting at that entry"
         ))
         length(keys_at_position) <= 2 || throw(ArgumentError(

@@ -89,16 +89,38 @@ are correctly distinguished (e.g., Pauli `[1,2]` ≠ Fermionic `[1,2]`).
 end
 
 """
+    _hash_word_vector(word::Vector, h::UInt) -> UInt
+
+Allocation-free hash for the monomial word vector.
+
+For normal monomial word lengths this mirrors Julia's `hash(::AbstractArray, h)`
+combiner for dense one-dimensional vectors: array seed, axis first/last tuples,
+then scalar element hashes. Reimplementing it here avoids the small allocation in
+Julia 1.12's generic array hashing while preserving existing hash order for the
+short vectors used as monomial words.
+"""
+const _HASH_ABSTRACTARRAY_SEED = UInt === UInt64 ? UInt(0x7e2d6fb6448beb77) : UInt(0xd4514ce5)
+
+@inline function _hash_word_vector(word::Vector, h::UInt)
+    h += _HASH_ABSTRACTARRAY_SEED
+    h = hash((firstindex(word),), h)
+    h = hash((lastindex(word),), h)
+    @inbounds for x in word
+        h = hash(x, h)
+    end
+    return h
+end
+
+"""
     _hash_with_algebra(::Type{A}, payload, h::UInt) -> UInt
 
 Internal helper that incorporates the algebra type `A` into the hash.
 
 This maintains the hash/equality contract: since monomials from different algebras
 are never equal (even with identical payloads), their hashes must also differ.
-The algebra type is hashed first, then combined with the payload hash.
 """
-@inline _hash_with_algebra(::Type{A}, payload, h::UInt) where {A<:AlgebraType} =
-    hash(A, hash(payload, h))
+@inline _hash_with_algebra(::Type{A}, payload::Vector, h::UInt) where {A<:AlgebraType} =
+    hash(A, _hash_word_vector(payload, h))
 
 """
     coeff_type(::Type{T}) -> Type{<:Number}
@@ -256,13 +278,40 @@ true
 struct NormalMonomial{A<:AlgebraType,T<:Integer} <: AbstractMonomial{A,T}
     word::Vector{T}
 
-    # Inner constructor: validate no zeros, then validate algebra invariants.
+    # Public inner constructor: validate no zeros, then validate algebra invariants.
     function NormalMonomial{A,T}(word::Vector{T}) where {A<:AlgebraType,T<:Integer}
         any(iszero, word) && throw(ArgumentError("NormalMonomial word must not contain zeros"))
         _validate_word(A, word)
         new{A,T}(word)
     end
 
+    # Private trusted path. Do not call this with user input.
+    function NormalMonomial{A,T}(word::Vector{T}, ::Val{:trusted}) where {A<:AlgebraType,T<:Integer}
+        new{A,T}(word)
+    end
+
+end
+
+"""
+    _unchecked_monomial(::Type{A}, word::Vector{T}) -> NormalMonomial{A,T}
+
+Internal trusted constructor for words already proven to be canonical.
+
+Contract for callers:
+- `word` came from `simplify!`/`simplify` for algebra `A`, or is an already
+  canonical identity/monomial word assembled from canonical monomials.
+- `word` contains no zero indices.
+- `word` is owned by the resulting monomial. Never store a monomial that
+  wraps a reusable scratch buffer (copy the word first), and never mutate the
+  word after wrapping. Wrapping a buffer for a *transient* probe (hash/equality
+  lookup or ordering comparison that is discarded before the buffer is reused)
+  is allowed.
+
+Public `NormalMonomial` constructors keep validating. This path exists only to
+avoid revalidating fresh simplification results on hot multiplication paths.
+"""
+@inline function _unchecked_monomial(::Type{A}, word::Vector{T}) where {A<:AlgebraType,T<:Integer}
+    return NormalMonomial{A,T}(word, Val(:trusted))
 end
 
 """
@@ -291,7 +340,7 @@ The hash includes both the algebra type `A` and the word vector, ensuring that
 monomials from different algebras with the same word have different hashes.
 This maintains the hash/equality contract: if `m1 == m2`, then `hash(m1) == hash(m2)`.
 """
-Base.hash(m::NormalMonomial{A}, h::UInt) where {A} = _hash_with_algebra(A, m.word, h)
+Base.hash(m::NormalMonomial{A}, h::UInt) where {A<:AlgebraType} = _hash_with_algebra(A, m.word, h)
 
 """
     degree(m::NormalMonomial) -> Int

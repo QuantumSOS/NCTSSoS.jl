@@ -512,13 +512,22 @@ function init_activated_supp(
     # For each basis NormalMonomial b, expand: Σ_{k,l} conj(c_k) * c_l * (word_k)† * word_l
     NM = NormalMonomial{A,T}
     diagonal_entries = NM[]
+    seen = Set{NM}()
+    buf = T[]  # scratch word reused across all products
     for b in mom_mtx_bases
         for (c1, word1) in b
             for (c2, word2) in b
-                diag_word = neat_dot(word1.word, word2.word)
-                simplified = simplify(A, diag_word)
-                terms = _simplified_to_terms(A, simplified, T)
-                append!(diagonal_entries, last.(terms))
+                neat_dot!(buf, word1.word, word2.word)
+                for m in _simplified_monomials(A, simplify!(A, buf), T)
+                    # m may alias buf; dedupe with a transient probe and copy
+                    # only on first occurrence. sorted_union dedupes anyway, so
+                    # the result is unchanged.
+                    if !(m in seen)
+                        owned = _copy_if_buffer_aliased(A, m)
+                        push!(seen, owned)
+                        push!(diagonal_entries, owned)
+                    end
+                end
             end
         end
     end
@@ -580,6 +589,7 @@ function get_term_sparsity_graph(
     nterms = length(bases)
     G = SimpleGraph(nterms)
     sorted_activated_supp = sort(activated_supp)
+    buf = T[]  # scratch word reused across all products
 
     for i in 1:nterms, j in i+1:nterms
         edge_found = false
@@ -589,16 +599,10 @@ function get_term_sparsity_graph(
             for (_, word_j) in bases[j]
                 edge_found && break
                 for supp in cons_support
-                    # _neat_dot3 on NormalMonomials returns Vector{T}
-                    word_lr = _neat_dot3(word_i, supp, word_j)
-                    word_rl = _neat_dot3(word_j, supp, word_i)
-                    terms_lr = _simplified_to_terms(A, simplify(A, word_lr), T)
-                    terms_rl = _simplified_to_terms(A, simplify(A, word_rl), T)
-                    # Check if any result monomial is in activated support
-                    monos_lr = last.(terms_lr)
-                    monos_rl = last.(terms_rl)
-                    if any(m in sorted_activated_supp for m in monos_lr) ||
-                       any(m in sorted_activated_supp for m in monos_rl)
+                    # Check if any simplified product monomial lands in the
+                    # activated support (sorted vector: binary search).
+                    if _buffered_product_insorted(buf, word_i, supp, word_j, sorted_activated_supp) ||
+                       _buffered_product_insorted(buf, word_j, supp, word_i, sorted_activated_supp)
                         add_edge!(G, i, j)
                         edge_found = true
                         break
@@ -608,6 +612,27 @@ function get_term_sparsity_graph(
         end
     end
     return G
+end
+
+"""
+    _buffered_product_insorted(buf, a, m, b, sorted_supp) -> Bool
+
+Simplify adjoint(a) * m * b into the scratch buffer `buf` and report whether
+any resulting monomial is in `sorted_supp` (binary search). Buffer-aliased
+monomials are used only as transient comparison probes — nothing escapes.
+"""
+@inline function _buffered_product_insorted(
+    buf::Vector{T},
+    a::NormalMonomial{A,T},
+    m::NormalMonomial{A,T},
+    b::NormalMonomial{A,T},
+    sorted_supp::Vector{<:NormalMonomial{A,T}},
+) where {A<:AlgebraType,T<:Integer}
+    _neat_dot3!(buf, a, m, b)
+    for mono in _simplified_monomials(A, simplify!(A, buf), T)
+        insorted(mono, sorted_supp) && return true
+    end
+    return false
 end
 
 """
@@ -653,26 +678,39 @@ function term_sparsity_graph_supp(
     G::SimpleGraph, basis::Vector{M}, g::P
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     NM = NormalMonomial{A,T}
-    # Compute products with bilinear expansion over Monomial terms
-    function gsupp(a::M, b::M)
-        out = NM[]
+    # Hoist support monomials out of the triple loop (last.() allocates).
+    g_supp_monos = NM[last(t) for t in g.terms]
+    # Accumulate first occurrences directly. This reproduces
+    # union(gsupp(v₁,v₁), ..., gsupp(e₁), ...) exactly: same iteration order,
+    # first-occurrence dedup — without materializing per-pair vectors.
+    seen = Set{NM}()
+    out = NM[]
+    buf = T[]  # scratch word reused across all products
+    function gsupp!(a::M, b::M)
         for (_, word_a) in a
             for (_, word_b) in b
-                for g_supp in last.(g.terms)
-                    word = _neat_dot3(word_a, g_supp, word_b)
-                    terms = _simplified_to_terms(A, simplify(A, word), T)
-                    append!(out, last.(terms))
+                for g_supp in g_supp_monos
+                    _neat_dot3!(buf, word_a, g_supp, word_b)
+                    for m in _simplified_monomials(A, simplify!(A, buf), T)
+                        # m may alias buf; transient probe, copy only on insert.
+                        if !(m in seen)
+                            owned = _copy_if_buffer_aliased(A, m)
+                            push!(seen, owned)
+                            push!(out, owned)
+                        end
+                    end
                 end
             end
         end
-        return out
+        return nothing
     end
-    supp_sets = vcat(
-        [gsupp(basis[v], basis[v]) for v in vertices(G)],
-        [gsupp(basis[e.src], basis[e.dst]) for e in edges(G)]
-    )
-    isempty(supp_sets) && return NM[]
-    return union(supp_sets...)
+    for v in vertices(G)
+        gsupp!(basis[v], basis[v])
+    end
+    for e in edges(G)
+        gsupp!(basis[e.src], basis[e.dst])
+    end
+    return out
 end
 
 # =============================================================================

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NCTSSoS Monomials: Performance Profile &amp; Improved Design</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: {
+    colors: {
+      ink: '#0b0f17', panel: '#111827', edge: '#1f2937',
+      accent: '#38bdf8', good: '#34d399', bad: '#f87171', warn: '#fbbf24'
+    },
+    fontFamily: { mono: ['ui-monospace','SFMono-Regular','Menlo','monospace'] }
+  } }
+}
+</script>
+<style>
+  html { scroll-behavior: smooth; }
+  body { background:#0b0f17; }
+  ::selection { background:#38bdf855; }
+  .prose-block p { margin-bottom: .9rem; line-height: 1.75; }
+  pre code .k { color:#c084fc; }          /* keyword */
+  pre code .c { color:#6b7280; font-style:italic; }  /* comment */
+  pre code .s { color:#fbbf24; }          /* string */
+  pre code .n { color:#34d399; }          /* number */
+  pre code .f { color:#38bdf8; }          /* function-ish */
+  .toolbar-pop { animation: pop .12s ease-out; }
+  @keyframes pop { from { transform: scale(.92); opacity:0 } to { transform: scale(1); opacity:1 } }
+  details summary::-webkit-details-marker { display:none; }
+  @media print {
+    #sel-toolbar, #modal, #notes-panel, .no-print { display:none !important; }
+    body { background:#fff; color:#000; }
+  }
+</style>
+</head>
+<body class="text-slate-300 antialiased">
+
+<!-- ============================ NAV ============================ -->
+<nav class="sticky top-0 z-40 backdrop-blur bg-ink/80 border-b border-edge no-print">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
+    <span class="text-accent font-bold tracking-tight">NCTSSoS · Monomial Perf</span>
+    <div class="hidden sm:flex gap-3 text-sm text-slate-400">
+      <a href="#overview" class="hover:text-accent transition">Overview</a>
+      <a href="#concepts" class="hover:text-accent transition">Concepts</a>
+      <a href="#visuals" class="hover:text-accent transition">Diagrams</a>
+      <a href="#deepdive" class="hover:text-accent transition">Deep dive</a>
+      <a href="#pitfalls" class="hover:text-accent transition">Pitfalls</a>
+      <a href="#demo" class="hover:text-accent transition">Demo</a>
+      <a href="#quiz" class="hover:text-accent transition">Quiz</a>
+    </div>
+    <button id="notes-toggle" class="ml-auto text-sm bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition" aria-label="Open my questions and notes">
+      📒 My Questions &amp; Notes <span id="notes-count" class="text-accent font-semibold"></span>
+    </button>
+  </div>
+</nav>
+
+<main id="content" class="max-w-5xl mx-auto px-4 pb-24">
+
+<!-- ============================ HERO ============================ -->
+<header class="pt-14 pb-10">
+  <p class="text-accent text-sm font-semibold uppercase tracking-widest mb-3">Performance profile · 2026-06-12 · Julia 1.12.3</p>
+  <h1 class="text-3xl sm:text-5xl font-extrabold text-white leading-tight mb-4">
+    Where NCTSSoS monomials burn memory — and the three-tier fix
+  </h1>
+  <p class="text-lg text-slate-400 max-w-3xl">
+    One Pauli monomial product costs <b class="text-bad">~10 heap allocations (432&nbsp;B)</b>;
+    an 80×80 moment-matrix loop allocates <b class="text-bad">36&nbsp;MB of pure transients</b>.
+    A measured prototype removes 3.7–10× of that <em>without changing the data representation</em>.
+  </p>
+  <div class="mt-6 bg-panel border border-edge rounded-xl p-5 max-w-3xl">
+    <p class="text-sm"><b class="text-warn">Why this matters:</b> moment/SOS relaxation assembly is a tight loop of
+    <code class="text-accent">word concat → simplify → dict lookup</code> over hundreds of thousands of basis pairs.
+    Every wasted allocation there is multiplied by <i>n²·k</i> — it shows up directly as GC time and cache misses at problem scale.</p>
+  </div>
+</header>
+
+<!-- ============================ OVERVIEW ============================ -->
+<section id="overview" data-section data-title="Quick Overview" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Quick Overview</h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+  <div class="prose-block max-w-3xl">
+    <p><b class="text-white">TL;DR.</b> The monomial type itself (<code class="text-accent">NormalMonomial{A,T}</code>, an immutable word
+    <code class="text-accent">Vector{T}</code>) is fine for correctness — the problem is the <em>plumbing around it</em>.
+    Every product funnels a provably single-term result through a full <code class="text-accent">Polynomial</code>
+    construction with sorting; <code class="text-accent">simplify</code> copies buffers the caller already owns;
+    <code class="text-accent">m * p</code> accumulates quadratically; and Julia's generic array hash allocates on every dict probe.
+    A Tier-1 prototype (verified bit-identical results) gets 3.7–10× with localized edits to 4 files.</p>
+  </div>
+  <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+    <div class="bg-panel border border-edge rounded-xl p-4">
+      <p class="text-3xl font-extrabold text-bad">432 B</p>
+      <p class="text-sm text-slate-400 mt-1">allocated per <code>m₁ * m₂</code> — for a result that is <b>one term</b></p>
+    </div>
+    <div class="bg-panel border border-edge rounded-xl p-4">
+      <p class="text-3xl font-extrabold text-bad">36 MB</p>
+      <p class="text-sm text-slate-400 mt-1">transient allocations in one 80×80-basis moment-like assembly loop</p>
+    </div>
+    <div class="bg-panel border border-edge rounded-xl p-4">
+      <p class="text-3xl font-extrabold text-good">10×</p>
+      <p class="text-sm text-slate-400 mt-1">measured speedup of <code>m * p</code> in the Tier-1 prototype (77 KB → 5 KB)</p>
+    </div>
+    <div class="bg-panel border border-edge rounded-xl p-4">
+      <p class="text-3xl font-extrabold text-good">4 files</p>
+      <p class="text-sm text-slate-400 mt-1">blast radius of Tier 1: <code>monomial.jl</code>, <code>arithmetic.jl</code>, <code>polynomial.jl</code>, <code>moment.jl</code></p>
+    </div>
+  </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ CONCEPTS ============================ -->
+<section id="concepts" data-section data-title="Core Concepts" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Core Concepts</h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+  <div class="prose-block max-w-3xl">
+    <p><b class="text-white">A monomial is a word.</b> <code class="text-accent">NormalMonomial{A,T}</code> stores a product of
+    generators as an integer vector — e.g. <code class="text-accent">UInt8[1, 8, 15]</code> means σx₁·σy₃·σz₅ in the Pauli encoding.
+    The algebra <code class="text-accent">A</code> lives in the <em>type parameter</em>, so dispatch is free; the word lives on the
+    <em>heap</em>, so everything else isn't.</p>
+    <p><b class="text-white">"Normal" means canonical.</b> The constructor enforces that the word is already in the
+    algebra's normal form (sorted by site, no squares, etc.) by running <code class="text-accent">_validate_word</code> —
+    an O(n) scan — on <em>every</em> construction. That's the right call at the API boundary and a pure tax when the
+    word just came out of <code class="text-accent">simplify</code>, which guarantees canonical output by construction.</p>
+    <p><b class="text-white">Multiplication = concatenate, then rewrite.</b> <code class="text-accent">m₁ * m₂</code>
+    concatenates the two words and calls the algebra's rewrite rules
+    (<code class="text-accent">simplify</code>). For Monoid and TwistedGroup algebras (NonCommutative, Projector,
+    Unipotent, Pauli) the result is always <b>zero or one term</b>. Only PBW algebras (Fermionic, Bosonic) can
+    genuinely expand into many terms.</p>
+    <p><b class="text-white">Polynomials are sorted-unique term lists.</b> <code class="text-accent">Polynomial{A,T,C}</code>
+    keeps <code class="text-accent">Vector{Tuple{C, NormalMonomial}}</code> sorted with unique monomials and nonzero
+    coefficients. Maintaining that invariant requires a sort + dedup pass (<code class="text-accent">_process_terms</code>)
+    — which today runs even for <em>single-term</em> inputs.</p>
+    <p><b class="text-white">The hot loop.</b> Moment-matrix assembly computes
+    <code class="text-accent">simplify(A, aᵀ·m·b)</code> for every basis pair (a, b) and Hamiltonian term m, then uses the
+    canonical word as a dictionary key. Cost per entry ≈ buffer alloc + rewrite + hash + probe. Multiply by
+    basis² × terms.</p>
+  </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ VISUALS ============================ -->
+<section id="visuals" data-section data-title="Visual Explainers" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Visual Explainers</h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mb-3">The allocation pipeline of one <code class="text-accent">m₁ * m₂</code></h3>
+  <p class="text-sm text-slate-400 mb-4 max-w-3xl">Red badges are heap allocations. The current path takes five stops to produce one term; the prototype kernel takes one buffer and trusts its own simplifier.</p>
+  <div class="bg-panel border border-edge rounded-xl p-4 overflow-x-auto">
+    <svg viewBox="0 0 860 300" class="min-w-[700px] w-full" role="img" aria-label="Allocation pipeline diagram comparing current and prototype monomial multiply paths">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+        </marker>
+      </defs>
+      <!-- current path -->
+      <text x="10" y="24" fill="#f87171" font-size="14" font-weight="bold">CURRENT — 432 B, ~10 allocations</text>
+      <g font-size="12" fill="#cbd5e1">
+        <rect x="10"  y="40" width="120" height="44" rx="8" fill="#111827" stroke="#1f2937"/><text x="70" y="66" text-anchor="middle">m1.word, m2.word</text>
+        <rect x="170" y="40" width="110" height="44" rx="8" fill="#111827" stroke="#f87171"/><text x="225" y="60" text-anchor="middle">vcat</text><text x="225" y="76" text-anchor="middle" fill="#f87171" font-size="10">alloc ①</text>
+        <rect x="320" y="40" width="130" height="44" rx="8" fill="#111827" stroke="#f87171"/><text x="385" y="60" text-anchor="middle">simplify = copy!</text><text x="385" y="76" text-anchor="middle" fill="#f87171" font-size="10">alloc ② (waste)</text>
+        <rect x="490" y="40" width="140" height="44" rx="8" fill="#111827" stroke="#f87171"/><text x="560" y="60" text-anchor="middle">terms Vector [1 elt]</text><text x="560" y="76" text-anchor="middle" fill="#f87171" font-size="10">alloc ③</text>
+        <rect x="670" y="40" width="180" height="44" rx="8" fill="#111827" stroke="#f87171"/><text x="760" y="60" text-anchor="middle">Polynomial: sort+dedup</text><text x="760" y="76" text-anchor="middle" fill="#f87171" font-size="10">alloc ④⑤ (no-op for 1 term)</text>
+        <line x1="130" y1="62" x2="168" y2="62" stroke="#64748b" marker-end="url(#arr)"/>
+        <line x1="280" y1="62" x2="318" y2="62" stroke="#64748b" marker-end="url(#arr)"/>
+        <line x1="450" y1="62" x2="488" y2="62" stroke="#64748b" marker-end="url(#arr)"/>
+        <line x1="630" y1="62" x2="668" y2="62" stroke="#64748b" marker-end="url(#arr)"/>
+      </g>
+      <!-- validation note -->
+      <text x="10" y="120" fill="#fbbf24" font-size="11">+ every NormalMonomial constructed re-validates a word that simplify already canonicalized (O(n) scan ×2)</text>
+
+      <!-- prototype path -->
+      <text x="10" y="170" fill="#34d399" font-size="14" font-weight="bold">PROTOTYPE — 96 B, ~2 allocations (results verified identical)</text>
+      <g font-size="12" fill="#cbd5e1">
+        <rect x="10"  y="186" width="120" height="44" rx="8" fill="#111827" stroke="#1f2937"/><text x="70" y="212" text-anchor="middle">m1.word, m2.word</text>
+        <rect x="170" y="186" width="190" height="44" rx="8" fill="#111827" stroke="#34d399"/><text x="265" y="206" text-anchor="middle">one buffer (2× copyto!)</text><text x="265" y="222" text-anchor="middle" fill="#34d399" font-size="10">alloc ① — the only buffer</text>
+        <rect x="400" y="186" width="150" height="44" rx="8" fill="#111827" stroke="#34d399"/><text x="475" y="206" text-anchor="middle">simplify! in place</text><text x="475" y="222" text-anchor="middle" fill="#34d399" font-size="10">0 alloc</text>
+        <rect x="590" y="186" width="260" height="44" rx="8" fill="#111827" stroke="#34d399"/><text x="720" y="206" text-anchor="middle">(coef, NormalMonomial) via trusted ctor</text><text x="720" y="222" text-anchor="middle" fill="#34d399" font-size="10">no validation, no sort, no Polynomial</text>
+        <line x1="130" y1="208" x2="168" y2="208" stroke="#64748b" marker-end="url(#arr)"/>
+        <line x1="360" y1="208" x2="398" y2="208" stroke="#64748b" marker-end="url(#arr)"/>
+        <line x1="550" y1="208" x2="588" y2="208" stroke="#64748b" marker-end="url(#arr)"/>
+      </g>
+      <text x="10" y="265" fill="#94a3b8" font-size="11">Public API still returns Polynomial — the wrapper is built once at the boundary, not inside every kernel call.</text>
+    </svg>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mt-10 mb-3">Measured: prototype as % of current cost</h3>
+  <div class="bg-panel border border-edge rounded-xl p-4 overflow-x-auto">
+    <svg viewBox="0 0 760 270" class="min-w-[600px] w-full" role="img" aria-label="Bar chart of prototype cost as percentage of current implementation">
+      <g font-size="12" fill="#cbd5e1">
+        <text x="10" y="20" fill="#fff" font-weight="bold">time / op</text>
+        <!-- m*m 27% -->
+        <text x="10" y="48">m * m</text><rect x="90" y="36" width="560" height="16" rx="4" fill="#1f2937"/><rect x="90" y="36" width="151" height="16" rx="4" fill="#34d399"/><text x="660" y="48" fill="#34d399">27%</text>
+        <!-- m*p 10% -->
+        <text x="10" y="76">m * p</text><rect x="90" y="64" width="560" height="16" rx="4" fill="#1f2937"/><rect x="90" y="64" width="56" height="16" rx="4" fill="#34d399"/><text x="660" y="76" fill="#34d399">10%</text>
+        <!-- p*p 69% -->
+        <text x="10" y="104">p * p</text><rect x="90" y="92" width="560" height="16" rx="4" fill="#1f2937"/><rect x="90" y="92" width="386" height="16" rx="4" fill="#34d399"/><text x="660" y="104" fill="#34d399">69%</text>
+
+        <text x="10" y="150" fill="#fff" font-weight="bold">bytes / op</text>
+        <!-- m*m 22% -->
+        <text x="10" y="178">m * m</text><rect x="90" y="166" width="560" height="16" rx="4" fill="#1f2937"/><rect x="90" y="166" width="124" height="16" rx="4" fill="#38bdf8"/><text x="660" y="178" fill="#38bdf8">22%</text>
+        <!-- m*p 6.7% -->
+        <text x="10" y="206">m * p</text><rect x="90" y="194" width="560" height="16" rx="4" fill="#1f2937"/><rect x="90" y="194" width="37" height="16" rx="4" fill="#38bdf8"/><text x="660" y="206" fill="#38bdf8">7%</text>
+        <!-- p*p 41% -->
+        <text x="10" y="234">p * p</text><rect x="90" y="222" width="560" height="16" rx="4" fill="#1f2937"/><rect x="90" y="222" width="230" height="16" rx="4" fill="#38bdf8"/><text x="660" y="234" fill="#38bdf8">41%</text>
+        <text x="10" y="262" fill="#64748b" font-size="10">Pauli N=10, 27-term Heisenberg Hamiltonian. m*p: 13.0 → 1.26 µs; lower is better.</text>
+      </g>
+    </svg>
+  </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ DEEP DIVE ============================ -->
+<section id="deepdive" data-section data-title="Deep Dive" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Deep Dive: six root causes, three tiers of fix</h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mb-3">Baseline measurements</h3>
+  <div class="overflow-x-auto bg-panel border border-edge rounded-xl">
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-slate-400 border-b border-edge">
+        <th class="p-3">Operation</th><th class="p-3">time/op</th><th class="p-3">alloc/op</th></tr></thead>
+      <tbody class="divide-y divide-edge">
+        <tr><td class="p-3"><code>NormalMonomial * NormalMonomial</code></td><td class="p-3">0.11 µs</td><td class="p-3 text-bad">432 B (~10 allocs)</td></tr>
+        <tr><td class="p-3">moment entry (<code>_neat_dot3</code> + <code>simplify</code> + terms)</td><td class="p-3">0.17 µs</td><td class="p-3 text-bad">240 B</td></tr>
+        <tr><td class="p-3"><code>NormalMonomial * Polynomial</code> (27 terms)</td><td class="p-3">12.6 µs</td><td class="p-3 text-bad">76.9 KB</td></tr>
+        <tr><td class="p-3"><code>Polynomial * Polynomial</code> (27×27)</td><td class="p-3">62.6 µs</td><td class="p-3 text-bad">289.6 KB</td></tr>
+        <tr><td class="p-3">moment-like loop, 80×80 basis × 27 terms</td><td class="p-3">16.9 ms</td><td class="p-3 text-bad font-bold">35.9 MB</td></tr>
+        <tr><td class="p-3"><code>Dict</code> lookup sweep, 436 monomials</td><td class="p-3">27 µs</td><td class="p-3 text-bad">≈63 B / lookup</td></tr>
+        <tr><td class="p-3"><code>hash(::NormalMonomial)</code></td><td class="p-3">24 ns</td><td class="p-3 text-bad">16 B</td></tr>
+        <tr><td class="p-3"><code>simplify</code> vs <code>simplify!</code> on a fresh buffer</td><td class="p-3">181 vs 143 ns</td><td class="p-3">192 vs 112 B</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mt-10 mb-3">Cause 3 in code: the quadratic accumulator</h3>
+  <p class="text-sm text-slate-400 mb-3 max-w-3xl">From <code class="text-accent">src/types/arithmetic.jl</code>, <code>m::NormalMonomial * p::Polynomial</code>. Each iteration rebuilds, converts and re-sorts the entire accumulated polynomial — ~2.8 KB per term where ~190 B suffices.</p>
+  <div class="relative group">
+    <button class="copy-code no-print absolute top-2 right-2 text-xs bg-edge rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition">Copy</button>
+    <pre class="bg-panel border border-edge rounded-xl p-4 overflow-x-auto text-sm leading-relaxed"><code class="lang-julia">for (coef, mono) in p.terms
+    iszero(coef) &amp;&amp; continue
+    prod_poly = m * mono              # full Polynomial machinery per term (~416 B)
+    result = result + coef * prod_poly  # vcat + convert + FULL re-sort, every time
+end</code></pre>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mt-8 mb-3">Cause 2 in code: the wasted copy in the hottest loop</h3>
+  <p class="text-sm text-slate-400 mb-3 max-w-3xl">From <code class="text-accent">src/optimization/moment.jl</code> (≈ lines 471, 535, 555, 576): <code>_neat_dot3</code> returns a <em>fresh</em> buffer nobody else owns — then <code>simplify</code> copies it again before mutating. Measured waste: ~40 ns + 80 B per moment entry.</p>
+  <div class="relative group">
+    <button class="copy-code no-print absolute top-2 right-2 text-xs bg-edge rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition">Copy</button>
+    <pre class="bg-panel border border-edge rounded-xl p-4 overflow-x-auto text-sm leading-relaxed"><code class="lang-julia"># current: simplify(A, w) = simplify!(A, copy(w))   ← copy of a throwaway buffer
+Polynomial(_simplified_to_terms(A, simplify(A, _neat_dot3(row_word, mono, col_word)), T))
+
+# fix: the buffer is already owned — mutate it
+Polynomial(_simplified_to_terms(A, simplify!(A, _neat_dot3(row_word, mono, col_word)), T))</code></pre>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mt-8 mb-3">The Tier-1 kernel (prototyped, results bit-identical)</h3>
+  <div class="relative group">
+    <button class="copy-code no-print absolute top-2 right-2 text-xs bg-edge rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition">Copy</button>
+    <pre class="bg-panel border border-edge rounded-xl p-4 overflow-x-auto text-sm leading-relaxed"><code class="lang-julia"># single-term multiply kernel: Monoid / TwistedGroup algebras only
+function _mul_term(a::NormalMonomial{A,T}, b::NormalMonomial{A,T}) where {A,T}
+    buf = Vector{T}(undef, length(a.word) + length(b.word))   # the ONLY buffer
+    copyto!(buf, a.word)
+    copyto!(buf, length(a.word) + 1, b.word, 1, length(b.word))
+    word, phase = simplify!(A, buf)                # in place — no defensive copy
+    return _phase_coef(phase), NormalMonomial{A,T}(word, _trusted)  # skip validation
+end
+
+# m * p: one pre-sized buffer, ONE Polynomial() at the end
+function Base.:(*)(m::NormalMonomial{A,T}, p::Polynomial{A,T,C}) where {A,T,C}
+    out = Vector{Tuple{C,NormalMonomial{A,T}}}()
+    sizehint!(out, length(p.terms))
+    for (coef, mono) in p.terms
+        c, mm = _mul_term(m, mono)
+        push!(out, (coef * c, mm))
+    end
+    return Polynomial(out)        # single sort + dedup, at the boundary
+end</code></pre>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mt-10 mb-3">The three tiers</h3>
+  <div class="no-print flex gap-2 mb-4 flex-wrap" role="tablist">
+    <button class="tier-tab bg-accent text-ink font-semibold rounded-lg px-4 py-2 text-sm transition" data-tier="t1" role="tab" aria-selected="true">Tier 1 · hygiene (measured)</button>
+    <button class="tier-tab bg-panel border border-edge rounded-lg px-4 py-2 text-sm transition" data-tier="t2" role="tab" aria-selected="false">Tier 2 · buffer reuse + interning</button>
+    <button class="tier-tab bg-panel border border-edge rounded-lg px-4 py-2 text-sm transition" data-tier="t3" role="tab" aria-selected="false">Tier 3 · representation</button>
+  </div>
+  <div id="t1" class="tier-panel bg-panel border border-edge rounded-xl p-5">
+    <ul class="space-y-2 text-sm list-disc list-inside">
+      <li><b class="text-white">Trusted constructor</b> — a private path skipping <code>any(iszero)</code> + <code>_validate_word</code> for simplify-derived words. Validate at the boundary, trust inside.</li>
+      <li><b class="text-white">Single-term kernel</b> <code>_mul_term</code> for Monoid/TwistedGroup algebras — no terms-Vector, no Polynomial, no sort. PBW keeps the multi-term path.</li>
+      <li><b class="text-white">Buffered <code>m*p</code>, <code>p*m</code>, <code>p*p</code></b> — push into one pre-sized vector, one <code>Polynomial()</code> at the end.</li>
+      <li><b class="text-white"><code>_process_terms</code>:</b> <code>sort!</code> in place; skip entirely for ≤ 1 term.</li>
+      <li><b class="text-white"><code>simplify!</code> adoption</b> in <code>arithmetic.jl</code> + 4 <code>moment.jl</code> call sites.</li>
+      <li><b class="text-white">Allocation-free <code>hash(::NormalMonomial)</code></b> — chunk-wise hashing of word bytes instead of Julia's generic AbstractArray hash (16 B/probe today).</li>
+    </ul>
+    <p class="text-xs text-slate-500 mt-3">Measured: m*m 3.7× / 4.5× mem · m*p 10× / 15× mem · p*p 1.5× / 2.4× mem. Existing test suite is the regression net.</p>
+  </div>
+  <div id="t2" class="tier-panel hidden bg-panel border border-edge rounded-xl p-5">
+    <ul class="space-y-2 text-sm list-disc list-inside">
+      <li><b class="text-white"><code>_neat_dot3!(scratch, a, m, b)</code></b> — write the triple product into one reusable scratch buffer per assembly loop (thread-local if parallel), then <code>simplify!</code> in place.</li>
+      <li><b class="text-white">Intern canonical words</b> — <code>get!</code> into a <code>Dict{Vector{T},NormalMonomial}</code>, copying the scratch only on first sight; or key the moment-index dict directly by word.</li>
+      <li><b class="text-white">Effect</b> — steady-state assembly allocates only for <em>novel</em> canonical words (the set saturates fast): tens of KB instead of tens of MB; kills the 2.4% GC overhead.</li>
+    </ul>
+  </div>
+  <div id="t3" class="tier-panel hidden bg-panel border border-edge rounded-xl p-5">
+    <ul class="space-y-2 text-sm list-disc list-inside">
+      <li><b class="text-white">Option A — inline small words.</b> isbits small-buffer storage (<code>SmallVector{N,T}</code> or NTuple+len, N≈16). Makes ==/hash/isless register ops, removes both heap objects per monomial. Cost: capacity parameter or spill-to-heap hybrid; churn across Polynomial, states, composed monomials. General win.</li>
+      <li><b class="text-white">Option B — symplectic Pauli words.</b> (x-mask, z-mask, phase) bit-vectors; products = XOR + popcount, O(1) vs sort-based O(n log n). The standard stabilizer trick (cf. QuantumClifford.jl). Can stay an internal assembly representation.</li>
+      <li><b class="text-white">Gate:</b> only after Tiers 1–2, only if profiles still show monomial plumbing.</li>
+    </ul>
+    <p class="text-xs text-slate-500 mt-3">Rejected: global hash-consing (thread-safety burden for pointer-equality wins Tier 2 already gets locally); lazy/unsorted Polynomial (the sorted-unique invariant is load-bearing).</p>
+  </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ PITFALLS ============================ -->
+<section id="pitfalls" data-section data-title="Common Pitfalls & Gotchas" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Common Pitfalls &amp; Gotchas</h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+  <div class="space-y-3 max-w-3xl">
+    <details class="bg-panel border border-edge rounded-xl group" open>
+      <summary class="cursor-pointer p-4 font-semibold text-white flex items-center gap-2"><span class="text-warn">▸</span> The inner <code class="text-accent">Polynomial</code> constructor lies in its docstring</summary>
+      <p class="px-4 pb-4 text-sm text-slate-400">It claims to enforce "sorted, deduplicated, non-zero coefficients" — it stores terms as-given. It's actually the <em>trusted path</em> (the outer constructor processes). Fix the comment to state the real contract before someone "fixes" the code the wrong way.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 font-semibold text-white flex items-center gap-2"><span class="text-warn">▸</span> A dead outer constructor</summary>
+      <p class="px-4 pb-4 text-sm text-slate-400">Two outer <code>Polynomial(::Vector{Tuple{C,NormalMonomial}})</code> methods exist; the unconstrained-<code>CIn</code> one (which skips <code>_process_terms</code>) is unreachable for valid coefficient types because the struct bounds <code>C&lt;:Number</code> and the constrained method is more specific. Delete it.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 font-semibold text-white flex items-center gap-2"><span class="text-warn">▸</span> "Accumulate by +" is quadratic on sorted containers</summary>
+      <p class="px-4 pb-4 text-sm text-slate-400"><code>result = result + term</code> on a sorted-invariant polynomial re-sorts everything per step. Any new loop touching polynomials should push into a raw buffer and construct once. This pattern will creep back in via review unless the buffered helpers are the obvious, documented way.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 font-semibold text-white flex items-center gap-2"><span class="text-warn">▸</span> Don't delete validation — relocate it</summary>
+      <p class="px-4 pb-4 text-sm text-slate-400">The trusted constructor must stay <em>private</em>. <code>_validate_word</code> on user-facing constructors is what makes "a NormalMonomial is always canonical" a real invariant instead of a hope. The win comes from not re-checking words that <code>simplify</code> just produced.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 font-semibold text-white flex items-center gap-2"><span class="text-warn">▸</span> Micro-benchmarks of unused results lie</summary>
+      <p class="px-4 pb-4 text-sm text-slate-400">The bare constructor benchmarked at 9.8 ns while its validation alone took 59 ns — the compiler hoisted the loop-invariant call. Trust the allocation counts and the end-to-end loop numbers (36 MB doesn't lie); treat ns-level micro-numbers as directional.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 font-semibold text-white flex items-center gap-2"><span class="text-warn">▸</span> Julia 1.12 generic array hashing allocates</summary>
+      <p class="px-4 pb-4 text-sm text-slate-400"><code>hash(::Vector{UInt8})</code> = ~22 ns + 16 B. Invisible in isolation, but moment assembly does millions of dict probes. A custom word hash is ~10 lines and removes it entirely.</p>
+    </details>
+  </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ DEMO ============================ -->
+<section id="demo" data-section data-title="Interactive: allocation estimator" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Interactive: how much does assembly allocate?</h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+  <p class="text-sm text-slate-400 mb-4 max-w-3xl">Rough extrapolation from the measured 80×80×27 loop (≈208 B/entry current; ≈60 B/entry Tier 1; Tier 2 ≈ novel-words-only, modeled as 2% of entries). Entries = basis² × Hamiltonian terms.</p>
+  <div class="bg-panel border border-edge rounded-xl p-5 max-w-3xl">
+    <div class="grid sm:grid-cols-2 gap-6 mb-4">
+      <label class="block text-sm">
+        Moment basis size: <b id="demo-n-val" class="text-accent">200</b> monomials
+        <input id="demo-n" type="range" min="20" max="1000" step="10" value="200" class="w-full accent-sky-400 mt-1">
+      </label>
+      <label class="block text-sm">
+        Hamiltonian terms: <b id="demo-k-val" class="text-accent">27</b>
+        <input id="demo-k" type="range" min="5" max="200" step="1" value="27" class="w-full accent-sky-400 mt-1">
+      </label>
+    </div>
+    <div class="space-y-2 text-sm font-mono">
+      <div class="flex items-center gap-3"><span class="w-20 text-slate-400">current</span><div class="flex-1 h-5 bg-edge rounded overflow-hidden"><div id="bar-cur" class="h-full bg-bad transition-all duration-200" style="width:100%"></div></div><span id="val-cur" class="w-28 text-right text-bad"></span></div>
+      <div class="flex items-center gap-3"><span class="w-20 text-slate-400">tier 1</span><div class="flex-1 h-5 bg-edge rounded overflow-hidden"><div id="bar-t1" class="h-full bg-warn transition-all duration-200"></div></div><span id="val-t1" class="w-28 text-right text-warn"></span></div>
+      <div class="flex items-center gap-3"><span class="w-20 text-slate-400">tier 2</span><div class="flex-1 h-5 bg-edge rounded overflow-hidden"><div id="bar-t2" class="h-full bg-good transition-all duration-200"></div></div><span id="val-t2" class="w-28 text-right text-good"></span></div>
+    </div>
+    <p id="demo-entries" class="text-xs text-slate-500 mt-3"></p>
+  </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ QUIZ ============================ -->
+<section id="quiz" data-section data-title="Test your understanding" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Test your understanding</h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+  <div class="space-y-3 max-w-3xl">
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 text-sm font-semibold text-white">1. Why is it safe for the trusted constructor to skip <code>_validate_word</code>?</summary>
+      <p class="px-4 pb-4 text-sm text-good">Because its only callers pass words produced by <code>simplify</code>/<code>simplify!</code>, whose postcondition <em>is</em> canonical form. Validation at that point re-proves a theorem the simplifier just proved. User-facing constructors keep validating.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 text-sm font-semibold text-white">2. Why does <code>m * p</code> improve 10× but <code>p * p</code> only 1.5×?</summary>
+      <p class="px-4 pb-4 text-sm text-good"><code>p * p</code> already pushed all products into one buffer with a single final sort — its waste was per-product plumbing (copy, terms-Vector). <code>m * p</code> had the additional <em>quadratic</em> accumulator (<code>result = result + ...</code> re-sorting per term), so fixing the loop structure dominates.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 text-sm font-semibold text-white">3. Which algebras can use the single-term kernel, and which can't?</summary>
+      <p class="px-4 pb-4 text-sm text-good">Monoid (NonCommutative, Projector, Unipotent) and TwistedGroup (Pauli) products always yield ≤ 1 term — kernel applies. PBW algebras (Fermionic, Bosonic) genuinely expand into multiple terms via commutation relations — they keep the multi-term path.</p>
+    </details>
+    <details class="bg-panel border border-edge rounded-xl">
+      <summary class="cursor-pointer p-4 text-sm font-semibold text-white">4. What makes Tier 2's interning idea cheap where global hash-consing was rejected?</summary>
+      <p class="px-4 pb-4 text-sm text-good">The intern table is <em>local to one assembly loop</em> — no global mutable state, no thread-safety contract, dropped when assembly ends. It exploits the same fact (canonical words repeat heavily) without the lifecycle burden.</p>
+    </details>
+  </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ FOOTER ============================ -->
+<footer class="py-12 border-t border-edge text-sm text-slate-500">
+  <div class="flex flex-wrap gap-3 mb-6 no-print">
+    <button id="export-notes" class="bg-panel border border-edge rounded-lg px-4 py-2 hover:border-accent transition">⬇ Export notes as Markdown</button>
+    <button onclick="window.print()" class="bg-panel border border-edge rounded-lg px-4 py-2 hover:border-accent transition">🖨 Print / Save as PDF</button>
+  </div>
+  <p>Companion to <code class="text-accent">docs/agent-profiles/monomial-performance-profile.md</code> · NCTSSoS.jl ·
+  measurements: Julia 1.12.3, Apple Silicon, Pauli N=10. Reproduction scripts: <code>/tmp/mono_profile*.jl</code>, <code>/tmp/mono_proto.jl</code>.</p>
+  <p class="mt-2">Select any text to ask a question about it — notes persist locally in your browser.</p>
+</footer>
+</main>
+
+<!-- ============================ SELECTION TOOLBAR ============================ -->
+<div id="sel-toolbar" class="fixed z-50 hidden toolbar-pop no-print">
+  <button id="sel-ask" class="bg-accent text-ink font-semibold text-sm rounded-lg px-3 py-1.5 shadow-lg shadow-sky-900/40">💬 Ask about this</button>
+</div>
+
+<!-- ============================ MODAL ============================ -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div id="modal-backdrop" class="absolute inset-0 bg-black/70"></div>
+  <div class="relative bg-panel border border-edge rounded-2xl w-full max-w-lg p-6 shadow-2xl">
+    <h3 id="modal-title" class="text-lg font-bold text-white mb-1">Ask a question</h3>
+    <p id="modal-section" class="text-xs text-slate-500 mb-3"></p>
+    <blockquote id="modal-quote" class="hidden border-l-4 border-accent bg-ink rounded-r-lg p-3 text-sm text-slate-300 mb-4 max-h-32 overflow-y-auto"></blockquote>
+    <textarea id="modal-q" rows="3" placeholder="Your question…" class="w-full bg-ink border border-edge rounded-lg p-3 text-sm focus:outline-none focus:border-accent transition resize-y"></textarea>
+    <div class="flex gap-3 mt-4 flex-wrap">
+      <button id="modal-post" class="bg-accent text-ink font-semibold rounded-lg px-4 py-2 text-sm hover:brightness-110 transition">Post Comment</button>
+      <button id="modal-copy" class="bg-edge text-slate-200 font-semibold rounded-lg px-4 py-2 text-sm hover:bg-slate-700 transition">Copy as LLM Prompt</button>
+      <button id="modal-cancel" class="ml-auto text-slate-400 text-sm hover:text-white transition">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ NOTES PANEL ============================ -->
+<aside id="notes-panel" class="fixed inset-y-0 right-0 z-50 w-full sm:w-[26rem] bg-panel border-l border-edge transform translate-x-full transition-transform duration-200 flex flex-col no-print" aria-label="My questions and notes">
+  <div class="p-4 border-b border-edge flex items-center gap-2">
+    <h3 class="font-bold text-white">My Questions &amp; Notes</h3>
+    <button id="notes-close" class="ml-auto text-slate-400 hover:text-white px-2" aria-label="Close notes panel">✕</button>
+  </div>
+  <div id="notes-body" class="flex-1 overflow-y-auto p-4 space-y-4 text-sm"></div>
+  <div class="p-4 border-t border-edge flex gap-2">
+    <button id="notes-export" class="flex-1 bg-accent text-ink font-semibold rounded-lg px-3 py-2 text-sm hover:brightness-110 transition">Export All My Questions</button>
+    <button id="notes-clear" class="bg-edge rounded-lg px-3 py-2 text-sm text-bad hover:bg-slate-700 transition">Clear All</button>
+  </div>
+</aside>
+
+<!-- ============================ TOAST ============================ -->
+<div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-good text-ink font-semibold text-sm rounded-lg px-4 py-2 shadow-lg opacity-0 pointer-events-none transition-opacity duration-200"></div>
+
+<script>
+(function () {
+  'use strict';
+  var SLUG = 'nctssos-monomial-performance';
+  var KEY = 'iex:' + SLUG + ':comments';
+  var PAGE_TITLE = 'NCTSSoS Monomials: Performance Profile & Improved Design';
+
+  // ---------- storage ----------
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return { version: 1, comments: [] };
+      var data = JSON.parse(raw);
+      if (data.version !== 1 || !Array.isArray(data.comments)) return { version: 1, comments: [] };
+      return data;
+    } catch (e) { return { version: 1, comments: [] }; }
+  }
+  function save(data) { localStorage.setItem(KEY, JSON.stringify(data)); }
+
+  // ---------- utils ----------
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._h);
+    t._h = setTimeout(function () { t.style.opacity = '0'; }, 1800);
+  }
+  function timeago(ts) {
+    var s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + ' min ago';
+    if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+    return Math.floor(s / 86400) + ' d ago';
+  }
+  function esc(str) {
+    var d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+  function copyText(text, okMsg) {
+    function done() { toast(okMsg); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+    } else { fallback(); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  }
+
+  // ---------- render threads ----------
+  function renderAll() {
+    var data = load();
+    document.querySelectorAll('[data-section]').forEach(function (sec) {
+      var holder = sec.querySelector('[data-threads]');
+      if (!holder) return;
+      var mine = data.comments.filter(function (c) { return c.sectionId === sec.id; });
+      if (mine.length === 0) {
+        holder.innerHTML = '<p class="text-xs text-slate-600 italic">No questions on this section yet.</p>';
+        return;
+      }
+      holder.innerHTML = mine.map(function (c) {
+        return '<div class="bg-ink border border-edge rounded-xl p-4 mb-2">' +
+          '<div class="flex items-center gap-2 text-xs text-slate-500 mb-2">' +
+          '<span title="' + new Date(c.timestamp).toLocaleString() + '">🕐 ' + timeago(c.timestamp) + '</span>' +
+          '<button data-del="' + c.id + '" class="ml-auto text-bad hover:underline">Delete</button></div>' +
+          (c.quote ? '<blockquote class="border-l-2 border-accent pl-3 text-xs text-slate-400 mb-2">' + esc(c.quote) + '</blockquote>' : '') +
+          '<p class="text-sm text-slate-200">' + esc(c.question) + '</p></div>';
+      }).join('');
+    });
+    var n = data.comments.length;
+    document.getElementById('notes-count').textContent = n ? '(' + n + ')' : '';
+    renderPanel();
+  }
+  document.addEventListener('click', function (e) {
+    var del = e.target.closest('[data-del]');
+    if (!del) return;
+    var data = load();
+    data.comments = data.comments.filter(function (c) { return c.id !== del.getAttribute('data-del'); });
+    save(data); renderAll();
+  });
+
+  // ---------- notes panel ----------
+  var panel = document.getElementById('notes-panel');
+  function renderPanel() {
+    var data = load();
+    var body = document.getElementById('notes-body');
+    if (data.comments.length === 0) {
+      body.innerHTML = '<p class="text-slate-600 italic">Nothing saved yet. Select text anywhere and hit “💬 Ask about this”.</p>';
+      return;
+    }
+    var bySec = {};
+    data.comments.forEach(function (c) {
+      (bySec[c.sectionTitle] = bySec[c.sectionTitle] || []).push(c);
+    });
+    body.innerHTML = Object.keys(bySec).map(function (title) {
+      return '<div><h4 class="font-semibold text-accent mb-2">' + esc(title) + '</h4>' +
+        bySec[title].map(function (c) {
+          return '<div class="bg-ink border border-edge rounded-lg p-3 mb-2">' +
+            (c.quote ? '<blockquote class="border-l-2 border-accent pl-2 text-xs text-slate-400 mb-1">' + esc(c.quote) + '</blockquote>' : '') +
+            '<p class="text-slate-200">' + esc(c.question) + '</p>' +
+            '<p class="text-xs text-slate-600 mt-1" title="' + new Date(c.timestamp).toLocaleString() + '">' + timeago(c.timestamp) + '</p></div>';
+        }).join('') + '</div>';
+    }).join('');
+  }
+  document.getElementById('notes-toggle').addEventListener('click', function () {
+    panel.classList.toggle('translate-x-full'); renderPanel();
+  });
+  document.getElementById('notes-close').addEventListener('click', function () {
+    panel.classList.add('translate-x-full');
+  });
+  document.getElementById('notes-export').addEventListener('click', function () {
+    var data = load();
+    if (data.comments.length === 0) { toast('No notes to export'); return; }
+    var bySec = {};
+    data.comments.forEach(function (c) { (bySec[c.sectionTitle] = bySec[c.sectionTitle] || []).push(c); });
+    var md = '# ' + PAGE_TITLE + ' — My Notes\n\n';
+    Object.keys(bySec).forEach(function (title) {
+      md += '## ' + title + '\n\n';
+      bySec[title].forEach(function (c) {
+        if (c.quote) md += '> ' + c.quote.replace(/\n/g, '\n> ') + '\n\n';
+        md += '**Q:** ' + c.question + '\n_' + new Date(c.timestamp).toLocaleString() + '_\n\n';
+      });
+    });
+    copyText(md, 'All notes copied as Markdown ✓');
+  });
+  document.getElementById('export-notes').addEventListener('click', function () {
+    document.getElementById('notes-export').click();
+  });
+  document.getElementById('notes-clear').addEventListener('click', function () {
+    if (confirm('Delete all saved questions and notes for this page?')) {
+      save({ version: 1, comments: [] }); renderAll(); toast('Cleared');
+    }
+  });
+
+  // ---------- selection toolbar ----------
+  var bar = document.getElementById('sel-toolbar');
+  var content = document.getElementById('content');
+  var currentQuote = '';
+  function updateBar() {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) { bar.classList.add('hidden'); return; }
+    var range = sel.getRangeAt(0);
+    if (!content.contains(range.commonAncestorContainer)) { bar.classList.add('hidden'); return; }
+    var text = sel.toString().trim();
+    if (text.length < 3) { bar.classList.add('hidden'); return; }
+    currentQuote = text;
+    var r = range.getBoundingClientRect();
+    bar.classList.remove('hidden');
+    var bw = bar.offsetWidth || 140, bh = bar.offsetHeight || 36;
+    var x = Math.min(Math.max(8, r.left + r.width / 2 - bw / 2), window.innerWidth - bw - 8);
+    var y = r.top - bh - 8;
+    if (y < 8) y = r.bottom + 8;
+    bar.style.left = x + 'px';
+    bar.style.top = y + 'px';
+  }
+  document.addEventListener('pointerup', function () { setTimeout(updateBar, 10); });
+  document.addEventListener('selectionchange', function () {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed) bar.classList.add('hidden');
+  });
+  // keep selection when pressing the button
+  bar.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+  document.getElementById('sel-ask').addEventListener('click', function () {
+    var sel = window.getSelection();
+    var sec = null;
+    if (sel && sel.rangeCount) {
+      var node = sel.getRangeAt(0).commonAncestorContainer;
+      var el = node.nodeType === 1 ? node : node.parentElement;
+      sec = el ? el.closest('[data-section]') : null;
+    }
+    openModal({
+      quote: currentQuote,
+      sectionId: sec ? sec.id : 'overview',
+      sectionTitle: sec ? sec.getAttribute('data-title') : 'Quick Overview'
+    });
+    bar.classList.add('hidden');
+  });
+
+  // ---------- per-section ask buttons ----------
+  document.querySelectorAll('.ask-section').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var sec = btn.closest('[data-section]');
+      openModal({ quote: '', sectionId: sec.id, sectionTitle: sec.getAttribute('data-title') });
+    });
+  });
+
+  // ---------- modal ----------
+  var modal = document.getElementById('modal');
+  var modalCtx = null;
+  var lastFocus = null;
+  function openModal(ctx) {
+    modalCtx = ctx;
+    lastFocus = document.activeElement;
+    document.getElementById('modal-section').textContent = 'Section: ' + ctx.sectionTitle;
+    var bq = document.getElementById('modal-quote');
+    if (ctx.quote) { bq.textContent = '“' + ctx.quote + '”'; bq.classList.remove('hidden'); }
+    else { bq.classList.add('hidden'); }
+    document.getElementById('modal-q').value = '';
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(function () { document.getElementById('modal-q').focus(); }, 30);
+  }
+  function closeModal() {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    modalCtx = null;
+    if (lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  document.getElementById('modal-cancel').addEventListener('click', closeModal);
+  document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (!modal.classList.contains('hidden')) closeModal();
+      else panel.classList.add('translate-x-full');
+    }
+    // focus trap
+    if (e.key === 'Tab' && !modal.classList.contains('hidden')) {
+      var foci = modal.querySelectorAll('textarea, button');
+      var first = foci[0], last = foci[foci.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  document.getElementById('modal-post').addEventListener('click', function () {
+    if (!modalCtx) return;
+    var q = document.getElementById('modal-q').value.trim();
+    if (!q) { toast('Write a question first'); return; }
+    var data = load();
+    data.comments.push({
+      id: 'c' + Date.now() + Math.random().toString(36).slice(2, 7),
+      sectionId: modalCtx.sectionId,
+      sectionTitle: modalCtx.sectionTitle,
+      quote: modalCtx.quote || '',
+      question: q,
+      timestamp: Date.now()
+    });
+    save(data); renderAll(); closeModal(); toast('Comment saved ✓');
+  });
+  document.getElementById('modal-copy').addEventListener('click', function () {
+    if (!modalCtx) return;
+    var q = document.getElementById('modal-q').value.trim() || '(no question written yet)';
+    var prompt = 'Context — from "' + PAGE_TITLE + '", section "' + modalCtx.sectionTitle + '":\n\n' +
+      (modalCtx.quote ? '> ' + modalCtx.quote.replace(/\n/g, '\n> ') + '\n\n' : '') +
+      'My question: ' + q;
+    copyText(prompt, 'LLM prompt copied ✓');
+  });
+
+  // ---------- code copy buttons ----------
+  document.querySelectorAll('.copy-code').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.parentElement.querySelector('pre code');
+      copyText(pre.textContent, 'Code copied ✓');
+    });
+  });
+
+  // ---------- tiny julia highlighter ----------
+  var KW = /\b(function|end|for|while|return|struct|where|using|if|else|elseif|continue|break|in|const|mutable|begin|do|true|false)\b/g;
+  document.querySelectorAll('code.lang-julia').forEach(function (code) {
+    var lines = code.innerHTML.split('\n').map(function (line) {
+      var ci = line.indexOf('#');
+      var head = ci >= 0 ? line.slice(0, ci) : line;
+      var tail = ci >= 0 ? '<span class="c">' + line.slice(ci) + '</span>' : '';
+      head = head
+        .replace(KW, '<span class="k">$1</span>')
+        .replace(/\b(\d+(\.\d+)?)\b/g, '<span class="n">$1</span>')
+        .replace(/\b([A-Za-z_][A-Za-z0-9_]*!?)(\()/g, '<span class="f">$1</span>$2');
+      return head + tail;
+    });
+    code.innerHTML = lines.join('\n');
+  });
+
+  // ---------- tier tabs ----------
+  document.querySelectorAll('.tier-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.tier-tab').forEach(function (t) {
+        t.classList.remove('bg-accent', 'text-ink', 'font-semibold');
+        t.classList.add('bg-panel', 'border', 'border-edge');
+        t.setAttribute('aria-selected', 'false');
+      });
+      tab.classList.add('bg-accent', 'text-ink', 'font-semibold');
+      tab.classList.remove('bg-panel', 'border', 'border-edge');
+      tab.setAttribute('aria-selected', 'true');
+      document.querySelectorAll('.tier-panel').forEach(function (p) { p.classList.add('hidden'); });
+      document.getElementById(tab.getAttribute('data-tier')).classList.remove('hidden');
+    });
+  });
+
+  // ---------- demo ----------
+  function fmtBytes(b) {
+    if (b > 1e9) return (b / 1e9).toFixed(1) + ' GB';
+    if (b > 1e6) return (b / 1e6).toFixed(1) + ' MB';
+    return (b / 1e3).toFixed(0) + ' KB';
+  }
+  function updateDemo() {
+    var n = +document.getElementById('demo-n').value;
+    var k = +document.getElementById('demo-k').value;
+    document.getElementById('demo-n-val').textContent = n;
+    document.getElementById('demo-k-val').textContent = k;
+    var entries = n * n * k;
+    var cur = entries * 208, t1 = entries * 60, t2 = entries * 0.02 * 208;
+    document.getElementById('val-cur').textContent = fmtBytes(cur);
+    document.getElementById('val-t1').textContent = fmtBytes(t1);
+    document.getElementById('val-t2').textContent = fmtBytes(t2);
+    document.getElementById('bar-cur').style.width = '100%';
+    document.getElementById('bar-t1').style.width = (t1 / cur * 100) + '%';
+    document.getElementById('bar-t2').style.width = Math.max(t2 / cur * 100, 0.5) + '%';
+    document.getElementById('demo-entries').textContent =
+      entries.toLocaleString() + ' moment entries (basis² × terms). Model: 208 B/entry current, 60 B/entry Tier 1, Tier 2 allocates only for ~2% novel canonical words.';
+  }
+  document.getElementById('demo-n').addEventListener('input', updateDemo);
+  document.getElementById('demo-k').addEventListener('input', updateDemo);
+  updateDemo();
+
+  // ---------- init ----------
+  renderAll();
+})();
+</script>
+</body>
+</html>

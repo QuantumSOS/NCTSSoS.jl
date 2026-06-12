@@ -47,6 +47,7 @@ tailwind.config = {
       <a href="#concepts" class="hover:text-accent transition">Concepts</a>
       <a href="#visuals" class="hover:text-accent transition">Diagrams</a>
       <a href="#deepdive" class="hover:text-accent transition">Deep dive</a>
+      <a href="#roadmap" class="hover:text-accent transition">Roadmap</a>
       <a href="#pitfalls" class="hover:text-accent transition">Pitfalls</a>
       <a href="#demo" class="hover:text-accent transition">Demo</a>
       <a href="#quiz" class="hover:text-accent transition">Quiz</a>
@@ -82,7 +83,7 @@ tailwind.config = {
     as the dominant phase and a measured <b class="text-good">≥96% interning hit rate</b>.
     Verdict: <b>Tier 1 go now</b> (with non-mutating public constructors + property tests),
     <b>Tier 2 go as a profile-directed sprint after Tier 1</b> (gates: N=18 ≤ 2 GB, GC &lt; 10%, ≥2× wall),
-    <b>Tier 3 deferred behind explicit triggers</b>. Full reasoning in §4 of the companion markdown.</p>
+    <b>Tier 3 deferred behind explicit triggers</b>. Full detail in <a href="#roadmap" class="text-accent underline">Triage &amp; Roadmap</a> below.</p>
   </div>
 </header>
 
@@ -329,6 +330,88 @@ end</code></pre>
     </ul>
     <p class="text-xs text-slate-500 mt-3">Rejected: global hash-consing (thread-safety burden for pointer-equality wins Tier 2 already gets locally); lazy/unsorted Polynomial (the sorted-unique invariant is load-bearing).</p>
   </div>
+  <div class="threads mt-6" data-threads></div>
+</section>
+
+<!-- ============================ ROADMAP / TRIAGE ============================ -->
+<section id="roadmap" data-section data-title="Triage &amp; Roadmap" class="py-10 border-t border-edge">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-5">
+    <h2 class="text-2xl font-bold text-white">Triage &amp; Roadmap <span class="text-sm font-normal text-slate-500">(2026-06-12 · branch <code class="text-accent">perf/monomial-allocations</code>)</span></h2>
+    <button class="ask-section no-print text-xs bg-panel border border-edge rounded-lg px-3 py-1.5 hover:border-accent transition">💬 Ask about this section</button>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mb-3">New evidence gathered for the decision</h3>
+  <div class="overflow-x-auto bg-panel border border-edge rounded-xl mb-8">
+    <table class="w-full text-sm">
+      <thead><tr class="text-left text-slate-400 border-b border-edge"><th class="p-3">Measurement</th><th class="p-3">Result</th><th class="p-3">Implication</th></tr></thead>
+      <tbody class="divide-y divide-edge">
+        <tr><td class="p-3">End-to-end <code>cs_nctssos</code>, Heisenberg N=6, order 2, COSMO</td>
+            <td class="p-3">30 s · 2.3 GB · GC 0.4%. COSMO ≈45% + 51% Base (solver linalg); <b class="text-accent">NCTSSoS ≈0.1%</b></td>
+            <td class="p-3 text-slate-400">Solves are solver-bound — zero-alloc buys nothing user-visible there</td></tr>
+        <tr><td class="p-3">Build-only scaling (<code>compute_sparsity</code> + <code>moment_relax</code>)</td>
+            <td class="p-3">N=10: 0.46 s / 738 MB · N=14: 2.6 s / 2.9 GB, <b class="text-bad">26% GC</b> · N=18: 8.3 s / <b class="text-bad">8.0 GB, 29% GC</b></td>
+            <td class="p-3 text-slate-400">GC fraction climbs with N — scaling risk for N=30–50 targets</td></tr>
+        <tr><td class="p-3">Build allocation ownership (N=14, <code>Profile.Allocs</code>)</td>
+            <td class="p-3">assembly logic 59.7% + monomial plumbing 34.7% + other 5.6% = <b class="text-warn">94% NCTSSoS-owned</b>; JuMP/MOI ≈0%</td>
+            <td class="p-3 text-slate-400">The build problem is ours to fix, not JuMP's</td></tr>
+        <tr><td class="p-3">Phase split (N=14)</td>
+            <td class="p-3"><code>compute_sparsity</code> 0.21 s / 0.4 GB vs <b class="text-warn"><code>moment_relax</code> 2.7 s / 2.5 GB</b></td>
+            <td class="p-3 text-slate-400">Tier 2 must target moment assembly, not sparsity</td></tr>
+        <tr><td class="p-3">Interning keystone: distinct canonical words / triple products</td>
+            <td class="p-3">N=6: 0.94% · N=10: 3.4% → <b class="text-good">≥96% interning hit rate</b></td>
+            <td class="p-3 text-slate-400">The “words saturate” assumption is now measured, not asserted</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="text-lg font-semibold text-white mb-3">Decisions</h3>
+  <div class="grid lg:grid-cols-3 gap-4 mb-8">
+    <div class="bg-panel border border-good/50 rounded-xl p-5">
+      <p class="text-good font-bold mb-2">Tier 1 — GO NOW</p>
+      <ul class="text-sm space-y-2 list-disc list-inside text-slate-300">
+        <li>Public <code>Polynomial(::Vector)</code> stays <b>non-mutating</b>; in-place <code>sort!</code> only via internal owned-buffer path</li>
+        <li>Trusted ctor stays private; per-algebra <code>simplify!</code> postconditions documented; never wrap a scratch buffer without copy</li>
+        <li>Hash contract: algebra type + seed <code>h</code>, <code>isequal</code> consistency, cross-algebra collision tests</li>
+        <li>Differential property tests across <b>all</b> algebras (random words, duplicate-heavy, zeros, PBW expansions)</li>
+      </ul>
+    </div>
+    <div class="bg-panel border border-warn/50 rounded-xl p-5">
+      <p class="text-warn font-bold mb-2">Tier 2 — GO, AFTER TIER 1</p>
+      <ul class="text-sm space-y-2 list-disc list-inside text-slate-300">
+        <li>Profile-directed sprint: line-level allocation table of <code>moment_relax</code> <b>before</b> implementing</li>
+        <li>Never store the scratch as a <code>Dict</code> key — probe by scratch, copy on first sight</li>
+        <li>Track <b>peak RSS</b>, not just churn (interning retains memory)</li>
+        <li class="text-slate-400">Gates: N=18 build ≤ 2 GB churn · GC &lt; 10% · ≥2× wall · peak RSS not worse</li>
+      </ul>
+    </div>
+    <div class="bg-panel border border-edge rounded-xl p-5">
+      <p class="text-slate-400 font-bold mb-2">Tier 3 — DEFERRED, WITH TRIGGERS</p>
+      <ul class="text-sm space-y-2 list-disc list-inside text-slate-300">
+        <li>Re-profile after Tier 2 with the production solver (Mosek)</li>
+        <li>Trigger a representation <b>spike</b> if word storage/hash/<code>==</code> still &gt; ~25% of build allocations</li>
+        <li>…or if N≥30 Pauli workloads remain build-bound</li>
+        <li>Symplectic Pauli (Option B) = only order-of-magnitude candidate; scope as internal assembly representation</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="bg-panel border border-accent/40 rounded-xl p-5 max-w-3xl mb-6">
+    <p class="text-sm"><b class="text-accent">Verdict on “should we push for even less allocation?”</b><br>
+    <b class="text-white">Yes for the build path, no for the representation rewrite — yet.</b>
+    End-to-end wall clock is solver-dominated, so zero-allocation as a goal in itself buys nothing visible there.
+    But the build phase is 94% NCTSSoS-owned with GC% climbing in N — real headroom and a real scaling risk.
+    Tiers 1+2 attack exactly that with measured justification; Tier 3 stays behind explicit triggers.</p>
+  </div>
+
+  <details class="bg-panel border border-edge rounded-xl max-w-3xl">
+    <summary class="cursor-pointer p-4 text-sm font-semibold text-white">Evidence limits (kept honest)</summary>
+    <ul class="px-6 pb-4 text-sm text-slate-400 list-disc list-inside space-y-1">
+      <li>The end-to-end ratio is COSMO-specific and N=6-sized; Mosek shrinks solve time and shifts the ratio toward build — re-measure before any Tier 3 call.</li>
+      <li>Allocation churn ≠ peak RSS; the 8 GB figure is GC pressure, not footprint.</li>
+      <li>Profile sample attribution misses BLAS threads.</li>
+      <li>Interning saturation measured on Heisenberg-type supports; check one non-chain Hamiltonian during the Tier 2 sprint.</li>
+    </ul>
+  </details>
   <div class="threads mt-6" data-threads></div>
 </section>
 

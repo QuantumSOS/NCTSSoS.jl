@@ -559,28 +559,6 @@ end
 @inline function _remember_simplified_monomials!(
     basis::Dict{M,Nothing},
     ::Type{A},
-    simplified::Vector{T},
-    ::Type{T},
-) where {A<:MonoidAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
-    basis[_unchecked_monomial(A, simplified)] = nothing
-    return basis
-end
-
-@inline function _remember_simplified_monomials!(
-    basis::Dict{M,Nothing},
-    ::Type{A},
-    simplified::Tuple{Vector{T},UInt8},
-    ::Type{T},
-) where {A<:TwistedGroupAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
-    word, phase_k = simplified
-    phase_k == 0x04 && return basis
-    basis[_unchecked_monomial(A, word)] = nothing
-    return basis
-end
-
-@inline function _remember_simplified_monomials!(
-    basis::Dict{M,Nothing},
-    ::Type{A},
     simplified::Vector{Tuple{Int,Vector{T}}},
     ::Type{T},
 ) where {A<:PBWAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
@@ -589,34 +567,6 @@ end
         basis[_unchecked_monomial(A, word)] = nothing
     end
     return basis
-end
-
-@inline function _push_scaled_simplified_terms!(
-    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
-    scale,
-    ::Type{A},
-    simplified::Vector{T},
-    ::Type{T},
-    ::Type{C},
-) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
-    coef = C(scale)
-    iszero(coef) || push!(terms, (coef, _unchecked_monomial(A, simplified)))
-    return terms
-end
-
-@inline function _push_scaled_simplified_terms!(
-    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
-    scale,
-    ::Type{A},
-    simplified::Tuple{Vector{T},UInt8},
-    ::Type{T},
-    ::Type{C},
-) where {A<:TwistedGroupAlgebra,T<:Integer,C<:Number}
-    word, phase_k = simplified
-    phase_k == 0x04 && return terms
-    coef = C(scale) * C(_coeff_to_number(A, phase_k))
-    iszero(coef) || push!(terms, (coef, _unchecked_monomial(A, word)))
-    return terms
 end
 
 @inline function _push_scaled_simplified_terms!(
@@ -637,10 +587,10 @@ end
     return terms
 end
 
-# Buffered variants of `_push_scaled_simplified_terms!`: `simplified` may alias
-# a reusable scratch buffer (Monoid/TwistedGroup `simplify!` mutates in place),
-# so the word is copied at insertion time — and only then. PBW `simplify!`
-# returns fresh words, so its variant delegates without copying.
+# Buffered term insertion: `simplified` may alias a reusable scratch buffer
+# (Monoid/TwistedGroup `simplify!` mutates in place), so the word is copied at
+# insertion time — and only then. PBW `simplify!` returns fresh words, so its
+# variant delegates without copying.
 @inline function _push_scaled_buffered_terms!(
     terms::Vector{Tuple{C,NormalMonomial{A,T}}},
     scale,
@@ -680,8 +630,8 @@ end
     return _push_scaled_simplified_terms!(terms, scale, A, simplified, T, C)
 end
 
-# Buffered variants of `_remember_simplified_monomials!`: probe the Dict with a
-# transient buffer-aliased wrapper and copy the word only on first insertion.
+# Buffered basis insertion: probe the Dict with a transient buffer-aliased
+# wrapper and copy the word only on first insertion.
 @inline function _remember_buffered_monomials!(
     basis::Dict{M,Nothing},
     ::Type{A},

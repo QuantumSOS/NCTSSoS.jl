@@ -270,9 +270,6 @@ function Polynomial(t::Tuple{Vector{T},UInt8}) where {T<:Integer}
     # Convert phase encoding to complex coefficient
     coef = _phase_to_complex(phase)
     mono = NormalMonomial{PauliAlgebra,T}(word)
-    if iszero(coef)
-        return _unchecked_polynomial(Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[])
-    end
     return _unchecked_polynomial(Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[(coef, mono)])
 end
 

@@ -515,10 +515,11 @@ function init_activated_supp(
     for b in mom_mtx_bases
         for (c1, word1) in b
             for (c2, word2) in b
+                # neat_dot returns a fresh vector; simplify! may take ownership.
                 diag_word = neat_dot(word1.word, word2.word)
-                simplified = simplify(A, diag_word)
-                terms = _simplified_to_terms(A, simplified, T)
-                append!(diagonal_entries, last.(terms))
+                for m in _simplified_monomials(A, simplify!(A, diag_word), T)
+                    push!(diagonal_entries, m)
+                end
             end
         end
     end
@@ -589,16 +590,16 @@ function get_term_sparsity_graph(
             for (_, word_j) in bases[j]
                 edge_found && break
                 for supp in cons_support
-                    # _neat_dot3 on NormalMonomials returns Vector{T}
+                    # _neat_dot3 on NormalMonomials returns a fresh Vector{T},
+                    # so simplify! may take ownership (no defensive copy).
                     word_lr = _neat_dot3(word_i, supp, word_j)
                     word_rl = _neat_dot3(word_j, supp, word_i)
-                    terms_lr = _simplified_to_terms(A, simplify(A, word_lr), T)
-                    terms_rl = _simplified_to_terms(A, simplify(A, word_rl), T)
+                    monos_lr = _simplified_monomials(A, simplify!(A, word_lr), T)
+                    monos_rl = _simplified_monomials(A, simplify!(A, word_rl), T)
                     # Check if any result monomial is in activated support
-                    monos_lr = last.(terms_lr)
-                    monos_rl = last.(terms_rl)
-                    if any(m in sorted_activated_supp for m in monos_lr) ||
-                       any(m in sorted_activated_supp for m in monos_rl)
+                    # (sorted vector: binary search via insorted)
+                    if any(insorted(m, sorted_activated_supp) for m in monos_lr) ||
+                       any(insorted(m, sorted_activated_supp) for m in monos_rl)
                         add_edge!(G, i, j)
                         edge_found = true
                         break
@@ -653,15 +654,19 @@ function term_sparsity_graph_supp(
     G::SimpleGraph, basis::Vector{M}, g::P
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     NM = NormalMonomial{A,T}
+    # Hoist support monomials out of the triple loop (last.() allocates).
+    g_supp_monos = NM[last(t) for t in g.terms]
     # Compute products with bilinear expansion over Monomial terms
     function gsupp(a::M, b::M)
         out = NM[]
         for (_, word_a) in a
             for (_, word_b) in b
-                for g_supp in last.(g.terms)
+                for g_supp in g_supp_monos
+                    # _neat_dot3 returns a fresh vector; simplify! may own it.
                     word = _neat_dot3(word_a, g_supp, word_b)
-                    terms = _simplified_to_terms(A, simplify(A, word), T)
-                    append!(out, last.(terms))
+                    for m in _simplified_monomials(A, simplify!(A, word), T)
+                        push!(out, m)
+                    end
                 end
             end
         end

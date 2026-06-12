@@ -95,6 +95,47 @@ function _simplified_to_terms(
     return terms
 end
 
+"""
+    _simplified_monomials(::Type{A}, simplified, ::Type{T}) where {A,T}
+
+Like [`_simplified_to_terms`](@ref) but yields only the resulting monomials,
+without allocating a `Vector` of `(coeff, monomial)` tuples for the
+Monoid/TwistedGroup cases (which always produce at most one term).
+
+Returns a tuple for Monoid/TwistedGroup algebras and a `Vector` for PBW
+algebras; callers should only iterate the result.
+
+Ownership contract matches `_simplified_to_terms`: `simplified` must be a
+freshly-simplified result the caller owns (it is wrapped via
+`_unchecked_monomial` without copying).
+"""
+@inline function _simplified_monomials(
+    ::Type{A}, simplified::Vector{T}, ::Type{T}
+) where {A<:MonoidAlgebra,T<:Integer}
+    return (_unchecked_monomial(A, simplified),)
+end
+
+@inline function _simplified_monomials(
+    ::Type{A}, simplified::Tuple{Vector{T},UInt8}, ::Type{T}
+) where {A<:TwistedGroupAlgebra,T<:Integer}
+    word, phase_k = simplified
+    # phase_k == 0x04 encodes the zero result
+    phase_k == 0x04 && return ()
+    return (_unchecked_monomial(A, word),)
+end
+
+function _simplified_monomials(
+    ::Type{A}, simplified::Vector{Tuple{Int,Vector{T}}}, ::Type{T}
+) where {A<:PBWAlgebra,T<:Integer}
+    monos = NormalMonomial{A,T}[]
+    sizehint!(monos, length(simplified))
+    for (c, word) in simplified
+        iszero(c) && continue
+        push!(monos, _unchecked_monomial(A, word))
+    end
+    return monos
+end
+
 # =============================================================================
 # Internal multiplication kernels
 # =============================================================================

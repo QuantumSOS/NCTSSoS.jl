@@ -137,14 +137,19 @@ function MomentProblem(
     )
 end
 
-@inline _moment_key(::Type{K}, mono::NormalMonomial) where {K} = convert(K, symmetric_canon(expval(mono)))
+# Value-equal to `symmetric_canon(expval(mono))` (a StateSymbol{Arbitrary}
+# canonicalizes its word with `symmetric_canon` on construction), without
+# building the StateSymbol or taking its extra defensive copy.
+@inline _moment_key(::Type{K}, mono::NormalMonomial) where {K} = convert(K, symmetric_canon(mono))
 
 # For non-monoid algebras, Arbitrary-state canonicalization is currently the
-# identity representative. Avoid constructing a StateSymbol just to copy its word.
+# identity representative, so the monomial's own word IS the key.
+# NormalMonomial words are immutable by contract, so the key may alias
+# `mono.word`; moment keys must never be mutated by consumers.
 @inline function _moment_key(
     ::Type{Vector{T}}, mono::NormalMonomial{A,T}
 ) where {A<:Union{TwistedGroupAlgebra,PBWAlgebra},T<:Integer}
-    return copy(mono.word)
+    return mono.word
 end
 
 @inline _moment_linear_half_safe_real_type(::Type{C}) where {C<:Number} = typeof(real(one(C)) / 2)

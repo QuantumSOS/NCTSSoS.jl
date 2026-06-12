@@ -101,6 +101,22 @@ allocation profile is dominated by the unavoidable insertion-time word copies
 `_build_constraint_matrix` term-vector growth — i.e. data that actually
 escapes. The `_neat_dot3` per-product churn is gone.
 
+### Scale check: 2D Heisenberg 5×5 (25 sites, 40 bonds), order=2 build
+
+Harness: `benchmark/heisenberg2d_build_bench.jl` (timing + structural SHA-256
+fingerprint). Single 75-variable clique, total basis 1,089,526 monomials.
+A/B vs `main` (merge-base `0136783`), 5 timed runs each after warmup:
+
+| | wall (median) | alloc | speedup |
+|---|---|---|---|
+| `main` (0136783) | 38.98 s | 28.26 GiB | — |
+| this branch | **10.53 s** | **4.53 GiB** | **3.7× wall, 6.2× alloc** |
+
+Equivalence: SHA-256 fingerprint over cliques, term-sparsity supports, block
+bases, total basis, `n_unique`, and every constraint-matrix polynomial is
+**bit-identical** on both sides:
+`42d2e647b6ed12d65b68ddf853e2fbca36fcf9d2e35867d4fe09f653de4975ea`.
+
 ### Verification
 
 - SHA-256 digests of sparsity structures **and** full `MomentLinearData`

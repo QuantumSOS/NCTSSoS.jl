@@ -86,3 +86,10 @@ Optimization flow: `polyopt()` → `cs_nctssos()` → `compute_sparsity()` → m
 ## Commit & Pull Request Guidelines
 - Commit messages (recent): `feat: ...`, `fix(scope): ...`, `docs: ...`, `ci: ...` (often with `(#PR)` on merge/squash).
 - PRs: small diffs, clear description, and a short “How to test” section (e.g., `make test`). Note any solver requirements (e.g., Mosek-only example regeneration).
+
+<skill>
+  <name>easy-ssh</name>
+  <description>Use the easy-ssh CLI to run computations on a remote server using local project files. Trigger when the user asks to run code remotely, execute on a server, submit a job, sync files to a remote machine, pull results from a server, check remote job status, or mentions "easy-ssh", "remote run", "server-side", "GPU server", or "cluster". Also trigger when the user has a local project and wants to execute it somewhere with more compute (GPU, RAM, CPU cores).
+</description>
+  <location>/Users/exaclior/.pi/agent/skills/easy-ssh/SKILL.md</location>
+</skill>

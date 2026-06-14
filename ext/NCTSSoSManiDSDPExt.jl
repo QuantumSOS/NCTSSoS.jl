@@ -15,6 +15,132 @@ end
 Base.:\(factor::_DiagonalGramFactor, x::AbstractVector) = factor.invdiag .* x
 Base.:\(factor::_DiagonalGramFactor, X::AbstractMatrix) = reshape(factor.invdiag, :, 1) .* X
 
+struct _SparseAccumulator
+    rows::Vector{Int}
+    cols::Vector{Int}
+    vals::Vector{ComplexF64}
+end
+
+_SparseAccumulator() = _SparseAccumulator(Int[], Int[], ComplexF64[])
+
+mutable struct _PauliCoordinateDualSDP{T<:Number,
+                                       R<:Real,
+                                       GT<:AbstractMatrix{R},
+                                       FT} <: ManiDSDP.AbstractDualSDP{T}
+    C::Matrix{T}
+    b::Vector{R}
+    rank::Int
+    gram::GT
+    gram_factor::FT
+    D::Matrix{T}
+    rows::Vector{Int}
+    cols::Vector{Int}
+    vals::Vector{T}
+    starts::Vector{Int}
+    n::Int
+    D_dot_C::Float64
+end
+
+function ManiDSDP.apply_A(problem::_PauliCoordinateDualSDP, X::AbstractMatrix)
+    size(X) == size(problem.C) || throw(DimensionMismatch("X must have size $(size(problem.C))"))
+    m = length(problem.b)
+    out = Vector{Float64}(undef, m)
+    @inbounds for k in 1:m
+        acc = zero(ComplexF64)
+        for ptr in problem.starts[k]:(problem.starts[k + 1] - 1)
+            acc += conj(problem.vals[ptr]) * X[problem.rows[ptr], problem.cols[ptr]]
+        end
+        out[k] = real(acc)
+    end
+    return out
+end
+
+function ManiDSDP.apply_At(problem::_PauliCoordinateDualSDP{T}, y::AbstractVector) where {T}
+    length(y) == length(problem.b) || throw(DimensionMismatch("length(y) must match length(b)"))
+    out = zeros(T, problem.n, problem.n)
+    @inbounds for k in 1:length(problem.b)
+        yk = Float64(ManiDSDP._real_value(y[k], "y[$k]"))
+        iszero(yk) && continue
+        for ptr in problem.starts[k]:(problem.starts[k + 1] - 1)
+            out[problem.rows[ptr], problem.cols[ptr]] += yk * problem.vals[ptr]
+        end
+    end
+    return ManiDSDP._symmetrize(out)
+end
+
+function ManiDSDP.project_range(problem::_PauliCoordinateDualSDP, X::AbstractMatrix)
+    coeffs = problem.gram_factor \ ManiDSDP.apply_A(problem, X)
+    return ManiDSDP.apply_At(problem, coeffs)
+end
+
+function ManiDSDP.dual_y(problem::_PauliCoordinateDualSDP, S::AbstractMatrix, Xtilde::AbstractMatrix, sigma::Real)
+    size(S) == size(problem.C) || throw(DimensionMismatch("S must have size $(size(problem.C))"))
+    inv_sigma = inv(sigma)
+    rhs = Vector{Float64}(undef, length(problem.b))
+    @inbounds for k in eachindex(problem.b)
+        acc = zero(ComplexF64)
+        for ptr in problem.starts[k]:(problem.starts[k + 1] - 1)
+            row = problem.rows[ptr]
+            col = problem.cols[ptr]
+            acc += conj(problem.vals[ptr]) * (S[row, col] + problem.C[row, col] + inv_sigma * Xtilde[row, col])
+        end
+        rhs[k] = real(acc)
+    end
+    return problem.gram_factor \ rhs
+end
+
+function ManiDSDP.residual(problem::_PauliCoordinateDualSDP{T}, S::AbstractMatrix, y::AbstractVector) where {T}
+    length(y) == length(problem.b) || throw(DimensionMismatch("length(y) must match length(b)"))
+    out = Matrix{T}(undef, problem.n, problem.n)
+    @inbounds for idx in eachindex(out)
+        out[idx] = -S[idx] - problem.C[idx]
+    end
+    @inbounds for k in eachindex(problem.b)
+        yk = Float64(ManiDSDP._real_value(y[k], "y[$k]"))
+        iszero(yk) && continue
+        for ptr in problem.starts[k]:(problem.starts[k + 1] - 1)
+            out[problem.rows[ptr], problem.cols[ptr]] += yk * problem.vals[ptr]
+        end
+    end
+    return out
+end
+
+function ManiDSDP.gradient_matrix(problem::_PauliCoordinateDualSDP{T},
+                                  S::AbstractMatrix,
+                                  Xtilde::AbstractMatrix,
+                                  sigma::Real) where {T}
+    y = ManiDSDP.dual_y(problem, S, Xtilde, sigma)
+    R = ManiDSDP.residual(problem, S, y)
+    G = Matrix{T}(undef, problem.n, problem.n)
+    @inbounds for idx in eachindex(G)
+        G[idx] = Xtilde[idx] + problem.D[idx] - sigma * R[idx]
+    end
+    return G, y, R
+end
+
+function ManiDSDP.update_multiplier!(::_PauliCoordinateDualSDP,
+                                     Xtilde::AbstractMatrix,
+                                     R::AbstractMatrix,
+                                     sigma::Real)
+    @inbounds for idx in eachindex(Xtilde, R)
+        Xtilde[idx] -= sigma * R[idx]
+    end
+    return Xtilde
+end
+
+function ManiDSDP.augmented_cost(problem::_PauliCoordinateDualSDP,
+                                 Y::AbstractMatrix,
+                                 Xtilde::AbstractMatrix,
+                                 sigma::Real)
+    S = ManiDSDP.slack_from_factor(Y)
+    y = ManiDSDP.dual_y(problem, S, Xtilde, sigma)
+    R = ManiDSDP.residual(problem, S, y)
+    return ManiDSDP._real_inner(problem.D, S) +
+           problem.D_dot_C -
+           ManiDSDP._real_inner(Xtilde, R) +
+           (sigma / 2) * ManiDSDP._real_inner(R, R)
+end
+
 # The extension is intentionally narrow: it bypasses JuMP only for Pauli
 # SOS-dual relaxations whose PSD blocks are plain moment-matrix blocks.  Extra
 # equality/localizing machinery changes the dual shape and must not be shoved
@@ -184,7 +310,7 @@ function _pauli_moment_problem_to_manidsdp(mp, opt::ManiDSDP.Optimizer)
     n > 0 || throw(ArgumentError("Pauli ManiDSDP path requires at least one HPSD moment block."))
 
     moment_count = length(L.moments)
-    raw = Vector{Union{Nothing,Matrix{ComplexF64}}}(nothing, moment_count)
+    raw = Vector{Union{Nothing,_SparseAccumulator}}(nothing, moment_count)
     for (block_idx, block) in pairs(blocks)
         offset = offsets[block_idx]
         for j in 1:block.size, i in 1:block.size
@@ -192,12 +318,14 @@ function _pauli_moment_problem_to_manidsdp(mp, opt::ManiDSDP.Optimizer)
             col = offset + j - 1
             for (key, coef) in block.entries[i, j]
                 idx = L.moment_index[key]
-                mat = raw[idx]
-                if mat === nothing
-                    mat = zeros(ComplexF64, n, n)
-                    raw[idx] = mat
+                acc = raw[idx]
+                if acc === nothing
+                    acc = _SparseAccumulator()
+                    raw[idx] = acc
                 end
-                mat[row, col] += ComplexF64(coef)
+                push!(acc.rows, row)
+                push!(acc.cols, col)
+                push!(acc.vals, ComplexF64(coef))
             end
         end
     end
@@ -209,40 +337,45 @@ function _pauli_moment_problem_to_manidsdp(mp, opt::ManiDSDP.Optimizer)
 
     identity = L.identity
     identity_idx = L.moment_index[identity]
-    C_id = raw[identity_idx] === nothing ? zeros(ComplexF64, n, n) : raw[identity_idx]::Matrix{ComplexF64}
-    B0 = _hermitian_part(conj.(C_id))
+    B0_rows, B0_cols, B0_vals, _ = _hermitian_coordinates(raw[identity_idx], n, one(ComplexF64))
+    B0 = _dense_from_coordinates(B0_rows, B0_cols, B0_vals, n)
     constant = real(objective[identity_idx])
 
     _assert_unit_diagonal_manidsdp_objective(B0)
 
-    matrices = Matrix{ComplexF64}[]
+    rows = Int[]
+    cols = Int[]
+    vals = ComplexF64[]
+    starts = Int[1]
+    gram_diag = Float64[]
     rhs = Float64[]
 
     # The imaginary identity equation is normally zero for Pauli Hamiltonians,
     # but keep it if present and harmless: it is an affine equality, not the
     # ManiDSDP objective matrix.
-    B_id_im = _hermitian_part(im .* conj.(C_id))
-    _append_constraint_if_nonzero!(matrices, rhs, B_id_im, imag(objective[identity_idx]))
+    _append_coordinate_constraint!(rows, cols, vals, starts, gram_diag, rhs,
+                                   raw[identity_idx], n, ComplexF64(im), imag(objective[identity_idx]))
 
     for idx in eachindex(L.moments)
         idx == identity_idx && continue
-        C_key = raw[idx]
+        C_key_raw = raw[idx]
         c_key = objective[idx]
-        if C_key === nothing
+        if C_key_raw === nothing
             abs(c_key) <= _MANIDSDP_DEP_TOL || throw(ArgumentError(
                 "SOS objective references a moment with no moment-matrix coefficient; native ManiDSDP problem is infeasible."
             ))
             continue
         end
-        _append_constraint_if_nonzero!(matrices, rhs, _hermitian_part(conj.(C_key)), real(c_key))
-        _append_constraint_if_nonzero!(matrices, rhs, _hermitian_part(im .* conj.(C_key)), imag(c_key))
+        _append_coordinate_constraint!(rows, cols, vals, starts, gram_diag, rhs,
+                                       C_key_raw, n, one(ComplexF64), real(c_key))
+        _append_coordinate_constraint!(rows, cols, vals, starts, gram_diag, rhs,
+                                       C_key_raw, n, ComplexF64(im), imag(c_key))
     end
 
-    isempty(matrices) && return nothing, constant
-    _assert_zero_constraint_diagonals(matrices)
+    isempty(rhs) && return nothing, constant
 
     rank = Int(get(opt.solve_kwargs, :rank, min(n, 2)))
-    problem = _orthogonal_pauli_dualsdp(-B0, [-A for A in matrices], -rhs; rank=rank)
+    problem = _coordinate_pauli_dualsdp(-B0, rows, cols, vals, starts, gram_diag, rhs; rank=rank)
     return problem, constant
 end
 
@@ -274,61 +407,125 @@ function _block_offsets(blocks)
     return offsets
 end
 
-_hermitian_part(A::AbstractMatrix) = Matrix(Hermitian((A + A') / 2))
+function _accumulate_coordinate!(dict::Dict{Int,ComplexF64}, key::Int, value::ComplexF64)
+    if haskey(dict, key)
+        dict[key] += value
+    else
+        dict[key] = value
+    end
+    return dict
+end
 
-function _append_constraint_if_nonzero!(matrices, rhs, A::AbstractMatrix, b::Real)
-    norm(A) <= _MANIDSDP_DEP_TOL && abs(b) <= _MANIDSDP_DEP_TOL && return false
-    norm(A) <= _MANIDSDP_DEP_TOL && throw(ArgumentError(
+function _hermitian_coordinates(acc::Union{Nothing,_SparseAccumulator}, n::Integer, phase::ComplexF64)
+    dict = Dict{Int,ComplexF64}()
+    if acc !== nothing
+        half = 0.5
+        phase_conj = conj(phase)
+        @inbounds for idx in eachindex(acc.vals)
+            row = acc.rows[idx]
+            col = acc.cols[idx]
+            value = acc.vals[idx]
+            _accumulate_coordinate!(dict, row + (col - 1) * n, half * phase * conj(value))
+            _accumulate_coordinate!(dict, col + (row - 1) * n, half * phase_conj * value)
+        end
+    end
+
+    keys_sorted = sort!(collect(keys(dict)))
+    rows = Int[]
+    cols = Int[]
+    vals = ComplexF64[]
+    sizehint!(rows, length(keys_sorted))
+    sizehint!(cols, length(keys_sorted))
+    sizehint!(vals, length(keys_sorted))
+    norm2 = 0.0
+    for key in keys_sorted
+        value = dict[key]
+        abs(value) <= _MANIDSDP_DEP_TOL && continue
+        col, row0 = divrem(key - 1, n)
+        push!(rows, row0 + 1)
+        push!(cols, col + 1)
+        push!(vals, value)
+        norm2 += abs2(value)
+    end
+    return rows, cols, vals, norm2
+end
+
+function _dense_from_coordinates(rows::Vector{Int}, cols::Vector{Int}, vals::Vector{ComplexF64}, n::Integer)
+    out = zeros(ComplexF64, n, n)
+    @inbounds for idx in eachindex(vals)
+        out[rows[idx], cols[idx]] += vals[idx]
+    end
+    return Matrix(Hermitian(out))
+end
+
+function _append_coordinate_constraint!(rows, cols, vals, starts, gram_diag, rhs,
+                                        acc::Union{Nothing,_SparseAccumulator},
+                                        n::Integer,
+                                        phase::ComplexF64,
+                                        b::Real)
+    c_rows, c_cols, c_vals, norm2 = _hermitian_coordinates(acc, n, phase)
+    norm2 <= _MANIDSDP_DEP_TOL^2 && abs(b) <= _MANIDSDP_DEP_TOL && return false
+    norm2 <= _MANIDSDP_DEP_TOL^2 && throw(ArgumentError(
         "SOS coefficient equation has zero matrix but nonzero rhs $(b); the ManiDSDP native problem would be infeasible."
     ))
-    push!(matrices, Matrix{ComplexF64}(A))
-    push!(rhs, Float64(b))
+    @inbounds for idx in eachindex(c_vals)
+        if c_rows[idx] == c_cols[idx] && abs(c_vals[idx]) > 1e-8
+            throw(ArgumentError(
+                "ManiDSDP requires non-identity SOS coefficient matrices to have zero diagonal; " *
+                "diagonal entry $(c_rows[idx]) = $(c_vals[idx])."
+            ))
+        end
+        push!(rows, c_rows[idx])
+        push!(cols, c_cols[idx])
+        push!(vals, -c_vals[idx])
+    end
+    push!(starts, length(vals) + 1)
+    push!(gram_diag, norm2)
+    push!(rhs, -Float64(b))
     return true
 end
 
-function _orthogonal_pauli_dualsdp(C::AbstractMatrix, A::Vector{Matrix{ComplexF64}}, b::Vector{Float64}; rank::Integer)
+function _coordinate_pauli_dualsdp(C::AbstractMatrix,
+                                   rows::Vector{Int},
+                                   cols::Vector{Int},
+                                   vals::Vector{ComplexF64},
+                                   starts::Vector{Int},
+                                   gram_diag::Vector{Float64},
+                                   b::Vector{Float64};
+                                   rank::Integer)
     n = size(C, 1)
     1 <= rank <= n || throw(ArgumentError("rank must be in 1:size(C, 1)"))
-    length(A) == length(b) || throw(ArgumentError("length(A) must match length(b)"))
-
-    gram_diag = Vector{Float64}(undef, length(A))
-    for (idx, Ai) in pairs(A)
-        gram_diag[idx] = real(dot(Ai, Ai))
-        gram_diag[idx] > _MANIDSDP_DEP_TOL || throw(ArgumentError(
-            "ManiDSDP Pauli SOS coefficient matrix $idx is numerically zero."
-        ))
-    end
+    length(starts) == length(b) + 1 || throw(ArgumentError("starts must have length length(b) + 1"))
+    length(gram_diag) == length(b) || throw(ArgumentError("gram_diag must match length(b)"))
+    all(>(_MANIDSDP_DEP_TOL), gram_diag) || throw(ArgumentError(
+        "ManiDSDP Pauli SOS coefficient matrices must be numerically nonzero."
+    ))
 
     gram = Diagonal(gram_diag)
     factor = _DiagonalGramFactor(inv.(gram_diag))
-    D = ManiDSDP.apply_At(A, factor \ b)
-    return ManiDSDP.DualSDP{ComplexF64,Float64,typeof(gram),typeof(factor)}(
+    problem = _PauliCoordinateDualSDP(
         Matrix{ComplexF64}(C),
-        A,
         b,
         Int(rank),
         gram,
         factor,
-        _hermitian_part(D),
+        zeros(ComplexF64, n, n),
+        rows,
+        cols,
+        vals,
+        starts,
+        n,
+        0.0,
     )
+    problem.D .= ManiDSDP.apply_At(problem, factor \ b)
+    problem.D_dot_C = ManiDSDP._real_inner(problem.D, problem.C)
+    return problem
 end
 
 function _assert_unit_diagonal_manidsdp_objective(B0::AbstractMatrix)
     for i in axes(B0, 1)
         abs(real(B0[i, i]) - 1.0) <= 1e-8 && abs(imag(B0[i, i])) <= 1e-8 ||
             throw(ArgumentError("ManiDSDP requires the SOS identity matrix to have unit real diagonal; entry $i is $(B0[i, i])."))
-    end
-    return nothing
-end
-
-function _assert_zero_constraint_diagonals(matrices)
-    for (idx, A) in pairs(matrices)
-        for i in axes(A, 1)
-            abs(A[i, i]) <= 1e-8 || throw(ArgumentError(
-                "ManiDSDP requires non-identity SOS coefficient matrices to have zero diagonal; " *
-                "constraint $idx has diagonal entry $i = $(A[i, i])."
-            ))
-        end
     end
     return nothing
 end

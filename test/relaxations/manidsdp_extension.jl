@@ -59,7 +59,18 @@ if Base.find_package("ManiDSDP") !== nothing
         native_problem2, native_constant2 = ext._pauli_moment_problem_to_manidsdp(mp2, opt2)
         @test native_constant2 == 0.0
         @test native_problem2.gram isa Diagonal
-        dense_problem2 = ManiDSDP.DualSDP(native_problem2.C, native_problem2.A, native_problem2.b; rank=native_problem2.rank)
+        @test ManiDSDP.apply_A(native_problem2, native_problem2.D) ≈ native_problem2.b atol=1e-12
+        @test ManiDSDP.project_range(native_problem2, native_problem2.D) ≈ native_problem2.D atol=1e-12
+
+        dense_A2 = Matrix{ComplexF64}[]
+        for k in eachindex(native_problem2.b)
+            A_k = zeros(ComplexF64, native_problem2.n, native_problem2.n)
+            for ptr in native_problem2.starts[k]:(native_problem2.starts[k + 1] - 1)
+                A_k[native_problem2.rows[ptr], native_problem2.cols[ptr]] += native_problem2.vals[ptr]
+            end
+            push!(dense_A2, Matrix(Hermitian(A_k)))
+        end
+        dense_problem2 = ManiDSDP.DualSDP(native_problem2.C, dense_A2, native_problem2.b; rank=native_problem2.rank)
         @test Matrix(native_problem2.gram) ≈ dense_problem2.gram atol=1e-12
         @test native_problem2.D ≈ dense_problem2.D atol=1e-12
     end

@@ -10,14 +10,14 @@
 # RUNNING ORACLE SCRIPTS:
 #   Option 1: Using make (from NCTSSoS.jl repo)
 #     make oracle-chsh                         # default: mosek
-#     make oracle-chsh SOLVER=cosmo            # use COSMO solver
-#     make oracle-i3322 SOLVER=mosek           # use Mosek solver
+#     ORACLE_SOLVER=cosmo make oracle-chsh     # use COSMO solver
+#     ORACLE_SOLVER=mosek make oracle-i3322    # use Mosek solver
 #     NCTSSOS_PATH=/custom/path make oracle-chsh
 #
 #   Option 2: Manual (from NCTSSOS repo)
 #     cd /path/to/NCTSSOS
-#     julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
-#     ORACLE_SOLVER=cosmo julia --project /path/to/NCTSSoS.jl/test/oracles/scripts/nctssos_chsh.jl
+#     julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
+#     ORACLE_SOLVER=cosmo julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
 #
 # ORACLE FORMAT:
 #   (opt, sides, nuniq) where:

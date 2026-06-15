@@ -79,7 +79,7 @@ oracle-%:
 		fi; \
 	fi && \
 	echo "Using NCTSSOS at: $$NCTSSOS_PATH" && \
-	cd "$$NCTSSOS_PATH" && julia --project "$(CURDIR)/test/oracles/scripts/nctssos_$*.jl"
+	cd "$$NCTSSOS_PATH" && julia --project "$(CURDIR)/test/oracles/nctssos_$*.jl"
 
 # =============================================================================
 # Documentation

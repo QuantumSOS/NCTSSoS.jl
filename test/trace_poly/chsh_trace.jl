@@ -1,4 +1,4 @@
-# test/problems/bell_inequalities/chsh_trace.jl
+# test/trace_poly/chsh_trace.jl
 # Tests: CHSH Bell inequality - Trace Polynomial formulation
 #
 # Uses trace polynomial formulation with NCTSSoS.tr().

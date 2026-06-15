@@ -84,4 +84,4 @@ function clique_decomp(G::SimpleGraph, ::AsIsElimination)
     return maximal_cliques(G)
 end
 
-# TODO: https://github.com/wangjie212/NCTSSoS.jl/issues/45, this only applied to TS
+# TODO: https://github.com/QuantumSOS/NCTSSoS.jl/issues/45, this only applied to TS

@@ -13,7 +13,7 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-[NCTSSoS.jl](https://github.com/wangjie212/NCTSSoS) aims to provide a *efficient* tool for solving sparse noncommutative polynomial optimization problems which is based on the structured moment-SOHS hierarchy.
+[NCTSSoS.jl](https://github.com/QuantumSOS/NCTSSoS.jl) aims to provide an *efficient* tool for solving sparse noncommutative polynomial optimization problems which is based on the structured moment-SOHS hierarchy.
 
 It is a successor to [NCTSSOS](https://github.com/wangjie212/NCTSSOS).
 
@@ -79,13 +79,13 @@ For stable release:
 pkg> add NCTSSoS 
 ```
 
-For current master:
+For current main branch:
 
 ```julia
-pkg> add NCTSSoS#master
+pkg> add NCTSSoS#main
 ```
-[main-ci-img]: https://github.com/wangjie212/NCTSSoS.jl/actions/workflows/CI.yml/badge.svg
-[main-ci-url]: https://github.com/wangjie212/NCTSSoS.jl/actions/workflows/CI.yml
+[main-ci-img]: https://github.com/QuantumSOS/NCTSSoS.jl/actions/workflows/CI.yml/badge.svg
+[main-ci-url]: https://github.com/QuantumSOS/NCTSSoS.jl/actions/workflows/CI.yml
 
 [codecov-img]: https://codecov.io/github/QuantumSOS/NCTSSoS.jl/branch/main/graph/badge.svg
 [codecov-url]: https://app.codecov.io/gh/QuantumSOS/NCTSSoS.jl

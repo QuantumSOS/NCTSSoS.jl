@@ -1,6 +1,6 @@
 # NCTSSoS
 
-[NCTSSoS.jl](https://github.com/wangjie212/NCTSSoS.jl) aims to provide a *user-friendly* and *efficient* tool for solving [noncommutative polynomial optimization problems](@ref polynomial-optimization) which is based on the structured [moment-SOHS hierarchy](@ref moment-sohs-hierarchy).
+[NCTSSoS.jl](https://github.com/QuantumSOS/NCTSSoS.jl) aims to provide a *user-friendly* and *efficient* tool for solving [noncommutative polynomial optimization problems](@ref polynomial-optimization) which is based on the structured [moment-SOHS hierarchy](@ref moment-sohs-hierarchy).
 
 ## Features
 
@@ -13,7 +13,7 @@
 
 ## Installation
 
-[NCTSSoS.jl](https://github.com/wangjie212/NCTSSoS.jl) could be installed by running
+[NCTSSoS.jl](https://github.com/QuantumSOS/NCTSSoS.jl) could be installed by running
 
 ```julia
 using Pkg
@@ -36,7 +36,7 @@ The following people are involved in the development of NCTSSoS.jl:
 If this project is useful for your work please consider
 
 - Citing NCTSSoS.jl
-- Leave us a star on [GitHub!](https://github.com/wangjie212/NCTSSoS.jl)!
+- Leave us a star on [GitHub!](https://github.com/QuantumSOS/NCTSSoS.jl)!
 
 ## License
 

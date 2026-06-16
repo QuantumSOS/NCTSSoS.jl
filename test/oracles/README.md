@@ -28,7 +28,7 @@ test/oracles/
 
 | Oracle Script | Updates Test File(s) |
 |---------------|---------------------|
-| `nctssos_chsh.jl` | `test/problems/bell_inequalities/chsh_simple.jl`, `chsh_state.jl`, `chsh_trace.jl`, `chsh_high_order.jl` |
+| `nctssos_chsh.jl` | `test/problems/bell_inequalities/chsh_simple.jl`, `chsh_high_order.jl`, `test/state_poly/integration_chsh.jl`, `test/trace_poly/chsh_trace.jl` |
 | `nctssos_i3322.jl` | `test/problems/bell_inequalities/i3322.jl` |
 | `nctssos_bell_template.jl` | `test/problems/bell_inequalities/bell_inequalities.jl` |
 | `nctssos_bilocal.jl` | `test/problems/quantum_networks/bilocal_networks.jl` |
@@ -90,12 +90,12 @@ From NCTSSoS.jl repository:
 make oracle-chsh
 make oracle-i3322
 
-# Run with COSMO solver
-make oracle-chsh SOLVER=cosmo
-make oracle-i3322 SOLVER=cosmo
+# Run with COSMO solver (set ORACLE_SOLVER env var)
+ORACLE_SOLVER=cosmo make oracle-chsh
+ORACLE_SOLVER=cosmo make oracle-i3322
 
 # With custom NCTSSOS path
-NCTSSOS_PATH=/custom/path make oracle-chsh SOLVER=mosek
+NCTSSOS_PATH=/custom/path make oracle-chsh
 ```
 
 After running, paste the output to Claude to update the test file.

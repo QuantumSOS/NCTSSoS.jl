@@ -21,6 +21,10 @@ julia --project -e 'using Pkg; Pkg.test()'
   - `test/polynomials/` — polynomial algebra (no solver, no JuMP)
   - `test/quality/` — Aqua, ExplicitImports, doctests
   - `test/relaxations/` — relaxation components (needs `SOLVER`)
+  - `test/state_poly/` — state polynomial suite (needs `SOLVER`)
+  - `test/correlated_sparsity/` — correlated/term sparsity suite (needs `SOLVER`)
+  - `test/trace_poly/` — trace polynomial suite (needs `SOLVER`)
+  - `test/v2rdm_structured/` — structured V2RDM benchmark (needs `SOLVER`)
   - `test/problems/` — curated problem tests (needs `SOLVER`)
 
 ## Solver
@@ -57,4 +61,13 @@ Currently registered:
 
 ```bash
 julia --project test/problems/trace_polynomial/t1_broyden_banded_trace.jl
+```
+
+- `test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl`
+  - local-only Mosek benchmark for the NC Motzkin polynomial (T4)
+  - requires a local Mosek license
+  - equivalent direct command:
+
+```bash
+julia --project test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl
 ```

@@ -6,6 +6,9 @@
   - `src/simplification/` — algebra-specific rewrite rules (one file per algebra)
   - `src/optimization/` — sparsity + moment/SOS relaxations + JuMP model build
   - `src/states/` — state polynomials (quantum information)
+  - `src/algorithms/` — basis construction (Newton chip, canonicalization)
+  - `src/sympleq/` — SympleQ Clifford symmetry detection pipeline
+  - `src/util/` — shared helpers
 - `test/` — curated suites (entry: `test/runtests.jl`)
 - `test/data/` — reviewed expectation fixtures for solver-backed tests
 - `docs/` — Documenter site (`docs/make.jl`, sources in `docs/src/`)
@@ -14,7 +17,7 @@
 - `test/oracles/` — optional reference outputs (requires external legacy `NCTSSOS` repo)
 
 ## Build, Test, and Docs Commands
-CI baseline: Julia 1.11; solver: COSMO.
+CI baseline: Julia 1.12; solver: COSMO.
 - `make init` — precompile root environment
 - `make test` — full test suite (COSMO)
 - `make coverage-ci` — CI-style coverage (`lcov.info`)
@@ -33,7 +36,7 @@ AlgebraType
 ├── TwistedGroupAlgebra  (Pauli)
 └── PBWAlgebra           (Fermionic/Bosonic)
 ```
-Core types: `NormalMonomial{A,T}` (immutable word), `Polynomial{A,T,C}` (mutable map), `VariableRegistry{A,T}` (symbol ↔ index).
+Core types: `NormalMonomial{A,T}` (immutable word), `Polynomial{A,T,C}` (sorted term vector), `VariableRegistry{A,T}` (symbol ↔ index).
 Optimization flow: `polyopt()` → `cs_nctssos()` → `compute_sparsity()` → moment/SOS relaxation → JuMP model.
 
 ## Coding Style & Naming Conventions
@@ -45,8 +48,8 @@ Optimization flow: `polyopt()` → `cs_nctssos()` → `compute_sparsity()` → m
 ## Testing Guidelines
 - Canonical instructions: `TESTING.md`.
 - Shared infra: `test/TestUtils.jl` defines `SOLVER` (COSMO) and helpers.
-- Suites: `test/polynomials/` (no solver), `test/quality/` (Aqua/ExplicitImports/doctests), `test/relaxations/`, `test/state_poly/`, `test/correlated_sparsity/`, `test/trace_poly/`, `test/problems/`.
-- Reviewed expectation fixtures live in `test/data/expectations/*.json`; keep stable case ids and follow `test/data/README.md`.
+- Suites: `test/polynomials/` (no solver), `test/quality/` (Aqua/ExplicitImports/doctests), `test/relaxations/`, `test/state_poly/`, `test/correlated_sparsity/`, `test/trace_poly/`, `test/v2rdm_structured/`, `test/problems/`.
+- Reviewed expectation fixtures live in `test/data/expectations/*.toml`; keep stable case ids and follow `test/data/README.md`.
 - Keep tests deterministic and solver-stable (COSMO in CI).
 
 ### Backlog-Driven Test Addition Workflow
@@ -70,7 +73,7 @@ Optimization flow: `polyopt()` → `cs_nctssos()` → `compute_sparsity()` → m
   - Priority 1 (`E11`, `E7`, `T6`, `B1`, `T3`, `S6`, `E6`, `CS-failure`) are the best default candidates for CI coverage if they are COSMO-stable and reasonably fast.
   - Priority 2/3 large-scale, convergence-table, or hard Bell cases should usually stay out of always-on CI unless reduced to a cheap deterministic core.
 - Verify each added case by running the narrowest relevant test file or suite first; run broader `make test` or `julia --project -e 'using Pkg; Pkg.test()'` when shared behavior or multiple suites are touched.
-- For solver-backed numeric expectations meant to stay stable, prefer updating/adding reviewed fixtures in `test/data/expectations/*.json` instead of scattering magic numbers through tests.
+- For solver-backed numeric expectations meant to stay stable, prefer updating/adding reviewed fixtures in `test/data/expectations/*.toml` instead of scattering magic numbers through tests.
 - For each proposed case, explicitly decide and report whether it belongs in CI, docs, or both:
   - **Include in CI** when the case is deterministic, reasonably fast, COSMO-stable, and protects correctness or a regression.
   - **Include in docs/examples** when the case primarily teaches a public workflow, showcases an API, or is more useful as narrative runnable material than as repeated regression coverage.

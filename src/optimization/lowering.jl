@@ -123,6 +123,7 @@ function build_jump_model(
         throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
 
     if formulation == :psd_blocks
+        _is_real_moment_problem(mp) && throw(ArgumentError("formulation=:psd_blocks is only for complex Hermitian moment problems; real PSD moment problems already use direct real lowering."))
         _is_complex_problem(A) ||
             throw(ArgumentError("formulation=:psd_blocks is currently implemented only for complex algebras"))
         representation == :complex ||
@@ -130,7 +131,11 @@ function build_jump_model(
         return _build_complex_psd_block_model(mp; orphan_policy=orphan_policy)
     end
 
-    if _is_complex_problem(A)
+    if _is_real_moment_problem(mp)
+        representation == :real ||
+            throw(ArgumentError("real moment problems support only representation=:real"))
+        return _build_real_moment_variable_model(mp)
+    elseif _is_complex_problem(A)
         representation == :real ||
             throw(ArgumentError("formulation=:moment_variables currently supports representation=:real for complex algebras"))
         return _build_complex_moment_variable_model(mp)

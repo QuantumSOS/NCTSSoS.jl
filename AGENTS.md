@@ -1,5 +1,8 @@
 # Repository Guidelines
 
+## Remote Work Environment
+All work (build, test, docs, solver runs) **must** be done on the `autodl` remote machine via `easy-ssh`. Do not run commands locally.
+
 ## Project Layout
 - `src/` — library code
   - `src/types/` — algebras, registries, monomials, polynomials

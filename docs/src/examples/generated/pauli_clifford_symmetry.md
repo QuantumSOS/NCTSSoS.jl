@@ -130,7 +130,7 @@ dense_result.objective
 ````
 
 ````
--0.7500000000000073
+-0.7500000000000072
 ````
 
 Sanity-check against the analytical value:
@@ -140,7 +140,7 @@ abs(dense_result.objective - (-0.75))
 ````
 
 ````
-7.327471962526033e-15
+7.216449660063518e-15
 ````
 
 The dense layout produces a single `7×7` PSD block:
@@ -238,7 +238,7 @@ abs(manual_result.objective - dense_result.objective)
 ````
 
 ````
-0.0
+1.1102230246251565e-16
 ````
 
 ### Reading the [`SymmetryReport`](@ref)
@@ -463,7 +463,7 @@ auto_result.objective
 ````
 
 ````
--0.7500000001402382
+-0.7500000001402383
 ````
 
 The detected generators close into a group of order **24**:
@@ -609,7 +609,7 @@ spatial_result4.objective
 ````
 
 ````
--2.9999999999998943
+-2.999999999999893
 ````
 
 The full ``D_4`` (order 8) splits the ``13 \times 13`` block into three:
@@ -644,7 +644,7 @@ auto_result4.objective
 ````
 
 ````
--3.000000000750111
+-3.00000000075011
 ````
 
 A different group of order 16 — again containing axis-mixing Cliffords the
@@ -788,7 +788,7 @@ dense_result10.objective
 ````
 
 ````
--4.518159324352638
+-4.51815932435283
 ````
 
 ````julia
@@ -805,7 +805,7 @@ t_dense10
 ````
 
 ````
-130.934274686
+88.598676167
 ````
 
 Nearly all of that wall-clock time is the interior-point solver itself:
@@ -815,7 +815,7 @@ t_dense_mosek = JuMP.solve_time(dense_result10.model)
 ````
 
 ````
-128.36861083697295
+88.2443618774414
 ````
 
 ### SympleQ detection + symmetry-reduced solve (timed)
@@ -839,7 +839,7 @@ t_detect10
 ````
 
 ````
-0.002295567
+0.001293625
 ````
 
 Solve with the auto-detected symmetry at order 2:
@@ -860,7 +860,7 @@ result10.objective
 ````
 
 ````
--4.51815933097806
+-4.518159330977996
 ````
 
 ````julia
@@ -895,7 +895,7 @@ t_sym10
 ````
 
 ````
-7.290861325
+0.828725625
 ````
 
 And the solver time hiding inside that total:
@@ -905,7 +905,7 @@ t_sym_mosek = JuMP.solve_time(result10.model)
 ````
 
 ````
-0.7279308849829249
+0.592249870300293
 ````
 
 ### Comparison
@@ -930,11 +930,11 @@ println("Group order: $(report10.group_order), generators: $(length(auto_spec10.
 ````
 Steady-state timing; warm-up solves discarded
 run       total        of which Mosek   moment vars   PSD blocks
-dense     130.9s      128.4s           20686         [[436]]
-symmetry  7.3s       0.7s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
-  symmetry time = detect 0.0023s + solve 7.3s
-End-to-end speedup: 18.0x
-Solver-only speedup: 176.0x
+dense     88.6s      88.2s           20686         [[436]]
+symmetry  0.8s       0.6s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
+  symmetry time = detect 0.0013s + solve 0.8s
+End-to-end speedup: 106.7x
+Solver-only speedup: 149.0x
 Moment variable reduction: 20686 → 1421
 Objective difference: 6.63e-9
 Group order: 16, generators: 11

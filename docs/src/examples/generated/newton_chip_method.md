@@ -819,7 +819,7 @@ should match the dense order-2 tracial solve.
 ````
 
 ````
-(1.0000000001164153, 0.9999999997876812, 57, 7)
+(1.0, 0.9999999999436952, 57, 7)
 ````
 
 The tracial workflow is therefore:

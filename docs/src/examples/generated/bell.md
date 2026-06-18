@@ -366,7 +366,7 @@ i3322_bound = -result.objective
 ````
 
 ````
-0.25093972390866476
+0.2509397238793749
 ````
 
 i3322_bound: upper bound on I₃₃₂₂ violation (negate since we minimized -f)
@@ -376,7 +376,7 @@ i3322_bound  # should be close to 0.25
 ````
 
 ````
-0.25093972390866476
+0.2509397238793749
 ````
 
 ---
@@ -413,7 +413,7 @@ bound_dense = -result_dense.objective
 ````
 
 ````
-0.25087567011299783
+0.2508756471998828
 ````
 
 bound_dense: bound without sparsity
@@ -423,7 +423,7 @@ bound_dense
 ````
 
 ````
-0.25087567011299783
+0.2508756471998828
 ````
 
 #### With correlative sparsity (order=6)
@@ -448,7 +448,7 @@ bound_sparse = -result_sparse.objective
 ````
 
 ````
-0.25087541281436
+0.2508754127946725
 ````
 
 bound_sparse: improved bound using sparsity
@@ -458,7 +458,7 @@ bound_sparse  # closer to theoretical 0.25
 ````
 
 ````
-0.25087541281436
+0.2508754127946725
 ````
 
 Improvement in bound:
@@ -468,7 +468,7 @@ bound_dense - bound_sparse  # positive = improvement
 ````
 
 ````
-2.5729863784018647e-7
+2.3440521029760575e-7
 ````
 
 ---
@@ -616,7 +616,7 @@ cov_bound = -result.objective
 ````
 
 ````
-5.000000000001876
+5.000000000004244
 ````
 
 cov_bound: upper bound on covariance Bell violation
@@ -626,7 +626,7 @@ cov_bound  # should be close to 5.0
 ````
 
 ````
-5.000000000001876
+5.000000000004244
 ````
 
 Compare with known quantum value:
@@ -636,7 +636,7 @@ abs(cov_bound - 5.0)  # difference from theoretical value
 ````
 
 ````
-1.8758328224066645e-12
+4.243716489327198e-12
 ````
 
 #### Step 6: Improve bound using term sparsity and higher-order iteration
@@ -661,7 +661,7 @@ result_ts = cs_nctssos(spop, solver_config_ts)
 
 ````
 State Optimization Result
-Objective: -5.000000021561767
+Objective: -5.000000021559683
 Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
 
    maximum clique size: 6
@@ -691,7 +691,7 @@ result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
 
 ````
 State Optimization Result
-Objective: -5.0000000016276065
+Objective: -5.000000001621263
 Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
 
    maximum clique size: 6
@@ -720,7 +720,7 @@ improved_bound = -result_higher.objective
 ````
 
 ````
-5.0000000016276065
+5.000000001621263
 ````
 
 improved_bound: refined upper bound
@@ -731,7 +731,7 @@ improved_bound: refined upper bound
 ````
 
 ````
-(5.0000000016276065, 1.6276064940257129e-9)
+(5.000000001621263, 1.6212631237522146e-9)
 ````
 
 ---

@@ -221,7 +221,7 @@ result = cs_nctssos(pop, config)
 ````
 
 ````
-Objective: -1.236067981222517
+Objective: -1.236067981168424
 Correlative Sparsity (BosonicAlgebra): 
 
    maximum clique size: 2

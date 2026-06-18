@@ -211,7 +211,7 @@ spec = SymmetrySpec(alice_swap, bob_swap, party_swap)
 ````
 
 ````
-NCTSSoS.SymmetrySpec(NCTSSoS.SignedPermutation[NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x05 => (1, 0x09), 0x12 => (-1, 0x12), 0x09 => (1, 0x05))), NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x12 => (1, 0x0e), 0x09 => (-1, 0x09), 0x0e => (1, 0x12))), NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x05 => (1, 0x0e), 0x12 => (1, 0x09), 0x09 => (1, 0x12), 0x0e => (1, 0x05)))], NCTSSoS.FermionicModePermutation[], NCTSSoS.CliffordSymmetry[], nothing, nothing, true)
+NCTSSoS.SymmetrySpec(NCTSSoS.SignedPermutation[NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x05 => (1, 0x09), 0x12 => (-1, 0x12), 0x09 => (1, 0x05))), NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x12 => (1, 0x0e), 0x09 => (-1, 0x09), 0x0e => (1, 0x12))), NCTSSoS.SignedPermutation{UInt8}(Dict{UInt8, Tuple{Int64, UInt8}}(0x05 => (1, 0x0e), 0x12 => (1, 0x09), 0x09 => (1, 0x12), 0x0e => (1, 0x05)))], NCTSSoS.FermionicModePermutation[], NCTSSoS.CliffordSymmetry[], nothing, nothing, nothing, nothing, true, :randomized)
 ````
 
 ## Step 4 — Solve with symmetry reduction

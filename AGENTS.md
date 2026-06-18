@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+If `TASK.md` exists, read it after this file before starting work; detailed active-task context belongs under `plan/`.
+
 ## Project Layout
 - `src/` — library code
   - `src/types/` — algebras, registries, monomials, polynomials

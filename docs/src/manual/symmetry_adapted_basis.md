@@ -20,7 +20,10 @@ Clifford symmetry groups automatically from a Pauli Hamiltonian, including
 symmetries that fix no individual term and that inspection routinely misses —
 is covered in [Clifford Symmetry Detection](@ref clifford-symmetry-detection).
 The worked comparison of manual, detected, and combined groups is in
-[Pauli Symmetry Reduction](@ref pauli-clifford-symmetry).
+[Pauli Symmetry Reduction](@ref pauli-clifford-symmetry). The dedicated
+order-2 XXX Heisenberg path that combines Pauli charge sectors, spatial site
+symmetries, and singlet moment constraints is covered in
+[Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry).
 
 This page describes how that support is wired in **today**, what is and isn't
 in scope, and how the pieces interact. It is intentionally aligned with the
@@ -90,22 +93,27 @@ The current MVP is intentionally narrow and is enforced by fail-fast checks in
 - **Single clique** — exactly one correlative-sparsity clique.
 - **Ordinary polynomial problems** — `PolyOpt` over `Polynomial`. State and
   trace polynomial problems are not yet supported on the symmetry path.
-- **Monoid or Pauli algebras** — `A <: MonoidAlgebra` (i.e.
-  `NonCommutative`, `Projector`, `Unipotent`) with
-  [`SignedPermutation`](@ref) actions, or `PauliAlgebra` with
-  [`CliffordSymmetry`](@ref) actions. PBW algebras (Bosonic, Fermionic)
-  use [`FermionicModePermutation`](@ref) with optional sector/spin
-  splitting. See [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry)
-  for a worked Pauli example and
-  [`sympleq_symmetry_spec`](@ref) for automatic Clifford detection.
+- **Monoid, Pauli, or supported fermionic algebras** — `A <: MonoidAlgebra`
+  (i.e. `NonCommutative`, `Projector`, `Unipotent`) with
+  [`SignedPermutation`](@ref) actions; `PauliAlgebra` with
+  [`CliffordSymmetry`](@ref) actions, optionally layered with
+  [`PauliChargeSectorSpec`](@ref) and [`PauliSingletConstraintSpec`](@ref);
+  or `FermionicAlgebra` with [`FermionicModePermutation`](@ref) and optional
+  sector/spin splitting. See [Pauli Symmetry Reduction](@ref
+  pauli-clifford-symmetry) for Clifford examples,
+  [Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry) for the
+  order-2 XXX Heisenberg path, and [`sympleq_symmetry_spec`](@ref) for
+  automatic Clifford detection.
 - **Real signed-permutation or Clifford actions** — monoid-algebra group
   elements act on registry indices via permutations with ``\pm 1`` signs;
   Pauli group elements act via Clifford conjugation
   (``g \cdot P = U_g P U_g^\dagger``). No general orthogonal action, no
   complex characters.
-- **Multiplicity-free decompositions only** — every isotypic component returned
-  by the internal decomposition must have multiplicity 1 and reduce to a scalar
-  (1×1) block.
+- **Conservative finite-group decompositions** — the plain finite-group path
+  accepts only multiplicity-free scalar isotypic components. The Pauli
+  charge-sector path is a specialized order-2 branch that builds explicit
+  charge/spatial blocks; see [Pauli Charge/Singlet Symmetry](@ref
+  pauli-charge-singlet-symmetry).
 
 Anything outside this scope raises an `ArgumentError` instead of silently
 constructing the wrong relaxation. This is the right default while the path
@@ -172,13 +180,24 @@ function performs the following steps in order:
    is a list of "blocks", one per isotypic component, each providing the
    change-of-basis rows used to project the moment matrix into that component.
 
-8. **Unsupported decompositions are rejected.** Each returned block must (a)
-   have multiplicity 1, (b) be simple, and (c) be 1×1. If any of those checks
+8. **Unsupported plain finite-group decompositions are rejected.** On the
+   monomial-coordinate finite-group branch, each returned block must (a) have
+   multiplicity 1, (b) be simple, and (c) be 1×1. If any of those checks
    fails, the call errors out with a message indicating which assumption was
-   violated. This is what enforces the "scalar / multiplicity-free only" part
-   of the MVP scope.
+   violated. Pauli charge sectors use the separate degree-2 branch described
+   next.
 
-9. **Moment variables are orbit-reduced and a smaller `MomentProblem` is
+9. **Pauli charge/singlet options are layered before emission when requested.**
+   If [`PauliChargeSectorSpec`](@ref) is present, the complete Pauli half-basis
+   through degree 2 is rewritten into the local ``\{Z,S^+,S^-\}`` charge basis
+   and split by total charge. If spatial [`CliffordSymmetry`](@ref) generators
+   are also present, NCTSSoS applies a finite Wedderburn split inside each
+   charge sector. If [`PauliSingletConstraintSpec`](@ref) is present, order-2
+   SU(2)-singlet moment equalities are appended as linear zero constraints.
+   Axis-mixing Cliffords are rejected on this branch; only site permutations
+   that preserve Pauli axes commute with the charge/singlet structure.
+
+10. **Moment variables are orbit-reduced and a smaller `MomentProblem` is
    emitted.** For each monomial appearing in the relaxation, NCTSSoS computes
    its orbit under the group, picks a canonical representative, and either
    maps the monomial to ``\pm`` that representative or — when the orbit has
@@ -261,8 +280,9 @@ the `MomentProblem` differ:
 - The objective and every constraint are expressed using a small set of
   monomial **orbit representatives** rather than every monomial in the
   original basis.
-- What used to be one large PSD block is now several small blocks (in the MVP
-  scope, all 1×1).
+- What used to be one large PSD block is now several small blocks. Plain
+  finite-group reductions may produce scalar blocks; the Pauli charge/spatial
+  path produces small charge-sector blocks.
 - Off-block constraint entries that, after the change of basis and orbit
   reduction, must vanish are certified to do so (symbolically with
   `offblock_check = :full`, or via the default `:randomized` evaluation
@@ -286,7 +306,9 @@ reduction is otherwise invisible past the boundary of `moment_relax_symmetric`.
 
 The MVP errors out, rather than silently doing the wrong thing, on any of:
 
-- non-monoid algebras (`PBWAlgebra`, `TwistedGroupAlgebra`);
+- algebra/spec combinations outside the supported families (monoid + signed
+  permutations, Pauli + Clifford/charge/singlet reductions, or fermionic mode
+  permutations with optional sector/spin splitting);
 - state or trace polynomial problems;
 - any active correlative or term sparsity (`cs_algo`/`ts_algo` other than
   `NoElimination()`);
@@ -298,8 +320,8 @@ The MVP errors out, rather than silently doing the wrong thing, on any of:
 - objective or constraint polynomials that are not invariant under the group
   (unless `check_invariance = false` is passed *and* the user has independently
   verified invariance);
-- decompositions returned by `SymbolicWedderburn` whose blocks have
-  multiplicity > 1, are non-simple, or have size > 1×1;
+- decompositions returned by the plain finite-group `SymbolicWedderburn` path
+  whose blocks have multiplicity > 1, are non-simple, or have size > 1×1;
 - constraint blocks whose off-isotypic coupling fails to vanish within
   `_SYMMETRY_ATOL = 1e-10`;
 - use via [`cs_nctssos_higher`](@ref), or monomap-based GNS reconstruction
@@ -407,11 +429,15 @@ The benefits of that conservative choice are:
   result types) sees ordinary monomial moments and needs no changes.
 - The symmetry feature is concentrated in one file and one boundary.
 
-The cost is that the MVP is restricted to multiplicity-free, scalar-block
-cases. Higher-dimensional irreducible blocks (multiplicity > 1, non-scalar
-isotypic components) require a richer intermediate representation that the
-package does not yet maintain. Lifting that restriction is a future extension
-of this same boundary, not a rewrite of the rest of the package.
+The cost is that the generic finite-group MVP is still restricted to
+multiplicity-free, scalar-block cases. Higher-dimensional irreducible blocks
+(multiplicity > 1, non-scalar isotypic components) require a richer
+intermediate representation that the package does not yet maintain. The Pauli
+charge/spatial branch is deliberately narrower: it earns higher-dimensional
+small blocks by using an explicit order-2 charge basis rather than pretending
+the generic representation problem is solved. Lifting the generic restriction
+is a future extension of this same boundary, not a rewrite of the rest of the
+package.
 
 ## See also
 
@@ -420,6 +446,8 @@ of this same boundary, not a rewrite of the rest of the package.
   on unipotent variables) and
   [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry) (Clifford gates
   and SympleQ automatic detection on Pauli Hamiltonians).
+- The Pauli order-2 XXX Heisenberg feature page:
+  [Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry).
 - The contributor-facing roadmap for lifting MVP limitations (with the
   fermionic case as the worked example):
   [Extending Symmetry Support](@ref extending-symmetry).

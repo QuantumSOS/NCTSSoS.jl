@@ -3,6 +3,32 @@
 
 using Test, NCTSSoS, LinearAlgebra
 
+if !@isdefined(SOLVER)
+    using JuMP, COSMO
+    const SOLVER = optimizer_with_attributes(
+        COSMO.Optimizer,
+        "verbose" => false,
+        "eps_abs" => 1e-8,
+        "eps_rel" => 1e-8,
+        "eps_prim_inf" => 1e-6,
+        "eps_dual_inf" => 1e-6,
+        "max_iter" => 50_000,
+        "rho" => 1.0,
+        "adaptive_rho" => true,
+        "alpha" => 1.0,
+        "scaling" => 10,
+    )
+end
+
+if !@isdefined(flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
+
+if !@isdefined(expectations_oracle)
+    include("../Expectations.jl")
+    using .TestExpectations: expectations_oracle
+end
+
 const SW = NCTSSoS.SymbolicWedderburn
 
 function _capture_exception(f)
@@ -267,6 +293,108 @@ end
         )
         @test z_report.group_order == 4
         @test z_report.psd_block_sizes == [2]
+    end
+
+    @testset "Pauli charge sectors and singlet constraints" begin
+        n_ring = 4
+        reg, (σx, σy, σz) = create_pauli_variables(1:n_ring)
+        heisenberg = sum(
+            ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, n_ring)]
+            for op in (σx, σy, σz) for i in 1:n_ring
+        )
+        pop = polyopt(heisenberg, reg)
+
+        charge_spec = SymmetrySpec(pauli_charge=PauliChargeSectorSpec(nqubits=n_ring))
+        charge_cfg = SolverConfig(
+            optimizer=nothing,
+            order=2,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=charge_spec,
+        )
+        charge_sparsity = compute_sparsity(pop, charge_cfg)
+        _, charge_report = NCTSSoS.moment_relax_symmetric(
+            pop,
+            charge_sparsity.corr_sparsity,
+            charge_sparsity.cliques_term_sparsities,
+            charge_spec,
+        )
+
+        @test charge_report.psd_block_sizes == [6, 16, 23, 16, 6]
+        @test [label.charge for label in charge_report.block_labels] == [-2, -1, 0, 1, 2]
+        @test all(==(:charge_sector), charge_report.block_provenance)
+        @test charge_report.basis_half_size == 67
+
+        translation = pauli_site_permutation([2, 3, 4, 1])
+        reflection = pauli_site_permutation([4, 3, 2, 1])
+        spatial_singlet_spec = SymmetrySpec(
+            [translation, reflection];
+            pauli_charge=PauliChargeSectorSpec(nqubits=n_ring),
+            pauli_singlet=PauliSingletConstraintSpec(nqubits=n_ring),
+        )
+        spatial_mp, spatial_report = NCTSSoS.moment_relax_symmetric(
+            pop,
+            charge_sparsity.corr_sparsity,
+            charge_sparsity.cliques_term_sparsities,
+            spatial_singlet_spec,
+        )
+
+        @test spatial_report.group_order == 8
+        @test maximum(spatial_report.psd_block_sizes) < maximum(charge_report.psd_block_sizes)
+        @test Set(label.charge for label in spatial_report.block_labels) == Set(-2:2)
+        @test all(label.group_order == 8 for label in spatial_report.block_labels)
+        @test all(==(:charge_wedderburn), spatial_report.block_provenance)
+        @test count(con -> con[1] == :Zero, spatial_mp.constraints) > 0
+
+        single_reg, (_, _, τz) = create_pauli_variables(1:1)
+        bad_spec = SymmetrySpec(
+            CliffordSymmetry(:H, 1);
+            pauli_charge=PauliChargeSectorSpec(nqubits=1),
+        )
+        bad_pop = polyopt(1.0 * τz[1], single_reg)
+        bad_cfg = SolverConfig(
+            optimizer=nothing,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=bad_spec,
+        )
+        bad_sparsity = compute_sparsity(bad_pop, bad_cfg)
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            bad_pop,
+            bad_sparsity.corr_sparsity,
+            bad_sparsity.cliques_term_sparsities,
+            bad_spec,
+        ))
+        @test err isa ArgumentError
+        @test occursin("spatial Clifford", sprint(showerror, err))
+
+        empty_clifford_charge = SymmetrySpec(
+            CliffordSymmetry[];
+            pauli_charge=PauliChargeSectorSpec(nqubits=1),
+        )
+        @test isempty(empty_clifford_charge.clifford_generators)
+        @test empty_clifford_charge.pauli_charge isa PauliChargeSectorSpec
+
+        overspecified_singlet = SymmetrySpec(
+            pauli_singlet=PauliSingletConstraintSpec(nqubits=2),
+        )
+        overspecified_cfg = SolverConfig(
+            optimizer=nothing,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=overspecified_singlet,
+        )
+        overspecified_sparsity = compute_sparsity(bad_pop, overspecified_cfg)
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            bad_pop,
+            overspecified_sparsity.corr_sparsity,
+            overspecified_sparsity.cliques_term_sparsities,
+            overspecified_singlet,
+        ))
+        @test err isa ArgumentError
+        @test occursin("supported by the relaxation basis", sprint(showerror, err))
     end
 
     @testset "SympleQ recognizes Pauli Hamiltonian Clifford symmetry" begin

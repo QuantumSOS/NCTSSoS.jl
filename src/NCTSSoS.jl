@@ -146,6 +146,7 @@ include("optimization/gns_diagnostics.jl")
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
 export SignedPermutation, FermionicModePermutation, CliffordSymmetry, CliffordSymmetryGroup, FermionicModeLayout, AbelianIrrepTable
+export pauli_site_permutation, PauliChargeSectorSpec, PauliSingletConstraintSpec, PauliChargeBlockLabel
 export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
 export SymmetrySpec, SymmetryReport
 export SymplecticTableau, SymplecticMatrix, PhaseVector, SympleQGenerator

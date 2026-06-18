@@ -346,7 +346,7 @@ end
         @test all(==(:charge_wedderburn), spatial_report.block_provenance)
         @test count(con -> con[1] == :Zero, spatial_mp.constraints) > 0
 
-        single_reg, (τx, _, τz) = create_pauli_variables(1:1)
+        single_reg, (τx, τy, τz) = create_pauli_variables(1:1)
         bad_spec = SymmetrySpec(
             CliffordSymmetry(:H, 1);
             pauli_charge=PauliChargeSectorSpec(nqubits=1),
@@ -379,6 +379,26 @@ end
         @test_throws ArgumentError SymmetrySpec(
             pauli_singlet=PauliSingletConstraintSpec(nqubits=1, max_degree=3),
         )
+        @test_throws ArgumentError NCTSSoS._pauli_charge_letter_expansion(Int, 1, Int8(42))
+
+        charge_half_basis = [one(τx[1]), τz[1], τx[1], τy[1]]
+        identity_group = NCTSSoS.CliffordSymmetryGroup(pauli_site_permutation([1]))
+        inferred_identity_groups = NCTSSoS._pauli_charge_transform_groups(
+            charge_half_basis,
+            PauliChargeSectorSpec(),
+            identity_group,
+        )
+        inferred_identity_blocks = collect(Iterators.flatten(inferred_identity_groups))
+        @test all(block -> block.label.group_order == 1, inferred_identity_blocks)
+        @test all(block -> block.provenance == :charge_sector, inferred_identity_blocks)
+
+        err = _capture_exception(() -> NCTSSoS._pauli_charge_transform_groups(
+            [one(τz[1])],
+            PauliChargeSectorSpec(),
+            nothing,
+        ))
+        @test err isa ArgumentError
+        @test occursin("needs `nqubits`", sprint(showerror, err))
 
         charge_non_neutral_spec = SymmetrySpec(
             pauli_charge=PauliChargeSectorSpec(nqubits=1),
@@ -401,6 +421,15 @@ end
         @test err isa ArgumentError
         @test occursin("charge-neutral", sprint(showerror, err))
 
+        constrained_pop = polyopt(
+            1.0 * τz[1],
+            single_reg;
+            eq_constraints=[1.0 * τz[1]],
+            ineq_constraints=[1.0 * τz[1]],
+            moment_eq_constraints=[1.0 * τz[1]],
+        )
+        @test NCTSSoS._check_pauli_charge_neutral(constrained_pop) === nothing
+
         bad_singlet_spec = SymmetrySpec(
             pauli_singlet=PauliSingletConstraintSpec(nqubits=0),
         )
@@ -420,6 +449,45 @@ end
         ))
         @test err isa ArgumentError
         @test occursin("nqubits", sprint(showerror, err))
+
+        nonpauli_reg, (u,) = create_unipotent_variables([("u", 1:1)])
+        nonpauli_pop = polyopt(1.0 * u[1], nonpauli_reg)
+        nonpauli_charge_cfg = SolverConfig(
+            optimizer=nothing,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=charge_non_neutral_spec,
+        )
+        nonpauli_charge_sparsity = compute_sparsity(nonpauli_pop, nonpauli_charge_cfg)
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            nonpauli_pop,
+            nonpauli_charge_sparsity.corr_sparsity,
+            nonpauli_charge_sparsity.cliques_term_sparsities,
+            charge_non_neutral_spec,
+        ))
+        @test err isa ArgumentError
+        @test occursin("Pauli charge-sector splitting is only supported", sprint(showerror, err))
+
+        nonpauli_singlet_spec = SymmetrySpec(
+            pauli_singlet=PauliSingletConstraintSpec(nqubits=1),
+        )
+        nonpauli_singlet_cfg = SolverConfig(
+            optimizer=nothing,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=nonpauli_singlet_spec,
+        )
+        nonpauli_singlet_sparsity = compute_sparsity(nonpauli_pop, nonpauli_singlet_cfg)
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            nonpauli_pop,
+            nonpauli_singlet_sparsity.corr_sparsity,
+            nonpauli_singlet_sparsity.cliques_term_sparsities,
+            nonpauli_singlet_spec,
+        ))
+        @test err isa ArgumentError
+        @test occursin("Pauli SU(2) singlet constraints are only supported", sprint(showerror, err))
 
         empty_clifford_charge = SymmetrySpec(
             CliffordSymmetry[];

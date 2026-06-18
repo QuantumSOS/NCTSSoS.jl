@@ -2740,8 +2740,8 @@ function _pauli_spatial_permutation(g::CliffordSymmetry)
             image_site = _pauli_site(idx)
             if target_site == 0
                 target_site = image_site
-            elseif target_site != image_site
-                return nothing
+            else
+                target_site == image_site || return nothing
             end
         end
         perm[site] = target_site

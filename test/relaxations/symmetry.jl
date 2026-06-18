@@ -346,7 +346,7 @@ end
         @test all(==(:charge_wedderburn), spatial_report.block_provenance)
         @test count(con -> con[1] == :Zero, spatial_mp.constraints) > 0
 
-        single_reg, (_, _, τz) = create_pauli_variables(1:1)
+        single_reg, (τx, _, τz) = create_pauli_variables(1:1)
         bad_spec = SymmetrySpec(
             CliffordSymmetry(:H, 1);
             pauli_charge=PauliChargeSectorSpec(nqubits=1),
@@ -368,6 +368,58 @@ end
         ))
         @test err isa ArgumentError
         @test occursin("spatial Clifford", sprint(showerror, err))
+
+        @test_throws ArgumentError pauli_site_permutation(Int[])
+        @test_throws ArgumentError pauli_site_permutation([1, 1])
+        @test sprint(show, PauliChargeBlockLabel(0, nothing, 1, 3)) ==
+            "PauliChargeBlockLabel(charge=0, finite_block=nothing, group_order=1, sector_dimension=3)"
+        @test_throws ArgumentError SymmetrySpec(
+            pauli_charge=PauliChargeSectorSpec(nqubits=1, max_degree=3),
+        )
+        @test_throws ArgumentError SymmetrySpec(
+            pauli_singlet=PauliSingletConstraintSpec(nqubits=1, max_degree=3),
+        )
+
+        charge_non_neutral_spec = SymmetrySpec(
+            pauli_charge=PauliChargeSectorSpec(nqubits=1),
+        )
+        charge_non_neutral_cfg = SolverConfig(
+            optimizer=nothing,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=charge_non_neutral_spec,
+        )
+        charge_non_neutral_pop = polyopt(1.0 * τx[1], single_reg)
+        charge_non_neutral_sparsity = compute_sparsity(charge_non_neutral_pop, charge_non_neutral_cfg)
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            charge_non_neutral_pop,
+            charge_non_neutral_sparsity.corr_sparsity,
+            charge_non_neutral_sparsity.cliques_term_sparsities,
+            charge_non_neutral_spec,
+        ))
+        @test err isa ArgumentError
+        @test occursin("charge-neutral", sprint(showerror, err))
+
+        bad_singlet_spec = SymmetrySpec(
+            pauli_singlet=PauliSingletConstraintSpec(nqubits=0),
+        )
+        bad_singlet_cfg = SolverConfig(
+            optimizer=nothing,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=bad_singlet_spec,
+        )
+        bad_singlet_sparsity = compute_sparsity(bad_pop, bad_singlet_cfg)
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            bad_pop,
+            bad_singlet_sparsity.corr_sparsity,
+            bad_singlet_sparsity.cliques_term_sparsities,
+            bad_singlet_spec,
+        ))
+        @test err isa ArgumentError
+        @test occursin("nqubits", sprint(showerror, err))
 
         empty_clifford_charge = SymmetrySpec(
             CliffordSymmetry[];

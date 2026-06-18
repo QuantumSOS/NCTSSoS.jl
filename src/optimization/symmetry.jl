@@ -2092,26 +2092,262 @@ end
 @inline _maybe_orbit_reduce_matrix(mat, reducer::_OrbitReducer; atol::Float64=_SYMMETRY_ATOL) =
     _orbit_reduce_matrix(mat, reducer; atol)
 
+struct _SparseTransformRow{C<:Number}
+    indices::Vector{Int}
+    coeffs::Vector{C}
+end
+
+function _sparse_transform_rows(U::AbstractMatrix{C}; atol::Float64=_SYMMETRY_ATOL) where {C<:Number}
+    rows = Vector{_SparseTransformRow{C}}(undef, size(U, 1))
+    for (rowpos, i) in enumerate(axes(U, 1))
+        indices = Int[]
+        coeffs = C[]
+        for a in axes(U, 2)
+            coeff = U[i, a]
+            iszero(coeff) && continue
+            push!(indices, Int(a))
+            push!(coeffs, coeff)
+        end
+        rows[rowpos] = _SparseTransformRow(indices, coeffs)
+    end
+    return rows
+end
+
+@inline function _polynomial_from_owned_terms_chopped!(
+    owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number}
+    terms = _process_terms!(owned_terms, C)
+    isempty(terms) && return _unchecked_polynomial(terms)
+
+    write_idx = 0
+    @inbounds for idx in eachindex(terms)
+        coef, mono = terms[idx]
+        if abs(coef) > atol
+            write_idx += 1
+            terms[write_idx] = (coef, mono)
+        end
+    end
+    resize!(terms, write_idx)
+    return _unchecked_polynomial(terms)
+end
+
+@inline function _push_transformed_polynomial_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    factor,
+    poly::Polynomial{A,T,PC},
+    ::Nothing,
+    ::Type{C},
+) where {A<:AlgebraType,T<:Integer,C<:Number,PC<:Number}
+    for (coef, mono) in poly.terms
+        scaled = C(factor * coef)
+        iszero(scaled) || push!(terms, (scaled, mono))
+    end
+    return terms
+end
+
+@inline function _push_transformed_polynomial_terms!(
+    terms::Vector{Tuple{C,NormalMonomial{A,T}}},
+    factor,
+    poly::Polynomial{A,T,PC},
+    reducer::_OrbitReducer{A,T},
+    ::Type{C},
+) where {A<:AlgebraType,T<:Integer,C<:Number,PC<:Number}
+    for (coef, mono) in poly.terms
+        sym_mono = _symmetric_monomial(mono)
+        haskey(reducer.representative, sym_mono) || throw(ArgumentError(
+            "Symmetry reducer is missing the monomial $sym_mono."
+        ))
+        orbit_phase = reducer.phase[sym_mono]
+        orbit_phase == 0 && continue
+        scaled = C(factor * coef * orbit_phase)
+        iszero(scaled) || push!(terms, (scaled, reducer.representative[sym_mono]))
+    end
+    return terms
+end
+
+@inline _constraint_source_entry!(mat::Matrix, row::Int, col::Int) = mat[row, col]
+
+function _transform_polynomial_source_block_impl(
+    source,
+    ::Type{P},
+    source_size::Tuple{Int,Int},
+    U_left::AbstractMatrix{<:Number},
+    U_right::AbstractMatrix{<:Number},
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    scale::Number=1,
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    size(U_left, 2) == source_size[1] || throw(DimensionMismatch(
+        "left transform has $(size(U_left, 2)) columns but matrix has $(source_size[1]) rows"
+    ))
+    size(U_right, 2) == source_size[2] || throw(DimensionMismatch(
+        "right transform has $(size(U_right, 2)) columns but matrix has $(source_size[2]) columns"
+    ))
+
+    left_rows = _sparse_transform_rows(U_left; atol)
+    right_rows = U_left === U_right ? left_rows : _sparse_transform_rows(U_right; atol)
+    transformed = Matrix{P}(undef, length(left_rows), length(right_rows))
+
+    for (j, right) in pairs(right_rows), (i, left) in pairs(left_rows)
+        term_capacity = length(left.indices) * length(right.indices)
+        terms = Tuple{C,NormalMonomial{A,T}}[]
+        sizehint!(terms, term_capacity)
+
+        for (bpos, b) in pairs(right.indices)
+            right_coeff = conj(right.coeffs[bpos])
+            for (apos, a) in pairs(left.indices)
+                coeff = left.coeffs[apos] * right_coeff
+                abs(coeff) <= atol && continue
+                factor = scale == 1 ? coeff : scale * coeff
+                _push_transformed_polynomial_terms!(
+                    terms,
+                    factor,
+                    _constraint_source_entry!(source, a, b),
+                    reducer,
+                    C,
+                )
+            end
+        end
+
+        transformed[i, j] = _polynomial_from_owned_terms_chopped!(terms; atol)
+    end
+
+    return transformed
+end
+
+function _transform_polynomial_block_impl(
+    mat::Matrix{P},
+    U_left::AbstractMatrix{<:Number},
+    U_right::AbstractMatrix{<:Number},
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    scale::Number=1,
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    return _transform_polynomial_source_block_impl(
+        mat,
+        P,
+        size(mat),
+        U_left,
+        U_right,
+        reducer;
+        scale,
+        atol,
+    )
+end
+
 function _transform_polynomial_block(
     mat::Matrix{P},
     U_left::AbstractMatrix{<:Number},
     U_right::AbstractMatrix{<:Number};
     scale::Number=1,
     atol::Float64=_SYMMETRY_ATOL,
-) where {P<:Polynomial}
-    transformed = Matrix{P}(undef, size(U_left, 1), size(U_right, 1))
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    return _transform_polynomial_block_impl(mat, U_left, U_right, nothing; scale, atol)
+end
 
-    for j in axes(transformed, 2), i in axes(transformed, 1)
-        acc = zero(P)
-        for b in axes(mat, 2), a in axes(mat, 1)
-            coeff = U_left[i, a] * conj(U_right[j, b])
-            abs(coeff) <= atol && continue
-            acc += coeff * mat[a, b]
+function _transform_reduced_polynomial_block(
+    mat::Matrix{P},
+    U_left::AbstractMatrix{<:Number},
+    U_right::AbstractMatrix{<:Number},
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    scale::Number=1,
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    return _transform_polynomial_block_impl(mat, U_left, U_right, reducer; scale, atol)
+end
+
+mutable struct _ConstraintMatrixEntryCache{P<:Polynomial,PP<:Polynomial,M<:NormalMonomial,T<:Integer}
+    poly::PP
+    basis::Vector{M}
+    entries::Dict{Tuple{Int,Int},P}
+    buf::Vector{T}
+end
+
+function _ConstraintMatrixEntryCache(
+    poly::PP,
+    basis::Vector{M},
+    ::Type{P},
+) where {P<:Polynomial,PP<:Polynomial,A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T}}
+    return _ConstraintMatrixEntryCache{P,PP,M,T}(poly, basis, Dict{Tuple{Int,Int},P}(), T[])
+end
+
+function _constraint_matrix_entry(
+    poly::Polynomial{A,T,PC},
+    row_mono::M,
+    col_mono::M,
+    ::Type{P},
+    buf::Vector{T},
+) where {A<:AlgebraType,T<:Integer,PC<:Number,C<:Number,M<:NormalMonomial{A,T},P<:Polynomial{A,T,C}}
+    terms = Tuple{C,NormalMonomial{A,T}}[]
+    sizehint!(terms, length(row_mono) * length(col_mono) * length(poly.terms))
+
+    for (c_row, row_word) in row_mono
+        conj_row = _conj_coef(A, c_row)
+        for (c_col, col_word) in col_mono
+            row_col_coef = conj_row * c_col
+            for (coef, mono) in poly.terms
+                _push_scaled_buffered_terms!(
+                    terms,
+                    row_col_coef * coef,
+                    A,
+                    simplify!(A, _neat_dot3!(buf, row_word, mono, col_word)),
+                    T,
+                    C,
+                )
+            end
         end
-        transformed[i, j] = _chop_polynomial(scale == 1 ? acc : scale * acc; atol)
     end
 
-    return transformed
+    return _polynomial_from_owned_terms!(terms)
+end
+
+@inline function _constraint_source_entry!(
+    cache::_ConstraintMatrixEntryCache{P},
+    row::Int,
+    col::Int,
+) where {P<:Polynomial}
+    key = (row, col)
+    if haskey(cache.entries, key)
+        return cache.entries[key]
+    end
+    entry = _constraint_matrix_entry(cache.poly, cache.basis[row], cache.basis[col], P, cache.buf)
+    cache.entries[key] = entry
+    return entry
+end
+
+function _transform_reduced_constraint_cache_block(
+    cache::_ConstraintMatrixEntryCache{P},
+    U_left::AbstractMatrix{<:Number},
+    U_right::AbstractMatrix{<:Number},
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    scale::Number=1,
+    atol::Float64=_SYMMETRY_ATOL,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    n = length(cache.basis)
+    return _transform_polynomial_source_block_impl(
+        cache,
+        P,
+        (n, n),
+        U_left,
+        U_right,
+        reducer;
+        scale,
+        atol,
+    )
+end
+
+function _diagonal_transformed_constraint_blocks(
+    cache::_ConstraintMatrixEntryCache{P},
+    row_bases::Vector{<:AbstractMatrix},
+    reducer::Union{Nothing,_OrbitReducer};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {P<:Polynomial}
+    diagonal_blocks = Matrix{P}[]
+    for row_basis in row_bases
+        push!(diagonal_blocks, _transform_reduced_constraint_cache_block(cache, row_basis, row_basis, reducer; atol))
+    end
+    return diagonal_blocks
 end
 
 function _diagonal_transformed_blocks(
@@ -2122,12 +2358,7 @@ function _diagonal_transformed_blocks(
 ) where {P<:Polynomial}
     diagonal_blocks = Matrix{P}[]
     for row_basis in row_bases
-        diagonal = _maybe_orbit_reduce_matrix(
-            _transform_polynomial_block(mat, row_basis, row_basis; atol),
-            reducer;
-            atol,
-        )
-        push!(diagonal_blocks, _chop_polynomial_matrix(diagonal; atol))
+        push!(diagonal_blocks, _transform_reduced_polynomial_block(mat, row_basis, row_basis, reducer; atol))
     end
     return diagonal_blocks
 end
@@ -2142,13 +2373,15 @@ function _append_transformed_offblock_zero_constraints!(
 ) where {P<:Polynomial}
     for i in 1:length(row_bases), j in (i+1):length(row_bases)
         for (left, right) in ((i, j), (j, i))
-            off_block = _maybe_orbit_reduce_matrix(
-                _transform_polynomial_block(mat, row_bases[left], row_bases[right]; atol),
+            off_block = _transform_reduced_polynomial_block(
+                mat,
+                row_bases[left],
+                row_bases[right],
                 reducer;
                 atol,
             )
             for col in axes(off_block, 2), row in axes(off_block, 1)
-                poly = _chop_polynomial(off_block[row, col]; atol)
+                poly = off_block[row, col]
                 iszero(poly) || _append_constraint!(constraints, :Zero, reshape([poly], 1, 1), P)
             end
         end
@@ -2289,8 +2522,10 @@ function _reduce_transformed_blocks(
     end
 
     for i in 1:length(row_bases), j in (i+1):length(row_bases)
-        off_block = _maybe_orbit_reduce_matrix(
-            _transform_polynomial_block(mat, row_bases[i], row_bases[j]; atol),
+        off_block = _transform_reduced_polynomial_block(
+            mat,
+            row_bases[i],
+            row_bases[j],
             reducer;
             atol,
         )
@@ -2302,8 +2537,10 @@ function _reduce_transformed_blocks(
             )
         end
 
-        off_block_t = _maybe_orbit_reduce_matrix(
-            _transform_polynomial_block(mat, row_bases[j], row_bases[i]; atol),
+        off_block_t = _transform_reduced_polynomial_block(
+            mat,
+            row_bases[j],
+            row_bases[i],
             reducer;
             atol,
         )
@@ -3105,8 +3342,6 @@ function moment_relax_symmetric(
         for (poly_idx, (term_sparsity, poly)) in enumerate(zip(term_sparsities, polys))
             for (block_idx, basis) in enumerate(term_sparsity.block_bases)
                 cone = poly in pop.eq_constraints ? :Zero : psd_cone
-                _, raw_mat = _build_constraint_matrix(poly, basis, cone)
-                mat = _convert_polynomial_matrix(MP_P, raw_mat)
 
                 diagonal_blocks = Matrix{MP_P}[]
                 diagonal_labels = Any[]
@@ -3114,6 +3349,9 @@ function moment_relax_symmetric(
                 context = "clique $clique_idx block $block_idx for polynomial $poly_idx"
 
                 if !isnothing(sector)
+                    _, raw_mat = _build_constraint_matrix(poly, basis, cone)
+                    mat = _convert_polynomial_matrix(MP_P, raw_mat)
+
                     neutral_label = _neutral_fermionic_sector_label(sector)
                     poly_label = _fermionic_polynomial_sector_label(convert(MP_P, poly), sector, context)
                     poly_label == neutral_label || throw(ArgumentError(
@@ -3174,21 +3412,42 @@ function moment_relax_symmetric(
                         atol,
                         context,
                     )
-                    for charge_group in charge_groups
-                        row_bases = [block.row_basis for block in charge_group]
-                        charge_diag_blocks = _reduce_transformed_blocks(
-                            mat,
-                            row_bases,
-                            reducer;
-                            atol,
-                            context="$(context) charge $(first(charge_group).label.charge)",
-                            offblock_check=symmetry.offblock_check,
-                        )
-                        append!(diagonal_blocks, charge_diag_blocks)
-                        append!(diagonal_labels, [block.label for block in charge_group])
-                        append!(diagonal_provenance, [block.provenance for block in charge_group])
+
+                    if symmetry.offblock_check === :off
+                        mat_cache = _ConstraintMatrixEntryCache(poly, basis, MP_P)
+                        for charge_group in charge_groups
+                            row_bases = [block.row_basis for block in charge_group]
+                            charge_diag_blocks = _diagonal_transformed_constraint_blocks(
+                                mat_cache,
+                                row_bases,
+                                reducer;
+                                atol,
+                            )
+                            append!(diagonal_blocks, charge_diag_blocks)
+                            append!(diagonal_labels, [block.label for block in charge_group])
+                            append!(diagonal_provenance, [block.provenance for block in charge_group])
+                        end
+                    else
+                        _, raw_mat = _build_constraint_matrix(poly, basis, cone)
+                        mat = _convert_polynomial_matrix(MP_P, raw_mat)
+                        for charge_group in charge_groups
+                            row_bases = [block.row_basis for block in charge_group]
+                            charge_diag_blocks = _reduce_transformed_blocks(
+                                mat,
+                                row_bases,
+                                reducer;
+                                atol,
+                                context="$(context) charge $(first(charge_group).label.charge)",
+                                offblock_check=symmetry.offblock_check,
+                            )
+                            append!(diagonal_blocks, charge_diag_blocks)
+                            append!(diagonal_labels, [block.label for block in charge_group])
+                            append!(diagonal_provenance, [block.provenance for block in charge_group])
+                        end
                     end
                 else
+                    _, raw_mat = _build_constraint_matrix(poly, basis, cone)
+                    mat = _convert_polynomial_matrix(MP_P, raw_mat)
                     diagonal_blocks = isnothing(sw_group) ?
                         [_maybe_orbit_reduce_matrix(mat, reducer; atol)] :
                         _reduce_constraint_matrix_symmetric(

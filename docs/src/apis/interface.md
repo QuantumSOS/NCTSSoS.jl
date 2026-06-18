@@ -31,13 +31,18 @@ NCTSSoS.PolyOptResult
 ## Symmetry Reduction
 
 See [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for an overview of
-what is supported, the MVP scope, and the CHSH reference acceptance case.
+what is supported, the MVP scope, and reference cases including CHSH and the
+Pauli charge/spatial/singlet XXX path.
 
 ```@docs
 NCTSSoS.SignedPermutation
 NCTSSoS.FermionicModePermutation
 NCTSSoS.CliffordSymmetry
 NCTSSoS.CliffordSymmetryGroup
+NCTSSoS.pauli_site_permutation
+NCTSSoS.PauliChargeSectorSpec
+NCTSSoS.PauliSingletConstraintSpec
+NCTSSoS.PauliChargeBlockLabel
 NCTSSoS.SymmetrySpec
 NCTSSoS.SymmetryReport
 ```

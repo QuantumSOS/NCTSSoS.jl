@@ -334,7 +334,7 @@ Configuration for solving polynomial optimization problems.
   relaxations only (`cs_algo=NoElimination()`, `ts_algo=NoElimination()`), with
   supported combinations limited to either
   - `MonoidAlgebra` + `SignedPermutation`,
-  - `PauliAlgebra` + `CliffordSymmetry`, or
+  - `PauliAlgebra` + `CliffordSymmetry`, optionally with `PauliChargeSectorSpec` and `PauliSingletConstraintSpec`, or
   - `FermionicAlgebra` + `FermionicModePermutation`, `FermionicSectorSpec`, and optional `FermionicSpinAdaptationSpec` layered on sector blocks.
   Unsupported combinations error instead of silently doing the wrong thing.
 
@@ -405,12 +405,12 @@ function _check_symmetry_mvp_support(
         ))
     end
 
-    if !isempty(symmetry.clifford_generators)
+    if !isempty(symmetry.clifford_generators) || !isnothing(symmetry.pauli_charge) || !isnothing(symmetry.pauli_singlet)
         A === PauliAlgebra || throw(ArgumentError(
-            "`CliffordSymmetry` is currently supported only for ordinary polynomial problems over `PauliAlgebra`. Got `$(nameof(A))`."
+            "`CliffordSymmetry` / Pauli charge and singlet reductions are currently supported only for ordinary polynomial problems over `PauliAlgebra`. Got `$(nameof(A))`."
         ))
         (isnothing(symmetry.sector) && isnothing(symmetry.spin_adaptation)) || throw(ArgumentError(
-            "Fermionic sector splitting / spin adaptation cannot be combined with `CliffordSymmetry` symmetry."
+            "Fermionic sector splitting / spin adaptation cannot be combined with `CliffordSymmetry` or Pauli charge/singlet symmetry."
         ))
     end
 

@@ -53,3 +53,101 @@ end
     @test symmetric.symmetry.psd_block_sizes == [4, 3]
     @test maximum(symmetric.symmetry.psd_block_sizes) < only(flatten_sizes(plain.moment_matrix_sizes))
 end
+
+@testset "4-site Heisenberg ring with charge/spatial/singlet symmetry" begin
+    n_ring = 4
+    registry, (σx, σy, σz) = create_pauli_variables(1:n_ring)
+    heisenberg = sum(
+        ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, n_ring)]
+        for op in (σx, σy, σz) for i in 1:n_ring
+    )
+    pop = polyopt(heisenberg, registry)
+
+    translation = pauli_site_permutation([2, 3, 4, 1])
+    reflection = pauli_site_permutation([4, 3, 2, 1])
+    symmetry = SymmetrySpec(
+        [translation, reflection];
+        pauli_charge=PauliChargeSectorSpec(nqubits=n_ring),
+        pauli_singlet=PauliSingletConstraintSpec(nqubits=n_ring),
+    )
+
+    plain = cs_nctssos(
+        pop,
+        SolverConfig(
+            optimizer=SOLVER,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+        ),
+    )
+    reduced = cs_nctssos(
+        pop,
+        SolverConfig(
+            optimizer=SOLVER,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+            symmetry=symmetry,
+        ),
+    )
+
+    @test reduced.objective ≈ plain.objective atol = 1e-6
+    @test !isnothing(reduced.symmetry)
+    @test reduced.symmetry.group_order == 8
+    @test maximum(reduced.symmetry.psd_block_sizes) < only(flatten_sizes(plain.moment_matrix_sizes))
+    @test any(label -> label isa PauliChargeBlockLabel && label.charge == 0, reduced.symmetry.block_labels)
+end
+
+@testset "16-site order-2 Heisenberg symmetry size evidence" begin
+    n_ring = 16
+    registry, (σx, σy, σz) = create_pauli_variables(1:n_ring)
+    heisenberg = sum(
+        ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, n_ring)]
+        for op in (σx, σy, σz) for i in 1:n_ring
+    )
+    pop = polyopt(heisenberg, registry)
+
+    translation = pauli_site_permutation([2:16; 1])
+    reflection = pauli_site_permutation(reverse(1:16))
+    symmetry = SymmetrySpec(
+        [translation, reflection];
+        pauli_charge=PauliChargeSectorSpec(nqubits=n_ring),
+        pauli_singlet=PauliSingletConstraintSpec(nqubits=n_ring),
+        offblock_check=:off,
+    )
+    cfg = SolverConfig(
+        optimizer=nothing,
+        order=2,
+        cs_algo=NoElimination(),
+        ts_algo=NoElimination(),
+        symmetry=symmetry,
+    )
+    sparsity = compute_sparsity(pop, cfg)
+    basis = only(sparsity.corr_sparsity.clq_mom_mtx_bases)
+
+    support_domain = NCTSSoS._symmetry_domain(
+        pop,
+        sparsity.corr_sparsity,
+        sparsity.cliques_term_sparsities,
+    )
+    sw_group = CliffordSymmetryGroup(
+        symmetry.clifford_generators;
+        nqubits=n_ring,
+        integer_type=eltype(basis).parameters[2],
+        domain=support_domain,
+    )
+    charge_groups = NCTSSoS._pauli_charge_transform_groups(
+        basis,
+        symmetry.pauli_charge,
+        sw_group,
+    )
+    block_sizes = [size(block.row_basis, 1) for group in charge_groups for block in group]
+    block_variable_count = sum(size * (size + 1) ÷ 2 for size in block_sizes)
+
+    @test length(basis) == 1129
+    @test 1129 * 1130 ÷ 2 == 637885
+    @test maximum(block_sizes) <= 24
+    @test block_variable_count == 5108
+    @test block_variable_count < 637885 ÷ 100
+    @test Set(block.label.charge for group in charge_groups for block in group) == Set(-2:2)
+end

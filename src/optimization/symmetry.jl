@@ -459,6 +459,43 @@ function Base.show(io::IO, g::CliffordSymmetry)
     print(io, "CliffordSymmetry(nqubits=$(g.nqubits), images=$(length(g.images)))")
 end
 
+"""
+    pauli_site_permutation(permutation; integer_type=Int)
+
+Construct the spatial [`CliffordSymmetry`](@ref) induced by a site permutation.
+The vector uses source-site indexing: `permutation[i]` is the target site of
+site `i`, and the action sends every single-site Pauli generator
+`σᵢᵃ -> σ_permutation[i]ᵃ` with sign `+1`.
+
+This helper is the safe way to combine lattice translations/reflections with
+[`PauliChargeSectorSpec`](@ref) and [`PauliSingletConstraintSpec`](@ref): Pauli
+axes are preserved, so the action commutes with the local `{Z,S⁺,S⁻}` charge
+basis and the order-2 singlet constraints.
+"""
+function pauli_site_permutation(
+    permutation::AbstractVector{<:Integer};
+    integer_type::Type{T}=Int,
+) where {T<:Integer}
+    n = length(permutation)
+    n > 0 || throw(ArgumentError("`pauli_site_permutation` needs a non-empty permutation."))
+    targets = Int.(permutation)
+    sort(targets) == collect(1:n) || throw(ArgumentError(
+        "`pauli_site_permutation` expects a permutation of 1:$n; got $(collect(permutation))."
+    ))
+
+    images = Dict{NormalMonomial{PauliAlgebra,T},Tuple{Int,NormalMonomial{PauliAlgebra,T}}}()
+    for source in 1:n
+        target = targets[source]
+        for pauli_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+            src = _pauli_letter(T, source, pauli_type)
+            dst = _pauli_letter(T, target, pauli_type)
+            src == dst || (images[src] = (1, dst))
+        end
+    end
+
+    return CliffordSymmetry(images; nqubits=n)
+end
+
 Base.:(==)(a::CliffordSymmetry, b::CliffordSymmetry) =
     a.nqubits == b.nqubits && a.images == b.images
 Base.hash(g::CliffordSymmetry, h::UInt) = hash((g.nqubits, g.images), h)
@@ -807,6 +844,84 @@ Casimir-based SU(2) basis adaptation layered on top of fermionic sector splits.
 end
 
 """
+    PauliChargeSectorSpec(; nqubits=nothing, max_degree=2)
+
+U(1) charge-sector split for Pauli moment bases.
+
+The implementation is intentionally narrow: it supports complete Pauli
+half-bases through degree 2, using the local charge basis `{Z, S⁺, S⁻}` with
+`q(Z)=0`, `q(S⁺)=+1`, and `q(S⁻)=-1`. When finite Pauli symmetries are also
+supplied, they must be spatial [`CliffordSymmetry`](@ref) actions such as those
+created by [`pauli_site_permutation`](@ref).
+
+# Keywords
+- `nqubits`: explicit site count. If omitted, NCTSSoS infers it from the active
+  Pauli basis.
+- `max_degree`: charge-basis degree to build; currently `0`, `1`, or `2`.
+
+Objectives and constraints must be charge-neutral, otherwise the symmetric
+relaxation errors before model construction.
+"""
+@kwdef struct PauliChargeSectorSpec
+    nqubits::Union{Nothing,Int} = nothing
+    max_degree::Int = 2
+end
+
+"""
+    PauliSingletConstraintSpec(; nqubits=nothing, max_degree=2)
+
+Order-2 SU(2)-singlet moment equalities for Pauli XXX-style relaxations.
+
+The constraints are linear expectation constraints: single-site Pauli
+expectations vanish, cross-component two-point correlators vanish, and
+same-component two-point correlators are equated. This is a singlet constraint
+layer, not a full non-Abelian SU(2) block decomposition.
+
+# Keywords
+- `nqubits`: explicit site count. If omitted, NCTSSoS infers it from the active
+  Pauli basis.
+- `max_degree`: constraint degree to emit; currently `0`, `1`, or `2`.
+- `single_site`: emit `⟨σᵢᵃ⟩ = 0` constraints when degree permits.
+- `two_point`: emit cross-component zero and same-component equality constraints
+  when degree permits.
+"""
+@kwdef struct PauliSingletConstraintSpec
+    nqubits::Union{Nothing,Int} = nothing
+    max_degree::Int = 2
+    single_site::Bool = true
+    two_point::Bool = true
+end
+
+"""
+    PauliChargeBlockLabel
+
+Block label produced by Pauli U(1) charge-sector splitting, optionally after a
+finite spatial Wedderburn split inside the charge sector.
+
+Fields:
+- `charge`: total U(1) charge of the sector.
+- `finite_block`: index of the spatial Wedderburn block inside the charge
+  sector, or `nothing` when no finite split was applied.
+- `group_order`: order of the spatial group used for the finite split (`1` when
+  no finite group was supplied).
+- `sector_dimension`: dimension of the unsplit charge sector.
+"""
+struct PauliChargeBlockLabel
+    charge::Int
+    finite_block::Union{Nothing,Int}
+    group_order::Int
+    sector_dimension::Int
+end
+
+function Base.show(io::IO, label::PauliChargeBlockLabel)
+    print(
+        io,
+        "PauliChargeBlockLabel(charge=$(label.charge), finite_block=$(label.finite_block), " *
+        "group_order=$(label.group_order), sector_dimension=$(label.sector_dimension))",
+    )
+end
+
+"""
     FermionicSectorLabel
 
 Quantum-number label for a fermionic basis element under the enabled sector split.
@@ -827,6 +942,7 @@ Symmetry configuration for dense ordinary polynomial relaxations.
 Supported pieces today:
 - signed permutations on monoid-algebra registry indices;
 - Clifford conjugation actions on Pauli words;
+- Pauli U(1) charge-sector splitting and order-2 SU(2) singlet constraints;
 - fermionic mode permutations on physical modes;
 - fermionic sector splitting by parity / particle number / `S_z` / Abelian irreps;
 - fermionic SU(2) spin adaptation layered on top of fixed-sector blocks.
@@ -859,6 +975,8 @@ struct SymmetrySpec
     clifford_generators::Vector{CliffordSymmetry}
     sector::Union{Nothing,FermionicSectorSpec}
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}
+    pauli_charge::Union{Nothing,PauliChargeSectorSpec}
+    pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}
     check_invariance::Bool
     offblock_check::Symbol
 
@@ -868,6 +986,8 @@ struct SymmetrySpec
         clifford_generators::Vector{CliffordSymmetry},
         sector::Union{Nothing,FermionicSectorSpec},
         spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec},
+        pauli_charge::Union{Nothing,PauliChargeSectorSpec},
+        pauli_singlet::Union{Nothing,PauliSingletConstraintSpec},
         check_invariance::Bool,
         offblock_check::Symbol=:randomized,
     )
@@ -875,8 +995,9 @@ struct SymmetrySpec
             "`offblock_check` must be `:full`, `:randomized`, or `:off`; got `$(repr(offblock_check))`."
         ))
         isempty(generators) && isempty(fermionic_generators) && isempty(clifford_generators) &&
-            isnothing(sector) && isnothing(spin_adaptation) && throw(ArgumentError(
-                "`SymmetrySpec` needs at least one finite action, fermionic sector split, or spin adaptation."
+            isnothing(sector) && isnothing(spin_adaptation) && isnothing(pauli_charge) && isnothing(pauli_singlet) &&
+            throw(ArgumentError(
+                "`SymmetrySpec` needs at least one finite action, sector split, or spin/singlet reduction."
             ))
 
         n_finite_actions = count(!isempty, (generators, fermionic_generators, clifford_generators))
@@ -887,11 +1008,33 @@ struct SymmetrySpec
         !isempty(generators) && (!isnothing(sector) || !isnothing(spin_adaptation)) && throw(ArgumentError(
             "Fermionic sector splitting / spin adaptation cannot be combined with raw `SignedPermutation` symmetry. Use `FermionicModePermutation` for fermionic problems."
         ))
+        !isempty(generators) && (!isnothing(pauli_charge) || !isnothing(pauli_singlet)) && throw(ArgumentError(
+            "Pauli charge/singlet reductions cannot be combined with raw `SignedPermutation` symmetry. Use spatial `CliffordSymmetry` generators for Pauli problems."
+        ))
+        !isempty(fermionic_generators) && (!isnothing(pauli_charge) || !isnothing(pauli_singlet)) && throw(ArgumentError(
+            "Pauli charge/singlet reductions cannot be combined with `FermionicModePermutation` symmetry."
+        ))
         !isempty(clifford_generators) && (!isnothing(sector) || !isnothing(spin_adaptation)) && throw(ArgumentError(
             "Fermionic sector splitting / spin adaptation cannot be combined with `CliffordSymmetry` symmetry."
         ))
+        (isnothing(pauli_charge) || pauli_charge.max_degree in 0:2) || throw(ArgumentError(
+            "`PauliChargeSectorSpec` currently supports `max_degree` in 0:2; got $(pauli_charge.max_degree)."
+        ))
+        (isnothing(pauli_singlet) || pauli_singlet.max_degree in 0:2) || throw(ArgumentError(
+            "`PauliSingletConstraintSpec` currently supports `max_degree` in 0:2; got $(pauli_singlet.max_degree)."
+        ))
 
-        return new(generators, fermionic_generators, clifford_generators, sector, spin_adaptation, check_invariance, offblock_check)
+        return new(
+            generators,
+            fermionic_generators,
+            clifford_generators,
+            sector,
+            spin_adaptation,
+            pauli_charge,
+            pauli_singlet,
+            check_invariance,
+            offblock_check,
+        )
     end
 end
 
@@ -902,7 +1045,17 @@ function SymmetrySpec(
 )
     isempty(generators) && throw(ArgumentError("`SymmetrySpec` needs at least one generator."))
     converted = SignedPermutation[generator for generator in generators]
-    return SymmetrySpec(converted, FermionicModePermutation[], CliffordSymmetry[], nothing, nothing, check_invariance, offblock_check)
+    return SymmetrySpec(
+        converted,
+        FermionicModePermutation[],
+        CliffordSymmetry[],
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        check_invariance,
+        offblock_check,
+    )
 end
 
 function SymmetrySpec(generators::SignedPermutation...; check_invariance::Bool=true, offblock_check::Symbol=:randomized)
@@ -920,7 +1073,17 @@ function SymmetrySpec(
         "`SymmetrySpec` needs at least one fermionic mode permutation, sector split, or spin adaptation."
     ))
     converted = FermionicModePermutation[generator for generator in fermionic_generators]
-    return SymmetrySpec(SignedPermutation[], converted, CliffordSymmetry[], sector, spin_adaptation, check_invariance, offblock_check)
+    return SymmetrySpec(
+        SignedPermutation[],
+        converted,
+        CliffordSymmetry[],
+        sector,
+        spin_adaptation,
+        nothing,
+        nothing,
+        check_invariance,
+        offblock_check,
+    )
 end
 
 function SymmetrySpec(
@@ -941,16 +1104,36 @@ end
 
 function SymmetrySpec(
     clifford_generators::AbstractVector{<:CliffordSymmetry};
+    pauli_charge::Union{Nothing,PauliChargeSectorSpec}=nothing,
+    pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}=nothing,
     check_invariance::Bool=true,
     offblock_check::Symbol=:randomized,
 )
-    isempty(clifford_generators) && throw(ArgumentError("`SymmetrySpec` needs at least one Clifford generator."))
+    isempty(clifford_generators) && isnothing(pauli_charge) && isnothing(pauli_singlet) && throw(ArgumentError(
+        "`SymmetrySpec` needs at least one Clifford generator, Pauli charge sector, or Pauli singlet reduction."
+    ))
     converted = CliffordSymmetry[generator for generator in clifford_generators]
-    return SymmetrySpec(SignedPermutation[], FermionicModePermutation[], converted, nothing, nothing, check_invariance, offblock_check)
+    return SymmetrySpec(
+        SignedPermutation[],
+        FermionicModePermutation[],
+        converted,
+        nothing,
+        nothing,
+        pauli_charge,
+        pauli_singlet,
+        check_invariance,
+        offblock_check,
+    )
 end
 
-function SymmetrySpec(clifford_generators::CliffordSymmetry...; check_invariance::Bool=true, offblock_check::Symbol=:randomized)
-    return SymmetrySpec(collect(clifford_generators); check_invariance, offblock_check)
+function SymmetrySpec(
+    clifford_generators::CliffordSymmetry...;
+    pauli_charge::Union{Nothing,PauliChargeSectorSpec}=nothing,
+    pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}=nothing,
+    check_invariance::Bool=true,
+    offblock_check::Symbol=:randomized,
+)
+    return SymmetrySpec(collect(clifford_generators); pauli_charge, pauli_singlet, check_invariance, offblock_check)
 end
 
 function SymmetrySpec(
@@ -960,6 +1143,8 @@ function SymmetrySpec(
     clifford_generators::AbstractVector{<:CliffordSymmetry}=CliffordSymmetry[],
     sector::Union{Nothing,FermionicSectorSpec}=nothing,
     spin_adaptation::Union{Nothing,FermionicSpinAdaptationSpec}=nothing,
+    pauli_charge::Union{Nothing,PauliChargeSectorSpec}=nothing,
+    pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}=nothing,
     check_invariance::Bool=true,
     offblock_check::Symbol=:randomized,
 )
@@ -969,6 +1154,8 @@ function SymmetrySpec(
         CliffordSymmetry[generator for generator in clifford_generators],
         sector,
         spin_adaptation,
+        pauli_charge,
+        pauli_singlet,
         check_invariance,
         offblock_check,
     )
@@ -1031,6 +1218,8 @@ end
 struct NCFermionicModePermutationAction{T<:Integer} <: SymbolicWedderburn.BySignedPermutations end
 
 struct NCPauliCliffordAction{T<:Integer} <: SymbolicWedderburn.BySignedPermutations end
+
+struct NCPauliChargeSpatialAction <: SymbolicWedderburn.BySignedPermutations end
 
 struct _FiniteSymmetryGroup{G,T<:Integer} <: GroupsCore.Group
     domain::Vector{T}
@@ -1184,7 +1373,10 @@ function _convert_symmetry_spec(::Type{T}, spec::SymmetrySpec) where {T<:Integer
         clifford_generators=clifford,
         sector=spec.sector,
         spin_adaptation=spec.spin_adaptation,
+        pauli_charge=spec.pauli_charge,
+        pauli_singlet=spec.pauli_singlet,
         check_invariance=spec.check_invariance,
+        offblock_check=spec.offblock_check,
     )
 end
 
@@ -2330,6 +2522,436 @@ function _add_moment_eq_constraints_symmetric!(
     return nothing
 end
 
+const _PAULI_CHARGE_Z = Int8(0)
+const _PAULI_CHARGE_SP = Int8(1)
+const _PAULI_CHARGE_SM = Int8(-1)
+
+struct _PauliChargeWord
+    ops::Tuple
+end
+
+Base.isless(a::_PauliChargeWord, b::_PauliChargeWord) = isless(a.ops, b.ops)
+
+@inline _pauli_charge_op_charge(op::Int8) = op == _PAULI_CHARGE_SP ? 1 : op == _PAULI_CHARGE_SM ? -1 : 0
+@inline _pauli_charge(word::_PauliChargeWord) = sum(_pauli_charge_op_charge(Int8(op)) for (_, op) in word.ops; init=0)
+@inline _pauli_charge_degree(word::_PauliChargeWord) = length(word.ops)
+
+function _validate_pauli_charge_spec(spec::PauliChargeSectorSpec)
+    spec.max_degree in 0:2 || throw(ArgumentError(
+        "`PauliChargeSectorSpec` currently supports `max_degree` in 0:2; got $(spec.max_degree)."
+    ))
+    (isnothing(spec.nqubits) || spec.nqubits > 0) || throw(ArgumentError(
+        "`PauliChargeSectorSpec.nqubits` must be positive when supplied; got $(spec.nqubits)."
+    ))
+    return nothing
+end
+
+function _validate_pauli_singlet_spec(spec::PauliSingletConstraintSpec)
+    spec.max_degree in 0:2 || throw(ArgumentError(
+        "`PauliSingletConstraintSpec` currently supports `max_degree` in 0:2; got $(spec.max_degree)."
+    ))
+    (isnothing(spec.nqubits) || spec.nqubits > 0) || throw(ArgumentError(
+        "`PauliSingletConstraintSpec.nqubits` must be positive when supplied; got $(spec.nqubits)."
+    ))
+    (spec.single_site || spec.two_point) || throw(ArgumentError(
+        "`PauliSingletConstraintSpec` must enable at least one constraint family."
+    ))
+    return nothing
+end
+
+function _pauli_nqubits_from_basis(basis::AbstractVector{<:NormalMonomial{PauliAlgebra}})
+    n = 0
+    for mono in basis
+        n = max(n, _clifford_max_site(mono))
+    end
+    return n
+end
+
+function _pauli_spec_nqubits(spec_nqubits::Union{Nothing,Int}, inferred::Integer, context::AbstractString)
+    if isnothing(spec_nqubits)
+        inferred > 0 || throw(ArgumentError("$context needs `nqubits` because no active Pauli site was inferred."))
+        return Int(inferred)
+    end
+    n = _clifford_validate_nqubits(spec_nqubits)
+    inferred <= n || throw(ArgumentError(
+        "$context got nqubits=$n, but the active Pauli basis reaches site $inferred."
+    ))
+    return n
+end
+
+function _pauli_charge_words(nqubits::Integer, max_degree::Integer)
+    n = _clifford_validate_nqubits(nqubits)
+    d = Int(max_degree)
+    d in 0:2 || throw(ArgumentError("Pauli charge basis currently supports degree 0, 1, or 2; got $d."))
+
+    ops = (_PAULI_CHARGE_Z, _PAULI_CHARGE_SP, _PAULI_CHARGE_SM)
+    words = _PauliChargeWord[_PauliChargeWord(())]
+
+    d >= 1 || return words
+    for site in 1:n, op in ops
+        push!(words, _PauliChargeWord(((site, op),)))
+    end
+
+    d >= 2 || return words
+    for right in 2:n, left in 1:(right - 1), op_left in ops, op_right in ops
+        push!(words, _PauliChargeWord(((left, op_left), (right, op_right))))
+    end
+
+    return words
+end
+
+function _pauli_charge_insert_op(word::_PauliChargeWord, site::Integer, op::Int8)
+    new_ops = Tuple{Int,Int8}[(Int(existing_site), Int8(existing_op)) for (existing_site, existing_op) in word.ops]
+    any(first(existing) == site for existing in new_ops) && throw(ArgumentError(
+        "Pauli charge expansion encountered two non-identity operators on site $site."
+    ))
+    push!(new_ops, (Int(site), op))
+    sort!(new_ops; by=first)
+    return _PauliChargeWord(Tuple(new_ops))
+end
+
+function _pauli_charge_letter_expansion(::Type{T}, site::Integer, op::Int8) where {T<:Integer}
+    if op == _PAULI_CHARGE_Z
+        return Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[(1.0 + 0.0im, _pauli_letter(T, site, _PAULI_Z_TYPE))]
+    elseif op == _PAULI_CHARGE_SP
+        return Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[
+            (0.5 + 0.0im, _pauli_letter(T, site, _PAULI_X_TYPE)),
+            (0.0 + 0.5im, _pauli_letter(T, site, _PAULI_Y_TYPE)),
+        ]
+    elseif op == _PAULI_CHARGE_SM
+        return Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[
+            (0.5 + 0.0im, _pauli_letter(T, site, _PAULI_X_TYPE)),
+            (0.0 - 0.5im, _pauli_letter(T, site, _PAULI_Y_TYPE)),
+        ]
+    end
+    throw(ArgumentError("Unknown Pauli charge operator code $op."))
+end
+
+function _pauli_charge_word_expansion(::Type{T}, word::_PauliChargeWord) where {T<:Integer}
+    terms = Dict{NormalMonomial{PauliAlgebra,T},ComplexF64}(one(NormalMonomial{PauliAlgebra,T}) => 1.0 + 0.0im)
+
+    for (site, op_raw) in word.ops
+        op = Int8(op_raw)
+        next_terms = Dict{NormalMonomial{PauliAlgebra,T},ComplexF64}()
+        for (mono, coef) in terms, (letter_coef, letter) in _pauli_charge_letter_expansion(T, site, op)
+            image_word, phase = simplify(PauliAlgebra, vcat(mono.word, letter.word))
+            image = NormalMonomial{PauliAlgebra,T}(image_word)
+            next_terms[image] = get(next_terms, image, 0.0 + 0.0im) + coef * letter_coef * _phase_to_complex(phase)
+        end
+        terms = next_terms
+    end
+
+    return terms
+end
+
+function _pauli_charge_transform_row(
+    ::Type{T},
+    word::_PauliChargeWord,
+    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int},
+    ncols::Integer;
+    atol::Float64=_SYMMETRY_ATOL,
+) where {T<:Integer}
+    row = zeros(ComplexF64, ncols)
+    for (mono, coef) in _pauli_charge_word_expansion(T, word)
+        abs(coef) <= atol && continue
+        idx = get(basis_index, mono, 0)
+        idx == 0 && throw(ArgumentError(
+            "Pauli charge-sector reduction needs a complete Pauli half-basis through the active order; missing expansion monomial $mono for charge word $(word.ops)."
+        ))
+        # _transform_polynomial_block computes U * M * U'. Store conjugated
+        # operator coefficients so the transformed entry is <Oᵢ† Oⱼ>.
+        row[idx] += conj(coef)
+    end
+    return row
+end
+
+function _pauli_monomial_charge_components(mono::NormalMonomial{PauliAlgebra,T}) where {T<:Integer}
+    terms = Dict{_PauliChargeWord,ComplexF64}(_PauliChargeWord(()) => 1.0 + 0.0im)
+    for idx in mono.word
+        site = _pauli_site(idx)
+        letter_terms = if _pauli_type(idx) == _PAULI_X_TYPE
+            Tuple{ComplexF64,Int8}[(1.0 + 0.0im, _PAULI_CHARGE_SP), (1.0 + 0.0im, _PAULI_CHARGE_SM)]
+        elseif _pauli_type(idx) == _PAULI_Y_TYPE
+            Tuple{ComplexF64,Int8}[(0.0 - 1.0im, _PAULI_CHARGE_SP), (0.0 + 1.0im, _PAULI_CHARGE_SM)]
+        else
+            Tuple{ComplexF64,Int8}[(1.0 + 0.0im, _PAULI_CHARGE_Z)]
+        end
+
+        next_terms = Dict{_PauliChargeWord,ComplexF64}()
+        for (word, coef) in terms, (letter_coef, charge_op) in letter_terms
+            image = _pauli_charge_insert_op(word, site, charge_op)
+            next_terms[image] = get(next_terms, image, 0.0 + 0.0im) + coef * letter_coef
+        end
+        terms = next_terms
+    end
+    return terms
+end
+
+function _pauli_polynomial_charge_components(poly::Polynomial{PauliAlgebra,T,C}) where {T<:Integer,C<:Number}
+    components = Dict{_PauliChargeWord,ComplexF64}()
+    for (coef, mono) in poly.terms
+        for (word, charge_coef) in _pauli_monomial_charge_components(mono)
+            components[word] = get(components, word, 0.0 + 0.0im) + ComplexF64(coef) * charge_coef
+        end
+    end
+    return components
+end
+
+function _check_pauli_charge_neutral(
+    label::AbstractString,
+    poly::Polynomial{PauliAlgebra,T,C};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {T<:Integer,C<:Number}
+    for (word, coef) in _pauli_polynomial_charge_components(poly)
+        _pauli_charge(word) == 0 && continue
+        abs(coef) <= atol && continue
+        throw(ArgumentError(
+            "Pauli U(1) charge-sector reduction requires $label to be charge-neutral. " *
+            "Found charge $(_pauli_charge(word)) component with coefficient $coef."
+        ))
+    end
+    return nothing
+end
+
+function _check_pauli_charge_neutral(pop::PolyOpt{PauliAlgebra,T,P}; atol::Float64=_SYMMETRY_ATOL) where {T<:Integer,C<:Number,P<:Polynomial{PauliAlgebra,T,C}}
+    _check_pauli_charge_neutral("the objective", pop.objective; atol)
+    for (i, poly) in pairs(pop.eq_constraints)
+        _check_pauli_charge_neutral("equality constraint $i", poly; atol)
+    end
+    for (i, poly) in pairs(pop.ineq_constraints)
+        _check_pauli_charge_neutral("inequality constraint $i", poly; atol)
+    end
+    for (i, poly) in pairs(pop.moment_eq_constraints)
+        _check_pauli_charge_neutral("moment equality constraint $i", poly; atol)
+    end
+    return nothing
+end
+
+function _pauli_spatial_permutation(g::CliffordSymmetry)
+    perm = Vector{Int}(undef, g.nqubits)
+    for site in 1:g.nqubits
+        target_site = 0
+        for pauli_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+            sign, image = _clifford_letter_action(g, site, pauli_type)
+            sign == 1 || return nothing
+            length(image.word) == 1 || return nothing
+            idx = only(image.word)
+            _pauli_type(idx) == pauli_type || return nothing
+            image_site = _pauli_site(idx)
+            if target_site == 0
+                target_site = image_site
+            elseif target_site != image_site
+                return nothing
+            end
+        end
+        perm[site] = target_site
+    end
+    sort(perm) == collect(1:g.nqubits) || return nothing
+    return perm
+end
+
+function _validate_pauli_spatial_group(group::AbstractVector{<:CliffordSymmetry})
+    for g in group
+        isnothing(_pauli_spatial_permutation(g)) && throw(ArgumentError(
+            "Pauli charge/SU(2) reductions may only be combined with spatial Clifford symmetries that preserve Pauli axes and permute sites. Got $g."
+        ))
+    end
+    return nothing
+end
+
+function _pauli_charge_word_image(perm::AbstractVector{<:Integer}, word::_PauliChargeWord)
+    mapped = [(Int(perm[site]), Int8(op)) for (site, op) in word.ops]
+    sort!(mapped; by=first)
+    return _PauliChargeWord(Tuple(mapped))
+end
+
+function _pauli_charge_word_image(g::CliffordSymmetry, word::_PauliChargeWord)
+    perm = _pauli_spatial_permutation(g)
+    isnothing(perm) && throw(ArgumentError(
+        "Pauli charge-sector finite reduction received a non-spatial Clifford group element $g."
+    ))
+    return _pauli_charge_word_image(perm, word)
+end
+
+function SymbolicWedderburn.action(
+    ::NCPauliChargeSpatialAction,
+    g::CliffordSymmetryGroupElement,
+    word::_PauliChargeWord,
+)
+    return _pauli_charge_word_image(_clifford_group_value(g), word), 1
+end
+
+function _sw_decompose_charge_basis(basis::Vector{_PauliChargeWord}, group::CliffordSymmetryGroup)
+    action = NCPauliChargeSpatialAction()
+    return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
+end
+
+function _pauli_charge_basis_action_is_trivial(basis::AbstractVector{_PauliChargeWord}, sw_group::CliffordSymmetryGroup)
+    for g in _sw_action_elements(sw_group), word in basis
+        _pauli_charge_word_image(g, word) == word || return false
+    end
+    return true
+end
+
+function _pauli_charge_transform_groups(
+    basis::Vector{NormalMonomial{PauliAlgebra,T}},
+    spec::PauliChargeSectorSpec,
+    sw_group::Union{Nothing,CliffordSymmetryGroup};
+    atol::Float64=_SYMMETRY_ATOL,
+    context::AbstractString="Pauli charge sector",
+) where {T<:Integer}
+    _validate_pauli_charge_spec(spec)
+    inferred_nqubits = max(
+        _pauli_nqubits_from_basis(basis),
+        isnothing(sw_group) ? 0 : sw_group.inner.elements[1].nqubits,
+    )
+    nqubits = _pauli_spec_nqubits(spec.nqubits, inferred_nqubits, context)
+    degree_limit = min(spec.max_degree, maximum(degree, basis; init=0))
+    charge_words = _pauli_charge_words(nqubits, degree_limit)
+    length(charge_words) == length(basis) || throw(ArgumentError(
+        "$context needs the complete Pauli half-basis through degree $degree_limit on $nqubits qubits. " *
+        "Expected $(length(charge_words)) basis elements but got $(length(basis))."
+    ))
+
+    basis_index = Dict{NormalMonomial{PauliAlgebra,T},Int}(mono => i for (i, mono) in enumerate(basis))
+    words_by_charge = Dict{Int,Vector{_PauliChargeWord}}()
+    rows_by_charge = Dict{Int,Vector{Vector{ComplexF64}}}()
+
+    for word in charge_words
+        row = _pauli_charge_transform_row(T, word, basis_index, length(basis); atol)
+        charge = _pauli_charge(word)
+        push!(get!(words_by_charge, charge, _PauliChargeWord[]), word)
+        push!(get!(rows_by_charge, charge, Vector{ComplexF64}[]), row)
+    end
+
+    transform_groups = Vector{Vector{_BasisTransformBlock}}()
+    group_order = isnothing(sw_group) ? 1 : length(sw_group)
+
+    for charge in sort!(collect(keys(words_by_charge)))
+        sector_words = words_by_charge[charge]
+        sector_rows = reduce(vcat, (reshape(row, 1, :) for row in rows_by_charge[charge]))
+        sector_dim = length(sector_words)
+
+        if isnothing(sw_group) || sector_dim == 1 || _pauli_charge_basis_action_is_trivial(sector_words, sw_group)
+            label = PauliChargeBlockLabel(charge, nothing, group_order, sector_dim)
+            push!(transform_groups, [_BasisTransformBlock(sector_rows, label, :charge_sector)])
+        else
+            blocks = _sw_decompose_charge_basis(sector_words, sw_group)
+            sector_group = _BasisTransformBlock[]
+            for (block_idx, block) in enumerate(blocks)
+                row_basis = Matrix(block) * sector_rows
+                label = PauliChargeBlockLabel(charge, block_idx, group_order, sector_dim)
+                push!(sector_group, _BasisTransformBlock(row_basis, label, :charge_wedderburn))
+            end
+            push!(transform_groups, sector_group)
+        end
+    end
+
+    return transform_groups
+end
+
+function _pauli_monomial(::Type{T}, site::Integer, pauli_type::Integer) where {T<:Integer}
+    return _pauli_letter(T, site, pauli_type)
+end
+
+function _pauli_two_site_monomial(::Type{T}, left::Integer, left_type::Integer, right::Integer, right_type::Integer) where {T<:Integer}
+    word, phase = simplify(PauliAlgebra, T[
+        convert(T, _pauli_index(left, left_type)),
+        convert(T, _pauli_index(right, right_type)),
+    ])
+    _phase_to_complex(phase) == 1 || throw(ArgumentError(
+        "Internal SU(2) singlet constraint construction expected a real two-site Pauli word."
+    ))
+    return NormalMonomial{PauliAlgebra,T}(word)
+end
+
+function _mp_poly(
+    ::Type{MP},
+    mono::NormalMonomial{PauliAlgebra,T},
+    coef::Number=1,
+) where {T<:Integer,C<:Number,MP<:Polynomial{PauliAlgebra,T,C}}
+    return MP(Tuple{C,NormalMonomial{PauliAlgebra,T}}[(C(coef), mono)])
+end
+
+function _check_pauli_singlet_support(
+    poly::MP,
+    supported::Set{NormalMonomial{PauliAlgebra,T}},
+    context::AbstractString,
+) where {T<:Integer,C<:Number,MP<:Polynomial{PauliAlgebra,T,C}}
+    for mono in monomials(poly)
+        mono in supported && continue
+        throw(ArgumentError(
+            "Pauli SU(2) singlet constraints require generated moments to be supported by the relaxation basis. " *
+            "Missing monomial $mono while adding $context. Use a complete Pauli basis through the requested singlet degree or lower `PauliSingletConstraintSpec.max_degree`."
+        ))
+    end
+    return nothing
+end
+
+function _append_unique_zero_constraint!(
+    constraints::Vector{Tuple{Symbol, Matrix{MP}}},
+    seen::Set{MP},
+    poly::MP,
+    reducer::Union{Nothing,_OrbitReducer{PauliAlgebra,T}},
+    supported::Set{NormalMonomial{PauliAlgebra,T}},
+    context::AbstractString,
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {T<:Integer,C<:Number,MP<:Polynomial{PauliAlgebra,T,C}}
+    _check_pauli_singlet_support(poly, supported, context)
+    reduced = reducer === nothing ? _chop_polynomial(poly; atol) :
+        _orbit_reduce_polynomial(_chop_polynomial(poly; atol), reducer; atol)
+    iszero(reduced) && return nothing
+    reduced in seen && return nothing
+    push!(seen, reduced)
+    _append_constraint!(constraints, :Zero, reshape([reduced], 1, 1), MP)
+    return nothing
+end
+
+function _add_pauli_singlet_constraints!(
+    constraints::Vector{Tuple{Symbol, Matrix{MP}}},
+    spec::PauliSingletConstraintSpec,
+    nqubits::Integer,
+    supported_basis::AbstractVector{NormalMonomial{PauliAlgebra,T}},
+    reducer::Union{Nothing,_OrbitReducer{PauliAlgebra,T}},
+    ::Type{MP};
+    atol::Float64=_SYMMETRY_ATOL,
+) where {T<:Integer,C<:Number,MP<:Polynomial{PauliAlgebra,T,C}}
+    _validate_pauli_singlet_spec(spec)
+    n = _pauli_spec_nqubits(spec.nqubits, nqubits, "Pauli SU(2) singlet constraints")
+    supported = Set(supported_basis)
+    seen = Set{MP}()
+
+    if spec.single_site && spec.max_degree >= 1
+        for site in 1:n, pauli_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+            poly = _mp_poly(MP, _pauli_monomial(T, site, pauli_type))
+            context = "single-site constraint at site $site"
+            _append_unique_zero_constraint!(constraints, seen, poly, reducer, supported, context, MP; atol)
+        end
+    end
+
+    if spec.two_point && spec.max_degree >= 2
+        for right in 2:n, left in 1:(right - 1)
+            for left_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+                for right_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+                    left_type == right_type && continue
+                    poly = _mp_poly(MP, _pauli_two_site_monomial(T, left, left_type, right, right_type))
+                    context = "cross-component two-point constraint on sites ($left, $right)"
+                    _append_unique_zero_constraint!(constraints, seen, poly, reducer, supported, context, MP; atol)
+                end
+            end
+
+            zz = _mp_poly(MP, _pauli_two_site_monomial(T, left, _PAULI_Z_TYPE, right, _PAULI_Z_TYPE))
+            xx = _mp_poly(MP, _pauli_two_site_monomial(T, left, _PAULI_X_TYPE, right, _PAULI_X_TYPE))
+            yy = _mp_poly(MP, _pauli_two_site_monomial(T, left, _PAULI_Y_TYPE, right, _PAULI_Y_TYPE))
+            _append_unique_zero_constraint!(constraints, seen, xx - zz, reducer, supported, "XX=ZZ two-point constraint on sites ($left, $right)", MP; atol)
+            _append_unique_zero_constraint!(constraints, seen, yy - zz, reducer, supported, "YY=ZZ two-point constraint on sites ($left, $right)", MP; atol)
+        end
+    end
+
+    return nothing
+end
+
 
 """
     moment_relax_symmetric(pop, corr_sparsity, cliques_term_sparsities, symmetry)
@@ -2346,6 +2968,8 @@ function moment_relax_symmetric(
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C},M<:NormalMonomial{A,T}}
     sector = symmetry.sector
     spin_adaptation = symmetry.spin_adaptation
+    pauli_charge = symmetry.pauli_charge
+    pauli_singlet = symmetry.pauli_singlet
     if !isnothing(sector)
         A === FermionicAlgebra || throw(ArgumentError(
             "Fermionic sector splitting is only supported for `FermionicAlgebra`; got `$(nameof(A))`."
@@ -2362,11 +2986,24 @@ function moment_relax_symmetric(
             "Clifford symmetry is only supported for `PauliAlgebra`; got `$(nameof(A))`."
         ))
     end
+    if !isnothing(pauli_charge)
+        A === PauliAlgebra || throw(ArgumentError(
+            "Pauli charge-sector splitting is only supported for `PauliAlgebra`; got `$(nameof(A))`."
+        ))
+        _validate_pauli_charge_spec(pauli_charge)
+    end
+    if !isnothing(pauli_singlet)
+        A === PauliAlgebra || throw(ArgumentError(
+            "Pauli SU(2) singlet constraints are only supported for `PauliAlgebra`; got `$(nameof(A))`."
+        ))
+        _validate_pauli_singlet_spec(pauli_singlet)
+    end
 
     moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
     total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
         _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
     _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
+    !isnothing(pauli_charge) && _check_pauli_charge_neutral(pop; atol)
 
     active_modes = if A === FermionicAlgebra && (!isnothing(sector) || !isnothing(spin_adaptation) || !isempty(symmetry.fermionic_generators))
         _mode_symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
@@ -2404,6 +3041,7 @@ function moment_relax_symmetric(
     end
 
     if !isnothing(group)
+        (!isnothing(pauli_charge) || !isnothing(pauli_singlet)) && _validate_pauli_spatial_group(group)
         symmetry.check_invariance && _check_symmetry_invariance(pop, group)
 
         for (clique_idx, basis) in enumerate(corr_sparsity.clq_mom_mtx_bases)
@@ -2528,6 +3166,28 @@ function moment_relax_symmetric(
                         append!(diagonal_labels, [block.label for block in transform_blocks])
                         append!(diagonal_provenance, [block.provenance for block in transform_blocks])
                     end
+                elseif !isnothing(pauli_charge)
+                    charge_groups = _pauli_charge_transform_groups(
+                        basis,
+                        pauli_charge,
+                        sw_group;
+                        atol,
+                        context,
+                    )
+                    for charge_group in charge_groups
+                        row_bases = [block.row_basis for block in charge_group]
+                        charge_diag_blocks = _reduce_transformed_blocks(
+                            mat,
+                            row_bases,
+                            reducer;
+                            atol,
+                            context="$(context) charge $(first(charge_group).label.charge)",
+                            offblock_check=symmetry.offblock_check,
+                        )
+                        append!(diagonal_blocks, charge_diag_blocks)
+                        append!(diagonal_labels, [block.label for block in charge_group])
+                        append!(diagonal_provenance, [block.provenance for block in charge_group])
+                    end
                 else
                     diagonal_blocks = isnothing(sw_group) ?
                         [_maybe_orbit_reduce_matrix(mat, reducer; atol)] :
@@ -2596,6 +3256,22 @@ function moment_relax_symmetric(
         MP_P;
         atol,
     )
+
+    if !isnothing(pauli_singlet)
+        inferred_nqubits = max(
+            _pauli_nqubits_from_basis(total_basis),
+            isempty(symmetry.clifford_generators) ? 0 : _clifford_max_generator_nqubits(symmetry.clifford_generators),
+        )
+        _add_pauli_singlet_constraints!(
+            constraints,
+            pauli_singlet,
+            inferred_nqubits,
+            total_basis,
+            reducer,
+            MP_P;
+            atol,
+        )
+    end
 
     reduced_total_basis = _collect_reduced_basis(objective_mp, constraints)
     reduced_moment_basis = sorted_unique!(_symmetric_monomial.(reduced_moment_terms))

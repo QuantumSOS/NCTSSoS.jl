@@ -346,6 +346,23 @@ end
         @test all(==(:charge_wedderburn), spatial_report.block_provenance)
         @test count(con -> con[1] == :Zero, spatial_mp.constraints) > 0
 
+        spatial_singlet_off_spec = SymmetrySpec(
+            [translation, reflection];
+            pauli_charge=PauliChargeSectorSpec(nqubits=n_ring),
+            pauli_singlet=PauliSingletConstraintSpec(nqubits=n_ring),
+            offblock_check=:off,
+        )
+        spatial_off_mp, spatial_off_report = NCTSSoS.moment_relax_symmetric(
+            pop,
+            charge_sparsity.corr_sparsity,
+            charge_sparsity.cliques_term_sparsities,
+            spatial_singlet_off_spec,
+        )
+        @test spatial_off_report.psd_block_sizes == spatial_report.psd_block_sizes
+        @test spatial_off_report.block_labels == spatial_report.block_labels
+        @test spatial_off_report.invariant_moment_count == spatial_report.invariant_moment_count
+        @test length(spatial_off_mp.linear.moments) == length(spatial_mp.linear.moments)
+
         single_reg, (τx, τy, τz) = create_pauli_variables(1:1)
         bad_spec = SymmetrySpec(
             CliffordSymmetry(:H, 1);

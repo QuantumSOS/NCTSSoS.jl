@@ -335,8 +335,8 @@ end
 ````
 
 ````
-N = 4 :  E₀ = -1.414213562373095  (analytic: -1.414213562373095)
-N = 6 :  E₀ = -1.7320508075688772  (analytic: -1.7320508075688772)
+N = 4 :  E₀ = -1.4142135623730951  (analytic: -1.414213562373095)
+N = 6 :  E₀ = -1.732050807568877  (analytic: -1.7320508075688772)
 N = 8 :  E₀ = -2.6131259297527527  (analytic: -2.613125929752753)
 
 ````
@@ -429,7 +429,7 @@ parity₁ = prod(one(ham₁) - 2.0 * a₁_dag[i] * a₁[i] for i in 1:N₁)
 ````
 
 ````
-1 + -2.0 + 0.0im * a⁺₄a₄ + -2.0 + 0.0im * a⁺₃a₃ + -2.0 + 0.0im * a⁺₂a₂ + -2.0 + 0.0im * a⁺₁a₁ + 4.0 - 0.0im * a⁺₄a⁺₃a₃a₄ + 4.0 - 0.0im * a⁺₄a⁺₂a₂a₄ + 4.0 - 0.0im * a⁺₄a⁺₁a₁a₄ + 4.0 + 0.0im * a⁺₃a⁺₂a₂a₃ + 4.0 + 0.0im * a⁺₃a⁺₁a₁a₃ + 4.0 + 0.0im * a⁺₂a⁺₁a₁a₂ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₂a₂a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₁a₁a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₂a⁺₁a₁a₂a₄ + -8.0 + 0.0im * a⁺₃a⁺₂a⁺₁a₁a₂a₃ + 16.0 - 0.0im * a⁺₄a⁺₃a⁺₂a⁺₁a₁a₂a₃a₄
+1 + -2.0 + 0.0im * a⁺₄a₄ + -2.0 + 0.0im * a⁺₃a₃ + -2.0 + 0.0im * a⁺₂a₂ + -2.0 + 0.0im * a⁺₁a₁ + 4.0 + 0.0im * a⁺₄a⁺₃a₃a₄ + 4.0 + 0.0im * a⁺₄a⁺₂a₂a₄ + 4.0 + 0.0im * a⁺₄a⁺₁a₁a₄ + 4.0 + 0.0im * a⁺₃a⁺₂a₂a₃ + 4.0 + 0.0im * a⁺₃a⁺₁a₁a₃ + 4.0 + 0.0im * a⁺₂a⁺₁a₁a₂ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₂a₂a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₁a₁a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₂a⁺₁a₁a₂a₄ + -8.0 + 0.0im * a⁺₃a⁺₂a⁺₁a₁a₂a₃ + 16.0 + 0.0im * a⁺₄a⁺₃a⁺₂a⁺₁a₁a₂a₃a₄
 ````
 
 ### Step 4 — Solve the SDP relaxation
@@ -446,7 +446,7 @@ result₁ = cs_nctssos(pop₁, config₁)
 ````
 
 ````
-Objective: -1.4142135689299626
+Objective: -1.414213568931454
 Correlative Sparsity (FermionicAlgebra): 
 
    maximum clique size: 4
@@ -455,7 +455,7 @@ Correlative Sparsity (FermionicAlgebra):
        Variables: [:a₁, :a₂, :a₃, :a₄]
        Bases length: 163
        Constraints: 
-           -2.0 + 0.0im * a⁺₄a₄ + -2.0 + 0.0im * a⁺₃a₃ + -2.0 + 0.0im * a⁺₂a₂ + -2.0 + 0.0im * a⁺₁a₁ + 4.0 - 0.0im * a⁺₄a⁺₃a₃a₄ + 4.0 - 0.0im * a⁺₄a⁺₂a₂a₄ + 4.0 - 0.0im * a⁺₄a⁺₁a₁a₄ + 4.0 + 0.0im * a⁺₃a⁺₂a₂a₃ + 4.0 + 0.0im * a⁺₃a⁺₁a₁a₃ + 4.0 + 0.0im * a⁺₂a⁺₁a₁a₂ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₂a₂a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₁a₁a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₂a⁺₁a₁a₂a₄ + -8.0 + 0.0im * a⁺₃a⁺₂a⁺₁a₁a₂a₃ + 16.0 - 0.0im * a⁺₄a⁺₃a⁺₂a⁺₁a₁a₂a₃a₄ :  with 1 basis monomials
+           -2.0 + 0.0im * a⁺₄a₄ + -2.0 + 0.0im * a⁺₃a₃ + -2.0 + 0.0im * a⁺₂a₂ + -2.0 + 0.0im * a⁺₁a₁ + 4.0 + 0.0im * a⁺₄a⁺₃a₃a₄ + 4.0 + 0.0im * a⁺₄a⁺₂a₂a₄ + 4.0 + 0.0im * a⁺₄a⁺₁a₁a₄ + 4.0 + 0.0im * a⁺₃a⁺₂a₂a₃ + 4.0 + 0.0im * a⁺₃a⁺₁a₁a₃ + 4.0 + 0.0im * a⁺₂a⁺₁a₁a₂ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₂a₂a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₁a₁a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₂a⁺₁a₁a₂a₄ + -8.0 + 0.0im * a⁺₃a⁺₂a⁺₁a₁a₂a₃ + 16.0 + 0.0im * a⁺₄a⁺₃a⁺₂a⁺₁a₁a₂a₃a₄ :  with 1 basis monomials
    Global Constraints: 
 Term Sparsity:
 Clique 1:
@@ -479,7 +479,7 @@ println("N = $N₁:  SDP = $(result₁.objective),  exact = $exact₁,  gap = $(
 ````
 
 ````
-N = 4:  SDP = -1.4142135689299626,  exact = -1.414213562373095,  gap = 6.5568677154459465e-9
+N = 4:  SDP = -1.414213568931454,  exact = -1.4142135623730951,  gap = 6.558358744968018e-9
 
 ````
 
@@ -552,8 +552,8 @@ println("  gap after refinement: $(abs(r6.refined - r6.exact))")
 ````
 
 ````
-N = 6:  first = -2.037537945726868,  refined = -1.7320508239205492,  exact = -1.7320508075688772
-  gap after refinement: 1.6351672016412522e-8
+N = 6:  first = -2.0375379457268603,  refined = -1.7320508239210923,  exact = -1.732050807568877
+  gap after refinement: 1.6352215359560773e-8
 
 ````
 
@@ -566,8 +566,8 @@ println("  gap after refinement: $(abs(r8.refined - r8.exact))")
 ````
 
 ````
-N = 8:  first = -2.7442065412957954,  refined = -2.6131259297529783,  exact = -2.6131259297527527
-  gap after refinement: 2.255973186038318e-13
+N = 8:  first = -2.7442065412958914,  refined = -2.6131259297530427,  exact = -2.6131259297527527
+  gap after refinement: 2.899902540320909e-13
 
 ````
 

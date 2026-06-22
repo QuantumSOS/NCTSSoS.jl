@@ -1,0 +1,819 @@
+<!-- pi-explain-triage:v1
+issue: 364
+triage-branch: triage/issue-364-feat-pauli-sparse-chain-basis-degree-3-4-charge
+triage-branch-source: current
+triage-document: docs/triage/issue-364.md
+generated-from-cwd: /Users/exaclior/QuantumSOS/NCTSSoS.jl-triage-issues
+-->
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Triage explanation for issue #364</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        surface: { 50: '#f8fafc', 100: '#f1f5f9', 700: '#1e293b', 800: '#0f172a', 900: '#020617' },
+        accent: { 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb' },
+        warn: { 400: '#fbbf24', 500: '#f59e0b' },
+        info: { 400: '#38bdf8', 500: '#0ea5e9' },
+        ok: { 400: '#4ade80', 500: '#22c55e' },
+        rose: { 400: '#fb7185', 500: '#f43f5e' },
+      },
+      fontFamily: {
+        mono: ['"SF Mono"', '"Fira Code"', '"Cascadia Code"', 'Menlo', 'monospace'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  @media print {
+    html, body { background: #fff !important; color: #000 !important; }
+    .dark { color-scheme: light; }
+    * { color: #000 !important; background: transparent !important; border-color: #ccc !important; box-shadow: none !important; }
+    .no-print { display: none !important; }
+    code, pre { background: #f3f4f6 !important; color: #111 !important; border: 1px solid #d1d5db !important; }
+    .card-glow { box-shadow: none !important; }
+    details { open: true; }
+    details[open] summary { border-bottom: 1px solid #ccc; }
+  }
+
+  html { scroll-behavior: smooth; }
+  body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+  .card-glow {
+    transition: box-shadow 0.2s ease, transform 0.15s ease;
+  }
+  .card-glow:hover {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+    transform: translateY(-1px);
+  }
+
+  .copy-btn {
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .copy-btn:active { transform: scale(0.95); }
+
+  .decision-node {
+    transition: background-color 0.15s ease;
+  }
+  .decision-node:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+
+  details summary { cursor: pointer; }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::marker { display: none; content: ''; }
+
+  .fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .table-row:hover { background-color: rgba(59, 130, 246, 0.05); }
+</style>
+</head>
+<body class="bg-surface-900 text-gray-200 min-h-screen">
+
+<!-- ═══════════════════════════════ HERO ═══════════════════════════════ -->
+<header class="relative overflow-hidden border-b border-gray-800">
+  <div class="absolute inset-0 bg-gradient-to-br from-accent-600/10 via-transparent to-purple-900/10 pointer-events-none"></div>
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 relative">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-accent-500/20 text-accent-400 border border-accent-500/30">#364</span>
+      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">enhancement</span>
+      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-warn-500/20 text-warn-400 border border-warn-500/30">SOTA-target</span>
+    </div>
+    <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold text-white leading-tight tracking-tight mb-4">
+      Sparse Chain Basis + Degree&nbsp;3‑4 Charge/Singlet + Sign&nbsp;Symmetry
+    </h1>
+    <p class="text-lg sm:text-xl text-gray-300 max-w-3xl leading-relaxed">
+      A coordinated feature request that adds four capabilities to NCTSSoS.jl, enabling the
+      <strong class="text-white">N=100 periodic Heisenberg XXX benchmark at degree&nbsp;4</strong>
+      — currently infeasible due to combinatorial basis growth.
+    </p>
+    <div class="mt-6 p-4 rounded-lg bg-surface-800/80 border border-gray-700 max-w-3xl">
+      <p class="text-sm text-gray-400 uppercase tracking-wider font-semibold mb-1">Why this matters</p>
+      <p class="text-gray-300">The "full" NPA basis produces ~44,851 elements at N=100, d=4. A sparse contiguous-support basis reduces this to ~12,000 — making the SDP solvable.</p>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-16">
+
+<!-- ═══════════════════════════════ TL;DR ═══════════════════════════════ -->
+<section id="tldr" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+    TL;DR
+  </h2>
+  <div class="grid sm:grid-cols-2 gap-4">
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="text-accent-400 font-semibold text-sm uppercase tracking-wider mb-2">Type</div>
+      <p class="text-gray-200">Feature request — <strong class="text-white">not</strong> a bug fix. Four coordinated capabilities added to NCTSSoS.jl.</p>
+    </div>
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="text-ok-400 font-semibold text-sm uppercase tracking-wider mb-2">Goal</div>
+      <p class="text-gray-200">Enable the <strong class="text-white">N=100 periodic Heisenberg XXX model at degree 4</strong> benchmark computation.</p>
+    </div>
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="text-warn-400 font-semibold text-sm uppercase tracking-wider mb-2">Problem</div>
+      <p class="text-gray-200">Full NPA basis grows as \(O(N^d)\) — ~44,851 elements. Sparse contiguous basis grows as \(O(N)\) — ~12,000 elements.</p>
+    </div>
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="text-purple-400 font-semibold text-sm uppercase tracking-wider mb-2">Strategy</div>
+      <p class="text-gray-200">Decompose into <strong class="text-white">4 independent, incrementally mergeable PRs</strong>. PRs 1–3 required; PR 4 optional optimization.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ STATE MACHINE TRACE ═══════════════════════════════ -->
+<section id="state-machine" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    State Machine Trace
+  </h2>
+  <p class="text-gray-400 mb-6">
+    The <strong class="text-gray-200">triage branch</strong>
+    (<code class="text-sm bg-surface-700 px-2 py-0.5 rounded text-accent-400">triage/issue-364-feat-pauli-sparse-chain-basis-degree-3-4-charge</code>)
+    contains only the triage document — no code changes yet.
+  </p>
+
+  <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 overflow-x-auto pb-4">
+    <!-- Step 1 -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-9 h-9 rounded-full bg-gray-600 flex items-center justify-center text-xs font-bold text-white">1</div>
+      <div>
+        <p class="text-sm font-semibold text-gray-300">Issue opened</p>
+        <p class="text-xs text-gray-500">#364, sub of #356</p>
+      </div>
+    </div>
+    <svg class="hidden sm:block w-6 h-6 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    <!-- Step 2 -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-9 h-9 rounded-full bg-accent-500 flex items-center justify-center text-xs font-bold text-white ring-2 ring-accent-400/50">2</div>
+      <div>
+        <p class="text-sm font-semibold text-white">Triage ← current</p>
+        <p class="text-xs text-gray-500">Plan written, awaiting review</p>
+      </div>
+    </div>
+    <svg class="hidden sm:block w-6 h-6 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    <!-- Step 3 -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400">3</div>
+      <div>
+        <p class="text-sm font-semibold text-gray-400">Resolve</p>
+        <p class="text-xs text-gray-600">Code on resolve branch</p>
+      </div>
+    </div>
+    <svg class="hidden sm:block w-6 h-6 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    <!-- Step 4 -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400">4</div>
+      <div>
+        <p class="text-sm font-semibold text-gray-400">Validation</p>
+        <p class="text-xs text-gray-600">Tests + compat</p>
+      </div>
+    </div>
+    <svg class="hidden sm:block w-6 h-6 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    <!-- Step 5 -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <div class="w-9 h-9 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-400">5</div>
+      <div>
+        <p class="text-sm font-semibold text-gray-400">Merge</p>
+        <p class="text-xs text-gray-600">PR(s) to main</p>
+      </div>
+    </div>
+  </div>
+
+  <p class="text-sm text-gray-500 mt-4">The triage document (<code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-400">docs/triage/issue-364.md</code>) answers: <em>What needs to change, why, in what order, and what could go wrong?</em></p>
+</section>
+
+<!-- ═══════════════════════════════ DECISION MAP ═══════════════════════════════ -->
+<section id="decision-map" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-ok-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+    Decision Map
+  </h2>
+
+  <!-- Decision Tree as structured HTML -->
+  <div class="space-y-0">
+    <!-- Root -->
+    <div class="rounded-t-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="flex items-center gap-3 mb-2">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-accent-500/20 text-accent-400 text-sm font-bold">#</span>
+        <h3 class="text-lg font-bold text-white">Issue #364: Enable N=100 Heisenberg XXX at degree 4</h3>
+      </div>
+    </div>
+
+    <!-- Decision 1 -->
+    <details open class="group border-x border-gray-700">
+      <summary class="decision-node flex items-center gap-3 px-5 py-4 bg-surface-800/50 border-b border-gray-700/50">
+        <svg class="w-4 h-4 text-gray-500 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="font-semibold text-accent-400">Decision 1:</span>
+        <span class="text-gray-200">Decompose into 4 sub-PRs (not monolithic)</span>
+      </summary>
+      <div class="px-5 py-4 bg-surface-900/50 border-b border-gray-700/50 ml-7 space-y-2">
+        <p class="text-sm text-gray-300"><strong class="text-ok-400">Rationale:</strong> Each PR is independently testable, mergeable, and revertable.</p>
+        <p class="text-sm text-gray-400"><strong class="text-rose-400">Rejected:</strong> Single large PR would be harder to review and riskier to revert.</p>
+      </div>
+    </details>
+
+    <!-- Decision 2 -->
+    <details open class="group border-x border-gray-700">
+      <summary class="decision-node flex items-center gap-3 px-5 py-4 bg-surface-800/50 border-b border-gray-700/50">
+        <svg class="w-4 h-4 text-gray-500 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="font-semibold text-accent-400">Decision 2 — PR 1:</span>
+        <span class="text-gray-200">New sparse basis constructor (no existing code modified)</span>
+      </summary>
+      <div class="px-5 py-4 bg-surface-900/50 border-b border-gray-700/50 ml-7 space-y-2">
+        <p class="text-sm text-gray-300"><strong class="text-ok-400">Rationale:</strong> Pure addition; zero regression risk.</p>
+        <p class="text-sm text-gray-300">Creates <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-accent-400">pauli_contiguous_chain_basis()</code> producing \(O(N)\) elements.</p>
+      </div>
+    </details>
+
+    <!-- Decision 3 -->
+    <details open class="group border-x border-gray-700">
+      <summary class="decision-node flex items-center gap-3 px-5 py-4 bg-surface-800/50 border-b border-gray-700/50">
+        <svg class="w-4 h-4 text-gray-500 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="font-semibold text-accent-400">Decision 3 — PR 2:</span>
+        <span class="text-gray-200">Relax validation to allow sign symmetry (~30 lines)</span>
+      </summary>
+      <div class="px-5 py-4 bg-surface-900/50 border-b border-gray-700/50 ml-7 space-y-2">
+        <p class="text-sm text-gray-300"><strong class="text-ok-400">Rationale:</strong> The orbit reducer already handles sign phases internally; the only blocker is a validation guard that rejects non-spatial Cliffords.</p>
+        <p class="text-sm text-gray-300"><strong class="text-info-400">Key insight:</strong> <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">_check_basis_closure</code> needs NO change (sign carried in phase dict).</p>
+      </div>
+    </details>
+
+    <!-- Decision 4 -->
+    <details open class="group border-x border-gray-700">
+      <summary class="decision-node flex items-center gap-3 px-5 py-4 bg-surface-800/50 border-b border-gray-700/50">
+        <svg class="w-4 h-4 text-gray-500 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="font-semibold text-accent-400">Decision 4 — PR 3:</span>
+        <span class="text-gray-200">Lift degree cap 2 → 4, basis-driven charge words (~100 lines)</span>
+      </summary>
+      <div class="px-5 py-4 bg-surface-900/50 border-b border-gray-700/50 ml-7 space-y-2">
+        <p class="text-sm text-gray-300"><strong class="text-ok-400">Rationale:</strong> Exhaustive generation at degree 4 yields ~320M words; basis-driven generation yields ~12,000.</p>
+        <p class="text-sm text-gray-300"><strong class="text-info-400">Backward compatible:</strong> degree ≤ 2 without custom basis still uses the exhaustive path.</p>
+      </div>
+    </details>
+
+    <!-- Decision 5 -->
+    <details open class="group border-x border-b border-gray-700 rounded-b-xl">
+      <summary class="decision-node flex items-center gap-3 px-5 py-4 bg-surface-800/50">
+        <svg class="w-4 h-4 text-gray-500 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        <span class="font-semibold text-accent-400">Decision 5 — PR 4:</span>
+        <span class="text-gray-200">Singlet variable elimination (optional, ~50 lines)</span>
+      </summary>
+      <div class="px-5 py-4 bg-surface-900/50 ml-7 space-y-2 rounded-b-xl">
+        <p class="text-sm text-gray-300"><strong class="text-ok-400">Rationale:</strong> Performance optimization only; not needed for correctness.</p>
+        <p class="text-sm text-gray-300">Replaces constraint-matrix emission with pre-solver variable merging.</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ EVIDENCE ═══════════════════════════════ -->
+<section id="evidence" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-warn-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+    Evidence
+  </h2>
+
+  <!-- Sub: Why current code can't handle N=100 d=4 -->
+  <h3 class="text-lg font-semibold text-gray-200 mb-4">Why the current code can't handle N=100 at degree 4</h3>
+  <p class="text-gray-400 mb-4">Four hard-coded barriers in <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">src/optimization/symmetry.jl</code>:</p>
+
+  <div class="overflow-x-auto mb-8">
+    <table class="w-full text-sm border border-gray-700 rounded-lg overflow-hidden">
+      <thead class="bg-surface-800">
+        <tr>
+          <th class="text-left px-4 py-3 text-gray-400 font-semibold border-b border-gray-700">Barrier</th>
+          <th class="text-left px-4 py-3 text-gray-400 font-semibold border-b border-gray-700">Location</th>
+          <th class="text-left px-4 py-3 text-gray-400 font-semibold border-b border-gray-700">What it blocks</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200 font-medium"><code class="text-xs bg-surface-700 px-1 py-0.5 rounded">max_degree ∈ 0:2</code> validation</td>
+          <td class="px-4 py-3 text-gray-400">Lines ~1021, ~2776</td>
+          <td class="px-4 py-3 text-gray-300">Any charge sector analysis above degree 2</td>
+        </tr>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200 font-medium">Exhaustive charge-word generation</td>
+          <td class="px-4 py-3 text-gray-400">Line ~2826</td>
+          <td class="px-4 py-3 text-gray-300">\(C(100,4) \cdot 3^4 \approx 320\text{M}\) charge words — computationally infeasible</td>
+        </tr>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200 font-medium">Spatial-only Clifford validation</td>
+          <td class="px-4 py-3 text-gray-400">Line ~2990</td>
+          <td class="px-4 py-3 text-gray-300">Rejects sign symmetry (conjugation by \(\prod_i \sigma_i^z\))</td>
+        </tr>
+        <tr class="table-row">
+          <td class="px-4 py-3 text-gray-200 font-medium">No sparse basis support</td>
+          <td class="px-4 py-3 text-gray-400">No constructor exists</td>
+          <td class="px-4 py-3 text-gray-300">Users must use the full NPA basis with \(O(N^4)\) elements at degree 4</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Sub: Why architecture is ready -->
+  <h3 class="text-lg font-semibold text-gray-200 mb-4">Why the architecture is ready for extension</h3>
+  <p class="text-gray-400 mb-4">The internal machinery already supports the needed features — only validation guards and input constructors are missing:</p>
+
+  <div class="space-y-4 mb-8">
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-ok-500/20 text-ok-400 text-xs font-bold">1</span>
+        <div>
+          <p class="font-semibold text-gray-200 mb-1">Orbit reducer handles phases</p>
+          <p class="text-sm text-gray-400">At line ~1948, <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">_build_orbit_reducer</code> tracks <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">orbit_phase[image_sym]</code> and detects sign conflicts via a <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">zero_orbit</code> flag. Sign symmetry is structurally supported — it just can't reach this code.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-ok-500/20 text-ok-400 text-xs font-bold">2</span>
+        <div>
+          <p class="font-semibold text-gray-200 mb-1">Basis closure check is phase-aware</p>
+          <p class="text-sm text-gray-400">At line ~1924, <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">_check_basis_closure</code> checks that the <em>monomial image</em> is in the basis set. For sign symmetry the monomial maps to itself (with a sign), so it's still in the basis. The sign is handled separately by the orbit reducer's phase dictionary.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 p-5">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-ok-500/20 text-ok-400 text-xs font-bold">3</span>
+        <div>
+          <p class="font-semibold text-gray-200 mb-1">Charge-word/basis size equality holds for contiguous chains</p>
+          <p class="text-sm text-gray-400">For a contiguous chain basis of degree \(d\) with \(N\) sites, the number of basis monomials \(\left(1 + N \cdot \sum_{\ell=1}^{d} 3^\ell\right)\) exactly equals the number of basis-driven charge words. The square-transform assumption in <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">_pauli_charge_transform_groups</code> (line ~3049) is not violated.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub: What "contiguous chain basis" means -->
+  <h3 class="text-lg font-semibold text-gray-200 mb-4">What "contiguous chain basis" means</h3>
+  <div class="rounded-xl bg-gradient-to-br from-surface-800 to-surface-800/80 border border-gray-700 p-6">
+    <p class="text-gray-300 mb-4">
+      In quantum spin systems, a <strong class="text-white">Pauli monomial</strong> is a product of Pauli operators (\(\sigma^x, \sigma^y, \sigma^z\)) acting on specific qubit sites.
+      The "full NPA basis" at degree \(d\) includes <em>all</em> monomials on any subset of up to \(d\) sites out of \(N\) — yielding \(O(N^d)\) elements.
+    </p>
+    <p class="text-gray-300 mb-4">
+      A <strong class="text-white">contiguous chain basis</strong> restricts to monomials where the sites form a <em>contiguous block</em> on the lattice (with periodic wrapping for a ring geometry). For a 1D periodic chain:
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 mb-4">
+      <div class="flex-1 rounded-lg bg-surface-900 border border-gray-600 p-4 text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Full NPA (N=100, d=4)</p>
+        <p class="text-2xl font-bold text-rose-400">~44,851</p>
+        <p class="text-xs text-gray-500">elements</p>
+      </div>
+      <div class="flex items-center justify-center">
+        <svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+      </div>
+      <div class="flex-1 rounded-lg bg-surface-900 border border-ok-500/30 p-4 text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Contiguous Chain (N=100, d=4)</p>
+        <p class="text-2xl font-bold text-ok-400">~12,000</p>
+        <p class="text-xs text-gray-500">elements</p>
+      </div>
+    </div>
+    <p class="text-sm text-gray-400">
+      This is physically motivated: the Heisenberg Hamiltonian has only nearest-neighbor interactions, so a contiguous-support basis captures the relevant correlations without combinatorial blowup.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ IMPLEMENTATION PLAN ═══════════════════════════════ -->
+<section id="implementation" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-info-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+    Implementation Plan
+  </h2>
+
+  <div class="space-y-6">
+    <!-- PR 1 -->
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 overflow-hidden">
+      <div class="bg-gradient-to-r from-accent-500/10 to-transparent px-5 py-4 border-b border-gray-700 flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-accent-500/20 text-accent-400 text-sm font-bold">1</span>
+          <h3 class="text-lg font-bold text-white">Sparse Contiguous-Support Basis Constructor</h3>
+        </div>
+        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-ok-500/20 text-ok-400 border border-ok-500/30">~80 lines · new code only</span>
+      </div>
+      <div class="px-5 py-4 space-y-3">
+        <p class="text-sm text-gray-300"><strong class="text-white">What:</strong> Create <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-accent-400">pauli_contiguous_chain_basis(registry, degree; periodic=true)</code> returning a <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">Vector{NormalMonomial}</code>.</p>
+        <p class="text-sm text-gray-300"><strong class="text-white">Why safe:</strong> Pure addition — no existing code modified. Zero regression risk.</p>
+        <p class="text-sm text-gray-300"><strong class="text-white">Formula:</strong> Identity plus all monomials \(\sigma_i^{a_1} \cdots \sigma_{i+\ell-1}^{a_\ell}\) where \(\ell \in 1..d\), each \(a_j \in \{x,y,z\}\), and \(i \in 1..N\) with periodic wrapping via <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">mod1</code>.</p>
+        <div class="mt-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Files changed</p>
+          <ul class="space-y-1">
+            <li class="text-sm text-gray-300 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ok-400"></span><code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">src/optimization/pauli_chains.jl</code> <span class="text-xs text-gray-500">(new)</span></li>
+            <li class="text-sm text-gray-300 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-warn-400"></span><code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">src/NCTSSoS.jl</code> <span class="text-xs text-gray-500">(add include + export)</span></li>
+            <li class="text-sm text-gray-300 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ok-400"></span><code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">test/relaxations/pauli_chains.jl</code> <span class="text-xs text-gray-500">(new)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR 2 -->
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 overflow-hidden">
+      <div class="bg-gradient-to-r from-purple-500/10 to-transparent px-5 py-4 border-b border-gray-700 flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 text-sm font-bold">2</span>
+          <h3 class="text-lg font-bold text-white">Sign Symmetry Support</h3>
+        </div>
+        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-warn-500/20 text-warn-400 border border-warn-500/30">~30 lines changed</span>
+      </div>
+      <div class="px-5 py-4 space-y-3">
+        <p class="text-sm text-gray-300"><strong class="text-white">What:</strong> Add <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-accent-400">pauli_sign_symmetry(N)</code> constructor and relax validation in <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">_validate_pauli_spatial_group</code>.</p>
+        <p class="text-sm text-gray-300"><strong class="text-white">Why this route:</strong> The orbit reducer already handles phase accumulation and sign-conflict detection. Only the validation layer needs relaxation — "must be a pure site permutation" → "must map each charge word to ±1 multiple of another charge word with the same charge."</p>
+        <div class="mt-3 p-3 rounded-lg bg-surface-900 border border-gray-600">
+          <p class="text-xs text-info-400 font-semibold mb-1">Key subtlety</p>
+          <p class="text-xs text-gray-400">Under the sign symmetry generator (conjugation by \(\prod_i \sigma_i^z\)), a Pauli X or Y picks up −1 while Z is unchanged. A monomial with \(k\) occurrences of X or Y gets eigenvalue \((-1)^k\). Monomials with different X+Y parity live in different eigenspaces — the orbit reducer handles this correctly via <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">zero_orbit</code> detection.</p>
+        </div>
+        <div class="mt-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Files changed</p>
+          <ul class="space-y-1">
+            <li class="text-sm text-gray-300 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-warn-400"></span><code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">src/optimization/pauli_chains.jl</code> <span class="text-xs text-gray-500">(add pauli_sign_symmetry)</span></li>
+            <li class="text-sm text-gray-300 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-warn-400"></span><code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">src/optimization/symmetry.jl</code> <span class="text-xs text-gray-500">(relax validation, adjust charge-word image)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR 3 -->
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700 overflow-hidden">
+      <div class="bg-gradient-to-r from-ok-500/10 to-transparent px-5 py-4 border-b border-gray-700 flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-ok-500/20 text-ok-400 text-sm font-bold">3</span>
+          <h3 class="text-lg font-bold text-white">Extend Charge Sectors to Degree 3-4</h3>
+        </div>
+        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-warn-500/20 text-warn-400 border border-warn-500/30">~100 lines</span>
+      </div>
+      <div class="px-5 py-4 space-y-3">
+        <p class="text-sm text-gray-300"><strong class="text-white">What:</strong> Remove the <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">0:2</code> hard cap and add <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-accent-400">_pauli_charge_words_from_basis(basis, max_degree)</code> — generating charge words only for site-subsets present in the provided basis.</p>
+        <p class="text-sm text-gray-300"><strong class="text-white">Why basis-driven:</strong> Exhaustive generation at d=4, N=100 → \(\binom{100}{4} \cdot 3^4 \approx 320\text{M}\) charge words. Basis-driven → ~12,000.</p>
+        <p class="text-sm text-gray-300"><strong class="text-white">Backward compat:</strong> When <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">max_degree ≤ 2</code> and no custom basis is provided, the existing exhaustive path is used unchanged.</p>
+        <div class="mt-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Files changed</p>
+          <ul class="space-y-1">
+            <li class="text-sm text-gray-300 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-warn-400"></span><code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">src/optimization/symmetry.jl</code> <span class="text-xs text-gray-500">(remove caps, add basis-driven generation, modify _pauli_charge_transform_groups)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- PR 4 -->
+    <div class="card-glow rounded-xl bg-surface-800 border border-gray-700/50 overflow-hidden opacity-80">
+      <div class="bg-gradient-to-r from-gray-500/10 to-transparent px-5 py-4 border-b border-gray-700/50 flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-3">
+          <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gray-500/20 text-gray-400 text-sm font-bold">4</span>
+          <h3 class="text-lg font-bold text-gray-300">Singlet Variable Elimination</h3>
+        </div>
+        <span class="text-xs font-semibold px-2 py-1 rounded-full bg-gray-500/20 text-gray-400 border border-gray-600">optional · ~50 lines</span>
+      </div>
+      <div class="px-5 py-4 space-y-3">
+        <p class="text-sm text-gray-400"><strong class="text-gray-300">What:</strong> Replace <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">:Zero</code> constraint-matrix emission for SU(2) singlet constraints with a pre-solver variable-merging pass.</p>
+        <p class="text-sm text-gray-400"><strong class="text-gray-300">Why optional:</strong> Performance optimization. The existing singlet constraint mechanism is correct; it just adds constraints instead of eliminating variables.</p>
+        <div class="mt-3">
+          <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-2">Files changed</p>
+          <ul class="space-y-1">
+            <li class="text-sm text-gray-400 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-gray-500"></span><code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-400">src/optimization/symmetry.jl</code> <span class="text-xs text-gray-500">(add _build_singlet_reducer, integrate as pre-reducer)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ VALIDATION ═══════════════════════════════ -->
+<section id="validation" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-ok-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    Validation
+  </h2>
+
+  <!-- Regression Testing -->
+  <h3 class="text-lg font-semibold text-gray-200 mb-3">Regression Testing</h3>
+  <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 mb-6">
+    <p class="text-sm text-gray-300">The existing test at <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">test/problems/condensed_matter/heisenberg_symmetry.jl</code> (line ~101) exercises the full NPA basis with charge degree 2 for a 16-site system. This test <strong class="text-white">must pass unchanged</strong> after all PRs.</p>
+    <p class="text-sm text-gray-400 mt-2">Since PR 1 adds new code only, PR 2 relaxes a validation check (existing inputs still pass), and PR 3 preserves the existing exhaustive path for degree ≤ 2, backward compatibility is expected.</p>
+  </div>
+
+  <!-- New Tests -->
+  <h3 class="text-lg font-semibold text-gray-200 mb-3">New Tests</h3>
+  <div class="overflow-x-auto mb-6">
+    <table class="w-full text-sm border border-gray-700 rounded-lg overflow-hidden">
+      <thead class="bg-surface-800">
+        <tr>
+          <th class="text-left px-4 py-3 text-gray-400 font-semibold border-b border-gray-700">Test</th>
+          <th class="text-left px-4 py-3 text-gray-400 font-semibold border-b border-gray-700">What it validates</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200">Chain basis size for N=4,6,10 at degrees 1-4</td>
+          <td class="px-4 py-3 text-gray-400">Correct element count: \(1 + N \cdot \sum_{\ell=1}^{d} 3^\ell\)</td>
+        </tr>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200">Chain basis closure under translation</td>
+          <td class="px-4 py-3 text-gray-400">Translating any element yields another element in the basis</td>
+        </tr>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200">Chain basis closure under reflection</td>
+          <td class="px-4 py-3 text-gray-400">Reflecting any element yields another element in the basis</td>
+        </tr>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200">Chain basis closure under sign symmetry</td>
+          <td class="px-4 py-3 text-gray-400">Sign symmetry maps each element to ±1 × (element in basis)</td>
+        </tr>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200">N=4 d=2 solve matches existing order-2 result</td>
+          <td class="px-4 py-3 text-gray-400">End-to-end correctness: sparse basis gives same energy bound as full basis</td>
+        </tr>
+        <tr class="table-row border-b border-gray-700/50">
+          <td class="px-4 py-3 text-gray-200">N=16 d=4 max block size ≤ 30</td>
+          <td class="px-4 py-3 text-gray-400">Symbolic (no solver) check that Wedderburn blocks match Wang et al.</td>
+        </tr>
+        <tr class="table-row">
+          <td class="px-4 py-3 text-gray-200">N=100 d=4 max block size ≤ 31</td>
+          <td class="px-4 py-3 text-gray-400">Symbolic check with timeout annotation (skip if >120s on CI)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Validation Commands -->
+  <h3 class="text-lg font-semibold text-gray-200 mb-3">Validation Commands</h3>
+  <div class="space-y-3">
+    <div class="rounded-lg bg-surface-800 border border-gray-700 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-2 bg-surface-700/50 border-b border-gray-700">
+        <span class="text-xs text-gray-400 font-medium">PR 1 tests only</span>
+        <button onclick="copyCode(this)" class="copy-btn text-xs px-2 py-1 rounded bg-surface-700 text-gray-400 hover:text-white hover:bg-accent-500/30 focus:outline-none focus:ring-2 focus:ring-accent-400" aria-label="Copy command">Copy</button>
+      </div>
+      <pre class="px-4 py-3 text-sm font-mono text-gray-300 overflow-x-auto"><code>julia --project -e 'using Pkg; Pkg.test(test_args=["relaxations/pauli_chains"])'</code></pre>
+    </div>
+
+    <div class="rounded-lg bg-surface-800 border border-gray-700 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-2 bg-surface-700/50 border-b border-gray-700">
+        <span class="text-xs text-gray-400 font-medium">Existing condensed matter tests (backward compat)</span>
+        <button onclick="copyCode(this)" class="copy-btn text-xs px-2 py-1 rounded bg-surface-700 text-gray-400 hover:text-white hover:bg-accent-500/30 focus:outline-none focus:ring-2 focus:ring-accent-400" aria-label="Copy command">Copy</button>
+      </div>
+      <pre class="px-4 py-3 text-sm font-mono text-gray-300 overflow-x-auto"><code>julia --project -e 'using Pkg; Pkg.test(test_args=["problems/condensed_matter"])'</code></pre>
+    </div>
+
+    <div class="rounded-lg bg-surface-800 border border-gray-700 overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-2 bg-surface-700/50 border-b border-gray-700">
+        <span class="text-xs text-gray-400 font-medium">Full test suite</span>
+        <button onclick="copyCode(this)" class="copy-btn text-xs px-2 py-1 rounded bg-surface-700 text-gray-400 hover:text-white hover:bg-accent-500/30 focus:outline-none focus:ring-2 focus:ring-accent-400" aria-label="Copy command">Copy</button>
+      </div>
+      <pre class="px-4 py-3 text-sm font-mono text-gray-300 overflow-x-auto"><code>make test</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ CAVEATS & OPEN QUESTIONS ═══════════════════════════════ -->
+<section id="caveats" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-warn-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    Caveats &amp; Open Questions
+  </h2>
+
+  <div class="space-y-4">
+    <!-- Q1 -->
+    <div class="rounded-xl border border-info-400/30 bg-info-400/5 p-5">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-info-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div>
+          <p class="font-semibold text-info-400 mb-1">Q1: Should the chain basis support open (non-periodic) chains?</p>
+          <p class="text-sm text-gray-300">The triage plan implements periodic chains first. Open boundary conditions change the size formula slightly (boundary sites have fewer neighbors) but are described as a ~5-line extension. No decision has been made on whether to include this in the initial PRs.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="rounded-xl border border-info-400/30 bg-info-400/5 p-5">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-info-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div>
+          <p class="font-semibold text-info-400 mb-1">Q2: What if a user provides an arbitrary sparse basis that isn't "charge-complete"?</p>
+          <p class="text-sm text-gray-300 mb-2">Current code assumes <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">length(charge_words) == length(basis)</code> (square transform). The plan chooses <strong class="text-white">Option A</strong> (conservative): require custom bases to be "charge-complete." Error otherwise.</p>
+          <p class="text-sm text-gray-400"><strong class="text-gray-300">Option B</strong> (rectangular transforms) would require nontrivial Wedderburn changes and is deferred.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q3 -->
+    <div class="rounded-xl border border-warn-400/30 bg-warn-400/5 p-5">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-warn-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div>
+          <p class="font-semibold text-warn-400 mb-1">Q3: Will N=100 d=4 symbolic decomposition complete in &lt;120s?</p>
+          <p class="text-sm text-gray-300">Estimate: 12,000 charge words × 400 group elements = 4.8M operations. Should be feasible but hasn't been profiled. A timeout annotation is recommended. If it exceeds 120s on CI, mark as <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">@test_skip</code>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Q4 -->
+    <div class="rounded-xl border border-info-400/30 bg-info-400/5 p-5">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-info-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <div>
+          <p class="font-semibold text-info-400 mb-1">Q4: Should <code class="text-xs">PauliSingletConstraintSpec.max_degree</code> cap also be lifted?</p>
+          <p class="text-sm text-gray-300">The existing singlet constraint path (<code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">_add_pauli_singlet_constraints!</code>) only handles degree 1-2. Recommendation: lift cap to 4 <strong class="text-white">only when PR 4 (singlet reducer) is implemented</strong>, keeping cap at 2 for the constraint-emission path until then.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk 1 -->
+    <div class="rounded-xl border border-rose-400/30 bg-rose-400/5 p-5">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <div>
+          <p class="font-semibold text-rose-400 mb-1">Risk: Periodic wrapping in charge-word generation</p>
+          <p class="text-sm text-gray-300">Site-subsets like <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">{99, 100, 1, 2}</code> on a 100-site ring must be treated as a valid contiguous-support subset. The charge-word extractor should use the monomial's actual site set (as produced by the chain basis generator), not infer contiguity from monotone ordering. This requires specific test coverage.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk 2 -->
+    <div class="rounded-xl border border-rose-400/30 bg-rose-400/5 p-5">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <div>
+          <p class="font-semibold text-rose-400 mb-1">Risk: Sign symmetry composition with spatial orbits</p>
+          <p class="text-sm text-gray-300">If two monomials with different X+Y parity fall in the same spatial orbit (same site structure under translation/reflection), the orbit reducer would detect a sign conflict and zero the orbit. The triage document asserts this doesn't happen for contiguous chains but recommends defensive testing.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ REVISION TARGETS ═══════════════════════════════ -->
+<section id="revision-targets" class="fade-in">
+  <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+    <svg class="w-6 h-6 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+    Revision Targets
+  </h2>
+  <p class="text-gray-400 mb-6 text-sm">Specific decisions a human reviewer might want to annotate, challenge, or modify.</p>
+
+  <div class="space-y-4">
+    <!-- RT 1 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-1">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">1</span>
+        <div>
+          <p class="font-semibold text-white mb-1">4-PR decomposition vs. fewer PRs</p>
+          <p class="text-sm text-gray-300">Is the overhead of 4 separate PRs justified, or should PRs 2 and 3 be combined since sign symmetry and degree extension are tightly coupled for the N=100 use case?</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RT 2 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-2">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">2</span>
+        <div>
+          <p class="font-semibold text-white mb-1">Degree cap set to 4 vs. arbitrary</p>
+          <p class="text-sm text-gray-300">The plan lifts the cap from 2 to 4. Should it be lifted to an arbitrary degree (with the basis-driven path handling any degree), or is 4 a deliberate ceiling?</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RT 3 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-3">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">3</span>
+        <div>
+          <p class="font-semibold text-white mb-1">Option A (charge-complete requirement) vs. Option B (rectangular transforms)</p>
+          <p class="text-sm text-gray-300">The conservative choice restricts custom bases to charge-complete ones. A reviewer may prefer the more general Option B if downstream Wedderburn changes are tractable.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RT 4 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-4">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">4</span>
+        <div>
+          <p class="font-semibold text-white mb-1">PR 4 marked optional</p>
+          <p class="text-sm text-gray-300">The singlet variable elimination is deferred. If the N=100 SDP is too large without it, PR 4 may actually be required for the stated goal. Should it be re-prioritized?</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RT 5 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-5">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">5</span>
+        <div>
+          <p class="font-semibold text-white mb-1">Open boundary condition deferral</p>
+          <p class="text-sm text-gray-300">The <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">periodic=true</code> default is implemented first. If open chains are needed for other benchmarks in #356, this deferral may need revision.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RT 6 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-6">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">6</span>
+        <div>
+          <p class="font-semibold text-white mb-1">Timeout threshold (120s) for N=100 symbolic test</p>
+          <p class="text-sm text-gray-300">This is an estimate. If CI hardware is significantly slower, the threshold may need adjustment. Should this test be tagged <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">@test_broken</code> vs. <code class="text-xs bg-surface-700 px-1 py-0.5 rounded text-gray-300">@test_skip</code>?</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RT 7 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-7">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">7</span>
+        <div>
+          <p class="font-semibold text-white mb-1">New file vs. extending existing file</p>
+          <p class="text-sm text-gray-300">PR 1 creates a new file <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">src/optimization/pauli_chains.jl</code>. An alternative is adding the constructor directly to <code class="text-xs bg-surface-700 px-1.5 py-0.5 rounded text-gray-300">symmetry.jl</code>. The new-file approach is cleaner for separation of concerns but adds a file to the include chain.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RT 8 -->
+    <div class="rounded-xl bg-surface-800 border border-gray-700 p-5 card-glow" id="rt-8">
+      <div class="flex items-start gap-3">
+        <span class="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">8</span>
+        <div>
+          <p class="font-semibold text-white mb-1">Singlet reducer composition order</p>
+          <p class="text-sm text-gray-300">PR 4 proposes singlet reduction <em>before</em> spatial orbit reduction ("pre-reducer"). The alternative — composing both into a single pass choosing the lexicographically smallest canonical representative — is more complex but potentially more optimal. Should be validated with profiling.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══════════════════════════════ FOOTER ═══════════════════════════════ -->
+<footer class="border-t border-gray-800 mt-16">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <p class="text-sm text-gray-500">Generated by <code class="text-xs bg-surface-800 px-1.5 py-0.5 rounded text-gray-400">/explain-triage</code> · Issue #364</p>
+    <button onclick="window.print()" class="no-print inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-800 border border-gray-700 text-gray-300 hover:text-white hover:border-gray-600 transition-colors text-sm focus:outline-none focus:ring-2 focus:ring-accent-400" aria-label="Print this page">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+      Print
+    </button>
+  </div>
+</footer>
+
+<script>
+function copyCode(btn) {
+  const pre = btn.closest('.rounded-lg').querySelector('pre code');
+  if (!pre) return;
+  const text = pre.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const original = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('text-ok-400');
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('text-ok-400');
+    }, 1500);
+  }).catch(() => {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); btn.textContent = 'Copied!'; } catch(e) { btn.textContent = 'Error'; }
+    document.body.removeChild(ta);
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+  });
+}
+
+// Animate sections on scroll
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('fade-in');
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('section').forEach(s => {
+  s.classList.remove('fade-in');
+  observer.observe(s);
+});
+</script>
+</body>
+</html>

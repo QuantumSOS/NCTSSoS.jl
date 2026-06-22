@@ -65,9 +65,16 @@ A research worktree exists at `NCTSSoS.jl-research-heisenberg-n100-tightening` (
 
 The issue is not a single bug — it's a multi-layered capability gap:
 
-### Layer 1: Dense intermediate representation (blocker for N>16 at order 2)
+### Layer 1: Dense intermediate representation (partially addressed by #363)
 
-The `moment_relax_symmetric` function materializes dense polynomial constraint matrices of size `basis_dim × basis_dim` before extracting the tiny diagonal blocks. At N=20 order 2, the Pauli half-basis has ~6860 entries, yielding ~23.5M matrix entries. Each entry is a symbolic polynomial — memory and time explode. The `_ConstraintMatrixEntryCache` (offblock_check=:off mode) partially mitigates this by computing entries lazily, but the transformation loop still touches O(basis_dim² × group_order) entries.
+PR #363 (`perf(symmetry): speed Pauli charge singlet prep`) landed a substantial optimization that directly targets this bottleneck:
+
+- **`_ConstraintMatrixEntryCache`**: Lazy, on-demand computation of constraint matrix entries — avoids materializing the full O(basis_dim²) dense polynomial matrix.
+- **`_SparseTransformRow`**: Sparse representation of Wedderburn transformation rows, skipping zero coefficients.
+- **Fused orbit reduction during transformation**: `_push_transformed_polynomial_terms!` applies orbit reduction inline instead of in a separate pass.
+- **Deferred dense-matrix construction**: `_build_constraint_matrix` is now called only when `offblock_check ≠ :off`, or for non-charge code paths. The Pauli charge path with `offblock_check=:off` never materializes the dense matrix.
+
+This was ~300 lines of new optimization code. **The current scaling limit with this optimization is unknown — it may already push the boundary past N=16.** Profiling at N=20 is needed to determine whether this is now sufficient or whether further work (e.g., lazy orbit reducer construction, reduced-coordinate basis building) is needed.
 
 ### Layer 2: max_degree=2 cap (blocker for d=3 and d=4)
 
@@ -96,37 +103,36 @@ Wang et al. combine 7 symmetry reductions multiplicatively. NCTSSoS.jl currently
 
 This is too large for a single PR. The recommended path is a sequence of progressively harder, independently valuable milestones.
 
-### Phase 0: Diagnose the N=20 failure (1-2 days)
+### Phase 0: Profile post-#363 scaling (1-2 days)
 
-**Goal**: Identify the exact failure mode when running the existing symmetry pipeline at N=20, order 2.
+**Goal**: Determine the actual scaling limit after the #363 optimizations.
 
-1. Run the perf benchmark script at N=20 with timing:
+PR #363 added the `_ConstraintMatrixEntryCache`, sparse transform rows, and fused orbit reduction. The claim in the issue that "N=20,40,60,100 symmetry runs all FAIL" predates this optimization. The current limit is unknown.
+
+1. Run the perf benchmark script at escalating N:
    ```bash
-   NCTS_PERF_NS=20 julia --project perf/pauli_charge_singlet_prep.jl
+   NCTS_PERF_NS=20,24,32,40 julia --project perf/pauli_charge_singlet_prep.jl
    ```
-2. If it OOMs, profile memory. If it hangs, profile time.
-3. The likely bottleneck is either:
-   - Group enumeration of D₂₀ (40 elements × 6860-dimensional domain)
-   - `_build_orbit_reducer` over the full basis
-   - `_build_constraint_matrix` materializing the dense matrix
-   - Wedderburn decomposition inside `_pauli_charge_transform_groups`
+2. For each N that completes, record: wall time, peak memory, largest block size, number of PSD variables.
+3. For the first N that fails, capture the exact error: OOM, timeout, or exception.
+4. Profile the surviving bottleneck: is it now `_build_orbit_reducer`, `_pauli_charge_transform_groups`, group enumeration, or the `_ConstraintMatrixEntryCache` loop itself?
 
-**Deliverable**: Precise profiling data identifying which function consumes the most time/memory.
+**Deliverable**: A scaling table and the identity of the next bottleneck. This determines whether Phase 1 is a small fix, a big rewrite, or unnecessary.
 
-### Phase 1: Eliminate the dense intermediate (1-2 weeks)
+### Phase 1: Eliminate remaining dense-path bottlenecks (if needed, 1-2 weeks)
 
 **Goal**: Make N=20-40 work at order 2 with existing symmetries.
 
-The `_ConstraintMatrixEntryCache` + `offblock_check=:off` path already avoids materializing the full dense matrix for the Pauli charge path (lines 3416-3421). The work needed:
+Depending on Phase 0 findings, likely candidates:
 
-1. **Make the lazy path the default for Pauli charge problems** — the offblock_check=:off path with `_diagonal_transformed_constraint_blocks` computes only the entries needed for the diagonal blocks. The orbit reducer should also be built lazily or in reduced coordinates.
+1. **Lazy orbit reducer** — `_build_orbit_reducer` iterates over `total_basis`. For large N, this may be the next bottleneck. Build the reducer in reduced coordinates or on-demand.
 
-2. **Build the orbit reducer in reduced coordinates** — `_build_orbit_reducer` currently iterates over `total_basis`, which includes unreduced monomials. For a translation-invariant system, the number of orbit representatives is O(basis_dim / group_order), dramatically smaller.
+2. **Reduced-coordinate charge transformation** — `_pauli_charge_transform_groups` may still materialize O(basis_dim) intermediate structures. Profile and specialize.
 
-3. **Profile and optimize `_pauli_charge_transform_groups`** — this is where the charge-sector splitting meets the spatial Wedderburn decomposition. Ensure it doesn't materialize basis_dim² intermediate data.
+3. **SymbolicWedderburn scaling** — the Wedderburn decomposition of D_N (order 2N) over the charge-sector basis may have quadratic overhead. For Abelian subgroups (pure translations), the decomposition should be exact DFT.
 
 **Files likely to change**:
-- `src/optimization/symmetry.jl`: `_build_orbit_reducer`, `moment_relax_symmetric`, `_pauli_charge_transform_groups`, `_diagonal_transformed_constraint_blocks`
+- `src/optimization/symmetry.jl`: `_build_orbit_reducer`, `_pauli_charge_transform_groups`
 
 **Regression tests**:
 - Extend the N=16 size evidence test to N=20, N=40 (symbolic only, no solve)
@@ -216,23 +222,21 @@ This implements the approach of Araujo (2023) and Fawzi (2024), adding first-ord
 
 | Phase | N target | Order | Max block | Comparable to |
 |-------|----------|-------|-----------|---------------|
-| 0 | Diagnose N=20 failure | — | — | Understanding |
-| 1 | N=20-40, order 2 | 2 | ~24 (N=16 reference) | Current capability, working |
+| 0 | Profile post-#363 limit | — | — | Determine new frontier |
+| 1 | N=20-40, order 2 (if 0 shows they still fail) | 2 | ~24 (N=16 reference) | Current capability, working |
 | 2 | N=20, order 3-4 | 3-4 | TBD | Wang 2024 at small N |
 | 1+2+3 | N=40-60, order 3-4 | 3-4 | TBD | Wang 2024 at medium N |
 | 1+2+3+4+5 | N=100, order 4 | 4 | ~31 | Wang 2025 Table 1 |
 
-## Step-by-Step Implementation Plan (Phase 0+1)
+## Step-by-Step Implementation Plan (Phase 0)
 
-These are the concrete next steps that should be tackled first:
+These are the concrete next steps:
 
-1. **Profile N=20 failure**: Run `perf/pauli_charge_singlet_prep.jl` at N=20. Capture the exact error or timeout.
-2. **Identify the O(N⁴) bottleneck location**: Is it `_build_orbit_reducer`, `_build_constraint_matrix`, `_pauli_charge_transform_groups`, or the Wedderburn decomposition?
-3. **Implement lazy orbit reduction**: Build the orbit representative map only for monomials that appear in the reduced blocks, not the full basis.
-4. **Test `offblock_check=:off` + `_ConstraintMatrixEntryCache` at N=20**: Verify this path works end-to-end.
-5. **Add N=20 symbolic size evidence test** to `test/problems/condensed_matter/heisenberg_symmetry.jl`.
-6. **Add N=40 symbolic size evidence test** (same file).
-7. **Benchmark end-to-end Mosek solve at N=20, order 2** with charge+spatial+singlet.
+1. **Profile post-#363 scaling**: Run `NCTS_PERF_NS=20,24,32,40 julia --project perf/pauli_charge_singlet_prep.jl`. This is the single most important action — it determines everything downstream.
+2. **If N=20 works**: push to N=40, N=60, N=100. Record the wall time and peak memory at each.
+3. **If N=20 still fails**: profile to find the surviving bottleneck. The `_ConstraintMatrixEntryCache` path should avoid the dense matrix, so the bottleneck is likely elsewhere (orbit reducer, group enumeration, charge transform groups).
+4. **Add size evidence tests** for the largest N that completes, to `test/problems/condensed_matter/heisenberg_symmetry.jl`.
+5. **Benchmark end-to-end Mosek solve** at the largest tractable N, order 2, with charge+spatial+singlet.
 
 ## Files Likely to Change
 
@@ -274,23 +278,13 @@ NCTS_PERF_NS=8,12,16,20 julia --project perf/pauli_charge_singlet_prep.jl
 
 ## Open Questions
 
-### Q1: What is the exact failure mode at N=20?
+### Q1: What is the post-#363 scaling limit?
 
-**What we know**: The issue says "adapter not working at these sizes." The N=16 evidence test runs successfully (symbolic only, 2147s with Mosek solve). The perf script (`perf/pauli_charge_singlet_prep.jl`) supports `NCTS_PERF_NS=8,12,16` by default.
+**What we know**: PR #363 landed the `_ConstraintMatrixEntryCache`, sparse transform rows, and fused orbit reduction. The issue's claim that N=20+ fails predates this work. The N=16 evidence test existed before #363.
 
-**What is ambiguous**: Is the failure an OOM, a timeout, an error, or a numerical issue? The answer determines whether Phase 1 is a memory optimization, a time optimization, or a correctness fix.
+**What is ambiguous**: Whether #363 pushed the frontier past N=20 or only made N=16 faster. The perf script `perf/pauli_charge_singlet_prep.jl` was added/extended in #363 and supports arbitrary N via `NCTS_PERF_NS`.
 
-**Options**:
-- (a) Run the perf benchmark at N=20 and capture the failure → determines Phase 1 scope
-- (b) Try `optimizer=nothing` at N=20 to see if the symbolic reduction completes → isolates solver vs. symbolic issue
-
-### Q2: Does the research worktree contain relevant progress?
-
-**What we know**: `NCTSSoS.jl-research-heisenberg-n100-tightening` exists, branched after the charge/singlet feature (#360). It has 10 commits visible.
-
-**What is ambiguous**: Whether it contains partial implementations of sign symmetry, higher-degree charge, or the dense-intermediate fix.
-
-**Action**: Check the research worktree for progress before starting Phase 1 implementation.
+**Action**: Run `NCTS_PERF_NS=20,24,32,40 julia --project perf/pauli_charge_singlet_prep.jl` and report the results. This is the single highest-priority action.
 
 ### Q3: Is the Wang et al. DFT-based translation invariance fundamentally different from Wedderburn on Z_N?
 

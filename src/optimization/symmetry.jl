@@ -2117,11 +2117,27 @@ function _sparse_transform_rows(U::AbstractMatrix{C}; atol::Float64=_SYMMETRY_AT
         coeffs = C[]
         for a in axes(U, 2)
             coeff = U[i, a]
-            iszero(coeff) && continue
+            abs(coeff) <= atol && continue
             push!(indices, Int(a))
             push!(coeffs, coeff)
         end
         rows[rowpos] = _SparseTransformRow(indices, coeffs)
+    end
+    return rows
+end
+
+function _sparse_transform_rows(U::SparseMatrixCSC{C,Ti}; atol::Float64=_SYMMETRY_ATOL) where {C<:Number,Ti<:Integer}
+    rows = [_SparseTransformRow(Int[], C[]) for _ in 1:size(U, 1)]
+    row_indices = rowvals(U)
+    values = nonzeros(U)
+    for col in 1:size(U, 2)
+        for nz_idx in nzrange(U, col)
+            coeff = values[nz_idx]
+            abs(coeff) <= atol && continue
+            row = rows[row_indices[nz_idx]]
+            push!(row.indices, col)
+            push!(row.coeffs, coeff)
+        end
     end
     return rows
 end
@@ -2953,14 +2969,13 @@ function _pauli_charge_word_expansion(::Type{T}, word::_PauliChargeWord) where {
     return terms
 end
 
-function _pauli_charge_transform_row(
+function _pauli_charge_transform_entries(
     ::Type{T},
     word::_PauliChargeWord,
-    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int},
-    ncols::Integer;
+    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {T<:Integer}
-    row = zeros(ComplexF64, ncols)
+    entries = Tuple{Int,ComplexF64}[]
     for (mono, coef) in _pauli_charge_word_expansion(T, word)
         abs(coef) <= atol && continue
         idx = get(basis_index, mono, 0)
@@ -2969,9 +2984,47 @@ function _pauli_charge_transform_row(
         ))
         # _transform_polynomial_block computes U * M * U'. Store conjugated
         # operator coefficients so the transformed entry is <Oᵢ† Oⱼ>.
-        row[idx] += conj(coef)
+        push!(entries, (idx, conj(coef)))
+    end
+    sort!(entries; by=first)
+    return entries
+end
+
+function _pauli_charge_transform_row(
+    ::Type{T},
+    word::_PauliChargeWord,
+    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int},
+    ncols::Integer;
+    atol::Float64=_SYMMETRY_ATOL,
+) where {T<:Integer}
+    row = zeros(ComplexF64, ncols)
+    for (idx, coef) in _pauli_charge_transform_entries(T, word, basis_index; atol)
+        row[idx] += coef
     end
     return row
+end
+
+function _pauli_charge_sector_rows(
+    row_entries::AbstractVector{<:AbstractVector{Tuple{Int,ComplexF64}}},
+    ncols::Integer,
+)
+    nnz_estimate = sum(length, row_entries; init=0)
+    row_indices = Int[]
+    col_indices = Int[]
+    values = ComplexF64[]
+    sizehint!(row_indices, nnz_estimate)
+    sizehint!(col_indices, nnz_estimate)
+    sizehint!(values, nnz_estimate)
+
+    for (row, entries) in pairs(row_entries)
+        for (col, coef) in entries
+            push!(row_indices, row)
+            push!(col_indices, col)
+            push!(values, coef)
+        end
+    end
+
+    return sparse(row_indices, col_indices, values, length(row_entries), Int(ncols))
 end
 
 function _pauli_monomial_charge_components(mono::NormalMonomial{PauliAlgebra,T}) where {T<:Integer}
@@ -3199,13 +3252,13 @@ function _pauli_charge_transform_groups(
 
     basis_index = Dict{NormalMonomial{PauliAlgebra,T},Int}(mono => i for (i, mono) in enumerate(basis))
     words_by_charge = Dict{Int,Vector{_PauliChargeWord}}()
-    rows_by_charge = Dict{Int,Vector{Vector{ComplexF64}}}()
+    rows_by_charge = Dict{Int,Vector{Vector{Tuple{Int,ComplexF64}}}}()
 
     for word in charge_words
-        row = _pauli_charge_transform_row(T, word, basis_index, length(basis); atol)
+        row = _pauli_charge_transform_entries(T, word, basis_index; atol)
         charge = _pauli_charge(word)
         push!(get!(words_by_charge, charge, _PauliChargeWord[]), word)
-        push!(get!(rows_by_charge, charge, Vector{ComplexF64}[]), row)
+        push!(get!(rows_by_charge, charge, Vector{Tuple{Int,ComplexF64}}[]), row)
     end
 
     transform_groups = Vector{Vector{_BasisTransformBlock}}()
@@ -3213,8 +3266,8 @@ function _pauli_charge_transform_groups(
 
     for charge in sort!(collect(keys(words_by_charge)))
         sector_words = words_by_charge[charge]
-        sector_rows = reduce(vcat, (reshape(row, 1, :) for row in rows_by_charge[charge]))
         sector_dim = length(sector_words)
+        sector_rows = _pauli_charge_sector_rows(rows_by_charge[charge], length(basis))
 
         if isnothing(sw_group) || sector_dim == 1 || _pauli_charge_basis_action_is_scalar(sector_words, sw_group)
             label = PauliChargeBlockLabel(charge, nothing, group_order, sector_dim)

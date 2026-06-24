@@ -151,3 +151,31 @@ end
     @test block_variable_count < 637885 ÷ 100
     @test Set(block.label.charge for group in charge_groups for block in group) == Set(-2:2)
 end
+
+@testset "16-site sparse degree-4 Heisenberg charge/sign size evidence" begin
+    n_ring = 16
+    registry, _ = create_pauli_variables(1:n_ring)
+    basis = pauli_contiguous_chain_basis(registry, 4)
+
+    translation = pauli_site_permutation([2:n_ring; 1])
+    reflection = pauli_site_permutation(reverse(1:n_ring))
+    sign = pauli_sign_symmetry(n_ring; integer_type=eltype(basis[1].word))
+    sw_group = CliffordSymmetryGroup(
+        [translation, reflection, sign];
+        nqubits=n_ring,
+        integer_type=eltype(basis[1].word),
+    )
+    charge_groups = NCTSSoS._pauli_charge_transform_groups(
+        basis,
+        PauliChargeSectorSpec(nqubits=n_ring, max_degree=4),
+        sw_group,
+    )
+    block_sizes = [size(block.row_basis, 1) for group in charge_groups for block in group]
+    block_variable_count = sum(size * (size + 1) ÷ 2 for size in block_sizes)
+
+    @test length(basis) == 1 + n_ring * (3 + 9 + 27 + 81)
+    @test length(sw_group) == 64
+    @test maximum(block_sizes) == 30
+    @test block_variable_count < length(basis) * (length(basis) + 1) ÷ 200
+    @test Set(block.label.charge for group in charge_groups for block in group) == Set(-4:4)
+end

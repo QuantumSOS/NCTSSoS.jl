@@ -130,10 +130,9 @@ obj = objective_value(sos.model)
 See also: [`MomentProblem`](@ref), [`moment_relax`](@ref), [`SOSProblem`](@ref)
 """
 function sos_dualize(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
-    # Determine if complex based on algebra type
-    is_complex = _is_complex_problem(A)
-
-    if is_complex
+    if _is_real_moment_problem(mp)
+        return _sos_dualize_real(mp)
+    elseif _is_complex_problem(A)
         return _sos_dualize_hermitian(mp)
     else
         return _sos_dualize_real(mp)

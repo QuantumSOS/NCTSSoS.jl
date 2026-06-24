@@ -87,12 +87,14 @@ function MomentProblem{A,T,M,P}(
     total_basis::Vector{M},
     n_unique_moment_matrix_elements::Integer;
     block_meta_by_constraint::AbstractDict{Int,BlockMeta{M}}=Dict{Int,BlockMeta{M}}(),
+    real_moments::Bool=false,
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P<:Polynomial{A,T}}
     linear = _build_moment_linear_data(
         objective,
         constraints,
         total_basis;
         block_meta_by_constraint=block_meta_by_constraint,
+        real_moments=real_moments,
     )
     return _moment_problem_with_linear(
         A,
@@ -127,14 +129,26 @@ function MomentProblem(
     objective::P,
     constraints::Vector{Tuple{Symbol,Matrix{P}}},
     total_basis::Vector{M},
-    n_unique_moment_matrix_elements::Integer,
+    n_unique_moment_matrix_elements::Integer;
+    real_moments::Bool=false,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T},P<:Polynomial{A,T,C}}
     return MomentProblem{A,T,M,P}(
         objective,
         constraints,
         total_basis,
-        n_unique_moment_matrix_elements,
+        n_unique_moment_matrix_elements;
+        real_moments=real_moments,
     )
+end
+
+_moment_problem_linear_coeff_type(::MomentProblem{A,T,M,P,K,LC}) where {A,T,M,P,K,LC} = LC
+
+function _is_real_moment_problem(mp::MomentProblem)
+    _moment_problem_linear_coeff_type(mp) <: Real || return false
+    for (cone, _) in mp.constraints
+        (cone == :Zero || cone == :PSD) || return false
+    end
+    return true
 end
 
 # Value-equal to `symmetric_canon(expval(mono))` (a StateSymbol{Arbitrary}
@@ -255,7 +269,7 @@ function _append_zero_linear_constraints!(
     constraint_idx::Int,
     mat::Matrix{P},
 ) where {A<:AlgebraType,K,C,T<:Integer,PC<:Number,P<:Polynomial{A,T,PC}}
-    if _is_complex_problem(A)
+    if _is_complex_problem(A) && !(C <: Real)
         size(mat, 1) == size(mat, 2) || throw(DimensionMismatch(
             "complex Zero constraint $constraint_idx must be square, got $(size(mat))"
         ))
@@ -376,10 +390,14 @@ function _build_moment_linear_data(
     constraints::Vector{Tuple{Symbol,Matrix{P}}},
     total_basis::Vector{M};
     block_meta_by_constraint::AbstractDict{Int,BlockMeta{M}}=Dict{Int,BlockMeta{M}}(),
+    real_moments::Bool=false,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T},P<:Polynomial{A,T,C}}
+    if real_moments && !(C <: Real)
+        throw(ArgumentError("real_moments=true requires real polynomial coefficients, got $C."))
+    end
     identity = symmetric_canon(expval(one(M)))
     K = typeof(identity)
-    LC = _moment_linear_coeff_type(A, C)
+    LC = real_moments ? _moment_linear_half_safe_real_type(C) : _moment_linear_coeff_type(A, C)
 
     key_to_monomial = Dict{K,M}()
     _register_moment_key!(key_to_monomial, convert(K, identity), one(M))
@@ -1191,7 +1209,12 @@ function _checked_symmetric(mat::AbstractMatrix; context::AbstractString="PSD co
 
     for col in axes(mat, 2)
         for row in first(axes(mat, 1)):(col - 1)
-            diff = JuMP.simplify(mat[row, col] - mat[col, row])
+            diff = mat[row, col] - mat[col, row]
+            iszero(diff) || (diff = try
+                JuMP.simplify(diff)
+            catch err
+                diff
+            end)
             iszero(diff) || throw(ArgumentError(
                 "$context is not symmetric at entries ($row, $col) and ($col, $row); " *
                 "refusing to wrap it in Symmetric(...) and hide the mismatch."

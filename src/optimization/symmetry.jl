@@ -848,16 +848,19 @@ end
 
 U(1) charge-sector split for Pauli moment bases.
 
-The implementation is intentionally narrow: it supports complete Pauli
-half-bases through degree 2, using the local charge basis `{Z, S⁺, S⁻}` with
-`q(Z)=0`, `q(S⁺)=+1`, and `q(S⁻)=-1`. When finite Pauli symmetries are also
-supplied, they must be spatial [`CliffordSymmetry`](@ref) actions such as those
-created by [`pauli_site_permutation`](@ref).
+The implementation uses the local charge basis `{Z, S⁺, S⁻}` with
+`q(Z)=0`, `q(S⁺)=+1`, and `q(S⁻)=-1`. Complete Pauli half-bases through degree
+2 use the exhaustive charge basis; sparse higher-degree bases must be
+charge-complete, i.e. include every Pauli word for each support subset they use.
+When finite Pauli symmetries are also supplied, they must map charge words to
+scalar ±1 multiples of same-charge words, such as [`pauli_site_permutation`](@ref)
+or [`pauli_sign_symmetry`](@ref).
 
 # Keywords
 - `nqubits`: explicit site count. If omitted, NCTSSoS infers it from the active
   Pauli basis.
-- `max_degree`: charge-basis degree to build; currently `0`, `1`, or `2`.
+- `max_degree`: charge-basis degree to build; higher degrees use the supplied
+  moment basis to avoid exhaustive site-combination generation.
 
 Objectives and constraints must be charge-neutral, otherwise the symmetric
 relaxation errors before model construction.
@@ -1017,8 +1020,8 @@ struct SymmetrySpec
         !isempty(clifford_generators) && (!isnothing(sector) || !isnothing(spin_adaptation)) && throw(ArgumentError(
             "Fermionic sector splitting / spin adaptation cannot be combined with `CliffordSymmetry` symmetry."
         ))
-        (isnothing(pauli_charge) || pauli_charge.max_degree in 0:2) || throw(ArgumentError(
-            "`PauliChargeSectorSpec` currently supports `max_degree` in 0:2; got $(pauli_charge.max_degree)."
+        (isnothing(pauli_charge) || pauli_charge.max_degree >= 0) || throw(ArgumentError(
+            "`PauliChargeSectorSpec.max_degree` must be nonnegative; got $(pauli_charge.max_degree)."
         ))
         (isnothing(pauli_singlet) || pauli_singlet.max_degree in 0:2) || throw(ArgumentError(
             "`PauliSingletConstraintSpec` currently supports `max_degree` in 0:2; got $(pauli_singlet.max_degree)."
@@ -1219,7 +1222,17 @@ struct NCFermionicModePermutationAction{T<:Integer} <: SymbolicWedderburn.BySign
 
 struct NCPauliCliffordAction{T<:Integer} <: SymbolicWedderburn.BySignedPermutations end
 
-struct NCPauliChargeSpatialAction <: SymbolicWedderburn.BySignedPermutations end
+struct _PauliChargeAxisMap
+    targets::Vector{Int}
+    xy_signs::Vector{Int}
+    z_signs::Vector{Int}
+end
+
+struct NCPauliChargeSpatialAction <: SymbolicWedderburn.BySignedPermutations
+    axis_maps::Dict{Any,_PauliChargeAxisMap}
+end
+
+NCPauliChargeSpatialAction() = NCPauliChargeSpatialAction(Dict{Any,_PauliChargeAxisMap}())
 
 struct _FiniteSymmetryGroup{G,T<:Integer} <: GroupsCore.Group
     domain::Vector{T}
@@ -2104,11 +2117,27 @@ function _sparse_transform_rows(U::AbstractMatrix{C}; atol::Float64=_SYMMETRY_AT
         coeffs = C[]
         for a in axes(U, 2)
             coeff = U[i, a]
-            iszero(coeff) && continue
+            abs(coeff) <= atol && continue
             push!(indices, Int(a))
             push!(coeffs, coeff)
         end
         rows[rowpos] = _SparseTransformRow(indices, coeffs)
+    end
+    return rows
+end
+
+function _sparse_transform_rows(U::SparseMatrixCSC{C,Ti}; atol::Float64=_SYMMETRY_ATOL) where {C<:Number,Ti<:Integer}
+    rows = [_SparseTransformRow(Int[], C[]) for _ in 1:size(U, 1)]
+    row_indices = rowvals(U)
+    values = nonzeros(U)
+    for col in 1:size(U, 2)
+        for nz_idx in nzrange(U, col)
+            coeff = values[nz_idx]
+            abs(coeff) <= atol && continue
+            row = rows[row_indices[nz_idx]]
+            push!(row.indices, col)
+            push!(row.coeffs, coeff)
+        end
     end
     return rows
 end
@@ -2774,8 +2803,8 @@ Base.isless(a::_PauliChargeWord, b::_PauliChargeWord) = isless(a.ops, b.ops)
 @inline _pauli_charge_degree(word::_PauliChargeWord) = length(word.ops)
 
 function _validate_pauli_charge_spec(spec::PauliChargeSectorSpec)
-    spec.max_degree in 0:2 || throw(ArgumentError(
-        "`PauliChargeSectorSpec` currently supports `max_degree` in 0:2; got $(spec.max_degree)."
+    spec.max_degree >= 0 || throw(ArgumentError(
+        "`PauliChargeSectorSpec.max_degree` must be nonnegative; got $(spec.max_degree)."
     ))
     (isnothing(spec.nqubits) || spec.nqubits > 0) || throw(ArgumentError(
         "`PauliChargeSectorSpec.nqubits` must be positive when supplied; got $(spec.nqubits)."
@@ -2819,7 +2848,7 @@ end
 function _pauli_charge_words(nqubits::Integer, max_degree::Integer)
     n = _clifford_validate_nqubits(nqubits)
     d = Int(max_degree)
-    d in 0:2 || throw(ArgumentError("Pauli charge basis currently supports degree 0, 1, or 2; got $d."))
+    d in 0:2 || throw(ArgumentError("Exhaustive Pauli charge basis generation supports degree 0, 1, or 2; got $d."))
 
     ops = (_PAULI_CHARGE_Z, _PAULI_CHARGE_SP, _PAULI_CHARGE_SM)
     words = _PauliChargeWord[_PauliChargeWord(())]
@@ -2835,6 +2864,65 @@ function _pauli_charge_words(nqubits::Integer, max_degree::Integer)
     end
 
     return words
+end
+
+function _pauli_charge_support(mono::NormalMonomial{PauliAlgebra})
+    sites = Int[_pauli_site(idx) for idx in mono.word]
+    sort!(sites)
+    return Tuple(sites)
+end
+
+function _pauli_charge_words_for_support(support::Tuple)
+    ops = (_PAULI_CHARGE_Z, _PAULI_CHARGE_SP, _PAULI_CHARGE_SM)
+    words = _PauliChargeWord[]
+    nops = length(support)
+    sizehint!(words, 3^nops)
+    for code in 0:(3^nops - 1)
+        value = code
+        entries = Vector{Tuple{Int,Int8}}(undef, nops)
+        @inbounds for i in 1:nops
+            op = ops[(value % 3) + 1]
+            value ÷= 3
+            entries[i] = (Int(support[i]), op)
+        end
+        push!(words, _PauliChargeWord(Tuple(entries)))
+    end
+    return words
+end
+
+function _pauli_charge_words_from_basis(
+    basis::AbstractVector{<:NormalMonomial{PauliAlgebra}},
+    max_degree::Integer,
+)
+    d = Int(max_degree)
+    d >= 0 || throw(ArgumentError("Pauli charge basis degree must be nonnegative; got $d."))
+
+    supports = Set{Tuple}()
+    for mono in basis
+        degree(mono) <= d || continue
+        push!(supports, _pauli_charge_support(mono))
+    end
+
+    words = Set{_PauliChargeWord}()
+    for support in supports
+        for word in _pauli_charge_words_for_support(support)
+            push!(words, word)
+        end
+    end
+    return sort!(collect(words))
+end
+
+function _pauli_charge_words_for_basis(
+    basis::Vector{NormalMonomial{PauliAlgebra,T}},
+    nqubits::Integer,
+    max_degree::Integer,
+) where {T<:Integer}
+    d = Int(max_degree)
+    if d <= 2
+        exhaustive = _pauli_charge_words(nqubits, d)
+        length(exhaustive) == length(basis) && return exhaustive
+    end
+    return _pauli_charge_words_from_basis(basis, d)
 end
 
 function _pauli_charge_insert_op(word::_PauliChargeWord, site::Integer, op::Int8)
@@ -2881,14 +2969,13 @@ function _pauli_charge_word_expansion(::Type{T}, word::_PauliChargeWord) where {
     return terms
 end
 
-function _pauli_charge_transform_row(
+function _pauli_charge_transform_entries(
     ::Type{T},
     word::_PauliChargeWord,
-    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int},
-    ncols::Integer;
+    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {T<:Integer}
-    row = zeros(ComplexF64, ncols)
+    entries = Tuple{Int,ComplexF64}[]
     for (mono, coef) in _pauli_charge_word_expansion(T, word)
         abs(coef) <= atol && continue
         idx = get(basis_index, mono, 0)
@@ -2897,9 +2984,47 @@ function _pauli_charge_transform_row(
         ))
         # _transform_polynomial_block computes U * M * U'. Store conjugated
         # operator coefficients so the transformed entry is <Oᵢ† Oⱼ>.
-        row[idx] += conj(coef)
+        push!(entries, (idx, conj(coef)))
+    end
+    sort!(entries; by=first)
+    return entries
+end
+
+function _pauli_charge_transform_row(
+    ::Type{T},
+    word::_PauliChargeWord,
+    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int},
+    ncols::Integer;
+    atol::Float64=_SYMMETRY_ATOL,
+) where {T<:Integer}
+    row = zeros(ComplexF64, ncols)
+    for (idx, coef) in _pauli_charge_transform_entries(T, word, basis_index; atol)
+        row[idx] += coef
     end
     return row
+end
+
+function _pauli_charge_sector_rows(
+    row_entries::AbstractVector{<:AbstractVector{Tuple{Int,ComplexF64}}},
+    ncols::Integer,
+)
+    nnz_estimate = sum(length, row_entries; init=0)
+    row_indices = Int[]
+    col_indices = Int[]
+    values = ComplexF64[]
+    sizehint!(row_indices, nnz_estimate)
+    sizehint!(col_indices, nnz_estimate)
+    sizehint!(values, nnz_estimate)
+
+    for (row, entries) in pairs(row_entries)
+        for (col, coef) in entries
+            push!(row_indices, row)
+            push!(col_indices, col)
+            push!(values, coef)
+        end
+    end
+
+    return sparse(row_indices, col_indices, values, length(row_entries), Int(ncols))
 end
 
 function _pauli_monomial_charge_components(mono::NormalMonomial{PauliAlgebra,T}) where {T<:Integer}
@@ -2987,35 +3112,99 @@ function _pauli_spatial_permutation(g::CliffordSymmetry)
     return perm
 end
 
-function _validate_pauli_spatial_group(group::AbstractVector{<:CliffordSymmetry})
+function _pauli_charge_axis_map(g::CliffordSymmetry)
+    targets = Vector{Int}(undef, g.nqubits)
+    xy_signs = Vector{Int}(undef, g.nqubits)
+    z_signs = Vector{Int}(undef, g.nqubits)
+
+    for site in 1:g.nqubits
+        target_site = 0
+        x_sign = 0
+        y_sign = 0
+        z_sign = 0
+        for pauli_type in (_PAULI_X_TYPE, _PAULI_Y_TYPE, _PAULI_Z_TYPE)
+            sign, image = _clifford_letter_action(g, site, pauli_type)
+            length(image.word) == 1 || return nothing
+            idx = only(image.word)
+            _pauli_type(idx) == pauli_type || return nothing
+            image_site = _pauli_site(idx)
+            if target_site == 0
+                target_site = image_site
+            else
+                target_site == image_site || return nothing
+            end
+            if pauli_type == _PAULI_X_TYPE
+                x_sign = sign
+            elseif pauli_type == _PAULI_Y_TYPE
+                y_sign = sign
+            else
+                z_sign = sign
+            end
+        end
+
+        x_sign == y_sign || return nothing
+        targets[site] = target_site
+        xy_signs[site] = x_sign
+        z_signs[site] = z_sign
+    end
+
+    sort(targets) == collect(1:g.nqubits) || return nothing
+    return _PauliChargeAxisMap(targets, xy_signs, z_signs)
+end
+
+function _validate_pauli_charge_compatible_group(group::AbstractVector{<:CliffordSymmetry})
     for g in group
-        isnothing(_pauli_spatial_permutation(g)) && throw(ArgumentError(
-            "Pauli charge/SU(2) reductions may only be combined with spatial Clifford symmetries that preserve Pauli axes and permute sites. Got $g."
+        isnothing(_pauli_charge_axis_map(g)) && throw(ArgumentError(
+            "Pauli charge/SU(2) reductions may only be combined with charge-compatible Clifford symmetries " *
+            "that map each `{Z,S⁺,S⁻}` charge word to a scalar ±1 multiple of a same-charge word. " *
+            "Use `pauli_site_permutation` for spatial actions or `pauli_sign_symmetry` for the global sign action. Got $g."
         ))
     end
     return nothing
 end
 
-function _pauli_charge_word_image(perm::AbstractVector{<:Integer}, word::_PauliChargeWord)
-    mapped = [(Int(perm[site]), Int8(op)) for (site, op) in word.ops]
+function _pauli_charge_word_image(axis_map::_PauliChargeAxisMap, word::_PauliChargeWord)
+    mapped = Vector{Tuple{Int,Int8}}(undef, length(word.ops))
+    sign = 1
+    for (i, (site, op_raw)) in pairs(word.ops)
+        op = Int8(op_raw)
+        sign *= op == _PAULI_CHARGE_Z ? axis_map.z_signs[site] : axis_map.xy_signs[site]
+        mapped[i] = (axis_map.targets[site], op)
+    end
     sort!(mapped; by=first)
-    return _PauliChargeWord(Tuple(mapped))
+    return _PauliChargeWord(Tuple(mapped)), sign
+end
+
+function _pauli_charge_word_image(perm::AbstractVector{<:Integer}, word::_PauliChargeWord)
+    n = length(perm)
+    axis_map = _PauliChargeAxisMap(Int.(perm), ones(Int, n), ones(Int, n))
+    return _pauli_charge_word_image(axis_map, word)
 end
 
 function _pauli_charge_word_image(g::CliffordSymmetry, word::_PauliChargeWord)
-    perm = _pauli_spatial_permutation(g)
-    isnothing(perm) && throw(ArgumentError(
-        "Pauli charge-sector finite reduction received a non-spatial Clifford group element $g."
+    axis_map = _pauli_charge_axis_map(g)
+    isnothing(axis_map) && throw(ArgumentError(
+        "Pauli charge-sector finite reduction received a Clifford group element that is not charge-compatible: $g."
     ))
-    return _pauli_charge_word_image(perm, word)
+    return _pauli_charge_word_image(axis_map, word)
+end
+
+function _charge_axis_map!(action::NCPauliChargeSpatialAction, g::CliffordSymmetry)
+    return get!(action.axis_maps, g) do
+        axis_map = _pauli_charge_axis_map(g)
+        isnothing(axis_map) && throw(ArgumentError(
+            "Pauli charge-sector finite reduction received a Clifford group element that is not charge-compatible: $g."
+        ))
+        axis_map
+    end
 end
 
 function SymbolicWedderburn.action(
-    ::NCPauliChargeSpatialAction,
+    action::NCPauliChargeSpatialAction,
     g::CliffordSymmetryGroupElement,
     word::_PauliChargeWord,
 )
-    return _pauli_charge_word_image(_clifford_group_value(g), word), 1
+    return _pauli_charge_word_image(_charge_axis_map!(action, _clifford_group_value(g)), word)
 end
 
 function _sw_decompose_charge_basis(basis::Vector{_PauliChargeWord}, group::CliffordSymmetryGroup)
@@ -3023,9 +3212,20 @@ function _sw_decompose_charge_basis(basis::Vector{_PauliChargeWord}, group::Clif
     return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
 end
 
-function _pauli_charge_basis_action_is_trivial(basis::AbstractVector{_PauliChargeWord}, sw_group::CliffordSymmetryGroup)
-    for g in _sw_action_elements(sw_group), word in basis
-        _pauli_charge_word_image(g, word) == word || return false
+function _pauli_charge_basis_action_is_scalar(basis::AbstractVector{_PauliChargeWord}, sw_group::CliffordSymmetryGroup)
+    for g in _sw_action_elements(sw_group)
+        axis_map = _pauli_charge_axis_map(g)
+        isnothing(axis_map) && return false
+        scalar_sign = nothing
+        for word in basis
+            image, sign = _pauli_charge_word_image(axis_map, word)
+            image == word || return false
+            if isnothing(scalar_sign)
+                scalar_sign = sign
+            else
+                scalar_sign == sign || return false
+            end
+        end
     end
     return true
 end
@@ -3044,21 +3244,21 @@ function _pauli_charge_transform_groups(
     )
     nqubits = _pauli_spec_nqubits(spec.nqubits, inferred_nqubits, context)
     degree_limit = min(spec.max_degree, maximum(degree, basis; init=0))
-    charge_words = _pauli_charge_words(nqubits, degree_limit)
+    charge_words = _pauli_charge_words_for_basis(basis, nqubits, degree_limit)
     length(charge_words) == length(basis) || throw(ArgumentError(
-        "$context needs the complete Pauli half-basis through degree $degree_limit on $nqubits qubits. " *
-        "Expected $(length(charge_words)) basis elements but got $(length(basis))."
+        "$context needs a charge-complete Pauli basis through degree $degree_limit on $nqubits qubits. " *
+        "Expected $(length(charge_words)) charge words from the active supports but got $(length(basis)) basis elements."
     ))
 
     basis_index = Dict{NormalMonomial{PauliAlgebra,T},Int}(mono => i for (i, mono) in enumerate(basis))
     words_by_charge = Dict{Int,Vector{_PauliChargeWord}}()
-    rows_by_charge = Dict{Int,Vector{Vector{ComplexF64}}}()
+    rows_by_charge = Dict{Int,Vector{Vector{Tuple{Int,ComplexF64}}}}()
 
     for word in charge_words
-        row = _pauli_charge_transform_row(T, word, basis_index, length(basis); atol)
+        row = _pauli_charge_transform_entries(T, word, basis_index; atol)
         charge = _pauli_charge(word)
         push!(get!(words_by_charge, charge, _PauliChargeWord[]), word)
-        push!(get!(rows_by_charge, charge, Vector{ComplexF64}[]), row)
+        push!(get!(rows_by_charge, charge, Vector{Tuple{Int,ComplexF64}}[]), row)
     end
 
     transform_groups = Vector{Vector{_BasisTransformBlock}}()
@@ -3066,10 +3266,10 @@ function _pauli_charge_transform_groups(
 
     for charge in sort!(collect(keys(words_by_charge)))
         sector_words = words_by_charge[charge]
-        sector_rows = reduce(vcat, (reshape(row, 1, :) for row in rows_by_charge[charge]))
         sector_dim = length(sector_words)
+        sector_rows = _pauli_charge_sector_rows(rows_by_charge[charge], length(basis))
 
-        if isnothing(sw_group) || sector_dim == 1 || _pauli_charge_basis_action_is_trivial(sector_words, sw_group)
+        if isnothing(sw_group) || sector_dim == 1 || _pauli_charge_basis_action_is_scalar(sector_words, sw_group)
             label = PauliChargeBlockLabel(charge, nothing, group_order, sector_dim)
             push!(transform_groups, [_BasisTransformBlock(sector_rows, label, :charge_sector)])
         else
@@ -3278,7 +3478,7 @@ function moment_relax_symmetric(
     end
 
     if !isnothing(group)
-        (!isnothing(pauli_charge) || !isnothing(pauli_singlet)) && _validate_pauli_spatial_group(group)
+        (!isnothing(pauli_charge) || !isnothing(pauli_singlet)) && _validate_pauli_charge_compatible_group(group)
         symmetry.check_invariance && _check_symmetry_invariance(pop, group)
 
         for (clique_idx, basis) in enumerate(corr_sparsity.clq_mom_mtx_bases)

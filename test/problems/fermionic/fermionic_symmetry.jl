@@ -309,7 +309,7 @@ end
         @test symmetric.objective ≈ exact atol = 5e-6
         @test symmetric.objective ≈ plain.objective atol = 5e-6
         @test !isnothing(symmetric.symmetry)
-        @test symmetric.symmetry.psd_block_sizes == oracle.sides
+        @test sort(symmetric.symmetry.psd_block_sizes) == sort(oracle.sides)
         @test maximum(symmetric.symmetry.psd_block_sizes) < only(flatten_sizes(plain.moment_matrix_sizes))
         @test 0 in Set(label.total_spin2 for label in symmetric.symmetry.block_labels if label isa FermionicSpinBlockLabel)
         @test 2 in Set(label.total_spin2 for label in symmetric.symmetry.block_labels if label isa FermionicSpinBlockLabel)

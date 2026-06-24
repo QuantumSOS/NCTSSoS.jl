@@ -6,6 +6,10 @@ import SymbolicWedderburn
 import GroupsCore
 
 const _SYMMETRY_ATOL = 1e-10
+# Keep small charge sectors on exact SymbolicWedderburn blocks, but switch
+# medium/large sectors to orbit representatives before generic block construction
+# dominates the symbolic run.
+const _PAULI_CHARGE_WEDDERBURN_MAX_DIM = 384
 
 """
     SignedPermutation
@@ -1209,10 +1213,21 @@ function Base.show(io::IO, report::SymmetryReport)
     )
 end
 
-struct _OrbitReducer{A<:AlgebraType,T<:Integer}
+abstract type _AbstractOrbitReducer{A<:AlgebraType,T<:Integer} end
+
+struct _OrbitReducer{A<:AlgebraType,T<:Integer} <: _AbstractOrbitReducer{A,T}
     representative::Dict{NormalMonomial{A,T},NormalMonomial{A,T}}
     phase::Dict{NormalMonomial{A,T},Int}
 end
+
+struct _LazyOrbitReducer{A<:AlgebraType,T<:Integer} <: _AbstractOrbitReducer{A,T}
+    group::Vector
+    spatial_permutations::Union{Nothing,Vector{Vector{Int}}}
+    representative::Dict{NormalMonomial{A,T},NormalMonomial{A,T}}
+    phase::Dict{NormalMonomial{A,T},Int}
+end
+
+const _AnyOrbitReducer{A,T} = Union{_OrbitReducer{A,T},_LazyOrbitReducer{A,T}}
 
 struct NCWordSignedPermutationAction{A<:MonoidAlgebra,T<:Integer} <: SymbolicWedderburn.BySignedPermutations
     algebra::Type{A}
@@ -2005,6 +2020,99 @@ function _build_orbit_reducer(
     return _OrbitReducer{A,T}(representative, phase)
 end
 
+function _lazy_orbit_reducer(
+    ::Type{A},
+    ::Type{T},
+    group::AbstractVector,
+) where {A<:AlgebraType,T<:Integer}
+    spatial_permutations = nothing
+    if A === PauliAlgebra && all(g -> g isa CliffordSymmetry, group)
+        perms = Vector{Int}[]
+        for g in group
+            perm = _pauli_spatial_permutation(g)
+            if isnothing(perm)
+                empty!(perms)
+                break
+            end
+            push!(perms, perm)
+        end
+        isempty(perms) || (spatial_permutations = perms)
+    end
+    return _LazyOrbitReducer{A,T}(
+        collect(group),
+        spatial_permutations,
+        Dict{NormalMonomial{A,T},NormalMonomial{A,T}}(),
+        Dict{NormalMonomial{A,T},Int}(),
+    )
+end
+
+@inline _ensure_orbit_reducer!(::_OrbitReducer, ::NormalMonomial) = nothing
+
+@inline _orbit_reducer_action(g, mono::NormalMonomial) = _act_monomial(g, mono)
+
+function _act_spatial_pauli_monomial(
+    perm::Vector{Int},
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    word = Vector{T}(undef, length(mono.word))
+    for (idx, letter) in pairs(mono.word)
+        site = _pauli_site(letter)
+        pauli_type = _pauli_type(letter)
+        word[idx] = convert(T, _pauli_index(perm[site], pauli_type))
+    end
+    sort!(word)
+    return 1, NormalMonomial{PauliAlgebra,T}(word)
+end
+
+function _orbit_reducer_action(
+    g::CliffordSymmetry,
+    mono::NormalMonomial{PauliAlgebra,T},
+) where {T<:Integer}
+    perm = _pauli_spatial_permutation(g)
+    isnothing(perm) && return _act_monomial(g, mono)
+    return _act_spatial_pauli_monomial(perm, mono)
+end
+
+function _ensure_orbit_reducer!(
+    reducer::_LazyOrbitReducer{A,T},
+    mono::NormalMonomial{A,T},
+) where {A<:AlgebraType,T<:Integer}
+    start = _symmetric_monomial(mono)
+    haskey(reducer.representative, start) && return nothing
+
+    orbit_phase = Dict(start => 1)
+    orbit = Set([start])
+    queue = NormalMonomial{A,T}[start]
+    zero_orbit = false
+
+    while !isempty(queue)
+        current = popfirst!(queue)
+        action_items = isnothing(reducer.spatial_permutations) ? reducer.group : reducer.spatial_permutations
+        for g in action_items
+            sign, image = isnothing(reducer.spatial_permutations) ?
+                _orbit_reducer_action(g, current) :
+                _act_spatial_pauli_monomial(g, current)
+            image_sym = _symmetric_monomial(image)
+            candidate_phase = orbit_phase[current] * sign
+            if haskey(orbit_phase, image_sym)
+                orbit_phase[image_sym] == candidate_phase || (zero_orbit = true)
+            else
+                orbit_phase[image_sym] = candidate_phase
+                push!(orbit, image_sym)
+                push!(queue, image_sym)
+            end
+        end
+    end
+
+    orbit_rep = minimum(collect(orbit))
+    rep_phase = orbit_phase[orbit_rep]
+    for orbit_mono in orbit
+        reducer.representative[orbit_mono] = orbit_rep
+        reducer.phase[orbit_mono] = zero_orbit ? 0 : orbit_phase[orbit_mono] * rep_phase
+    end
+    return nothing
+end
+
 function _chop_polynomial(
     poly::Polynomial{A,T,C};
     atol::Float64=_SYMMETRY_ATOL,
@@ -2019,7 +2127,7 @@ end
 
 function _orbit_reduce_polynomial(
     poly::Polynomial{A,T,C},
-    reducer::_OrbitReducer{A,T};
+    reducer::_AnyOrbitReducer{A,T};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     reduced_terms = Tuple{C,NormalMonomial{A,T}}[]
@@ -2027,6 +2135,7 @@ function _orbit_reduce_polynomial(
 
     for (coef, mono) in poly.terms
         sym_mono = _symmetric_monomial(mono)
+        _ensure_orbit_reducer!(reducer, sym_mono)
         haskey(reducer.representative, sym_mono) || throw(ArgumentError(
             "Symmetry reducer is missing the monomial $sym_mono."
         ))
@@ -2040,7 +2149,7 @@ end
 
 function _orbit_reduce_matrix(
     mat::Matrix{P},
-    reducer::_OrbitReducer{A,T};
+    reducer::_AnyOrbitReducer{A,T};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
     reduced = Matrix{P}(undef, size(mat, 1), size(mat, 2))
@@ -2102,7 +2211,7 @@ function _chop_polynomial_matrix(mat::Matrix{P}; atol::Float64=_SYMMETRY_ATOL) w
 end
 
 @inline _maybe_orbit_reduce_matrix(mat, ::Nothing; atol::Float64=_SYMMETRY_ATOL) = _chop_polynomial_matrix(mat; atol)
-@inline _maybe_orbit_reduce_matrix(mat, reducer::_OrbitReducer; atol::Float64=_SYMMETRY_ATOL) =
+@inline _maybe_orbit_reduce_matrix(mat, reducer::_AnyOrbitReducer; atol::Float64=_SYMMETRY_ATOL) =
     _orbit_reduce_matrix(mat, reducer; atol)
 
 struct _SparseTransformRow{C<:Number}
@@ -2142,6 +2251,10 @@ function _sparse_transform_rows(U::SparseMatrixCSC{C,Ti}; atol::Float64=_SYMMETR
     return rows
 end
 
+function _wedderburn_row_basis(block)
+    hasproperty(block, :basis) && return getproperty(block, :basis)
+    return Matrix(block)
+end
 @inline function _polynomial_from_owned_terms_chopped!(
     owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}};
     atol::Float64=_SYMMETRY_ATOL,
@@ -2179,11 +2292,12 @@ end
     terms::Vector{Tuple{C,NormalMonomial{A,T}}},
     factor,
     poly::Polynomial{A,T,PC},
-    reducer::_OrbitReducer{A,T},
+    reducer::_AnyOrbitReducer{A,T},
     ::Type{C},
 ) where {A<:AlgebraType,T<:Integer,C<:Number,PC<:Number}
     for (coef, mono) in poly.terms
         sym_mono = _symmetric_monomial(mono)
+        _ensure_orbit_reducer!(reducer, sym_mono)
         haskey(reducer.representative, sym_mono) || throw(ArgumentError(
             "Symmetry reducer is missing the monomial $sym_mono."
         ))
@@ -2203,7 +2317,7 @@ function _transform_polynomial_source_block_impl(
     source_size::Tuple{Int,Int},
     U_left::AbstractMatrix{<:Number},
     U_right::AbstractMatrix{<:Number},
-    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    reducer::Union{Nothing,_AnyOrbitReducer{A,T}};
     scale::Number=1,
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
@@ -2249,7 +2363,7 @@ function _transform_polynomial_block_impl(
     mat::Matrix{P},
     U_left::AbstractMatrix{<:Number},
     U_right::AbstractMatrix{<:Number},
-    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    reducer::Union{Nothing,_AnyOrbitReducer{A,T}};
     scale::Number=1,
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
@@ -2279,7 +2393,7 @@ function _transform_reduced_polynomial_block(
     mat::Matrix{P},
     U_left::AbstractMatrix{<:Number},
     U_right::AbstractMatrix{<:Number},
-    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    reducer::Union{Nothing,_AnyOrbitReducer{A,T}};
     scale::Number=1,
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
@@ -2349,7 +2463,7 @@ function _transform_reduced_constraint_cache_block(
     cache::_ConstraintMatrixEntryCache{P},
     U_left::AbstractMatrix{<:Number},
     U_right::AbstractMatrix{<:Number},
-    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    reducer::Union{Nothing,_AnyOrbitReducer{A,T}};
     scale::Number=1,
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
@@ -2369,7 +2483,7 @@ end
 function _diagonal_transformed_constraint_blocks(
     cache::_ConstraintMatrixEntryCache{P},
     row_bases::Vector{<:AbstractMatrix},
-    reducer::Union{Nothing,_OrbitReducer};
+    reducer::Union{Nothing,_AnyOrbitReducer};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {P<:Polynomial}
     diagonal_blocks = Matrix{P}[]
@@ -2382,7 +2496,7 @@ end
 function _diagonal_transformed_blocks(
     mat::Matrix{P},
     row_bases::Vector{<:AbstractMatrix},
-    reducer::Union{Nothing,_OrbitReducer};
+    reducer::Union{Nothing,_AnyOrbitReducer};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {P<:Polynomial}
     diagonal_blocks = Matrix{P}[]
@@ -2396,7 +2510,7 @@ function _append_transformed_offblock_zero_constraints!(
     constraints::Vector{Tuple{Symbol, Matrix{P}}},
     mat::Matrix{P},
     row_bases::Vector{<:AbstractMatrix},
-    reducer::Union{Nothing,_OrbitReducer};
+    reducer::Union{Nothing,_AnyOrbitReducer};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
 ) where {P<:Polynomial}
@@ -2453,7 +2567,7 @@ Throws the same kind of `ArgumentError` as the `:full` check on failure.
 function _verify_offblocks_randomized(
     mat::Matrix{P},
     row_bases::Vector{<:AbstractMatrix},
-    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    reducer::Union{Nothing,_AnyOrbitReducer{A,T}};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
     ntrials::Int=2,
@@ -2478,6 +2592,7 @@ function _verify_offblocks_randomized(
                 key = mono
             else
                 sym_mono = _symmetric_monomial(mono)
+                _ensure_orbit_reducer!(reducer, sym_mono)
                 haskey(reducer.representative, sym_mono) || throw(ArgumentError(
                     "Symmetry reducer is missing the monomial $sym_mono."
                 ))
@@ -2495,7 +2610,7 @@ function _verify_offblocks_randomized(
     nvars = length(var_index)
     nvars == 0 && return nothing
 
-    U = Matrix{ComplexF64}(reduce(vcat, (Matrix(b) for b in row_bases)))
+    U = Matrix{ComplexF64}(reduce(vcat, row_bases))
     block_sizes = Int[size(b, 1) for b in row_bases]
     stops = cumsum(block_sizes)
 
@@ -2536,7 +2651,7 @@ end
 function _reduce_transformed_blocks(
     mat::Matrix{P},
     row_bases::Vector{<:AbstractMatrix},
-    reducer::Union{Nothing,_OrbitReducer};
+    reducer::Union{Nothing,_AnyOrbitReducer};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
     offblock_check::Symbol=:full,
@@ -2589,7 +2704,7 @@ function _reduce_constraint_matrix_symmetric(
     mat::Matrix{P},
     basis::Vector{M},
     sw_group,
-    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    reducer::Union{Nothing,_AnyOrbitReducer{A,T}};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
     offblock_check::Symbol=:full,
@@ -2599,7 +2714,7 @@ function _reduce_constraint_matrix_symmetric(
     end
 
     blocks = _sw_decompose_half_basis(basis, sw_group)
-    row_bases = [Matrix(block) for block in blocks]
+    row_bases = [_wedderburn_row_basis(block) for block in blocks]
     return _reduce_transformed_blocks(mat, row_bases, reducer; atol, context, offblock_check)
 end
 
@@ -2719,7 +2834,7 @@ function _append_sector_zero_constraints!(
     constraints::Vector{Tuple{Symbol, Matrix{MP}}},
     mat::Matrix{MP},
     sector_blocks::Vector{<:_BasisPartitionBlock},
-    reducer::Union{Nothing,_OrbitReducer};
+    reducer::Union{Nothing,_AnyOrbitReducer};
     atol::Float64=_SYMMETRY_ATOL,
     context::AbstractString="constraint matrix",
 ) where {MP<:Polynomial}
@@ -2760,7 +2875,7 @@ function _add_moment_eq_constraints_symmetric!(
     pop::PolyOpt{A,T,PP},
     moment_eq_row_bases::Vector{M},
     moment_eq_row_basis_degrees::Vector{Int},
-    reducer::Union{Nothing,_OrbitReducer{A,T}},
+    reducer::Union{Nothing,_AnyOrbitReducer{A,T}},
     ::Type{MP};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
@@ -3209,7 +3324,50 @@ end
 
 function _sw_decompose_charge_basis(basis::Vector{_PauliChargeWord}, group::CliffordSymmetryGroup)
     action = NCPauliChargeSpatialAction()
-    return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
+    tbl = SymbolicWedderburn.CharacterTable(Rational{Int}, group)
+    ehom = SymbolicWedderburn.CachedExtensionHomomorphism(
+        parent(tbl),
+        action,
+        basis;
+        precompute=false,
+    )
+    SymbolicWedderburn.check_group_action(group, ehom; full_check=false)
+    return SymbolicWedderburn.symmetry_adapted_basis(Float64, tbl, ehom)
+end
+
+function _pauli_charge_orbit_representative_rows(
+    sector_words::Vector{_PauliChargeWord},
+    sw_group::CliffordSymmetryGroup,
+)
+    word_index = Dict(word => idx for (idx, word) in enumerate(sector_words))
+    unvisited = Set(eachindex(sector_words))
+    representatives = Int[]
+
+    while !isempty(unvisited)
+        seed = first(unvisited)
+        orbit = Int[]
+        for g in _sw_action_elements(sw_group)
+            image, _ = _pauli_charge_word_image(g, sector_words[seed])
+            idx = get(word_index, image, 0)
+            idx == 0 && throw(ArgumentError(
+                "Pauli charge orbit representative reduction found image $image outside the charge sector."
+            ))
+            push!(orbit, idx)
+        end
+        sort!(unique!(orbit))
+        push!(representatives, first(orbit))
+        for idx in orbit
+            delete!(unvisited, idx)
+        end
+    end
+
+    return sparse(
+        collect(eachindex(representatives)),
+        representatives,
+        ones(Float64, length(representatives)),
+        length(representatives),
+        length(sector_words),
+    )
 end
 
 function _pauli_charge_basis_action_is_scalar(basis::AbstractVector{_PauliChargeWord}, sw_group::CliffordSymmetryGroup)
@@ -3272,11 +3430,16 @@ function _pauli_charge_transform_groups(
         if isnothing(sw_group) || sector_dim == 1 || _pauli_charge_basis_action_is_scalar(sector_words, sw_group)
             label = PauliChargeBlockLabel(charge, nothing, group_order, sector_dim)
             push!(transform_groups, [_BasisTransformBlock(sector_rows, label, :charge_sector)])
+        elseif sector_dim > _PAULI_CHARGE_WEDDERBURN_MAX_DIM
+            orbit_basis = _pauli_charge_orbit_representative_rows(sector_words, sw_group)
+            row_basis = orbit_basis * sector_rows
+            label = PauliChargeBlockLabel(charge, nothing, group_order, sector_dim)
+            push!(transform_groups, [_BasisTransformBlock(row_basis, label, :charge_orbit_representative)])
         else
             blocks = _sw_decompose_charge_basis(sector_words, sw_group)
             sector_group = _BasisTransformBlock[]
             for (block_idx, block) in enumerate(blocks)
-                row_basis = Matrix(block) * sector_rows
+                row_basis = _wedderburn_row_basis(block) * sector_rows
                 label = PauliChargeBlockLabel(charge, block_idx, group_order, sector_dim)
                 push!(sector_group, _BasisTransformBlock(row_basis, label, :charge_wedderburn))
             end
@@ -3329,7 +3492,7 @@ function _append_unique_zero_constraint!(
     constraints::Vector{Tuple{Symbol, Matrix{MP}}},
     seen::Set{MP},
     poly::MP,
-    reducer::Union{Nothing,_OrbitReducer{PauliAlgebra,T}},
+    reducer::Union{Nothing,_AnyOrbitReducer{PauliAlgebra,T}},
     supported::Set{NormalMonomial{PauliAlgebra,T}},
     context::AbstractString,
     ::Type{MP};
@@ -3350,7 +3513,7 @@ function _add_pauli_singlet_constraints!(
     spec::PauliSingletConstraintSpec,
     nqubits::Integer,
     supported_basis::AbstractVector{NormalMonomial{PauliAlgebra,T}},
-    reducer::Union{Nothing,_OrbitReducer{PauliAlgebra,T}},
+    reducer::Union{Nothing,_AnyOrbitReducer{PauliAlgebra,T}},
     ::Type{MP};
     atol::Float64=_SYMMETRY_ATOL,
 ) where {T<:Integer,C<:Number,MP<:Polynomial{PauliAlgebra,T,C}}
@@ -3387,6 +3550,39 @@ function _add_pauli_singlet_constraints!(
     end
 
     return nothing
+end
+
+function _can_use_lazy_pauli_charge_reduction(
+    pop::PolyOpt{PauliAlgebra,T,P},
+    symmetry::SymmetrySpec,
+) where {T<:Integer,C<:Number,P<:Polynomial{PauliAlgebra,T,C}}
+    return !isnothing(symmetry.pauli_charge) &&
+           symmetry.offblock_check === :off &&
+           isempty(pop.eq_constraints) &&
+           isempty(pop.ineq_constraints) &&
+           isempty(pop.moment_eq_constraints)
+end
+
+_can_use_lazy_pauli_charge_reduction(::PolyOpt, ::SymmetrySpec) = false
+
+function _pauli_degree_basis_count(nqubits::Integer, max_degree::Integer)
+    n = Int(nqubits)
+    d = min(Int(max_degree), n)
+    count = big(0)
+    for k in 0:d
+        count += binomial(big(n), k) * big(3)^k
+    end
+    count <= typemax(Int) || throw(OverflowError("Pauli basis count $count does not fit in Int."))
+    return Int(count)
+end
+
+function _half_basis_vector(
+    corr_sparsity::CorrelativeSparsity{A,T,P,M,Nothing},
+) where {A<:AlgebraType,T<:Integer,P,M<:NormalMonomial{A,T}}
+    if length(corr_sparsity.clq_mom_mtx_bases) == 1
+        return only(corr_sparsity.clq_mom_mtx_bases)
+    end
+    return sorted_unique!(reduce(vcat, corr_sparsity.clq_mom_mtx_bases))
 end
 
 
@@ -3436,9 +3632,24 @@ function moment_relax_symmetric(
         _validate_pauli_singlet_spec(pauli_singlet)
     end
 
-    moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
-    total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
-        _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+    use_lazy_pauli_charge_candidate = _can_use_lazy_pauli_charge_reduction(pop, symmetry)
+    half_basis = _half_basis_vector(corr_sparsity)
+    use_lazy_pauli_charge = use_lazy_pauli_charge_candidate && length(half_basis) > _PAULI_CHARGE_WEDDERBURN_MAX_DIM
+    moment_matrix_basis_size = 0
+    total_basis = half_basis
+    moment_eq_row_bases = M[]
+    moment_eq_row_basis_degrees = Int[]
+
+    if use_lazy_pauli_charge
+        nqubits_for_count = _pauli_spec_nqubits(pauli_charge.nqubits, _pauli_nqubits_from_basis(half_basis), "Pauli charge-sector splitting")
+        moment_matrix_basis_size = _pauli_degree_basis_count(nqubits_for_count, 2 * maximum(degree, half_basis))
+    else
+        moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
+        moment_matrix_basis_size = length(moment_matrix_basis)
+        total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
+            _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+    end
+
     _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
     !isnothing(pauli_charge) && _check_pauli_charge_neutral(pop; atol)
 
@@ -3510,7 +3721,7 @@ function moment_relax_symmetric(
             end
         end
 
-        reducer = _build_orbit_reducer(total_basis, group)
+        reducer = use_lazy_pauli_charge ? _lazy_orbit_reducer(A, T, group) : _build_orbit_reducer(total_basis, group)
         group_order = length(group)
     end
 
@@ -3749,7 +3960,7 @@ function moment_relax_symmetric(
         count(mono -> !isone(mono), reduced_moment_basis),
         reduced_moment_block_sizes,
         length(only(corr_sparsity.clq_mom_mtx_bases)),
-        length(moment_matrix_basis),
+        moment_matrix_basis_size,
         moment_block_labels,
         moment_block_provenance,
     )

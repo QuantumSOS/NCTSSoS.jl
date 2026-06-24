@@ -316,7 +316,7 @@ end
         @test adapted.objective ≈ exact_e0 atol = 5e-6
         @test !isnothing(adapted.symmetry)
         @test adapted.symmetry.group_order == 2
-        @test adapted.symmetry.psd_block_sizes == adapted_oracle.sides
+        @test sort(adapted.symmetry.psd_block_sizes) == sort(adapted_oracle.sides)
         @test maximum(adapted.symmetry.psd_block_sizes) < maximum(reduce(vcat, dense.moment_matrix_sizes))
         @test maximum(adapted.symmetry.psd_block_sizes) < maximum(sector_only.symmetry.psd_block_sizes)
         spin_labels = Set(label.total_spin2 for label in adapted.symmetry.block_labels if label isa FermionicSpinBlockLabel)

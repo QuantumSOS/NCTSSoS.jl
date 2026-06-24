@@ -26,9 +26,13 @@ using Test
 
         # The SymbolicWedderburn symmetry adapter currently has to hook into
         # non-public extension points (`BySignedPermutations`, `action`) and
-        # uses Base's iterator-size trait singleton directly.
+        # small finite-group decomposition helpers. It also uses Base's
+        # iterator-size trait singleton directly.
         :BySignedPermutations,
         :action,
+        :CharacterTable,
+        :CachedExtensionHomomorphism,
+        :check_group_action,
         :HasLength,
     ))
 end

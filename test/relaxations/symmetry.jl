@@ -384,14 +384,18 @@ end
             bad_spec,
         ))
         @test err isa ArgumentError
-        @test occursin("spatial Clifford", sprint(showerror, err))
+        @test occursin("real charge basis", sprint(showerror, err))
 
         @test_throws ArgumentError pauli_site_permutation(Int[])
         @test_throws ArgumentError pauli_site_permutation([1, 1])
         @test sprint(show, PauliChargeBlockLabel(0, nothing, 1, 3)) ==
             "PauliChargeBlockLabel(charge=0, finite_block=nothing, group_order=1, sector_dimension=3)"
-        @test_throws ArgumentError SymmetrySpec(
+        higher_charge = SymmetrySpec(
             pauli_charge=PauliChargeSectorSpec(nqubits=1, max_degree=3),
+        )
+        @test higher_charge.pauli_charge.max_degree == 3
+        @test_throws ArgumentError SymmetrySpec(
+            pauli_charge=PauliChargeSectorSpec(nqubits=1, max_degree=-1),
         )
         @test_throws ArgumentError SymmetrySpec(
             pauli_singlet=PauliSingletConstraintSpec(nqubits=1, max_degree=3),

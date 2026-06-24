@@ -2,6 +2,9 @@
 
 If `TASK.md` exists, read it after this file before starting work; detailed active-task context belongs under `plan/`.
 
+## Work Location
+- All repository work must be done through `easy-ssh`; use the configured remote workspace instead of running builds, tests, benchmarks, or implementation commands directly on the local checkout.
+
 ## Project Layout
 - `src/` — library code
   - `src/types/` — algebras, registries, monomials, polynomials

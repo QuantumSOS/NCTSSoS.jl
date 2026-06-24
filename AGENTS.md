@@ -2,6 +2,9 @@
 
 If `TASK.md` exists, read it after this file before starting work; detailed active-task context belongs under `plan/`.
 
+## Work Location
+- All repository work must be done through `easy-ssh`; use the configured remote workspace instead of running builds, tests, benchmarks, or implementation commands directly on the local checkout.
+
 ## Project Layout
 - `src/` — library code
   - `src/types/` — algebras, registries, monomials, polynomials
@@ -20,6 +23,12 @@ If `TASK.md` exists, read it after this file before starting work; detailed acti
 
 ## Build, Test, and Docs Commands
 CI baseline: Julia 1.12; solver: COSMO.
+
+### Run Policy
+- All computational runs (tests, benchmarks, examples, solver-backed scripts, and timing probes) must be launched through the `easy-ssh` skill; do not run them locally unless the user explicitly overrides this rule.
+- Prefer Mosek for ad hoc solver-backed runs when available; keep COSMO as the CI baseline unless the task is explicitly Mosek-only.
+- Before launching any run, estimate the expected runtime and report it. After the run, report the actual elapsed time and whether it matched the estimate.
+
 - `make init` — precompile root environment
 - `make test` — full test suite (COSMO)
 - `make coverage-ci` — CI-style coverage (`lcov.info`)

@@ -129,6 +129,7 @@ include("optimization/v2rdm_structured.jl")
 include("optimization/moment.jl")
 include("optimization/lowering.jl")
 include("optimization/symmetry.jl")
+include("optimization/pauli_chains.jl")
 include("sympleq/SympleQ.jl")
 include("optimization/fermionic_irreps.jl")
 include("optimization/fermionic_spin.jl")
@@ -146,9 +147,14 @@ include("optimization/gns_diagnostics.jl")
 # Problem Definition
 export PolyOpt, polyopt, PolyOptResult, SolverConfig
 export SignedPermutation, FermionicModePermutation, CliffordSymmetry, CliffordSymmetryGroup, FermionicModeLayout, AbelianIrrepTable
-export pauli_site_permutation, PauliChargeSectorSpec, PauliSingletConstraintSpec, PauliChargeBlockLabel
+export pauli_site_permutation, pauli_contiguous_chain_basis, pauli_sign_symmetry
+export PauliChargeSectorSpec, PauliSingletConstraintSpec, PauliChargeBlockLabel
 export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
 export SymmetrySpec, SymmetryReport
+export heisenberg_chain_hamiltonian
+export pauli_chain_translation, pauli_chain_reflection, pauli_global_axis_rotation_generators, heisenberg_chain_symmetry_spec
+export TranslationInvariantReport, TranslationInvariantResult
+export pauli_translation_invariant_moment_relaxation, pauli_translation_invariant_nctssos
 export SymplecticTableau, SymplecticMatrix, PhaseVector, SympleQGenerator
 export sympleq_generators, sympleq_clifford_symmetry, sympleq_symmetry_spec
 export SparsityResult, compute_sparsity

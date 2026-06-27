@@ -1,6 +1,6 @@
 # Public API regression for Clifford symmetry reduction on a 2-site Heisenberg model.
 
-using Test, NCTSSoS, JuMP
+using Test, NCTSSoS, JuMP, SparseArrays
 
 if !@isdefined(SOLVER)
     using COSMO
@@ -144,6 +144,7 @@ end
     block_sizes = [size(block.row_basis, 1) for group in charge_groups for block in group]
     block_variable_count = sum(size * (size + 1) ÷ 2 for size in block_sizes)
 
+    @test all(issparse(block.row_basis) for group in charge_groups for block in group)
     @test length(basis) == 1129
     @test 1129 * 1130 ÷ 2 == 637885
     @test maximum(block_sizes) <= 24
@@ -175,7 +176,48 @@ end
 
     @test length(basis) == 1 + n_ring * (3 + 9 + 27 + 81)
     @test length(sw_group) == 64
-    @test maximum(block_sizes) == 30
+    @test maximum(block_sizes) == 19
     @test block_variable_count < length(basis) * (length(basis) + 1) ÷ 200
     @test Set(block.label.charge for group in charge_groups for block in group) == Set(-4:4)
+end
+
+@testset "32-site Heisenberg large charge-sector fallback" begin
+    n_ring = 32
+    registry, (σx, σy, σz) = create_pauli_variables(1:n_ring)
+    heisenberg = sum(
+        ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, n_ring)]
+        for op in (σx, σy, σz) for i in 1:n_ring
+    )
+    pop = polyopt(heisenberg, registry)
+
+    translation = pauli_site_permutation([2:n_ring; 1])
+    reflection = pauli_site_permutation(reverse(1:n_ring))
+    symmetry = SymmetrySpec(
+        [translation, reflection];
+        pauli_charge=PauliChargeSectorSpec(nqubits=n_ring),
+        pauli_singlet=PauliSingletConstraintSpec(nqubits=n_ring),
+        offblock_check=:off,
+    )
+    cfg = SolverConfig(
+        optimizer=nothing,
+        order=2,
+        cs_algo=NoElimination(),
+        ts_algo=NoElimination(),
+        symmetry=symmetry,
+    )
+    sparsity = compute_sparsity(pop, cfg)
+    mp, report = NCTSSoS.moment_relax_symmetric(
+        pop,
+        sparsity.corr_sparsity,
+        sparsity.cliques_term_sparsities,
+        symmetry,
+    )
+
+    @test report.basis_half_size == 4561
+    @test report.group_order == 64
+    @test report.psd_block_sizes == [16, 17, 34, 17, 16]
+    @test all(==(:charge_orbit_representative), report.block_provenance)
+    @test report.invariant_moment_count == 769
+    @test length(mp.constraints) == 88
+    @test length(mp.linear.zero_constraints) == 83
 end

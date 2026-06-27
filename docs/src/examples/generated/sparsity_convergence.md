@@ -158,7 +158,7 @@ check_isapprox(
 ````
 [PASS] Example 3.4 dense bound matches λ_min
   expected: 0.0
-  actual:   -5.916414999591806e-9
+  actual:   -5.916414999555678e-9
   detail:   atol=1.0e-6
 
 ````
@@ -170,7 +170,7 @@ result_34_dense.objective
 ````
 
 ````
--5.916414999591806e-9
+-5.916414999555678e-9
 ````
 
 ### The first sparse step: where the gap appears
@@ -193,7 +193,7 @@ check_isapprox(
 ````
 [PASS] Example 3.4 sparse bound matches the expected rounded sparse value
   expected: -0.0035
-  actual:   -0.0035512706031529343
+  actual:   -0.0035512706032183503
   detail:   atol=0.0001
 
 ````
@@ -205,7 +205,7 @@ result_34_sparse.objective
 ````
 
 ````
--0.0035512706031529343
+-0.0035512706032183503
 ````
 
 ### Trying harder: the next sparse step
@@ -227,7 +227,7 @@ check_isapprox(
 ````
 [PASS] Example 3.4 higher sparse step matches the same rounded sparse value
   expected: -0.0035
-  actual:   -0.0035512706031529343
+  actual:   -0.0035512706032183503
   detail:   atol=0.0001
 
 ````
@@ -239,7 +239,7 @@ result_34_higher.objective
 ````
 
 ````
--0.0035512706031529343
+-0.0035512706032183503
 ````
 
 All three values side by side tell the whole story: dense hits ``0``,
@@ -260,7 +260,7 @@ ex34_bounds
 ````
 
 ````
-(dense = -5.916414999591806e-9, sparse = -0.0035512706031529343, sparse_higher = -0.0035512706031529343)
+(dense = -5.916414999555678e-9, sparse = -0.0035512706032183503, sparse_higher = -0.0035512706032183503)
 ````
 
 The graph has stabilized — we will confirm that visually next — but the
@@ -413,7 +413,7 @@ check_isapprox(
 ````
 [PASS] Example 3.8 dense bound matches λ_min
   expected: -1.0
-  actual:   -0.9999999914921307
+  actual:   -0.9999999910565132
   detail:   atol=1.0e-6
 
 ````
@@ -425,7 +425,7 @@ result_38_dense.objective
 ````
 
 ````
--0.9999999914921307
+-0.9999999910565132
 ````
 
 ### First sparse step: matching immediately
@@ -448,7 +448,7 @@ check_isapprox(
 ````
 [PASS] Example 3.8 first sparse-step bound matches λ_min
   expected: -1.0
-  actual:   -0.9999999881341965
+  actual:   -0.9999999881372013
   detail:   atol=1.0e-6
 
 ````
@@ -460,7 +460,7 @@ result_38_sparse.objective
 ````
 
 ````
--0.9999999881341965
+-0.9999999881372013
 ````
 
 ### Higher sparse step: confirming stability
@@ -488,11 +488,11 @@ check_isapprox(
 ````
 [PASS] Example 3.8 higher sparse-step bound still matches λ_min
   expected: -1.0
-  actual:   -0.9999999620027147
+  actual:   -0.9999999614205808
   detail:   atol=1.0e-6
 [PASS] Example 3.8 higher sparse-step bound matches the first sparse step
-  expected: -0.9999999881341965
-  actual:   -0.9999999620027147
+  expected: -0.9999999881372013
+  actual:   -0.9999999614205808
   detail:   atol=1.0e-6
 
 ````
@@ -504,7 +504,7 @@ result_38_higher.objective
 ````
 
 ````
--0.9999999620027147
+-0.9999999614205808
 ````
 
 All three numbers land on the same value:
@@ -526,7 +526,7 @@ ex38_bounds
 ````
 
 ````
-(lambda_min = -1.0, dense_bound = -0.9999999914921307, sparse_bound = -0.9999999881341965, higher_bound = -0.9999999620027147, higher_flat = true)
+(lambda_min = -1.0, dense_bound = -0.9999999910565132, sparse_bound = -0.9999999881372013, higher_bound = -0.9999999614205808, higher_flat = true)
 ````
 
 ### Reconstructing Figure 4

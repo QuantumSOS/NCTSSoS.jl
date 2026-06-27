@@ -650,6 +650,15 @@ Iteratively computes term sparsity support for a polynomial.
 - `TermSparsity{M}`: Term sparsity structure containing graph support and block bases
 """
 function iterate_term_sparse_supp(
+    activated_supp::Vector{NormalMonomial{A,T}}, poly::P, basis::Vector{M}, ::NoElimination
+) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
+    # Dense term structure: one full block. Building the complete graph and then
+    # decomposing it back to one clique is quadratic noise and can dominate large
+    # symmetry-adapted runs before symmetry reduction starts.
+    return TermSparsity{M}(copy(activated_supp), [basis])
+end
+
+function iterate_term_sparse_supp(
     activated_supp::Vector{NormalMonomial{A,T}}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
 ) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
     # poly.terms contains (coef, NormalMonomial) tuples
@@ -1086,6 +1095,12 @@ end
 
 Iteratively computes term sparsity support for a state polynomial.
 """
+function iterate_term_sparse_supp(
+    activated_supp::Vector{M}, poly::P, basis::Vector{M}, ::NoElimination
+) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
+    return TermSparsity{M}(copy(activated_supp), [basis])
+end
+
 function iterate_term_sparse_supp(
     activated_supp::Vector{M}, poly::P, basis::Vector{M}, elim_algo::EliminationAlgorithm
 ) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}

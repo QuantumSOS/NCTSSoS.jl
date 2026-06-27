@@ -221,7 +221,7 @@ result = cs_nctssos(pop, config)
 ````
 
 ````
-Objective: -1.236067981168424
+Objective: -1.2360679812073563
 Correlative Sparsity (BosonicAlgebra): 
 
    maximum clique size: 2
@@ -235,7 +235,7 @@ Term Sparsity:
 Clique 1:
    Moment Matrix Block Sizes: [15]
    Moment Matrix:
-Number of Activated supp:   56
+Number of Activated supp:   8
 Number of Bases Activated in each sub-block[15]
 
    Localizing Matrix:

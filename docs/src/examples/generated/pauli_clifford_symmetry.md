@@ -130,7 +130,7 @@ dense_result.objective
 ````
 
 ````
--0.7500000000000072
+-0.7500000000000074
 ````
 
 Sanity-check against the analytical value:
@@ -140,7 +140,7 @@ abs(dense_result.objective - (-0.75))
 ````
 
 ````
-7.216449660063518e-15
+7.438494264988549e-15
 ````
 
 The dense layout produces a single `7×7` PSD block:
@@ -228,7 +228,7 @@ manual_result.objective
 ````
 
 ````
--0.7500000000000073
+-0.7500000000000072
 ````
 
 Difference from the dense baseline:
@@ -238,7 +238,7 @@ abs(manual_result.objective - dense_result.objective)
 ````
 
 ````
-1.1102230246251565e-16
+2.220446049250313e-16
 ````
 
 ### Reading the [`SymmetryReport`](@ref)
@@ -609,7 +609,7 @@ spatial_result4.objective
 ````
 
 ````
--2.999999999999893
+-2.9999999999998934
 ````
 
 The full ``D_4`` (order 8) splits the ``13 \times 13`` block into three:
@@ -788,7 +788,7 @@ dense_result10.objective
 ````
 
 ````
--4.51815932435283
+-4.518159324351072
 ````
 
 ````julia
@@ -805,7 +805,7 @@ t_dense10
 ````
 
 ````
-88.598676167
+129.236333286
 ````
 
 Nearly all of that wall-clock time is the interior-point solver itself:
@@ -815,7 +815,7 @@ t_dense_mosek = JuMP.solve_time(dense_result10.model)
 ````
 
 ````
-88.2443618774414
+128.43565944209695
 ````
 
 ### SympleQ detection + symmetry-reduced solve (timed)
@@ -839,7 +839,7 @@ t_detect10
 ````
 
 ````
-0.001293625
+0.002344408
 ````
 
 Solve with the auto-detected symmetry at order 2:
@@ -860,7 +860,7 @@ result10.objective
 ````
 
 ````
--4.518159330977996
+-4.518159330977597
 ````
 
 ````julia
@@ -895,7 +895,7 @@ t_sym10
 ````
 
 ````
-0.828725625
+1.571634958
 ````
 
 And the solver time hiding inside that total:
@@ -905,7 +905,7 @@ t_sym_mosek = JuMP.solve_time(result10.model)
 ````
 
 ````
-0.592249870300293
+1.122098933905363
 ````
 
 ### Comparison
@@ -930,11 +930,11 @@ println("Group order: $(report10.group_order), generators: $(length(auto_spec10.
 ````
 Steady-state timing; warm-up solves discarded
 run       total        of which Mosek   moment vars   PSD blocks
-dense     88.6s      88.2s           20686         [[436]]
-symmetry  0.8s       0.6s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
-  symmetry time = detect 0.0013s + solve 0.8s
-End-to-end speedup: 106.7x
-Solver-only speedup: 149.0x
+dense     129.2s      128.4s           20686         [[436]]
+symmetry  1.6s       1.1s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
+  symmetry time = detect 0.0023s + solve 1.6s
+End-to-end speedup: 82.1x
+Solver-only speedup: 114.0x
 Moment variable reduction: 20686 → 1421
 Objective difference: 6.63e-9
 Group order: 16, generators: 11

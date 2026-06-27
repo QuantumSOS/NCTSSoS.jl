@@ -335,8 +335,8 @@ end
 ````
 
 ````
-N = 4 :  E₀ = -1.4142135623730951  (analytic: -1.414213562373095)
-N = 6 :  E₀ = -1.732050807568877  (analytic: -1.7320508075688772)
+N = 4 :  E₀ = -1.414213562373095  (analytic: -1.414213562373095)
+N = 6 :  E₀ = -1.7320508075688772  (analytic: -1.7320508075688772)
 N = 8 :  E₀ = -2.6131259297527527  (analytic: -2.613125929752753)
 
 ````
@@ -446,7 +446,7 @@ result₁ = cs_nctssos(pop₁, config₁)
 ````
 
 ````
-Objective: -1.414213568931454
+Objective: -1.414213568933294
 Correlative Sparsity (FermionicAlgebra): 
 
    maximum clique size: 4
@@ -479,7 +479,7 @@ println("N = $N₁:  SDP = $(result₁.objective),  exact = $exact₁,  gap = $(
 ````
 
 ````
-N = 4:  SDP = -1.414213568931454,  exact = -1.4142135623730951,  gap = 6.558358744968018e-9
+N = 4:  SDP = -1.414213568933294,  exact = -1.414213562373095,  gap = 6.560199050653637e-9
 
 ````
 
@@ -552,8 +552,8 @@ println("  gap after refinement: $(abs(r6.refined - r6.exact))")
 ````
 
 ````
-N = 6:  first = -2.0375379457268603,  refined = -1.7320508239210923,  exact = -1.732050807568877
-  gap after refinement: 1.6352215359560773e-8
+N = 6:  first = -2.037537945726864,  refined = -1.7320508239209993,  exact = -1.7320508075688772
+  gap after refinement: 1.6352122100826705e-8
 
 ````
 
@@ -566,8 +566,8 @@ println("  gap after refinement: $(abs(r8.refined - r8.exact))")
 ````
 
 ````
-N = 8:  first = -2.7442065412958914,  refined = -2.6131259297530427,  exact = -2.6131259297527527
-  gap after refinement: 2.899902540320909e-13
+N = 8:  first = -2.7442065412958834,  refined = -2.613125929752975,  exact = -2.6131259297527527
+  gap after refinement: 2.2248869413488137e-13
 
 ````
 

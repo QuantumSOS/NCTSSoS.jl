@@ -85,7 +85,7 @@ result = cs_nctssos(spop, solver_config);
 ````
 
 ````
-result.objective = -0.046717376270937964
+result.objective = -0.046717376274378074
 
 ````
 
@@ -100,7 +100,7 @@ result = cs_nctssos(spop, solver_config);
 ````
 
 ````
-result.objective = -0.031249993432186294
+result.objective = -0.031249993432210674
 
 ````
 
@@ -178,7 +178,7 @@ result = cs_nctssos(tpop, solver_config);
 ````
 
 ````
-result.objective = -2.8284271226786424
+result.objective = -2.828427122678642
 
 ````
 
@@ -250,8 +250,8 @@ abs_error = abs(result.objective + 5.0)
 ````
 
 ````
-result.objective = -4.999999999628528
-abs_error = 3.714717422553804e-10
+result.objective = -4.999999999628731
+abs_error = 3.7126923757568875e-10
 
 ````
 

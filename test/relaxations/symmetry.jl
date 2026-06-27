@@ -772,6 +772,54 @@ end
         @test sort([string(only(mat)) for (_, mat) in constraints]) == ["1 + x₁x₂", "1 + x₁x₂", "2.0 * x₁"]
     end
 
+    @testset "lazy orbit reduction helper branches" begin
+        reg, (x,) = create_unipotent_variables([("x", 1:2)])
+        T = typeof(x[1].word[1])
+        signed_swap = SignedPermutation(x[1].word[1] => (-1, x[2].word[1]))
+        sign, image = NCTSSoS._orbit_reducer_action(signed_swap, x[1])
+        @test sign == -1
+        @test image == x[2]
+
+        _, (σx, _, σz) = create_pauli_variables(1:2)
+        pauli_T = typeof(σx[1].word[1])
+        spatial_swap = pauli_site_permutation([2, 1])
+        spatial_sign, spatial_image = NCTSSoS._orbit_reducer_action(spatial_swap, σx[1])
+        @test spatial_sign == 1
+        @test spatial_image == σx[2]
+
+        hadamard = CliffordSymmetry(:H, 1; nqubits=2)
+        h_sign, h_image = NCTSSoS._orbit_reducer_action(hadamard, σx[1])
+        @test h_sign == 1
+        @test h_image == σz[1]
+
+        lazy_h = NCTSSoS._lazy_orbit_reducer(PauliAlgebra, pauli_T, [hadamard])
+        @test lazy_h.spatial_permutations === nothing
+
+        @test NCTSSoS._wedderburn_row_basis([1.0 0.0; 0.0 1.0]) == [1.0 0.0; 0.0 1.0]
+
+        nonpauli_pop = polyopt(1.0 * x[1], reg)
+        lazy_charge_spec = SymmetrySpec(
+            pauli_charge=PauliChargeSectorSpec(nqubits=1),
+            offblock_check=:off,
+        )
+        @test !NCTSSoS._can_use_lazy_pauli_charge_reduction(nonpauli_pop, lazy_charge_spec)
+
+        P = Polynomial{UnipotentAlgebra,T,Float64}
+        M = typeof(one(x[1]))
+        multi_clique_cs = NCTSSoS.CorrelativeSparsity{UnipotentAlgebra,T,P,M,Nothing}(
+            [T[x[1].word[1]], T[x[2].word[1]]],
+            reg,
+            P[],
+            [Int[], Int[]],
+            Int[],
+            [[one(x[1]), x[2]], [x[1], x[2]]],
+            [Vector{M}[], Vector{M}[]],
+        )
+        half_basis = NCTSSoS._half_basis_vector(multi_clique_cs)
+        @test issorted(half_basis)
+        @test Set(half_basis) == Set([one(x[1]), x[1], x[2]])
+    end
+
     @testset "signed-permutation group multiplication matches SymbolicWedderburn's action convention" begin
         _, _, x, y = _create_chsh_problem()
         T = typeof(x[1].word[1])

@@ -3563,7 +3563,9 @@ function _can_use_lazy_pauli_charge_reduction(
            isempty(pop.moment_eq_constraints)
 end
 
-_can_use_lazy_pauli_charge_reduction(::PolyOpt, ::SymmetrySpec) = false
+function _can_use_lazy_pauli_charge_reduction(::PolyOpt, ::SymmetrySpec)
+    return false
+end
 
 function _pauli_degree_basis_count(nqubits::Integer, max_degree::Integer)
     n = Int(nqubits)

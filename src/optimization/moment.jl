@@ -87,6 +87,7 @@ function MomentProblem{A,T,M,P}(
     total_basis::Vector{M},
     n_unique_moment_matrix_elements::Integer;
     block_meta_by_constraint::AbstractDict{Int,BlockMeta{M}}=Dict{Int,BlockMeta{M}}(),
+    zero_origin_by_constraint::AbstractDict=Dict{Int,Any}(),
     real_moments::Bool=false,
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P<:Polynomial{A,T}}
     linear = _build_moment_linear_data(
@@ -94,6 +95,7 @@ function MomentProblem{A,T,M,P}(
         constraints,
         total_basis;
         block_meta_by_constraint=block_meta_by_constraint,
+        zero_origin_by_constraint=zero_origin_by_constraint,
         real_moments=real_moments,
     )
     return _moment_problem_with_linear(
@@ -191,6 +193,17 @@ function _register_polynomial_keys!(key_to_monomial::Dict{K,M}, ::Type{K}, poly:
     return nothing
 end
 
+function _register_moment_basis_keys!(
+    key_to_monomial::Dict{K,M},
+    ::Type{K},
+    total_basis::Vector{M},
+) where {K,M<:NormalMonomial}
+    for mono in total_basis
+        _register_moment_key!(key_to_monomial, _moment_key(K, mono), mono)
+    end
+    return nothing
+end
+
 function _moment_linear_adjoint_monomial(mono::NormalMonomial{A,T}) where {A<:PBWAlgebra,T<:Signed}
     raw_adj_word = similar(mono.word, length(mono.word))
     raw_adj_word .= .-@view(mono.word[end:-1:1])
@@ -260,6 +273,27 @@ function _imag_part_form(form::LinearMomentForm{K,C}, adjoint_key::Dict{K,K}) wh
     return _linear_moment_form_from_owned_pairs!(pairs)
 end
 
+function _zero_constraint_origin(
+    zero_origin_seed,
+    constraint_idx::Integer,
+    row::Integer,
+    col::Integer,
+    part::Symbol,
+)
+    return ZeroMatrixOrigin(constraint_idx, row, col, part)
+end
+
+function _zero_constraint_origin(
+    zero_origin_by_constraint::AbstractDict,
+    constraint_idx::Integer,
+    row::Integer,
+    col::Integer,
+    part::Symbol,
+)
+    seed = get(zero_origin_by_constraint, Int(constraint_idx), nothing)
+    return _zero_constraint_origin(seed, constraint_idx, row, col, part)
+end
+
 function _append_zero_linear_constraints!(
     zero_constraints::Vector{ScalarLinearConstraint{K,C}},
     ::Type{A},
@@ -268,6 +302,7 @@ function _append_zero_linear_constraints!(
     adjoint_key::Dict{K,K},
     constraint_idx::Int,
     mat::Matrix{P},
+    zero_origin_by_constraint::AbstractDict=Dict{Int,Any}(),
 ) where {A<:AlgebraType,K,C,T<:Integer,PC<:Number,P<:Polynomial{A,T,PC}}
     if _is_complex_problem(A) && !(C <: Real)
         size(mat, 1) == size(mat, 2) || throw(DimensionMismatch(
@@ -281,13 +316,27 @@ function _append_zero_linear_constraints!(
             real_form = _real_part_form(raw, adjoint_key)
             isempty(real_form) || push!(
                 zero_constraints,
-                ScalarLinearConstraint(real_form, :zero, ZeroMatrixOrigin(constraint_idx, i, j, i == j ? :scalar : :real)),
+                ScalarLinearConstraint(
+                    real_form,
+                    :zero,
+                    _zero_constraint_origin(
+                        zero_origin_by_constraint,
+                        constraint_idx,
+                        i,
+                        j,
+                        i == j ? :scalar : :real,
+                    ),
+                ),
             )
 
             imag_form = _imag_part_form(raw, adjoint_key)
             isempty(imag_form) || push!(
                 zero_constraints,
-                ScalarLinearConstraint(imag_form, :zero, ZeroMatrixOrigin(constraint_idx, i, j, :imag)),
+                ScalarLinearConstraint(
+                    imag_form,
+                    :zero,
+                    _zero_constraint_origin(zero_origin_by_constraint, constraint_idx, i, j, :imag),
+                ),
             )
         end
     else
@@ -295,7 +344,11 @@ function _append_zero_linear_constraints!(
             form = _linearize_moment_polynomial(K, C, mat[i, j])
             isempty(form) || push!(
                 zero_constraints,
-                ScalarLinearConstraint(form, :zero, ZeroMatrixOrigin(constraint_idx, i, j, :scalar)),
+                ScalarLinearConstraint(
+                    form,
+                    :zero,
+                    _zero_constraint_origin(zero_origin_by_constraint, constraint_idx, i, j, :scalar),
+                ),
             )
         end
     end
@@ -390,6 +443,7 @@ function _build_moment_linear_data(
     constraints::Vector{Tuple{Symbol,Matrix{P}}},
     total_basis::Vector{M};
     block_meta_by_constraint::AbstractDict{Int,BlockMeta{M}}=Dict{Int,BlockMeta{M}}(),
+    zero_origin_by_constraint::AbstractDict=Dict{Int,Any}(),
     real_moments::Bool=false,
 ) where {A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T},P<:Polynomial{A,T,C}}
     if real_moments && !(C <: Real)
@@ -401,12 +455,7 @@ function _build_moment_linear_data(
 
     key_to_monomial = Dict{K,M}()
     _register_moment_key!(key_to_monomial, convert(K, identity), one(M))
-    _register_polynomial_keys!(key_to_monomial, K, objective)
-    for (_, mat) in constraints
-        for poly in mat
-            _register_polynomial_keys!(key_to_monomial, K, poly)
-        end
-    end
+    _register_moment_basis_keys!(key_to_monomial, K, total_basis)
     _close_adjoint_keys!(key_to_monomial, K, A)
 
     moments = sort!(collect(keys(key_to_monomial)); lt=key_lt)
@@ -438,7 +487,16 @@ function _build_moment_linear_data(
             push!(psd_blocks_lin, _psd_linear_block(K, LC, M, cone, mat, meta))
             push!(psd_block_constraint_idx, constraint_idx)
         elseif cone == :Zero
-            _append_zero_linear_constraints!(zero_constraints, A, K, LC, adjoint_key, constraint_idx, mat)
+            _append_zero_linear_constraints!(
+                zero_constraints,
+                A,
+                K,
+                LC,
+                adjoint_key,
+                constraint_idx,
+                mat,
+                zero_origin_by_constraint,
+            )
         else
             # Keep legacy manual-construction behavior: invalid cones are rejected
             # by the consumer that understands cones (lowering/SOS), not by this
@@ -532,6 +590,484 @@ function _build_constraint_matrix(
     end
 
     return (cone, moment_mtx)
+end
+
+function _linear_constraint_entry(
+    ::Type{K},
+    ::Type{LC},
+    poly::Polynomial{A,T,C},
+    row_mono::M,
+    col_mono::M,
+    buf::Vector{T},
+) where {K,LC,A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T}}
+    pairs = Pair{K,LC}[]
+    sizehint!(pairs, length(row_mono) * length(col_mono) * length(poly.terms))
+    terms = Tuple{LC,NormalMonomial{A,T}}[]
+
+    for (c_row, row_word) in row_mono
+        conj_row = _conj_coef(A, c_row)
+        for (c_col, col_word) in col_mono
+            row_col_coef = conj_row * c_col
+            for (coef, mono) in poly.terms
+                scale = row_col_coef * coef
+                _push_scaled_buffered_terms!(
+                    terms,
+                    scale,
+                    A,
+                    simplify!(A, _neat_dot3!(buf, row_word, mono, col_word)),
+                    T,
+                    LC,
+                )
+            end
+        end
+    end
+
+    for (coef, mono) in terms
+        push!(pairs, _owned_moment_key(K, _moment_key(K, mono)) => coef)
+    end
+    return _linear_moment_form_from_owned_pairs!(pairs)
+end
+
+function _linear_constraint_entries(
+    ::Type{K},
+    ::Type{LC},
+    poly::Polynomial{A,T,C},
+    local_basis::Vector{M},
+) where {K,LC,A<:AlgebraType,T<:Integer,C<:Number,M<:NormalMonomial{A,T}}
+    entries = Matrix{LinearMomentForm{K,LC}}(undef, length(local_basis), length(local_basis))
+    buf = T[]
+    for j in axes(entries, 2), i in axes(entries, 1)
+        entries[i, j] = _linear_constraint_entry(K, LC, poly, local_basis[i], local_basis[j], buf)
+    end
+    return entries
+end
+
+function _scaled_linear_form(
+    scale,
+    form::LinearMomentForm{K,LC},
+) where {K,LC}
+    pairs = Pair{K,LC}[]
+    sizehint!(pairs, length(form))
+    converted_scale = convert(LC, scale)
+    for (key, coef) in form
+        scaled = converted_scale * coef
+        iszero(scaled) || push!(pairs, _owned_moment_key(K, key) => scaled)
+    end
+    return _linear_moment_form_from_owned_pairs!(pairs)
+end
+
+function _combine_linear_forms(
+    left_scale,
+    left::LinearMomentForm{K,LC},
+    right_scale,
+    right::LinearMomentForm{K,LC},
+) where {K,LC}
+    pairs = Pair{K,LC}[]
+    sizehint!(pairs, length(left) + length(right))
+    converted_left_scale = convert(LC, left_scale)
+    converted_right_scale = convert(LC, right_scale)
+    for (key, coef) in left
+        scaled = converted_left_scale * coef
+        iszero(scaled) || push!(pairs, _owned_moment_key(K, key) => scaled)
+    end
+    for (key, coef) in right
+        scaled = converted_right_scale * coef
+        iszero(scaled) || push!(pairs, _owned_moment_key(K, key) => scaled)
+    end
+    return _linear_moment_form_from_owned_pairs!(pairs)
+end
+
+function _adjoint_linear_form(
+    builder::MomentLinearBuilder{K,LC,M},
+    form::LinearMomentForm{K,LC},
+) where {K,LC,M}
+    pairs = Pair{K,LC}[]
+    sizehint!(pairs, length(form))
+    for (key, coef) in form
+        mono = _builder_form_monomial(builder, key)
+        adj_key = _owned_moment_key(K, _moment_key(K, _moment_linear_adjoint_monomial(mono)))
+        converted = convert(LC, conj(coef))
+        iszero(converted) || push!(pairs, adj_key => converted)
+    end
+    return _linear_moment_form_from_owned_pairs!(pairs)
+end
+
+function _direct_zero_matrix_components(
+    builder::MomentLinearBuilder{K,LC,M},
+    entries::AbstractMatrix{LinearMomentForm{K,LC}},
+    ::Type{A},
+) where {K,LC,A<:AlgebraType,M}
+    if !_is_complex_problem(A) || LC <: Real
+        return [entries]
+    end
+
+    hermitian_entries = similar(entries)
+    skew_entries = similar(entries)
+    for j in axes(entries, 2), i in axes(entries, 1)
+        adjoint_entry = _adjoint_linear_form(builder, entries[j, i])
+        hermitian_entries[i, j] = _combine_linear_forms(0.5, entries[i, j], 0.5, adjoint_entry)
+        skew_entries[i, j] = _combine_linear_forms(-0.5im, entries[i, j], 0.5im, adjoint_entry)
+    end
+
+    components = typeof(entries)[]
+    any(!isempty, hermitian_entries) && push!(components, hermitian_entries)
+    any(!isempty, skew_entries) && push!(components, skew_entries)
+    return components
+end
+
+function _append_direct_hermitian_zero_constraints!(
+    builder::MomentLinearBuilder{K,LC,M},
+    entries::AbstractMatrix{LinearMomentForm{K,LC}},
+    constraint_idx::Integer,
+    ::Type{A},
+) where {K,LC,A<:AlgebraType,M}
+    if _is_complex_problem(A) && !(LC <: Real)
+        for j in axes(entries, 2), i in firstindex(entries, 1):j
+            form = entries[i, j]
+            isempty(form) && continue
+            adjoint_key = _builder_adjoint_key_for_form(builder, form)
+
+            real_form = _real_part_form(form, adjoint_key)
+            isempty(real_form) || add_zero_constraint!(
+                builder,
+                real_form,
+                ZeroMatrixOrigin(constraint_idx, i, j, i == j ? :scalar : :real),
+            )
+
+            imag_form = _imag_part_form(form, adjoint_key)
+            isempty(imag_form) || add_zero_constraint!(
+                builder,
+                imag_form,
+                ZeroMatrixOrigin(constraint_idx, i, j, :imag),
+            )
+        end
+    else
+        for i in axes(entries, 1), j in axes(entries, 2)
+            isempty(entries[i, j]) && continue
+            add_zero_constraint!(
+                builder,
+                entries[i, j],
+                ZeroMatrixOrigin(constraint_idx, i, j, :scalar),
+            )
+        end
+    end
+    return nothing
+end
+
+function _append_direct_zero_constraints!(
+    builder::MomentLinearBuilder{K,LC,M},
+    entries::AbstractMatrix{LinearMomentForm{K,LC}},
+    constraint_idx::Integer,
+    ::Type{A},
+) where {K,LC,A<:AlgebraType,M}
+    next_constraint_idx = Int(constraint_idx)
+    for component in _direct_zero_matrix_components(builder, entries, A)
+        next_constraint_idx += 1
+        _append_direct_hermitian_zero_constraints!(builder, component, next_constraint_idx, A)
+    end
+    return next_constraint_idx
+end
+
+function _linear_moment_eq_row_form(
+    ::Type{K},
+    ::Type{LC},
+    g::MP,
+    row_mono::M,
+    buf::Vector{TI},
+) where {K,LC,A<:AlgebraType,TI<:Integer,C<:Number,MP<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
+    one_mono = one(M)
+    terms = Tuple{C,NormalMonomial{A,TI}}[]
+    sizehint!(terms, length(row_mono) * length(g.terms))
+
+    for (c_row, row_word) in row_mono
+        conj_row = _conj_coef(A, c_row)
+        for (coef, mono) in g.terms
+            _push_scaled_buffered_terms!(
+                terms,
+                conj_row * coef,
+                A,
+                simplify!(A, _neat_dot3!(buf, row_word, mono, one_mono)),
+                TI,
+                C,
+            )
+        end
+    end
+
+    pairs = Pair{K,LC}[]
+    sizehint!(pairs, length(terms))
+    for (coef, mono) in terms
+        converted = convert(LC, coef)
+        iszero(converted) || push!(pairs, _moment_key(K, mono) => converted)
+    end
+    return _linear_moment_form_from_owned_pairs!(pairs)
+end
+
+function _append_direct_moment_eq_constraints!(
+    builder::MomentLinearBuilder{K,LC,M},
+    pop::PolyOpt{A,TI,PP},
+    moment_eq_row_bases::Vector{M},
+    moment_eq_row_basis_degrees::Vector{Int},
+    ::Type{MP},
+    constraint_idx::Integer,
+) where {K,LC,A<:AlgebraType,TI<:Integer,CPP<:Number,CMP<:Number,M<:NormalMonomial{A,TI},PP<:Polynomial{A,TI,CPP},MP<:Polynomial{A,TI,CMP}}
+    isempty(pop.moment_eq_constraints) && return Int(constraint_idx)
+
+    next_constraint_idx = Int(constraint_idx)
+    buf = TI[]
+    for raw_g in pop.moment_eq_constraints
+        row_bases = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, raw_g)
+        isempty(row_bases) && continue
+
+        g = convert(MP, raw_g)
+        for row_mono in row_bases
+            form = _linear_moment_eq_row_form(K, LC, g, row_mono, buf)
+            isempty(form) && continue
+
+            next_constraint_idx = _append_direct_moment_eq_form_constraint!(
+                builder,
+                A,
+                form,
+                next_constraint_idx,
+            )
+        end
+    end
+    return next_constraint_idx
+end
+
+function _append_direct_moment_eq_form_constraint!(
+    builder::MomentLinearBuilder{K,LC,M},
+    ::Type{A},
+    form::LinearMomentForm{K,LC},
+    constraint_idx::Integer,
+) where {K,LC,A<:AlgebraType,M}
+    next_constraint_idx = Int(constraint_idx)
+    if _is_complex_problem(A) && !(LC <: Real)
+        adjoint_key = _builder_adjoint_key_for_form(builder, form)
+
+        real_form = _real_part_form(form, adjoint_key)
+        if !isempty(real_form)
+            next_constraint_idx += 1
+            add_zero_constraint!(
+                builder,
+                real_form,
+                ZeroMatrixOrigin(next_constraint_idx, 1, 1, :scalar),
+            )
+        end
+
+        skew_form = _imag_part_form(form, adjoint_key)
+        if !isempty(skew_form)
+            next_constraint_idx += 1
+            add_zero_constraint!(
+                builder,
+                skew_form,
+                ZeroMatrixOrigin(next_constraint_idx, 1, 1, :scalar),
+            )
+        end
+    else
+        next_constraint_idx += 1
+        add_zero_constraint!(
+            builder,
+            form,
+            ZeroMatrixOrigin(next_constraint_idx, 1, 1, :scalar),
+        )
+    end
+    return next_constraint_idx
+end
+
+function _builder_form_monomial(
+    builder::MomentLinearBuilder{K,LC,M},
+    key,
+) where {K,LC,M}
+    owned_key = _owned_moment_key(K, key)
+    stored_key = _builder_stored_key(builder.key_to_monomial, owned_key)
+    stored_key === nothing && throw(ArgumentError(
+        "direct linear form references an unregistered moment key $(repr(key))"
+    ))
+    return builder.key_to_monomial[stored_key]
+end
+
+function _builder_linear_form_has_odd_parity_only(
+    builder::MomentLinearBuilder{K,LC,M},
+    form::LinearMomentForm{K,LC},
+) where {K,LC,M}
+    has_nonzero_term = false
+    for (key, coef) in form
+        iszero(coef) && continue
+        has_nonzero_term = true
+        has_even_parity(_builder_form_monomial(builder, key)) && return false
+    end
+    return has_nonzero_term
+end
+
+function _builder_adjoint_key_for_form(
+    builder::MomentLinearBuilder{K,LC,M},
+    form::LinearMomentForm{K,LC},
+) where {K,LC,M}
+    adjoint_key = Dict{K,K}()
+    for (key, _) in form
+        owned_key = _owned_moment_key(K, key)
+        mono = _builder_form_monomial(builder, owned_key)
+        adjoint_key[owned_key] = _owned_moment_key(K, _moment_key(K, _moment_linear_adjoint_monomial(mono)))
+    end
+    return adjoint_key
+end
+
+function _negate_linear_form(form::LinearMomentForm{K,LC}) where {K,LC}
+    pairs = Pair{K,LC}[]
+    sizehint!(pairs, length(form))
+    for (key, coef) in form
+        push!(pairs, _owned_moment_key(K, key) => -coef)
+    end
+    return _linear_moment_form_from_owned_pairs!(pairs)
+end
+
+function _append_direct_zero_form_constraint!(
+    builder::MomentLinearBuilder{K,LC,M},
+    ::Type{A},
+    form::LinearMomentForm{K,LC},
+    constraint_idx::Integer,
+) where {K,LC,A<:AlgebraType,M}
+    next_constraint_idx = Int(constraint_idx)
+    if _is_complex_problem(A) && !(LC <: Real)
+        adjoint_key = _builder_adjoint_key_for_form(builder, form)
+        real_form = _real_part_form(form, adjoint_key)
+        if !isempty(real_form)
+            next_constraint_idx += 1
+            add_zero_constraint!(
+                builder,
+                real_form,
+                ZeroMatrixOrigin(next_constraint_idx, 1, 1, :scalar),
+            )
+        end
+
+        skew_form = _negate_linear_form(_imag_part_form(form, adjoint_key))
+        if !isempty(skew_form)
+            next_constraint_idx += 1
+            add_zero_constraint!(
+                builder,
+                skew_form,
+                ZeroMatrixOrigin(next_constraint_idx, 1, 1, :scalar),
+            )
+        end
+    else
+        next_constraint_idx += 1
+        add_zero_constraint!(
+            builder,
+            form,
+            ZeroMatrixOrigin(next_constraint_idx, 1, 1, :scalar),
+        )
+    end
+    return next_constraint_idx
+end
+
+function _append_direct_parity_constraints!(
+    builder::MomentLinearBuilder{K,LC,M},
+    ::Type{A},
+    constraint_idx::Integer,
+) where {K,LC,A<:AlgebraType,M}
+    A === FermionicAlgebra || return Int(constraint_idx)
+
+    next_constraint_idx = Int(constraint_idx)
+    for block in builder.psd_blocks_lin
+        for form in block.entries
+            _builder_linear_form_has_odd_parity_only(builder, form) || continue
+            next_constraint_idx = _append_direct_zero_form_constraint!(
+                builder,
+                A,
+                form,
+                next_constraint_idx,
+            )
+        end
+    end
+    return next_constraint_idx
+end
+
+function _moment_relax_linear(
+    pop::PolyOpt{A,TI,P},
+    corr_sparsity::CorrelativeSparsity{A,TI,P,M,Nothing},
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}},
+) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
+    total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
+        _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+    _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed direct-linear relaxation basis")
+
+    psd_cone = _is_complex_problem(A) ? :HPSD : :PSD
+    MP_C = _moment_problem_coeff_type(A, C)
+    MP_P = Polynomial{A,TI,MP_C}
+    objective_mp = convert(MP_P, pop.objective)
+
+    identity = symmetric_canon(expval(one(M)))
+    K = typeof(identity)
+    LC = _moment_linear_coeff_type(A, MP_C)
+    builder = MomentLinearBuilder(K, LC, M)
+    for mono in total_basis
+        register_moment!(builder, mono)
+    end
+    add_objective_terms!(
+        builder,
+        collect(_linearize_moment_polynomial(K, LC, objective_mp)),
+    )
+
+    constraint_idx = 0
+    for (clique_idx, (term_sparsities, cons_idx)) in enumerate(zip(cliques_term_sparsities, corr_sparsity.clq_cons))
+        polys = [one(pop.objective); corr_sparsity.cons[cons_idx]...]
+
+        for (term_idx, (term_sparsity, raw_poly)) in enumerate(zip(term_sparsities, polys))
+            cone = raw_poly in pop.eq_constraints ? :Zero : psd_cone
+            poly = convert(MP_P, raw_poly)
+            for (ts_block_idx, ts_sub_basis) in enumerate(term_sparsity.block_bases)
+                entries = _linear_constraint_entries(K, LC, poly, ts_sub_basis)
+                if cone == :Zero
+                    constraint_idx = _append_direct_zero_constraints!(builder, entries, constraint_idx, A)
+                else
+                    constraint_idx += 1
+                    origin = term_idx == 1 ?
+                        MomentMatrixOrigin(clique_idx, ts_block_idx) :
+                        LocalizingOrigin(clique_idx, cons_idx[term_idx - 1], ts_block_idx)
+                    add_psd_block!(
+                        builder,
+                        cone,
+                        entries,
+                        BlockMeta{M}(cone, origin, ts_sub_basis);
+                        constraint_idx,
+                    )
+                end
+            end
+        end
+    end
+
+    for global_con in corr_sparsity.global_cons
+        raw_poly = corr_sparsity.cons[global_con]
+        cone = raw_poly in pop.eq_constraints ? :Zero : psd_cone
+        poly = convert(MP_P, raw_poly)
+        global_basis = [one(M)]
+        entries = _linear_constraint_entries(K, LC, poly, global_basis)
+        if cone == :Zero
+            constraint_idx = _append_direct_zero_constraints!(builder, entries, constraint_idx, A)
+        else
+            constraint_idx += 1
+            add_psd_block!(
+                builder,
+                cone,
+                entries,
+                BlockMeta{M}(cone, GlobalOrigin(global_con), global_basis);
+                constraint_idx,
+            )
+        end
+    end
+
+    constraint_idx = _append_direct_parity_constraints!(builder, A, constraint_idx)
+
+    constraint_idx = _append_direct_moment_eq_constraints!(
+        builder,
+        pop,
+        moment_eq_row_bases,
+        moment_eq_row_basis_degrees,
+        MP_P,
+        constraint_idx,
+    )
+
+    return finalize!(builder)
 end
 
 """
@@ -1065,9 +1601,10 @@ function _append_moment_eq_constraints!(
     moment_eq_row_basis_degrees::Vector{Int},
     ::Type{MP},
 ) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
-    isempty(pop.moment_eq_constraints) && return nothing
+    isempty(pop.moment_eq_constraints) && return 1:0
 
     one_mono = one(NormalMonomial{A,T})
+    before = length(constraints)
     meq_constraints = Tuple{Symbol, Matrix{MP}}[]
     buf = T[]  # scratch word reused across all products
 
@@ -1103,7 +1640,7 @@ function _append_moment_eq_constraints!(
     end
 
     append!(constraints, meq_constraints)
-    return nothing
+    return (before + 1):length(constraints)
 end
 
 function _add_moment_eq_constraints!(
@@ -1112,15 +1649,21 @@ function _add_moment_eq_constraints!(
     moment_eq_row_bases::Vector{M},
     moment_eq_row_basis_degrees::Vector{Int},
 ) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
-    before = length(mp.constraints)
-    _append_moment_eq_constraints!(
+    cache_was_synced = _linear_cache_psd_constraints_synced(mp)
+    added_constraint_indices = _append_moment_eq_constraints!(
         mp.constraints,
         pop,
         moment_eq_row_bases,
         moment_eq_row_basis_degrees,
         MP,
     )
-    length(mp.constraints) == before || _refresh_moment_linear!(mp)
+    isempty(added_constraint_indices) && return nothing
+
+    if cache_was_synced
+        _append_linear_zero_constraints_from_constraints!(mp.linear, A, mp.constraints, added_constraint_indices)
+    else
+        _refresh_moment_linear!(mp)
+    end
     return nothing
 end
 
@@ -1191,6 +1734,33 @@ function solve_moment_problem(
         model=model,
         monomap=extract_monomap(),
         n_unique_elements=mp.n_unique_moment_matrix_elements,
+    )
+end
+
+function solve_moment_problem(
+    L::MomentLinearData,
+    optimizer;
+    silent::Bool=true,
+    formulation::Symbol=:moment_variables,
+    representation::Symbol=:real,
+    orphan_policy::Symbol=:error,
+)
+    model, extract_monomap = build_jump_model(
+        L;
+        formulation=formulation,
+        representation=representation,
+        orphan_policy=orphan_policy,
+    )
+
+    set_optimizer(model, optimizer)
+    silent && set_silent(model)
+    optimize!(model)
+
+    return (
+        objective=objective_value(model),
+        model=model,
+        monomap=extract_monomap(),
+        n_unique_elements=length(L.moments),
     )
 end
 
@@ -1351,8 +1921,9 @@ function _append_parity_constraints!(
     ::Type{P},
 ) where {A<:AlgebraType,P<:Polynomial}
     # Only FermionicAlgebra needs parity constraints.
-    A === FermionicAlgebra || return nothing
+    A === FermionicAlgebra || return 1:0
 
+    before = length(constraints)
     parity_constraints = Tuple{Symbol, Matrix{P}}[]
 
     for (_, mat) in constraints
@@ -1367,15 +1938,53 @@ function _append_parity_constraints!(
     end
 
     append!(constraints, parity_constraints)
+    return (before + 1):length(constraints)
+end
+
+function _linear_cache_psd_constraints_synced(mp::MomentProblem)
+    psd_constraint_idx = Int[]
+    for (constraint_idx, (cone, _)) in pairs(mp.constraints)
+        cone in (:PSD, :HPSD) && push!(psd_constraint_idx, constraint_idx)
+    end
+    return psd_constraint_idx == mp.linear.psd_block_constraint_idx
+end
+
+function _append_linear_zero_constraints_from_constraints!(
+    linear::MomentLinearData{K,LC,M},
+    ::Type{A},
+    constraints::Vector{Tuple{Symbol,Matrix{P}}},
+    added_constraint_indices,
+) where {K,LC,A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},PC<:Number,P<:Polynomial{A,T,PC}}
+    for constraint_idx in added_constraint_indices
+        cone, mat = constraints[constraint_idx]
+        cone == :Zero || throw(ArgumentError(
+            "Parity append expected a Zero constraint at index $constraint_idx, got $(repr(cone))"
+        ))
+        _append_zero_linear_constraints!(
+            linear.zero_constraints,
+            A,
+            K,
+            LC,
+            linear.adjoint_key,
+            Int(constraint_idx),
+            mat,
+        )
+    end
     return nothing
 end
 
 function _add_parity_constraints!(
     mp::MomentProblem{A,T,M,P}
 ) where {A<:AlgebraType,T<:Integer,M,P}
-    before = length(mp.constraints)
-    _append_parity_constraints!(mp.constraints, A, P)
-    length(mp.constraints) == before || _refresh_moment_linear!(mp)
+    cache_was_synced = _linear_cache_psd_constraints_synced(mp)
+    added_constraint_indices = _append_parity_constraints!(mp.constraints, A, P)
+    isempty(added_constraint_indices) && return nothing
+
+    if cache_was_synced
+        _append_linear_zero_constraints_from_constraints!(mp.linear, A, mp.constraints, added_constraint_indices)
+    else
+        _refresh_moment_linear!(mp)
+    end
     return nothing
 end
 

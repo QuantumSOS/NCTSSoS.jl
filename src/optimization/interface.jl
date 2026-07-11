@@ -244,7 +244,7 @@ function project_to_clique(poly::NCStatePolynomial{C,ST,A,T}, clique_indices) wh
 end
 
 """
-    solve_sdp(moment_problem, optimizer; dualize::Bool=true)
+    solve_sdp(moment_problem, optimizer; dualize::Bool=true, sos_hermitian_representation=:real_lift)
 
 Solve the SDP relaxation, either via SOS dualization or directly as moment problem.
 
@@ -254,15 +254,21 @@ For ordinary complex-algebra polynomial problems (`PauliAlgebra`, `FermionicAlge
   cone by the standard block map `[Re(H) -Im(H); Im(H) Re(H)]` (the note's
   block-doubling / Algorithm 1 route).
 - `dualize=true` solves the dual SOS SDP for the Hermitian setting covered by the
-  note. Hermitian PSD cones use the lifted real PSD dual formulation. Complex
-  zero constraints are first split into Hermitian real/imaginary components when
-  needed, so non-Hermitian equalities still reach the dual path through an
-  explicit Hermitian decomposition instead of being modeled implicitly.
+  note. Hermitian PSD cones use the lifted real PSD dual formulation by default;
+  pass `sos_hermitian_representation=:native` to keep native Hermitian cones
+  when the solver backend supports them. Complex zero constraints are first
+  split into Hermitian real/imaginary components when needed, so non-Hermitian
+  equalities still reach the dual path through an explicit Hermitian
+  decomposition instead of being modeled implicitly.
 
 Returns a named tuple `(objective, model, n_unique_elements, status)`.
 
 Throws an error if the solver fails (infeasible, unbounded, numerical error).
 """
+_solve_sdp_n_unique_elements(moment_problem) =
+    moment_problem.n_unique_moment_matrix_elements
+_solve_sdp_n_unique_elements(L::MomentLinearData) = length(L.moments)
+
 function solve_sdp(
     moment_problem,
     optimizer;
@@ -270,24 +276,36 @@ function solve_sdp(
     formulation::Symbol=:moment_variables,
     representation::Symbol=:real,
     orphan_policy::Symbol=:error,
+    sos_hermitian_representation::Symbol=:real_lift,
 )
     if dualize
         if formulation != :moment_variables || representation != :real || orphan_policy != :error
             throw(ArgumentError("Moment lowering options apply only with dualize=false; SOS relowering is deferred."))
         end
 
-        sos_problem = sos_dualize(moment_problem)
+        sos_problem = if moment_problem isa Union{MomentProblem,MomentLinearData}
+            sos_dualize(
+                moment_problem;
+                hermitian_representation=sos_hermitian_representation,
+            )
+        else
+            sos_hermitian_representation == :real_lift || throw(ArgumentError(
+                "`sos_hermitian_representation` applies only to ordinary Hermitian " *
+                "MomentProblem or MomentLinearData SOS dualization."
+            ))
+            sos_dualize(moment_problem)
+        end
         set_optimizer(sos_problem.model, optimizer)
         optimize!(sos_problem.model)
         status = _check_solver_status(sos_problem.model)
         return (
             objective = objective_value(sos_problem.model),
             model = sos_problem.model,
-            n_unique_elements = moment_problem.n_unique_moment_matrix_elements,
+            n_unique_elements = _solve_sdp_n_unique_elements(moment_problem),
             status = status
         )
     else
-        result = if moment_problem isa MomentProblem
+        result = if moment_problem isa Union{MomentProblem,MomentLinearData}
             solve_moment_problem(
                 moment_problem,
                 optimizer;
@@ -367,6 +385,425 @@ end
 
 @inline _has_active_sparsity(solver_config::SolverConfig) =
     !(solver_config.cs_algo isa NoElimination && solver_config.ts_algo isa NoElimination)
+
+function _check_no_pauli_solverconfig_fast_path_overrides(kwargs)
+    for key in (:sign_symmetry, :reflection_symmetry, :axis_rotation_symmetry, :check_invariance)
+        haskey(kwargs, key) || continue
+        throw(ArgumentError(
+            "`pauli_translation_invariant_nctssos(pop, solver_config)` derives `$key` from `solver_config.symmetry`; do not pass it manually."
+        ))
+    end
+    return nothing
+end
+
+function _pauli_solverconfig_fast_path_supported(profile; su2_symmetry::Bool=false)
+    if su2_symmetry && profile.axis_rotation_symmetry
+        unsupported = setdiff(profile.unsupported_features, [:axis_rotation])
+        return isempty(unsupported) && isempty(profile.missing_required_features)
+    end
+    return profile.supported_by_translation_fast_path
+end
+
+function _check_pauli_solverconfig_fast_path_supported(profile; su2_symmetry::Bool=false)
+    _pauli_solverconfig_fast_path_supported(profile; su2_symmetry) && return nothing
+    throw(ArgumentError(
+        "`solver_config.symmetry` is not supported by the Pauli translation fast path; " *
+        "unsupported_features=$(profile.unsupported_features), " *
+        "missing_required_features=$(profile.missing_required_features). " *
+        "Axis-rotation generators require the full global H/S generator set, " *
+        "or `su2_symmetry=true`, where they are subsumed by the SU(2) reducer."
+    ))
+end
+
+function _check_pauli_complex_reflection_sectors(
+    profile;
+    real_moment_matrix::Bool=true,
+    momenta=nothing,
+    kwargs...,
+)
+    return _check_translation_complex_reflection_sectors(
+        profile.n_sites,
+        momenta;
+        reflection_symmetry=profile.reflection_symmetry,
+        real_moment_matrix,
+    )
+end
+
+function _pauli_translation_fast_path_options(;
+    direct_linear::Bool=false,
+    momenta=nothing,
+    real_moment_matrix::Bool=true,
+    phase_atol::Real=1e-12,
+    contiguous_rdm_k=nothing,
+    contiguous_rdm_decomposition=nothing,
+    contiguous_rdm_support=nothing,
+    u1_symmetry::Bool=false,
+    su2_symmetry::Bool=false,
+    base_su2_extend_rdm::Bool=false,
+    su2_moment_quotient::Bool=false,
+    su2_moment_quotient_atol::Real=1e-11,
+    su2_moment_quotient_condition_limit::Real=1e10,
+    qmbcertify_base_construct::Bool=false,
+    qmbcertify_base_extra=nothing,
+    qmbcertify_base_three_type::Tuple{<:Integer,<:Integer}=(1, 1),
+    axis_rotation_equalities::Bool=false,
+    axis_rotation_quotient::Bool=false,
+    singlet_channel_equalities::Bool=false,
+    singlet_channel_atol::Real=1e-12,
+    linear_state_opt_width=nothing,
+    linear_state_opt_mode=nothing,
+    psd_state_opt_width=nothing,
+)
+    return (
+        direct_linear=direct_linear,
+        momenta=momenta,
+        real_moment_matrix=real_moment_matrix,
+        phase_atol=phase_atol,
+        contiguous_rdm_k=contiguous_rdm_k,
+        contiguous_rdm_decomposition=contiguous_rdm_decomposition,
+        contiguous_rdm_support=contiguous_rdm_support,
+        u1_symmetry=u1_symmetry,
+        su2_symmetry=su2_symmetry,
+        base_su2_extend_rdm=base_su2_extend_rdm,
+        su2_moment_quotient=su2_moment_quotient,
+        su2_moment_quotient_atol=su2_moment_quotient_atol,
+        su2_moment_quotient_condition_limit=su2_moment_quotient_condition_limit,
+        qmbcertify_base_construct=qmbcertify_base_construct,
+        qmbcertify_base_extra=qmbcertify_base_extra,
+        qmbcertify_base_three_type=qmbcertify_base_three_type,
+        axis_rotation_equalities=axis_rotation_equalities,
+        axis_rotation_quotient=axis_rotation_quotient,
+        singlet_channel_equalities=singlet_channel_equalities,
+        singlet_channel_atol=singlet_channel_atol,
+        linear_state_opt_width=linear_state_opt_width,
+        linear_state_opt_mode=linear_state_opt_mode,
+        psd_state_opt_width=psd_state_opt_width,
+    )
+end
+
+function _nondefault_pauli_translation_fast_path_options(options)
+    names = Symbol[]
+    isnothing(options.momenta) || push!(names, :momenta)
+    options.real_moment_matrix || push!(names, :real_moment_matrix)
+    options.phase_atol == 1e-12 || push!(names, :phase_atol)
+    isnothing(options.contiguous_rdm_k) || push!(names, :contiguous_rdm_k)
+    isnothing(options.contiguous_rdm_decomposition) || push!(names, :contiguous_rdm_decomposition)
+    isnothing(options.contiguous_rdm_support) || push!(names, :contiguous_rdm_support)
+    options.u1_symmetry && push!(names, :u1_symmetry)
+    options.su2_symmetry && push!(names, :su2_symmetry)
+    options.base_su2_extend_rdm && push!(names, :base_su2_extend_rdm)
+    options.su2_moment_quotient && push!(names, :su2_moment_quotient)
+    options.su2_moment_quotient_atol == 1e-11 ||
+        push!(names, :su2_moment_quotient_atol)
+    options.su2_moment_quotient_condition_limit == 1e10 ||
+        push!(names, :su2_moment_quotient_condition_limit)
+    options.qmbcertify_base_construct && push!(names, :qmbcertify_base_construct)
+    isnothing(options.qmbcertify_base_extra) || push!(names, :qmbcertify_base_extra)
+    options.qmbcertify_base_three_type == (1, 1) || push!(names, :qmbcertify_base_three_type)
+    options.axis_rotation_equalities && push!(names, :axis_rotation_equalities)
+    options.axis_rotation_quotient && push!(names, :axis_rotation_quotient)
+    options.singlet_channel_equalities && push!(names, :singlet_channel_equalities)
+    options.singlet_channel_atol == 1e-12 || push!(names, :singlet_channel_atol)
+    isnothing(options.linear_state_opt_width) || push!(names, :linear_state_opt_width)
+    isnothing(options.linear_state_opt_mode) || push!(names, :linear_state_opt_mode)
+    isnothing(options.psd_state_opt_width) || push!(names, :psd_state_opt_width)
+    return names
+end
+
+function _check_qmbcertify_base_bridge_options(
+    ;
+    momenta,
+    u1_symmetry::Bool,
+    su2_symmetry::Bool,
+    su2_moment_quotient::Bool,
+    su2_moment_quotient_atol::Real,
+    su2_moment_quotient_condition_limit::Real,
+    axis_rotation_equalities::Bool,
+    axis_rotation_quotient::Bool,
+    singlet_channel_equalities::Bool,
+    singlet_channel_atol::Real,
+)
+    unsupported = Symbol[]
+    isnothing(momenta) || push!(unsupported, :momenta)
+    u1_symmetry && push!(unsupported, :u1_symmetry)
+    su2_symmetry && push!(unsupported, :su2_symmetry)
+    su2_moment_quotient && push!(unsupported, :su2_moment_quotient)
+    su2_moment_quotient_atol == 1e-11 ||
+        push!(unsupported, :su2_moment_quotient_atol)
+    su2_moment_quotient_condition_limit == 1e10 ||
+        push!(unsupported, :su2_moment_quotient_condition_limit)
+    axis_rotation_equalities && push!(unsupported, :axis_rotation_equalities)
+    axis_rotation_quotient && push!(unsupported, :axis_rotation_quotient)
+    singlet_channel_equalities && push!(unsupported, :singlet_channel_equalities)
+    singlet_channel_atol == 1e-12 || push!(unsupported, :singlet_channel_atol)
+    isempty(unsupported) && return nothing
+    keys = join(("`$name`" for name in unsupported), ", ")
+    throw(ArgumentError(
+        "`qmbcertify_base_construct=true` does not support Pauli translation fast-path keyword(s) $keys."
+    ))
+end
+
+function _check_no_pauli_translation_fast_path_options(options; context::AbstractString)
+    names = _nondefault_pauli_translation_fast_path_options(options)
+    isempty(names) && return nothing
+    keys = join(("`$name`" for name in names), ", ")
+    throw(ArgumentError(
+        "Pauli translation fast-path keyword(s) $keys require an ordinary Pauli-chain problem routed through the translation fast path; $context."
+    ))
+end
+
+function _supports_no_symmetry_direct_linear(::OptimizationProblem{A,P}) where {A<:AlgebraType,P}
+    return P <: Polynomial && (A <: MonoidAlgebra || A === PauliAlgebra || A <: PBWAlgebra)
+end
+
+function _check_no_symmetry_direct_linear_support(pop::OptimizationProblem{A,P}) where {A<:AlgebraType,P}
+    P <: Polynomial || throw(ArgumentError(
+        "`direct_linear=true` without a supported Pauli translation symmetry currently supports ordinary polynomial optimization only; state/trace polynomial optimization is not yet supported."
+    ))
+    _supports_no_symmetry_direct_linear(pop) || throw(ArgumentError(
+        "`direct_linear=true` without a supported Pauli translation symmetry currently supports ordinary no-symmetry polynomial problems over `MonoidAlgebra`, `PauliAlgebra`, or `PBWAlgebra`; got `$(nameof(A))`."
+    ))
+    return nothing
+end
+
+function _is_trivial_finite_symmetry(symmetry::SymmetrySpec)
+    isnothing(symmetry.sector) || return false
+    isnothing(symmetry.spin_adaptation) || return false
+    isnothing(symmetry.pauli_charge) || return false
+    isnothing(symmetry.pauli_singlet) || return false
+    all(generator -> isempty(generator.images), symmetry.generators) || return false
+    all(generator -> isempty(generator.images), symmetry.fermionic_generators) || return false
+    all(generator -> isempty(generator.images), symmetry.clifford_generators) || return false
+    return true
+end
+
+function _use_no_symmetry_direct_linear(
+    pop::OptimizationProblem,
+    solver_config::SolverConfig;
+    direct_linear::Bool,
+    trivial_finite_symmetry::Bool,
+)
+    no_active_symmetry = isnothing(solver_config.symmetry) || trivial_finite_symmetry
+    if direct_linear
+        no_active_symmetry || throw(ArgumentError(
+            "`direct_linear=true` with `solver_config.symmetry` is supported only by the Pauli translation fast path."
+        ))
+        _check_no_symmetry_direct_linear_support(pop)
+        return true
+    end
+    no_active_symmetry || return false
+    return _supports_no_symmetry_direct_linear(pop)
+end
+
+function pauli_translation_invariant_nctssos(
+    pop::PolyOpt{PauliAlgebra,T,P},
+    solver_config::SolverConfig;
+    dualize::Bool=false,
+    formulation::Symbol=:moment_variables,
+    representation::Symbol=:real,
+    orphan_policy::Symbol=:error,
+    sos_hermitian_representation::Symbol=:real_lift,
+    kwargs...,
+) where {T<:Unsigned,C<:Number,P<:Polynomial{PauliAlgebra,T,C}}
+    isnothing(solver_config.symmetry) && throw(ArgumentError(
+        "`pauli_translation_invariant_nctssos(pop, solver_config)` requires `solver_config.symmetry`."
+    ))
+    _has_active_sparsity(solver_config) && throw(ArgumentError(
+        "`pauli_translation_invariant_nctssos(pop, solver_config)` does not use generic CS/TS sparsity; pass `NoElimination()` algorithms."
+    ))
+    isnothing(solver_config.moment_basis) || throw(ArgumentError(
+        "`pauli_translation_invariant_nctssos(pop, solver_config)` currently requires an integer relaxation `order`, not `moment_basis`."
+    ))
+    _check_no_pauli_solverconfig_fast_path_overrides(kwargs)
+
+    order = _resolve_relaxation_spec(pop, solver_config)
+    order isa Integer || throw(ArgumentError(
+        "`pauli_translation_invariant_nctssos(pop, solver_config)` requires an integer relaxation order."
+    ))
+    ops = _pauli_chain_ops_from_registry(pop.registry)
+    profile = pauli_chain_fast_path_profile(ops, solver_config.symmetry)
+    _check_pauli_solverconfig_fast_path_supported(
+        profile;
+        su2_symmetry=get(kwargs, :su2_symmetry, false),
+    )
+    _check_pauli_complex_reflection_sectors(profile; kwargs...)
+
+    if get(kwargs, :qmbcertify_base_construct, false)
+        return pauli_translation_invariant_nctssos(
+            pop,
+            ops,
+            Int(order),
+            solver_config.optimizer;
+            dualize,
+            formulation,
+            representation,
+            orphan_policy,
+            sos_hermitian_representation,
+            kwargs...,
+        )
+    end
+
+    return pauli_translation_invariant_nctssos(
+        pop,
+        ops,
+        Int(order),
+        solver_config.optimizer;
+        dualize,
+        formulation,
+        representation,
+        orphan_policy,
+        sos_hermitian_representation,
+        sign_symmetry=profile.sign_symmetry,
+        reflection_symmetry=profile.reflection_symmetry,
+        axis_rotation_symmetry=profile.axis_rotation_symmetry,
+        check_invariance=solver_config.symmetry.check_invariance,
+        kwargs...,
+    )
+end
+
+function _maybe_pauli_translation_fast_path(
+    pop,
+    solver_config::SolverConfig;
+    dualize::Bool,
+    formulation::Symbol,
+    representation::Symbol,
+    orphan_policy::Symbol,
+    sos_hermitian_representation::Symbol,
+    kwargs...,
+)
+    return nothing
+end
+
+function _maybe_pauli_translation_fast_path(
+    pop::PolyOpt{PauliAlgebra,T,P},
+    solver_config::SolverConfig;
+    dualize::Bool,
+    formulation::Symbol,
+    representation::Symbol,
+    orphan_policy::Symbol,
+    sos_hermitian_representation::Symbol,
+    direct_linear::Bool,
+    momenta,
+    real_moment_matrix::Bool,
+    phase_atol::Real,
+    contiguous_rdm_k,
+    contiguous_rdm_decomposition,
+    contiguous_rdm_support,
+    u1_symmetry::Bool,
+    su2_symmetry::Bool,
+    base_su2_extend_rdm::Bool,
+    su2_moment_quotient::Bool,
+    su2_moment_quotient_atol::Real,
+    su2_moment_quotient_condition_limit::Real,
+    qmbcertify_base_construct::Bool,
+    qmbcertify_base_extra,
+    qmbcertify_base_three_type::Tuple{<:Integer,<:Integer},
+    axis_rotation_equalities::Bool,
+    axis_rotation_quotient::Bool,
+    singlet_channel_equalities::Bool,
+    singlet_channel_atol::Real,
+    linear_state_opt_width,
+    linear_state_opt_mode,
+    psd_state_opt_width,
+) where {T<:Unsigned,C<:Number,P<:Polynomial{PauliAlgebra,T,C}}
+    isnothing(solver_config.symmetry) && return nothing
+    _has_active_sparsity(solver_config) && return nothing
+    isnothing(solver_config.moment_basis) || return nothing
+
+    order = _resolve_relaxation_spec(pop, solver_config)
+    order isa Integer || return nothing
+    ops = try
+        _pauli_chain_ops_from_registry(pop.registry)
+    catch err
+        err isa ArgumentError || rethrow()
+        return nothing
+    end
+    profile = pauli_chain_fast_path_profile(ops, solver_config.symmetry)
+    _pauli_solverconfig_fast_path_supported(profile; su2_symmetry) || return nothing
+    _check_pauli_complex_reflection_sectors(profile; real_moment_matrix, momenta)
+
+    if qmbcertify_base_construct
+        _check_qmbcertify_base_bridge_options(
+            ;
+            momenta,
+            u1_symmetry,
+            su2_symmetry,
+            su2_moment_quotient,
+            su2_moment_quotient_atol,
+            su2_moment_quotient_condition_limit,
+            axis_rotation_equalities,
+            axis_rotation_quotient,
+            singlet_channel_equalities,
+            singlet_channel_atol,
+        )
+        return pauli_translation_invariant_nctssos(
+            pop,
+            ops,
+            Int(order),
+            solver_config.optimizer;
+            dualize,
+            formulation,
+            representation,
+            orphan_policy,
+            sos_hermitian_representation,
+            direct_linear,
+            base_su2_extend_rdm,
+            su2_moment_quotient,
+            su2_moment_quotient_atol,
+            su2_moment_quotient_condition_limit,
+            qmbcertify_base_construct,
+            qmbcertify_base_extra,
+            qmbcertify_base_three_type,
+            real_moment_matrix,
+            phase_atol,
+            contiguous_rdm_k,
+            contiguous_rdm_decomposition,
+            contiguous_rdm_support,
+            linear_state_opt_width,
+            linear_state_opt_mode,
+            psd_state_opt_width,
+        )
+    end
+
+    return pauli_translation_invariant_nctssos(
+        pop,
+        ops,
+        Int(order),
+        solver_config.optimizer;
+        dualize,
+        formulation,
+        representation,
+        orphan_policy,
+        sos_hermitian_representation,
+        sign_symmetry=profile.sign_symmetry,
+        reflection_symmetry=profile.reflection_symmetry,
+        axis_rotation_symmetry=profile.axis_rotation_symmetry,
+        check_invariance=solver_config.symmetry.check_invariance,
+        direct_linear,
+        momenta,
+        real_moment_matrix,
+        phase_atol,
+        contiguous_rdm_k,
+        contiguous_rdm_decomposition,
+        contiguous_rdm_support,
+        u1_symmetry,
+        su2_symmetry,
+        base_su2_extend_rdm,
+        su2_moment_quotient,
+        su2_moment_quotient_atol,
+        su2_moment_quotient_condition_limit,
+        qmbcertify_base_construct,
+        qmbcertify_base_extra,
+        qmbcertify_base_three_type,
+        axis_rotation_equalities,
+        axis_rotation_quotient,
+        singlet_channel_equalities,
+        singlet_channel_atol,
+        linear_state_opt_width,
+        linear_state_opt_mode,
+        psd_state_opt_width,
+    )
+end
 
 function _check_symmetry_mvp_support(
     pop::OptimizationProblem{A,P},
@@ -524,6 +961,9 @@ Solve a polynomial optimization problem using the CS-NCTSSOS method with correla
 
 # Keyword Arguments
 - `dualize::Bool=true`: Whether to dualize the moment relaxation to a sum-of-squares problem
+- `sos_hermitian_representation::Symbol=:real_lift`: Hermitian SOS dual cone representation for ordinary complex moment problems; use `:native` to keep native Hermitian cones
+- `direct_linear::Bool=false`: Explicitly request directly emitted `MomentLinearData`; supported ordinary no-symmetry polynomial problems (`MonoidAlgebra`, `PauliAlgebra`, and `PBWAlgebra`) select this path automatically, and Pauli-chain translation fast paths still use it when requested
+- Pauli translation fast-path keywords: `momenta`, `real_moment_matrix`, `phase_atol`, `contiguous_rdm_k`, `contiguous_rdm_decomposition`, `contiguous_rdm_support`, `u1_symmetry`, `su2_symmetry`, `base_su2_extend_rdm`, `su2_moment_quotient`, `su2_moment_quotient_atol`, `su2_moment_quotient_condition_limit`, `qmbcertify_base_construct`, `qmbcertify_base_extra`, `qmbcertify_base_three_type`, `axis_rotation_equalities`, `axis_rotation_quotient`, `singlet_channel_equalities`, `singlet_channel_atol`, `linear_state_opt_width`, `linear_state_opt_mode`, and `psd_state_opt_width`
 
 # Returns
 - `PolyOptResult`: Result containing the objective value, correlative sparsity structure, and term sparsity information
@@ -544,12 +984,92 @@ function cs_nctssos(
     formulation::Symbol=:moment_variables,
     representation::Symbol=:real,
     orphan_policy::Symbol=:error,
+    sos_hermitian_representation::Symbol=:real_lift,
+    direct_linear::Bool=false,
+    momenta=nothing,
+    real_moment_matrix::Bool=true,
+    phase_atol::Real=1e-12,
+    contiguous_rdm_k=nothing,
+    contiguous_rdm_decomposition=nothing,
+    contiguous_rdm_support=nothing,
+    u1_symmetry::Bool=false,
+    su2_symmetry::Bool=false,
+    base_su2_extend_rdm::Bool=false,
+    su2_moment_quotient::Bool=false,
+    su2_moment_quotient_atol::Real=1e-11,
+    su2_moment_quotient_condition_limit::Real=1e10,
+    qmbcertify_base_construct::Bool=false,
+    qmbcertify_base_extra=nothing,
+    qmbcertify_base_three_type::Tuple{<:Integer,<:Integer}=(1, 1),
+    axis_rotation_equalities::Bool=false,
+    axis_rotation_quotient::Bool=false,
+    singlet_channel_equalities::Bool=false,
+    singlet_channel_atol::Real=1e-12,
+    linear_state_opt_width=nothing,
+    linear_state_opt_mode=nothing,
+    psd_state_opt_width=nothing,
 ) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
-    sparsity = compute_sparsity(pop, solver_config)
-    _check_symmetry_mvp_support(pop, solver_config, sparsity)
+    pauli_fast_path_options = _pauli_translation_fast_path_options(
+        ;
+        direct_linear,
+        momenta,
+        real_moment_matrix,
+        phase_atol,
+        contiguous_rdm_k,
+        contiguous_rdm_decomposition,
+        contiguous_rdm_support,
+        u1_symmetry,
+        su2_symmetry,
+        base_su2_extend_rdm,
+        su2_moment_quotient,
+        su2_moment_quotient_atol,
+        su2_moment_quotient_condition_limit,
+        qmbcertify_base_construct,
+        qmbcertify_base_extra,
+        qmbcertify_base_three_type,
+        axis_rotation_equalities,
+        axis_rotation_quotient,
+        singlet_channel_equalities,
+        singlet_channel_atol,
+        linear_state_opt_width,
+        linear_state_opt_mode,
+        psd_state_opt_width,
+    )
+    fast_path_result = _maybe_pauli_translation_fast_path(
+        pop,
+        solver_config;
+        dualize,
+        formulation,
+        representation,
+        orphan_policy,
+        sos_hermitian_representation,
+        pauli_fast_path_options...,
+    )
+    isnothing(fast_path_result) || return fast_path_result
+    _check_no_pauli_translation_fast_path_options(pauli_fast_path_options; context=(
+        "`cs_nctssos` did not match an ordinary Pauli-chain `SolverConfig` supported by the translation backend"
+    ))
+    trivial_finite_symmetry =
+        !isnothing(solver_config.symmetry) &&
+        _is_trivial_finite_symmetry(solver_config.symmetry)
+    use_direct_linear_no_symmetry = _use_no_symmetry_direct_linear(
+        pop,
+        solver_config;
+        direct_linear,
+        trivial_finite_symmetry,
+    )
 
-    if isnothing(solver_config.symmetry)
-        moment_problem = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+    sparsity = compute_sparsity(pop, solver_config)
+    if !trivial_finite_symmetry
+        _check_symmetry_mvp_support(pop, solver_config, sparsity)
+    end
+
+    if isnothing(solver_config.symmetry) || trivial_finite_symmetry
+        moment_problem = if use_direct_linear_no_symmetry
+            _moment_relax_linear(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+        else
+            moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+        end
         result = solve_sdp(
             moment_problem,
             solver_config.optimizer;
@@ -557,8 +1077,15 @@ function cs_nctssos(
             formulation=formulation,
             representation=representation,
             orphan_policy=orphan_policy,
+            sos_hermitian_representation=sos_hermitian_representation,
         )
-        return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
+        n_unique_elements = use_direct_linear_no_symmetry ?
+            _moment_matrix_element_count(
+                A,
+                _moment_matrix_basis(sparsity.cliques_term_sparsities),
+            ) :
+            result.n_unique_elements
+        return PolyOptResult(result.objective, sparsity, result.model, n_unique_elements)
     end
 
     moment_problem, symmetry_report = moment_relax_symmetric(
@@ -574,6 +1101,7 @@ function cs_nctssos(
         formulation=formulation,
         representation=representation,
         orphan_policy=orphan_policy,
+        sos_hermitian_representation=sos_hermitian_representation,
     )
     return PolyOptResult(
         result.objective,
@@ -610,11 +1138,17 @@ Solve a polynomial optimization problem using another raw term-sparsity iteratio
 
 # Keyword Arguments
 - `dualize::Bool=true`: Whether to dualize the moment relaxation to a sum-of-squares problem
+- `sos_hermitian_representation::Symbol=:real_lift`: Hermitian SOS dual cone representation for ordinary complex moment problems
+- `direct_linear::Bool=false`: Explicitly request directly emitted `MomentLinearData` for supported ordinary no-symmetry polynomial problems; these problems also select this path automatically
 
 # Returns
 - `PolyOptResult`: Result containing the objective value, correlative sparsity structure, and updated term sparsity information
 
 # Description
+For supported ordinary no-symmetry polynomial problems, the updated relaxation
+is emitted as `MomentLinearData` directly, matching the default `cs_nctssos`
+route.
+
 This function performs another term-sparsity iteration of the CS-NCTSSOS method by:
 1. Reusing the correlative sparsity structure and relaxation order from the previous result
 2. Recomputing the next activated supports from the previous iteration's raw term-sparsity graphs
@@ -631,15 +1165,26 @@ function cs_nctssos_higher(
     formulation::Symbol=:moment_variables,
     representation::Symbol=:real,
     orphan_policy::Symbol=:error,
+    sos_hermitian_representation::Symbol=:real_lift,
+    direct_linear::Bool=false,
 ) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
     isnothing(solver_config.moment_basis) ||
         throw(ArgumentError("`cs_nctssos_higher` reuses the basis from `prev_res`; do not pass `moment_basis`."))
-    isnothing(solver_config.symmetry) ||
-        throw(ArgumentError("`cs_nctssos_higher` does not yet accept `symmetry` in `solver_config`."))
+    trivial_finite_symmetry =
+        !isnothing(solver_config.symmetry) &&
+        _is_trivial_finite_symmetry(solver_config.symmetry)
+    (isnothing(solver_config.symmetry) || trivial_finite_symmetry) ||
+        throw(ArgumentError("`cs_nctssos_higher` does not yet accept nontrivial `symmetry` in `solver_config`."))
     isnothing(prev_res.symmetry) ||
         throw(ArgumentError(
             "`cs_nctssos_higher` cannot continue from a symmetry-reduced `prev_res`; rerun from `cs_nctssos` without symmetry."
         ))
+    use_direct_linear_no_symmetry = _use_no_symmetry_direct_linear(
+        pop,
+        solver_config;
+        direct_linear,
+        trivial_finite_symmetry,
+    )
 
     prev_sparsity = prev_res.sparsity
     prev_corr_sparsity = prev_sparsity.corr_sparsity
@@ -668,7 +1213,11 @@ function cs_nctssos_higher(
     # Create new sparsity result with updated term sparsities
     sparsity = SparsityResult(prev_corr_sparsity, initial_activated_supps_nm, cliques_term_sparsities)
 
-    moment_problem = moment_relax(pop, prev_corr_sparsity, cliques_term_sparsities)
+    moment_problem = if use_direct_linear_no_symmetry
+        _moment_relax_linear(pop, prev_corr_sparsity, cliques_term_sparsities)
+    else
+        moment_relax(pop, prev_corr_sparsity, cliques_term_sparsities)
+    end
 
     result = solve_sdp(
         moment_problem,
@@ -677,8 +1226,15 @@ function cs_nctssos_higher(
         formulation=formulation,
         representation=representation,
         orphan_policy=orphan_policy,
+        sos_hermitian_representation=sos_hermitian_representation,
     )
-    return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
+    n_unique_elements = use_direct_linear_no_symmetry ?
+        _moment_matrix_element_count(
+            A,
+            _moment_matrix_basis(sparsity.cliques_term_sparsities),
+        ) :
+        result.n_unique_elements
+    return PolyOptResult(result.objective, sparsity, result.model, n_unique_elements)
 end
 
 
@@ -721,7 +1277,63 @@ function cs_nctssos(
     formulation::Symbol=:moment_variables,
     representation::Symbol=:real,
     orphan_policy::Symbol=:error,
+    sos_hermitian_representation::Symbol=:real_lift,
+    direct_linear::Bool=false,
+    momenta=nothing,
+    real_moment_matrix::Bool=true,
+    phase_atol::Real=1e-12,
+    contiguous_rdm_k=nothing,
+    contiguous_rdm_decomposition=nothing,
+    contiguous_rdm_support=nothing,
+    u1_symmetry::Bool=false,
+    su2_symmetry::Bool=false,
+    base_su2_extend_rdm::Bool=false,
+    su2_moment_quotient::Bool=false,
+    su2_moment_quotient_atol::Real=1e-11,
+    su2_moment_quotient_condition_limit::Real=1e10,
+    qmbcertify_base_construct::Bool=false,
+    qmbcertify_base_extra=nothing,
+    qmbcertify_base_three_type::Tuple{<:Integer,<:Integer}=(1, 1),
+    axis_rotation_equalities::Bool=false,
+    axis_rotation_quotient::Bool=false,
+    singlet_channel_equalities::Bool=false,
+    singlet_channel_atol::Real=1e-12,
+    linear_state_opt_width=nothing,
+    linear_state_opt_mode=nothing,
+    psd_state_opt_width=nothing,
 ) where {A<:AlgebraType,T<:Integer,ST<:StateType,C<:Number,P<:NCStatePolynomial{C,ST,A,T}}
+    pauli_fast_path_options = _pauli_translation_fast_path_options(
+        ;
+        direct_linear,
+        momenta,
+        real_moment_matrix,
+        phase_atol,
+        contiguous_rdm_k,
+        contiguous_rdm_decomposition,
+        contiguous_rdm_support,
+        u1_symmetry,
+        su2_symmetry,
+        base_su2_extend_rdm,
+        su2_moment_quotient,
+        su2_moment_quotient_atol,
+        su2_moment_quotient_condition_limit,
+        qmbcertify_base_construct,
+        qmbcertify_base_extra,
+        qmbcertify_base_three_type,
+        axis_rotation_equalities,
+        axis_rotation_quotient,
+        singlet_channel_equalities,
+        singlet_channel_atol,
+        linear_state_opt_width,
+        linear_state_opt_mode,
+        psd_state_opt_width,
+    )
+    if direct_linear
+        _check_no_symmetry_direct_linear_support(pop)
+    end
+    _check_no_pauli_translation_fast_path_options(pauli_fast_path_options; context=(
+        "state/trace polynomial optimization cannot use them"
+    ))
     isnothing(solver_config.symmetry) || throw(ArgumentError(
         "Symmetry reduction MVP does not yet support state/trace polynomial optimization."
     ))
@@ -734,6 +1346,7 @@ function cs_nctssos(
         formulation=formulation,
         representation=representation,
         orphan_policy=orphan_policy,
+        sos_hermitian_representation=sos_hermitian_representation,
     )
     return PolyOptResult(result.objective, sparsity, result.model, result.n_unique_elements)
 end

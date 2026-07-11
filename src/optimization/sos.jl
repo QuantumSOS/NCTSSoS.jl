@@ -16,6 +16,8 @@ smaller and faster to solve than the primal moment problem.
 # Fields
 - `model::GenericModel{T}`: The JuMP model ready to be optimized
 - `n_unique_elements::Int`: Number of unique moment variables after canonicalization
+- `psd_dual_blocks`: PSD dual variables with their symbolic block metadata
+- `zero_duals`: scalar dual variables for zero constraints
 
 # Usage
 ```julia
@@ -31,9 +33,394 @@ obj = objective_value(sos.model)
 
 See also: [`sos_dualize`](@ref), [`MomentProblem`](@ref)
 """
+struct SOSDualBlock{M}
+    meta::BlockMeta{M}
+    variable::Any
+    representation::Symbol
+
+    function SOSDualBlock{M}(meta::BlockMeta{M}, variable, representation::Symbol) where {M}
+        representation in (:psd, :hermitian_lift, :hermitian) || throw(ArgumentError(
+            "Unsupported SOS dual block representation $(repr(representation))."
+        ))
+        return new{M}(meta, variable, representation)
+    end
+end
+
+SOSDualBlock(meta::BlockMeta{M}, variable, representation::Symbol) where {M} =
+    SOSDualBlock{M}(meta, variable, representation)
+
 struct SOSProblem{T}
     model::GenericModel{T}
-    n_unique_elements::Int  # Number of unique moment variables after canonicalization
+    n_unique_elements::Int
+    psd_dual_blocks::Vector{Any}
+    zero_duals::Vector{Any}
+end
+
+SOSProblem(model::GenericModel{T}, n_unique_elements::Integer) where {T} =
+    SOSProblem{T}(model, Int(n_unique_elements), Any[], Any[])
+
+SOSProblem(
+    model::GenericModel{T},
+    n_unique_elements::Integer,
+    psd_dual_blocks::AbstractVector,
+    zero_duals::AbstractVector,
+) where {T} = SOSProblem{T}(
+    model,
+    Int(n_unique_elements),
+    Any[block for block in psd_dual_blocks],
+    Any[dual for dual in zero_duals],
+)
+
+"""
+    sos_dual_blocks(sos)
+
+Return PSD dual variable handles together with their `BlockMeta` provenance.
+For Hermitian SOS dualization, `representation == :hermitian_lift` means the
+stored variable is the real lifted PSD matrix, while `:hermitian` keeps the
+native Hermitian cone variable.
+"""
+sos_dual_blocks(sos::SOSProblem) = copy(sos.psd_dual_blocks)
+
+"""
+    sos_zero_duals(moment_data, sos)
+
+Return zero/equality dual variable handles together with their origin label,
+label feature fields, coefficient-domain metadata, and linear-form provenance.
+`moment_data` may be either a symbolic `MomentProblem` or finalized
+`MomentLinearData`.
+"""
+function sos_zero_duals(mp::MomentProblem, sos::SOSProblem)
+    return sos_zero_duals(mp.linear, sos)
+end
+
+function sos_zero_duals(L::MomentLinearData, sos::SOSProblem)
+    _assert_sos_dual_metadata_matches(L, sos)
+    return [
+        let label = _sos_origin_field(zc.origin, :label, nothing)
+            (
+                origin=zc.origin,
+                label=label,
+                feature=_sos_label_field(label, :feature, nothing),
+                decomposition=_sos_label_field(label, :decomposition, nothing),
+                reason=_sos_label_field(label, :reason, nothing),
+                coefficient_domain=_sos_label_field(label, :coefficient_domain, nothing),
+                exact_coefficient_domain=_sos_label_field(
+                    label,
+                    :exact_coefficient_domain,
+                    nothing,
+                ),
+                form=zc.form,
+                kind=zc.kind,
+                term_count=length(zc.form),
+                variable=dual,
+            )
+        end
+        for (zc, dual) in zip(L.zero_constraints, sos.zero_duals)
+    ]
+end
+
+"""
+    sos_dual_block_values(sos)
+
+Extract numeric PSD dual block values from a solved SOS model, preserving each
+block's metadata and representation.
+"""
+_sos_origin_field(origin, field::Symbol, default) =
+    hasproperty(origin, field) ? getproperty(origin, field) : default
+
+_sos_transform_field(transform, field::Symbol, default) =
+    transform === nothing ? default :
+    hasproperty(transform, field) ? getproperty(transform, field) : default
+
+_sos_label_field(label, field::Symbol, default) =
+    label === nothing ? default :
+    hasproperty(label, field) ? getproperty(label, field) : default
+
+function _sos_native_dual_block_value(block::SOSDualBlock, value_matrix)
+    if block.representation == :psd
+        return value_matrix
+    elseif block.representation == :hermitian
+        return value_matrix
+    elseif block.representation == :hermitian_lift
+        n2 = size(value_matrix, 1)
+        size(value_matrix, 2) == n2 && iseven(n2) || throw(DimensionMismatch(
+            "Hermitian lifted SOS dual block must be an even square matrix; got $(size(value_matrix))."
+        ))
+        n = n2 ÷ 2
+        native = Matrix{ComplexF64}(undef, n, n)
+        for j in 1:n, i in 1:n
+            x1 = value_matrix[i, j] + value_matrix[n + i, n + j]
+            x2 = value_matrix[n + i, j] - value_matrix[i, n + j]
+            native[i, j] = complex(Float64(real(x1)), Float64(real(x2)))
+        end
+        return native
+    end
+    throw(ArgumentError("Unsupported SOS dual block representation $(repr(block.representation))."))
+end
+
+function _sos_dual_block_value_record(block::SOSDualBlock)
+    value_matrix = value.(block.variable)
+    transform = _sos_origin_field(block.meta.origin, :transform, nothing)
+    return (
+        meta=block.meta,
+        label=_sos_origin_field(block.meta.origin, :label, nothing),
+        logical_row_labels=_sos_origin_field(block.meta.origin, :logical_row_labels, Any[]),
+        transform=transform,
+        transform_family=_sos_transform_field(transform, :family, nothing),
+        coefficient_domain=_sos_transform_field(transform, :coefficient_domain, nothing),
+        exact_coefficient_domain=_sos_transform_field(transform, :exact_coefficient_domain, nothing),
+        representation=block.representation,
+        value=value_matrix,
+        native_value=_sos_native_dual_block_value(block, value_matrix),
+    )
+end
+
+function sos_dual_block_values(sos::SOSProblem)
+    return [
+        _sos_dual_block_value_record(block)
+        for block in sos.psd_dual_blocks
+    ]
+end
+
+function sos_dual_block_values(mp::MomentProblem, sos::SOSProblem)
+    return sos_dual_block_values(mp.linear, sos)
+end
+
+function sos_dual_block_values(L::MomentLinearData, sos::SOSProblem)
+    _assert_sos_dual_metadata_matches(L, sos)
+    return sos_dual_block_values(sos)
+end
+
+function _sos_hermitian_residual(matrix)
+    isempty(matrix) && return 0.0
+    return Float64(norm(matrix - matrix', Inf))
+end
+
+function _sos_min_eigenvalue(matrix)
+    isempty(matrix) && return Inf
+    hermitian_part = (matrix + matrix') / 2
+    return Float64(real(eigmin(Hermitian(hermitian_part))))
+end
+
+function _sos_dual_block_diagnostic_record(block)
+    return (
+        meta=block.meta,
+        label=block.label,
+        logical_row_labels=block.logical_row_labels,
+        transform=block.transform,
+        transform_family=block.transform_family,
+        coefficient_domain=block.coefficient_domain,
+        exact_coefficient_domain=block.exact_coefficient_domain,
+        representation=block.representation,
+        value_size=size(block.value),
+        native_value_size=size(block.native_value),
+        native_hermitian_residual=_sos_hermitian_residual(block.native_value),
+        native_min_eigenvalue=_sos_min_eigenvalue(block.native_value),
+        lifted_min_eigenvalue=_sos_min_eigenvalue(block.value),
+    )
+end
+
+"""
+    sos_dual_block_diagnostics(block_values)
+    sos_dual_block_diagnostics(sos)
+    sos_dual_block_diagnostics(moment_data, sos)
+
+Return per-block numerical diagnostics for solved SOS dual PSD variables,
+including the native Hermitian block reconstructed from any real lift.
+"""
+function sos_dual_block_diagnostics(block_values::AbstractVector{<:NamedTuple})
+    return [
+        _sos_dual_block_diagnostic_record(block)
+        for block in block_values
+    ]
+end
+
+sos_dual_block_diagnostics(sos::SOSProblem) =
+    sos_dual_block_diagnostics(sos_dual_block_values(sos))
+
+function sos_dual_block_diagnostics(mp::MomentProblem, sos::SOSProblem)
+    return sos_dual_block_diagnostics(mp.linear, sos)
+end
+
+function sos_dual_block_diagnostics(L::MomentLinearData, sos::SOSProblem)
+    _assert_sos_dual_metadata_matches(L, sos)
+    return sos_dual_block_diagnostics(sos)
+end
+
+"""
+    sos_zero_dual_values(moment_data, sos)
+
+Extract numeric zero/equality dual values from a solved SOS model, preserving
+the origin label, label feature fields, coefficient-domain metadata, and linear
+form of each zero constraint.
+"""
+function sos_zero_dual_values(mp::MomentProblem, sos::SOSProblem)
+    return sos_zero_dual_values(mp.linear, sos)
+end
+
+function sos_zero_dual_values(L::MomentLinearData, sos::SOSProblem)
+    return [
+        (
+            origin=dual.origin,
+            label=dual.label,
+            feature=dual.feature,
+            decomposition=dual.decomposition,
+            reason=dual.reason,
+            coefficient_domain=dual.coefficient_domain,
+            exact_coefficient_domain=dual.exact_coefficient_domain,
+            form=dual.form,
+            kind=dual.kind,
+            term_count=dual.term_count,
+            value=value(dual.variable),
+        )
+        for dual in sos_zero_duals(L, sos)
+    ]
+end
+
+function _sos_form_max_abs_coefficient(form)
+    entries = collect(form)
+    isempty(entries) && return 0.0
+    return Float64(maximum(pair -> abs(pair.second), entries))
+end
+
+function _sos_zero_dual_diagnostic_record(zero)
+    label = _sos_origin_field(zero.origin, :label, nothing)
+    return (
+        origin=zero.origin,
+        label=label,
+        feature=_sos_label_field(label, :feature, nothing),
+        decomposition=_sos_label_field(label, :decomposition, nothing),
+        reason=_sos_label_field(label, :reason, nothing),
+        coefficient_domain=_sos_label_field(label, :coefficient_domain, nothing),
+        exact_coefficient_domain=_sos_label_field(label, :exact_coefficient_domain, nothing),
+        kind=zero.kind,
+        value=zero.value,
+        abs_value=Float64(abs(zero.value)),
+        term_count=length(zero.form),
+        max_abs_coefficient=_sos_form_max_abs_coefficient(zero.form),
+    )
+end
+
+"""
+    sos_zero_dual_diagnostics(zero_values)
+    sos_zero_dual_diagnostics(moment_data, sos)
+
+Return per-row diagnostics for solved zero/equality dual variables, preserving
+the row origin, coefficient-domain metadata, linear-form size, and multiplier
+magnitude.
+"""
+function sos_zero_dual_diagnostics(zero_values::AbstractVector)
+    return [
+        _sos_zero_dual_diagnostic_record(zero)
+        for zero in zero_values
+    ]
+end
+
+function sos_zero_dual_diagnostics(mp::MomentProblem, sos::SOSProblem)
+    return sos_zero_dual_diagnostics(mp.linear, sos)
+end
+
+function sos_zero_dual_diagnostics(L::MomentLinearData, sos::SOSProblem)
+    return sos_zero_dual_diagnostics(sos_zero_dual_values(L, sos))
+end
+
+"""
+    sos_dual_certificate_diagnostics(moment_data, sos)
+
+Return the solved SOS dual certificate diagnostics in one record: coefficient
+residuals, PSD block diagnostics, and zero/equality dual diagnostics.
+This is a numerical helper for small-N checks and certificate extraction
+plumbing; it is not a rigorous interval certificate.
+"""
+function sos_dual_certificate_diagnostics(mp::MomentProblem, sos::SOSProblem)
+    return sos_dual_certificate_diagnostics(mp.linear, sos)
+end
+
+function sos_dual_certificate_diagnostics(L::MomentLinearData, sos::SOSProblem)
+    residual = sos_dual_certificate_residual(L, sos)
+    psd_blocks = sos_dual_block_diagnostics(L, sos)
+    zero_duals = sos_zero_dual_diagnostics(L, sos)
+    return (
+        residual=residual,
+        psd_blocks=psd_blocks,
+        zero_duals=zero_duals,
+        moment_count=residual.moment_count,
+        psd_block_count=length(psd_blocks),
+        zero_dual_count=length(zero_duals),
+        max_abs_residual=residual.max_abs_residual,
+        identity_residual=residual.identity_residual,
+        max_residual_moment=residual.max_residual_moment,
+        max_residual_value=residual.max_residual_value,
+    )
+end
+
+function _assert_sos_dual_metadata_matches(mp::MomentProblem, sos::SOSProblem)
+    return _assert_sos_dual_metadata_matches(mp.linear, sos)
+end
+
+function _assert_sos_dual_metadata_matches(L::MomentLinearData, sos::SOSProblem)
+    length(sos.psd_dual_blocks) == length(L.psd_blocks_lin) || throw(ArgumentError(
+        "SOS problem has $(length(sos.psd_dual_blocks)) PSD dual blocks but moment problem has $(length(L.psd_blocks_lin))."
+    ))
+    length(sos.zero_duals) == length(L.zero_constraints) || throw(ArgumentError(
+        "SOS problem has $(length(sos.zero_duals)) zero duals but moment problem has $(length(L.zero_constraints))."
+    ))
+    return nothing
+end
+
+function _sos_residual_result(L::MomentLinearData, residuals::AbstractVector)
+    residual_by_moment = Dict(L.moments[i] => residuals[i] for i in eachindex(L.moments))
+    if isempty(residuals)
+        max_abs_residual = 0.0
+        max_residual_moment = nothing
+        max_residual_value = nothing
+    else
+        max_idx = argmax(abs.(residuals))
+        max_abs_residual = abs(residuals[max_idx])
+        max_residual_moment = L.moments[max_idx]
+        max_residual_value = residuals[max_idx]
+    end
+    return (
+        moment_count=length(L.moments),
+        identity_moment=L.identity,
+        max_abs_residual=max_abs_residual,
+        max_residual_moment=max_residual_moment,
+        max_residual_value=max_residual_value,
+        identity_residual=residual_by_moment[L.identity],
+        residual_by_moment=residual_by_moment,
+    )
+end
+
+"""
+    sos_dual_certificate_residual(moment_data, sos)
+
+Evaluate the coefficient residual of a solved SOS dual certificate:
+`objective - A'(dual_psd) - B'(dual_zero) - objective_value(sos.model)`.
+The returned `max_abs_residual` is a small-N numerical certificate check, not
+a rigorous interval certificate. `moment_data` may be either a symbolic
+`MomentProblem` or finalized `MomentLinearData`.
+"""
+function sos_dual_certificate_residual(
+    mp::MomentProblem{A,T,M,P},
+    sos::SOSProblem,
+) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P<:Polynomial{A,T}}
+    _assert_sos_dual_metadata_matches(mp, sos)
+    if _is_real_moment_problem(mp)
+        return _sos_dual_certificate_residual_real(mp.linear, sos)
+    elseif _is_complex_problem(A)
+        return _sos_dual_certificate_residual_hermitian(mp.linear, sos)
+    else
+        return _sos_dual_certificate_residual_real(mp.linear, sos)
+    end
+end
+
+function sos_dual_certificate_residual(L::MomentLinearData, sos::SOSProblem)
+    _assert_sos_dual_metadata_matches(L, sos)
+    if _sos_coeff_type(L) <: Real
+        return _sos_dual_certificate_residual_real(L, sos)
+    else
+        return _sos_dual_certificate_residual_hermitian(L, sos)
+    end
 end
 
 
@@ -99,6 +486,10 @@ Convert a symbolic moment problem into its dual SOS (Sum of Squares) problem.
 # Arguments
 - `mp::MomentProblem{A,T,M,P}`: The symbolic primal moment problem to dualize
 
+# Keyword Arguments
+- `hermitian_representation::Symbol=:real_lift`: use `:real_lift` for a real
+  PSD embedding or `:native` for native Hermitian PSD cones.
+
 # Returns
 - `SOSProblem`: The dual SOS problem with matrix variables and constraints
 
@@ -129,13 +520,47 @@ obj = objective_value(sos.model)
 
 See also: [`MomentProblem`](@ref), [`moment_relax`](@ref), [`SOSProblem`](@ref)
 """
-function sos_dualize(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
+function sos_dualize(
+    mp::MomentProblem{A,TI,M,P};
+    hermitian_representation::Symbol=:real_lift,
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     if _is_real_moment_problem(mp)
-        return _sos_dualize_real(mp)
+        return _sos_dualize_real(mp; coefficient_scaling, coefficient_scaling_floor)
     elseif _is_complex_problem(A)
-        return _sos_dualize_hermitian(mp)
+        return _sos_dualize_hermitian(
+            mp;
+            hermitian_representation,
+            coefficient_scaling,
+            coefficient_scaling_floor,
+        )
     else
-        return _sos_dualize_real(mp)
+        return _sos_dualize_real(mp; coefficient_scaling, coefficient_scaling_floor)
+    end
+end
+
+"""
+    sos_dualize(L::MomentLinearData) -> SOSProblem
+
+Convert finalized linear moment data into its dual SOS problem without requiring
+a symbolic `MomentProblem` wrapper.
+"""
+function sos_dualize(
+    L::MomentLinearData;
+    hermitian_representation::Symbol=:real_lift,
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+)
+    if _sos_coeff_type(L) <: Real
+        return _sos_dualize_real(L; coefficient_scaling, coefficient_scaling_floor)
+    else
+        return _sos_dualize_hermitian(
+            L;
+            hermitian_representation,
+            coefficient_scaling,
+            coefficient_scaling_floor,
+        )
     end
 end
 
@@ -155,7 +580,11 @@ function _check_real_sos_cones!(mp::MomentProblem)
     for (cone, _) in mp.constraints
         (cone == :Zero || cone == :PSD) || error("Unexpected cone type $cone for real SOS dualization")
     end
-    for block in mp.linear.psd_blocks_lin
+    return _check_real_sos_cones!(mp.linear)
+end
+
+function _check_real_sos_cones!(L::MomentLinearData)
+    for block in L.psd_blocks_lin
         block.meta.cone == :PSD || error("Unexpected cached cone type $(block.meta.cone) for real SOS dualization")
     end
     return nothing
@@ -173,7 +602,11 @@ function _check_hermitian_sos_cones!(mp::MomentProblem)
             error("Unexpected cone type $cone for complex SOS dualization")
         end
     end
-    for block in mp.linear.psd_blocks_lin
+    return _check_hermitian_sos_cones!(mp.linear)
+end
+
+function _check_hermitian_sos_cones!(L::MomentLinearData)
+    for block in L.psd_blocks_lin
         block.meta.cone == :HPSD || error("Unexpected cached cone type $(block.meta.cone) for complex SOS dualization")
     end
     return nothing
@@ -190,6 +623,75 @@ function _accumulate_dual_contribution!(
 )
     cone == :PSD || error("Real SOS dualization expected :PSD block, got $cone")
     add_to_expression!(eqs[idx], -coef, dual_block[row, col])
+    return nothing
+end
+
+function _normalize_hermitian_sos_representation(representation::Symbol)
+    if representation in (:real_lift, :lift, :lifted, :hermitian_lift)
+        return :hermitian_lift
+    elseif representation in (:native, :hermitian)
+        return :hermitian
+    end
+    throw(ArgumentError(
+        "Unsupported hermitian_representation $(repr(representation)); expected :real_lift or :native."
+    ))
+end
+
+function _normalize_sos_equation_scaling(scaling::Symbol)
+    scaling in (:none, :max_abs) && return scaling
+    throw(ArgumentError(
+        "Unsupported coefficient_scaling $(repr(scaling)); expected :none or :max_abs."
+    ))
+end
+
+function _normalize_sos_equation_scaling_floor(scaling_floor::Real)
+    floor = Float64(scaling_floor)
+    (isfinite(floor) && floor >= 0) || throw(ArgumentError(
+        "coefficient_scaling_floor must be finite and nonnegative, got $scaling_floor."
+    ))
+    return floor
+end
+
+function _scale_sos_coefficient_expression(
+    expression,
+    scaling::Symbol;
+    scaling_floor::Real=0,
+)
+    mode = _normalize_sos_equation_scaling(scaling)
+    mode == :none && return expression
+    floor = _normalize_sos_equation_scaling_floor(scaling_floor)
+
+    scale = abs(JuMP.constant(expression))
+    for (coefficient, _) in JuMP.linear_terms(expression)
+        scale = max(scale, abs(coefficient))
+    end
+    scale = max(scale, floor)
+    (iszero(scale) || isone(scale)) && return expression
+    return expression / scale
+end
+
+function _accumulate_native_hermitian_dual_contribution!(
+    eqs_re::AbstractVector,
+    eqs_im::AbstractVector,
+    idx::Integer,
+    coef,
+    dual_block,
+    row::Integer,
+    col::Integer,
+    cone::Symbol,
+)
+    cone == :HPSD || error("Hermitian SOS dualization expected :HPSD block, got $cone")
+
+    X = dual_block[row, col]
+    X_re = real(X)
+    X_im = imag(X)
+    c_re = real(coef)
+    c_im = imag(coef)
+
+    add_to_expression!(eqs_re[idx], -c_re, X_re)
+    add_to_expression!(eqs_re[idx], +c_im, X_im)
+    add_to_expression!(eqs_im[idx], -c_im, X_re)
+    add_to_expression!(eqs_im[idx], -c_re, X_im)
     return nothing
 end
 
@@ -248,18 +750,36 @@ Internal: Dualize a real-valued symbolic moment problem.
 For real algebras (NonCommutative, Projector, Unipotent), constraints use
 standard PSD cones without complex embedding.
 """
-function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
+function _sos_dualize_real(
+    mp::MomentProblem{A,TI,M,P};
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     _check_real_sos_cones!(mp)
 
-    L = mp.linear
+    return _sos_dualize_real(mp.linear; coefficient_scaling, coefficient_scaling_floor)
+end
+
+function _sos_dualize_real(
+    L::MomentLinearData;
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+)
+    _check_real_sos_cones!(L)
+    scaling = _normalize_sos_equation_scaling(coefficient_scaling)
+    scaling_floor = _normalize_sos_equation_scaling_floor(coefficient_scaling_floor)
+
     C = _sos_coeff_type(L)
     dual_model = GenericModel{C}()
 
     psd_duals = Any[]
     for block in L.psd_blocks_lin
-        push!(psd_duals, @variable(dual_model, [1:block.size, 1:block.size] in PSDCone()))
+        push!(
+            psd_duals,
+            @variable(dual_model, [1:block.size, 1:block.size] in PSDCone(), set_string_name=false),
+        )
     end
-    zero_duals = [@variable(dual_model) for _ in L.zero_constraints]
+    zero_duals = [@variable(dual_model, set_string_name=false) for _ in L.zero_constraints]
 
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in L.moments]
 
@@ -295,10 +815,61 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
     identity_idx = _sos_moment_index(L, L.identity)
     @objective(dual_model, Max, fα_constraints[identity_idx])
 
-    coefficient_indices = [i for i in eachindex(fα_constraints) if i != identity_idx]
-    isempty(coefficient_indices) || @constraint(dual_model, fα_constraints[coefficient_indices] .== 0)
+    coefficient_indices = [
+        i for i in eachindex(fα_constraints) if i != identity_idx && !iszero(fα_constraints[i])
+    ]
+    coefficient_expressions = [
+        _scale_sos_coefficient_expression(
+            fα_constraints[i],
+            scaling;
+            scaling_floor,
+        )
+        for i in coefficient_indices
+    ]
+    isempty(coefficient_expressions) ||
+        @constraint(dual_model, coefficient_expressions .== zero(C))
 
-    return SOSProblem(dual_model, length(L.moments))
+    psd_dual_blocks = [
+        SOSDualBlock(block.meta, dual_block, :psd)
+        for (block, dual_block) in zip(L.psd_blocks_lin, psd_duals)
+    ]
+    return SOSProblem(dual_model, length(L.moments), psd_dual_blocks, zero_duals)
+end
+
+function _sos_dual_certificate_residual_real(mp::MomentProblem, sos::SOSProblem)
+    return _sos_dual_certificate_residual_real(mp.linear, sos)
+end
+
+function _sos_dual_certificate_residual_real(L::MomentLinearData, sos::SOSProblem)
+    residuals = zeros(Float64, length(L.moments))
+
+    for (key, coef) in L.objective_lin
+        residuals[_sos_moment_index(L, key)] += Float64(real(coef))
+    end
+
+    for (block_idx, block) in enumerate(L.psd_blocks_lin)
+        dual_block = sos.psd_dual_blocks[block_idx]
+        dual_block.representation == :psd || throw(ArgumentError(
+            "Expected real PSD dual block $block_idx to use representation :psd, got $(repr(dual_block.representation))."
+        ))
+        dual_values = value.(dual_block.variable)
+        for i in 1:block.size, j in 1:block.size
+            dual_value = Float64(real(dual_values[i, j]))
+            for (key, coef) in block.entries[i, j]
+                residuals[_sos_moment_index(L, key)] -= Float64(real(coef)) * dual_value
+            end
+        end
+    end
+
+    for (zc_idx, zc) in enumerate(L.zero_constraints)
+        λ = Float64(real(value(sos.zero_duals[zc_idx])))
+        for (key, coef) in zc.form
+            residuals[_sos_moment_index(L, key)] -= Float64(real(coef)) * λ
+        end
+    end
+
+    residuals[_sos_moment_index(L, L.identity)] -= Float64(objective_value(sos.model))
+    return _sos_residual_result(L, residuals)
 end
 
 
@@ -413,7 +984,9 @@ function _sos_dualize_state(mp::StateMomentProblem{A,ST,TI,M,P}) where {A<:Algeb
     # Eliminate the usual scalar bound variable: the identity coefficient is b.
     @objective(dual_model, Max, fα_constraints[identity_idx])
 
-    coefficient_indices = [i for i in eachindex(fα_constraints) if i != identity_idx]
+    coefficient_indices = [
+        i for i in eachindex(fα_constraints) if i != identity_idx && !iszero(fα_constraints[i])
+    ]
     isempty(coefficient_indices) || @constraint(dual_model, fα_constraints[coefficient_indices] .== 0)
 
     return SOSProblem(dual_model, n_basis)
@@ -430,10 +1003,52 @@ a lifted real PSD dual matrix. Cached scalar zero constraints get real free
 multipliers. The Hermitian factor-of-2 convention lives only in
 `_accumulate_dual_contribution!`.
 """
-function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
+function _sos_dualize_hermitian(
+    mp::MomentProblem{A,TI,M,P};
+    hermitian_representation::Symbol=:real_lift,
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+) where {A<:AlgebraType, TI<:Integer, M<:NormalMonomial{A,TI}, P<:Polynomial{A,TI}}
     _check_hermitian_sos_cones!(mp)
 
-    L = mp.linear
+    return _sos_dualize_hermitian(
+        mp.linear;
+        hermitian_representation,
+        coefficient_scaling,
+        coefficient_scaling_floor,
+    )
+end
+
+function _sos_dualize_hermitian(
+    L::MomentLinearData;
+    hermitian_representation::Symbol=:real_lift,
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+)
+    representation = _normalize_hermitian_sos_representation(hermitian_representation)
+    if representation == :hermitian
+        return _sos_dualize_hermitian_native(
+            L;
+            coefficient_scaling,
+            coefficient_scaling_floor,
+        )
+    end
+    return _sos_dualize_hermitian_lift(
+        L;
+        coefficient_scaling,
+        coefficient_scaling_floor,
+    )
+end
+
+function _sos_dualize_hermitian_lift(
+    L::MomentLinearData;
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+)
+    _check_hermitian_sos_cones!(L)
+    scaling = _normalize_sos_equation_scaling(coefficient_scaling)
+    scaling_floor = _normalize_sos_equation_scaling_floor(coefficient_scaling_floor)
+
     RC = _sos_real_type(L)
     dual_model = GenericModel{RC}()
 
@@ -442,10 +1057,14 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
         dim = block.size
         push!(psd_duals, (
             dim = dim,
-            lifted = @variable(dual_model, [1:2*dim, 1:2*dim] in PSDCone()),
+            lifted = @variable(
+                dual_model,
+                [1:2*dim, 1:2*dim] in PSDCone(),
+                set_string_name=false,
+            ),
         ))
     end
-    zero_duals = [@variable(dual_model) for _ in L.zero_constraints]
+    zero_duals = [@variable(dual_model, set_string_name=false) for _ in L.zero_constraints]
 
     fα_constraints_re = [zero(GenericAffExpr{RC,VariableRef}) for _ in L.moments]
     fα_constraints_im = [zero(GenericAffExpr{RC,VariableRef}) for _ in L.moments]
@@ -489,9 +1108,178 @@ function _sos_dualize_hermitian(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraTy
     identity_idx = _sos_moment_index(L, L.identity)
     @objective(dual_model, Max, fα_constraints_re[identity_idx])
 
-    real_coefficient_indices = [i for i in eachindex(fα_constraints_re) if i != identity_idx]
-    isempty(real_coefficient_indices) || @constraint(dual_model, fα_constraints_re[real_coefficient_indices] .== 0)
-    @constraint(dual_model, fα_constraints_im .== 0)
+    real_coefficient_indices = [
+        i for i in eachindex(fα_constraints_re) if i != identity_idx && !iszero(fα_constraints_re[i])
+    ]
+    imag_coefficient_indices = [
+        i for i in eachindex(fα_constraints_im) if !iszero(fα_constraints_im[i])
+    ]
+    real_coefficient_expressions = [
+        _scale_sos_coefficient_expression(
+            fα_constraints_re[i],
+            scaling;
+            scaling_floor,
+        )
+        for i in real_coefficient_indices
+    ]
+    imag_coefficient_expressions = [
+        _scale_sos_coefficient_expression(
+            fα_constraints_im[i],
+            scaling;
+            scaling_floor,
+        )
+        for i in imag_coefficient_indices
+    ]
+    isempty(real_coefficient_expressions) ||
+        @constraint(dual_model, real_coefficient_expressions .== zero(RC))
+    isempty(imag_coefficient_expressions) ||
+        @constraint(dual_model, imag_coefficient_expressions .== zero(RC))
 
-    return SOSProblem(dual_model, length(L.moments))
+    psd_dual_blocks = [
+        SOSDualBlock(block.meta, dual.lifted, :hermitian_lift)
+        for (block, dual) in zip(L.psd_blocks_lin, psd_duals)
+    ]
+    return SOSProblem(dual_model, length(L.moments), psd_dual_blocks, zero_duals)
+end
+
+function _sos_dualize_hermitian_native(
+    L::MomentLinearData;
+    coefficient_scaling::Symbol=:none,
+    coefficient_scaling_floor::Real=0,
+)
+    _check_hermitian_sos_cones!(L)
+    scaling = _normalize_sos_equation_scaling(coefficient_scaling)
+    scaling_floor = _normalize_sos_equation_scaling_floor(coefficient_scaling_floor)
+
+    RC = _sos_real_type(L)
+    dual_model = GenericModel{RC}()
+
+    psd_duals = Any[]
+    for block in L.psd_blocks_lin
+        push!(
+            psd_duals,
+            @variable(
+                dual_model,
+                [1:block.size, 1:block.size] in HermitianPSDCone(),
+                set_string_name=false,
+            ),
+        )
+    end
+    zero_duals = [@variable(dual_model, set_string_name=false) for _ in L.zero_constraints]
+
+    fα_constraints_re = [zero(GenericAffExpr{RC,VariableRef}) for _ in L.moments]
+    fα_constraints_im = [zero(GenericAffExpr{RC,VariableRef}) for _ in L.moments]
+
+    for (key, coef) in L.objective_lin
+        idx = _sos_moment_index(L, key)
+        add_to_expression!(fα_constraints_re[idx], real(coef))
+        add_to_expression!(fα_constraints_im[idx], imag(coef))
+    end
+
+    for (block_idx, block) in enumerate(L.psd_blocks_lin)
+        dual_block = psd_duals[block_idx]
+        for i in 1:block.size, j in 1:block.size
+            for (key, coef) in block.entries[i, j]
+                _accumulate_native_hermitian_dual_contribution!(
+                    fα_constraints_re,
+                    fα_constraints_im,
+                    _sos_moment_index(L, key),
+                    coef,
+                    dual_block,
+                    i,
+                    j,
+                    block.meta.cone,
+                )
+            end
+        end
+    end
+
+    for (zc_idx, zc) in enumerate(L.zero_constraints)
+        λ = zero_duals[zc_idx]
+        for (key, coef) in zc.form
+            idx = _sos_moment_index(L, key)
+            add_to_expression!(fα_constraints_re[idx], -real(coef), λ)
+            add_to_expression!(fα_constraints_im[idx], -imag(coef), λ)
+        end
+    end
+
+    identity_idx = _sos_moment_index(L, L.identity)
+    @objective(dual_model, Max, fα_constraints_re[identity_idx])
+
+    real_coefficient_indices = [
+        i for i in eachindex(fα_constraints_re) if i != identity_idx && !iszero(fα_constraints_re[i])
+    ]
+    imag_coefficient_indices = [
+        i for i in eachindex(fα_constraints_im) if !iszero(fα_constraints_im[i])
+    ]
+    real_coefficient_expressions = [
+        _scale_sos_coefficient_expression(
+            fα_constraints_re[i],
+            scaling;
+            scaling_floor,
+        )
+        for i in real_coefficient_indices
+    ]
+    imag_coefficient_expressions = [
+        _scale_sos_coefficient_expression(
+            fα_constraints_im[i],
+            scaling;
+            scaling_floor,
+        )
+        for i in imag_coefficient_indices
+    ]
+    isempty(real_coefficient_expressions) ||
+        @constraint(dual_model, real_coefficient_expressions .== zero(RC))
+    isempty(imag_coefficient_expressions) ||
+        @constraint(dual_model, imag_coefficient_expressions .== zero(RC))
+
+    psd_dual_blocks = [
+        SOSDualBlock(block.meta, dual_block, :hermitian)
+        for (block, dual_block) in zip(L.psd_blocks_lin, psd_duals)
+    ]
+    return SOSProblem(dual_model, length(L.moments), psd_dual_blocks, zero_duals)
+end
+
+function _sos_dual_certificate_residual_hermitian(mp::MomentProblem, sos::SOSProblem)
+    return _sos_dual_certificate_residual_hermitian(mp.linear, sos)
+end
+
+function _sos_dual_certificate_residual_hermitian(L::MomentLinearData, sos::SOSProblem)
+    residuals_re = zeros(Float64, length(L.moments))
+    residuals_im = zeros(Float64, length(L.moments))
+
+    for (key, coef) in L.objective_lin
+        idx = _sos_moment_index(L, key)
+        residuals_re[idx] += Float64(real(coef))
+        residuals_im[idx] += Float64(imag(coef))
+    end
+
+    for (block_idx, block) in enumerate(L.psd_blocks_lin)
+        dual_block = sos.psd_dual_blocks[block_idx]
+        dual_block.representation in (:hermitian_lift, :hermitian) || throw(ArgumentError(
+            "Expected Hermitian PSD dual block $block_idx to use representation :hermitian_lift or :hermitian, got $(repr(dual_block.representation))."
+        ))
+        native_values = _sos_native_dual_block_value(dual_block, value.(dual_block.variable))
+        for i in 1:block.size, j in 1:block.size
+            multiplier = native_values[i, j]
+            for (key, coef) in block.entries[i, j]
+                idx = _sos_moment_index(L, key)
+                contribution = coef * multiplier
+                residuals_re[idx] -= Float64(real(contribution))
+                residuals_im[idx] -= Float64(imag(contribution))
+            end
+        end
+    end
+
+    for (zc_idx, zc) in enumerate(L.zero_constraints)
+        λ = Float64(real(value(sos.zero_duals[zc_idx])))
+        for (key, coef) in zc.form
+            idx = _sos_moment_index(L, key)
+            residuals_re[idx] -= Float64(real(coef)) * λ
+            residuals_im[idx] -= Float64(imag(coef)) * λ
+        end
+    end
+
+    residuals_re[_sos_moment_index(L, L.identity)] -= Float64(objective_value(sos.model))
+    return _sos_residual_result(L, complex.(residuals_re, residuals_im))
 end

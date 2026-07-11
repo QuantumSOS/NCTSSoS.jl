@@ -10,6 +10,17 @@ ordering by contents; generic keys fall back to `isless`.
 """
 key_lt(a, b) = isless(a, b)
 
+function key_lt(a::Vector, b::Vector)
+    la = length(a)
+    lb = length(b)
+    @inbounds for idx in 1:min(la, lb)
+        ai = a[idx]
+        bi = b[idx]
+        isequal(ai, bi) || return isless(ai, bi)
+    end
+    return la < lb
+end
+
 function key_lt(a::AbstractVector, b::AbstractVector)
     for (ai, bi) in zip(a, b)
         isequal(ai, bi) || return isless(ai, bi)
@@ -24,6 +35,14 @@ Equality predicate matching `key_lt`'s value semantics. This avoids relying on
 mutable array identity for the current `Vector{T}` canonical-key representation.
 """
 key_isequal(a, b) = isequal(a, b)
+
+function key_isequal(a::Vector, b::Vector)
+    length(a) == length(b) || return false
+    @inbounds for idx in eachindex(a, b)
+        isequal(a[idx], b[idx]) || return false
+    end
+    return true
+end
 
 function key_isequal(a::AbstractVector, b::AbstractVector)
     length(a) == length(b) || return false
@@ -59,6 +78,40 @@ end
 
 function _linear_moment_form_from_owned_pairs!(terms::Vector{Pair{K,C}}) where {K,C}
     isempty(terms) && return LinearMomentForm{K,C}(terms, Val(:trusted))
+    if length(terms) == 1
+        if iszero(terms[1].second)
+            resize!(terms, 0)
+        end
+        return LinearMomentForm{K,C}(terms, Val(:trusted))
+    elseif length(terms) == 2
+        first_term = terms[1]
+        second_term = terms[2]
+        if key_isequal(first_term.first, second_term.first)
+            coef = first_term.second + second_term.second
+            if iszero(coef)
+                resize!(terms, 0)
+            else
+                terms[1] = first_term.first => coef
+                resize!(terms, 1)
+            end
+            return LinearMomentForm{K,C}(terms, Val(:trusted))
+        end
+
+        write_idx = 0
+        if !iszero(first_term.second)
+            write_idx += 1
+            terms[write_idx] = first_term
+        end
+        if !iszero(second_term.second)
+            write_idx += 1
+            terms[write_idx] = second_term
+        end
+        resize!(terms, write_idx)
+        if write_idx == 2 && key_lt(terms[2].first, terms[1].first)
+            terms[1], terms[2] = terms[2], terms[1]
+        end
+        return LinearMomentForm{K,C}(terms, Val(:trusted))
+    end
 
     sort!(terms; by=x -> x.first, lt=key_lt)
 
@@ -278,22 +331,29 @@ struct ScalarLinearConstraint{K,C}
     form::LinearMomentForm{K,C}
     kind::Symbol
     origin::ConstraintOrigin
+    trusted_self_adjoint::Bool
 
     function ScalarLinearConstraint{K,C}(
         form::LinearMomentForm{K,C},
         kind::Symbol,
         origin::ConstraintOrigin,
+        trusted_self_adjoint::Bool=false,
     ) where {K,C}
         kind in (:zero, :identity_norm) || throw(ArgumentError(
             "Unsupported scalar linear constraint kind $(repr(kind)); expected :zero or :identity_norm"
         ))
         _assert_linear_moment_form_invariants(form)
-        return new{K,C}(form, kind, origin)
+        return new{K,C}(form, kind, origin, trusted_self_adjoint)
     end
 end
 
-ScalarLinearConstraint(form::LinearMomentForm{K,C}, kind::Symbol, origin::ConstraintOrigin) where {K,C} =
-    ScalarLinearConstraint{K,C}(form, kind, origin)
+ScalarLinearConstraint(
+    form::LinearMomentForm{K,C},
+    kind::Symbol,
+    origin::ConstraintOrigin;
+    trusted_self_adjoint::Bool=false,
+) where {K,C} =
+    ScalarLinearConstraint{K,C}(form, kind, origin, trusted_self_adjoint)
 
 # ── linear data cache ────────────────────────────────────────────────────────
 
@@ -332,6 +392,10 @@ struct MomentLinearData{K,C,M}
         pivots::Dict{K,Pivot{C}},
         pivot_at::Dict{Tuple{Int,Int,Int},Vector{K}},
         free_keys::Vector{K},
+        ;
+        stage_times_ns=nothing,
+        stage_prefix::Symbol=:moment_linear_data,
+        zero_constraint_keys_registered::Bool=false,
     ) where {K,C,M}
         _assert_moment_linear_data_invariants(
             moments,
@@ -346,6 +410,9 @@ struct MomentLinearData{K,C,M}
             pivots,
             pivot_at,
             free_keys,
+            stage_times_ns=stage_times_ns,
+            stage_prefix=stage_prefix,
+            zero_constraint_keys_registered=zero_constraint_keys_registered,
         )
         return new{K,C,M}(
             moments,
@@ -524,8 +591,19 @@ function _assert_psd_blocks(
 end
 
 function _form_coefficient(form::LinearMomentForm{K,C}, key::K) where {K,C}
-    for (candidate, coef) in form
-        key_isequal(candidate, key) && return coef
+    terms = form.terms
+    lo = firstindex(terms)
+    hi = lastindex(terms)
+    @inbounds while lo <= hi
+        mid = (lo + hi) >>> 1
+        candidate = terms[mid].first
+        if key_isequal(candidate, key)
+            return terms[mid].second
+        elseif key_lt(candidate, key)
+            lo = mid + 1
+        else
+            hi = mid - 1
+        end
     end
     return zero(C)
 end
@@ -548,13 +626,52 @@ function _assert_zero_constraints(
     zero_constraints::Vector{ScalarLinearConstraint{K,C}},
     moments,
     adjoint_key::Dict{K,K},
+    ;
+    stage_times_ns=nothing,
+    stage_prefix::Symbol=:moment_linear_data_zero_constraints,
+    keys_registered::Bool=false,
 ) where {K,C}
+    if stage_times_ns === nothing
+        for zc in zero_constraints
+            zc.kind == :zero || throw(ArgumentError(
+                "zero_constraints contains constraint of kind $(repr(zc.kind)); expected :zero"
+            ))
+            if !keys_registered
+                _assert_form_keys_in_moment_universe(zc.form, moments)
+            end
+            zc.trusted_self_adjoint || _assert_self_adjoint_form(zc.form, adjoint_key)
+        end
+        return nothing
+    end
+
     for zc in zero_constraints
+        stage_start_ns = time_ns()
         zc.kind == :zero || throw(ArgumentError(
             "zero_constraints contains constraint of kind $(repr(zc.kind)); expected :zero"
         ))
-        _assert_form_keys_in_moment_universe(zc.form, moments)
-        _assert_self_adjoint_form(zc.form, adjoint_key)
+        stage_key = Symbol(stage_prefix, "_kind")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+
+        stage_start_ns = time_ns()
+        if keys_registered
+            stage_key = Symbol(stage_prefix, "_trusted_keys")
+        else
+            _assert_form_keys_in_moment_universe(zc.form, moments)
+            stage_key = Symbol(stage_prefix, "_moment_keys")
+        end
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+
+        stage_start_ns = time_ns()
+        if zc.trusted_self_adjoint
+            stage_key = Symbol(stage_prefix, "_trusted_self_adjoint")
+        else
+            _assert_self_adjoint_form(zc.form, adjoint_key)
+            stage_key = Symbol(stage_prefix, "_self_adjoint")
+        end
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
     end
     return nothing
 end
@@ -655,24 +772,102 @@ function _assert_moment_linear_data_invariants(
     pivots::Dict{K,Pivot{C}},
     pivot_at::Dict{Tuple{Int,Int,Int},Vector{K}},
     free_keys::Vector{K},
+    ;
+    stage_times_ns=nothing,
+    stage_prefix::Symbol=:moment_linear_data,
+    zero_constraint_keys_registered::Bool=false,
 ) where {K,C,M}
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     issorted(moments; lt=key_lt) || throw(ArgumentError("MomentLinearData.moments must be sorted by key_lt"))
     for idx in 2:length(moments)
         key_isequal(moments[idx - 1], moments[idx]) && throw(ArgumentError(
             "MomentLinearData.moments contains duplicate key $(repr(moments[idx]))"
         ))
     end
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_moments_sorted")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
 
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     moment_set = Set(moments)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_moment_set")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
 
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     _assert_moment_index(moments, moment_index)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_moment_index")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     _assert_key_to_monomial(moments, key_to_monomial)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_key_to_monomial")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     _assert_identity_key(M, identity)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_identity")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     _assert_adjoint_keys(moments, moment_set, adjoint_key, key_to_monomial)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_adjoint_keys")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     _assert_form_keys_in_moment_universe(objective_lin, moment_set)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_objective")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     _assert_psd_blocks(psd_blocks_lin, psd_block_constraint_idx, moment_set)
-    _assert_zero_constraints(zero_constraints, moment_set, adjoint_key)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_psd_blocks")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
+    _assert_zero_constraints(
+        zero_constraints,
+        moment_set,
+        adjoint_key;
+        stage_times_ns=stage_times_ns,
+        stage_prefix=Symbol(stage_prefix, "_zero_constraints"),
+        keys_registered=zero_constraint_keys_registered,
+    )
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_zero_constraints")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = stage_times_ns === nothing ? 0 : time_ns()
     _assert_pivots(moments, moment_set, pivots, pivot_at, free_keys, adjoint_key, psd_blocks_lin)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_pivots")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
     return nothing
 end
 
@@ -690,4 +885,342 @@ function _assert_moment_linear_data_constraint_invariants(linear::MomentLinearDa
         ))
     end
     return nothing
+end
+
+# ── staged construction ──────────────────────────────────────────────────────
+
+"""
+    MomentLinearBuilder(K, C, M)
+
+Staging buffer for constructing `MomentLinearData` without first materializing
+full polynomial matrices. Inputs are copied on insertion so caller-owned scratch
+keys can be reused or mutated before finalization.
+"""
+mutable struct MomentLinearBuilder{K,C,M<:NormalMonomial}
+    identity::K
+    key_to_monomial::Dict{K,M}
+    objective_terms::Vector{Pair{K,C}}
+    psd_blocks_lin::Vector{PSDBlockLin{K,C,M}}
+    psd_block_constraint_idx::Vector{Int}
+    zero_constraints::Vector{ScalarLinearConstraint{K,C}}
+    zero_constraint_keys_registered::Bool
+    finalized::Bool
+end
+
+function MomentLinearBuilder(::Type{K}, ::Type{C}, ::Type{M}) where {K,C,M<:NormalMonomial}
+    identity_mono = one(M)
+    identity = _owned_moment_key(K, symmetric_canon(expval(identity_mono)))
+    key_to_monomial = Dict{K,M}(identity => identity_mono)
+    return MomentLinearBuilder{K,C,M}(
+        identity,
+        key_to_monomial,
+        Pair{K,C}[],
+        PSDBlockLin{K,C,M}[],
+        Int[],
+        ScalarLinearConstraint{K,C}[],
+        true,
+        false,
+    )
+end
+
+function _owned_moment_key(::Type{K}, key) where {K}
+    converted = convert(K, key)
+    return converted isa AbstractVector ? copy(converted) : converted
+end
+
+function _check_not_finalized!(builder::MomentLinearBuilder)
+    builder.finalized && throw(ArgumentError("MomentLinearBuilder has already been finalized"))
+    return nothing
+end
+
+function _builder_stored_key(key_to_monomial::Dict{K,M}, key::K) where {K,M}
+    stored = getkey(key_to_monomial, key, nothing)
+    stored === nothing || return stored
+
+    # Fallback for mutable key types whose stored hash no longer matches their
+    # current value. Canonical moment keys should not mutate, so this is cold.
+    for stored_key in keys(key_to_monomial)
+        key_isequal(stored_key, key) && return stored_key
+    end
+    return nothing
+end
+
+function _register_builder_moment_key!(
+    key_to_monomial::Dict{K,M},
+    ::Type{K},
+    key,
+    mono::M,
+) where {K,M}
+    owned = _owned_moment_key(K, key)
+    stored = _builder_stored_key(key_to_monomial, owned)
+    stored === nothing || return stored
+    key_to_monomial[owned] = mono
+    return owned
+end
+
+function register_moment!(builder::MomentLinearBuilder{K,C,M}, mono::M) where {K,C,M}
+    _check_not_finalized!(builder)
+    key = _register_builder_moment_key!(
+        builder.key_to_monomial,
+        K,
+        symmetric_canon(expval(mono)),
+        mono,
+    )
+    return _owned_moment_key(K, key)
+end
+
+function register_moment!(builder::MomentLinearBuilder{K,C,M}, key, mono::M) where {K,C,M}
+    _check_not_finalized!(builder)
+    stored = _register_builder_moment_key!(builder.key_to_monomial, K, key, mono)
+    return _owned_moment_key(K, stored)
+end
+
+function _owned_builder_pairs(::Type{K}, ::Type{C}, pairs) where {K,C}
+    owned = Pair{K,C}[]
+    for (key, coef) in pairs
+        converted = convert(C, coef)
+        iszero(converted) && continue
+        push!(owned, _owned_moment_key(K, key) => converted)
+    end
+    return owned
+end
+
+function _builder_linear_form(::Type{K}, ::Type{C}, pairs) where {K,C}
+    return _linear_moment_form_from_owned_pairs!(_owned_builder_pairs(K, C, pairs))
+end
+
+function _owned_builder_form(::Type{K}, ::Type{C}, form::LinearMomentForm{K,C}) where {K,C}
+    terms = Pair{K,C}[]
+    sizehint!(terms, length(form))
+    for (key, coef) in form
+        push!(terms, _owned_moment_key(K, key) => coef)
+    end
+    return LinearMomentForm{K,C}(terms, Val(:trusted))
+end
+
+function add_objective_terms!(builder::MomentLinearBuilder{K,C}, pairs) where {K,C}
+    _check_not_finalized!(builder)
+    append!(builder.objective_terms, _owned_builder_pairs(K, C, pairs))
+    return builder
+end
+
+function add_psd_block!(
+    builder::MomentLinearBuilder{K,C,M},
+    cone::Symbol,
+    entry_pairs::AbstractMatrix,
+    meta::BlockMeta{M};
+    constraint_idx::Integer,
+) where {K,C,M}
+    _check_not_finalized!(builder)
+    _assert_positive_index("PSD block constraint index", constraint_idx)
+    _assert_psd_block_cone(cone)
+    cone == meta.cone || throw(ArgumentError(
+        "PSD block cone $(repr(cone)) does not match metadata cone $(repr(meta.cone))"
+    ))
+
+    nrows, ncols = size(entry_pairs)
+    nrows == ncols || throw(DimensionMismatch("$cone staged block must be square, got $(size(entry_pairs))"))
+
+    entries = Matrix{LinearMomentForm{K,C}}(undef, nrows, ncols)
+    for idx in eachindex(entry_pairs)
+        entries[idx] = _builder_linear_form(K, C, entry_pairs[idx])
+    end
+
+    push!(builder.psd_blocks_lin, PSDBlockLin{K,C,M}(nrows, entries, meta))
+    push!(builder.psd_block_constraint_idx, Int(constraint_idx))
+    return builder
+end
+
+function add_psd_block!(
+    builder::MomentLinearBuilder{K,C,M},
+    cone::Symbol,
+    entry_forms::AbstractMatrix{<:LinearMomentForm{K,C}},
+    meta::BlockMeta{M};
+    constraint_idx::Integer,
+) where {K,C,M}
+    _check_not_finalized!(builder)
+    _assert_positive_index("PSD block constraint index", constraint_idx)
+    _assert_psd_block_cone(cone)
+    cone == meta.cone || throw(ArgumentError(
+        "PSD block cone $(repr(cone)) does not match metadata cone $(repr(meta.cone))"
+    ))
+
+    nrows, ncols = size(entry_forms)
+    nrows == ncols || throw(DimensionMismatch("$cone staged block must be square, got $(size(entry_forms))"))
+
+    entries = Matrix{LinearMomentForm{K,C}}(undef, nrows, ncols)
+    for idx in eachindex(entry_forms)
+        entries[idx] = _owned_builder_form(K, C, entry_forms[idx])
+    end
+
+    push!(builder.psd_blocks_lin, PSDBlockLin{K,C,M}(nrows, entries, meta))
+    push!(builder.psd_block_constraint_idx, Int(constraint_idx))
+    return builder
+end
+
+function add_zero_constraint!(
+    builder::MomentLinearBuilder{K,C},
+    pairs,
+    origin::ConstraintOrigin;
+    kind::Symbol=:zero,
+) where {K,C}
+    _check_not_finalized!(builder)
+    form = _builder_linear_form(K, C, pairs)
+    push!(builder.zero_constraints, ScalarLinearConstraint(form, kind, origin))
+    builder.zero_constraint_keys_registered = false
+    return builder
+end
+
+function add_zero_constraint!(
+    builder::MomentLinearBuilder{K,C},
+    form::LinearMomentForm{K,C},
+    origin::ConstraintOrigin;
+    kind::Symbol=:zero,
+) where {K,C}
+    _check_not_finalized!(builder)
+    push!(
+        builder.zero_constraints,
+        ScalarLinearConstraint(_owned_builder_form(K, C, form), kind, origin),
+    )
+    builder.zero_constraint_keys_registered = false
+    return builder
+end
+
+"""
+Internal append for freshly generated, already-owned linear forms.
+Public insertion paths copy caller-owned keys before staging constraints.
+"""
+function _add_zero_constraint_trusted!(
+    builder::MomentLinearBuilder{K,C},
+    form::LinearMomentForm{K,C},
+    origin::ConstraintOrigin;
+    kind::Symbol=:zero,
+    trusted_self_adjoint::Bool=false,
+) where {K,C}
+    _check_not_finalized!(builder)
+    push!(
+        builder.zero_constraints,
+        ScalarLinearConstraint(form, kind, origin; trusted_self_adjoint),
+    )
+    return builder
+end
+
+function _owned_key_to_monomial(builder::MomentLinearBuilder{K,C,M}) where {K,C,M}
+    key_to_monomial = Dict{K,M}()
+    for (key, mono) in builder.key_to_monomial
+        _register_builder_moment_key!(key_to_monomial, K, key, mono)
+    end
+    return key_to_monomial
+end
+
+function _take_builder_psd_blocks!(builder::MomentLinearBuilder{K,C,M}) where {K,C,M}
+    blocks = builder.psd_blocks_lin
+    builder.psd_blocks_lin = PSDBlockLin{K,C,M}[]
+    return blocks
+end
+
+function _take_builder_zero_constraints!(builder::MomentLinearBuilder{K,C}) where {K,C}
+    constraints = builder.zero_constraints
+    builder.zero_constraints = ScalarLinearConstraint{K,C}[]
+    return constraints
+end
+
+function finalize!(
+    builder::MomentLinearBuilder{K,C,M},
+    ;
+    stage_times_ns=nothing,
+    stage_prefix::Symbol=:moment_linear_finalize,
+) where {K,C,A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T}}
+    _check_not_finalized!(builder)
+    builder.finalized = true
+
+    stage_start_ns = time_ns()
+    key_to_monomial = _owned_key_to_monomial(builder)
+    _close_adjoint_keys!(key_to_monomial, K, A)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_key_copy")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = time_ns()
+    moments = sort!(collect(keys(key_to_monomial)); lt=key_lt)
+    moment_index = Dict{K,Int}(key => idx for (idx, key) in enumerate(moments))
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_moment_index")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = time_ns()
+    adjoint_key = Dict{K,K}()
+    if _is_complex_problem(A)
+        for key in moments
+            mono = _get_key_value(key_to_monomial, key, "representative monomial")
+            adjoint_key[key] = _owned_moment_key(K, _moment_key(K, _moment_linear_adjoint_monomial(mono)))
+        end
+    else
+        for key in moments
+            adjoint_key[key] = key
+        end
+    end
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_adjoint_key")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = time_ns()
+    objective_lin = _builder_linear_form(K, C, builder.objective_terms)
+    psd_blocks_lin = _take_builder_psd_blocks!(builder)
+    psd_block_constraint_idx = builder.psd_block_constraint_idx
+    builder.psd_block_constraint_idx = Int[]
+    zero_constraints = _take_builder_zero_constraints!(builder)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_take_constraints")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = time_ns()
+    pivots = _discover_linear_pivots(psd_blocks_lin, adjoint_key)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_pivots")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = time_ns()
+    free_keys = K[key for key in moments if !haskey(pivots, key)]
+    pivot_at = _build_pivot_at(pivots)
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_free_keys")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+
+    stage_start_ns = time_ns()
+    linear = MomentLinearData{K,C,M}(
+        moments,
+        moment_index,
+        _owned_moment_key(K, builder.identity),
+        key_to_monomial,
+        adjoint_key,
+        psd_blocks_lin,
+        psd_block_constraint_idx,
+        zero_constraints,
+        objective_lin,
+        pivots,
+        pivot_at,
+        free_keys,
+        stage_times_ns=stage_times_ns,
+        stage_prefix=Symbol(stage_prefix, "_construct_data"),
+        zero_constraint_keys_registered=builder.zero_constraint_keys_registered,
+    )
+    if stage_times_ns !== nothing
+        stage_key = Symbol(stage_prefix, "_construct_data")
+        stage_times_ns[stage_key] =
+            get(stage_times_ns, stage_key, 0) + Int(time_ns() - stage_start_ns)
+    end
+    return linear
 end

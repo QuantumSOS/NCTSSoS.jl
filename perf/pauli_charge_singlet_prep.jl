@@ -4,12 +4,32 @@
 # singlet symbolic-preparation path.
 #
 # Usage:
-#   NCTS_PERF_NS=8,12,16 julia --project --startup-file=no perf/pauli_charge_singlet_prep.jl
+#   NCTS_PERF_NS=8,12 julia --project --startup-file=no perf/pauli_charge_singlet_prep.jl
+#
+# Safety:
+#   By default this refuses N > 13.  For intentional structural benchmarks,
+#   set NCTS_PERF_ALLOW_LARGE=true only with explicit wall/RSS estimates and
+#   safe load/memory telemetry.
 #
 # This intentionally stops before optimization. It times:
 #   1. compute_sparsity
 #   2. moment_relax_symmetric
 #   3. sos_dualize / JuMP model construction
+
+Base.include(@__MODULE__, joinpath(@__DIR__, "shared_load_guard.jl"))
+
+function _charge_singlet_preimport_large_run_pressure_guard()
+    _ncts_load_guard_parse_bool("NCTS_PERF_ALLOW_LARGE", false) ||
+        return nothing
+    ns_label = strip(get(ENV, "NCTS_PERF_NS", "8,12"))
+    _ncts_check_large_run_pressure_guard(
+        env_prefix="NCTS_PERF",
+        label="Pauli charge/singlet prep Ns=$ns_label",
+    )
+    return nothing
+end
+
+_charge_singlet_preimport_large_run_pressure_guard()
 
 using Dates
 using Printf
@@ -33,6 +53,44 @@ function _timed(label::AbstractString, f)
     @printf("| `%s` | %.6f | %s | %.6f |\n", label, stats.time, _fmt_bytes(stats.bytes), stats.gctime)
     flush(stdout)
     return stats.value
+end
+
+function _parse_bool_env(name::AbstractString, default::Bool)
+    raw = lowercase(strip(get(ENV, name, string(default))))
+    raw in ("true", "1", "yes", "y") && return true
+    raw in ("false", "0", "no", "n") && return false
+    throw(ArgumentError("$name must be a boolean value, got $(repr(raw))."))
+end
+
+function _parse_int_list_env(name::AbstractString, default::AbstractString)
+    values = Int[]
+    for raw in split(get(ENV, name, default), ",")
+        item = strip(raw)
+        isempty(item) && continue
+        push!(values, parse(Int, item))
+    end
+    isempty(values) && throw(ArgumentError("$name did not contain any integer sizes."))
+    return values
+end
+
+function _check_size_guard(ns::AbstractVector{Int})
+    allow_large = _parse_bool_env("NCTS_PERF_ALLOW_LARGE", false)
+    max_n = parse(Int, get(ENV, "NCTS_PERF_MAX_N", "13"))
+    if allow_large
+        _ncts_check_large_run_pressure_guard(
+            env_prefix="NCTS_PERF",
+            label="Pauli charge/singlet prep Ns=$(join(ns, ","))",
+        )
+        return nothing
+    end
+    for n in ns
+        n <= max_n || throw(ArgumentError(
+            "Refusing N=$n because NCTS_PERF_ALLOW_LARGE=false and " *
+            "NCTS_PERF_MAX_N=$max_n. Set NCTS_PERF_ALLOW_LARGE=true " *
+            "only for intentional large structural runs."
+        ))
+    end
+    return nothing
 end
 
 function _build_case(N::Integer; order::Integer=2, offblock_check::Symbol=:off, check_invariance::Bool=true)
@@ -99,7 +157,8 @@ function _run_one(N::Integer; offblock_check::Symbol=:off, check_invariance::Boo
 end
 
 function main()
-    ns = parse.(Int, split(get(ENV, "NCTS_PERF_NS", "8,12,16"), ","))
+    ns = _parse_int_list_env("NCTS_PERF_NS", "8,12")
+    _check_size_guard(ns)
     offblock_check = Symbol(get(ENV, "NCTS_PERF_OFFBLOCK_CHECK", "off"))
     check_invariance = parse(Bool, get(ENV, "NCTS_PERF_CHECK_INVARIANCE", "true"))
 
@@ -130,4 +189,6 @@ function main()
     end
 end
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

@@ -19,6 +19,104 @@ if !@isdefined(SOLVER)
     )
 end
 
+if !@isdefined(expectations_oracle)
+    include("../Expectations.jl")
+    using .TestExpectations: expectations_oracle
+end
+
+struct NoSymmetryRouteProbeOptimizer end
+struct SU2MomentQuotientRouteProbeOptimizer end
+
+function NCTSSoS.solve_sdp(
+    L::NCTSSoS.MomentLinearData,
+    ::Type{NoSymmetryRouteProbeOptimizer};
+    kwargs...,
+)
+    return (
+        objective=0.0,
+        model=JuMP.Model(),
+        n_unique_elements=length(L.moments),
+        status=JuMP.MOI.OPTIMAL,
+    )
+end
+
+function NCTSSoS.solve_sdp(
+    ::NCTSSoS.MomentProblem,
+    ::Type{NoSymmetryRouteProbeOptimizer};
+    kwargs...,
+)
+    error("ordinary no-symmetry route built a symbolic MomentProblem")
+end
+
+function NCTSSoS.solve_sdp(
+    L::NCTSSoS.MomentLinearData,
+    ::Type{SU2MomentQuotientRouteProbeOptimizer};
+    kwargs...,
+)
+    return (
+        objective=0.0,
+        model=JuMP.Model(),
+        n_unique_elements=length(L.moments),
+        status=JuMP.MOI.OPTIMAL,
+    )
+end
+
+@testset "public SU(2) moment quotient routing" begin
+    registry, ops = create_pauli_variables(1:4)
+    pop = polyopt(heisenberg_chain_hamiltonian(ops), registry)
+    config = SolverConfig(
+        optimizer=SU2MomentQuotientRouteProbeOptimizer,
+        order=1,
+        symmetry=heisenberg_chain_symmetry_spec(
+            ops;
+            reflection=false,
+            axis_rotations=false,
+            check_invariance=false,
+        ),
+    )
+    quotient_options = (
+        direct_linear=true,
+        su2_symmetry=true,
+        base_su2_extend_rdm=true,
+        contiguous_rdm_decomposition=:su2,
+        contiguous_rdm_support=:extend,
+        su2_moment_quotient=true,
+    )
+
+    explicit = pauli_translation_invariant_nctssos(
+        pop,
+        config;
+        quotient_options...,
+    )
+    @test explicit.moment_problem isa NCTSSoS.MomentLinearData
+    @test explicit.report.su2_moment_quotient
+    @test explicit.report.su2_moment_quotient_count <
+        explicit.report.su2_moment_raw_count
+
+    automatic = cs_nctssos(pop, config; dualize=false, quotient_options...)
+    @test automatic.moment_problem isa NCTSSoS.MomentLinearData
+    @test automatic.report.su2_moment_quotient
+    @test automatic.report.su2_moment_quotient_count ==
+        explicit.report.su2_moment_quotient_count
+    @test automatic.objective == explicit.objective
+
+    @test_throws ArgumentError cs_nctssos(
+        pop,
+        config;
+        dualize=false,
+        su2_symmetry=true,
+        su2_moment_quotient=true,
+    )
+    @test_throws ArgumentError cs_nctssos(
+        pop,
+        config;
+        dualize=false,
+        direct_linear=true,
+        qmbcertify_base_construct=true,
+        su2_moment_quotient=true,
+    )
+end
+
 # PolyOpt Constructor Tests
 
 @testset "PolyOpt Constructor" begin
@@ -156,6 +254,229 @@ end
         @test err isa ArgumentError
         @test occursin("requires the objective and registry to use the same algebra and index types", sprint(showerror, err))
     end
+end
+
+@testset "ordinary no-symmetry defaults to direct linear data" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 0.5 * x[2]^2
+    pop = polyopt(objective, reg; ineq_constraints=[1.0 - x[1]^2])
+    cfg = SolverConfig(optimizer=NoSymmetryRouteProbeOptimizer, order=1)
+
+    result = cs_nctssos(pop, cfg; dualize=true)
+
+    @test isnothing(result.symmetry)
+    @test result.objective == 0.0
+    @test result.n_unique_moment_matrix_elements > 0
+end
+
+@testset "cs_nctssos_higher defaults to direct linear data" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 0.5 * x[2]^2
+    pop = polyopt(objective, reg; ineq_constraints=[1.0 - x[1]^2])
+    cfg = SolverConfig(optimizer=NoSymmetryRouteProbeOptimizer, order=1)
+
+    first = cs_nctssos(pop, cfg; dualize=true)
+    higher = cs_nctssos_higher(pop, first, cfg; dualize=true)
+
+    @test isnothing(higher.symmetry)
+    @test higher.objective == 0.0
+    @test higher.n_unique_moment_matrix_elements == NCTSSoS._moment_matrix_element_count(
+        NonCommutativeAlgebra,
+        NCTSSoS._moment_matrix_basis(higher.sparsity.cliques_term_sparsities),
+    )
+end
+
+@testset "cs_nctssos_higher accepts explicit direct_linear request" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 0.5 * x[2]^2
+    pop = polyopt(objective, reg; ineq_constraints=[1.0 - x[1]^2])
+    cfg = SolverConfig(optimizer=NoSymmetryRouteProbeOptimizer, order=1)
+
+    first = cs_nctssos(pop, cfg; dualize=true)
+    higher = cs_nctssos_higher(pop, first, cfg; direct_linear=true, dualize=true)
+
+    @test isnothing(higher.symmetry)
+    @test higher.objective == 0.0
+    @test higher.n_unique_moment_matrix_elements > 0
+end
+
+@testset "cs_nctssos_higher treats trivial signed symmetry as no-symmetry" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 0.5 * x[2]^2
+    pop = polyopt(objective, reg; ineq_constraints=[1.0 - x[1]^2])
+    trivial_symmetry = SymmetrySpec(SignedPermutation())
+    cfg = SolverConfig(optimizer=NoSymmetryRouteProbeOptimizer, order=1, symmetry=trivial_symmetry)
+
+    first = cs_nctssos(pop, cfg; dualize=true)
+    higher = cs_nctssos_higher(pop, first, cfg; dualize=true)
+
+    @test isnothing(higher.symmetry)
+    @test higher.objective == 0.0
+    @test higher.n_unique_moment_matrix_elements > 0
+end
+
+@testset "direct_linear opt-in works on ordinary no-symmetry path" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 0.5 * x[2]^2
+    pop = polyopt(
+        objective,
+        reg;
+        eq_constraints=[1.0 * x[1] - x[2]],
+        ineq_constraints=[1.0 - x[1]^2],
+    )
+    cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+    direct = cs_nctssos(pop, cfg; direct_linear=true, dualize=true)
+    symbolic = cs_nctssos(pop, cfg; dualize=true)
+
+    @test isnothing(direct.symmetry)
+    @test direct.objective ≈ symbolic.objective atol = 1e-6
+    @test direct.moment_matrix_sizes == symbolic.moment_matrix_sizes
+    @test direct.n_unique_moment_matrix_elements == symbolic.n_unique_moment_matrix_elements
+end
+
+@testset "direct_linear treats trivial signed symmetry as no-symmetry" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 0.5 * x[2]^2
+    pop = polyopt(
+        objective,
+        reg;
+        eq_constraints=[1.0 * x[1] - x[2]],
+        ineq_constraints=[1.0 - x[1]^2],
+    )
+    trivial_symmetry = SymmetrySpec(SignedPermutation())
+    cfg = SolverConfig(optimizer=SOLVER, order=1, symmetry=trivial_symmetry)
+
+    direct = cs_nctssos(pop, cfg; direct_linear=true, dualize=true)
+    symbolic = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, order=1); dualize=true)
+
+    @test isnothing(direct.symmetry)
+    @test direct.objective ≈ symbolic.objective atol = 1e-6
+    @test direct.moment_matrix_sizes == symbolic.moment_matrix_sizes
+    @test direct.n_unique_moment_matrix_elements == symbolic.n_unique_moment_matrix_elements
+end
+
+@testset "trivial signed symmetry defaults to no-symmetry route" begin
+    reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+    objective = 1.0 * x[1]^2 + 0.5 * x[2]^2
+    pop = polyopt(
+        objective,
+        reg;
+        eq_constraints=[1.0 * x[1] - x[2]],
+        ineq_constraints=[1.0 - x[1]^2],
+    )
+    trivial_symmetry = SymmetrySpec(SignedPermutation())
+    trivial_cfg = SolverConfig(optimizer=SOLVER, order=1, symmetry=trivial_symmetry)
+    plain_cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+    trivial = cs_nctssos(pop, trivial_cfg; dualize=true)
+    plain = cs_nctssos(pop, plain_cfg; dualize=true)
+
+    @test isnothing(trivial.symmetry)
+    @test trivial.objective ≈ plain.objective atol = 1e-6
+    @test trivial.moment_matrix_sizes == plain.moment_matrix_sizes
+    @test trivial.n_unique_moment_matrix_elements == plain.n_unique_moment_matrix_elements
+end
+
+@testset "direct_linear opt-in works on fermionic no-symmetry path" begin
+    reg, (c, c_dag) = create_fermionic_variables(1:1)
+    n = c_dag[1] * c[1]
+    pop = polyopt(1.0 * n, reg)
+    cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+    direct = cs_nctssos(pop, cfg; direct_linear=true, dualize=true)
+    symbolic = cs_nctssos(pop, cfg; dualize=true)
+
+    @test isnothing(direct.symmetry)
+    @test direct.objective ≈ symbolic.objective atol = 1e-6
+    @test direct.moment_matrix_sizes == symbolic.moment_matrix_sizes
+    @test direct.n_unique_moment_matrix_elements == symbolic.n_unique_moment_matrix_elements
+end
+
+@testset "direct_linear opt-in works on bosonic no-symmetry path" begin
+    reg, (b, b_dag) = create_bosonic_variables(1:1)
+    n = b_dag[1] * b[1]
+    pop = polyopt(1.0 * n, reg)
+    cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+    direct = cs_nctssos(pop, cfg; direct_linear=true, dualize=true)
+    symbolic = cs_nctssos(pop, cfg; dualize=true)
+
+    @test isnothing(direct.symmetry)
+    @test direct.objective ≈ symbolic.objective atol = 1e-6
+    @test direct.moment_matrix_sizes == symbolic.moment_matrix_sizes
+    @test direct.n_unique_moment_matrix_elements == symbolic.n_unique_moment_matrix_elements
+end
+
+@testset "direct_linear opt-in works on Pauli no-symmetry path" begin
+    reg, (σx, σy, _) = create_pauli_variables(1:1)
+    objective = 1.0 * σx[1]
+    eq = 1.0 * σx[1] + 1.0im * σy[1]
+    pop = polyopt(objective, reg; eq_constraints=[eq])
+    cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+    direct = cs_nctssos(pop, cfg; direct_linear=true, dualize=true)
+    symbolic = cs_nctssos(pop, cfg; dualize=true)
+
+    @test isnothing(direct.symmetry)
+    @test direct.objective ≈ symbolic.objective atol = 1e-6
+    @test direct.moment_matrix_sizes == symbolic.moment_matrix_sizes
+    @test direct.n_unique_moment_matrix_elements == symbolic.n_unique_moment_matrix_elements
+end
+
+@testset "solve_sdp exposes native Hermitian SOS dualization" begin
+    MOI = JuMP.MOI
+    reg, (b, b_dag) = create_bosonic_variables(1:1)
+    objective = -(1.0 * b[1] + 1.0 * b_dag[1])
+    P = typeof(objective)
+
+    block = Matrix{P}(undef, 2, 2)
+    block[1, 1] = 1.0 * one(b[1])
+    block[1, 2] = 1.0 * b[1]
+    block[2, 1] = 1.0 * b_dag[1]
+    block[2, 2] = 1.0 * one(b[1])
+
+    mp = NCTSSoS.MomentProblem(
+        objective,
+        [(:HPSD, block)],
+        [one(b[1]), b[1], b_dag[1]],
+        3,
+    )
+
+    native = NCTSSoS.solve_sdp(
+        mp,
+        SOLVER;
+        dualize=true,
+        sos_hermitian_representation=:native,
+    )
+
+    @test native.objective ≈ -2.0 atol = 1e-6
+    @test any(
+        pair -> last(pair) == MOI.HermitianPositiveSemidefiniteConeTriangle,
+        JuMP.list_of_constraint_types(native.model),
+    )
+end
+
+@testset "cs_nctssos exposes native Hermitian SOS dualization" begin
+    MOI = JuMP.MOI
+    reg, (σx, _, _) = create_pauli_variables(1:1)
+    objective = 1.0 * σx[1]
+    pop = polyopt(objective, reg)
+    cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+    lifted = cs_nctssos(pop, cfg; dualize=true)
+    native = cs_nctssos(
+        pop,
+        cfg;
+        dualize=true,
+        sos_hermitian_representation=:native,
+    )
+
+    @test native.objective ≈ lifted.objective atol = 1e-6
+    @test any(
+        pair -> last(pair) == MOI.HermitianPositiveSemidefiniteConeTriangle,
+        JuMP.list_of_constraint_types(native.model),
+    )
 end
 
 # Basic Dualization Tests
@@ -806,6 +1127,43 @@ end
         @test NCTSSoS._normalize_basis_element(M, nc_state_poly) == basis_elem
         @test_throws ArgumentError NCTSSoS._normalize_basis_element(M, basis_elem + one(basis_elem))
         @test_throws ArgumentError NCTSSoS._normalize_basis_element(M, 2.0 * basis_elem)
+    end
+
+    @testset "direct_linear and Pauli translation-specific keywords are fenced" begin
+        cfg = SolverConfig(optimizer=SOLVER, order=1)
+
+        reg_pauli, (σx, _, _) = create_pauli_variables(1:1)
+        pauli_pop = polyopt(1.0 * σx[1], reg_pauli)
+        pauli_err = try
+            cs_nctssos(pauli_pop, cfg; contiguous_rdm_k=2)
+            nothing
+        catch err
+            err
+        end
+        @test pauli_err isa ArgumentError
+        @test occursin("contiguous_rdm_k", sprint(showerror, pauli_err))
+
+        reg_nc, (x,) = create_noncommutative_variables([("x", 1:1)])
+        nc_pop = polyopt(1.0 * x[1] + 1.0, reg_nc)
+        nc_err = try
+            cs_nctssos(nc_pop, cfg; contiguous_rdm_k=2)
+            nothing
+        catch err
+            err
+        end
+        @test nc_err isa ArgumentError
+        @test occursin("contiguous_rdm_k", sprint(showerror, nc_err))
+
+        reg_state, (u,) = create_unipotent_variables([("u", 1:1)])
+        state_pop = polyopt((1.0 * ς(u[1])) * one(typeof(u[1])), reg_state)
+        state_err = try
+            cs_nctssos(state_pop, cfg; direct_linear=true)
+            nothing
+        catch err
+            err
+        end
+        @test state_err isa ArgumentError
+        @test occursin("state/trace polynomial optimization", sprint(showerror, state_err))
     end
 
     @testset "moment_basis validation" begin

@@ -7,11 +7,68 @@
 #
 # Usage examples:
 #   NCTS_PERF_MODE=order2_singlet NCTS_PERF_NS=8,10,12 julia --project=. --startup-file=no perf/heisenberg_mosek_scaling.jl
-#   NCTS_PERF_MODE=sparse_d4 NCTS_PERF_NS=8,10,12,16 julia --project=. --startup-file=no perf/heisenberg_mosek_scaling.jl
+#   NCTS_PERF_MODE=sparse_d4 NCTS_PERF_NS=8,10,12 julia --project=. --startup-file=no perf/heisenberg_mosek_scaling.jl
+#
+# Safety:
+#   By default this refuses N > 13.  For intentional scaling runs, set
+#   NCTS_PERF_ALLOW_LARGE=true only with explicit wall/RSS estimates and safe
+#   load/memory telemetry, or raise NCTS_PERF_MAX_N for a known-small local
+#   case.
 #
 # Modes:
 #   order2_singlet  automatic order-2 basis, translation/reflection, charge sectors, singlet constraints
 #   sparse_d4       contiguous degree-4 basis, translation/reflection/sign, charge sectors
+
+Base.include(@__MODULE__, joinpath(@__DIR__, "shared_load_guard.jl"))
+
+function _parse_bool_env(name::AbstractString, default::Bool)
+    raw = lowercase(strip(get(ENV, name, string(default))))
+    raw in ("true", "1", "yes", "y") && return true
+    raw in ("false", "0", "no", "n") && return false
+    throw(ArgumentError("$name must be a boolean value, got $(repr(raw))."))
+end
+
+function _parse_int_list_env(name::AbstractString, default::AbstractString)
+    values = Int[]
+    for raw in split(get(ENV, name, default), ",")
+        item = strip(raw)
+        isempty(item) && continue
+        push!(values, parse(Int, item))
+    end
+    isempty(values) && throw(ArgumentError("$name did not contain any integer sizes."))
+    return values
+end
+
+function _heisenberg_scaling_preimport_large_run_pressure_guard(ns::AbstractVector{Int})
+    _ncts_check_large_run_pressure_guard(
+        env_prefix="NCTS_PERF",
+        label="Heisenberg Mosek scaling Ns=$(join(ns, ","))",
+    )
+    return nothing
+end
+
+function _check_size_guard(ns::AbstractVector{Int})
+    allow_large = _parse_bool_env("NCTS_PERF_ALLOW_LARGE", false)
+    max_n = parse(Int, get(ENV, "NCTS_PERF_MAX_N", "13"))
+    if allow_large
+        _heisenberg_scaling_preimport_large_run_pressure_guard(ns)
+        return nothing
+    end
+    for n in ns
+        n <= max_n || throw(ArgumentError(
+            "Refusing N=$n because NCTS_PERF_ALLOW_LARGE=false and " *
+            "NCTS_PERF_MAX_N=$max_n. Set NCTS_PERF_ALLOW_LARGE=true " *
+            "only for intentional large solver-backed runs."
+        ))
+    end
+    return nothing
+end
+
+_requested_ns() = _parse_int_list_env("NCTS_PERF_NS", "8,10,12")
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    _check_size_guard(_requested_ns())
+end
 
 using Dates
 using Printf
@@ -298,7 +355,8 @@ function _print_rollup(rows)
 end
 
 function main()
-    ns = parse.(Int, split(get(ENV, "NCTS_PERF_NS", "8,10,12,16"), ","))
+    ns = _requested_ns()
+    _check_size_guard(ns)
     mode = Symbol(get(ENV, "NCTS_PERF_MODE", "order2_singlet"))
     degree = parse(Int, get(ENV, "NCTS_PERF_DEGREE", "4"))
     offblock_check = Symbol(get(ENV, "NCTS_PERF_OFFBLOCK_CHECK", "off"))
@@ -342,4 +400,6 @@ function main()
     _print_rollup(rows)
 end
 
-main()
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

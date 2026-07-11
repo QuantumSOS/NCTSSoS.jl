@@ -123,11 +123,15 @@ function build_jump_model(
         throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
 
     if formulation == :psd_blocks
-        _is_real_moment_problem(mp) && throw(ArgumentError("formulation=:psd_blocks is only for complex Hermitian moment problems; real PSD moment problems already use direct real lowering."))
+        if _is_real_moment_problem(mp)
+            representation == :real ||
+                throw(ArgumentError("real PSD-block moment problems support only representation=:real"))
+            return _build_real_psd_block_model(mp.linear; orphan_policy=orphan_policy)
+        end
         _is_complex_problem(A) ||
-            throw(ArgumentError("formulation=:psd_blocks is currently implemented only for complex algebras"))
+            throw(ArgumentError("formulation=:psd_blocks is currently implemented only for real PSD or complex Hermitian moment data"))
         representation == :complex ||
-            throw(ArgumentError("formulation=:psd_blocks currently supports only representation=:complex"))
+            throw(ArgumentError("complex PSD-block moment problems support only representation=:complex"))
         return _build_complex_psd_block_model(mp; orphan_policy=orphan_policy)
     end
 
@@ -144,6 +148,52 @@ function build_jump_model(
     end
 end
 
+"""
+    build_jump_model(linear::MomentLinearData;
+        formulation=:psd_blocks,
+        representation=:complex,
+        orphan_policy=:error,
+    ) -> (model, extract_monomap)
+
+Lower a finalized linear moment cache directly into a JuMP model.  This is the
+streaming-construction boundary: callers that already own `MomentLinearData`
+do not need to wrap it in symbolic `Matrix{Polynomial}` constraints.
+"""
+function build_jump_model(
+    L::MomentLinearData;
+    formulation::Symbol=:psd_blocks,
+    representation::Symbol=:complex,
+    orphan_policy::Symbol=:error,
+)
+    formulation in (:moment_variables, :psd_blocks) ||
+        throw(ArgumentError("Unsupported formulation $(repr(formulation)); expected :moment_variables or :psd_blocks"))
+    representation in (:real, :complex) ||
+        throw(ArgumentError("Unsupported representation $(repr(representation)); expected :real or :complex"))
+    orphan_policy in (:error, :free_variables, :aux_psd_free) ||
+        throw(ArgumentError("Unsupported orphan_policy $(repr(orphan_policy)); expected :error, :free_variables, or :aux_psd_free"))
+
+    if formulation == :psd_blocks
+        if _lowering_coeff_type(L) <: Real
+            representation == :real ||
+                throw(ArgumentError("real PSD-block MomentLinearData lowering supports only representation=:real"))
+            return _build_real_psd_block_model(L; orphan_policy=orphan_policy)
+        end
+        representation == :complex ||
+            throw(ArgumentError("complex PSD-block MomentLinearData lowering supports only representation=:complex"))
+        return _build_complex_psd_block_model(L; orphan_policy=orphan_policy)
+    end
+
+    if _lowering_coeff_type(L) <: Real
+        representation == :real ||
+            throw(ArgumentError("real moment data supports only representation=:real"))
+        return _build_real_moment_variable_model(L)
+    else
+        representation == :real ||
+            throw(ArgumentError("formulation=:moment_variables currently supports representation=:real for complex moment data"))
+        return _build_complex_moment_variable_model(L)
+    end
+end
+
 function _lowering_coeff_type(::MomentLinearData{K,C,M}) where {K,C,M}
     return C
 end
@@ -156,12 +206,26 @@ function _check_real_lowering_cones!(mp::MomentProblem)
     for (cone, _) in mp.constraints
         (cone == :Zero || cone == :PSD) || error("Unexpected cone type $cone for real problem")
     end
+    return _check_real_lowering_cones!(mp.linear)
+end
+
+function _check_real_lowering_cones!(L::MomentLinearData)
+    for block in L.psd_blocks_lin
+        block.meta.cone == :PSD || error("Unexpected cone type $(block.meta.cone) for real problem")
+    end
     return nothing
 end
 
 function _check_complex_moment_variable_cones!(mp::MomentProblem)
     for (cone, _) in mp.constraints
         (cone == :Zero || cone == :HPSD) || error("Unexpected cone type $cone for complex problem")
+    end
+    return _check_complex_moment_variable_cones!(mp.linear)
+end
+
+function _check_complex_moment_variable_cones!(L::MomentLinearData)
+    for block in L.psd_blocks_lin
+        block.meta.cone == :HPSD || error("Unexpected cone type $(block.meta.cone) for complex problem")
     end
     return nothing
 end
@@ -170,6 +234,15 @@ function _check_complex_psd_block_cones!(mp::MomentProblem)
     for (cone, _) in mp.constraints
         (cone == :Zero || _is_pivot_cone(cone)) ||
             error("Unexpected cone type $cone for complex PSD-block problem")
+    end
+    return _check_complex_psd_block_cones!(mp.linear)
+end
+
+function _check_complex_psd_block_cones!(L::MomentLinearData)
+    for block in L.psd_blocks_lin
+        _is_pivot_cone(block.meta.cone) || error(
+            "Unexpected cone type $(block.meta.cone) for complex PSD-block problem"
+        )
     end
     return nothing
 end
@@ -201,8 +274,12 @@ function _build_real_moment_variable_model(
     mp::MomentProblem{A,T,M,P},
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
     _check_real_lowering_cones!(mp)
+    return _build_real_moment_variable_model(mp.linear)
+end
 
-    L = mp.linear
+function _build_real_moment_variable_model(L::MomentLinearData)
+    _check_real_lowering_cones!(L)
+
     C = _lowering_real_type(L)
     model = GenericModel{C}()
     y, resolver = _moment_values_resolver(model, L, C)
@@ -255,8 +332,12 @@ function _build_complex_moment_variable_model(
     mp::MomentProblem{A,T,M,P},
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
     _check_complex_moment_variable_cones!(mp)
+    return _build_complex_moment_variable_model(mp.linear)
+end
 
-    L = mp.linear
+function _build_complex_moment_variable_model(L::MomentLinearData)
+    _check_complex_moment_variable_cones!(L)
+
     C = _lowering_real_type(L)
     model = GenericModel{C}()
     y_re, y_im, resolver = _complex_moment_values_resolver(model, L, C)
@@ -337,6 +418,7 @@ function _declare_aux_orphan_blocks!(
     model,
     blocks::Vector{Any},
     n_orphans::Int;
+    cone::Symbol=:AuxHPSD,
     orphans_per_block::Int=AUX_ORPHANS_PER_BLOCK,
 )
     n_orphans == 0 && return 0
@@ -344,10 +426,21 @@ function _declare_aux_orphan_blocks!(
     n_aux = _n_aux_blocks(n_orphans; orphans_per_block=orphans_per_block)
     for aux_offset in 0:(n_aux - 1)
         n_in_block = min(orphans_per_block, n_orphans - aux_offset * orphans_per_block)
-        push!(blocks, _declare_psd_block_variable!(model, :AuxHPSD, n_in_block + 1))
+        push!(blocks, _declare_psd_block_variable!(model, cone, n_in_block + 1))
     end
 
     return n_aux
+end
+
+function _declare_real_free_orphan_moments!(model, orphan_keys::AbstractVector)
+    free_values = Dict{eltype(orphan_keys),Any}()
+    isempty(orphan_keys) && return free_values
+
+    @variable(model, orphan[1:length(orphan_keys)], set_string_name=false)
+    for (idx, key) in enumerate(orphan_keys)
+        free_values[key] = orphan[idx]
+    end
+    return free_values
 end
 
 function _declare_free_orphan_moments!(model, orphan_keys::AbstractVector)
@@ -380,6 +473,7 @@ function _aux_orphan_pivots(
 end
 
 @inline _all_matrix_indices(n::Int) = ((i, j) for j in 1:n for i in 1:n)
+@inline _upper_triangle_indices(n::Int) = ((i, j) for j in 1:n for i in 1:j)
 
 function _is_implicit_pivot_binding(block_idx::Int, i::Int, j::Int, form::LinearMomentForm, L::MomentLinearData)
     length(form.terms) == 1 || return false
@@ -406,21 +500,39 @@ function _add_psd_block_bindings!(model, X, block::PSDBlockLin, resolver, block_
     return nothing
 end
 
+function _add_real_psd_block_bindings!(model, X, block::PSDBlockLin, resolver, block_idx::Int)
+    for (i, j) in _upper_triangle_indices(block.size)
+        _is_implicit_pivot_binding(block_idx, i, j, block.entries[i, j], resolver.linear) && continue
+        @constraint(model, X[i, j] == _eval_form(block.entries[i, j], resolver))
+    end
+    return nothing
+end
+
 function _build_complex_psd_block_model(
     mp::MomentProblem{A,T,M,P};
     orphan_policy::Symbol=:error,
 ) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
     _check_complex_psd_block_cones!(mp)
+    return _build_complex_psd_block_model(mp.linear; orphan_policy=orphan_policy)
+end
 
-    L = mp.linear
+function _build_real_psd_block_model(
+    L::MomentLinearData;
+    orphan_policy::Symbol=:error,
+)
+    _check_real_lowering_cones!(L)
+
     C = _lowering_real_type(L)
     LC = _lowering_coeff_type(L)
     model = GenericModel{C}()
 
     if !isempty(L.free_keys) && orphan_policy == :error
         throw(ArgumentError(
-            "$(length(L.free_keys)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
-            _summarize_canonical_keys(L.free_keys)
+            "$(length(L.free_keys)) canonical moment(s) have no qualifying PSD pivot: " *
+            _summarize_canonical_keys(L.free_keys) *
+            ". If these moments are intentionally outside the PSD pivot " *
+            "support, pass `orphan_policy=:free_variables` or " *
+            "`orphan_policy=:aux_psd_free`."
         ))
     end
 
@@ -431,7 +543,64 @@ function _build_complex_psd_block_model(
     if !isempty(L.free_keys)
         if orphan_policy == :aux_psd_free
             first_aux_block_idx = length(blocks) + 1
-            _declare_aux_orphan_blocks!(model, blocks, length(L.free_keys))
+            _declare_aux_orphan_blocks!(model, blocks, length(L.free_keys); cone=:PSD)
+            aux_pivots = _aux_orphan_pivots(LC, L.free_keys, first_aux_block_idx)
+        elseif orphan_policy == :free_variables
+            free_values = _declare_real_free_orphan_moments!(model, L.free_keys)
+        end
+    end
+
+    anchor = blocks[1][1, 1]
+    zero_moment = zero(C) * anchor
+    resolver = BlockMomentResolver(L, blocks, free_values, aux_pivots, zero_moment)
+
+    @constraint(model, resolver(L.identity) == one(C))
+
+    for (block_idx, block) in enumerate(L.psd_blocks_lin)
+        _add_real_psd_block_bindings!(model, blocks[block_idx], block, resolver, block_idx)
+    end
+
+    for zc in L.zero_constraints
+        @constraint(model, _eval_form(zc.form, resolver) == zero(C))
+    end
+
+    @objective(model, Min, _eval_form(L.objective_lin, resolver))
+
+    extract_monomap = function ()
+        return Dict(key => value(resolver(key)) for key in L.moments)
+    end
+
+    return model, extract_monomap
+end
+
+function _build_complex_psd_block_model(
+    L::MomentLinearData;
+    orphan_policy::Symbol=:error,
+)
+    _check_complex_psd_block_cones!(L)
+
+    C = _lowering_real_type(L)
+    LC = _lowering_coeff_type(L)
+    model = GenericModel{C}()
+
+    if !isempty(L.free_keys) && orphan_policy == :error
+        throw(ArgumentError(
+            "$(length(L.free_keys)) canonical moment(s) have no qualifying PSD/HPSD pivot: " *
+            _summarize_canonical_keys(L.free_keys) *
+            ". If these moments are intentionally outside the PSD/HPSD pivot " *
+            "support, pass `orphan_policy=:free_variables` or " *
+            "`orphan_policy=:aux_psd_free`."
+        ))
+    end
+
+    blocks = _declare_psd_block_variables!(model, L)
+    free_values = Dict{eltype(L.free_keys),Any}()
+    aux_pivots = Dict{eltype(L.free_keys),Pivot{LC}}()
+
+    if !isempty(L.free_keys)
+        if orphan_policy == :aux_psd_free
+            first_aux_block_idx = length(blocks) + 1
+            _declare_aux_orphan_blocks!(model, blocks, length(L.free_keys); cone=:AuxHPSD)
             aux_pivots = _aux_orphan_pivots(LC, L.free_keys, first_aux_block_idx)
         elseif orphan_policy == :free_variables
             free_values = _declare_free_orphan_moments!(model, L.free_keys)
@@ -450,17 +619,8 @@ function _build_complex_psd_block_model(
         _add_psd_block_bindings!(model, blocks[block_idx], block, resolver, block_idx)
     end
 
-    K = typeof(L.identity)
-    for (cone, mat) in mp.constraints
-        cone == :Zero || continue
-        size(mat, 1) == size(mat, 2) || throw(DimensionMismatch(
-            "complex Zero constraint must be square for PSD-block lowering, got $(size(mat))"
-        ))
-        for j in axes(mat, 2), i in firstindex(mat, 1):j
-            form = _linearize_moment_polynomial(K, LC, mat[i, j])
-            isempty(form) && continue
-            @constraint(model, _eval_form(form, resolver) == zero_complex_moment)
-        end
+    for zc in L.zero_constraints
+        @constraint(model, real(_eval_form(zc.form, resolver)) == zero(C))
     end
 
     obj_expr = _eval_form(L.objective_lin, resolver)

@@ -88,6 +88,75 @@ end
         @test num_variables(state_sos.model) == state_expected_vars
     end
 
+    @testset "SOS coefficient-equation scaling" begin
+        model = Model()
+        @variable(model, x)
+        @variable(model, y)
+        expression = 0.25 + 1.0e-3 * x - 4.0e2 * y
+
+        @test NCTSSoS._normalize_sos_equation_scaling(:none) == :none
+        @test NCTSSoS._normalize_sos_equation_scaling(:max_abs) == :max_abs
+        @test_throws ArgumentError NCTSSoS._normalize_sos_equation_scaling(:mystery)
+        @test NCTSSoS._normalize_sos_equation_scaling_floor(0) == 0.0
+        @test NCTSSoS._normalize_sos_equation_scaling_floor(0.1) == 0.1
+        @test_throws ArgumentError NCTSSoS._normalize_sos_equation_scaling_floor(-0.1)
+        @test_throws ArgumentError NCTSSoS._normalize_sos_equation_scaling_floor(Inf)
+        @test NCTSSoS._scale_sos_coefficient_expression(expression, :none) ===
+            expression
+
+        scaled = NCTSSoS._scale_sos_coefficient_expression(expression, :max_abs)
+        @test JuMP.constant(scaled) == 0.25 / 400
+        @test JuMP.coefficient(scaled, x) == 1.0e-3 / 400
+        @test JuMP.coefficient(scaled, y) == -1.0
+
+        tiny_expression = 1.0e-4 * x
+        capped = NCTSSoS._scale_sos_coefficient_expression(
+            tiny_expression,
+            :max_abs;
+            scaling_floor=0.1,
+        )
+        @test JuMP.coefficient(capped, x) == 1.0e-3
+
+        registry, (σx, _, _) = create_pauli_variables(1:1)
+        pop = polyopt(1.0 * σx[1], registry)
+        config = SolverConfig(
+            optimizer=nothing,
+            order=1,
+            cs_algo=NoElimination(),
+            ts_algo=NoElimination(),
+        )
+        sparsity = compute_sparsity(pop, config)
+        mp = NCTSSoS.moment_relax(
+            pop,
+            sparsity.corr_sparsity,
+            sparsity.cliques_term_sparsities,
+        )
+        unscaled = NCTSSoS.sos_dualize(
+            mp;
+            hermitian_representation=:native,
+            coefficient_scaling=:none,
+        )
+        scaled_sos = NCTSSoS.sos_dualize(
+            mp;
+            hermitian_representation=:native,
+            coefficient_scaling=:max_abs,
+            coefficient_scaling_floor=0.1,
+        )
+        @test num_variables(scaled_sos.model) == num_variables(unscaled.model)
+        @test num_constraints(
+            scaled_sos.model;
+            count_variable_in_set_constraints=true,
+        ) == num_constraints(
+            unscaled.model;
+            count_variable_in_set_constraints=true,
+        )
+        scaled_objective = objective_function(scaled_sos.model)
+        unscaled_objective = objective_function(unscaled.model)
+        @test JuMP.constant(scaled_objective) == JuMP.constant(unscaled_objective)
+        @test first.(collect(JuMP.linear_terms(scaled_objective))) ==
+            first.(collect(JuMP.linear_terms(unscaled_objective)))
+    end
+
     @testset "State SOS dualization rejects underspecified bases" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
         objective = tr(1.0 * x[1]) * one(typeof(x[1]))

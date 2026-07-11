@@ -4,19 +4,11 @@
 using Test, NCTSSoS, LinearAlgebra
 
 if !@isdefined(SOLVER)
-    using JuMP, COSMO
+    using JuMP, MosekTools
     const SOLVER = optimizer_with_attributes(
-        COSMO.Optimizer,
-        "verbose" => false,
-        "eps_abs" => 1e-8,
-        "eps_rel" => 1e-8,
-        "eps_prim_inf" => 1e-6,
-        "eps_dual_inf" => 1e-6,
-        "max_iter" => 50_000,
-        "rho" => 1.0,
-        "adaptive_rho" => true,
-        "alpha" => 1.0,
-        "scaling" => 10,
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0,
     )
 end
 
@@ -324,6 +316,20 @@ end
         @test [label.charge for label in charge_report.block_labels] == [-2, -1, 0, 1, 2]
         @test all(==(:charge_sector), charge_report.block_provenance)
         @test charge_report.basis_half_size == 67
+
+        charge_full_spec = SymmetrySpec(
+            pauli_charge=PauliChargeSectorSpec(nqubits=n_ring),
+            offblock_check=:full,
+        )
+        _, charge_full_report = NCTSSoS.moment_relax_symmetric(
+            pop,
+            charge_sparsity.corr_sparsity,
+            charge_sparsity.cliques_term_sparsities,
+            charge_full_spec,
+        )
+        @test charge_full_report.psd_block_sizes == charge_report.psd_block_sizes
+        @test charge_full_report.block_labels == charge_report.block_labels
+        @test charge_full_report.invariant_moment_count == charge_report.invariant_moment_count
 
         translation = pauli_site_permutation([2, 3, 4, 1])
         reflection = pauli_site_permutation([4, 3, 2, 1])
@@ -1167,6 +1173,41 @@ end
             @test length(result) == 2
         end
 
+        # The lazy constraint-entry cache must support the same off-block
+        # certificate modes as the materialized matrix path.
+        for mode in (:full, :randomized, :off)
+            cache = NCTSSoS._ConstraintMatrixEntryCache(one(pop.objective), basis, MP_P)
+            cached = NCTSSoS._reduce_transformed_constraint_cache_blocks(
+                cache, row_bases, reducer; offblock_check=mode,
+            )
+            dense = NCTSSoS._reduce_transformed_blocks(
+                mat, row_bases, reducer; offblock_check=mode,
+            )
+            @test cached == dense
+            @test !isempty(cache.entries)
+        end
+
+        for mode in (:full, :randomized, :off)
+            cache = NCTSSoS._ConstraintMatrixEntryCache(one(pop.objective), basis, MP_P)
+            cached = NCTSSoS._reduce_constraint_cache_symmetric(
+                cache, basis, sw_group, reducer; offblock_check=mode,
+            )
+            dense = NCTSSoS._reduce_constraint_matrix_symmetric(
+                mat, basis, sw_group, reducer; offblock_check=mode,
+            )
+            @test cached == dense
+            @test !isempty(cache.entries)
+        end
+        mismatch_err = _capture_exception(() -> NCTSSoS._reduce_constraint_cache_symmetric(
+            NCTSSoS._ConstraintMatrixEntryCache(one(pop.objective), basis, MP_P),
+            reverse(basis),
+            sw_group,
+            reducer;
+            offblock_check=:full,
+        ))
+        @test mismatch_err isa ArgumentError
+        @test occursin("cache basis", sprint(showerror, mismatch_err))
+
         # Corrupt the basis: swap a row between the two isotypic blocks. The
         # diagonal blocks then no longer carry the full PSD constraint and the
         # off-diagonal blocks are nonzero.
@@ -1181,9 +1222,27 @@ end
         @test_throws ArgumentError NCTSSoS._reduce_transformed_blocks(
             mat, corrupted, reducer; offblock_check=:randomized,
         )
+        @test_throws ArgumentError NCTSSoS._reduce_transformed_constraint_cache_blocks(
+            NCTSSoS._ConstraintMatrixEntryCache(one(pop.objective), basis, MP_P),
+            corrupted,
+            reducer;
+            offblock_check=:full,
+        )
+        @test_throws ArgumentError NCTSSoS._reduce_transformed_constraint_cache_blocks(
+            NCTSSoS._ConstraintMatrixEntryCache(one(pop.objective), basis, MP_P),
+            corrupted,
+            reducer;
+            offblock_check=:randomized,
+        )
         # :off skips the certificate — this documents the risk of disabling it.
         @test length(NCTSSoS._reduce_transformed_blocks(
             mat, corrupted, reducer; offblock_check=:off,
+        )) == 2
+        @test length(NCTSSoS._reduce_transformed_constraint_cache_blocks(
+            NCTSSoS._ConstraintMatrixEntryCache(one(pop.objective), basis, MP_P),
+            corrupted,
+            reducer;
+            offblock_check=:off,
         )) == 2
     end
 

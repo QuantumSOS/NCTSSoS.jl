@@ -2450,8 +2450,10 @@ with `ntrials` independent weight draws.
 
 Throws the same kind of `ArgumentError` as the `:full` check on failure.
 """
-function _verify_offblocks_randomized(
-    mat::Matrix{P},
+function _verify_offblocks_randomized_source(
+    source,
+    ::Type{P},
+    source_size::Tuple{Int,Int},
     row_bases::Vector{<:AbstractMatrix},
     reducer::Union{Nothing,_OrbitReducer{A,T}};
     atol::Float64=_SYMMETRY_ATOL,
@@ -2460,8 +2462,8 @@ function _verify_offblocks_randomized(
 ) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
     length(row_bases) <= 1 && return nothing
 
-    n = size(mat, 1)
-    size(mat, 2) == n || throw(ArgumentError("$context must be square for the off-block certificate."))
+    n = source_size[1]
+    source_size[2] == n || throw(ArgumentError("$context must be square for the off-block certificate."))
 
     # Sparse linear-form representation: mat = Σ_k A_k y_k with COO triplets.
     var_index = Dict{NormalMonomial{A,T},Int}()
@@ -2470,8 +2472,8 @@ function _verify_offblocks_randomized(
     coo_vars = Int[]
     coo_coefs = ComplexF64[]
 
-    for col in axes(mat, 2), row in axes(mat, 1)
-        for (coef, mono) in mat[row, col].terms
+    for col in 1:n, row in 1:n
+        for (coef, mono) in _constraint_source_entry!(source, row, col).terms
             local key
             phase = 1
             if reducer === nothing
@@ -2533,6 +2535,26 @@ function _verify_offblocks_randomized(
     return nothing
 end
 
+function _verify_offblocks_randomized(
+    mat::Matrix{P},
+    row_bases::Vector{<:AbstractMatrix},
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    atol::Float64=_SYMMETRY_ATOL,
+    context::AbstractString="constraint matrix",
+    ntrials::Int=2,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    return _verify_offblocks_randomized_source(
+        mat,
+        P,
+        size(mat),
+        row_bases,
+        reducer;
+        atol,
+        context,
+        ntrials,
+    )
+end
+
 function _reduce_transformed_blocks(
     mat::Matrix{P},
     row_bases::Vector{<:AbstractMatrix},
@@ -2583,6 +2605,100 @@ function _reduce_transformed_blocks(
     end
 
     return _diagonal_transformed_blocks(mat, row_bases, reducer; atol)
+end
+
+function _reduce_transformed_constraint_cache_blocks(
+    cache::_ConstraintMatrixEntryCache{P},
+    row_bases::Vector{<:AbstractMatrix},
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    atol::Float64=_SYMMETRY_ATOL,
+    context::AbstractString="constraint matrix",
+    offblock_check::Symbol=:full,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C}}
+    if offblock_check === :randomized
+        n = length(cache.basis)
+        _verify_offblocks_randomized_source(cache, P, (n, n), row_bases, reducer; atol, context)
+        return _diagonal_transformed_constraint_blocks(cache, row_bases, reducer; atol)
+    elseif offblock_check === :off
+        return _diagonal_transformed_constraint_blocks(cache, row_bases, reducer; atol)
+    elseif offblock_check !== :full
+        throw(ArgumentError("`offblock_check` must be `:full`, `:randomized`, or `:off`; got `$(repr(offblock_check))`."))
+    end
+
+    for i in 1:length(row_bases), j in (i+1):length(row_bases)
+        off_block = _transform_reduced_constraint_cache_block(
+            cache,
+            row_bases[i],
+            row_bases[j],
+            reducer;
+            atol,
+        )
+        for col in axes(off_block, 2), row in axes(off_block, 1)
+            _assert_poly_small(
+                off_block[row, col],
+                "$context off-block entry ($i, $j)[$row, $col]";
+                atol,
+            )
+        end
+
+        off_block_t = _transform_reduced_constraint_cache_block(
+            cache,
+            row_bases[j],
+            row_bases[i],
+            reducer;
+            atol,
+        )
+        for col in axes(off_block_t, 2), row in axes(off_block_t, 1)
+            _assert_poly_small(
+                off_block_t[row, col],
+                "$context off-block entry ($j, $i)[$row, $col]";
+                atol,
+            )
+        end
+    end
+
+    return _diagonal_transformed_constraint_blocks(cache, row_bases, reducer; atol)
+end
+
+function _constraint_cache_matrix(cache::_ConstraintMatrixEntryCache{P}) where {P<:Polynomial}
+    n = length(cache.basis)
+    mat = Matrix{P}(undef, n, n)
+    for col in 1:n, row in 1:n
+        mat[row, col] = _constraint_source_entry!(cache, row, col)
+    end
+    return mat
+end
+
+function _reduce_constraint_cache_symmetric(
+    cache::_ConstraintMatrixEntryCache{P},
+    basis::Vector{M},
+    sw_group,
+    reducer::Union{Nothing,_OrbitReducer{A,T}};
+    atol::Float64=_SYMMETRY_ATOL,
+    context::AbstractString="constraint matrix",
+    offblock_check::Symbol=:full,
+) where {A<:AlgebraType,T<:Integer,C<:Number,P<:Polynomial{A,T,C},M<:NormalMonomial{A,T}}
+    length(cache.basis) == length(basis) || throw(DimensionMismatch(
+        "constraint cache has $(length(cache.basis)) basis elements but reduction was given $(length(basis))"
+    ))
+    cache.basis == basis || throw(ArgumentError(
+        "constraint cache basis does not match the supplied reduction basis"
+    ))
+
+    if length(basis) == 1 || _basis_action_is_trivial(basis, sw_group)
+        return [_maybe_orbit_reduce_matrix(_constraint_cache_matrix(cache), reducer; atol)]
+    end
+
+    blocks = _sw_decompose_half_basis(basis, sw_group)
+    row_bases = [Matrix(block) for block in blocks]
+    return _reduce_transformed_constraint_cache_blocks(
+        cache,
+        row_bases,
+        reducer;
+        atol,
+        context,
+        offblock_check,
+    )
 end
 
 function _reduce_constraint_matrix_symmetric(
@@ -3613,45 +3729,30 @@ function moment_relax_symmetric(
                         context,
                     )
 
-                    if symmetry.offblock_check === :off
-                        mat_cache = _ConstraintMatrixEntryCache(poly, basis, MP_P)
-                        for charge_group in charge_groups
-                            row_bases = [block.row_basis for block in charge_group]
-                            charge_diag_blocks = _diagonal_transformed_constraint_blocks(
-                                mat_cache,
-                                row_bases,
-                                reducer;
-                                atol,
-                            )
-                            append!(diagonal_blocks, charge_diag_blocks)
-                            append!(diagonal_labels, [block.label for block in charge_group])
-                            append!(diagonal_provenance, [block.provenance for block in charge_group])
-                        end
-                    else
-                        _, raw_mat = _build_constraint_matrix(poly, basis, cone)
-                        mat = _convert_polynomial_matrix(MP_P, raw_mat)
-                        for charge_group in charge_groups
-                            row_bases = [block.row_basis for block in charge_group]
-                            charge_diag_blocks = _reduce_transformed_blocks(
-                                mat,
-                                row_bases,
-                                reducer;
-                                atol,
-                                context="$(context) charge $(first(charge_group).label.charge)",
-                                offblock_check=symmetry.offblock_check,
-                            )
-                            append!(diagonal_blocks, charge_diag_blocks)
-                            append!(diagonal_labels, [block.label for block in charge_group])
-                            append!(diagonal_provenance, [block.provenance for block in charge_group])
-                        end
+                    mat_cache = _ConstraintMatrixEntryCache(poly, basis, MP_P)
+                    for charge_group in charge_groups
+                        row_bases = [block.row_basis for block in charge_group]
+                        charge_diag_blocks = _reduce_transformed_constraint_cache_blocks(
+                            mat_cache,
+                            row_bases,
+                            reducer;
+                            atol,
+                            context="$(context) charge $(first(charge_group).label.charge)",
+                            offblock_check=symmetry.offblock_check,
+                        )
+                        append!(diagonal_blocks, charge_diag_blocks)
+                        append!(diagonal_labels, [block.label for block in charge_group])
+                        append!(diagonal_provenance, [block.provenance for block in charge_group])
                     end
                 else
-                    _, raw_mat = _build_constraint_matrix(poly, basis, cone)
-                    mat = _convert_polynomial_matrix(MP_P, raw_mat)
-                    diagonal_blocks = isnothing(sw_group) ?
-                        [_maybe_orbit_reduce_matrix(mat, reducer; atol)] :
-                        _reduce_constraint_matrix_symmetric(
-                            mat,
+                    if isnothing(sw_group)
+                        _, raw_mat = _build_constraint_matrix(poly, basis, cone)
+                        mat = _convert_polynomial_matrix(MP_P, raw_mat)
+                        diagonal_blocks = [_maybe_orbit_reduce_matrix(mat, reducer; atol)]
+                    else
+                        mat_cache = _ConstraintMatrixEntryCache(poly, basis, MP_P)
+                        diagonal_blocks = _reduce_constraint_cache_symmetric(
+                            mat_cache,
                             basis,
                             sw_group,
                             reducer;
@@ -3659,6 +3760,7 @@ function moment_relax_symmetric(
                             context=context,
                             offblock_check=symmetry.offblock_check,
                         )
+                    end
                     diagonal_labels = fill(nothing, length(diagonal_blocks))
                     diagonal_provenance = fill(isnothing(sw_group) ? :identity : :wedderburn, length(diagonal_blocks))
                 end

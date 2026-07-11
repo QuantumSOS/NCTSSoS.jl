@@ -1,5 +1,14 @@
 using Test, NCTSSoS, JuMP
 
+if !@isdefined(SOLVER)
+    using MosekTools
+    const SOLVER = optimizer_with_attributes(
+        Mosek.Optimizer,
+        "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
+        "MSK_IPAR_LOG" => 0,
+    )
+end
+
 @testset "Moment lowering cached pivots" begin
     reg, (σx, σy, σz) = create_pauli_variables(1:2)
     m_pos = σx[1]
@@ -63,6 +72,58 @@ end
     @test monomap[symmetric_canon(NCTSSoS.expval(one(b[1])))] ≈ 1.0 atol = 1e-7
 end
 
+@testset "Moment lowering PSD-block real formulation accepts symbolic MomentProblem" begin
+    MOI = JuMP.MOI
+    _, (x,) = create_noncommutative_variables([("x", 1:1)])
+    one_x = one(x[1])
+    P = typeof(1.0 * one_x)
+
+    block = Matrix{P}(undef, 2, 2)
+    block[1, 1] = 1.0 * one_x
+    block[1, 2] = 1.0 * x[1]
+    block[2, 1] = 1.0 * x[1]
+    block[2, 2] = 1.0 * one_x
+
+    mp = NCTSSoS.MomentProblem(
+        -1.0 * x[1],
+        [(:PSD, block)],
+        [one_x, x[1]],
+        2,
+    )
+
+    model, extract = build_jump_model(mp; formulation=:psd_blocks, representation=:real)
+    backend = JuMP.backend(model)
+    @test extract isa Function
+    @test any(
+        pair -> last(pair) == MOI.PositiveSemidefiniteConeTriangle,
+        JuMP.list_of_constraint_types(model),
+    )
+    @test JuMP.num_variables(model) > 0
+    @test MOI.get(
+        backend,
+        MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64},MOI.EqualTo{Float64}}(),
+    ) == 2
+
+    orphan_mp = NCTSSoS.MomentProblem(
+        1.0 * x[1],
+        [(:PSD, reshape([1.0 * one_x], 1, 1))],
+        [one_x, x[1]],
+        1,
+    )
+    @test_throws ArgumentError build_jump_model(
+        orphan_mp;
+        formulation=:psd_blocks,
+        representation=:real,
+    )
+    orphan_model, _ = build_jump_model(
+        orphan_mp;
+        formulation=:psd_blocks,
+        representation=:real,
+        orphan_policy=:free_variables,
+    )
+    @test JuMP.num_variables(orphan_model) > 1
+end
+
 @testset "Moment lowering PSD-block resolver uses Hermitian adjoint pivots" begin
     reg, (b, b_dag) = create_bosonic_variables(1:1)
     objective = 1.0im * b_dag[1] - 1.0im * b[1]
@@ -118,8 +179,8 @@ end
     model, _ = build_jump_model(mp; formulation=:psd_blocks, representation=:complex)
     backend = JuMP.backend(model)
 
-    @test MOI.get(backend, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64},MOI.EqualTo{Float64}}()) == 2
-    @test MOI.get(backend, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{ComplexF64},MOI.EqualTo{ComplexF64}}()) == 3
+    @test MOI.get(backend, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{Float64},MOI.EqualTo{Float64}}()) == 4
+    @test MOI.get(backend, MOI.NumberOfConstraints{MOI.ScalarAffineFunction{ComplexF64},MOI.EqualTo{ComplexF64}}()) == 2
 end
 
 @testset "Moment lowering moment-variable formulation uses cached identity" begin
@@ -181,7 +242,15 @@ end
     )
 
     @test length(NCTSSoS.orphan_keys(mp)) == 2
-    @test_throws ArgumentError build_jump_model(mp; formulation=:psd_blocks, representation=:complex)
+    orphan_err = try
+        build_jump_model(mp; formulation=:psd_blocks, representation=:complex)
+        nothing
+    catch err
+        err
+    end
+    @test orphan_err isa ArgumentError
+    @test occursin("canonical moment", sprint(showerror, orphan_err))
+    @test occursin("orphan_policy=:free_variables", sprint(showerror, orphan_err))
 
     aux_model, _ = build_jump_model(mp;
         formulation=:psd_blocks,

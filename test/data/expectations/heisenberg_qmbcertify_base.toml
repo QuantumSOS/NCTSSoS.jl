@@ -1,0 +1,461 @@
+schema_version = 1
+status = "pending_qmbcertify_runs"
+notes = "QMBCertify base Heisenberg-chain reference fixture. A0_L10 has a reviewed small reference run. A guarded A0_L20 run on 2026-07-06 did not crowd the machine but returned SLOW_PROGRESS/FEASIBLE_POINT, so it is recorded as a failed attempt rather than a reviewed row. A0_L20 and A0_L30 are deleted from the active run queue until an accepted profile variant and fresh wall/RSS/load estimate justify restoration."
+
+[source]
+project = "QMBCertify"
+local_path = "/Users/exaclior/projects/QMBCertify"
+commit = "b18830a9460de4daa03013e389808d522c7823cf"
+date = "2025-07-19 14:14:33 +0800"
+remote = "git@github.com:wangjie212/QMBCertify.git"
+
+[reviewed_reference_status_policy]
+accepted_termination_statuses = ["OPTIMAL", "ALMOST_OPTIMAL"]
+rejected_examples = ["SLOW_PROGRESS/FEASIBLE_POINT"]
+rejection_note = "Rows outside accepted_termination_statuses are not reviewed references; keep them as failed_attempts or profile_probes until an exploratory variant demonstrates an accepted status."
+
+[required_runs]
+lattice = "1D periodic Heisenberg chain"
+lengths = [10, 20, 30]
+profiles = ["A0"]
+required_fields = [
+    "objective",
+    "psd_block_histogram",
+    "moment_count",
+    "build_time_seconds",
+    "solve_time_seconds",
+    "peak_rss_bytes",
+]
+environment_required_fields = [
+    "nctssos_commit",
+    "julia_version",
+    "mosek_version",
+    "cpu_model",
+    "ram_bytes",
+    "thread_count",
+    "blas_vendor",
+]
+
+[[required_runs.pending_cases]]
+id = "A0_L10"
+profile = "A0"
+length = 10
+status = "reviewed_run"
+
+[[required_runs.pending_cases]]
+id = "A0_L20"
+profile = "A0"
+length = 20
+status = "missing_reviewed_run"
+run_queue_status = "deleted_until_evidence_gate"
+restore_gate = "accepted_profile_variant_and_fresh_wall_rss_load_estimate"
+failed_attempt_id = "A0_L20_2026_07_06"
+
+[[required_runs.pending_cases]]
+id = "A0_L30"
+profile = "A0"
+length = 30
+status = "missing_reviewed_run"
+run_queue_status = "deleted_until_evidence_gate"
+restore_gate = "accepted_profile_variant_and_fresh_wall_rss_load_estimate"
+
+[qmbcertify_api]
+entrypoint = "GSB"
+source_file = "src/sdp.jl"
+
+    [qmbcertify_api.defaults]
+    lso = true
+    lol = "Int(L/2)"
+    pso = 3
+    rdm = false
+    extra = 0
+    lattice = "chain"
+    correlation = false
+    gram = false
+    quiet = false
+
+    [qmbcertify_api.rdm]
+    supported_chain_values = [8, 9, 10]
+    local_word_filter = "even_axis_counts"
+    reducer = "reduce4"
+    block_source = "posepsd8!/posepsd9!/posepsd10!"
+    unsupported_behavior = "print_only"
+
+    [qmbcertify_api.linear_state_opt]
+    candidate_generator = "generate_mons(L, lol, rdm-1)"
+    closure_filter = "filter_mons"
+    deduplication = "random_weight_row_hash"
+    row_variable = "one_free_scalar_per_surviving_commutator"
+
+    [qmbcertify_api.psd_state_opt]
+    basis_filter = "length.(basis[i]) .<= pso"
+    entry_function = "PSDstate_entry"
+    endpoint_rule = "exactly_one_endpoint_changes"
+
+[example_profile]
+source_file = "examples/example.jl"
+profile = "A0"
+length = 10
+d = 4
+rdm = 0
+pso = 2
+lso = 1
+lol = "N"
+extra = 4
+    mosek_tolerances = [1.0e-10, 1.0e-10, 1.0e-10]
+    mosek_threads = 0
+
+[reference_environments.autodl_2026_06_28]
+nctssos_commit = "1033964d36e273ed1e3f2cc457e47db134cf0a4e"
+julia_version = "1.12.6"
+mosek_version = "11.2.0"
+cpu_model = "Intel(R) Xeon(R) Platinum 8470Q"
+ram_bytes = 810158202880
+thread_count = 1
+blas_vendor = "lbt"
+qmbcertify_path = "/root/autodl-tmp/QMBCertify"
+
+[failed_attempt_environments.autodl_2026_07_06]
+nctssos_commit = "1033964d36e273ed1e3f2cc457e47db134cf0a4e"
+julia_version = "1.12.6"
+mosek_version = "11.2.0"
+cpu_model = "Intel(R) Xeon(R) Platinum 8470Q"
+ram_bytes = 810158202880
+thread_count = 1
+blas_vendor = "lbt"
+qmbcertify_path = "/root/autodl-tmp/QMBCertify"
+
+[[cases]]
+id = "A0_L10"
+profile = "A0"
+length = 10
+status = "reviewed_run"
+environment = "autodl_2026_06_28"
+objective = -0.4515446349992884
+objective_per_site = -0.4515446349992884
+objective_total_estimate = -4.515446349992883
+moment_count = 527
+psd_block_histogram = [[11, 2], [15, 2], [22, 4], [30, 4], [38, 2], [42, 1], [43, 1], [76, 4], [84, 4]]
+psd_max_block = 84
+psd_scalar_variables = 32559
+build_time_seconds = 3.891732289
+solve_time_seconds = 4.184498559
+total_wall_seconds = 25.305614455
+peak_rss_bytes = 1196720128
+
+[[failed_attempts]]
+id = "A0_L20_2026_07_06"
+case_id = "A0_L20"
+profile = "A0"
+length = 20
+attempted_at = "2026-07-06"
+status = "rejected_nonoptimal_solve"
+reason = "Guarded harness rejects non-optimal reference rows."
+environment = "autodl_2026_07_06"
+termination_status = "SLOW_PROGRESS"
+solution_status = "FEASIBLE_POINT"
+objective_reported = -0.445230149613047
+reported_sdp_n = 84
+reported_sdp_m = 2642
+basis_time_seconds = 1.491494242
+block_diagonalization_time_seconds = 3.63913965
+linear_state_opt_time_seconds = 3.079659355
+psd_state_opt_time_seconds = 0.112209783
+solve_time_seconds = 32.437545775
+notes = "A0_L20 ran on autodl with one Julia thread and NCTS_QMB_MOSEK_THREADS=1. The run completed in roughly 70s and did not crowd the machine, but MOSEK returned SLOW_PROGRESS/FEASIBLE_POINT, so this is not a reviewed reference row."
+
+[paper_structural_targets.n100_d4]
+status = "analytic_target"
+description = "Tier B paper structural target for the 1D periodic Heisenberg chain, N=100, sparse contiguous basis degree d=4. This target is shape-only: no JuMP model or solver run."
+n_sites = 100
+order = 4
+hamiltonian_width = 2
+basis_size = 12001
+orbit_basis_size = 121
+momentum_sector_count = 51
+n_blocks = 204
+logical_max_block = 31
+psd_max_block = 62
+logical_block_histogram = [[30, 203], [31, 1]]
+psd_block_histogram = [[60, 203], [62, 1]]
+block_coefficient_domain_histogram = [["cyclotomic_float64", 204]]
+block_exact_coefficient_domain_histogram = [["cyclotomic", 204]]
+psd_symmetric_entries = 373443
+psd_symmetric_bytes = 2987544
+product_cache_hits = 93000
+product_cache_misses = 1891
+product_cache_lookups = 94891
+product_cache_hit_rate = 0.980072
+axis_orbit_basis_size = 23
+axis_reduction_ratio = 5.260870
+axis_orbit_size_histogram = [[1, 1], [3, 4], [6, 18]]
+max_contiguous_rdm_k = 8
+max_linear_state_opt_width = 7
+max_psd_state_opt_width = 3
+contiguous_rdm_zero_row_count = 0
+axis_rotation_equality_row_count = 0
+moment_equality_row_count = 0
+linear_state_opt_row_count = 0
+add_on_zero_row_count = 0
+known_zero_constraint_feature_histogram = []
+solve_supported = false
+solve_blocker = "structural_target_only"
+solve_blocker_reason = "Structural target only: this analytic payload reports block and constraint-accounting estimates but does not construct or validate an SDP solve. Build a translation/SU(2) moment report to check public solve support."
+estimated_model_size_gate_status = "blocked_missing_scalar_equality_estimate"
+estimated_model_size_gate_reason = "Structural target only: no scalar-equality upper bound or dense-Schur proxy has been constructed. Use a solver-probe/model-sizing run before launching lowering or solve."
+solve_unsupported_block_features = []
+solve_unsupported_zero_features = []
+requires_construction = false
+
+[paper_structural_targets.n100_d4_reflection]
+status = "analytic_target"
+description = "Tier B paper structural target with translation plus reflection splitting for the 1D periodic Heisenberg chain, N=100, sparse contiguous basis degree d=4. This target is shape-only: no JuMP model or solver run."
+n_sites = 100
+order = 4
+hamiltonian_width = 2
+reflection_symmetry = true
+basis_size = 12001
+orbit_basis_size = 121
+momentum_sector_count = 51
+n_blocks = 408
+logical_max_block = 30
+psd_max_block = 44
+logical_block_histogram = [[9, 2], [13, 6], [17, 6], [21, 1], [22, 1], [30, 392]]
+psd_block_histogram = [[18, 2], [26, 6], [30, 392], [34, 6], [42, 1], [44, 1]]
+block_coefficient_domain_histogram = [["cyclotomic_float64", 408]]
+block_exact_coefficient_domain_histogram = [["cyclotomic_sqrt_rational", 408]]
+psd_symmetric_entries = 190191
+psd_symmetric_bytes = 1521528
+product_cache_hits = 93000
+product_cache_misses = 1891
+product_cache_lookups = 94891
+product_cache_hit_rate = 0.980072
+axis_orbit_basis_size = 23
+axis_reduction_ratio = 5.260870
+axis_orbit_size_histogram = [[1, 1], [3, 4], [6, 18]]
+max_contiguous_rdm_k = 8
+max_linear_state_opt_width = 7
+max_psd_state_opt_width = 3
+contiguous_rdm_zero_row_count = 0
+axis_rotation_equality_row_count = 0
+moment_equality_row_count = 0
+linear_state_opt_row_count = 0
+add_on_zero_row_count = 0
+known_zero_constraint_feature_histogram = []
+solve_supported = false
+solve_blocker = "structural_target_only"
+solve_blocker_reason = "Structural target only: this analytic payload reports block and constraint-accounting estimates but does not construct or validate an SDP solve. Build a translation/SU(2) moment report to check public solve support."
+estimated_model_size_gate_status = "blocked_missing_scalar_equality_estimate"
+estimated_model_size_gate_reason = "Structural target only: no scalar-equality upper bound or dense-Schur proxy has been constructed. Use a solver-probe/model-sizing run before launching lowering or solve."
+solve_unsupported_block_features = []
+solve_unsupported_zero_features = []
+requires_construction = false
+
+[paper_structural_targets.n100_d4_reflection_complex_k0]
+status = "analytic_target"
+description = "Tier B paper structural target for the reflected complex HPSD fixed momentum sector k=0. This target is shape-only: no JuMP model or solver run."
+n_sites = 100
+order = 4
+hamiltonian_width = 2
+reflection_symmetry = true
+real_moment_matrix = false
+momentum_sectors = [0]
+basis_size = 12001
+orbit_basis_size = 121
+momentum_sector_count = 1
+n_blocks = 8
+logical_max_block = 22
+psd_max_block = 22
+logical_block_histogram = [[9, 1], [13, 3], [17, 3], [22, 1]]
+psd_block_histogram = [[9, 1], [13, 3], [17, 3], [22, 1]]
+block_coefficient_domain_histogram = [["cyclotomic_float64", 8]]
+block_exact_coefficient_domain_histogram = [["cyclotomic_sqrt_rational", 8]]
+psd_dense_entries = 1939
+psd_symmetric_entries = 1939
+psd_dense_bytes = 15512
+psd_symmetric_bytes = 15512
+product_cache_hits = 0
+product_cache_misses = 1891
+product_cache_lookups = 1891
+product_cache_hit_rate = 0.0
+axis_orbit_basis_size = 23
+axis_reduction_ratio = 5.260870
+axis_orbit_size_histogram = [[1, 1], [3, 4], [6, 18]]
+max_contiguous_rdm_k = 8
+max_linear_state_opt_width = 7
+max_psd_state_opt_width = 3
+contiguous_rdm_zero_row_count = 0
+axis_rotation_equality_row_count = 0
+moment_equality_row_count = 0
+linear_state_opt_row_count = 0
+add_on_zero_row_count = 0
+known_zero_constraint_feature_histogram = []
+solve_supported = false
+solve_blocker = "structural_target_only"
+solve_blocker_reason = "Structural target only: this analytic payload reports block and constraint-accounting estimates but does not construct or validate an SDP solve. Build a translation/SU(2) moment report to check public solve support."
+estimated_model_size_gate_status = "blocked_missing_scalar_equality_estimate"
+estimated_model_size_gate_reason = "Structural target only: no scalar-equality upper bound or dense-Schur proxy has been constructed. Use a solver-probe/model-sizing run before launching lowering or solve."
+solve_unsupported_block_features = []
+solve_unsupported_zero_features = []
+requires_construction = false
+
+[paper_structural_targets.n100_d4_su2_full_basis]
+status = "analytic_target"
+description = "Tier B SU(2) full-basis contiguous-chain target for N=100, d=4. This target is shape-only and not translation-combined."
+n_sites = 100
+order = 4
+basis_size = 12001
+support_counts = [[0, 1], [1, 100], [2, 100], [3, 100], [4, 100]]
+singlet_channel_count = 501
+singlet_channel_support_counts = [[0, 1], [2, 100], [3, 100], [4, 300]]
+singlet_channel_equality_row_count = 11500
+reduced_block_sizes = [501, 1100, 900, 400, 100]
+transformed_block_sizes = [501, 3300, 4500, 2800, 900]
+real_psd_block_sizes = [501, 1100, 900, 400, 100]
+block_coefficient_domain_histogram = [["complex_algebraic_float64", 5]]
+block_exact_coefficient_domain_histogram = [["complex_sqrt_rational", 5]]
+reduced_max_block = 1100
+transformed_max_block = 4500
+real_psd_max_block = 1100
+reduced_total_block_side = 3001
+transformed_total_block_side = 12001
+real_psd_total_block_side = 3001
+full_dense_entries = 144024001
+full_symmetric_entries = 72018001
+reduced_dense_entries = 2441001
+reduced_symmetric_entries = 1222001
+real_psd_dense_entries = 2441001
+real_psd_symmetric_entries = 1222001
+full_dense_bytes = 1152192008
+full_symmetric_bytes = 576144008
+reduced_dense_bytes = 19528008
+reduced_symmetric_bytes = 9776008
+real_psd_dense_bytes = 19528008
+real_psd_symmetric_bytes = 9776008
+offblock_entry_count = 134883000
+copy_entry_count = 6700000
+accounted_entry_count = 144024001
+translation_combined = false
+solve_supported = false
+solve_blocker = "structural_target_only"
+solve_blocker_reason = "Structural target only: this analytic payload reports block and constraint-accounting estimates but does not construct or validate an SDP solve. Build a translation/SU(2) moment report to check public solve support."
+estimated_model_size_gate_status = "blocked_missing_scalar_equality_estimate"
+estimated_model_size_gate_reason = "Structural target only: no scalar-equality upper bound or dense-Schur proxy has been constructed. Use a solver-probe/model-sizing run before launching lowering or solve."
+solve_unsupported_block_features = []
+solve_unsupported_zero_features = []
+requires_construction = false
+
+[paper_structural_targets.n100_d4_su2_translation_orbit]
+status = "analytic_target"
+description = "Tier B SU(2) translation-orbit target for N=100, d=4. This target is shape-only and not an implemented reducer."
+n_sites = 100
+order = 4
+orbit_basis_size = 121
+support_counts = [[0, 1], [1, 1], [2, 1], [3, 1], [4, 1]]
+singlet_channel_count = 6
+singlet_channel_support_counts = [[0, 1], [2, 1], [3, 1], [4, 3]]
+singlet_channel_equality_row_count = 115
+momentum_sector_count = 51
+zero_momentum_blocks = [[0, 6], [2, 11], [4, 9], [6, 4], [8, 1]]
+nonzero_momentum_blocks = [[0, 5], [2, 11], [4, 9], [6, 4], [8, 1]]
+n_blocks = 255
+logical_max_block = 11
+psd_max_block = 22
+logical_total_block_side = 1531
+psd_total_block_side = 3062
+logical_block_histogram = [[1, 51], [4, 51], [5, 50], [6, 1], [9, 51], [11, 51]]
+psd_block_histogram = [[2, 51], [8, 51], [10, 50], [12, 1], [18, 51], [22, 51]]
+block_coefficient_domain_histogram = [["complex_algebraic_float64", 255]]
+block_exact_coefficient_domain_histogram = [["complex_sqrt_rational", 255]]
+psd_dense_entries = 49820
+psd_symmetric_entries = 26441
+psd_dense_bytes = 398560
+psd_symmetric_bytes = 211528
+su2_full_dense_entries = 734641
+su2_active_dense_entries = 46625
+su2_reduced_dense_entries = 12455
+offblock_entry_count = 688016
+copy_entry_count = 34170
+wigner_offblock_zero_row_budget = 1376032
+wigner_magnetic_copy_zero_row_budget = 34170
+wigner_zero_row_budget = 1410202
+accounted_entry_count = 734641
+translation_combined = true
+reflection_combined = false
+solve_supported = false
+solve_blocker = "structural_target_only"
+solve_blocker_reason = "Structural target only: this analytic payload reports block and constraint-accounting estimates but does not construct or validate an SDP solve. Build a translation/SU(2) moment report to check public solve support."
+estimated_model_size_gate_status = "blocked_missing_scalar_equality_estimate"
+estimated_model_size_gate_reason = "Structural target only: no scalar-equality upper bound or dense-Schur proxy has been constructed. Use a solver-probe/model-sizing run before launching lowering or solve."
+solve_unsupported_block_features = []
+solve_unsupported_zero_features = []
+requires_construction = false
+
+[paper_structural_targets.n100_d4_su2_translation_reflection]
+status = "analytic_target"
+description = "Tier B SU(2) translation-plus-reflection orbit target for N=100, d=4. This target is shape-only and not an implemented reducer."
+n_sites = 100
+order = 4
+orbit_basis_size = 121
+singlet_channel_count = 6
+singlet_channel_support_counts = [[0, 1], [2, 1], [3, 1], [4, 3]]
+singlet_channel_equality_row_count = 115
+momentum_sector_count = 51
+n_blocks = 507
+logical_max_block = 11
+psd_max_block = 16
+logical_total_block_side = 3001
+psd_total_block_side = 3062
+logical_block_histogram = [[1, 102], [2, 2], [3, 4], [4, 98], [5, 101], [6, 3], [8, 1], [9, 98], [11, 98]]
+psd_block_histogram = [[1, 98], [2, 4], [4, 100], [5, 98], [6, 4], [9, 98], [10, 3], [11, 98], [12, 3], [16, 1]]
+block_coefficient_domain_histogram = [["complex_algebraic_float64", 507]]
+block_exact_coefficient_domain_histogram = [["complex_sqrt_rational", 507]]
+psd_dense_entries = 25092
+psd_symmetric_entries = 14077
+psd_dense_bytes = 200736
+psd_symmetric_bytes = 112616
+su2_full_dense_entries = 1426033
+su2_active_dense_entries = 90619
+su2_reduced_dense_entries = 24207
+offblock_entry_count = 1335414
+copy_entry_count = 66412
+wigner_offblock_zero_row_budget = 2670828
+wigner_magnetic_copy_zero_row_budget = 66412
+wigner_zero_row_budget = 2737240
+accounted_entry_count = 1426033
+translation_combined = true
+reflection_combined = true
+solve_supported = false
+solve_blocker = "structural_target_only"
+solve_blocker_reason = "Structural target only: this analytic payload reports block and constraint-accounting estimates but does not construct or validate an SDP solve. Build a translation/SU(2) moment report to check public solve support."
+estimated_model_size_gate_status = "blocked_missing_scalar_equality_estimate"
+estimated_model_size_gate_reason = "Structural target only: no scalar-equality upper bound or dense-Schur proxy has been constructed. Use a solver-probe/model-sizing run before launching lowering or solve."
+solve_unsupported_block_features = []
+solve_unsupported_zero_features = []
+requires_construction = false
+
+[constraint_inventory]
+rdm_options = []
+linear_state_opt = false
+psd_state_opt = false
+
+[profile_definitions.A0]
+description = "Base 1D Heisenberg profile from QMBCertify examples/example.jl: no RDM, first-order linear state optimality, pso=2."
+source_file = "examples/example.jl"
+source_line = 7
+status = "missing_reviewed_run"
+
+    [profile_definitions.A0.command_args]
+    supp = "[UInt16[1;4]]"
+    coe = "[3/4]"
+    d = 4
+    rdm = 0
+    pso = 2
+    lso = 1
+    lol = "L"
+    extra = 4
+    lattice = "chain"
+    correlation = false
+    quiet = false
+    mosek_tolerances = [1.0e-10, 1.0e-10, 1.0e-10]
+    mosek_threads = 0

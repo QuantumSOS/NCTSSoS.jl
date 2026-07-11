@@ -15,6 +15,15 @@ if !@isdefined(SOLVER)
     )
 end
 
+if !@isdefined(flatten_sizes)
+    flatten_sizes(sizes) = reduce(vcat, sizes)
+end
+
+if !@isdefined(expectations_oracle)
+    include("../Expectations.jl")
+    using .TestExpectations: expectations_oracle
+end
+
 @testset "Term Sparsity" begin
     @testset "init_activated_supp" begin
         registry, (x,) = create_noncommutative_variables([("x", 1:2)])

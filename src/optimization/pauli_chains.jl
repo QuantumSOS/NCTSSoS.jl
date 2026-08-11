@@ -365,6 +365,12 @@ mirror-even/odd blocks.  If `momenta` is supplied with
 `real_moment_matrix=false`, it must include sector `0` because the normalized
 identity moment lives there.
 
+`check_invariance=false` skips the translation *and* reflection invariance
+checks on the objective while the corresponding moment identifications are
+still applied, so it asserts that the caller has independently verified every
+enabled symmetry; passing a non-invariant objective with it produces an
+invalid relaxation.
+
 For the XXX chain with `N=100, order=4`, the default basis has 12,001 site-space
 monomials and the solver-facing real PSD blocks have side at most 31, matching
 the specialized construction of arXiv:2604.01555.

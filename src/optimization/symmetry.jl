@@ -2260,7 +2260,7 @@ end
     atol::Float64=_SYMMETRY_ATOL,
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
     terms = _process_terms!(owned_terms, C)
-    isempty(terms) && return _unchecked_polynomial(terms)
+    isempty(terms) && return _unchecked_polynomial(_shrink_terms!(terms))
 
     write_idx = 0
     @inbounds for idx in eachindex(terms)
@@ -2271,7 +2271,7 @@ end
         end
     end
     resize!(terms, write_idx)
-    return _unchecked_polynomial(terms)
+    return _unchecked_polynomial(_shrink_terms!(terms))
 end
 
 @inline function _push_transformed_polynomial_terms!(

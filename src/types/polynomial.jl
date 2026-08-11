@@ -178,10 +178,27 @@ end
     return Polynomial{A,T,C}(owned_terms, Val(:trusted))
 end
 
+"""
+    _shrink_terms!(terms::Vector) -> Vector
+
+Shrink the backing capacity of an owned term buffer to its current length.
+
+Owned buffers are typically `sizehint!`-ed for worst-case term counts (e.g.
+products of support sizes) before canonicalization combines and drops most
+terms. A polynomial that takes ownership of such a buffer would otherwise
+retain the full worst-case capacity for its lifetime; in large moment
+relaxations this overcapacity dominates resident memory. `sizehint!` only
+reallocates when the saving is significant, so exact-sized buffers are a no-op.
+"""
+@inline function _shrink_terms!(terms::Vector)
+    sizehint!(terms, length(terms); shrink=true)
+    return terms
+end
+
 @inline function _polynomial_from_owned_terms!(
     owned_terms::Vector{Tuple{C,NormalMonomial{A,T}}}
 ) where {A<:AlgebraType,T<:Integer,C<:Number}
-    return _unchecked_polynomial(_process_terms!(owned_terms, C))
+    return _unchecked_polynomial(_shrink_terms!(_process_terms!(owned_terms, C)))
 end
 
 # =============================================================================

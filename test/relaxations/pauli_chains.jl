@@ -137,8 +137,16 @@ end
         mp, report = pauli_translation_invariant_moment_relaxation(pop, ops, 1; sign_symmetry=false)
         identity_cross = mp.constraints[1][2][1, 2]
         @test only(coefficients(identity_cross)) ≈ sqrt(n) + 0im atol = 1e-12
-        @test report.psd_block_sizes == [8, 6, 6]
+        @test report.psd_block_sizes == [4, 3, 3]
+        @test report.block_labels[1] == (momentum=0, signature=:all, parity=:even)
         @test report.real_moment_matrix
+        @test report.reflection
+        @test report.conjugate_symmetry
+
+        _, report_legacy = pauli_translation_invariant_moment_relaxation(
+            pop, ops, 1; sign_symmetry=false, reflection=false, conjugate_symmetry=false
+        )
+        @test report_legacy.psd_block_sizes == [8, 6, 6]
 
         n_large = 20
         registry_large, ops_large = create_pauli_variables(1:n_large)
@@ -147,8 +155,15 @@ end
 
         @test report_large.basis_size == 1 + n_large * sum(3^ℓ for ℓ in 1:4)
         @test report_large.orbit_basis_size == 1 + sum(3^ℓ for ℓ in 1:4)
-        @test maximum(report_large.psd_block_sizes) == 62
-        @test length(report_large.psd_block_sizes) == 4 * (fld(n_large, 2) + 1)
+        @test maximum(report_large.psd_block_sizes) == 30
+        @test length(report_large.psd_block_sizes) == 4 * (fld(n_large, 2) + 1) + 4
+
+        _, report_large_legacy = pauli_translation_invariant_moment_relaxation(
+            pop_large, ops_large, 4; reflection=false, conjugate_symmetry=false
+        )
+        @test maximum(report_large_legacy.psd_block_sizes) == 62
+        @test report_large.n_unique_moment_matrix_elements <
+              report_large_legacy.n_unique_moment_matrix_elements
     end
 
     @testset "guardrails reject invalid reductions" begin
@@ -160,7 +175,20 @@ end
 
         field_pop = polyopt(sum(ops[1]), registry)
         @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(field_pop, ops, 1)
-        @test pauli_translation_invariant_moment_relaxation(field_pop, ops, 1; sign_symmetry=false)[2].psd_block_sizes == [8, 6, 6]
+        @test pauli_translation_invariant_moment_relaxation(field_pop, ops, 1; sign_symmetry=false)[2].psd_block_sizes == [4, 3, 3]
+
+        y_field_pop = polyopt(sum(ops[2]), registry)
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(y_field_pop, ops, 1; sign_symmetry=false)
+        @test pauli_translation_invariant_moment_relaxation(
+            y_field_pop, ops, 1; sign_symmetry=false, conjugate_symmetry=false, reflection=false
+        )[2].psd_block_sizes == [8, 6, 6]
+
+        σx4, _, σz4 = ops
+        chiral_pop = polyopt(sum(σx4[i] * σz4[mod1(i + 1, 4)] for i in 1:4), registry)
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(chiral_pop, ops, 1; sign_symmetry=false)
+        @test pauli_translation_invariant_moment_relaxation(
+            chiral_pop, ops, 1; sign_symmetry=false, reflection=false, conjugate_symmetry=false
+        )[2].psd_block_sizes == [8, 6, 6]
 
         σx, σy, σz = ops
         @test_throws ArgumentError pauli_contiguous_chain_basis((σy, σx, σz), 1)
@@ -190,5 +218,30 @@ end
         @test termination_status(reduced.model) == JuMP.MOI.OPTIMAL
         @test reduced.objective ≈ dense.objective atol = 1e-6
         @test maximum(reduced.report.psd_block_sizes) < only(flatten_sizes(dense.moment_matrix_sizes))
+    end
+
+    @testset "mirror/conjugate rules tighten monotonically and stay valid" begin
+        n = 6
+        registry, ops = create_pauli_variables(1:n)
+        pop = polyopt(heisenberg_chain_hamiltonian(ops), registry)
+
+        legacy = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, reflection=false, conjugate_symmetry=false
+            )
+        end
+        mirrored = quiet() do
+            pauli_translation_invariant_nctssos(pop, ops, 2, SOLVER; dualize=false)
+        end
+
+        @test termination_status(legacy.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(mirrored.model) == JuMP.MOI.OPTIMAL
+        # Moment replacement rules add valid constraints: the bound may only tighten,
+        # and must stay below the exact N=6 XXX ground energy (-2.802775637...).
+        @test mirrored.objective >= legacy.objective - 1e-6
+        @test mirrored.objective <= -2.802775637 + 1e-4
+        @test maximum(mirrored.report.psd_block_sizes) < maximum(legacy.report.psd_block_sizes)
+        @test mirrored.report.n_unique_moment_matrix_elements <
+              legacy.report.n_unique_moment_matrix_elements
     end
 end

@@ -293,6 +293,8 @@ struct TranslationInvariantReport
     orbit_basis_size::Int
     momentum_sectors::Vector{Int}
     sign_symmetry::Bool
+    reflection::Bool
+    conjugate_symmetry::Bool
     psd_block_sizes::Vector{Int}
     block_labels::Vector{Any}
     n_unique_moment_matrix_elements::Int
@@ -305,6 +307,7 @@ function Base.show(io::IO, report::TranslationInvariantReport)
         "TranslationInvariantReport(n_sites=$(report.n_sites), order=$(report.order), " *
         "basis_size=$(report.basis_size), orbit_basis_size=$(report.orbit_basis_size), " *
         "momentum_sectors=$(report.momentum_sectors), sign_symmetry=$(report.sign_symmetry), " *
+        "reflection=$(report.reflection), conjugate_symmetry=$(report.conjugate_symmetry), " *
         "psd_block_sizes=$(report.psd_block_sizes), " *
         "n_unique_moment_matrix_elements=$(report.n_unique_moment_matrix_elements), " *
         "real_moment_matrix=$(report.real_moment_matrix))"
@@ -339,20 +342,38 @@ This is an intentionally narrow large-spin-chain path:
 - ordinary unconstrained `PauliAlgebra` polynomial objectives only;
 - periodic translation by one site on the declared chain `1:N`;
 - a contiguous local half-basis from [`pauli_contiguous_chain_basis`](@ref);
-- optional `(ℤ₂)^2` Heisenberg sign-symmetry splitting, enabled by default.
+- optional `(ℤ₂)^2` Heisenberg sign-symmetry splitting, enabled by default;
+- optional mirror (`reflection`) and conjugation (`conjugate_symmetry`) moment
+  replacement rules, both enabled by default.
 
-By default this builds the paper-style real primal moment matrix: complex
-momentum blocks are realified once, conjugate momenta are not duplicated, and
-moment variables are real.  Set `real_moment_matrix=false` only for debugging the
-older complex Hermitian block form.
+By default this builds the paper-style real primal moment matrix: conjugate
+momenta are not duplicated and moment variables are real.  Set
+`real_moment_matrix=false` only for debugging the older complex Hermitian
+block form.
 
 When `sign_symmetry=true`, the objective must be invariant under the global
-Heisenberg sign flips.  If `momenta` is supplied with `real_moment_matrix=false`,
-it must include sector `0` because the normalized identity moment lives there.
+Heisenberg sign flips.  When `reflection=true`, the objective must be invariant
+under the mirror `site i ↦ N + 1 - i` and the basis must be mirror-closed;
+moments are then identified over dihedral (translation + mirror) orbits.  When
+`conjugate_symmetry=true`, every objective term must have a real coefficient and
+an even number of σʸ letters; moments of monomials with an odd σʸ count are then
+identically zero and are dropped.  With both rules and `real_moment_matrix=true`,
+each complex momentum block is rotated by an explicit phase-adapted mirror
+transform into an exactly real PSD block of the same side (instead of the
+doubled realified side), and the `k = 0` sector additionally splits into
+mirror-even/odd blocks.  If `momenta` is supplied with
+`real_moment_matrix=false`, it must include sector `0` because the normalized
+identity moment lives there.
+
+`check_invariance=false` skips the translation *and* reflection invariance
+checks on the objective while the corresponding moment identifications are
+still applied, so it asserts that the caller has independently verified every
+enabled symmetry; passing a non-invariant objective with it produces an
+invalid relaxation.
 
 For the XXX chain with `N=100, order=4`, the default basis has 12,001 site-space
-monomials; the logical complex momentum blocks have side at most 31 and the
-solver-facing real PSD blocks have side at most 62.
+monomials and the solver-facing real PSD blocks have side at most 31, matching
+the specialized construction of arXiv:2604.01555.
 """
 function pauli_translation_invariant_moment_relaxation(
     pop::PolyOpt{PauliAlgebra,T,P},
@@ -361,6 +382,8 @@ function pauli_translation_invariant_moment_relaxation(
     basis::Union{Nothing,Vector{NormalMonomial{PauliAlgebra,T}}}=nothing,
     momenta::Union{Nothing,AbstractVector{<:Integer}}=nothing,
     sign_symmetry::Bool=true,
+    reflection::Bool=true,
+    conjugate_symmetry::Bool=true,
     check_invariance::Bool=true,
     real_moment_matrix::Bool=true,
     phase_atol::Real=1e-12,
@@ -384,7 +407,10 @@ function pauli_translation_invariant_moment_relaxation(
     check_invariance && _check_translation_invariance(pop.objective, n)
     sign_symmetry && _check_pauli_sign_invariance(pop.objective)
     real_moment_matrix && _check_real_pauli_chain_objective(pop.objective)
+    reflection && check_invariance && _check_reflection_invariance(pop.objective, n)
+    conjugate_symmetry && _check_conjugate_invariant_objective(pop.objective)
     _check_translation_basis_closure(local_basis, n)
+    reflection && _check_reflection_basis_closure(local_basis, n)
 
     orbit_reps = _translation_orbit_representatives(local_basis, n)
     nontrivial_reps = [m for m in orbit_reps if !isone(m)]
@@ -395,7 +421,11 @@ function pauli_translation_invariant_moment_relaxation(
     MP_C = Complex{MP_R}
     MP_P = Polynomial{PauliAlgebra,T,real_moment_matrix ? MP_R : MP_C}
     BLOCK_P = Polynomial{PauliAlgebra,T,MP_C}
-    objective_mp = convert(MP_P, _translation_orbit_reduce_polynomial(pop.objective, n))
+    reducer = _PauliMomentReducer{NormalMonomial{PauliAlgebra,T}}(n, reflection, conjugate_symmetry)
+    objective_mp = convert(MP_P, _reduce_moment_polynomial(pop.objective, reducer))
+
+    mirror_transform = reflection && conjugate_symmetry && real_moment_matrix
+    pairing = reflection ? _mirror_pairing(orbit_reps, n) : nothing
 
     translated = Dict{NormalMonomial{PauliAlgebra,T},Vector{NormalMonomial{PauliAlgebra,T}}}()
     for rep in nontrivial_reps
@@ -403,7 +433,6 @@ function pauli_translation_invariant_moment_relaxation(
     end
     translated[one_mono] = fill(one_mono, n)
 
-    rep_cache = Dict{NormalMonomial{PauliAlgebra,T},NormalMonomial{PauliAlgebra,T}}()
     constraints = Tuple{Symbol,Matrix{MP_P}}[]
     moment_terms = NormalMonomial{PauliAlgebra,T}[]
     block_sizes = Int[]
@@ -414,15 +443,28 @@ function pauli_translation_invariant_moment_relaxation(
         blocks = sign_symmetry ? _pauli_signature_blocks(sector_basis) : [(:all, sector_basis)]
         for (signature, block_basis) in blocks
             isempty(block_basis) && continue
-            complex_mat = _translation_momentum_block(block_basis, k, n, translated, rep_cache, BLOCK_P)
-            cone, mat = real_moment_matrix ?
-                (:PSD, _realify_hermitian_block(complex_mat, MP_P; atol=MP_R(phase_atol))) :
-                (:HPSD, map(p -> convert(MP_P, p), complex_mat))
-            push!(constraints, (cone, mat))
-            push!(block_sizes, size(mat, 1))
-            push!(block_labels, (momentum=k, signature=signature))
-            for entry in mat
-                append!(moment_terms, monomials(entry))
+            complex_mat = _translation_momentum_block(block_basis, k, n, translated, reducer, BLOCK_P)
+            if mirror_transform
+                for (parity, mat) in _mirror_real_blocks(complex_mat, block_basis, pairing, k, n, MP_P; atol=MP_R(phase_atol))
+                    push!(constraints, (:PSD, mat))
+                    push!(block_sizes, size(mat, 1))
+                    label = parity === :none ? (momentum=k, signature=signature) :
+                        (momentum=k, signature=signature, parity=parity)
+                    push!(block_labels, label)
+                    for entry in mat
+                        append!(moment_terms, monomials(entry))
+                    end
+                end
+            else
+                cone, mat = real_moment_matrix ?
+                    (:PSD, _realify_hermitian_block(complex_mat, MP_P; atol=MP_R(phase_atol))) :
+                    (:HPSD, map(p -> convert(MP_P, p), complex_mat))
+                push!(constraints, (cone, mat))
+                push!(block_sizes, size(mat, 1))
+                push!(block_labels, (momentum=k, signature=signature))
+                for entry in mat
+                    append!(moment_terms, monomials(entry))
+                end
             end
         end
     end
@@ -447,6 +489,8 @@ function pauli_translation_invariant_moment_relaxation(
         length(orbit_reps),
         sectors,
         sign_symmetry,
+        reflection,
+        conjugate_symmetry,
         block_sizes,
         block_labels,
         n_unique,
@@ -674,20 +718,147 @@ function _check_translation_invariance(poly::Polynomial{PauliAlgebra,T,C}, n_sit
     return nothing
 end
 
-function _translation_orbit_reduce_polynomial(
-    poly::Polynomial{PauliAlgebra,T,C},
+"""
+    _reflect_pauli_monomial(mono, n_sites)
+
+Apply the chain mirror `site i ↦ n_sites + 1 - i` to a normal-form Pauli word.
+Site permutations of normal words never produce a phase because all letters
+live on distinct sites.
+"""
+function _reflect_pauli_monomial(
+    mono::NormalMonomial{PauliAlgebra,T},
     n_sites::Integer,
+) where {T<:Unsigned}
+    isempty(mono.word) && return mono
+    n = Int(n_sites)
+    word = Vector{T}(undef, length(mono.word))
+    for (i, idx) in pairs(mono.word)
+        site = _pauli_site(idx)
+        ptype = _pauli_type(idx)
+        word[i] = _pauli_index_from_site_type(T, n + 1 - site, ptype)
+    end
+    simplified, phase = simplify(PauliAlgebra, word)
+    phase == 0x00 || throw(ArgumentError("Internal error: Pauli reflection produced phase $phase."))
+    return NormalMonomial{PauliAlgebra,T}(copy(simplified))
+end
+
+_pauli_y_count(mono::NormalMonomial{PauliAlgebra}) =
+    count(idx -> _pauli_type(idx) == _PAULI_Y_TYPE, mono.word)
+
+"""
+    _PauliMomentReducer
+
+Reduces monomials appearing in moment-matrix entries to canonical moment
+representatives: translation-orbit representatives, optionally identified over
+mirror images (`reflection`), with moments of odd σʸ count dropped as
+identically zero (`drop_odd_y`, valid under conjugation symmetry).
+"""
+struct _PauliMomentReducer{M<:NormalMonomial{PauliAlgebra}}
+    n::Int
+    reflection::Bool
+    drop_odd_y::Bool
+    cache::Dict{M,Union{M,Nothing}}
+end
+
+function _PauliMomentReducer{M}(n::Integer, reflection::Bool, drop_odd_y::Bool) where {M}
+    return _PauliMomentReducer{M}(Int(n), reflection, drop_odd_y, Dict{M,Union{M,Nothing}}())
+end
+
+function _reduce_moment(reducer::_PauliMomentReducer{M}, mono::M) where {M}
+    return get!(reducer.cache, mono) do
+        reducer.drop_odd_y && isodd(_pauli_y_count(mono)) && return nothing
+        rep = _translation_orbit_representative(mono, reducer.n)
+        if reducer.reflection
+            alt = _translation_orbit_representative(
+                _reflect_pauli_monomial(mono, reducer.n), reducer.n
+            )
+            alt < rep && (rep = alt)
+        end
+        return rep
+    end
+end
+
+function _reduce_moment_polynomial(
+    poly::Polynomial{PauliAlgebra,T,C},
+    reducer::_PauliMomentReducer{NormalMonomial{PauliAlgebra,T}},
 ) where {T<:Unsigned,C<:Number}
     terms = Tuple{C,NormalMonomial{PauliAlgebra,T}}[]
     sizehint!(terms, length(poly.terms))
-    cache = Dict{NormalMonomial{PauliAlgebra,T},NormalMonomial{PauliAlgebra,T}}()
     for (coef, mono) in poly.terms
-        rep = get!(cache, mono) do
-            _translation_orbit_representative(mono, n_sites)
-        end
+        rep = _reduce_moment(reducer, mono)
+        rep === nothing && continue
         push!(terms, (coef, rep))
     end
     return Polynomial(terms)
+end
+
+"""
+    _mirror_pairing(reps, n_sites)
+
+For each translation-orbit representative `a`, find the representative `â` of
+its mirror image and the shift `s` with `ω(a) = T^s(â)`.  The map `a ↦ â` is an
+involution with matching shifts (`s_â = s_a`).
+"""
+function _mirror_pairing(
+    reps::Vector{M},
+    n_sites::Integer,
+) where {M<:NormalMonomial{PauliAlgebra}}
+    n = Int(n_sites)
+    partner = Dict{M,M}()
+    shift = Dict{M,Int}()
+    for a in reps
+        image = _reflect_pauli_monomial(a, n)
+        ahat = _translation_orbit_representative(image, n)
+        s = -1
+        for r in 0:(n - 1)
+            if _translate_pauli_monomial(ahat, r, n) == image
+                s = r
+                break
+            end
+        end
+        s >= 0 || throw(ArgumentError("Internal error: mirror image of $a is not a translate of its orbit representative."))
+        partner[a] = ahat
+        shift[a] = s
+    end
+    return (partner=partner, shift=shift)
+end
+
+function _check_reflection_invariance(
+    poly::Polynomial{PauliAlgebra,T,C},
+    n_sites::Integer,
+) where {T<:Unsigned,C<:Number}
+    n = Int(n_sites)
+    reflected = Polynomial([(coef, _reflect_pauli_monomial(mono, n)) for (coef, mono) in poly.terms])
+    reflected == poly || throw(ArgumentError(
+        "reflection=true requires the objective to be invariant under the chain mirror site i ↦ $(n) + 1 - i. Pass reflection=false for non-invariant objectives."
+    ))
+    return nothing
+end
+
+function _check_reflection_basis_closure(
+    basis::Vector{NormalMonomial{PauliAlgebra,T}},
+    n_sites::Integer,
+) where {T<:Unsigned}
+    basis_set = Set(basis)
+    for mono in basis
+        image = _reflect_pauli_monomial(mono, n_sites)
+        image in basis_set || throw(ArgumentError(
+            "reflection=true requires a mirror-closed basis; $mono maps to $image outside the basis. Pass reflection=false or supply a mirror-closed basis."
+        ))
+    end
+    return nothing
+end
+
+function _check_conjugate_invariant_objective(
+    poly::Polynomial{PauliAlgebra,T,C},
+) where {T<:Unsigned,C<:Number}
+    for (coef, mono) in poly.terms
+        iszero(coef) && continue
+        (iszero(imag(coef)) && iseven(_pauli_y_count(mono))) || throw(ArgumentError(
+            "conjugate_symmetry=true requires a conjugation-invariant objective (real coefficients and an even number of σʸ letters per term); term $mono with coefficient $coef violates this. Pass conjugate_symmetry=false."
+        ))
+    end
+    return nothing
 end
 
 function _check_pauli_sign_invariance(poly::Polynomial{PauliAlgebra,T,C}) where {T<:Unsigned,C<:Number}
@@ -761,7 +932,7 @@ function _translation_momentum_entry(
     k::Int,
     n::Int,
     translated::Dict{M,Vector{M}},
-    rep_cache::Dict{M,M},
+    reducer::_PauliMomentReducer{M},
     ::Type{P},
 ) where {T<:Unsigned,M<:NormalMonomial{PauliAlgebra,T},P<:Polynomial{PauliAlgebra,T}}
     if isone(row) && isone(col)
@@ -778,9 +949,8 @@ function _translation_momentum_entry(
         phase = C(_momentum_phase(R, k, r, n))
         prod = row * col_translates[r + 1]
         for (coef, mono) in prod.terms
-            rep = get!(rep_cache, mono) do
-                _translation_orbit_representative(mono, n)
-            end
+            rep = _reduce_moment(reducer, mono)
+            rep === nothing && continue
             push!(terms, (cross_scale * phase * C(coef), rep))
         end
     end
@@ -849,18 +1019,145 @@ function _realify_hermitian_block(
     return realified
 end
 
+"""
+    _mirror_columns(block_basis, pairing, k, n_sites, CT)
+
+Build the columns of the phase-adapted mirror transform `W` for momentum
+sector `k`.  Each orbit representative `a` receives the phase
+`exp(i·(π k s_a / n + π y_a / 2))` where `s_a` is its mirror shift and `y_a`
+its σʸ count; mirror pairs additionally combine into even (`(u_a + u_â)/√2`)
+and odd (`i(u_a - u_â)/√2`) columns.  `W` is unitary and `W' M_k W` is exactly
+real under dihedral moment identification with odd-σʸ moments dropped.
+"""
+function _mirror_columns(
+    block_basis::Vector{M},
+    pairing,
+    k::Int,
+    n_sites::Int,
+    ::Type{CT},
+) where {M<:NormalMonomial{PauliAlgebra},CT<:Complex}
+    R = typeof(real(one(CT)))
+    index = Dict{M,Int}(mono => i for (i, mono) in enumerate(block_basis))
+    cols_even = Vector{Vector{Tuple{Int,CT}}}()
+    cols_odd = Vector{Vector{Tuple{Int,CT}}}()
+    paired = falses(length(block_basis))
+    for (i, a) in enumerate(block_basis)
+        paired[i] && continue
+        paired[i] = true
+        ahat = pairing.partner[a]
+        s = pairing.shift[a]
+        α = R(pi) * R(k) * R(s) / R(n_sites) + R(pi) / 2 * R(_pauli_y_count(a))
+        c = CT(cis(α))
+        if ahat == a
+            push!(cols_even, [(i, c)])
+        else
+            j = get(index, ahat, 0)
+            j > 0 || throw(ArgumentError("Internal error: mirror partner $ahat of $a is missing from its momentum block."))
+            paired[j] = true
+            scale = CT(inv(sqrt(R(2))))
+            push!(cols_even, [(i, c * scale), (j, c * scale)])
+            push!(cols_odd, [(i, im * c * scale), (j, -im * c * scale)])
+        end
+    end
+    return cols_even, cols_odd
+end
+
+function _mirror_transformed_entry(
+    mat::Matrix{P},
+    ci::Vector{Tuple{Int,CT}},
+    cj::Vector{Tuple{Int,CT}},
+) where {P<:Polynomial,CT<:Complex}
+    acc = nothing
+    for (p, cp) in ci, (q, cq) in cj
+        contrib = (conj(cp) * cq) * mat[p, q]
+        acc = acc === nothing ? contrib : acc + contrib
+    end
+    return acc::P
+end
+
+function _mirror_transformed_block(
+    mat::Matrix{PC},
+    cols::Vector{Vector{Tuple{Int,CT}}},
+    ::Type{PReal};
+    atol,
+) where {PC<:Polynomial,CT<:Complex,PReal<:Polynomial}
+    m = length(cols)
+    out = Matrix{PReal}(undef, m, m)
+    for j in 1:m, i in 1:j
+        entry = _mirror_transformed_entry(mat, cols[i], cols[j])
+        imag_entry = _imag_part_polynomial(entry, PReal; atol)
+        iszero(imag_entry) || throw(ArgumentError(
+            "Internal error: mirror-adapted momentum block has a non-real entry; residual imaginary part $(imag_entry)."
+        ))
+        re = _real_part_polynomial(entry, PReal; atol)
+        out[i, j] = re
+        i == j || (out[j, i] = re)
+    end
+    return out
+end
+
+function _assert_mirror_zero_cross(
+    mat::Matrix{PC},
+    cols_even::Vector{Vector{Tuple{Int,CT}}},
+    cols_odd::Vector{Vector{Tuple{Int,CT}}},
+    ::Type{PReal};
+    atol,
+) where {PC<:Polynomial,CT<:Complex,PReal<:Polynomial}
+    for ce in cols_even, co in cols_odd
+        entry = _mirror_transformed_entry(mat, ce, co)
+        re = _real_part_polynomial(entry, PReal; atol)
+        imag_entry = _imag_part_polynomial(entry, PReal; atol)
+        (iszero(re) && iszero(imag_entry)) || throw(ArgumentError(
+            "Internal error: mirror-adapted k = 0 block has a nonzero even/odd cross entry $(re + imag_entry)."
+        ))
+    end
+    return nothing
+end
+
+"""
+    _mirror_real_blocks(complex_mat, block_basis, pairing, k, n_sites, PReal; atol)
+
+Rotate a complex Hermitian momentum block into exactly real PSD blocks using
+the phase-adapted mirror transform.  For `k = 0` the block splits into
+mirror-even and mirror-odd sub-blocks (their cross entries vanish and are
+asserted to); all other sectors yield a single real block of the same side.
+"""
+function _mirror_real_blocks(
+    complex_mat::Matrix{PC},
+    block_basis::Vector{M},
+    pairing,
+    k::Int,
+    n_sites::Int,
+    ::Type{PReal};
+    atol,
+) where {PC<:Polynomial,M<:NormalMonomial{PauliAlgebra},PReal<:Polynomial}
+    CT = _coefficient_type(PC)
+    cols_even, cols_odd = _mirror_columns(block_basis, pairing, k, n_sites, CT)
+    if k == 0
+        blocks = Tuple{Symbol,Matrix{PReal}}[]
+        isempty(cols_even) || push!(blocks, (:even, _mirror_transformed_block(complex_mat, cols_even, PReal; atol)))
+        if !isempty(cols_odd)
+            push!(blocks, (:odd, _mirror_transformed_block(complex_mat, cols_odd, PReal; atol)))
+            _assert_mirror_zero_cross(complex_mat, cols_even, cols_odd, PReal; atol)
+        end
+        return blocks
+    end
+    cols = vcat(cols_even, cols_odd)
+    return Tuple{Symbol,Matrix{PReal}}[(:none, _mirror_transformed_block(complex_mat, cols, PReal; atol))]
+end
+
 function _translation_momentum_block(
     block_basis::Vector{M},
     k::Int,
     n::Int,
     translated::Dict{M,Vector{M}},
-    rep_cache::Dict{M,M},
+    reducer::_PauliMomentReducer{M},
     ::Type{P},
 ) where {T<:Unsigned,M<:NormalMonomial{PauliAlgebra,T},P<:Polynomial{PauliAlgebra,T}}
     m = length(block_basis)
     mat = Matrix{P}(undef, m, m)
     for j in 1:m, i in 1:j
-        entry = _translation_momentum_entry(block_basis[i], block_basis[j], k, n, translated, rep_cache, P)
+        entry = _translation_momentum_entry(block_basis[i], block_basis[j], k, n, translated, reducer, P)
         if i == j
             mat[i, i] = (entry + adjoint(entry)) / 2
         else

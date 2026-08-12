@@ -224,4 +224,43 @@ end
         @test f != b
         @test hash(f, seed1) != hash(b, seed1)
     end
+
+    @testset "Owned term buffers are shrunk to fit" begin
+        # Regression: owned buffers sizehint!-ed for worst-case term counts
+        # must not be retained at full capacity by the resulting polynomial.
+        # Before the fix, each retained polynomial kept its worst-case backing
+        # Memory (e.g. |left|x|right| slots in symmetry transforms), which
+        # dominated resident memory of large moment relaxations.
+        M = NormalMonomial{NonCommutativeAlgebra,UInt16}
+        m1 = M(nc_word(1))
+        m2 = M(nc_word(1, 2))
+
+        worst_case_capacity = 100_000
+        # ~24 bytes/slot; well below the ~2.4 MB a retained worst-case buffer costs.
+        shrunk_budget = 10_000
+
+        buffered = Tuple{Float64,M}[]
+        sizehint!(buffered, worst_case_capacity)
+        push!(buffered, (1.0, m1))
+        push!(buffered, (-1.0, m1))  # cancels during canonicalization
+        push!(buffered, (2.0, m2))
+        p = NCTSSoS._polynomial_from_owned_terms!(buffered)
+        @test coefficients(p) == [2.0]
+        @test Base.summarysize(p.terms) < shrunk_budget
+
+        chop_buffered = Tuple{Float64,M}[]
+        sizehint!(chop_buffered, worst_case_capacity)
+        push!(chop_buffered, (1e-12, m1))  # below default atol, chopped
+        push!(chop_buffered, (3.0, m2))
+        pc = NCTSSoS._polynomial_from_owned_terms_chopped!(chop_buffered)
+        @test coefficients(pc) == [3.0]
+        @test Base.summarysize(pc.terms) < shrunk_budget
+
+        empty_buffered = Tuple{Float64,M}[]
+        sizehint!(empty_buffered, worst_case_capacity)
+        push!(empty_buffered, (1e-12, m1))
+        pe = NCTSSoS._polynomial_from_owned_terms_chopped!(empty_buffered)
+        @test iszero(pe)
+        @test Base.summarysize(pe.terms) < shrunk_budget
+    end
 end

@@ -43,7 +43,9 @@ if [[ -n "${MOSEK_LICENSE_B64:-}" || -n "${MOSEK_LICENSE:-}" ]]; then
     license_tmp="$(mktemp "$HOME/mosek/.mosek.lic.XXXXXX")"
     trap 'rm -f -- "$license_tmp"' EXIT
     if [[ -n "${MOSEK_LICENSE_B64:-}" ]]; then
-        printf '%s' "$MOSEK_LICENSE_B64" | base64 -d | tr -d '\r' > "$license_tmp"
+        # Filter to the base64 alphabet first: pasted secrets often pick up stray
+        # bytes (shell prompt artifacts, newlines) that would fail strict decoding.
+        printf '%s' "$MOSEK_LICENSE_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d | tr -d '\r' > "$license_tmp"
     elif [[ "$MOSEK_LICENSE" == *$'\n'* ]]; then
         printf '%s' "$MOSEK_LICENSE" | tr -d '\r' > "$license_tmp"
     else

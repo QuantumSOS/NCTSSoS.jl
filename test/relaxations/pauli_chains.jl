@@ -213,10 +213,15 @@ end
         reduced = quiet() do
             pauli_translation_invariant_nctssos(pop, ops, 1, SOLVER; dualize=false)
         end
+        dualized = quiet() do
+            pauli_translation_invariant_nctssos(pop, ops, 1, SOLVER; dualize=true)
+        end
 
         @test termination_status(dense.model) == JuMP.MOI.OPTIMAL
         @test termination_status(reduced.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(dualized.model) == JuMP.MOI.OPTIMAL
         @test reduced.objective ≈ dense.objective atol = 1e-6
+        @test dualized.objective ≈ reduced.objective atol = 1e-4
         @test maximum(reduced.report.psd_block_sizes) < only(flatten_sizes(dense.moment_matrix_sizes))
     end
 

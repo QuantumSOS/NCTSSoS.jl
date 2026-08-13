@@ -504,6 +504,10 @@ end
 
 Build and solve the translation-invariant Pauli-chain relaxation from
 [`pauli_translation_invariant_moment_relaxation`](@ref).
+
+The `dualize` keyword selects the dual SOS or primal moment formulation; at
+`N=100`, the dual form peaked near 270 GiB RSS versus about 9 GiB for the
+default moment form.
 """
 function pauli_translation_invariant_nctssos(
     pop::PolyOpt{PauliAlgebra,T,P},

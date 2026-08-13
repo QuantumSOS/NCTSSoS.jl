@@ -78,6 +78,47 @@ Remaining bottleneck: `_pauli_charge_transform_groups` still delegates each char
 - Added structural benchmark harness: `perf/pauli_sparse_chain_d4_blocks.jl`.
 - Captured remote benchmark outputs under `perf/results/`.
 
+## 2026-08-13: Mosek formulation memory follow-up
+
+Phase-boundary profiling of the specialized TI DFT path found that the dual
+SOS formulation is a Mosek memory hog for this problem family. With
+`dualize=true`, `sos_dualize` creates one scalar equality per unique moment,
+coupling entries across many small PSD-variable blocks. At `N=100`, this is
+about 46,000 equalities over about 200 PSD blocks of size at most 30. Mosek's
+solve-phase peak for this form grows approximately as `N³`: controlled runs at
+`N=16,24,32` increased peak RSS by 0.7, 1.5, and 7.4 GiB and took 12, 33, and
+103 seconds, respectively.
+
+The primal moment formulation (`dualize=false`) instead uses free scalar moment
+variables with PSD LMI constraints. Its solve-phase memory is approximately
+linear in chain length at order 4, about 0.07 GiB per site over the measured
+range. All moment-form rows below used fresh processes, Mosek with 16 threads,
+and feasibility and relative-gap tolerances of `1e-8`.
+
+| N | dual SOS bound | dual peak RSS | dual time | moment LMI bound | moment peak RSS | moment time |
+|--:|--:|--:|--:|--:|--:|--:|
+| 32 | -14.2306124253 | 8.11 GiB (+7.40) | 102.9 s | -14.2306029477 | 2.69 GiB (+1.98) | 48.1 s |
+| 48 | not run | not run | not run | -21.3325283611 | 4.08 GiB (+3.37) | 69.8 s |
+| 64 | not run | not run | not run | -28.4368184925 | 5.31 GiB (+4.60) | 110.0 s |
+| 100 | -44.4239941277 | ~270 GiB | 1640.5 s | -44.4239799523 | 8.98 GiB (+8.27) | 237.5 s |
+
+The `N=100` headline is therefore **~270 GiB and 1640 seconds → 9.0 GiB and
+237.5 seconds**. The two bounds differ by `1.4e-5` absolute, or `3.2e-7`
+relative, which is at solver-tolerance scale.
+
+The reusable profiler in `perf/ti_memory_profile.jl` records the symbolic
+build, SOS dualization, symbolic-data drop, and Mosek solve boundaries using
+`VmRSS`/`VmHWM` from `/proc/self/status` and `Base.summarysize` attribution.
+
+This is not Julia-side retention: at `N=32`, the complete `MomentProblem`
+(including constraint and linear-form caches) occupied 0.053 GiB by
+`Base.summarysize`, while the JuMP SOS model occupied 0.016 GiB, and dropping
+all symbolic data before `optimize!` freed effectively no RSS. The leverage is
+the solver formulation, not retaining fewer symbolic structures or reducing
+Mosek from 16 to 4 threads. The TI entry point already defaults to
+`dualize=false`; the Mosek performance harness now follows that default while
+retaining an environment knob for explicit A/B runs.
+
 ## Verification run
 
 Remote via `easy-ssh`, Mosek preferred where solver-backed tests were needed.

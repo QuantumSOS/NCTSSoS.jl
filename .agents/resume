@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# No persistent services (databases, tunnels) are required by this repository.
+# Julia toolchain and package depot live on disk and survive orb pause/resume.
+echo "No persistent services need to be resumed."

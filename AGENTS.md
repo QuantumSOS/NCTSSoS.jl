@@ -2,9 +2,6 @@
 
 If `TASK.md` exists, read it after this file before starting work; detailed active-task context belongs under `plan/`.
 
-## Work Location
-- All repository work must be done through `easy-ssh`; use the configured remote workspace instead of running builds, tests, benchmarks, or implementation commands directly on the local checkout.
-
 ## Project Layout
 - `src/` — library code
   - `src/types/` — algebras, registries, monomials, polynomials
@@ -25,8 +22,7 @@ If `TASK.md` exists, read it after this file before starting work; detailed acti
 CI baseline: Julia 1.12; solver: COSMO.
 
 ### Run Policy
-- All computational runs (tests, benchmarks, examples, solver-backed scripts, and timing probes) must be launched through the `easy-ssh` skill; do not run them locally unless the user explicitly overrides this rule.
-- Prefer Mosek for ad hoc solver-backed runs when available; keep COSMO as the CI baseline unless the task is explicitly Mosek-only.
+- Prefer Mosek for ad hoc solver-backed runs when available; keep COSMO as the CI baseline unless the task is explicitly Mosek-only. Before relying on Mosek, check for `~/mosek/mosek.lic` or a configured Mosek licensing environment variable and verify the license with a trivial solve; importing `MosekTools` alone is not sufficient. Orb setup writes the contents of the `MOSEK_LICENSE` workspace secret to the standard license path.
 - Before launching any run, estimate the expected runtime and report it. After the run, report the actual elapsed time and whether it matched the estimate.
 
 - `make init` — precompile root environment
@@ -68,6 +64,7 @@ Optimization flow: `polyopt()` → `cs_nctssos()` → `compute_sparsity()` → m
   - `/Users/exaclior/notes/private-notes/test-expectations/test-examples.typ`
   - rendered companion: `/Users/exaclior/notes/private-notes/test-expectations/test-examples.pdf`
   - supporting paper summaries: `/Users/exaclior/notes/private-notes/test-expectations/references/md/`
+- These paths are available only on the maintainer's machine; agents without access should ask the user for the relevant backlog content.
 - When working from that backlog, process one requested example id at a time unless the user explicitly asks for batching.
 - Before adding a case, search existing coverage in `test/` and relevant docs examples under `docs/src/examples/literate/` to avoid duplicates. Prefer extending an existing nearby testset over creating a parallel near-copy.
 - If a candidate overlaps an existing test, strengthen the existing test with the missing assertion/input instead of adding repetitive coverage.

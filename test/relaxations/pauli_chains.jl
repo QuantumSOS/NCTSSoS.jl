@@ -93,7 +93,7 @@ end
 
 # Tests for translation-invariant Pauli chain relaxations.
 
-using Test, NCTSSoS, JuMP
+using Test, NCTSSoS, JuMP, LinearAlgebra
 
 if !@isdefined(SOLVER)
     using COSMO
@@ -305,6 +305,8 @@ end
         @test rdm24_axis.objective >= rdm24.objective - 1e-6
         @test rdm24_axis.objective <= -2.802775637 + 1e-5
         @test rdm24_axis.report.axis_permutation_symmetry
+        @test length(rdm24_axis.report.psd_block_sizes) <
+              length(rdm24.report.psd_block_sizes)
         @test rdm24.report.block_labels[end-4:end] == Any[
             (rdm=2, down_spins=0),
             (rdm=2, down_spins=1),
@@ -385,5 +387,106 @@ end
         @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
             pop, ops, 2; state_optimality=:invalid
         )
+        @test_nowarn pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; state_optimality=:none, state_optimality_range=0
+        )
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; state_optimality=:linear_psd, state_optimality_range=0
+        )
+    end
+
+    @testset "strengthening constraints hold for an exact ground state" begin
+        n = 6
+        k = 4
+        registry, ops = create_pauli_variables(1:n)
+        hamiltonian = heisenberg_chain_hamiltonian(ops)
+        pop = polyopt(hamiltonian, registry)
+        mp, report = pauli_translation_invariant_moment_relaxation(
+            pop,
+            ops,
+            2;
+            rdm_levels=[k],
+            state_optimality=:linear_psd,
+            axis_permutation_symmetry=true,
+        )
+
+        function apply_monomial(mono, state)
+            target = state
+            coefficient = 1.0 + 0.0im
+            for idx in mono.word
+                site = NCTSSoS._pauli_site(idx)
+                pauli_type = NCTSSoS._pauli_type(idx)
+                mask = 1 << (n - site)
+                bit = !iszero(state & mask)
+                if pauli_type == 0
+                    target ⊻= mask
+                elseif pauli_type == 1
+                    target ⊻= mask
+                    coefficient *= bit ? -im : im
+                else
+                    bit && (coefficient = -coefficient)
+                end
+            end
+            return target, coefficient
+        end
+
+        dimension = 1 << n
+        hamiltonian_matrix = zeros(ComplexF64, dimension, dimension)
+        for (coefficient, mono) in hamiltonian.terms, state in 0:(dimension - 1)
+            target, phase = apply_monomial(mono, state)
+            hamiltonian_matrix[target + 1, state + 1] += coefficient * phase
+        end
+        eigensystem = eigen(Hermitian(hamiltonian_matrix))
+        ground_state = eigensystem.vectors[:, 1]
+
+        moment_cache = Dict{eltype(mp.total_basis),ComplexF64}()
+        function exact_moment(mono)
+            return get!(moment_cache, mono) do
+                value = 0.0 + 0.0im
+                for state in 0:(dimension - 1)
+                    target, phase = apply_monomial(mono, state)
+                    value += conj(ground_state[target + 1]) * phase * ground_state[state + 1]
+                end
+                value
+            end
+        end
+        evaluate(poly) = sum(
+            coefficient * exact_moment(mono) for (coefficient, mono) in poly.terms;
+            init=0.0 + 0.0im,
+        )
+
+        subsystem_dimension = 1 << k
+        environment_dimension = 1 << (n - k)
+        reduced_state = zeros(ComplexF64, subsystem_dimension, subsystem_dimension)
+        for row in 0:(subsystem_dimension - 1), col in 0:(subsystem_dimension - 1)
+            for environment in 0:(environment_dimension - 1)
+                full_row = (row << (n - k)) | environment
+                full_col = (col << (n - k)) | environment
+                reduced_state[row + 1, col + 1] +=
+                    ground_state[full_row + 1] * conj(ground_state[full_col + 1])
+            end
+        end
+
+        rdm_blocks_checked = 0
+        pso_blocks_checked = 0
+        for ((cone, matrix), label) in zip(mp.constraints, report.block_labels)
+            numeric = [evaluate(matrix[i, j]) for i in axes(matrix, 1), j in axes(matrix, 2)]
+            if hasproperty(label, :rdm)
+                states = NCTSSoS._pauli_magnetization_states(k, label.down_spins) .+ 1
+                @test numeric ≈ (1 << k) .* reduced_state[states, states] atol = 1e-10
+                rdm_blocks_checked += 1
+            elseif hasproperty(label, :state_optimality)
+                @test cone == :PSD
+                @test eigmin(Hermitian((numeric + numeric') / 2)) >= -1e-10
+                pso_blocks_checked += 1
+            end
+        end
+        zero_residuals = [
+            abs(evaluate(matrix[1, 1])) for (cone, matrix) in mp.constraints if cone == :Zero
+        ]
+        @test rdm_blocks_checked == fld(k, 2) + 1
+        @test pso_blocks_checked > 0
+        @test !isempty(zero_residuals)
+        @test maximum(zero_residuals) <= 1e-10
     end
 end

@@ -460,8 +460,8 @@ function pauli_translation_invariant_moment_relaxation(
     state_optimality in (:none, :linear, :linear_psd) || throw(ArgumentError(
         "`state_optimality` must be :none, :linear, or :linear_psd; got $(repr(state_optimality))."
     ))
-    pso_range = Int(state_optimality_range)
-    pso_range >= 1 || throw(ArgumentError(
+    pso_range = state_optimality == :linear_psd ? Int(state_optimality_range) : 1
+    state_optimality == :linear_psd && pso_range < 1 && throw(ArgumentError(
         "`state_optimality_range` must be positive; got $pso_range."
     ))
     state_optimality == :none || _check_pauli_state_optimality_hamiltonian(pop.objective)
@@ -514,7 +514,9 @@ function pauli_translation_invariant_moment_relaxation(
 
     for k in sectors
         sector_basis = k == 0 ? orbit_reps : nontrivial_reps
-        blocks = sign_symmetry ? _pauli_signature_blocks(sector_basis) : [(:all, sector_basis)]
+        blocks = sign_symmetry ?
+            _pauli_signature_blocks(sector_basis; axis_permutation_symmetry) :
+            [(:all, sector_basis)]
         for (signature, block_basis) in blocks
             isempty(block_basis) && continue
             complex_mat = _translation_momentum_block(block_basis, k, n, translated, reducer, BLOCK_P)
@@ -573,7 +575,9 @@ function pauli_translation_invariant_moment_relaxation(
         pso_pairing = reflection ? _mirror_pairing(pso_reps, n) : nothing
         hamiltonian_by_site = _pauli_hamiltonian_terms_by_site(pop.objective, n)
         for k in sectors
-            blocks = sign_symmetry ? _pauli_signature_blocks(pso_reps) : [(:all, pso_reps)]
+            blocks = sign_symmetry ?
+                _pauli_signature_blocks(pso_reps; axis_permutation_symmetry) :
+                [(:all, pso_reps)]
             for (signature, block_basis) in blocks
                 isempty(block_basis) && continue
                 complex_mat = _translation_state_optimality_block(
@@ -1463,7 +1467,10 @@ function _pauli_sign_signature(mono::NormalMonomial{PauliAlgebra})
     return UInt8((xor(px, py) ? 0x01 : 0x00) | (xor(py, pz) ? 0x02 : 0x00))
 end
 
-function _pauli_signature_blocks(basis::Vector{M}) where {M<:NormalMonomial{PauliAlgebra}}
+function _pauli_signature_blocks(
+    basis::Vector{M};
+    axis_permutation_symmetry::Bool=false,
+) where {M<:NormalMonomial{PauliAlgebra}}
     buckets = Dict{UInt8,Vector{M}}()
     order = UInt8[]
     for mono in basis
@@ -1475,6 +1482,9 @@ function _pauli_signature_blocks(basis::Vector{M}) where {M<:NormalMonomial{Paul
         push!(buckets[sig], mono)
     end
     sort!(order)
+    if axis_permutation_symmetry
+        filter!(signature -> iszero(signature) || signature == 0x01, order)
+    end
     return [(sig, buckets[sig]) for sig in order]
 end
 

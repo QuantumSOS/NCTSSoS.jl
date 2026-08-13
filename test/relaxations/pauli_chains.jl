@@ -93,7 +93,7 @@ end
 
 # Tests for translation-invariant Pauli chain relaxations.
 
-using Test, NCTSSoS, JuMP
+using Test, NCTSSoS, JuMP, LinearAlgebra
 
 if !@isdefined(SOLVER)
     using COSMO
@@ -142,6 +142,7 @@ end
         @test report.real_moment_matrix
         @test report.reflection
         @test report.conjugate_symmetry
+        @test !report.axis_permutation_symmetry
 
         _, report_legacy = pauli_translation_invariant_moment_relaxation(
             pop, ops, 1; sign_symmetry=false, reflection=false, conjugate_symmetry=false
@@ -248,5 +249,244 @@ end
         @test maximum(mirrored.report.psd_block_sizes) < maximum(legacy.report.psd_block_sizes)
         @test mirrored.report.n_unique_moment_matrix_elements <
               legacy.report.n_unique_moment_matrix_elements
+    end
+
+    @testset "reduced-density-matrix positivity strengthens the TI bound" begin
+        n = 6
+        registry, ops = create_pauli_variables(1:n)
+        pop = polyopt(heisenberg_chain_hamiltonian(ops), registry)
+
+        unstrengthened = quiet() do
+            pauli_translation_invariant_nctssos(pop, ops, 2, SOLVER; dualize=false)
+        end
+        explicit_default = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop,
+                ops,
+                2,
+                SOLVER;
+                dualize=false,
+                rdm_levels=Int[],
+                state_optimality=:none,
+            )
+        end
+        rdm2 = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, rdm_levels=[2]
+            )
+        end
+        rdm24 = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, rdm_levels=[2, 4]
+            )
+        end
+        rdm24_axis = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop,
+                ops,
+                2,
+                SOLVER;
+                dualize=false,
+                rdm_levels=[2, 4],
+                axis_permutation_symmetry=true,
+            )
+        end
+
+        @test termination_status(unstrengthened.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(explicit_default.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(rdm2.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(rdm24.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(rdm24_axis.model) == JuMP.MOI.OPTIMAL
+        @test explicit_default.objective ≈ unstrengthened.objective atol = 1e-8
+        @test rdm2.objective >= unstrengthened.objective - 1e-6
+        @test rdm24.objective >= rdm2.objective - 1e-6
+        @test rdm24.objective > unstrengthened.objective + 1e-3
+        @test rdm24.objective <= -2.802775637 + 1e-5
+        @test rdm24_axis.objective >= rdm24.objective - 1e-6
+        @test rdm24_axis.objective <= -2.802775637 + 1e-5
+        @test rdm24_axis.report.axis_permutation_symmetry
+        @test length(rdm24_axis.report.psd_block_sizes) <
+              length(rdm24.report.psd_block_sizes)
+        @test rdm24.report.block_labels[end-4:end] == Any[
+            (rdm=2, down_spins=0),
+            (rdm=2, down_spins=1),
+            (rdm=4, down_spins=0),
+            (rdm=4, down_spins=1),
+            (rdm=4, down_spins=2),
+        ]
+
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; rdm_levels=[0]
+        )
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; rdm_levels=[n + 1]
+        )
+
+        σx, _, _ = ops
+        non_u1_hamiltonian = sum(
+            σx[i] * σx[mod1(i + 1, n)] for i in 1:n
+        )
+        non_u1_pop = polyopt(non_u1_hamiltonian, registry)
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            non_u1_pop, ops, 2; rdm_levels=[2]
+        )
+
+        σx, σy, σz = ops
+        xxz_hamiltonian = sum(
+            σx[i] * σx[mod1(i + 1, n)] +
+            σy[i] * σy[mod1(i + 1, n)] +
+            2 * σz[i] * σz[mod1(i + 1, n)]
+            for i in 1:n
+        )
+        xxz_pop = polyopt(xxz_hamiltonian, registry)
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            xxz_pop, ops, 2; axis_permutation_symmetry=true
+        )
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop,
+            ops,
+            2;
+            sign_symmetry=false,
+            axis_permutation_symmetry=true,
+        )
+    end
+
+    @testset "state optimality strengthens the TI bound" begin
+        n = 6
+        registry, ops = create_pauli_variables(1:n)
+        pop = polyopt(heisenberg_chain_hamiltonian(ops), registry)
+
+        unstrengthened = quiet() do
+            pauli_translation_invariant_nctssos(pop, ops, 2, SOLVER; dualize=false)
+        end
+        linear = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, state_optimality=:linear
+            )
+        end
+        linear_psd = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, state_optimality=:linear_psd
+            )
+        end
+
+        @test termination_status(unstrengthened.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(linear.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(linear_psd.model) == JuMP.MOI.OPTIMAL
+        @test linear.objective >= unstrengthened.objective - 1e-6
+        @test linear.objective <= -2.802775637 + 1e-4
+        @test linear_psd.objective >= linear.objective - 1e-6
+        @test linear_psd.objective > unstrengthened.objective + 1e-3
+        @test linear_psd.objective <= -2.802775637 + 1e-4
+        @test count(c -> c[1] == :Zero, linear.moment_problem.constraints) > 0
+        @test any(
+            label -> hasproperty(label, :state_optimality),
+            linear_psd.report.block_labels,
+        )
+
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; state_optimality=:invalid
+        )
+        @test_nowarn pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; state_optimality=:none, state_optimality_range=0
+        )
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; state_optimality=:linear_psd, state_optimality_range=0
+        )
+    end
+
+    @testset "strengthening constraints hold for an exact ground state" begin
+        n = 6
+        k = 4
+        registry, ops = create_pauli_variables(1:n)
+        hamiltonian = heisenberg_chain_hamiltonian(ops)
+        pop = polyopt(hamiltonian, registry)
+        mp, report = pauli_translation_invariant_moment_relaxation(
+            pop,
+            ops,
+            2;
+            rdm_levels=[k],
+            state_optimality=:linear_psd,
+            axis_permutation_symmetry=true,
+        )
+
+        function apply_monomial(mono, state)
+            target = state
+            coefficient = 1.0 + 0.0im
+            for idx in mono.word
+                site = NCTSSoS._pauli_site(idx)
+                pauli_type = NCTSSoS._pauli_type(idx)
+                mask = 1 << (n - site)
+                bit = !iszero(state & mask)
+                if pauli_type == 0
+                    target ⊻= mask
+                elseif pauli_type == 1
+                    target ⊻= mask
+                    coefficient *= bit ? -im : im
+                else
+                    bit && (coefficient = -coefficient)
+                end
+            end
+            return target, coefficient
+        end
+
+        dimension = 1 << n
+        hamiltonian_matrix = zeros(ComplexF64, dimension, dimension)
+        for (coefficient, mono) in hamiltonian.terms, state in 0:(dimension - 1)
+            target, phase = apply_monomial(mono, state)
+            hamiltonian_matrix[target + 1, state + 1] += coefficient * phase
+        end
+        eigensystem = eigen(Hermitian(hamiltonian_matrix))
+        ground_state = eigensystem.vectors[:, 1]
+
+        moment_cache = Dict{eltype(mp.total_basis),ComplexF64}()
+        function exact_moment(mono)
+            return get!(moment_cache, mono) do
+                value = 0.0 + 0.0im
+                for state in 0:(dimension - 1)
+                    target, phase = apply_monomial(mono, state)
+                    value += conj(ground_state[target + 1]) * phase * ground_state[state + 1]
+                end
+                value
+            end
+        end
+        evaluate(poly) = sum(
+            coefficient * exact_moment(mono) for (coefficient, mono) in poly.terms;
+            init=0.0 + 0.0im,
+        )
+
+        subsystem_dimension = 1 << k
+        environment_dimension = 1 << (n - k)
+        reduced_state = zeros(ComplexF64, subsystem_dimension, subsystem_dimension)
+        for row in 0:(subsystem_dimension - 1), col in 0:(subsystem_dimension - 1)
+            for environment in 0:(environment_dimension - 1)
+                full_row = (row << (n - k)) | environment
+                full_col = (col << (n - k)) | environment
+                reduced_state[row + 1, col + 1] +=
+                    ground_state[full_row + 1] * conj(ground_state[full_col + 1])
+            end
+        end
+
+        rdm_blocks_checked = 0
+        pso_blocks_checked = 0
+        for ((cone, matrix), label) in zip(mp.constraints, report.block_labels)
+            numeric = [evaluate(matrix[i, j]) for i in axes(matrix, 1), j in axes(matrix, 2)]
+            if hasproperty(label, :rdm)
+                states = NCTSSoS._pauli_magnetization_states(k, label.down_spins) .+ 1
+                @test numeric ≈ (1 << k) .* reduced_state[states, states] atol = 1e-10
+                rdm_blocks_checked += 1
+            elseif hasproperty(label, :state_optimality)
+                @test cone == :PSD
+                @test eigmin(Hermitian((numeric + numeric') / 2)) >= -1e-10
+                pso_blocks_checked += 1
+            end
+        end
+        zero_residuals = [
+            abs(evaluate(matrix[1, 1])) for (cone, matrix) in mp.constraints if cone == :Zero
+        ]
+        @test rdm_blocks_checked == fld(k, 2) + 1
+        @test pso_blocks_checked > 0
+        @test !isempty(zero_residuals)
+        @test maximum(zero_residuals) <= 1e-10
     end
 end

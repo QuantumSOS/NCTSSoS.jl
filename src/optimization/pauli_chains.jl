@@ -57,6 +57,26 @@ function _pauli_chain_nqubits(registry::VariableRegistry{PauliAlgebra,T}) where 
     return nqubits
 end
 
+function _pauli_state_optimality_basis(
+    local_basis::Vector{M},
+    ::Type{T},
+    n_sites::Int,
+    order::Int,
+    max_separation::Int,
+) where {T<:Unsigned,M<:NormalMonomial{PauliAlgebra,T}}
+    basis = Set{M}(mono for mono in local_basis if 1 <= degree(mono) <= min(order, 3))
+    order < 2 && return sort!(collect(basis))
+
+    # Antipodal equal-axis pairs have a short translation orbit on even chains;
+    # stop before N/2 because the specialized DFT path requires full orbits.
+    last_separation = min(max_separation, fld(n_sites - 1, 2))
+    for separation in 2:last_separation, start in 1:n_sites, code in 0:8
+        sites = [start, mod1(start + separation, n_sites)]
+        push!(basis, _pauli_chain_word(T, sites, code))
+    end
+    return sort!(collect(basis))
+end
+
 function _pauli_contiguous_chain_basis_size_hint(nqubits::Integer, degree::Integer; periodic::Bool)
     if periodic
         return 1 + Int(nqubits) * sum(3^width for width in 1:Int(degree); init=0)
@@ -295,6 +315,7 @@ struct TranslationInvariantReport
     sign_symmetry::Bool
     reflection::Bool
     conjugate_symmetry::Bool
+    axis_permutation_symmetry::Bool
     psd_block_sizes::Vector{Int}
     block_labels::Vector{Any}
     n_unique_moment_matrix_elements::Int
@@ -308,6 +329,7 @@ function Base.show(io::IO, report::TranslationInvariantReport)
         "basis_size=$(report.basis_size), orbit_basis_size=$(report.orbit_basis_size), " *
         "momentum_sectors=$(report.momentum_sectors), sign_symmetry=$(report.sign_symmetry), " *
         "reflection=$(report.reflection), conjugate_symmetry=$(report.conjugate_symmetry), " *
+        "axis_permutation_symmetry=$(report.axis_permutation_symmetry), " *
         "psd_block_sizes=$(report.psd_block_sizes), " *
         "n_unique_moment_matrix_elements=$(report.n_unique_moment_matrix_elements), " *
         "real_moment_matrix=$(report.real_moment_matrix))"
@@ -333,7 +355,7 @@ function Base.show(io::IO, result::TranslationInvariantResult)
 end
 
 """
-    pauli_translation_invariant_moment_relaxation(pop, (σx, σy, σz), order; sign_symmetry=true, momenta=nothing)
+    pauli_translation_invariant_moment_relaxation(pop, (σx, σy, σz), order; sign_symmetry=true, momenta=nothing, rdm_levels=Int[], state_optimality=:none)
 
 Construct a periodic-chain Pauli moment relaxation directly in translation
 (momentum) sectors, without building the full site-space moment matrix.
@@ -345,6 +367,8 @@ This is an intentionally narrow large-spin-chain path:
 - optional `(ℤ₂)^2` Heisenberg sign-symmetry splitting, enabled by default;
 - optional mirror (`reflection`) and conjugation (`conjugate_symmetry`) moment
   replacement rules, both enabled by default.
+- optional global Pauli-axis permutation moment replacement, disabled by
+  default and enabled with `axis_permutation_symmetry=true`.
 
 By default this builds the paper-style real primal moment matrix: conjugate
 momenta are not duplicated and moment variables are real.  Set
@@ -371,6 +395,32 @@ still applied, so it asserts that the caller has independently verified every
 enabled symmetry; passing a non-invariant objective with it produces an
 invalid relaxation.
 
+Each `k` in `rdm_levels` adds positivity of the contiguous `k`-site reduced
+density matrix on sites `1:k`, split into fixed-magnetization principal blocks.
+Translation invariance makes one window sufficient.  The blocks use the full
+complex Pauli representation and are realified exactly when
+`real_moment_matrix=true`; the positive factor `2^-k` is omitted because it
+does not change the PSD constraint.
+
+`state_optimality=:linear` adds the ground-state stationarity conditions
+`ℓ([H,u]) = 0`.  The full periodic Hamiltonian `H=pop.objective` is used; only
+translation/reflection-inequivalent conditions whose reduced moments already
+occur in a PSD block are retained, so every equality is both useful and
+compatible with PSD-block moment lowering.  The default `:none` preserves the
+unstrengthened relaxation exactly.  `state_optimality=:linear_psd` additionally
+imposes the PSD state-optimality matrix on the degree-3 TI basis augmented by
+two-site words through separation `state_optimality_range` (default 5), matching
+QMBCertify's published XXX-chain choice.  This mode is opt-in because
+arXiv:2604.01555 reports numerical issues from the PSD condition for some
+J1-J2 chains.
+
+`axis_permutation_symmetry=true` identifies moments under all six global
+permutations of `σx`, `σy`, and `σz`, as in the reference implementation.  It
+requires sign and conjugation symmetry, and validates that both the objective
+and basis are axis-permutation invariant.  This is the memory-efficient setting
+for isotropic Heisenberg RDM constraints; it remains opt-in so anisotropic
+Hamiltonians keep their existing behavior.
+
 For the XXX chain with `N=100, order=4`, the default basis has 12,001 site-space
 monomials and the solver-facing real PSD blocks have side at most 31, matching
 the specialized construction of arXiv:2604.01555.
@@ -384,11 +434,15 @@ function pauli_translation_invariant_moment_relaxation(
     sign_symmetry::Bool=true,
     reflection::Bool=true,
     conjugate_symmetry::Bool=true,
+    axis_permutation_symmetry::Bool=false,
     check_invariance::Bool=true,
     real_moment_matrix::Bool=true,
     phase_atol::Real=1e-12,
+    rdm_levels::AbstractVector{<:Integer}=Int[],
+    state_optimality::Symbol=:none,
+    state_optimality_range::Integer=5,
 ) where {T<:Unsigned,C<:Number,P<:Polynomial{PauliAlgebra,T,C}}
-    σx, _, _, n = _validate_pauli_chain_ops(ops)
+    σx, _, σz, n = _validate_pauli_chain_ops(ops)
     eltype(σx) == NormalMonomial{PauliAlgebra,T} || throw(ArgumentError(
         "PolyOpt and Pauli chain operators must use the same Pauli integer type; got objective type $T and operator type $(eltype(σx))."
     ))
@@ -398,6 +452,19 @@ function pauli_translation_invariant_moment_relaxation(
 
     d = Int(order)
     d >= 0 || throw(DomainError(order, "`order` must be non-negative."))
+    rdm_ks = _validate_pauli_rdm_levels(rdm_levels, n)
+    isempty(rdm_ks) || _check_pauli_u1_invariance(pop.objective, σz)
+    axis_permutation_symmetry && !(sign_symmetry && conjugate_symmetry) && throw(ArgumentError(
+        "`axis_permutation_symmetry=true` requires `sign_symmetry=true` and `conjugate_symmetry=true`."
+    ))
+    state_optimality in (:none, :linear, :linear_psd) || throw(ArgumentError(
+        "`state_optimality` must be :none, :linear, or :linear_psd; got $(repr(state_optimality))."
+    ))
+    pso_range = state_optimality == :linear_psd ? Int(state_optimality_range) : 1
+    state_optimality == :linear_psd && pso_range < 1 && throw(ArgumentError(
+        "`state_optimality_range` must be positive; got $pso_range."
+    ))
+    state_optimality == :none || _check_pauli_state_optimality_hamiltonian(pop.objective)
     local_basis = isnothing(basis) ? pauli_contiguous_chain_basis(ops, d; periodic=true) : basis
     one_mono = one(first(σx))
     one_mono in local_basis || throw(ArgumentError("Translation-invariant Pauli basis must include the identity."))
@@ -409,8 +476,10 @@ function pauli_translation_invariant_moment_relaxation(
     real_moment_matrix && _check_real_pauli_chain_objective(pop.objective)
     reflection && check_invariance && _check_reflection_invariance(pop.objective, n)
     conjugate_symmetry && _check_conjugate_invariant_objective(pop.objective)
+    axis_permutation_symmetry && _check_pauli_axis_permutation_invariance(pop.objective)
     _check_translation_basis_closure(local_basis, n)
     reflection && _check_reflection_basis_closure(local_basis, n)
+    axis_permutation_symmetry && _check_pauli_axis_permutation_basis_closure(local_basis)
 
     orbit_reps = _translation_orbit_representatives(local_basis, n)
     nontrivial_reps = [m for m in orbit_reps if !isone(m)]
@@ -421,7 +490,12 @@ function pauli_translation_invariant_moment_relaxation(
     MP_C = Complex{MP_R}
     MP_P = Polynomial{PauliAlgebra,T,real_moment_matrix ? MP_R : MP_C}
     BLOCK_P = Polynomial{PauliAlgebra,T,MP_C}
-    reducer = _PauliMomentReducer{NormalMonomial{PauliAlgebra,T}}(n, reflection, conjugate_symmetry)
+    reducer = _PauliMomentReducer{NormalMonomial{PauliAlgebra,T}}(
+        n,
+        reflection,
+        conjugate_symmetry,
+        axis_permutation_symmetry,
+    )
     objective_mp = convert(MP_P, _reduce_moment_polynomial(pop.objective, reducer))
 
     mirror_transform = reflection && conjugate_symmetry && real_moment_matrix
@@ -440,7 +514,9 @@ function pauli_translation_invariant_moment_relaxation(
 
     for k in sectors
         sector_basis = k == 0 ? orbit_reps : nontrivial_reps
-        blocks = sign_symmetry ? _pauli_signature_blocks(sector_basis) : [(:all, sector_basis)]
+        blocks = sign_symmetry ?
+            _pauli_signature_blocks(sector_basis; axis_permutation_symmetry) :
+            [(:all, sector_basis)]
         for (signature, block_basis) in blocks
             isempty(block_basis) && continue
             complex_mat = _translation_momentum_block(block_basis, k, n, translated, reducer, BLOCK_P)
@@ -469,6 +545,100 @@ function pauli_translation_invariant_moment_relaxation(
         end
     end
 
+    for k in rdm_ks
+        for (down_spins, complex_mat) in _pauli_rdm_blocks(
+            k,
+            reducer,
+            BLOCK_P;
+            sign_symmetry,
+        )
+            cone, mat = real_moment_matrix ?
+                (:PSD, _realify_hermitian_block(complex_mat, MP_P; atol=MP_R(phase_atol))) :
+                (:HPSD, map(p -> convert(MP_P, p), complex_mat))
+            push!(constraints, (cone, mat))
+            push!(block_sizes, size(mat, 1))
+            push!(block_labels, (rdm=k, down_spins=down_spins))
+            for entry in mat
+                append!(moment_terms, monomials(entry))
+            end
+        end
+    end
+
+    if state_optimality == :linear_psd
+        pso_basis = _pauli_state_optimality_basis(local_basis, T, n, d, pso_range)
+        pso_reps = _translation_orbit_representatives(pso_basis, n)
+        for rep in pso_reps
+            haskey(translated, rep) || (
+                translated[rep] = [_translate_pauli_monomial(rep, r, n) for r in 0:(n - 1)]
+            )
+        end
+        pso_pairing = reflection ? _mirror_pairing(pso_reps, n) : nothing
+        hamiltonian_by_site = _pauli_hamiltonian_terms_by_site(pop.objective, n)
+        for k in sectors
+            blocks = sign_symmetry ?
+                _pauli_signature_blocks(pso_reps; axis_permutation_symmetry) :
+                [(:all, pso_reps)]
+            for (signature, block_basis) in blocks
+                isempty(block_basis) && continue
+                complex_mat = _translation_state_optimality_block(
+                    block_basis,
+                    k,
+                    n,
+                    translated,
+                    pop.objective,
+                    hamiltonian_by_site,
+                    reducer,
+                    BLOCK_P,
+                )
+                if mirror_transform
+                    for (parity, mat) in _mirror_real_blocks(
+                        complex_mat,
+                        block_basis,
+                        pso_pairing,
+                        k,
+                        n,
+                        MP_P;
+                        atol=MP_R(phase_atol),
+                    )
+                        push!(constraints, (:PSD, mat))
+                        push!(block_sizes, size(mat, 1))
+                        label = parity === :none ?
+                            (state_optimality=:psd, momentum=k, signature=signature) :
+                            (state_optimality=:psd, momentum=k, signature=signature, parity=parity)
+                        push!(block_labels, label)
+                        for entry in mat
+                            append!(moment_terms, monomials(entry))
+                        end
+                    end
+                else
+                    cone, mat = real_moment_matrix ?
+                        (:PSD, _realify_hermitian_block(complex_mat, MP_P; atol=MP_R(phase_atol))) :
+                        (:HPSD, map(p -> convert(MP_P, p), complex_mat))
+                    push!(constraints, (cone, mat))
+                    push!(block_sizes, size(mat, 1))
+                    push!(block_labels, (state_optimality=:psd, momentum=k, signature=signature))
+                    for entry in mat
+                        append!(moment_terms, monomials(entry))
+                    end
+                end
+            end
+        end
+    end
+
+    if state_optimality in (:linear, :linear_psd)
+        supported_moments = sorted_unique!(copy(moment_terms))
+        _append_pauli_linear_state_optimality!(
+            constraints,
+            supported_moments,
+            pop.objective,
+            reducer,
+            max(2d - 1, 1),
+            sign_symmetry,
+            MP_P;
+            atol=MP_R(phase_atol),
+        )
+    end
+
     moment_basis = sorted_unique!(moment_terms)
     _check_objective_moments_covered(objective_mp, moment_basis)
     total_basis = sorted_unique!(vcat(monomials(objective_mp), moment_basis))
@@ -491,6 +661,7 @@ function pauli_translation_invariant_moment_relaxation(
         sign_symmetry,
         reflection,
         conjugate_symmetry,
+        axis_permutation_symmetry,
         block_sizes,
         block_labels,
         n_unique,
@@ -567,6 +738,120 @@ end
 
 _pauli_chain_real_coeff_type(::Type{C}) where {C<:Number} = typeof(float(real(one(C))))
 _pauli_chain_complex_coeff_type(::Type{C}) where {C<:Number} = Complex{_pauli_chain_real_coeff_type(C)}
+
+function _validate_pauli_rdm_levels(
+    rdm_levels::AbstractVector{<:Integer},
+    n_sites::Integer,
+)
+    levels = sort!(unique!(Int[k for k in rdm_levels]))
+    for k in levels
+        1 <= k <= Int(n_sites) || throw(ArgumentError(
+            "Each `rdm_levels` entry must lie in 1:n_sites; got k=$k for n_sites=$(Int(n_sites))."
+        ))
+        k < 8sizeof(Int) - 1 || throw(ArgumentError(
+            "RDM level $k is too large for computational-basis indexing on this platform."
+        ))
+    end
+    return levels
+end
+
+function _pauli_magnetization_states(k::Int, down_spins::Int)
+    return Int[state for state in 0:((1 << k) - 1) if count_ones(UInt(state)) == down_spins]
+end
+
+function _pauli_rdm_blocks(
+    k::Int,
+    reducer,
+    ::Type{P};
+    sign_symmetry::Bool,
+) where {T<:Unsigned,P<:Polynomial{PauliAlgebra,T}}
+    C = _coefficient_type(P)
+    M = NormalMonomial{PauliAlgebra,T}
+    sectors = sign_symmetry ? (0:fld(k, 2)) : (0:k)
+    options_by_flip = [Tuple{Int,C,M}[] for _ in 1:(1 << k)]
+
+    word = T[]
+    for code0 in 0:(4^k - 1)
+        code = code0
+        px = false
+        py = false
+        pz = false
+        flip_mask = 0
+        yz_mask = 0
+        y_count = 0
+        empty!(word)
+        for site in 1:k
+            axis = UInt8(code & 0x03)
+            code >>= 2
+            axis == 0x00 && continue
+            ptype = Int(axis) - 1
+            push!(word, _pauli_index_from_site_type(T, site, ptype))
+            bit = 1 << (k - site)
+            if ptype == _PAULI_X_TYPE
+                px = !px
+                flip_mask |= bit
+            elseif ptype == _PAULI_Y_TYPE
+                py = !py
+                y_count += 1
+                flip_mask |= bit
+                yz_mask |= bit
+            else
+                pz = !pz
+                yz_mask |= bit
+            end
+        end
+
+        sign_symmetry && !(px == py == pz) && continue
+        reducer.drop_odd_y && isodd(y_count) && continue
+        rep = _reduce_moment(reducer, M(copy(word)))
+        rep === nothing && continue
+        y_phase = C(im)^y_count
+        push!(options_by_flip[flip_mask + 1], (yz_mask, y_phase, rep))
+    end
+
+    blocks = Tuple{Int,Matrix{P}}[]
+    for down_spins in sectors
+        states = _pauli_magnetization_states(k, down_spins)
+        dim = length(states)
+        mat = Matrix{P}(undef, dim, dim)
+        for (col_idx, col_state) in pairs(states), (row_idx, row_state) in pairs(states)
+            options = options_by_flip[xor(row_state, col_state) + 1]
+            terms = Tuple{C,M}[]
+            sizehint!(terms, length(options))
+            for (yz_mask, y_phase, rep) in options
+                sign = isodd(count_ones(UInt(col_state & yz_mask))) ? -one(C) : one(C)
+                push!(terms, (sign * y_phase, rep))
+            end
+            mat[row_idx, col_idx] = P(terms)
+        end
+        push!(blocks, (down_spins, mat))
+    end
+    return blocks
+end
+
+function _check_pauli_u1_invariance(
+    hamiltonian::Polynomial{PauliAlgebra,T,C},
+    σz::AbstractVector{M},
+) where {T<:Unsigned,C<:Number,M<:NormalMonomial{PauliAlgebra,T}}
+    CT = promote_type(C, coeff_type(PauliAlgebra))
+    terms = Tuple{CT,M}[]
+    for (hcoef, hmono) in hamiltonian.terms
+        for idx in hmono.word
+            z = σz[_pauli_site(idx)]
+            left_coef, left_mono = _mul_term(hmono, z)
+            right_coef, right_mono = _mul_term(z, hmono)
+            left_mono == right_mono || throw(ArgumentError(
+                "Internal error: Pauli U(1) commutator products disagree."
+            ))
+            coef = CT(hcoef) * CT(left_coef - right_coef)
+            iszero(coef) || push!(terms, (coef, left_mono))
+        end
+    end
+    iszero(Polynomial(terms)) || throw(ArgumentError(
+        "`rdm_levels` magnetization blocks require the objective to commute with total σz."
+    ))
+    return nothing
+end
 
 function _pauli_chain_momentum_sectors(
     n::Integer,
@@ -749,34 +1034,109 @@ end
 _pauli_y_count(mono::NormalMonomial{PauliAlgebra}) =
     count(idx -> _pauli_type(idx) == _PAULI_Y_TYPE, mono.word)
 
+const _PAULI_AXIS_PERMUTATIONS = (
+    (0, 1, 2),
+    (0, 2, 1),
+    (1, 0, 2),
+    (1, 2, 0),
+    (2, 0, 1),
+    (2, 1, 0),
+)
+
+function _permute_pauli_axes(
+    mono::NormalMonomial{PauliAlgebra,T},
+    permutation::NTuple{3,Int},
+) where {T<:Unsigned}
+    isempty(mono.word) && return mono
+    word = Vector{T}(undef, length(mono.word))
+    for (i, idx) in pairs(mono.word)
+        word[i] = _pauli_index_from_site_type(
+            T,
+            _pauli_site(idx),
+            permutation[_pauli_type(idx) + 1],
+        )
+    end
+    return NormalMonomial{PauliAlgebra,T}(word)
+end
+
+function _check_pauli_axis_permutation_invariance(
+    poly::Polynomial{PauliAlgebra,T,C},
+) where {T<:Unsigned,C<:Number}
+    for permutation in _PAULI_AXIS_PERMUTATIONS
+        image = Polynomial([
+            (coef, _permute_pauli_axes(mono, permutation)) for (coef, mono) in poly.terms
+        ])
+        image == poly || throw(ArgumentError(
+            "`axis_permutation_symmetry=true` requires objective invariance under all global Pauli-axis permutations."
+        ))
+    end
+    return nothing
+end
+
+function _check_pauli_axis_permutation_basis_closure(
+    basis::Vector{M},
+) where {M<:NormalMonomial{PauliAlgebra}}
+    basis_set = Set(basis)
+    for mono in basis, permutation in _PAULI_AXIS_PERMUTATIONS
+        image = _permute_pauli_axes(mono, permutation)
+        image in basis_set || throw(ArgumentError(
+            "`axis_permutation_symmetry=true` requires an axis-permutation-closed basis; $mono maps to $image outside the basis."
+        ))
+    end
+    return nothing
+end
+
 """
     _PauliMomentReducer
 
 Reduces monomials appearing in moment-matrix entries to canonical moment
 representatives: translation-orbit representatives, optionally identified over
 mirror images (`reflection`), with moments of odd σʸ count dropped as
-identically zero (`drop_odd_y`, valid under conjugation symmetry).
+identically zero (`drop_odd_y`, valid under conjugation symmetry), and
+optionally identified under global Pauli-axis permutations.
 """
 struct _PauliMomentReducer{M<:NormalMonomial{PauliAlgebra}}
     n::Int
     reflection::Bool
     drop_odd_y::Bool
+    axis_permutations::Bool
     cache::Dict{M,Union{M,Nothing}}
 end
 
-function _PauliMomentReducer{M}(n::Integer, reflection::Bool, drop_odd_y::Bool) where {M}
-    return _PauliMomentReducer{M}(Int(n), reflection, drop_odd_y, Dict{M,Union{M,Nothing}}())
+function _PauliMomentReducer{M}(
+    n::Integer,
+    reflection::Bool,
+    drop_odd_y::Bool,
+    axis_permutations::Bool=false,
+) where {M}
+    return _PauliMomentReducer{M}(
+        Int(n),
+        reflection,
+        drop_odd_y,
+        axis_permutations,
+        Dict{M,Union{M,Nothing}}(),
+    )
 end
 
 function _reduce_moment(reducer::_PauliMomentReducer{M}, mono::M) where {M}
     return get!(reducer.cache, mono) do
         reducer.drop_odd_y && isodd(_pauli_y_count(mono)) && return nothing
-        rep = _translation_orbit_representative(mono, reducer.n)
-        if reducer.reflection
-            alt = _translation_orbit_representative(
-                _reflect_pauli_monomial(mono, reducer.n), reducer.n
-            )
-            alt < rep && (rep = alt)
+        permutations = reducer.axis_permutations ? _PAULI_AXIS_PERMUTATIONS : ((0, 1, 2),)
+        rep = mono
+        initialized = false
+        for permutation in permutations
+            image = _permute_pauli_axes(mono, permutation)
+            candidate = _translation_orbit_representative(image, reducer.n)
+            if !initialized || candidate < rep
+                rep = candidate
+                initialized = true
+            end
+            if reducer.reflection
+                alt = _translation_orbit_representative(
+                    _reflect_pauli_monomial(image, reducer.n), reducer.n
+                )
+                alt < rep && (rep = alt)
+            end
         end
         return rep
     end
@@ -794,6 +1154,204 @@ function _reduce_moment_polynomial(
         push!(terms, (coef, rep))
     end
     return Polynomial(terms)
+end
+
+function _check_pauli_state_optimality_hamiltonian(
+    hamiltonian::Polynomial{PauliAlgebra},
+)
+    hamiltonian == adjoint(hamiltonian) || throw(ArgumentError(
+        "State-optimality constraints require `pop.objective` to be Hermitian."
+    ))
+    all(iszero(imag(coef)) for (coef, _) in hamiltonian.terms) || throw(ArgumentError(
+        "State-optimality constraints currently require real Hamiltonian coefficients."
+    ))
+    return nothing
+end
+
+function _pauli_hamiltonian_terms_by_site(
+    hamiltonian::Polynomial{PauliAlgebra},
+    n_sites::Int,
+)
+    by_site = [Int[] for _ in 1:n_sites]
+    for (term_idx, (_, mono)) in pairs(hamiltonian.terms)
+        for idx in mono.word
+            push!(by_site[_pauli_site(idx)], term_idx)
+        end
+    end
+    return by_site
+end
+
+function _pauli_relevant_hamiltonian_terms!(
+    relevant::Vector{Int},
+    marks::Vector{Int},
+    generation::Int,
+    mono::NormalMonomial{PauliAlgebra},
+    by_site::Vector{Vector{Int}},
+)
+    empty!(relevant)
+    generation += 1
+    for idx in mono.word
+        for term_idx in by_site[_pauli_site(idx)]
+            if marks[term_idx] != generation
+                marks[term_idx] = generation
+                push!(relevant, term_idx)
+            end
+        end
+    end
+    return generation
+end
+
+
+"""
+    _pauli_linear_state_candidates(supported, hamiltonian, reducer, max_degree, sign_symmetry)
+
+Find every translation/reflection-inequivalent Pauli word `u` of degree at
+most `max_degree` for which at least one term of `[H,u]` is already a supported
+PSD-block moment.  This is a deterministic inverse-commutator version of
+QMBCertify's candidate generation plus random projection filter.
+"""
+function _pauli_linear_state_candidates(
+    supported::Vector{M},
+    hamiltonian::Polynomial{PauliAlgebra,T},
+    reducer::_PauliMomentReducer{M},
+    max_degree::Int,
+    sign_symmetry::Bool,
+) where {T<:Unsigned,M<:NormalMonomial{PauliAlgebra,T}}
+    by_site = _pauli_hamiltonian_terms_by_site(hamiltonian, reducer.n)
+    candidate_reducer = _PauliMomentReducer{M}(
+        reducer.n,
+        reducer.reflection,
+        false,
+        reducer.axis_permutations,
+    )
+    candidates = Set{M}()
+    relevant = Int[]
+    marks = zeros(Int, length(hamiltonian.terms))
+    generation = 0
+
+    for moment in supported
+        generation = _pauli_relevant_hamiltonian_terms!(
+            relevant,
+            marks,
+            generation,
+            moment,
+            by_site,
+        )
+        for term_idx in relevant
+            hcoef, hmono = hamiltonian.terms[term_idx]
+            iszero(hcoef) && continue
+            left_coef, candidate = _mul_term(hmono, moment)
+            right_coef, right_candidate = _mul_term(moment, hmono)
+            candidate == right_candidate || throw(ArgumentError(
+                "Internal error: Pauli products disagree on their normal monomial."
+            ))
+            left_coef == right_coef && continue
+            degree(candidate) <= max_degree || continue
+            sign_symmetry && !iszero(_pauli_sign_signature(candidate)) && continue
+            rep = _reduce_moment(candidate_reducer, candidate)
+            rep === nothing || push!(candidates, rep)
+        end
+    end
+    return sort!(collect(candidates)), by_site
+end
+
+function _pauli_linear_state_polynomial(
+    candidate::M,
+    hamiltonian::Polynomial{PauliAlgebra,T},
+    reducer::_PauliMomentReducer{M},
+    by_site::Vector{Vector{Int}},
+    supported::Set{M},
+    sign_symmetry::Bool,
+    ::Type{P};
+    atol,
+) where {
+    T<:Unsigned,
+    M<:NormalMonomial{PauliAlgebra,T},
+    P<:Polynomial{PauliAlgebra,T},
+}
+    C = _coefficient_type(P)
+    terms = Tuple{C,M}[]
+    relevant = Int[]
+    marks = zeros(Int, length(hamiltonian.terms))
+    _pauli_relevant_hamiltonian_terms!(relevant, marks, 0, candidate, by_site)
+
+    for term_idx in relevant
+        hcoef, hmono = hamiltonian.terms[term_idx]
+        left_coef, left_mono = _mul_term(hmono, candidate)
+        right_coef, right_mono = _mul_term(candidate, hmono)
+        left_mono == right_mono || throw(ArgumentError(
+            "Internal error: Pauli commutator products disagree on their normal monomial."
+        ))
+        raw_coef = -im * hcoef * (left_coef - right_coef)
+        iszero(raw_coef) && continue
+        sign_symmetry && !iszero(_pauli_sign_signature(left_mono)) && continue
+        rep = _reduce_moment(reducer, left_mono)
+        rep === nothing && continue
+
+        coef = if C <: Real
+            abs(imag(raw_coef)) <= atol || throw(ArgumentError(
+                "Internal error: -im*[H,u] produced non-real coefficient $raw_coef."
+            ))
+            C(real(raw_coef))
+        else
+            C(raw_coef)
+        end
+        iszero(coef) || push!(terms, (coef, rep))
+    end
+
+    poly = P(terms)
+    all(mono in supported for mono in monomials(poly)) || return nothing
+    return poly
+end
+
+function _normalize_zero_polynomial(poly::P) where {P<:Polynomial}
+    isempty(poly.terms) && return poly
+    scale = first(poly.terms)[1]
+    C = _coefficient_type(P)
+    return P([(C(coef / scale), mono) for (coef, mono) in poly.terms])
+end
+
+function _append_pauli_linear_state_optimality!(
+    constraints::Vector{Tuple{Symbol,Matrix{P}}},
+    supported::Vector{M},
+    hamiltonian::Polynomial{PauliAlgebra,T},
+    reducer::_PauliMomentReducer{M},
+    max_degree::Int,
+    sign_symmetry::Bool,
+    ::Type{P};
+    atol,
+) where {
+    T<:Unsigned,
+    M<:NormalMonomial{PauliAlgebra,T},
+    P<:Polynomial{PauliAlgebra,T},
+}
+    candidates, by_site = _pauli_linear_state_candidates(
+        supported,
+        hamiltonian,
+        reducer,
+        max_degree,
+        sign_symmetry,
+    )
+    supported_set = Set(supported)
+    seen = Set{P}()
+    for candidate in candidates
+        poly = _pauli_linear_state_polynomial(
+            candidate,
+            hamiltonian,
+            reducer,
+            by_site,
+            supported_set,
+            sign_symmetry,
+            P;
+            atol,
+        )
+        (poly === nothing || iszero(poly)) && continue
+        normalized = _normalize_zero_polynomial(poly)
+        normalized in seen && continue
+        push!(seen, normalized)
+        push!(constraints, (:Zero, reshape([poly], 1, 1)))
+    end
+    return nothing
 end
 
 """
@@ -909,7 +1467,10 @@ function _pauli_sign_signature(mono::NormalMonomial{PauliAlgebra})
     return UInt8((xor(px, py) ? 0x01 : 0x00) | (xor(py, pz) ? 0x02 : 0x00))
 end
 
-function _pauli_signature_blocks(basis::Vector{M}) where {M<:NormalMonomial{PauliAlgebra}}
+function _pauli_signature_blocks(
+    basis::Vector{M};
+    axis_permutation_symmetry::Bool=false,
+) where {M<:NormalMonomial{PauliAlgebra}}
     buckets = Dict{UInt8,Vector{M}}()
     order = UInt8[]
     for mono in basis
@@ -921,6 +1482,9 @@ function _pauli_signature_blocks(basis::Vector{M}) where {M<:NormalMonomial{Paul
         push!(buckets[sig], mono)
     end
     sort!(order)
+    if axis_permutation_symmetry
+        filter!(signature -> iszero(signature) || signature == 0x01, order)
+    end
     return [(sig, buckets[sig]) for sig in order]
 end
 
@@ -1148,6 +1712,107 @@ function _mirror_real_blocks(
     end
     cols = vcat(cols_even, cols_odd)
     return Tuple{Symbol,Matrix{PReal}}[(:none, _mirror_transformed_block(complex_mat, cols, PReal; atol))]
+end
+
+function _translation_state_optimality_entry(
+    row::M,
+    col::M,
+    k::Int,
+    n::Int,
+    translated::Dict{M,Vector{M}},
+    hamiltonian::Polynomial{PauliAlgebra,T},
+    hamiltonian_by_site::Vector{Vector{Int}},
+    reducer::_PauliMomentReducer{M},
+    ::Type{P},
+) where {
+    T<:Unsigned,
+    M<:NormalMonomial{PauliAlgebra,T},
+    P<:Polynomial{PauliAlgebra,T},
+}
+    C = _coefficient_type(P)
+    R = typeof(real(one(C)))
+    terms = Tuple{C,M}[]
+    relevant = Int[]
+    marks = zeros(Int, length(hamiltonian.terms))
+    generation = 0
+
+    for r in 0:(n - 1)
+        col_r = translated[col][r + 1]
+        generation = _pauli_relevant_hamiltonian_terms!(
+            relevant,
+            marks,
+            generation,
+            row,
+            hamiltonian_by_site,
+        )
+        for idx in col_r.word
+            for term_idx in hamiltonian_by_site[_pauli_site(idx)]
+                if marks[term_idx] != generation
+                    marks[term_idx] = generation
+                    push!(relevant, term_idx)
+                end
+            end
+        end
+
+        phase = C(_momentum_phase(R, k, r, n))
+        for term_idx in relevant
+            hcoef, hmono = hamiltonian.terms[term_idx]
+
+            c1, m1 = _mul_term(row, hmono)
+            c1b, m1b = _mul_term(m1, col_r)
+            c2, m2 = _mul_term(hmono, row)
+            c2b, m2b = _mul_term(m2, col_r)
+            c3, m3 = _mul_term(row, col_r)
+            c3b, m3b = _mul_term(m3, hmono)
+            m1b == m2b == m3b || throw(ArgumentError(
+                "Internal error: PSD state-optimality products disagree on their normal monomial."
+            ))
+
+            coef = phase * C(hcoef) * C(c1 * c1b - (c2 * c2b + c3 * c3b) / 2)
+            iszero(coef) && continue
+            rep = _reduce_moment(reducer, m1b)
+            rep === nothing || push!(terms, (coef, rep))
+        end
+    end
+    return P(terms)
+end
+
+function _translation_state_optimality_block(
+    block_basis::Vector{M},
+    k::Int,
+    n::Int,
+    translated::Dict{M,Vector{M}},
+    hamiltonian::Polynomial{PauliAlgebra,T},
+    hamiltonian_by_site::Vector{Vector{Int}},
+    reducer::_PauliMomentReducer{M},
+    ::Type{P},
+) where {
+    T<:Unsigned,
+    M<:NormalMonomial{PauliAlgebra,T},
+    P<:Polynomial{PauliAlgebra,T},
+}
+    dim = length(block_basis)
+    mat = Matrix{P}(undef, dim, dim)
+    for j in 1:dim, i in 1:j
+        entry = _translation_state_optimality_entry(
+            block_basis[i],
+            block_basis[j],
+            k,
+            n,
+            translated,
+            hamiltonian,
+            hamiltonian_by_site,
+            reducer,
+            P,
+        )
+        if i == j
+            mat[i, i] = (entry + adjoint(entry)) / 2
+        else
+            mat[i, j] = entry
+            mat[j, i] = adjoint(entry)
+        end
+    end
+    return mat
 end
 
 function _translation_momentum_block(

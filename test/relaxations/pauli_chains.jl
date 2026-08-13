@@ -249,4 +249,53 @@ end
         @test mirrored.report.n_unique_moment_matrix_elements <
               legacy.report.n_unique_moment_matrix_elements
     end
+
+    @testset "reduced-density-matrix positivity strengthens the TI bound" begin
+        n = 6
+        registry, ops = create_pauli_variables(1:n)
+        pop = polyopt(heisenberg_chain_hamiltonian(ops), registry)
+
+        unstrengthened = quiet() do
+            pauli_translation_invariant_nctssos(pop, ops, 2, SOLVER; dualize=false)
+        end
+        explicit_default = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, rdm_levels=Int[]
+            )
+        end
+        rdm2 = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, rdm_levels=[2]
+            )
+        end
+        rdm24 = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, rdm_levels=[2, 4]
+            )
+        end
+
+        @test termination_status(unstrengthened.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(explicit_default.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(rdm2.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(rdm24.model) == JuMP.MOI.OPTIMAL
+        @test explicit_default.objective ≈ unstrengthened.objective atol = 1e-8
+        @test rdm2.objective >= unstrengthened.objective - 1e-6
+        @test rdm24.objective >= rdm2.objective - 1e-6
+        @test rdm24.objective > unstrengthened.objective + 1e-3
+        @test rdm24.objective <= -2.802775637 + 1e-5
+        @test rdm24.report.block_labels[end-4:end] == Any[
+            (rdm=2, down_spins=0),
+            (rdm=2, down_spins=1),
+            (rdm=4, down_spins=0),
+            (rdm=4, down_spins=1),
+            (rdm=4, down_spins=2),
+        ]
+
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; rdm_levels=[0]
+        )
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; rdm_levels=[n + 1]
+        )
+    end
 end

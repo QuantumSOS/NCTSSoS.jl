@@ -333,7 +333,7 @@ function Base.show(io::IO, result::TranslationInvariantResult)
 end
 
 """
-    pauli_translation_invariant_moment_relaxation(pop, (σx, σy, σz), order; sign_symmetry=true, momenta=nothing)
+    pauli_translation_invariant_moment_relaxation(pop, (σx, σy, σz), order; sign_symmetry=true, momenta=nothing, rdm_levels=Int[])
 
 Construct a periodic-chain Pauli moment relaxation directly in translation
 (momentum) sectors, without building the full site-space moment matrix.
@@ -371,6 +371,13 @@ still applied, so it asserts that the caller has independently verified every
 enabled symmetry; passing a non-invariant objective with it produces an
 invalid relaxation.
 
+Each `k` in `rdm_levels` adds positivity of the contiguous `k`-site reduced
+density matrix on sites `1:k`, split into fixed-magnetization principal blocks.
+Translation invariance makes one window sufficient.  The blocks use the full
+complex Pauli representation and are realified exactly when
+`real_moment_matrix=true`; the positive factor `2^-k` is omitted because it
+does not change the PSD constraint.
+
 For the XXX chain with `N=100, order=4`, the default basis has 12,001 site-space
 monomials and the solver-facing real PSD blocks have side at most 31, matching
 the specialized construction of arXiv:2604.01555.
@@ -387,6 +394,7 @@ function pauli_translation_invariant_moment_relaxation(
     check_invariance::Bool=true,
     real_moment_matrix::Bool=true,
     phase_atol::Real=1e-12,
+    rdm_levels::AbstractVector{<:Integer}=Int[],
 ) where {T<:Unsigned,C<:Number,P<:Polynomial{PauliAlgebra,T,C}}
     σx, _, _, n = _validate_pauli_chain_ops(ops)
     eltype(σx) == NormalMonomial{PauliAlgebra,T} || throw(ArgumentError(
@@ -398,6 +406,7 @@ function pauli_translation_invariant_moment_relaxation(
 
     d = Int(order)
     d >= 0 || throw(DomainError(order, "`order` must be non-negative."))
+    rdm_ks = _validate_pauli_rdm_levels(rdm_levels, n)
     local_basis = isnothing(basis) ? pauli_contiguous_chain_basis(ops, d; periodic=true) : basis
     one_mono = one(first(σx))
     one_mono in local_basis || throw(ArgumentError("Translation-invariant Pauli basis must include the identity."))
@@ -465,6 +474,25 @@ function pauli_translation_invariant_moment_relaxation(
                 for entry in mat
                     append!(moment_terms, monomials(entry))
                 end
+            end
+        end
+    end
+
+    for k in rdm_ks
+        for (down_spins, complex_mat) in _pauli_rdm_blocks(
+            k,
+            reducer,
+            BLOCK_P;
+            sign_symmetry,
+        )
+            cone, mat = real_moment_matrix ?
+                (:PSD, _realify_hermitian_block(complex_mat, MP_P; atol=MP_R(phase_atol))) :
+                (:HPSD, map(p -> convert(MP_P, p), complex_mat))
+            push!(constraints, (cone, mat))
+            push!(block_sizes, size(mat, 1))
+            push!(block_labels, (rdm=k, down_spins=down_spins))
+            for entry in mat
+                append!(moment_terms, monomials(entry))
             end
         end
     end
@@ -567,6 +595,123 @@ end
 
 _pauli_chain_real_coeff_type(::Type{C}) where {C<:Number} = typeof(float(real(one(C))))
 _pauli_chain_complex_coeff_type(::Type{C}) where {C<:Number} = Complex{_pauli_chain_real_coeff_type(C)}
+
+function _validate_pauli_rdm_levels(
+    rdm_levels::AbstractVector{<:Integer},
+    n_sites::Integer,
+)
+    levels = sort!(unique!(Int[k for k in rdm_levels]))
+    for k in levels
+        1 <= k <= Int(n_sites) || throw(ArgumentError(
+            "Each `rdm_levels` entry must lie in 1:n_sites; got k=$k for n_sites=$(Int(n_sites))."
+        ))
+        k < 8sizeof(Int) - 1 || throw(ArgumentError(
+            "RDM level $k is too large for computational-basis indexing on this platform."
+        ))
+    end
+    return levels
+end
+
+function _pauli_magnetization_states(k::Int, down_spins::Int)
+    return Int[state for state in 0:((1 << k) - 1) if count_ones(UInt(state)) == down_spins]
+end
+
+function _pauli_rdm_entry(
+    row_state::Int,
+    col_state::Int,
+    k::Int,
+    reducer,
+    ::Type{P};
+    sign_symmetry::Bool,
+) where {
+    T<:Unsigned,
+    P<:Polynomial{PauliAlgebra,T},
+}
+    C = _coefficient_type(P)
+    M = NormalMonomial{PauliAlgebra,T}
+    terms = Tuple{C,M}[]
+    sizehint!(terms, 1 << max(k - (sign_symmetry ? 1 : 0) - (reducer.drop_odd_y ? 1 : 0), 0))
+    word = T[]
+
+    for choices in 0:((1 << k) - 1)
+        y_odd = false
+        z_odd = false
+        differing = 0
+        for site in 1:k
+            bit_shift = k - site
+            row_bit = !iszero((row_state >> bit_shift) & 1)
+            col_bit = !iszero((col_state >> bit_shift) & 1)
+            choose_second = !iszero((choices >> bit_shift) & 1)
+            if row_bit == col_bit
+                choose_second && (z_odd = !z_odd)
+            else
+                differing += 1
+                choose_second && (y_odd = !y_odd)
+            end
+        end
+
+        x_odd = xor(isodd(differing), y_odd)
+        sign_symmetry && !(x_odd == y_odd == z_odd) && continue
+        reducer.drop_odd_y && y_odd && continue
+
+        empty!(word)
+        coef = one(C)
+        for site in 1:k
+            bit_shift = k - site
+            row_bit = !iszero((row_state >> bit_shift) & 1)
+            col_bit = !iszero((col_state >> bit_shift) & 1)
+            choose_second = !iszero((choices >> bit_shift) & 1)
+            if row_bit == col_bit
+                if choose_second
+                    push!(word, _pauli_index_from_site_type(T, site, _PAULI_Z_TYPE))
+                    row_bit && (coef = -coef)
+                end
+            elseif choose_second
+                push!(word, _pauli_index_from_site_type(T, site, _PAULI_Y_TYPE))
+                coef *= row_bit ? C(im) : C(-im)
+            else
+                push!(word, _pauli_index_from_site_type(T, site, _PAULI_X_TYPE))
+            end
+        end
+
+        mono = M(copy(word))
+        rep = _reduce_moment(reducer, mono)
+        rep === nothing || push!(terms, (coef, rep))
+    end
+    return P(terms)
+end
+
+function _pauli_rdm_blocks(
+    k::Int,
+    reducer,
+    ::Type{P};
+    sign_symmetry::Bool,
+) where {P<:Polynomial}
+    blocks = Tuple{Int,Matrix{P}}[]
+    for down_spins in 0:fld(k, 2)
+        states = _pauli_magnetization_states(k, down_spins)
+        dim = length(states)
+        mat = Matrix{P}(undef, dim, dim)
+        for j in 1:dim, i in 1:j
+            entry = _pauli_rdm_entry(
+                states[i],
+                states[j],
+                k,
+                reducer,
+                P;
+                sign_symmetry,
+            )
+            if i == j
+                mat[i, i] = (entry + adjoint(entry)) / 2
+            else
+                mat[i, j] = entry
+                mat[j, i] = adjoint(entry)
+            end
+        end
+        push!(blocks, (down_spins, mat))
+    end
+    return blocks
+end
 
 function _pauli_chain_momentum_sectors(
     n::Integer,

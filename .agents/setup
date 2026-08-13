@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "==> Configuring Julia 1.12"
+if command -v julia >/dev/null 2>&1 &&
+    julia --startup-file=no -e 'exit(VERSION.major == 1 && VERSION.minor == 12 ? 0 : 1)'; then
+    julia_bin="$(command -v julia)"
+else
+    juliaup_bin="$HOME/.juliaup/bin/juliaup"
+    if [[ ! -x "$juliaup_bin" ]]; then
+        curl -fsSL https://install.julialang.org | sh -s -- --yes --default-channel 1.12
+    fi
+
+    if ! "$HOME/.juliaup/bin/julia" +1.12 --startup-file=no \
+        -e 'exit(VERSION.major == 1 && VERSION.minor == 12 ? 0 : 1)' >/dev/null 2>&1; then
+        "$juliaup_bin" add 1.12
+    fi
+    "$juliaup_bin" default 1.12
+    julia_bin="$HOME/.juliaup/bin/julia"
+
+    profile_marker="# NCTSSoS.jl Juliaup"
+    if ! grep -Fqx "$profile_marker" "$HOME/.bash_profile" 2>/dev/null; then
+        cat >> "$HOME/.bash_profile" <<'EOF'
+
+# NCTSSoS.jl Juliaup
+if [[ -d "$HOME/.juliaup/bin" ]]; then
+    export PATH="$HOME/.juliaup/bin:$PATH"
+fi
+EOF
+    fi
+fi
+"$julia_bin" --version
+
+# Mosek license via workspace secrets. Preferred: MOSEK_LICENSE_B64 (base64 of the
+# license file, e.g. `base64 -w0 mosek.lic`), which survives secret storage intact.
+# Fallback: MOSEK_LICENSE with raw contents; a value flattened to one line (literal
+# \n sequences instead of newlines) is repaired before writing.
+if [[ -n "${MOSEK_LICENSE_B64:-}" || -n "${MOSEK_LICENSE:-}" ]]; then
+    echo "==> Installing Mosek license at ~/mosek/mosek.lic"
+    install -d -m 700 "$HOME/mosek"
+    license_tmp="$(mktemp "$HOME/mosek/.mosek.lic.XXXXXX")"
+    trap 'rm -f -- "$license_tmp"' EXIT
+    if [[ -n "${MOSEK_LICENSE_B64:-}" ]]; then
+        # Filter to the base64 alphabet first: pasted secrets often pick up stray
+        # bytes (shell prompt artifacts, newlines) that would fail strict decoding.
+        printf '%s' "$MOSEK_LICENSE_B64" | tr -cd 'A-Za-z0-9+/=' | base64 -d | tr -d '\r' > "$license_tmp"
+    elif [[ "$MOSEK_LICENSE" == *$'\n'* ]]; then
+        printf '%s' "$MOSEK_LICENSE" | tr -d '\r' > "$license_tmp"
+    else
+        printf '%s' "$MOSEK_LICENSE" | sed 's/\\n/\n/g' | tr -d '\r' > "$license_tmp"
+    fi
+    chmod 600 "$license_tmp"
+    mv -f -- "$license_tmp" "$HOME/mosek/mosek.lic"
+    trap - EXIT
+fi
+
+echo "==> Instantiating and precompiling the package environment"
+SECONDS=0
+"$julia_bin" --project="$repo_root" -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+echo "==> Package environment ready in ${SECONDS}s"
+
+# The docs environment includes large optional dependencies (including CairoMakie and Yao),
+# so it is intentionally left on demand. Run `make init-docs` before docs work.

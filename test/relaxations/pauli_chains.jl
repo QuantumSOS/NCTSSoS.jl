@@ -142,6 +142,7 @@ end
         @test report.real_moment_matrix
         @test report.reflection
         @test report.conjugate_symmetry
+        @test !report.axis_permutation_symmetry
 
         _, report_legacy = pauli_translation_invariant_moment_relaxation(
             pop, ops, 1; sign_symmetry=false, reflection=false, conjugate_symmetry=false
@@ -279,16 +280,31 @@ end
                 pop, ops, 2, SOLVER; dualize=false, rdm_levels=[2, 4]
             )
         end
+        rdm24_axis = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop,
+                ops,
+                2,
+                SOLVER;
+                dualize=false,
+                rdm_levels=[2, 4],
+                axis_permutation_symmetry=true,
+            )
+        end
 
         @test termination_status(unstrengthened.model) == JuMP.MOI.OPTIMAL
         @test termination_status(explicit_default.model) == JuMP.MOI.OPTIMAL
         @test termination_status(rdm2.model) == JuMP.MOI.OPTIMAL
         @test termination_status(rdm24.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(rdm24_axis.model) == JuMP.MOI.OPTIMAL
         @test explicit_default.objective ≈ unstrengthened.objective atol = 1e-8
         @test rdm2.objective >= unstrengthened.objective - 1e-6
         @test rdm24.objective >= rdm2.objective - 1e-6
         @test rdm24.objective > unstrengthened.objective + 1e-3
         @test rdm24.objective <= -2.802775637 + 1e-5
+        @test rdm24_axis.objective >= rdm24.objective - 1e-6
+        @test rdm24_axis.objective <= -2.802775637 + 1e-5
+        @test rdm24_axis.report.axis_permutation_symmetry
         @test rdm24.report.block_labels[end-4:end] == Any[
             (rdm=2, down_spins=0),
             (rdm=2, down_spins=1),
@@ -311,6 +327,25 @@ end
         non_u1_pop = polyopt(non_u1_hamiltonian, registry)
         @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
             non_u1_pop, ops, 2; rdm_levels=[2]
+        )
+
+        σx, σy, σz = ops
+        xxz_hamiltonian = sum(
+            σx[i] * σx[mod1(i + 1, n)] +
+            σy[i] * σy[mod1(i + 1, n)] +
+            2 * σz[i] * σz[mod1(i + 1, n)]
+            for i in 1:n
+        )
+        xxz_pop = polyopt(xxz_hamiltonian, registry)
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            xxz_pop, ops, 2; axis_permutation_symmetry=true
+        )
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop,
+            ops,
+            2;
+            sign_symmetry=false,
+            axis_permutation_symmetry=true,
         )
     end
 

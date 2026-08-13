@@ -260,7 +260,13 @@ end
         end
         explicit_default = quiet() do
             pauli_translation_invariant_nctssos(
-                pop, ops, 2, SOLVER; dualize=false, rdm_levels=Int[]
+                pop,
+                ops,
+                2,
+                SOLVER;
+                dualize=false,
+                rdm_levels=Int[],
+                state_optimality=:none,
             )
         end
         rdm2 = quiet() do
@@ -296,6 +302,53 @@ end
         )
         @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
             pop, ops, 2; rdm_levels=[n + 1]
+        )
+
+        σx, _, _ = ops
+        non_u1_hamiltonian = sum(
+            σx[i] * σx[mod1(i + 1, n)] for i in 1:n
+        )
+        non_u1_pop = polyopt(non_u1_hamiltonian, registry)
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            non_u1_pop, ops, 2; rdm_levels=[2]
+        )
+    end
+
+    @testset "state optimality strengthens the TI bound" begin
+        n = 6
+        registry, ops = create_pauli_variables(1:n)
+        pop = polyopt(heisenberg_chain_hamiltonian(ops), registry)
+
+        unstrengthened = quiet() do
+            pauli_translation_invariant_nctssos(pop, ops, 2, SOLVER; dualize=false)
+        end
+        linear = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, state_optimality=:linear
+            )
+        end
+        linear_psd = quiet() do
+            pauli_translation_invariant_nctssos(
+                pop, ops, 2, SOLVER; dualize=false, state_optimality=:linear_psd
+            )
+        end
+
+        @test termination_status(unstrengthened.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(linear.model) == JuMP.MOI.OPTIMAL
+        @test termination_status(linear_psd.model) == JuMP.MOI.OPTIMAL
+        @test linear.objective >= unstrengthened.objective - 1e-6
+        @test linear.objective <= -2.802775637 + 1e-4
+        @test linear_psd.objective >= linear.objective - 1e-6
+        @test linear_psd.objective > unstrengthened.objective + 1e-3
+        @test linear_psd.objective <= -2.802775637 + 1e-4
+        @test count(c -> c[1] == :Zero, linear.moment_problem.constraints) > 0
+        @test any(
+            label -> hasproperty(label, :state_optimality),
+            linear_psd.report.block_labels,
+        )
+
+        @test_throws ArgumentError pauli_translation_invariant_moment_relaxation(
+            pop, ops, 2; state_optimality=:invalid
         )
     end
 end

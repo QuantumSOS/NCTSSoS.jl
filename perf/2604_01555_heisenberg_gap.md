@@ -149,3 +149,66 @@ Success gates for claiming parity with the paper:
 - structural decomposition time comfortably below a few seconds to low tens of seconds, not tens of minutes.
 - end-to-end moment/SOS model construction measured separately from Mosek solve time.
 - final bounds checked against the paper tables for at least one small case before scaling.
+
+## 2026-08-13: TI RDM and state-optimality strengthening
+
+The specialized TI path now has three opt-in strengthening mechanisms from
+arXiv:2604.01555:
+
+- `rdm_levels=[k]` adds the contiguous `k`-site reduced-density-matrix PSD
+  constraint, split into fixed-magnetization blocks.  Its full complex Pauli
+  representation is assembled directly in those blocks and realified exactly.
+- `state_optimality=:linear` adds supported, symmetry-inequivalent instances of
+  `ℓ([H,u]) = 0` for the full periodic Hamiltonian.
+- `state_optimality=:linear_psd` also adds the PSD state-optimality matrix on
+  the degree-3 contiguous basis plus two-site words through
+  `state_optimality_range`.  This remains opt-in because the paper reports
+  numerical trouble from this condition for some J1-J2 models.
+
+The implementation also has an opt-in global Pauli-axis permutation quotient
+for the isotropic XXX objective.  Together with sign and conjugation symmetry,
+it identifies equivalent x/y/z moments and keeps the trivial sign sector plus
+one representative nontrivial sector.  The objective and supplied basis are
+checked for invariance before this quotient is used.
+
+The Hamiltonian convention agrees with the paper: the default
+`heisenberg_chain_hamiltonian` coupling is `1/4`, so it returns
+`Σᵢ Sᵢ⋅Sᵢ₊₁ = (1/4)Σᵢ σᵢ⋅σᵢ₊₁`.  The solver objective is the full periodic
+chain energy and the table below divides it by `N`.  For example, the exact
+`N=10` energy is `-4.515446354492043`, or `-0.4515446354492043` per spin.
+
+QMBCertify's published setup uses a 10-site RDM, full-chain linear
+commutators, and a degree-3 PSD state-optimality basis with two-site words
+through separation 5.  The exact k=10 model did not fit this 31 GiB orb: even
+after the axis quotient it was OOM-killed during the Mosek phase after about
+4 minutes.  The practical runs below therefore use k=9.  Separation 5 suffices
+at `N=10,20`; increasing the PSD basis to separation 10 recovers the requested
+`1e-5` agreement at `N=30`, but does not replace the missing 10-site RDM at
+`N=100`.
+
+All rows use the moment-LMI formulation (`dualize=false`), Mosek 11 with 8
+threads, and `1e-8` primal/dual feasibility and relative-gap tolerances.  The
+reported value is JuMP's dual objective bound; where Mosek stopped with
+`SLOW_PROGRESS`, both primal and dual statuses were `FEASIBLE_POINT` and the
+primal objective agreed closely with the bound.
+
+| N | RDM k | PSD range | paper SDP New / spin | this implementation / spin | absolute difference | wall time | peak RSS |
+|--:|--:|--:|--:|--:|--:|--:|--:|
+| 10 | 9 | 5 | -0.4515446 | -0.4515432554 | 1.34e-6 | 140.2 s | 7.02 GiB |
+| 20 | 9 | 5 | -0.4452196 | -0.4452226662 | 3.07e-6 | 264.9 s | 8.82 GiB |
+| 30 | 9 | 10 | -0.4440668 | -0.4440728648 | 6.06e-6 | 303.0 s | 11.60 GiB |
+| 100 | 9 | 10 | -0.4432378 | -0.4434115129 | 1.74e-4 | 1582.3 s | 28.07 GiB |
+
+Thus the practical model meets the `1e-5` comparison target through `N=30`,
+but not at `N=100`.  At `N=100` it nevertheless reduces the DMRG-relative gap
+from 0.228% for the unstrengthened TI moment relaxation to 0.0411%, improving
+on the paper's 0.0820% `SDP Old` gap.  The `N=100` solve took 26.4 minutes,
+longer than extrapolation from the smaller runs, and reached a peak of 28.07
+GiB.  Its full objective/bound were `-44.3411527203`/`-44.3411512925`, with 213
+PSD blocks, largest side 126, and 42,797 total moments.
+
+As a separate validity check, the exact `N=10` ground state satisfies all 14
+retained PSD state-optimality blocks: the smallest eigenvalue was
+`-2.04e-15`, and the largest linear-state-optimality residual was `3.86e-16`.
+This distinguishes the known Mosek numerical sensitivity from a symbolic
+sign or adjoint error in the new constraints.

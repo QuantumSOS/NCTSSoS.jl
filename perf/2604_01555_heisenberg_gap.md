@@ -247,3 +247,59 @@ numerical stalling rather than model weakness.  A diagnostic rerun with 64
 threads, tolerances relaxed to `1e-7`, and Mosek logging enabled is used to
 distinguish the two; the harness exposes the tolerance through
 `NCTS_MOSEK_TOL` (default `1e-8`).
+
+## 2026-08-14: k=10 gap campaign conclusion — model weakness, not stalling
+
+The "numerical stalling" hypothesis above is **corrected** by the captured
+Mosek iteration logs (enabled by `NCTS_MOSEK_LOG=1` after PR #376).  Three
+logged runs on `6xa800` settle the question.  All used the moment-LMI form,
+`N=100`, `rdm=10`, `linear_psd` state optimality, axis symmetry, 32 Mosek
+threads, and `1e-8` tolerances.
+
+**Run 1 — separation-5 PSD basis (the paper configuration).**
+Log: `perf/results/ti_k10_mosek_log_tol1e-8.txt`.  Mosek reached
+`MU = 2.5e-9` with primal and dual objectives agreeing to `3.4e-7` and
+`PFEAS ≈ 5.3e-8` before the `SLOW_PROGRESS` exit.  That is a converged
+solve for practical purposes: `-0.4432912436` per spin is this model's true
+optimum.  The residual `5.34e-5` gap to the paper's `-0.4432378` is therefore
+**model weakness**, not solver stalling.  Peak RSS 209.2 GiB, wall 3369.9 s.
+(An earlier 64-thread, `1e-7` diagnostic of the same model gave a looser
+`-0.4433098621`, consistent with the relaxed tolerance.)
+
+**Run 2 — separation-10 PSD basis (model strengthening attempt).**
+Log: `perf/results/ti_k10_range10_mosek_log.txt`.  The wider two-site words
+grow the model to 170,293 constraints with dense Newton dimension 19,130
+(`3.67e13` flops/factorization; 48,567 unique moments).  Mosek genuinely
+stalls: iterations 19–31 are frozen at `PFEAS 1.1e-6`, `DFEAS 7.6e-5`,
+`MU 1.0e-6`.  Because `DFEAS` never reaches tolerance, the reported
+"bound" `-0.4433962393` is **not a certified lower bound**; the run is
+numerically unusable.  Peak RSS 233.3 GiB, wall 4262.9 s.
+
+**Run 3 — separation-10 with `NCTS_MOSEK_SOLVE_FORM=dual`.**
+Log: `perf/results/ti_k10_range10_dualform_mosek_log.txt`.  Mosek **ignored
+the solve-form hint**: the log reports `Optimizer - solved problem: the
+primal` (Mosek solves the primal for problems containing semidefinite
+variables), and the iteration trajectory is identical to Run 2, including
+the frozen stall and the same final values.  Peak RSS 224.1 GiB, wall
+3760.3 s.  The conditioning knob has no effect on this problem class.
+
+| configuration | bound / spin | vs paper `-0.4432378` | solver state |
+|:--|--:|--:|:--|
+| paper SDP New (k=10, sep 5) | -0.4432378 | — | — |
+| k=10, sep 5 (Run 1) | -0.4432912436 | 5.34e-5 | converged (MU 2.5e-9) |
+| k=10, sep 5, 64t/1e-7 | -0.4433098621 | 7.21e-5 | relaxed tolerance |
+| k=10, sep 10 primal (Run 2) | -0.4433962393 | 1.58e-4 | stalled, uncertified |
+| k=10, sep 10 "dual" (Run 3) | -0.4433962393 | 1.58e-4 | identical stall |
+
+**Verdict: parity not achieved with existing knobs.**  The separation-5
+model converges but is structurally `5.34e-5` weaker than QMBCertify's
+published bound; the separation-10 model is too ill-conditioned for Mosek
+to solve at all.  Since the mechanisms (10-site RDM, linear commutators,
+degree-3 PSD state optimality, axis quotient) nominally match the paper,
+the discrepancy most likely lives in the exact contents of the degree-3
+PSD state-optimality basis.  The next step is source-level, not solver
+tuning: enumerate QMBCertify's degree-3 basis (words and two-site
+augmentations) at a small `N`, diff it against
+`state_optimality_range`-generated words here, and extend the basis
+construction to match.  No further solver-parameter experiments are
+warranted.

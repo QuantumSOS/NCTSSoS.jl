@@ -212,3 +212,38 @@ retained PSD state-optimality blocks: the smallest eigenvalue was
 `-2.04e-15`, and the largest linear-state-optimality residual was `3.86e-16`.
 This distinguishes the known Mosek numerical sensitivity from a symbolic
 sign or adjoint error in the new constraints.
+
+## 2026-08-14: exact paper configuration (k=10) on a large-memory host
+
+The exact QMBCertify configuration — `N=100`, 10-site RDM, `linear_psd` state
+optimality with separation-5 two-site words, and the axis-permutation
+quotient — was run on a 128-core, ~1 TiB host (`6xa800`) where the model fits.
+Settings: moment-LMI form, Mosek with 32 threads, `1e-8` feasibility and
+relative-gap tolerances, logging off.
+
+```text
+RESULT N=100 order=4 rdm=10 state=linear_psd state_range=5 axis_symmetry=true
+objective=-44.3291247035 per_site=-0.4432912470
+objective_bound=-44.3291243612 bound_per_site=-0.4432912436
+status=SLOW_PROGRESS primal=FEASIBLE_POINT dual=FEASIBLE_POINT
+wall=4693.3s max_block=252 n_blocks=214 unique_moments=31485
+```
+
+Peak RSS was 245.5 GiB (`Maximum resident set size: 257408656 kB`); wall time
+78.2 minutes.
+
+| configuration | bound / spin | vs paper `-0.4432378` | DMRG-relative gap |
+|:--|--:|--:|--:|
+| paper SDP New (k=10) | -0.4432378 | — | 0.0019% |
+| this k=10 run | -0.4432912436 | 5.34e-5 | 0.0139% |
+| practical k=9, range 10 | -0.4434115129 | 1.74e-4 | 0.0411% |
+| paper SDP Old | — | — | 0.0820% |
+
+The k=10 model tightens the bound by 3.2x over the practical k=9 model but
+still misses the `1e-5` parity target by about 5x.  Mosek terminated with
+`SLOW_PROGRESS` (both primal and dual statuses `FEASIBLE_POINT`, primal and
+dual objectives agreeing to `3.4e-7` absolute), so the remaining gap may be
+numerical stalling rather than model weakness.  A diagnostic rerun with 64
+threads, tolerances relaxed to `1e-7`, and Mosek logging enabled is used to
+distinguish the two; the harness exposes the tolerance through
+`NCTS_MOSEK_TOL` (default `1e-8`).

@@ -15,6 +15,7 @@
 # in 23.4 s; N=100 bound=-44.4239941277 in 1640.5 s with ~270 GiB peak RSS.
 #
 # Env knobs: NCTS_MOSEK_THREADS (default cpu/4), NCTS_MOSEK_LOG (default 0),
+# NCTS_MOSEK_TOL (default 1e-8; primal/dual feasibility and relative gap),
 # NCTS_TI_DUALIZE (default false; set true to reproduce the dual SOS form),
 # NCTS_TI_NS (default 16,100), NCTS_TI_RDM (default 0), NCTS_TI_STATE
 # (default none), NCTS_TI_STATE_RANGE (default 5), and NCTS_TI_AXIS_SYMMETRY
@@ -37,13 +38,14 @@ using NCTSSoS: pauli_translation_invariant_nctssos, heisenberg_chain_hamiltonian
 
 function mosek_optimizer()
     threads = parse(Int, get(ENV, "NCTS_MOSEK_THREADS", string(max(1, div(Sys.CPU_THREADS, 4)))))
+    tol = parse(Float64, get(ENV, "NCTS_MOSEK_TOL", "1e-8"))
     return optimizer_with_attributes(
         Mosek.Optimizer,
         "MSK_IPAR_LOG" => parse(Int, get(ENV, "NCTS_MOSEK_LOG", "0")),
         "MSK_IPAR_NUM_THREADS" => threads,
-        "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8,
-        "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8,
-        "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8,
+        "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => tol,
+        "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => tol,
+        "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => tol,
     )
 end
 
@@ -103,7 +105,7 @@ state_optimality = Symbol(get(ENV, "NCTS_TI_STATE", "none"))
 state_optimality_range = parse(Int, get(ENV, "NCTS_TI_STATE_RANGE", "5"))
 axis_permutation_symmetry = parse(Bool, get(ENV, "NCTS_TI_AXIS_SYMMETRY", "false"))
 println("host=$(gethostname()) julia=$(VERSION) started=$(Dates.now())")
-println("threads=$(get(ENV, "NCTS_MOSEK_THREADS", "auto(cpu/4)")) cpu_threads=$(Sys.CPU_THREADS) dualize=$dualize ns=$ns rdm=$rdm_level state=$state_optimality state_range=$state_optimality_range axis_symmetry=$axis_permutation_symmetry")
+println("threads=$(get(ENV, "NCTS_MOSEK_THREADS", "auto(cpu/4)")) cpu_threads=$(Sys.CPU_THREADS) tol=$(get(ENV, "NCTS_MOSEK_TOL", "1e-8")) dualize=$dualize ns=$ns rdm=$rdm_level state=$state_optimality state_range=$state_optimality_range axis_symmetry=$axis_permutation_symmetry")
 flush(stdout)
 
 for n in ns

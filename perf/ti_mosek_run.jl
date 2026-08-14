@@ -14,8 +14,12 @@
 # Previous dual SOS run (dualize=true, 32 threads): N=16 bound=-7.1443484721
 # in 23.4 s; N=100 bound=-44.4239941277 in 1640.5 s with ~270 GiB peak RSS.
 #
-# Env knobs: NCTS_MOSEK_THREADS (default cpu/4), NCTS_MOSEK_LOG (default 0),
+# Env knobs: NCTS_MOSEK_THREADS (default cpu/4), NCTS_MOSEK_LOG (default 0;
+# 1 also disables set_silent so the Mosek iteration log reaches the job log),
 # NCTS_MOSEK_TOL (default 1e-8; primal/dual feasibility and relative gap),
+# NCTS_MOSEK_SOLVE_FORM (free|primal|dual, default free),
+# NCTS_MOSEK_SCALING (free|none, default free),
+# NCTS_MOSEK_PRESOLVE (off|on|free, default free),
 # NCTS_TI_DUALIZE (default false; set true to reproduce the dual SOS form),
 # NCTS_TI_NS (default 16,100), NCTS_TI_RDM (default 0), NCTS_TI_STATE
 # (default none), NCTS_TI_STATE_RANGE (default 5), and NCTS_TI_AXIS_SYMMETRY
@@ -36,6 +40,10 @@ using NCTSSoS, JuMP, MosekTools, Printf, Dates
 using NCTSSoS: pauli_translation_invariant_nctssos, heisenberg_chain_hamiltonian,
     create_pauli_variables, polyopt
 
+const SOLVE_FORMS = Dict("free" => 0, "primal" => 1, "dual" => 2)   # MSK_SOLVE_*
+const SCALINGS = Dict("free" => 0, "none" => 1)                     # MSK_SCALING_*
+const PRESOLVES = Dict("off" => 0, "on" => 1, "free" => 2)          # MSK_PRESOLVE_MODE_*
+
 function mosek_optimizer()
     threads = parse(Int, get(ENV, "NCTS_MOSEK_THREADS", string(max(1, div(Sys.CPU_THREADS, 4)))))
     tol = parse(Float64, get(ENV, "NCTS_MOSEK_TOL", "1e-8"))
@@ -46,6 +54,9 @@ function mosek_optimizer()
         "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => tol,
         "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => tol,
         "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => tol,
+        "MSK_IPAR_INTPNT_SOLVE_FORM" => SOLVE_FORMS[get(ENV, "NCTS_MOSEK_SOLVE_FORM", "free")],
+        "MSK_IPAR_INTPNT_SCALING" => SCALINGS[get(ENV, "NCTS_MOSEK_SCALING", "free")],
+        "MSK_IPAR_PRESOLVE_USE" => PRESOLVES[get(ENV, "NCTS_MOSEK_PRESOLVE", "free")],
     )
 end
 
@@ -68,6 +79,7 @@ function run_instance(
         order,
         mosek_optimizer();
         dualize,
+        silent=parse(Int, get(ENV, "NCTS_MOSEK_LOG", "0")) == 0,
         rdm_levels=rdm_level == 0 ? Int[] : [rdm_level],
         state_optimality,
         state_optimality_range,
@@ -105,7 +117,7 @@ state_optimality = Symbol(get(ENV, "NCTS_TI_STATE", "none"))
 state_optimality_range = parse(Int, get(ENV, "NCTS_TI_STATE_RANGE", "5"))
 axis_permutation_symmetry = parse(Bool, get(ENV, "NCTS_TI_AXIS_SYMMETRY", "false"))
 println("host=$(gethostname()) julia=$(VERSION) started=$(Dates.now())")
-println("threads=$(get(ENV, "NCTS_MOSEK_THREADS", "auto(cpu/4)")) cpu_threads=$(Sys.CPU_THREADS) tol=$(get(ENV, "NCTS_MOSEK_TOL", "1e-8")) dualize=$dualize ns=$ns rdm=$rdm_level state=$state_optimality state_range=$state_optimality_range axis_symmetry=$axis_permutation_symmetry")
+println("threads=$(get(ENV, "NCTS_MOSEK_THREADS", "auto(cpu/4)")) cpu_threads=$(Sys.CPU_THREADS) tol=$(get(ENV, "NCTS_MOSEK_TOL", "1e-8")) solve_form=$(get(ENV, "NCTS_MOSEK_SOLVE_FORM", "free")) scaling=$(get(ENV, "NCTS_MOSEK_SCALING", "free")) presolve=$(get(ENV, "NCTS_MOSEK_PRESOLVE", "free")) dualize=$dualize ns=$ns rdm=$rdm_level state=$state_optimality state_range=$state_optimality_range axis_symmetry=$axis_permutation_symmetry")
 flush(stdout)
 
 for n in ns

@@ -247,3 +247,37 @@ numerical stalling rather than model weakness.  A diagnostic rerun with 64
 threads, tolerances relaxed to `1e-7`, and Mosek logging enabled is used to
 distinguish the two; the harness exposes the tolerance through
 `NCTS_MOSEK_TOL` (default `1e-8`).
+
+### Diagnostic rerun result (64 threads, tol 1e-7)
+
+Same model and host; only threads, tolerance, and logging changed.
+
+```text
+RESULT N=100 order=4 rdm=10 state=linear_psd state_range=5 axis_symmetry=true
+objective=-44.3309868524 per_site=-0.4433098685
+objective_bound=-44.3309862053 bound_per_site=-0.4433098621
+status=SLOW_PROGRESS primal=FEASIBLE_POINT dual=FEASIBLE_POINT
+wall=3703.8s max_block=252 n_blocks=214 unique_moments=31485
+```
+
+Wall time 61.7 minutes at 1607% average CPU; peak RSS 271.0 GiB
+(`Maximum resident set size: 284155972 kB`).  Mosek's per-iteration log was
+not captured in the job output despite `NCTS_MOSEK_LOG=1`, so the comparison
+below rests on the tolerance A/B rather than iterate-level stall diagnostics.
+
+| run | tol | threads | bound / spin | vs paper `-0.4432378` | wall | peak RSS |
+|:--|--:|--:|--:|--:|--:|--:|
+| acceptance | 1e-8 | 32 | -0.4432912436 | 5.34e-5 | 78.2 min | 245.5 GiB |
+| diagnostic | 1e-7 | 64 | -0.4433098621 | 7.21e-5 | 61.7 min | 271.0 GiB |
+
+Both runs terminated with `SLOW_PROGRESS` before reaching their target
+tolerance.  Relaxing the tolerance made Mosek stop earlier at a *weaker*
+bound (1.86e-5/spin weaker), i.e. the certified bound was still improving
+monotonically when the solver gave up in both runs.  This supports the
+numerical-stalling explanation for the residual 5.34e-5 gap: the model's true
+optimum lies above `-0.4432912` and tighter convergence moves the bound
+toward the paper value.  It does not prove the fully converged model reaches
+`-0.4432378` exactly, but no evidence points to a missing constraint.  Doubling
+threads from 32 to 64 raised peak RSS by ~26 GiB and cannot compensate for
+the stall; further progress would need better conditioning (e.g. scaling or
+a tuned interior-point restart), not more hardware.

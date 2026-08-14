@@ -244,9 +244,13 @@ function project_to_clique(poly::NCStatePolynomial{C,ST,A,T}, clique_indices) wh
 end
 
 """
-    solve_sdp(moment_problem, optimizer; dualize::Bool=true)
+    solve_sdp(moment_problem, optimizer; dualize::Bool=true, silent::Bool=true)
 
 Solve the SDP relaxation, either via SOS dualization or directly as moment problem.
+
+`silent=true` (the default) suppresses solver output via `set_silent`, overriding
+any logging attribute set on the optimizer; pass `silent=false` to let solver
+log settings (for example Mosek's `MSK_IPAR_LOG`) take effect.
 
 For ordinary complex-algebra polynomial problems (`PauliAlgebra`, `FermionicAlgebra`,
 `BosonicAlgebra`):
@@ -267,6 +271,7 @@ function solve_sdp(
     moment_problem,
     optimizer;
     dualize::Bool=true,
+    silent::Bool=true,
     formulation::Symbol=:moment_variables,
     representation::Symbol=:real,
     orphan_policy::Symbol=:error,
@@ -278,6 +283,7 @@ function solve_sdp(
 
         sos_problem = sos_dualize(moment_problem)
         set_optimizer(sos_problem.model, optimizer)
+        silent && set_silent(sos_problem.model)
         optimize!(sos_problem.model)
         status = _check_solver_status(sos_problem.model)
         return (
@@ -291,6 +297,7 @@ function solve_sdp(
             solve_moment_problem(
                 moment_problem,
                 optimizer;
+                silent=silent,
                 formulation=formulation,
                 representation=representation,
                 orphan_policy=orphan_policy,
@@ -299,7 +306,7 @@ function solve_sdp(
             if formulation != :moment_variables || representation != :real || orphan_policy != :error
                 throw(ArgumentError("State moment lowering does not support formulation/representation options."))
             end
-            solve_moment_problem(moment_problem, optimizer)
+            solve_moment_problem(moment_problem, optimizer; silent=silent)
         end
         status = _check_solver_status(result.model)
         return (

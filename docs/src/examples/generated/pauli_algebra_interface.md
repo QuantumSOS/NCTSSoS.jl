@@ -149,7 +149,7 @@ energy_per_site = res.objective / N
 ````
 
 ````
--0.46712927568291684
+-0.46712927568291723
 ````
 
 The result provides a certified lower bound on the ground state energy per site.

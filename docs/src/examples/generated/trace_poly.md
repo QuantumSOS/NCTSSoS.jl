@@ -250,8 +250,8 @@ abs_error = abs(result.objective + 5.0)
 ````
 
 ````
-result.objective = -4.999999999628731
-abs_error = 3.7126923757568875e-10
+result.objective = -4.999999999629674
+abs_error = 3.703259920939672e-10
 
 ````
 

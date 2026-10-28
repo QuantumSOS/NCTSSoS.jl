@@ -168,7 +168,7 @@ export build_pqg_moment_data
 export VerificationReport, verify_gns
 
 # Elimination Strategies
-export NoElimination, MF, MMD, AsIsElimination, MaximalElimination
+export NoElimination, MF, MMD, AsIsElimination, MaximalElimination, NaturalElimination
 
 # Variable Creation (primary user entry point)
 export create_pauli_variables, create_fermionic_variables, create_bosonic_variables

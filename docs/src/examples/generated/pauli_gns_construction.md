@@ -136,7 +136,7 @@ solve_summary
 ````
 
 ````
-(primal_objective = -0.7499999966623365, dual_objective = -0.7499999999999772, n_unique_moments = 16, solved_moments = 16, max_recovered_moment_error = 4.44889936002113e-9)
+(primal_objective = -0.7499999966623364, dual_objective = -0.7499999999999772, n_unique_moments = 16, solved_moments = 16, max_recovered_moment_error = 4.44889936002113e-9)
 ````
 
 The page should fail loudly if exactness or primal/dual consistency regresses.

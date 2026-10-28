@@ -38,6 +38,25 @@ See also: [`MF`](@ref), [`MMD`](@ref), [`NoElimination`](@ref)
 """
 struct MaximalElimination <: EliminationAlgorithm end
 
+"""
+    NaturalElimination()
+
+Chordal completion in ascending vertex order, with the clique-row selection of
+ncpol2sdpa 1.14.0's NumPy `_generate_clique` backend. In correlative sparsity,
+vertices include all registry variables (also unused ones), in registry-index
+order. Objective monomials connect their supports separately; each constraint
+connects its entire support. Use `cs_algo=NaturalElimination()` explicitly;
+existing defaults are unchanged.
+
+This computes the symbolic nonzero pattern of natural-order Cholesky, avoiding
+upstream's random matrix weights and numerical cancellation. It does **not**
+implement ncpol2sdpa's alternative `_generate_clique_alt`: when both CVXOPT and
+CHOMPACK are installed, upstream selects approximate-minimum-degree (AMD)
+ordering and CHOMPACK cliques.
+Neither `MF()` nor `MMD()` is a promise of compatibility with that backend.
+"""
+struct NaturalElimination <: EliminationAlgorithm end
+
 function cliquetree(graph::AbstractGraph{V}, ::NoElimination, snd::SupernodeType) where {V}
     return cliquetree(complete_graph(nv(graph)), BFS(), snd)
 end
@@ -61,6 +80,24 @@ end
 
 function clique_decomp(G::SimpleGraph, ::MaximalElimination)
     return connected_components(G)
+end
+
+function clique_decomp(G::SimpleGraph, ::NaturalElimination)
+    filled = copy(G)
+    rows = Vector{Int}[]
+    cliques = Vector{Int}[]
+    for i in vertices(filled)
+        later = filter(j -> j > i, neighbors(filled, i))
+        row = vcat(i, later)
+        # Upstream tests against *all* previous factor rows, not just the
+        # retained cliques. Preserve both row order and vertex order.
+        if !any(previous -> issubset(row, previous), rows)
+            push!(cliques, row)
+        end
+        push!(rows, row)
+        add_clique!(filled, later)
+    end
+    return cliques
 end
 
 """

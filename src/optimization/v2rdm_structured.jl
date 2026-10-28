@@ -741,6 +741,59 @@ function _v2rdm_adjoint_dict(acc::_V2RDMAccumulator{T}) where {T}
     return adjoint_key
 end
 
+# For real integrals, coefficient conjugation preserves the PQG constraints and
+# objective. Averaging a feasible moment functional with its conjugate therefore
+# preserves energy and positivity. Identify adjoint moments on this real slice;
+# do not merely take real parts of arbitrary complex problem coefficients.
+function _v2rdm_real_moment_data(linear::MomentLinearData{K,ComplexF64,M}) where {K,M}
+    representatives = Dict(key => (key_lt(adj, key) ? adj : key) for (key, adj) in linear.adjoint_key)
+    function real_form(form)
+        # PQG block entries and real objectives already have real coefficients.
+        # Merge directly in the destination type instead of allocating and
+        # sorting an intermediate complex form for every matrix entry.
+        if all(isreal(c) for (_, c) in form)
+            return LinearMomentForm{K,Float64}(representatives[key] => real(c) for (key, c) in form)
+        end
+        # Imaginary equality rows can cancel only after adjoint identification.
+        # Keep that exact cancellation check; projecting coefficients to their
+        # real parts before merging would silently discard constraints.
+        merged = LinearMomentForm{K,ComplexF64}(representatives[key] => c for (key, c) in form)
+        all(isreal(c) for (_, c) in merged) || throw(ArgumentError(
+            "PQG data is not invariant under coefficient conjugation"
+        ))
+        return LinearMomentForm{K,Float64}(key => real(c) for (key, c) in merged)
+    end
+
+    blocks = PSDBlockLin{K,Float64,M}[]
+    for block in linear.psd_blocks_lin
+        entries = map(real_form, block.entries)
+        meta = BlockMeta{M}(:PSD, block.meta.origin, block.meta.row_labels)
+        push!(blocks, PSDBlockLin{K,Float64,M}(block.size, entries, meta))
+    end
+    zeros = ScalarLinearConstraint{K,Float64}[]
+    for row in linear.zero_constraints
+        form = real_form(row.form)
+        isempty(form) || push!(zeros, ScalarLinearConstraint(form, row.kind, row.origin))
+    end
+    moments = sort!(unique(collect(values(representatives))); lt=key_lt)
+    adjoint_key = Dict(key => key for key in moments)
+    pivots = _discover_linear_pivots(blocks, adjoint_key)
+    return MomentLinearData{K,Float64,M}(
+        moments,
+        Dict(key => i for (i, key) in enumerate(moments)),
+        linear.identity,
+        Dict(key => linear.key_to_monomial[key] for key in moments),
+        adjoint_key,
+        blocks,
+        linear.psd_block_constraint_idx,
+        zeros,
+        real_form(linear.objective_lin),
+        pivots,
+        _build_pivot_at(pivots),
+        K[key for key in moments if !haskey(pivots, key)],
+    )
+end
+
 """
     build_pqg_moment_data(h1e, eri; nk, norb, nelec_per_cell, blocking,
                           spin_resolved_trace, singlet_s2) -> MomentLinearData
@@ -759,6 +812,7 @@ function build_pqg_moment_data(
     spin_resolved_trace::Bool = true,
     singlet_s2::Bool = true,
     include_one_d::Bool = false,
+    real_moments::Bool = false,
 )
     nk >= 1 || throw(ArgumentError("nk must be positive"))
     norb >= 1 || throw(ArgumentError("norb must be positive"))
@@ -772,6 +826,10 @@ function build_pqg_moment_data(
         "spin-resolved D traces assume M_s = 0 and an even total electron count"
     ))
     blocking in (:momentum, :spin, :none) || throw(ArgumentError("blocking must be :momentum, :spin, or :none"))
+    if real_moments && !(all(block -> all(isreal, block), values(h1e)) &&
+                         all(block -> all(isreal, block), values(eri)))
+        throw(ArgumentError("real_moments=true requires real h1e and eri integrals"))
+    end
 
     T = _v2rdm_index_type(n_modes)
     M = NormalMonomial{FermionicAlgebra,T}
@@ -820,6 +878,28 @@ function build_pqg_moment_data(
         singlet_s2,
     )
 
+    if spin_resolved_trace
+        # The fixed, equal spin populations imply L((Nα-Nβ)^2) = 0.
+        # In the G block containing the number operators, positivity therefore
+        # implies G*s = 0. Expose these equations rather than making the solver
+        # recover them from a forced zero eigenvalue. They add no restriction.
+        cons_idx = maximum(row.origin.cons_idx for row in zero_constraints) + 1
+        for block in psd_blocks
+            block.meta.origin.family == :G || continue
+            signs = [length(row.word) == 2 && row.word[1] == -row.word[2] ?
+                     _v2rdm_mode_spin(row.word[2], norb) : 0 for row in block.meta.row_labels]
+            all(iszero, signs) && continue
+            for i in 1:block.size
+                raw = LinearMomentForm{Vector{T},ComplexF64}(
+                    key => signs[j] * coefficient for j in 1:block.size
+                    for (key, coefficient) in block.entries[i, j]
+                )
+                _v2rdm_append_complex_zero_rows!(zero_constraints, raw, acc, adjoint_key, cons_idx, i)
+            end
+            cons_idx += 1
+        end
+    end
+
     # Equality rows can introduce adjoint partners while being split.
     _v2rdm_close_adjoint_keys!(acc)
     adjoint_key = _v2rdm_adjoint_dict(acc)
@@ -831,7 +911,7 @@ function build_pqg_moment_data(
     sort!(free_keys; lt = key_lt)
     pivot_at = _v2rdm_build_pivot_at(pivots)
 
-    return MomentLinearData{Vector{T},ComplexF64,M}(
+    linear = MomentLinearData{Vector{T},ComplexF64,M}(
         moments,
         moment_index,
         identity,
@@ -845,4 +925,5 @@ function build_pqg_moment_data(
         pivot_at,
         free_keys,
     )
+    return real_moments ? _v2rdm_real_moment_data(linear) : linear
 end

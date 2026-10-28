@@ -5,6 +5,53 @@ function _normalized_edge_pairs(graph::SimpleGraph)
 end
 
 @testset "Graph and Cliques" begin
+    @testset "Natural-order correlative sparsity" begin
+        # ncpol2sdpa 1.14.0 NumPy backend: a constraint connects its whole
+        # support, while separate objective terms do not. Keep unused x5.
+        reg, (x,) = create_noncommutative_variables([("x", 1:5)])
+        pop = polyopt(1.0 * x[1] * x[4] + x[2] * x[4], reg;
+            eq_constraints=[1.0 * x[2] + x[3]])
+        corr = correlative_sparsity(pop, 1, NaturalElimination())
+        @test clique_variable_positions(x, corr.cliques) == [[1, 4], [2, 3, 4], [5]]
+        @test corr.clq_cons == [Int[], [1], Int[]]
+        @test isempty(corr.global_cons)
+        @test length.(corr.clq_mom_mtx_bases) == [3, 4, 2]
+        config = SolverConfig(optimizer=nothing, order=1,
+            cs_algo=NaturalElimination(), ts_algo=NoElimination())
+        @test compute_sparsity(pop, config).corr_sparsity.cliques == corr.cliques
+        @test correlative_sparsity(pop, get_ncbasis(reg, 1), NaturalElimination()).cliques == corr.cliques
+
+        # A four-cycle needs fill. In-place modification would change later
+        # users of the correlative graph.
+        graph = cycle_graph(4)
+        @test clique_decomp(graph, NaturalElimination()) == [[1, 2, 4], [2, 3, 4]]
+        @test ne(graph) == 4
+        @test clique_decomp(SimpleGraph(3), NaturalElimination()) == [[1], [2], [3]]
+        @test isempty(clique_decomp(SimpleGraph(0), NaturalElimination()))
+
+        # Reviewed against upstream's actual fallback for the Bell support
+        # used in DEV-363. No optimizer is constructed or called here.
+        for n in (5, 6)
+            reg, (a, b) = create_projector_variables([("A", 1:n), ("B", 1:n)])
+            objective = sum(1.0 * a[i] * b[j] for i in 1:n for j in 1:n
+                            if i == n || j == n || i + j >= n)
+            pop = polyopt(objective, reg)
+            expected = [vcat(i, collect((n + max(1, n - i)):2n)) for i in 1:n]
+            for order in (2, 3)
+                corr = correlative_sparsity(pop, order, NaturalElimination())
+                @test clique_variable_positions(vcat(a, b), corr.cliques) == expected
+                # One Alice projector commutes with each Bob projector;
+                # repeated neighboring Bob projectors collapse.
+                expected_sizes = [sum(k == 0 ? 1 : m * (m - 1)^(k - 1)
+                                      for k in 0:order) +
+                                  sum(k == 0 ? 1 : m * (m - 1)^(k - 1)
+                                      for k in 0:(order - 1))
+                                  for m in min.(2:n+1, n)]
+                @test length.(corr.clq_mom_mtx_bases) == expected_sizes
+            end
+        end
+    end
+
     @testset "get_correlative_graph" begin
         @testset "Ring graph (n=4)" begin
             expected = correlated_structure_case("get_correlative_graph_ring_n4")

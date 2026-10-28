@@ -413,7 +413,7 @@ bound_dense = -result_dense.objective
 ````
 
 ````
-0.25087564645574384
+0.25087564371572246
 ````
 
 bound_dense: bound without sparsity
@@ -423,7 +423,7 @@ bound_dense
 ````
 
 ````
-0.25087564645574384
+0.25087564371572246
 ````
 
 #### With correlative sparsity (order=6)
@@ -468,7 +468,7 @@ bound_dense - bound_sparse  # positive = improvement
 ````
 
 ````
-2.335957855481574e-7
+2.3085576417170017e-7
 ````
 
 ---
@@ -616,7 +616,7 @@ cov_bound = -result.objective
 ````
 
 ````
-5.000000000029369
+5.000000000004504
 ````
 
 cov_bound: upper bound on covariance Bell violation
@@ -626,7 +626,7 @@ cov_bound  # should be close to 5.0
 ````
 
 ````
-5.000000000029369
+5.000000000004504
 ````
 
 Compare with known quantum value:
@@ -636,7 +636,7 @@ abs(cov_bound - 5.0)  # difference from theoretical value
 ````
 
 ````
-2.936939580422404e-11
+4.503952766299335e-12
 ````
 
 #### Step 6: Improve bound using term sparsity and higher-order iteration
@@ -691,7 +691,7 @@ result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
 
 ````
 State Optimization Result
-Objective: -5.000000000910384
+Objective: -5.000000001628908
 Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
 
    maximum clique size: 6
@@ -720,7 +720,7 @@ improved_bound = -result_higher.objective
 ````
 
 ````
-5.000000000910384
+5.000000001628908
 ````
 
 improved_bound: refined upper bound
@@ -731,7 +731,7 @@ improved_bound: refined upper bound
 ````
 
 ````
-(5.000000000910384, 9.103837683710481e-10)
+(5.000000001628908, 1.6289076754105736e-9)
 ````
 
 ---

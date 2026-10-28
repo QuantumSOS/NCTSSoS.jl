@@ -92,10 +92,12 @@ A position-based mapping is used to convert variable indices to graph node posit
 function get_correlative_graph(
     registry::VariableRegistry{A,T},
     obj::P,
-    cons::Vector{P}
+    cons::Vector{P};
+    include_all_variables::Bool=false
 ) where {A<:AlgebraType, T<:Integer, C, P<:Polynomial{A,T,C}}
     # Collect all unique variable indices from objective and constraints
     all_indices = Set{T}()
+    include_all_variables && union!(all_indices, abs.(indices(registry)))
     union!(all_indices, variable_indices(obj))
     for c in cons
         union!(all_indices, variable_indices(c))
@@ -339,7 +341,8 @@ function correlative_sparsity(
     # Build correlative graph and get index mappings
     # Include moment_eq_constraints variables in graph for connectivity
     graph_polys = vcat(all_cons, pop.moment_eq_constraints)
-    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, graph_polys)
+    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, graph_polys;
+        include_all_variables=elim_algo isa NaturalElimination)
 
     # Decompose graph into cliques
     clique_node_sets = clique_decomp(G, elim_algo)
@@ -395,7 +398,8 @@ function correlative_sparsity(
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 
     graph_polys = vcat(all_cons, pop.moment_eq_constraints)
-    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, graph_polys)
+    G, sorted_indices, idx_to_node = get_correlative_graph(registry, pop.objective, graph_polys;
+        include_all_variables=elim_algo isa NaturalElimination)
     clique_node_sets = clique_decomp(G, elim_algo)
 
     node_to_idx = Dict{Int,T}(pos => idx for (idx, pos) in idx_to_node)
@@ -441,7 +445,8 @@ function correlative_sparsity(
     all_cons = vcat(pop.eq_constraints, pop.ineq_constraints)
 
     graph_polys = vcat(all_cons, pop.moment_eq_constraints)
-    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, graph_polys)
+    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, graph_polys;
+        include_all_variables=elim_algo isa NaturalElimination)
     clique_node_sets = clique_decomp(G, elim_algo)
 
     node_to_idx = Dict{Int,T}(pos => idx for (idx, pos) in idx_to_node)
@@ -747,10 +752,12 @@ Similar to `get_correlative_graph` but uses `variable_indices` on NCStatePolynom
 function get_state_correlative_graph(
     registry::VariableRegistry{A,T},
     obj::NCStatePolynomial{C,ST,A,T},
-    cons::Vector{NCStatePolynomial{C,ST,A,T}}
+    cons::Vector{NCStatePolynomial{C,ST,A,T}};
+    include_all_variables::Bool=false
 ) where {A<:AlgebraType, ST<:StateType, T<:Integer, C<:Number}
     # Collect all unique variable indices from objective and constraints
     all_indices = Set{T}()
+    include_all_variables && union!(all_indices, abs.(indices(registry)))
     union!(all_indices, variable_indices(obj))
     for c in cons
         union!(all_indices, variable_indices(c))
@@ -924,7 +931,8 @@ function correlative_sparsity(
     # Build correlative graph and get index mappings
     # Include moment_eq_constraints variables in graph for connectivity
     graph_polys = vcat(all_cons, pop.moment_eq_constraints)
-    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, graph_polys)
+    G, sorted_indices, idx_to_node = get_state_correlative_graph(registry, pop.objective, graph_polys;
+        include_all_variables=elim_algo isa NaturalElimination)
 
     # Decompose graph into cliques
     clique_node_sets = clique_decomp(G, elim_algo)

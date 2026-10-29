@@ -19,6 +19,7 @@ using Test
     include("sparsity.jl")
     include("symmetry.jl")
     include("pauli_chains.jl")
+    include("antiunitary.jl")
     include("gns.jl")
     include("gns_pipeline.jl")
     include("dualization.jl")

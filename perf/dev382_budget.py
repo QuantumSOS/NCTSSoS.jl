@@ -10,6 +10,7 @@ from pathlib import Path
 prefix = Path(sys.argv[1])
 command = sys.argv[3:]
 assert sys.argv[2] == "--" and command
+wall_limit = float(os.environ.get("DEV382_WALL_LIMIT_S", "900"))
 started = time.monotonic()
 peak = 0
 reason = "exited"
@@ -23,18 +24,14 @@ with prefix.with_suffix(".log").open("w") as log:
             peak = max(peak, rss)
         except (FileNotFoundError, ValueError, ProcessLookupError):
             pass
-        if peak > 24 * 1024**3 or time.monotonic() - started > 900:
+        if peak > 24 * 1024**3 or time.monotonic() - started > wall_limit:
             reason = "rss_limit" if peak > 24 * 1024**3 else "wall_timeout"
-            os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
+            os.killpg(process.pid, signal.SIGKILL)
             break
         time.sleep(0.1)
     code = process.wait()
 record = dict(command=command, wall_s=time.monotonic()-started,
               peak_rss_bytes=peak, reason=reason, returncode=code,
-              wall_limit_s=900, rss_limit_bytes=24*1024**3)
+              wall_limit_s=wall_limit, rss_limit_bytes=24*1024**3)
 prefix.with_suffix(".json").write_text(json.dumps(record, indent=2)+"\n")
 print(json.dumps(record), flush=True)

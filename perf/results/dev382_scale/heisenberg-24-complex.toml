@@ -1,0 +1,26 @@
+blas_threads = 1
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+family = "heisenberg"
+git_commit = "7119fc13a33c8c0289b04644d21b23890f19380a"
+julia = "1.12.7"
+julia_threads = 1
+mode = "complex"
+n = 24
+peak_rss_bytes = 0x0415bef000
+solver_limit_s = 120
+solver_threads = 4
+tolerance = 1.0e-8
+
+[[samples]]
+basis_words = 289
+cold = true
+construction_bytes = 964274416
+construction_s = 8.322488358
+moments = 36577
+sample = 0
+solve_wall_s = 173.775808382
+solver_s = 170.46859054499998
+stage = "solver_failed"
+status = "TIME_LIMIT"
+valid = false
+variables = 167331

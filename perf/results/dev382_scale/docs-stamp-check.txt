@@ -1,0 +1,7 @@
+ERROR: Stale examples regen stamp: docs/examples_stamp.toml
+  src_hash: expected 1c545f5ddaf5aa9b88efdf88b3e2d071b4213b890e71179632c30ed02134cdfc got 2fc77728101d042cb70bccbb57c9e95de1fbb77fb31417a2c4e8bfd95588c7b2
+Fix: run `make examples` locally (requires Mosek), then commit:
+  - docs/src/examples/generated/*.md
+  - docs/examples_stamp.toml
+Command exited with non-zero status 1
+elapsed=2.15

@@ -1,0 +1,6 @@
+[deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+COSMO = "1e616198-aa4e-51ec-90a2-23f7fbd31d8d"
+ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
+MosekTools = "1ec41992-ff65-5c91-ac43-2df89e9693a4"
+NCTSSoS = "bfd54a76-f566-4979-8478-f7e03b9d19fb"

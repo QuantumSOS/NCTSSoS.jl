@@ -1,0 +1,22 @@
+{
+  "command": [
+    "env",
+    "JULIA_LOAD_PATH=/tmp/dev382-env:/home/user/workspace/repo:@stdlib",
+    "OPENBLAS_NUM_THREADS=1",
+    "JULIA_NUM_THREADS=1",
+    "julia",
+    "--project=/tmp/dev382-env",
+    "perf/dev382_scale.jl",
+    "complex",
+    "inhomogeneous",
+    "24",
+    "3",
+    "perf/results/dev382_scale/inhomogeneous-24-complex.toml"
+  ],
+  "wall_s": 199.96579545600002,
+  "peak_rss_bytes": 17543319552,
+  "reason": "exited",
+  "returncode": 0,
+  "wall_limit_s": 900.0,
+  "rss_limit_bytes": 25769803776
+}

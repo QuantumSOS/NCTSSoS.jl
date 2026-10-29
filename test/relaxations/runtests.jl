@@ -20,6 +20,7 @@ using Test
     include("symmetry.jl")
     include("pauli_chains.jl")
     include("pauli_invariant_soc.jl")
+    include("antiunitary.jl")
     include("gns.jl")
     include("gns_pipeline.jl")
     include("dualization.jl")

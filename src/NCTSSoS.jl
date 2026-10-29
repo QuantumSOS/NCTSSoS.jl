@@ -136,6 +136,7 @@ include("optimization/fermionic_spin.jl")
 include("optimization/sos.jl")
 include("optimization/interface.jl")
 include("optimization/pauli_invariant_soc.jl")
+include("optimization/antiunitary.jl")
 include("optimization/gns.jl")
 include("optimization/flat_extension.jl")
 include("optimization/gns_cholesky.jl")
@@ -158,6 +159,8 @@ export TranslationInvariantReport, TranslationInvariantResult
 export pauli_translation_invariant_moment_relaxation, pauli_translation_invariant_nctssos
 export SymplecticTableau, SymplecticMatrix, PhaseVector, SympleQGenerator
 export sympleq_generators, sympleq_clifford_symmetry, sympleq_symmetry_spec
+export PauliAntiunitary, detect_pauli_antiunitary, antiunitary_parity
+export antiunitary_moment_relaxation, recover_antiunitary_gram
 export SparsityResult, compute_sparsity
 export particle_number_constraint
 

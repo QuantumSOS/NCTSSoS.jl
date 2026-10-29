@@ -135,6 +135,7 @@ include("optimization/fermionic_irreps.jl")
 include("optimization/fermionic_spin.jl")
 include("optimization/sos.jl")
 include("optimization/interface.jl")
+include("optimization/pauli_invariant_soc.jl")
 include("optimization/gns.jl")
 include("optimization/flat_extension.jl")
 include("optimization/gns_cholesky.jl")
@@ -162,6 +163,7 @@ export particle_number_constraint
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult
+export add_pauli_invariant_soc!, separate_pauli_invariant_socs!, pauli_invariant_soc_nctssos
 export FlatnessResult, test_flatness, flat_extend
 export RobustnessReport, robustness_report
 export build_pqg_moment_data

@@ -1,0 +1,13 @@
+Confirmation completion order (UTC filesystem timestamps, captured immediately after runs):
+2026-10-29 06:01:12.472108844 +0000 perf/results/dev382_scale/confirm-inhomogeneous-22-complex-1.json
+2026-10-29 06:03:21.948108844 +0000 perf/results/dev382_scale/confirm-inhomogeneous-22-antiunitary-1.json
+2026-10-29 06:06:22.084108844 +0000 perf/results/dev382_scale/confirm-inhomogeneous-22-complex-2.json
+2026-10-29 06:08:29.864108844 +0000 perf/results/dev382_scale/confirm-inhomogeneous-22-antiunitary-2.json
+2026-10-29 06:11:30.060108844 +0000 perf/results/dev382_scale/confirm-inhomogeneous-22-complex-3.json
+2026-10-29 06:13:39.300108844 +0000 perf/results/dev382_scale/confirm-inhomogeneous-22-antiunitary-3.json
+Frozen harness/protocol hashes:
+4177ca1a889c4091fc3dfb056732c36a520e0c29a5e716bd707af4aa6cadc6fe  perf/dev382_scale.jl
+292c8fd3489d400a12385e08df069ca268fcf2519e4e743d129c9af401386368  perf/dev382_budget.py
+2b5e1e879f9ab298588aa869614afc898c28cf0ee99a1570ff051005d65f4863  perf/dev382_scale_plan.md
+Confirmation commit:
+20a6cab0440dceb2c36309cbb4dea055c1cda4b3

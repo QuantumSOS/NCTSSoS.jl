@@ -1,0 +1,22 @@
+{
+  "command": [
+    "env",
+    "JULIA_LOAD_PATH=/tmp/dev382-env:/home/user/workspace/repo:@stdlib",
+    "OPENBLAS_NUM_THREADS=1",
+    "JULIA_NUM_THREADS=1",
+    "julia",
+    "--project=/tmp/dev382-env",
+    "perf/dev382_scale.jl",
+    "complex-ts",
+    "heisenberg",
+    "24",
+    "3",
+    "perf/results/dev382_scale/heisenberg-24-complex-ts.toml"
+  ],
+  "wall_s": 30.199076130000094,
+  "peak_rss_bytes": 1205829632,
+  "reason": "exited",
+  "returncode": 0,
+  "wall_limit_s": 900.0,
+  "rss_limit_bytes": 25769803776
+}

@@ -1,0 +1,36 @@
+blas_threads = 1
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+family = "inhomogeneous"
+git_commit = "20a6cab0440dceb2c36309cbb4dea055c1cda4b3"
+julia = "1.12.7"
+julia_threads = 1
+mode = "antiunitary"
+n = 22
+peak_rss_bytes = 0x0171416000
+solver_limit_s = 180.0
+solver_threads = 4
+solver_version = "11.2.7"
+tolerance = 1.0e-8
+
+[[samples]]
+basis_words = 265
+bound = -11.740913534928156
+cold = true
+cone_sides = [265]
+construction_bytes = 890344288
+construction_s = 11.314008314
+gap = 2.575522195513713e-8
+gram_min_eigenvalue = 3.7925062384884625e-12
+moments = 15621
+numerically_repaired_lower = -11.740913568718039
+psd_repair_penalty = 0.0
+residual_l1 = 3.378988309202738e-8
+residual_max = 7.172339811103833e-11
+sample = 0
+solve_wall_s = 100.761267042
+solver_s = 98.20963015799998
+stage = "complete"
+status = "OPTIMAL"
+valid = true
+validation_s = 3.075987359
+variables = 35245

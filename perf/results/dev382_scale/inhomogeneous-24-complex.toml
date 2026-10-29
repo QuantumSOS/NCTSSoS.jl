@@ -1,0 +1,26 @@
+blas_threads = 1
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+family = "inhomogeneous"
+git_commit = "1b44a600924ef115d4fb699e03535c64442d4084"
+julia = "1.12.7"
+julia_threads = 1
+mode = "complex"
+n = 24
+peak_rss_bytes = 0x0415a9d000
+solver_limit_s = 120
+solver_threads = 4
+tolerance = 1.0e-8
+
+[[samples]]
+basis_words = 289
+cold = true
+construction_bytes = 963836048
+construction_s = 8.239853071
+moments = 36577
+sample = 0
+solve_wall_s = 178.667476773
+solver_s = 175.513091176
+stage = "solver_failed"
+status = "TIME_LIMIT"
+valid = false
+variables = 167331

@@ -1,0 +1,595 @@
+julia --project docs/generate_examples.jl
+  Activating project at `~/workspace/repo/docs`
+    Updating registry at `~/.julia/registries/General.toml`
+   Resolving package versions...
+   Installed Libmount_jll ──────────────── v2.42.4+0
+   Installed JpegTurbo_jll ─────────────── v3.2.1+0
+   Installed x265_jll ──────────────────── v4.1.0+0
+   Installed libfdk_aac_jll ────────────── v2.0.4+0
+   Installed ImageIO ───────────────────── v0.6.10
+   Installed OffsetArrays ──────────────── v1.17.0
+   Installed JpegTurbo ─────────────────── v0.1.6
+   Installed LERC_jll ──────────────────── v4.2.0+0
+   Installed PNGFiles ──────────────────── v0.4.5
+   Installed AxisArrays ────────────────── v0.4.8
+   Installed AdaptivePredicates ────────── v1.2.0
+   Installed StatsFuns ─────────────────── v2.2.1
+   Installed Accessors ─────────────────── v0.1.46
+   Installed TiffImages ────────────────── v0.11.9
+   Installed Opus_jll ──────────────────── v1.6.1+0
+   Installed RelocatableFolders ────────── v1.0.1
+   Installed Unitful ───────────────────── v1.29.0
+   Installed Sixel ─────────────────────── v0.1.6
+   Installed PDMats ────────────────────── v0.11.41
+   Installed HypergeometricFunctions ───── v0.3.31
+   Installed Contour ───────────────────── v0.6.3
+   Installed Rsvg ──────────────────────── v1.1.0
+   Installed YaoPlots ──────────────────── v0.9.6
+   Installed EarCut_jll ────────────────── v2.2.4+0
+   Installed ProgressMeter ─────────────── v1.13.0
+   Installed Roots ─────────────────────── v3.0.13
+   Installed OpenEXR ───────────────────── v0.3.3
+   Installed ColorSchemes ──────────────── v3.31.0
+   Installed Bijections ────────────────── v0.2.2
+   Installed BaseDirs ──────────────────── v1.4.0
+   Installed AdaptiveArrayPools ────────── v0.3.12
+   Installed EnumX ─────────────────────── v1.0.7
+   Installed BitBasis ──────────────────── v0.9.10
+   Installed CEnum ─────────────────────── v0.5.0
+   Installed libva_jll ─────────────────── v2.24.1+0
+   Installed Cairo_jll ─────────────────── v1.18.8+1
+   Installed PlotUtils ─────────────────── v1.5.1
+   Installed FileIO ────────────────────── v1.20.0
+   Installed HTTP ──────────────────────── v2.13.1
+   Installed Netpbm ────────────────────── v1.1.1
+   Installed SignedDistanceFields ──────── v0.4.1
+   Installed Gamma ─────────────────────── v1.2.0
+   Installed Xorg_libXau_jll ───────────── v1.0.13+0
+   Installed RoundingEmulator ──────────── v0.2.1
+   Installed Fontconfig_jll ────────────── v2.18.3+0
+   Installed TupleTools ────────────────── v1.6.1
+   Installed BatchedRoutines ───────────── v0.2.2
+   Installed Missings ──────────────────── v1.2.1
+   Installed LiveServer ────────────────── v1.6.0
+   Installed SymEngine_jll ─────────────── v0.12.0+0
+   Installed MuladdMacro ───────────────── v0.2.7
+   Installed FilePaths ─────────────────── v0.9.0
+   Installed YaoAPI ────────────────────── v0.4.9
+   Installed TreeWidthSolver ───────────── v0.3.5
+   Installed Giflib_jll ────────────────── v6.1.3+0
+   Installed Xorg_libpciaccess_jll ─────── v0.19.0+0
+   Installed PolygonOps ────────────────── v0.1.2
+   Installed KrylovKit ─────────────────── v0.10.4
+   Installed FFMPEG ────────────────────── v0.4.6
+   Installed Pango_jll ─────────────────── v1.58.2+0
+   Installed SIMD ──────────────────────── v3.8.1
+   Installed FastInterpolations ────────── v0.4.20
+   Installed TriplotBase ───────────────── v0.1.0
+   Installed OpenBLASConsistentFPCSR_jll ─ v0.3.34+0
+   Installed PtrArrays ─────────────────── v1.4.0
+   Installed DocumenterCitations ───────── v1.5.0
+   Installed XZ_jll ────────────────────── v5.8.4+0
+   Installed HarfBuzz_jll ──────────────── v100.15000.0+0
+   Installed MathTeXEngine ─────────────── v0.6.9
+   Installed PkgVersion ────────────────── v0.3.3
+   Installed YaoBlocks ─────────────────── v0.14.3
+   Installed StringEncodings ───────────── v0.3.7
+   Installed FriBidi_jll ───────────────── v1.0.18+0
+   Installed WebP ──────────────────────── v0.1.3
+   Installed UnicodeFun ────────────────── v0.4.1
+   Installed YaoToEinsum ───────────────── v0.2.9
+   Installed QOI ───────────────────────── v1.0.2
+   Installed VectorInterface ───────────── v0.6.1
+   Installed Graphics ──────────────────── v1.1.3
+   Installed Rmath_jll ─────────────────── v0.5.2+0
+   Installed LegibleLambdas ────────────── v0.3.0
+   Installed ImageMetadata ─────────────── v0.9.10
+   Installed Ratios ────────────────────── v0.4.5
+   Installed x264_jll ──────────────────── v10164.0.1+0
+   Installed isoband_jll ───────────────── v0.2.3+0
+   Installed Literate ──────────────────── v2.21.0
+   Installed Bibliography ──────────────── v0.4.0
+   Installed Colors ────────────────────── v0.13.4
+   Installed FreeType ──────────────────── v4.1.1
+   Installed FreeType2_jll ─────────────── v2.15.0+0
+   Installed MappedArrays ──────────────── v0.4.3
+   Installed PaddedViews ───────────────── v0.5.12
+   Installed GridLayoutBase ────────────── v0.11.3
+   Installed BibParser ─────────────────── v0.3.0
+   Installed StatsAPI ──────────────────── v1.8.0
+   Installed Automa ────────────────────── v1.2.0
+   Installed CoreMath ──────────────────── v0.1.0
+   Installed LazyModules ───────────────── v0.3.1
+   Installed MosaicViews ───────────────── v0.3.4
+   Installed StatsBase ─────────────────── v0.34.13
+   Installed Reseau ────────────────────── v1.6.3
+   Installed YaoSym ────────────────────── v0.6.12
+   Installed Xorg_libxcb_jll ───────────── v1.17.1+0
+   Installed libaom_jll ────────────────── v3.15.2+0
+   Installed libpng_jll ────────────────── v1.6.59+1
+   Installed StructTypes ───────────────── v1.11.1
+   Installed Scratch ───────────────────── v1.3.0
+   Installed ImageCore ─────────────────── v0.10.5
+   Installed MPC_jll ───────────────────── v1.4.1+0
+   Installed Xorg_libXext_jll ──────────── v1.3.8+0
+   Installed ColorTypes ────────────────── v0.12.5
+   Installed MLStyle ───────────────────── v0.4.17
+   Installed TensorCore ────────────────── v0.1.1
+   Installed Zstd_jll ──────────────────── v1.5.7+1
+   Installed FreeTypeAbstraction ───────── v0.10.8
+   Installed Isoband ───────────────────── v0.1.1
+   Installed OMEinsumContractionOrders ─── v1.3.0
+   Installed JSONSchema ────────────────── v1.6.0
+   Installed Parsers ───────────────────── v2.8.10
+   Installed Animations ────────────────── v0.4.2
+   Installed gdk_pixbuf_jll ────────────── v2.44.8+0
+   Installed Imath_jll ─────────────────── v3.2.2+0
+   Installed Libtiff_jll ───────────────── v4.7.3+0
+   Installed JSON3 ─────────────────────── v1.14.4
+   Installed OMEinsum ──────────────────── v0.9.4
+   Installed AbstractFFTs ──────────────── v1.5.0
+   Installed BibInternal ───────────────── v0.4.0
+   Installed ConstructionBase ──────────── v1.6.0
+   Installed YaoArrayRegister ──────────── v0.9.13
+   Installed ColorVectorSpace ──────────── v0.11.2
+   Installed SymEngine ─────────────────── v0.13.2
+   Installed Libffi_jll ────────────────── v3.4.7+0
+   Installed Xorg_libXrender_jll ───────── v0.9.13+0
+   Installed MIMEs ─────────────────────── v1.1.0
+   Installed ExactPredicates ───────────── v2.2.9
+   Installed ChainRulesCore ────────────── v1.26.7
+   Installed Ogg_jll ───────────────────── v1.3.6+0
+   Installed KernelDensity ─────────────── v0.6.12
+   Installed Combinatorics ─────────────── v1.1.0
+   Installed Interpolations ────────────── v0.16.3
+   Installed CoreMath_jll ──────────────── v0.1.0+0
+   Installed ComputePipeline ───────────── v0.1.8
+   Installed AliasTables ───────────────── v1.1.3
+   Installed StackViews ────────────────── v0.1.2
+   Installed Packing ───────────────────── v0.5.1
+   Installed Format ────────────────────── v1.3.7
+   Installed RangeArrays ───────────────── v0.3.2
+   Installed PackageExtensionCompat ────── v1.0.2
+   Installed IntervalArithmetic ────────── v1.0.12
+   Installed libdeflate_jll ────────────── v1.26.0+0
+   Installed CompositionsBase ──────────── v0.1.2
+   Installed CommonSolve ───────────────── v0.2.14
+   Installed Libuuid_jll ───────────────── v2.42.4+0
+   Installed InverseFunctions ──────────── v0.1.18
+   Installed Yao ───────────────────────── v0.9.3
+   Installed ColorBrewer ───────────────── v0.4.2
+   Installed YAML ──────────────────────── v0.4.17
+   Installed libass_jll ────────────────── v0.17.5+0
+   Installed Graphite2_jll ─────────────── v1.3.16+0
+   Installed Adapt ─────────────────────── v4.7.4
+   Installed Pixman_jll ────────────────── v0.46.4+0
+   Installed Rmath ─────────────────────── v0.9.0
+   Installed XML2_jll ──────────────────── v2.13.9+0
+   Installed ImageBase ─────────────────── v0.1.7
+   Installed IntervalSets ──────────────── v0.7.15
+   Installed DelaunayTriangulation ─────── v1.7.0
+   Installed Librsvg_jll ───────────────── v2.54.7+0
+   Installed libdrm_jll ────────────────── v2.4.134+0
+   Installed OpenEXR_jll ───────────────── v3.5.2+0
+   Installed IndirectArrays ────────────── v1.0.0
+   Installed Cairo ─────────────────────── v1.1.1
+   Installed HelpPlots ─────────────────── v1.1.0
+   Installed LLVMOpenMP_jll ────────────── v23.1.1+0
+   Installed CairoMakie ────────────────── v0.15.16
+   Installed GeometryBasics ────────────── v0.5.13
+   Installed FixedPointNumbers ─────────── v0.8.6
+   Installed ShaderAbstractions ────────── v0.5.1
+   Installed Makie ─────────────────────── v0.24.16
+   Installed RecipesBase ───────────────── v1.4.0
+   Installed LuxurySparse ──────────────── v0.8.2
+   Installed Suppressor ────────────────── v0.2.8
+   Installed Xorg_libXfixes_jll ────────── v6.0.2+0
+   Installed Xorg_xtrans_jll ───────────── v1.6.0+0
+   Installed LAME_jll ──────────────────── v3.100.3+0
+   Installed GettextRuntime_jll ────────── v0.22.4+0
+   Installed URIs ──────────────────────── v1.7.2
+   Installed StructArrays ──────────────── v0.7.4
+   Installed FFMPEG_jll ────────────────── v9.0.2+0
+   Installed Glib_jll ──────────────────── v2.90.1+0
+   Installed CacheServers ──────────────── v0.2.0
+   Installed libvorbis_jll ─────────────── v1.3.8+0
+   Installed libsixel_jll ──────────────── v1.80.702+0
+   Installed Libglvnd_jll ──────────────── v1.7.1+1
+   Installed FilePathsBase ─────────────── v0.9.24
+   Installed QuadGK ────────────────────── v2.11.3
+   Installed TestItems ─────────────────── v1.1.0
+   Installed AxisAlgorithms ────────────── v1.1.0
+   Installed CRlibm ────────────────────── v1.1.0
+   Installed ImageAxes ─────────────────── v0.6.12
+   Installed Xorg_libX11_jll ───────────── v1.8.14+0
+   Installed Xorg_libXdmcp_jll ─────────── v1.1.6+0
+   Installed FFTA ──────────────────────── v0.3.1
+   Installed Observables ───────────────── v0.5.5
+   Installed Distributions ─────────────── v0.25.132
+   Installed OpenJPH_jll ───────────────── v0.32.0+0
+   Installed CRlibm_jll ────────────────── v1.0.1+0
+   Installed WoodburyMatrices ──────────── v1.1.0
+   Installed libwebp_jll ───────────────── v1.6.1+0
+   Installed SortingAlgorithms ─────────── v1.2.3
+   Installed CodecZstd ─────────────────── v0.8.7
+   Installed PolygonAlgorithms ─────────── v0.4.0
+   Installed Luxor ─────────────────────── v4.5.0
+  Installing 61 artifacts
+   Installed artifact Xorg_libXau             36.6 KiB
+   Installed artifact Imath                   184.9 KiB
+   Installed artifact LERC                    280.1 KiB
+   Installed artifact Giflib                  162.2 KiB
+   Installed artifact HarfBuzz                2.3 MiB
+   Installed artifact Xorg_libxcb             2.1 MiB
+   Installed artifact Xorg_xtrans             48.2 KiB
+   Installed artifact MPC                     225.0 KiB
+   Installed artifact CoreMath                643.9 KiB
+   Installed artifact libdrm                  372.6 KiB
+   Installed artifact Xorg_libXrender         436.0 KiB
+   Installed artifact Graphite2               120.3 KiB
+   Installed artifact Xorg_libXdmcp           67.7 KiB
+   Installed artifact isoband                 25.7 KiB
+   Installed artifact x264                    2.1 MiB
+   Installed artifact OpenEXR                 1.1 MiB
+   Installed artifact FFMPEG                  12.0 MiB
+   Installed artifact Xorg_libX11             4.8 MiB
+   Installed artifact Cairo                   925.8 KiB
+   Installed artifact OpenBLASConsistentFPCSR 10.2 MiB
+   Installed artifact Xorg_libXext            286.6 KiB
+   Installed artifact Opus                    960.9 KiB
+   Installed artifact LLVMOpenMP              738.9 KiB
+   Installed artifact SymEngine               1.9 MiB
+   Installed artifact Libffi                  44.2 KiB
+   Installed artifact libaom                  6.6 MiB
+   Installed artifact OpenJPH                 331.8 KiB
+   Installed artifact x265                    1.4 MiB
+   Installed artifact Libmount                7.0 MiB
+   Installed artifact Libtiff                 2.4 MiB
+   Installed artifact Librsvg                 9.3 MiB
+   Installed artifact Pixman                  390.8 KiB
+   Installed artifact libass                  429.9 KiB
+   Installed artifact libvorbis               271.0 KiB
+   Installed artifact libdeflate              208.7 KiB
+   Installed artifact XZ                      1.6 MiB
+   Installed artifact GettextRuntime          543.0 KiB
+   Installed artifact libva                   237.5 KiB
+   Installed artifact Libglvnd                833.5 KiB
+   Installed artifact Rmath                   121.8 KiB
+   Installed artifact FreeType2               1.5 MiB
+   Installed artifact Xorg_libXfixes          59.0 KiB
+   Installed artifact Pango                   1.1 MiB
+   Installed artifact libsixel                800.0 KiB
+   Installed artifact LAME                    292.5 KiB
+   Installed artifact CRlibm                  169.5 KiB
+   Installed artifact XML2                    2.5 MiB
+   Installed artifact MakieAssets             24.9 MiB
+   Installed artifact JpegTurbo               1.9 MiB
+   Installed artifact Fontconfig              1.1 MiB
+   Installed artifact Xorg_libpciaccess       26.2 KiB
+   Installed artifact Zstd                    646.0 KiB
+   Installed artifact libpng                  329.5 KiB
+   Installed artifact FriBidi                 82.3 KiB
+   Installed artifact EarCut                  80.5 KiB
+   Installed artifact Ogg                     250.3 KiB
+   Installed artifact gdk_pixbuf              947.2 KiB
+   Installed artifact Glib                    8.0 MiB
+   Installed artifact libwebp                 2.6 MiB
+   Installed artifact libfdk_aac              2.8 MiB
+   Installed artifact Libuuid                 4.0 MiB
+    Updating `~/workspace/repo/docs/Project.toml`
+  [1e616198] + COSMO v0.8.11
+  [13f3f980] + CairoMakie v0.15.16
+  [61c947e1] + Clarabel v0.11.1
+  [e30172f5] + Documenter v1.19.0
+  [daee34ce] + DocumenterCitations v1.5.0
+  [0f8b85d8] + JSON3 v1.14.4
+  [4076af6c] + JuMP v1.32.1
+  [98b081ad] + Literate v2.21.0
+  [16fef848] + LiveServer v1.6.0
+  [1ec41992] + MosekTools v0.15.10
+  [bfd54a76] + NCTSSoS v0.1.0 `~/workspace/repo`
+  [5872b779] + Yao v0.9.3
+    Updating `~/workspace/repo/docs/Manifest.toml`
+  [14f7f29c] + AMD v0.5.4
+  [a4c015fc] + ANSIColoredPrinters v0.0.1
+  [621f4979] + AbstractFFTs v1.5.0
+⌅ [36d08e8a] + AbstractPermutations v0.3.3
+  [1520ce14] + AbstractTrees v0.4.5
+  [7d9f7c33] + Accessors v0.1.46
+  [79e6a3ab] + Adapt v4.7.4
+  [4f381ef7] + AdaptiveArrayPools v0.3.12
+  [35492f91] + AdaptivePredicates v1.2.0
+  [66dad0bd] + AliasTables v1.1.3
+  [27a7e980] + Animations v0.4.2
+  [ec485272] + ArnoldiMethod v0.4.0
+  [67c07d97] + Automa v1.2.0
+  [13072b0f] + AxisAlgorithms v1.1.0
+  [39de3d68] + AxisArrays v0.4.8
+  [18cc8868] + BaseDirs v1.4.0
+  [a9ab73d0] + BatchedRoutines v0.2.2
+  [2027ae74] + BibInternal v0.4.0
+  [13533e5b] + BibParser v0.3.0
+  [f1be7e48] + Bibliography v0.4.0
+  [e2ed5e7c] + Bijections v0.2.2
+  [50ba71b6] + BitBasis v0.9.10
+⌅ [fa961155] + CEnum v0.5.0
+  [1e616198] + COSMO v0.8.11
+  [bbd8fffe] + COSMOAccelerators v0.1.0
+  [96374032] + CRlibm v1.1.0
+  [a921213e] + CacheServers v0.2.0
+  [159f3aea] + Cairo v1.1.1
+  [13f3f980] + CairoMakie v0.15.16
+  [d360d2e6] + ChainRulesCore v1.26.7
+  [1b2cc9da] + CheckedSizeProduct v1.0.1
+  [60fd0770] + ChordalGraph v0.4.1
+  [61c947e1] + Clarabel v0.11.1
+  [60701a23] + CliqueTrees v1.19.7
+  [523fee87] + CodecBzip2 v0.8.5
+  [944b1d66] + CodecZlib v0.7.9
+  [6b39b394] + CodecZstd v0.8.7
+  [08986516] + Collects v1.1.0
+  [a2cac450] + ColorBrewer v0.4.2
+  [35d6a980] + ColorSchemes v3.31.0
+  [3da002f7] + ColorTypes v0.12.5
+  [c3611d14] + ColorVectorSpace v0.11.2
+  [5ae59095] + Colors v0.13.4
+  [861a8166] + Combinatorics v1.1.0
+  [38540f10] + CommonSolve v0.2.14
+  [bbf7d656] + CommonSubexpressions v0.3.1
+  [34da2185] + Compat v4.18.1
+  [a33af91c] + CompositionsBase v0.1.2
+  [95dc2771] + ComputePipeline v0.1.8
+  [187b0558] + ConstructionBase v1.6.0
+  [d38c429a] + Contour v0.6.3
+  [b7a15901] + CoreMath v0.1.0
+  [a8cc5b0e] + Crayons v4.2.0
+  [da8f5974] + Cyclotomics v0.3.2
+  [9a962f9c] + DataAPI v1.16.0
+  [864edb3b] + DataStructures v0.19.6
+  [e2d170a0] + DataValueInterfaces v1.0.0
+  [927a84f5] + DelaunayTriangulation v1.7.0
+  [163ba53b] + DiffResults v1.1.0
+  [b552c78f] + DiffRules v1.16.0
+  [31c24e10] + Distributions v0.25.132
+⌅ [ffbed154] + DocStringExtensions v0.9.5
+  [e30172f5] + Documenter v1.19.0
+  [daee34ce] + DocumenterCitations v1.5.0
+  [4e289a0a] + EnumX v1.0.7
+  [429591f6] + ExactPredicates v2.2.9
+  [e2ba6199] + ExprTools v0.1.11
+  [c87230d0] + FFMPEG v0.4.6
+  [b86e33f2] + FFTA v0.3.1
+  [9ea80cae] + FastInterpolations v0.4.20
+  [5789e2e9] + FileIO v1.20.0
+  [8fc22ac5] + FilePaths v0.9.0
+  [48062228] + FilePathsBase v0.9.24
+  [1a297f60] + FillArrays v1.18.2
+⌅ [53c48c17] + FixedPointNumbers v0.8.6
+  [3821ddf9] + FixedSizeArrays v1.5.1
+  [1fa38f19] + Format v1.3.7
+  [f6369f11] + ForwardDiff v1.4.6
+  [b38be410] + FreeType v4.1.1
+  [663a7486] + FreeTypeAbstraction v0.10.8
+  [a0844989] + Gamma v1.2.0
+⌅ [14197337] + GenericLinearAlgebra v0.3.19
+  [5c1252a2] + GeometryBasics v0.5.13
+  [d7ba0133] + Git v1.5.0
+  [a2bd30eb] + Graphics v1.1.3
+  [86223c79] + Graphs v1.15.0
+  [3955a311] + GridLayoutBase v0.11.3
+  [d5909c97] + GroupsCore v0.5.2
+  [cd3eb016] + HTTP v2.13.1
+  [5880b2e8] + HelpPlots v1.1.0
+  [34004b35] + HypergeometricFunctions v0.3.31
+  [b5f81e59] + IOCapture v1.0.0
+  [2803e5a7] + ImageAxes v0.6.12
+  [c817782e] + ImageBase v0.1.7
+  [a09fc81d] + ImageCore v0.10.5
+  [82e4d734] + ImageIO v0.6.10
+  [bc367c6b] + ImageMetadata v0.9.10
+  [9b13fd28] + IndirectArrays v1.0.0
+  [d25df0c9] + Inflate v0.1.5
+  [18e54dd8] + IntegerMathUtils v0.1.4
+  [a98d9a8b] + Interpolations v0.16.3
+  [d1acc4aa] + IntervalArithmetic v1.0.12
+  [8197267c] + IntervalSets v0.7.15
+  [3587e190] + InverseFunctions v0.1.18
+  [92d709cd] + IrrationalConstants v0.2.7
+  [f1662d9f] + Isoband v0.1.1
+  [c8e1da08] + IterTools v1.10.0
+  [82899510] + IteratorInterfaceExtensions v1.0.0
+  [692b3bcd] + JLLWrappers v1.8.0
+  [682c06a0] + JSON v1.13.0
+  [0f8b85d8] + JSON3 v1.14.4
+  [7d188eb4] + JSONSchema v1.6.0
+  [b835a17e] + JpegTurbo v0.1.6
+  [4076af6c] + JuMP v1.32.1
+  [5ab0869b] + KernelDensity v0.6.12
+  [0b1a1467] + KrylovKit v0.10.4
+  [8ac3fa9e] + LRUCache v1.6.2
+  [b964fa9f] + LaTeXStrings v1.4.1
+  [0e77f7df] + LazilyInitializedFields v1.3.0
+  [8cdb02fc] + LazyModules v0.3.1
+  [f1f30506] + LegibleLambdas v0.3.0
+  [e21c612c] + LightBoundsErrors v1.1.0
+  [98b081ad] + Literate v2.21.0
+  [16fef848] + LiveServer v1.6.0
+  [2ab3a3ac] + LogExpFunctions v1.0.3
+  [ae8d54c2] + Luxor v4.5.0
+  [d05aeea4] + LuxurySparse v0.8.2
+  [6c6e2e6c] + MIMEs v1.1.0
+  [d8e11817] + MLStyle v0.4.17
+  [1914dd2f] + MacroTools v0.5.16
+  [ee78f7c6] + Makie v0.24.16
+  [dbb5928d] + MappedArrays v0.4.3
+  [d0879d2d] + MarkdownAST v0.1.3
+  [b8f27783] + MathOptInterface v1.54.0
+  [0a4f8689] + MathTeXEngine v0.6.9
+  [c03570c3] + Memoize v0.4.4
+  [e1d29d7a] + Missings v1.2.1
+  [e94cdb99] + MosaicViews v0.3.4
+  [6405355b] + Mosek v11.2.1
+  [1ec41992] + MosekTools v0.15.10
+  [46d2c3a1] + MuladdMacro v0.2.7
+  [d8a4904e] + MutableArithmetics v1.9.2
+  [bfd54a76] + NCTSSoS v0.1.0 `~/workspace/repo`
+  [77ba4419] + NaNMath v1.1.5
+  [f09324ee] + Netpbm v1.1.1
+  [ebe7aa44] + OMEinsum v0.9.4
+  [6f22d1fd] + OMEinsumContractionOrders v1.3.0
+  [510215fc] + Observables v0.5.5
+  [6fe1bfb0] + OffsetArrays v1.17.0
+  [52e1d378] + OpenEXR v0.3.3
+  [bac558e1] + OrderedCollections v2.0.3
+  [90014a1f] + PDMats v0.11.41
+  [f57f5aa1] + PNGFiles v0.4.5
+  [65ce6f38] + PackageExtensionCompat v1.0.2
+  [19eb6ba3] + Packing v0.5.1
+  [5432bcbf] + PaddedViews v0.5.12
+⌅ [69de0a69] + Parsers v2.8.10
+  [8bc5a954] + PermutationGroups v0.6.4
+  [eebad327] + PkgVersion v0.3.3
+  [995b91a9] + PlotUtils v1.5.1
+⌅ [32a0d02f] + PolygonAlgorithms v0.4.0
+  [647866c9] + PolygonOps v0.1.2
+  [aea7be01] + PrecompileTools v1.3.4
+  [21216c6a] + Preferences v1.6.1
+  [08abe8d2] + PrettyTables v3.5.0
+  [27ebfcd6] + Primes v0.5.7
+  [92933f4c] + ProgressMeter v1.13.0
+  [43287f4e] + PtrArrays v1.4.0
+  [bfc457fd] + QDLDL v0.4.1
+  [4b34888f] + QOI v1.0.2
+  [1fd47b50] + QuadGK v2.11.3
+  [b3c3ace0] + RangeArrays v0.3.2
+  [c84ed2f1] + Ratios v0.4.5
+  [3cdcf5f2] + RecipesBase v1.4.0
+  [189a3867] + Reexport v1.2.2
+  [2792f1a3] + RegistryInstances v0.1.0
+  [05181044] + RelocatableFolders v1.0.1
+  [ae029012] + Requires v1.3.1
+  [802f3686] + Reseau v1.6.3
+  [79098fc4] + Rmath v0.9.0
+  [f2b01f46] + Roots v3.0.13
+  [5eaf0fd0] + RoundingEmulator v0.2.1
+  [c4c386cf] + Rsvg v1.1.0
+  [fdea26ae] + SIMD v3.8.1
+  [6c6a2e73] + Scratch v1.3.0
+  [65257c39] + ShaderAbstractions v0.5.1
+  [73760f76] + SignedDistanceFields v0.4.1
+  [699a6c99] + SimpleTraits v0.9.6
+  [45858cf5] + Sixel v0.1.6
+  [66db9d55] + SnoopPrecompile v1.0.3
+  [a2af1166] + SortingAlgorithms v1.2.3
+  [276daf66] + SpecialFunctions v2.9.1
+  [cae243ae] + StackViews v0.1.2
+⌅ [0c0c59c1] + StarAlgebras v0.2.1
+  [90137ffa] + StaticArrays v1.9.24
+  [1e83bf80] + StaticArraysCore v1.4.4
+  [10745b16] + Statistics v1.11.5
+  [82ae8749] + StatsAPI v1.8.0
+  [2913bbd2] + StatsBase v0.34.13
+  [4c63d2b9] + StatsFuns v2.2.1
+  [69024149] + StringEncodings v0.3.7
+  [892a3eda] + StringManipulation v0.6.1
+  [09ab397b] + StructArrays v0.7.4
+  [856f2bd8] + StructTypes v1.11.1
+  [ec057cc2] + StructUtils v2.11.2
+  [fd094767] + Suppressor v0.2.8
+  [123dc426] + SymEngine v0.13.2
+⌃ [858aa9a9] + SymbolicWedderburn v0.4.4
+  [3783bdb8] + TableTraits v1.0.1
+  [bd369af6] + Tables v1.14.0
+  [62fd8b95] + TensorCore v0.1.1
+  [1c621080] + TestItems v1.1.0
+  [731e570b] + TiffImages v0.11.9
+⌅ [a759f4b9] + TimerOutputs v0.5.29
+  [3bb67fe8] + TranscodingStreams v0.11.3
+  [7d267fc5] + TreeWidthSolver v0.3.5
+  [981d1d27] + TriplotBase v0.1.0
+  [9d95972d] + TupleTools v1.6.1
+  [5c2747f8] + URIs v1.7.2
+  [1cfade01] + UnicodeFun v0.4.1
+  [1986cc42] + Unitful v1.29.0
+  [c4a57d5a] + UnsafeArrays v1.0.9
+⌅ [409d34a3] + VectorInterface v0.6.1
+  [e3aaa7dc] + WebP v0.1.3
+  [efce3f68] + WoodburyMatrices v1.1.0
+  [ddb6d928] + YAML v0.4.17
+  [5872b779] + Yao v0.9.3
+  [0843a435] + YaoAPI v0.4.9
+  [e600142f] + YaoArrayRegister v0.9.13
+  [418bc28f] + YaoBlocks v0.14.3
+  [32cfe2d9] + YaoPlots v0.9.6
+  [3b27209a] + YaoSym v0.6.12
+  [9b173c7b] + YaoToEinsum v0.2.9
+  [6e34b625] + Bzip2_jll v1.0.9+0
+  [4e9b3aee] + CRlibm_jll v1.0.1+0
+  [83423d85] + Cairo_jll v1.18.8+1
+  [a38c48d9] + CoreMath_jll v0.1.0+0
+⌅ [5ae413db] + EarCut_jll v2.2.4+0
+  [2e619515] + Expat_jll v2.9.0+0
+  [b22a6f82] + FFMPEG_jll v9.0.2+0
+  [a3f928ae] + Fontconfig_jll v2.18.3+0
+  [d7e528f0] + FreeType2_jll v2.15.0+0
+  [559328eb] + FriBidi_jll v1.0.18+0
+⌅ [b0724c58] + GettextRuntime_jll v0.22.4+0
+  [59f7168a] + Giflib_jll v6.1.3+0
+  [020c3dae] + Git_LFS_jll v3.8.1+0
+  [f8c6e375] + Git_jll v2.56.0+0
+  [7746bdde] + Glib_jll v2.90.1+0
+  [3b182d85] + Graphite2_jll v1.3.16+0
+  [2e76f6c2] + HarfBuzz_jll v100.15000.0+0
+  [905a6f67] + Imath_jll v3.2.2+0
+  [aacddb02] + JpegTurbo_jll v3.2.1+0
+  [c1c5ebd0] + LAME_jll v3.100.3+0
+  [88015f11] + LERC_jll v4.2.0+0
+  [1d63c593] + LLVMOpenMP_jll v23.1.1+0
+⌅ [e9f186c6] + Libffi_jll v3.4.7+0
+  [7e76a0d4] + Libglvnd_jll v1.7.1+1
+  [94ce4f54] + Libiconv_jll v1.18.0+0
+  [4b2f31a3] + Libmount_jll v2.42.4+0
+  [925c91fb] + Librsvg_jll v2.54.7+0
+  [89763e89] + Libtiff_jll v4.7.3+0
+  [38a345b3] + Libuuid_jll v2.42.4+0
+  [2ce0c516] + MPC_jll v1.4.1+0
+  [e7412a2a] + Ogg_jll v1.3.6+0
+  [6cdc7f73] + OpenBLASConsistentFPCSR_jll v0.3.34+0
+  [18a262bb] + OpenEXR_jll v3.5.2+0
+  [95196869] + OpenJPH_jll v0.32.0+0
+  [9bd350c2] + OpenSSH_jll v10.6.1+0
+  [efe28fd5] + OpenSpecFun_jll v0.5.6+0
+  [91d4177d] + Opus_jll v1.6.1+0
+  [36c8627f] + Pango_jll v1.58.2+0
+  [30392449] + Pixman_jll v0.46.4+0
+  [f50d1b31] + Rmath_jll v0.5.2+0
+⌅ [3428059b] + SymEngine_jll v0.12.0+0
+⌅ [02c8fc9c] + XML2_jll v2.13.9+0
+  [ffd25f8a] + XZ_jll v5.8.4+0
+  [4f6342f7] + Xorg_libX11_jll v1.8.14+0
+  [0c0b7dd1] + Xorg_libXau_jll v1.0.13+0
+  [a3789734] + Xorg_libXdmcp_jll v1.1.6+0
+  [1082639a] + Xorg_libXext_jll v1.3.8+0
+  [d091e8ba] + Xorg_libXfixes_jll v6.0.2+0
+  [ea2f1a96] + Xorg_libXrender_jll v0.9.13+0
+  [a65dc6b1] + Xorg_libpciaccess_jll v0.19.0+0
+  [c7cfdc94] + Xorg_libxcb_jll v1.17.1+0
+  [c5fb5394] + Xorg_xtrans_jll v1.6.0+0
+  [3161d3a3] + Zstd_jll v1.5.7+1
+  [da03df04] + gdk_pixbuf_jll v2.44.8+0
+  [9a68df92] + isoband_jll v0.2.3+0
+  [a4ae2306] + libaom_jll v3.15.2+0
+  [0ac62f75] + libass_jll v0.17.5+0
+  [46979653] + libdeflate_jll v1.26.0+0
+  [8e53e030] + libdrm_jll v2.4.134+0
+⌅ [f638f0a6] + libfdk_aac_jll v2.0.4+0
+  [b53b4c65] + libpng_jll v1.6.59+1
+  [075b6546] + libsixel_jll v1.80.702+0
+  [9a156e7d] + libva_jll v2.24.1+0
+  [f27f6e37] + libvorbis_jll v1.3.8+0
+  [c5f90fcd] + libwebp_jll v1.6.1+0
+⌅ [1270edf5] + x264_jll v10164.0.1+0
+⌅ [dfaa095f] + x265_jll v4.1.0+0
+  [0dad84c5] + ArgTools v1.1.2
+  [56f22d72] + Artifacts v1.11.0
+  make: *** [Makefile:92: examples] Terminated

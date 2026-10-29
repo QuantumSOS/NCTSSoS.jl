@@ -1,0 +1,118 @@
+Thu Oct 29 05:26:39 UTC 2026
+Linux e2b.local 6.1.158+ #1 SMP PREEMPT_DYNAMIC Wed Sep 30 12:40:02 UTC 2026 x86_64 GNU/Linux
+Architecture:                            x86_64
+CPU op-mode(s):                          32-bit, 64-bit
+Address sizes:                           46 bits physical, 48 bits virtual
+Byte Order:                              Little Endian
+CPU(s):                                  16
+On-line CPU(s) list:                     0-15
+Vendor ID:                               GenuineIntel
+Model name:                              Intel(R) Xeon(R) Processor @ 2.60GHz
+CPU family:                              6
+Model:                                   106
+Thread(s) per core:                      2
+Core(s) per socket:                      8
+Socket(s):                               1
+Stepping:                                6
+BogoMIPS:                                5200.03
+Flags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss ht syscall nx pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid tsc_known_freq pni pclmulqdq ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch cpuid_fault invpcid_single ssbd ibrs ibpb stibp ibrs_enhanced fsgsbase tsc_adjust bmi1 hle avx2 smep bmi2 erms invpcid rtm avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves arat avx512vbmi umip avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid fsrm md_clear arch_capabilities
+Hypervisor vendor:                       KVM
+Virtualization type:                     full
+L1d cache:                               384 KiB (8 instances)
+L1i cache:                               256 KiB (8 instances)
+L2 cache:                                10 MiB (8 instances)
+L3 cache:                                54 MiB (1 instance)
+NUMA node(s):                            1
+NUMA node0 CPU(s):                       0-15
+Vulnerability Gather data sampling:      Not affected
+Vulnerability Indirect target selection: Mitigation; Aligned branch/return thunks
+Vulnerability Itlb multihit:             Not affected
+Vulnerability L1tf:                      Not affected
+Vulnerability Mds:                       Not affected
+Vulnerability Meltdown:                  Not affected
+Vulnerability Mmio stale data:           Not affected
+Vulnerability Reg file data sampling:    Not affected
+Vulnerability Retbleed:                  Not affected
+Vulnerability Spec rstack overflow:      Not affected
+Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+Vulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+Vulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI SW loop, KVM SW loop
+Vulnerability Srbds:                     Not affected
+Vulnerability Tsa:                       Not affected
+Vulnerability Tsx async abort:           Not affected
+Vulnerability Vmscape:                   Not affected
+               total        used        free      shared  buff/cache   available
+Mem:     46303166464  9693868032 35722346496     1110016  1368403968 36609298432
+Swap:              0           0           0
+=== package versions from benchmark Manifest ===
+[deps]
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+COSMO = "1e616198-aa4e-51ec-90a2-23f7fbd31d8d"
+ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
+MosekTools = "1ec41992-ff65-5c91-ac43-2df89e9693a4"
+NCTSSoS = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
+7f4d9e9245726293bf4c2acd7f5446a3b68d114ec91188c8f38af22fc1779a06  /tmp/dev382-env/Manifest.toml
+3e9553ea21670741b1fa9fddb0ebd18af78b71d11d58f7b3194f0cdccea9e1c8  Manifest.toml
+=== pinned merge provenance ===
+commit 6d9e752b9be0e7f2e331ffd818caf87a754d8dd8
+tree 35aae8adf9a664a38f3104b7423dc4b0840273c3
+parent eb448072d5f180656eab5f181cf96910a7ae7b7a
+parent 4bf5ff2d9808128c7a39d2f4b1309c6cc46307af
+author zhao yusheng <excalior@gmail.com> 1793251235 +0000
+committer zhao yusheng <excalior@gmail.com> 1793251235 +0000
+
+    merge: integrate DEV-382 Track B on temporary scale branch
+
+commit 1c5d3264a2db942a61678bd8aaad4adca83f6f23
+tree ff21e4d3a537b97f36462a01833525f00eeabf09
+parent 6d9e752b9be0e7f2e331ffd818caf87a754d8dd8
+parent a2e1815c2a59f8a9879bdcc00e3623b214da9d53
+author zhao yusheng <excalior@gmail.com> 1793251269 +0000
+committer zhao yusheng <excalior@gmail.com> 1793251269 +0000
+
+    merge: integrate DEV-382 Track A on temporary scale branch
+    
+    # Conflicts:
+    #	src/NCTSSoS.jl
+    #	test/relaxations/runtests.jl
+diff --git a/src/NCTSSoS.jl b/src/NCTSSoS.jl
+index 183b438..1e61f0d 100644
+--- a/src/NCTSSoS.jl
++++ b/src/NCTSSoS.jl
+@@ -135,6 +135,8 @@ include("optimization/fermionic_irreps.jl")
+ include("optimization/fermionic_spin.jl")
+ include("optimization/sos.jl")
+ include("optimization/interface.jl")
++include("optimization/pauli_invariant_soc.jl")
++include("optimization/antiunitary.jl")
+ include("optimization/gns.jl")
+ include("optimization/flat_extension.jl")
+ include("optimization/gns_cholesky.jl")
+@@ -157,11 +159,14 @@ export TranslationInvariantReport, TranslationInvariantResult
+ export pauli_translation_invariant_moment_relaxation, pauli_translation_invariant_nctssos
+ export SymplecticTableau, SymplecticMatrix, PhaseVector, SympleQGenerator
+ export sympleq_generators, sympleq_clifford_symmetry, sympleq_symmetry_spec
++export PauliAntiunitary, detect_pauli_antiunitary, antiunitary_parity
++export antiunitary_moment_relaxation, recover_antiunitary_gram
+ export SparsityResult, compute_sparsity
+ export particle_number_constraint
+ 
+ # Solver Interface
+ export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult
++export add_pauli_invariant_soc!, separate_pauli_invariant_socs!, pauli_invariant_soc_nctssos
+ export FlatnessResult, test_flatness, flat_extend
+ export RobustnessReport, robustness_report
+ export build_pqg_moment_data
+diff --git a/test/relaxations/runtests.jl b/test/relaxations/runtests.jl
+index 24e38d9..7131234 100644
+--- a/test/relaxations/runtests.jl
++++ b/test/relaxations/runtests.jl
+@@ -19,6 +19,8 @@ using Test
+     include("sparsity.jl")
+     include("symmetry.jl")
+     include("pauli_chains.jl")
++    include("pauli_invariant_soc.jl")
++    include("antiunitary.jl")
+     include("gns.jl")
+     include("gns_pipeline.jl")
+     include("dualization.jl")

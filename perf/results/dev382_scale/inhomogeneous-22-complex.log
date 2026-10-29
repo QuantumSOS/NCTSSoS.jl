@@ -1,0 +1,1 @@
+Dict{String, Any}("construction_s" => 8.595420938, "basis_words" => 265, "variables" => 140715, "cold" => true, "status" => "TIME_LIMIT", "valid" => false, "moments" => 30361, "sample" => 0, "solve_wall_s" => 146.981637927, "stage" => "solver_failed", "solver_s" => 144.06044684699964, "construction_bytes" => 916534880)

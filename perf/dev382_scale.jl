@@ -6,8 +6,9 @@ const N, REPEATS = parse(Int, ARGS[3]), parse(Int, ARGS[4])
 MODE in ("complex", "antiunitary", "complex-ts", "antiunitary-ts", "specialized") || error("Unknown mode")
 FAMILY in ("heisenberg", "inhomogeneous") || error("Unknown family")
 BLAS.set_num_threads(1)
+const SOLVER_LIMIT = parse(Float64, get(ENV,"DEV382_SOLVER_LIMIT_S","120"))
 const OPTIMIZER = optimizer_with_attributes(MosekTools.Optimizer,
-    "MSK_IPAR_NUM_THREADS" => 4, "MSK_DPAR_OPTIMIZER_MAX_TIME" => 120.0,
+    "MSK_IPAR_NUM_THREADS" => 4, "MSK_DPAR_OPTIMIZER_MAX_TIME" => SOLVER_LIMIT,
     "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-8,
     "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-8,
     "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-8)
@@ -92,7 +93,7 @@ end
 
 data = Dict{String,Any}("mode"=>MODE,"family"=>FAMILY,"n"=>N,"julia"=>string(VERSION),
     "cpu"=>Sys.cpu_info()[1].model,"julia_threads"=>Threads.nthreads(),"blas_threads"=>BLAS.get_num_threads(),
-    "solver_threads"=>4,"solver_limit_s"=>120,"tolerance"=>1e-8,
+    "solver_threads"=>4,"solver_limit_s"=>SOLVER_LIMIT,"tolerance"=>1e-8,
     "git_commit"=>readchomp(`git rev-parse HEAD`),"samples"=>Any[])
 function save()
     data["peak_rss_bytes"] = Sys.maxrss()

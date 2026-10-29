@@ -54,7 +54,8 @@ MosekTools installed; verify the Mosek license with a trivial solve first.
 
 ```
 python3 perf/dev382_budget.py OUTPUT_PREFIX -- \
-  env OPENBLAS_NUM_THREADS=1 JULIA_NUM_THREADS=1 \
+  env JULIA_LOAD_PATH='/tmp/dev382-env:/home/user/workspace/repo:@stdlib' \
+  OPENBLAS_NUM_THREADS=1 JULIA_NUM_THREADS=1 \
   julia --project=/tmp/dev382-env perf/dev382_scale.jl \
   MODE FAMILY N 3 OUTPUT_PREFIX.toml
 ```
@@ -68,3 +69,39 @@ Budget accounting: $2.13 per running orb hour plus reported actual tool/agent
 fees, upper limit $200. Initial time window 3–5 hours ($6.39–$10.65 orb equivalent).
 Source Puck reported linked-subscription inference and no Amp agent charges at
 13:19 Asia/Shanghai. Recheck before extended work; stop well before risking cap.
+
+## Independent confirmation protocol (13:33 Asia/Shanghai)
+
+The exploratory 24-site complex solve returned TIME_LIMIT after 170.47 seconds
+despite the 120-second solver setting; the first treatment solve finished in
+105.61 seconds. These are exploratory observations, not the confirmation data.
+At Puck's request, freeze a second, externally enforced **180-second whole-
+process** limit (120 seconds plus 60 seconds for startup/build/validation), with
+the same 24 GiB memory limit, before collecting confirmation outcomes. Use one
+cold solve per fresh process (`REPEATS=0`) and three independent repetitions per
+mode, alternating complex then antiunitary. All processes keep the same 120-
+second solver setting, threads, tolerances, and inputs. The Python watchdog
+checks every 0.1 seconds and kills the isolated benchmark process group on limit;
+reported elapsed includes process reaping. Set `DEV382_WALL_LIMIT_S=180` on the
+runner command. Save under distinct `confirm-*` names; never replace exploratory
+records. Require all three treatment runs to validate, and report every baseline
+outcome. This confirms a resource boundary for the named baseline, not that all
+existing methods fail: the specialized-real and sparse controls remain mandatory.
+
+### Amendment before any confirmation run (13:46 Asia/Shanghai)
+
+To make the external watchdog decisive rather than the solver's coarse checks,
+confirmation runs set `DEV382_SOLVER_LIMIT_S=180` for **both** methods, alongside
+`DEV382_WALL_LIMIT_S=180`. Since solver time begins after startup/construction,
+the outer watchdog expires first. This replaces the 120-second internal setting
+in the confirmation paragraph only; exploratory records keep their original
+limits. No confirmation observations have been collected at this amendment.
+
+The inhomogeneous 24-site exploratory case failed for both methods (baseline
+175.51 solver seconds; Track A 126.27 solver seconds, both TIME_LIMIT). Retain
+these failures. Add one explicitly adaptive intermediate size, **22 sites**,
+under the original exploratory limits, before considering it for confirmation.
+This is boundary localization from known 12-site success/24-site failure, not
+a new Hamiltonian or a changed tolerance. If successful, apply the same three-
+repeat external-watchdog protocol to that family too. Do not advance to 48/64:
+the 24-site resource boundary already makes those runs unnecessary.

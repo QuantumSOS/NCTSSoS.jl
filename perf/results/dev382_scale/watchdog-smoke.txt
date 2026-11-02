@@ -1,0 +1,12 @@
+{
+  "command": [
+    "sleep",
+    "5"
+  ],
+  "wall_s": 0.20150084799979595,
+  "peak_rss_bytes": 925696,
+  "reason": "wall_timeout",
+  "returncode": -9,
+  "wall_limit_s": 0.2,
+  "rss_limit_bytes": 25769803776
+}

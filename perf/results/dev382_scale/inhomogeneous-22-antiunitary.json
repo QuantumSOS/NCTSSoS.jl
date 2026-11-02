@@ -1,0 +1,22 @@
+{
+  "command": [
+    "env",
+    "JULIA_LOAD_PATH=/tmp/dev382-env:/home/user/workspace/repo:@stdlib",
+    "OPENBLAS_NUM_THREADS=1",
+    "JULIA_NUM_THREADS=1",
+    "julia",
+    "--project=/tmp/dev382-env",
+    "perf/dev382_scale.jl",
+    "antiunitary",
+    "inhomogeneous",
+    "22",
+    "3",
+    "perf/results/dev382_scale/inhomogeneous-22-antiunitary.toml"
+  ],
+  "wall_s": 418.95031986899994,
+  "peak_rss_bytes": 6672330752,
+  "reason": "exited",
+  "returncode": 0,
+  "wall_limit_s": 900.0,
+  "rss_limit_bytes": 25769803776
+}

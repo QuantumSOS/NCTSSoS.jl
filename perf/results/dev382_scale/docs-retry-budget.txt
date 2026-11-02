@@ -1,0 +1,20 @@
+{
+  "command": [
+    "make",
+    "examples",
+    "JL=julia --project=docs --heap-size-hint=8G"
+  ],
+  "start_utc": "2026-10-29T06:57:26.934804+00:00",
+  "end_utc": "2026-10-29T07:02:28.777707+00:00",
+  "wall_s": 301.84291453400056,
+  "peak_aggregate_rss_bytes": 9387405312,
+  "reason": "no_output_limit",
+  "returncode": -15,
+  "wall_limit_s": 600,
+  "no_output_limit_s": 300,
+  "aggregate_rss_limit_bytes": 12884901888,
+  "heap_hint": "8G",
+  "precompile_tasks": 2,
+  "julia_threads": 1,
+  "blas_threads": 1
+}

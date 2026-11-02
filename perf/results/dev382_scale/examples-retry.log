@@ -1,0 +1,2 @@
+julia --project=docs --heap-size-hint=8G docs/generate_examples.jl
+make: *** [Makefile:92: examples] Terminated

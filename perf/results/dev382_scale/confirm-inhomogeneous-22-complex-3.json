@@ -1,0 +1,23 @@
+{
+  "command": [
+    "env",
+    "DEV382_SOLVER_LIMIT_S=180",
+    "JULIA_LOAD_PATH=/tmp/dev382-env:/home/user/workspace/repo:@stdlib",
+    "OPENBLAS_NUM_THREADS=1",
+    "JULIA_NUM_THREADS=1",
+    "julia",
+    "--project=/tmp/dev382-env",
+    "perf/dev382_scale.jl",
+    "complex",
+    "inhomogeneous",
+    "22",
+    "0",
+    "perf/results/dev382_scale/confirm-inhomogeneous-22-complex-3.toml"
+  ],
+  "wall_s": 180.17332235499998,
+  "peak_rss_bytes": 12569063424,
+  "reason": "wall_timeout",
+  "returncode": -9,
+  "wall_limit_s": 180.0,
+  "rss_limit_bytes": 25769803776
+}

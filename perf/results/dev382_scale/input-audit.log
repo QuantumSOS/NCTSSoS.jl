@@ -1,0 +1,3 @@
+Frozen 110 coefficients and 265 basis words
+ArgumentError: Translation-invariant Pauli relaxation requires a one-site translation-invariant objective.
+elapsed=28.90 peak_kib=1242820

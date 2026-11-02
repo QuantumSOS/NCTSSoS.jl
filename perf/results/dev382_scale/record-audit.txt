@@ -1,0 +1,8 @@
+Matched bounds heisenberg N=12 dense: difference 2.68e-08
+Matched bounds inhomogeneous N=12 dense: difference 1.27e-08
+Matched bounds heisenberg N=24 -ts: difference 4.37e-10
+Matched bounds inhomogeneous N=24 -ts: difference 5.7e-09
+Matched bounds inhomogeneous N=22 -ts: difference 1.17e-09
+PASS: 24 process records, 59 validated solves, 7 retained failures
+PASS: three alternating confirmation pairs use identical limits and satisfy the declared outcome
+Failures retained: confirm-inhomogeneous-22-complex-1, confirm-inhomogeneous-22-complex-2, confirm-inhomogeneous-22-complex-3, heisenberg-24-complex, inhomogeneous-22-complex, inhomogeneous-24-antiunitary, inhomogeneous-24-complex

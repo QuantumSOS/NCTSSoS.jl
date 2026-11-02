@@ -1,0 +1,27 @@
+Command:
+/usr/bin/time -f 'elapsed=%e peak_kib=%M' env JULIA_NUM_PRECOMPILE_TASKS=2 OPENBLAS_NUM_THREADS=1 JULIA_NUM_THREADS=1 make examples
+
+Started (log creation, UTC): 2026-10-29 06:29:00.948108844
+Stopped (termination log timestamp, UTC): 2026-10-29 06:54:17.660108844
+Approximate elapsed: 25m17s
+Last setup output before termination: 2026-10-29 06:29:17.680108844
+Highest observed VmHWM: 26,530,652 KiB (snapshot 06:53:29 UTC)
+Last observed VmRSS: 26,408,172 KiB
+Outcome: manually stopped after prolonged setup stall, exit 143 from the shell tool.
+The /usr/bin/time footer was not emitted when the process group was stopped;
+the RSS value above is the highest observed snapshot, not a final time(1) reading.
+
+No example execution was reported. A SIGUSR1 profiling signal was sent to Julia,
+but no stack trace/profile output appeared before shutdown. The last process
+snapshot showed no pending SIGUSR1 and a blocked-signal mask of 0x4206; this does
+not establish a root cause. CPU activity and memory growth are observations,
+not proof of productive example execution.
+
+Created setup state retained for the single retry:
+- docs/Manifest.toml: 85,167 bytes, mtime 2026-10-29 06:29:17.588108844 UTC.
+- CairoMakie cache 9mSey_88Jnl.so: approximately 44 MiB, mtime 06:38 UTC.
+- CairoMakie cache 9mSey_88Jnl.ji: approximately 157 KiB, mtime 06:40 UTC.
+- No tracked generated pages, regeneration stamp, or library sources changed.
+
+Raw log: examples-attempt1.log
+Single retry: examples-retry.log and docs-retry-budget.txt

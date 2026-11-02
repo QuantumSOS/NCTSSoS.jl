@@ -1,0 +1,346 @@
+     Testing NCTSSoS
+        Test Could not use exact versions of packages in manifest. Re-resolving dependencies
+   Installed Git_jll ───────────────── v2.56.0+0
+   Installed Libiconv_jll ──────────── v1.18.0+0
+   Installed OpenSSH_jll ───────────── v10.6.1+0
+   Installed Expat_jll ─────────────── v2.9.0+0
+   Installed IOCapture ─────────────── v1.0.0
+   Installed RegistryInstances ─────── v0.1.0
+   Installed MarkdownAST ───────────── v0.1.3
+   Installed Git_LFS_jll ───────────── v3.8.1+0
+   Installed ANSIColoredPrinters ───── v0.0.1
+   Installed DocStringExtensions ───── v0.9.5
+   Installed Documenter ────────────── v1.19.0
+   Installed LazilyInitializedFields ─ v1.3.0
+   Installed Git ───────────────────── v1.5.0
+  Installing 5 artifacts
+   Installed artifact Expat       306.8 KiB
+   Installed artifact Libiconv    1.9 MiB
+   Installed artifact OpenSSH     4.9 MiB
+   Installed artifact Git_LFS     9.5 MiB
+   Installed artifact Git         56.6 MiB
+    Updating `/tmp/jl_2UHlcO/Project.toml`
+  [4c88cf16] + Aqua v0.8.18
+  [1e616198] + COSMO v0.8.11
+  [e30172f5] + Documenter v1.19.0
+  [7d51a73a] + ExplicitImports v1.15.0
+  [bfd54a76] + NCTSSoS v0.1.0 `~/workspace/repo`
+    Updating `/tmp/jl_2UHlcO/Manifest.toml`
+  [a4c015fc] + ANSIColoredPrinters v0.0.1
+  [4c88cf16] + Aqua v0.8.18
+  [1e616198] + COSMO v0.8.11
+  [bbd8fffe] + COSMOAccelerators v0.1.0
+  [34da2185] + Compat v4.18.1
+⌅ [ffbed154] ↓ DocStringExtensions v0.10.2 ⇒ v0.9.5
+  [e30172f5] + Documenter v1.19.0
+  [7d51a73a] + ExplicitImports v1.15.0
+  [d7ba0133] + Git v1.5.0
+  [b5f81e59] + IOCapture v1.0.0
+  [c8e1da08] + IterTools v1.10.0
+  [0e77f7df] + LazilyInitializedFields v1.3.0
+  [d0879d2d] + MarkdownAST v0.1.3
+  [bfd54a76] + NCTSSoS v0.1.0 `~/workspace/repo`
+  [2792f1a3] + RegistryInstances v0.1.0
+  [ae029012] + Requires v1.3.1
+  [c4a57d5a] + UnsafeArrays v1.0.9
+  [2e619515] + Expat_jll v2.9.0+0
+  [020c3dae] + Git_LFS_jll v3.8.1+0
+  [f8c6e375] + Git_jll v2.56.0+0
+  [94ce4f54] + Libiconv_jll v1.18.0+0
+  [9bd350c2] + OpenSSH_jll v10.6.1+0
+  [0dad84c5] + ArgTools v1.1.2
+  [f43a241f] + Downloads v1.7.0
+  [7b1f6079] + FileWatching v1.11.0
+  [b27032c2] + LibCURL v0.6.4
+  [76f85450] + LibGit2 v1.11.0
+  [ca575930] + NetworkOptions v1.3.0
+  [44cfe95a] + Pkg v1.12.1
+  [a4e569a6] + Tar v1.10.0
+  [deac9b47] + LibCURL_jll v8.15.0+0
+  [e37daf67] + LibGit2_jll v1.9.0+0
+  [29816b5a] + LibSSH2_jll v1.11.3+1
+  [14a3606d] + MozillaCACerts_jll v2025.11.4
+  [458c3c95] + OpenSSL_jll v3.5.6+0
+  [efcefdf7] + PCRE2_jll v10.44.0+1
+  [8e850ede] + nghttp2_jll v1.64.0+1
+  [3f19e933] + p7zip_jll v17.7.0+0
+        Info Packages marked with ⌅ have new versions available but compatibility constraints restrict them from upgrading. To see why use `status --outdated -m`
+        Test Successfully re-resolved
+      Status `/tmp/jl_2UHlcO/Project.toml`
+  [4c88cf16] Aqua v0.8.18
+  [1e616198] COSMO v0.8.11
+  [60fd0770] ChordalGraph v0.4.1
+  [61c947e1] Clarabel v0.11.1
+  [60701a23] CliqueTrees v1.19.7
+  [e30172f5] Documenter v1.19.0
+  [7d51a73a] ExplicitImports v1.15.0
+  [86223c79] Graphs v1.15.0
+  [d5909c97] GroupsCore v0.5.2
+  [4076af6c] JuMP v1.32.1
+  [bfd54a76] NCTSSoS v0.1.0 `~/workspace/repo`
+⌅ [858aa9a9] SymbolicWedderburn v0.4.4
+  [37e2e46d] LinearAlgebra v1.12.0
+  [2f01184e] SparseArrays v1.12.0
+  [fa267f1f] TOML v1.0.3
+  [8dfed614] Test v1.11.0
+      Status `/tmp/jl_2UHlcO/Manifest.toml`
+  [14f7f29c] AMD v0.5.4
+  [a4c015fc] ANSIColoredPrinters v0.0.1
+⌅ [36d08e8a] AbstractPermutations v0.3.3
+  [1520ce14] AbstractTrees v0.4.5
+  [4c88cf16] Aqua v0.8.18
+  [ec485272] ArnoldiMethod v0.4.0
+  [1e616198] COSMO v0.8.11
+  [bbd8fffe] COSMOAccelerators v0.1.0
+  [1b2cc9da] CheckedSizeProduct v1.0.1
+  [60fd0770] ChordalGraph v0.4.1
+  [61c947e1] Clarabel v0.11.1
+  [60701a23] CliqueTrees v1.19.7
+  [523fee87] CodecBzip2 v0.8.5
+  [944b1d66] CodecZlib v0.7.9
+  [08986516] Collects v1.1.0
+  [bbf7d656] CommonSubexpressions v0.3.1
+  [34da2185] Compat v4.18.1
+  [a8cc5b0e] Crayons v4.2.0
+  [da8f5974] Cyclotomics v0.3.2
+  [9a962f9c] DataAPI v1.16.0
+  [864edb3b] DataStructures v0.19.6
+  [e2d170a0] DataValueInterfaces v1.0.0
+  [163ba53b] DiffResults v1.1.0
+  [b552c78f] DiffRules v1.16.0
+⌅ [ffbed154] DocStringExtensions v0.9.5
+  [e30172f5] Documenter v1.19.0
+  [7d51a73a] ExplicitImports v1.15.0
+  [e2ba6199] ExprTools v0.1.11
+  [1a297f60] FillArrays v1.18.2
+  [3821ddf9] FixedSizeArrays v1.5.1
+  [f6369f11] ForwardDiff v1.4.6
+⌅ [14197337] GenericLinearAlgebra v0.3.19
+  [d7ba0133] Git v1.5.0
+  [86223c79] Graphs v1.15.0
+  [d5909c97] GroupsCore v0.5.2
+  [b5f81e59] IOCapture v1.0.0
+  [d25df0c9] Inflate v0.1.5
+  [18e54dd8] IntegerMathUtils v0.1.4
+  [92d709cd] IrrationalConstants v0.2.7
+  [c8e1da08] IterTools v1.10.0
+  [82899510] IteratorInterfaceExtensions v1.0.0
+  [692b3bcd] JLLWrappers v1.8.0
+  [682c06a0] JSON v1.13.0
+  [4076af6c] JuMP v1.32.1
+  [8ac3fa9e] LRUCache v1.6.2
+  [b964fa9f] LaTeXStrings v1.4.1
+  [0e77f7df] LazilyInitializedFields v1.3.0
+  [e21c612c] LightBoundsErrors v1.1.0
+  [2ab3a3ac] LogExpFunctions v1.0.3
+  [1914dd2f] MacroTools v0.5.16
+  [d0879d2d] MarkdownAST v0.1.3
+  [b8f27783] MathOptInterface v1.54.0
+  [c03570c3] Memoize v0.4.4
+  [d8a4904e] MutableArithmetics v1.9.2
+  [bfd54a76] NCTSSoS v0.1.0 `~/workspace/repo`
+  [77ba4419] NaNMath v1.1.5
+  [bac558e1] OrderedCollections v2.0.3
+  [69de0a69] Parsers v3.0.3
+  [8bc5a954] PermutationGroups v0.6.4
+  [aea7be01] PrecompileTools v1.3.4
+  [21216c6a] Preferences v1.6.1
+  [08abe8d2] PrettyTables v3.5.0
+  [27ebfcd6] Primes v0.5.7
+  [bfc457fd] QDLDL v0.4.1
+  [189a3867] Reexport v1.2.2
+  [2792f1a3] RegistryInstances v0.1.0
+  [ae029012] Requires v1.3.1
+  [699a6c99] SimpleTraits v0.9.6
+  [66db9d55] SnoopPrecompile v1.0.3
+  [276daf66] SpecialFunctions v2.9.1
+⌅ [0c0c59c1] StarAlgebras v0.2.1
+  [90137ffa] StaticArrays v1.9.24
+  [1e83bf80] StaticArraysCore v1.4.4
+  [10745b16] Statistics v1.11.5
+  [892a3eda] StringManipulation v0.6.1
+  [ec057cc2] StructUtils v2.11.2
+⌅ [858aa9a9] SymbolicWedderburn v0.4.4
+  [3783bdb8] TableTraits v1.0.1
+  [bd369af6] Tables v1.14.0
+⌅ [a759f4b9] TimerOutputs v0.5.29
+  [3bb67fe8] TranscodingStreams v0.11.3
+  [c4a57d5a] UnsafeArrays v1.0.9
+  [6e34b625] Bzip2_jll v1.0.9+0
+  [2e619515] Expat_jll v2.9.0+0
+  [020c3dae] Git_LFS_jll v3.8.1+0
+  [f8c6e375] Git_jll v2.56.0+0
+  [94ce4f54] Libiconv_jll v1.18.0+0
+  [9bd350c2] OpenSSH_jll v10.6.1+0
+  [efe28fd5] OpenSpecFun_jll v0.5.6+0
+  [0dad84c5] ArgTools v1.1.2
+  [56f22d72] Artifacts v1.11.0
+  [2a0f44e3] Base64 v1.11.0
+  [ade2ca70] Dates v1.11.0
+  [f43a241f] Downloads v1.7.0
+  [7b1f6079] FileWatching v1.11.0
+  [b77e0a4c] InteractiveUtils v1.11.0
+  [ac6e5ff7] JuliaSyntaxHighlighting v1.12.0
+  [b27032c2] LibCURL v0.6.4
+  [76f85450] LibGit2 v1.11.0
+  [8f399da3] Libdl v1.11.0
+  [37e2e46d] LinearAlgebra v1.12.0
+  [56ddb016] Logging v1.11.0
+  [d6f4376e] Markdown v1.11.0
+  [ca575930] NetworkOptions v1.3.0
+  [44cfe95a] Pkg v1.12.1
+  [de0858da] Printf v1.11.0
+  [3fa0cd96] REPL v1.11.0
+  [9a3f8284] Random v1.11.0
+  [ea8e919c] SHA v0.7.0
+  [9e88b42a] Serialization v1.11.0
+  [6462fe0b] Sockets v1.11.0
+  [2f01184e] SparseArrays v1.12.0
+  [f489334b] StyledStrings v1.11.0
+  [4607b0f0] SuiteSparse
+  [fa267f1f] TOML v1.0.3
+  [a4e569a6] Tar v1.10.0
+  [8dfed614] Test v1.11.0
+  [cf7118a7] UUIDs v1.11.0
+  [4ec0a83e] Unicode v1.11.0
+  [e66e0078] CompilerSupportLibraries_jll v1.3.1+2
+  [deac9b47] LibCURL_jll v8.15.0+0
+  [e37daf67] LibGit2_jll v1.9.0+0
+  [29816b5a] LibSSH2_jll v1.11.3+1
+  [14a3606d] MozillaCACerts_jll v2025.11.4
+  [4536629a] OpenBLAS_jll v0.3.29+0
+  [05823500] OpenLibm_jll v0.8.7+0
+  [458c3c95] OpenSSL_jll v3.5.6+0
+  [efcefdf7] PCRE2_jll v10.44.0+1
+  [bea87d4a] SuiteSparse_jll v7.8.3+2
+  [83775a58] Zlib_jll v1.3.1+2
+  [8e850b90] libblastrampoline_jll v5.15.0+0
+  [8e850ede] nghttp2_jll v1.64.0+1
+  [3f19e933] p7zip_jll v17.7.0+0
+        Info Packages marked with ⌅ have new versions available but compatibility constraints restrict them from upgrading.
+Precompiling for configuration --code-coverage=none --color=no --check-bounds=yes --warn-overwrite=yes --depwarn=yes --inline=yes --startup-file=no --track-allocation=none
+   1716.0 ms  ✓ CheckedSizeProduct
+   1714.1 ms  ✓ GroupsCore
+    448.0 ms  ✓ LightBoundsErrors
+    950.4 ms  ✓ FillArrays
+   1793.4 ms  ✓ OrderedCollections
+    473.0 ms  ✓ IntegerMathUtils
+    427.0 ms  ✓ DataValueInterfaces
+    430.4 ms  ✓ LazilyInitializedFields
+    423.0 ms  ✓ LaTeXStrings
+    534.6 ms  ✓ LRUCache
+    451.9 ms  ✓ Reexport
+    533.2 ms  ✓ Inflate
+    538.5 ms  ✓ DocStringExtensions
+    522.5 ms  ✓ AbstractTrees
+    570.7 ms  ✓ Statistics
+    454.5 ms  ✓ ExprTools
+    373.0 ms  ✓ IteratorInterfaceExtensions
+   1673.9 ms  ✓ Collects
+   2193.5 ms  ✓ IrrationalConstants
+    475.3 ms  ✓ DataAPI
+    564.6 ms  ✓ IterTools
+   2187.2 ms  ✓ Crayons
+    717.7 ms  ✓ GenericLinearAlgebra
+    497.1 ms  ✓ StaticArraysCore
+    551.2 ms  ✓ ANSIColoredPrinters
+   3214.4 ms  ✓ MacroTools
+    680.0 ms  ✓ TranscodingStreams
+    573.8 ms  ✓ UnsafeArrays
+    432.5 ms  ✓ IOCapture
+    743.7 ms  ✓ Requires
+   1576.0 ms  ✓ NaNMath
+    706.5 ms  ✓ AMD
+   2518.1 ms  ✓ StructUtils
+   2081.9 ms  ✓ StarAlgebras
+    685.2 ms  ✓ Preferences
+   1796.0 ms  ✓ Compat
+    620.6 ms  ✓ COSMOAccelerators
+    481.0 ms  ✓ AbstractPermutations
+    684.7 ms  ✓ FillArrays → FillArraysSparseArraysExt
+   1684.5 ms  ✓ DataStructures
+    607.2 ms  ✓ Primes
+   5250.1 ms  ✓ MutableArithmetics
+   1538.7 ms  ✓ RegistryInstances
+    448.3 ms  ✓ LRUCache → SerializationExt
+    879.9 ms  ✓ MarkdownAST
+    689.8 ms  ✓ Statistics → SparseArraysExt
+    508.7 ms  ✓ FillArrays → FillArraysStatisticsExt
+    400.7 ms  ✓ TableTraits
+   1842.6 ms  ✓ FixedSizeArrays
+    697.2 ms  ✓ LogExpFunctions
+   3329.9 ms  ✓ TimerOutputs
+    478.8 ms  ✓ DiffResults
+    580.1 ms  ✓ CommonSubexpressions
+    431.9 ms  ✓ Memoize
+    790.8 ms  ✓ SimpleTraits
+    514.0 ms  ✓ CodecZlib
+    469.5 ms  ✓ StructUtils → StructUtilsLazilyInitializedFieldsExt
+    651.6 ms  ✓ QDLDL
+    420.8 ms  ✓ StructUtils → StructUtilsStaticArraysCoreExt
+    447.2 ms  ✓ SnoopPrecompile
+    436.8 ms  ✓ PrecompileTools
+    550.6 ms  ✓ JLLWrappers
+    425.6 ms  ✓ Compat → CompatLinearAlgebraExt
+    444.3 ms  ✓ FixedSizeArrays → FixedSizeArraysRandomExt
+   2115.2 ms  ✓ Tables
+   2102.1 ms  ✓ Cyclotomics
+   4188.0 ms  ✓ StringManipulation
+   8291.5 ms  ✓ StaticArrays
+  20275.0 ms  ✓ Parsers
+   2140.8 ms  ✓ PermutationGroups
+    780.9 ms  ✓ OpenSSH_jll
+    762.5 ms  ✓ Libiconv_jll
+    605.8 ms  ✓ Expat_jll
+    620.1 ms  ✓ Bzip2_jll
+    689.0 ms  ✓ Git_LFS_jll
+    615.8 ms  ✓ OpenSpecFun_jll
+   2378.1 ms  ✓ Aqua
+    416.9 ms  ✓ StructUtils → StructUtilsTablesExt
+  34033.2 ms  ✓ ExplicitImports
+    620.6 ms  ✓ StaticArrays → StaticArraysStatisticsExt
+   2540.8 ms  ✓ ArnoldiMethod
+    675.7 ms  ✓ FillArrays → FillArraysStaticArraysExt
+  22988.3 ms  ✓ PrettyTables
+    801.5 ms  ✓ Git_jll
+    547.2 ms  ✓ CodecBzip2
+  15092.3 ms  ✓ JSON
+   3029.2 ms  ✓ SpecialFunctions
+   4990.3 ms  ✓ Graphs
+    490.6 ms  ✓ Git
+    569.4 ms  ✓ JSON → JSONSerializationExt
+    694.9 ms  ✓ DiffRules
+    987.7 ms  ✓ ChordalGraph
+   5470.4 ms  ✓ CliqueTrees
+  24838.3 ms  ✓ SymbolicWedderburn
+   4000.3 ms  ✓ ForwardDiff
+   1440.7 ms  ✓ CliqueTrees → AMDExt
+    813.7 ms  ✓ ForwardDiff → ForwardDiffStaticArraysExt
+  26301.4 ms  ✓ Documenter
+  39423.6 ms  ✓ MathOptInterface
+   2614.6 ms  ✓ MathOptInterface → MathOptInterfaceCliqueTreesExt
+   4622.2 ms  ✓ COSMO
+  25925.9 ms  ✓ JuMP
+  69800.5 ms  ✓ Clarabel
+   9275.1 ms  ✓ NCTSSoS
+  104 dependencies successfully precompiled in 251 seconds. 36 already precompiled.
+     Testing Running tests...
+[ Info: SetupBuildDirectory: setting up build directory.
+[ Info: Doctest: running doctests.
+[ Info: Skipped ExpandTemplates step (doctest only).
+[ Info: Skipped CrossReferences step (doctest only).
+[ Info: Skipped CheckDocument step (doctest only).
+[ Info: Skipped Populate step (doctest only).
+[ Info: Skipped RenderDocument step (doctest only).
+┌ Warning: Bliss backend is not wired yet; using the in-tree backtracking automorphism solver.
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/automorphism.jl:168
+┌ Warning: AsIsElimination: the sparsity graph is not chordal. The resulting clique decomposition may violate the Running Intersection Property and produce invalid bounds. Use `MF()` or `MMD()` instead.
+└ @ NCTSSoS ~/workspace/repo/src/optimization/elimination.jl:117
+┌ Warning: AsIsElimination: the sparsity graph is not chordal. The resulting clique decomposition may violate the Running Intersection Property and produce invalid bounds. Use `MF()` or `MMD()` instead.
+└ @ NCTSSoS ~/workspace/repo/src/optimization/elimination.jl:117
+┌ Warning: AsIsElimination: the sparsity graph is not chordal. The resulting clique decomposition may violate the Running Intersection Property and produce invalid bounds. Use `MF()` or `MMD()` instead.
+└ @ NCTSSoS ~/workspace/repo/src/optimization/elimination.jl:117
+Test Summary: | Pass  Broken  Total      Time
+NCTSSoS.jl    | 7637       2   7639  14m35.2s
+     Testing NCTSSoS tests passed 
+elapsed=1141.63 peak_kib=2891636

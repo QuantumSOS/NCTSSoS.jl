@@ -1,0 +1,77 @@
+anticommutation_cliques = []
+basis = ["III", "XII", "YII", "ZII", "IXI", "IYI", "IZI", "IIX", "IIY", "IIZ", "XXI"]
+case = "supplied"
+certificate_rational = "-860195199872287497//200000000000000000"
+certified_lower = -4.300975999361437
+cold_s = 19.802977896
+constraints = []
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+exact_energy = -2.9999999999999996
+julia = "1.12.7"
+method = "extra1"
+moments = ["III", "XII", "XXI", "XXX", "XXY", "XXZ", "XYI", "XZI", "XIX", "XIY", "XIZ", "IXI", "IXX", "IXY", "IXZ", "IYI", "IYX", "IYY", "IYZ", "IZI", "IZX", "IZY", "IZZ", "IIX", "IIY", "IIZ"]
+mosektools_version = "0.15.10"
+peak_rss_bytes = 0x78536000
+solver = "Mosek"
+solver_version = "11.2.7"
+threads = 1
+tolerance = 1.0e-9
+
+[certificate_details]
+affine_constant = "-1075243999//250000000"
+identity_index = 1
+lower = -4.300975999361437
+lower_rational = "-860195199872287497//200000000000000000"
+real_residuals = ["-580196023//1000000000000000000", "0//1", "0//1", "0//1", "0//1", "39//125000000000000000", "62358121//125000000000000000", "0//1", "0//1", "-108339869//125000000000000000", "0//1", "0//1", "63001//250000000000000000", "0//1", "0//1", "0//1", "0//1", "-108339869//125000000000000000", "0//1", "0//1", "0//1", "0//1", "274343137//500000000000000000", "0//1", "0//1", "0//1"]
+residual_l1 = 2.781241462e-9
+residual_l1_rational = "1390620731//500000000000000000"
+
+[hamiltonian]
+IXX = -1.0
+IYY = -1.0
+IZZ = -1.0
+XIY = -1.0
+XYI = -1.0
+
+[[samples]]
+anticommutation_cones = 0
+basis_words = 11
+construction_bytes = 585840
+construction_s = 0.002200926
+dual = -4.3009759958370415
+invariant_cones = 0
+moments = 26
+objectives = [-4.300975995808391]
+primal = -4.300975995808391
+separation_s = 0.0
+solve_s = 0.010810413
+status = "OPTIMAL"
+variables = 52
+[[samples]]
+anticommutation_cones = 0
+basis_words = 11
+construction_bytes = 585680
+construction_s = 0.002054722
+dual = -4.3009759958370415
+invariant_cones = 0
+moments = 26
+objectives = [-4.300975995808391]
+primal = -4.300975995808391
+separation_s = 0.0
+solve_s = 0.009576786
+status = "OPTIMAL"
+variables = 52
+[[samples]]
+anticommutation_cones = 0
+basis_words = 11
+construction_bytes = 585680
+construction_s = 0.001909149
+dual = -4.3009759958370415
+invariant_cones = 0
+moments = 26
+objectives = [-4.300975995808391]
+primal = -4.300975995808391
+separation_s = 0.0
+solve_s = 0.00878956
+status = "OPTIMAL"
+variables = 52

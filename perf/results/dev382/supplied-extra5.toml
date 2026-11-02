@@ -1,0 +1,77 @@
+anticommutation_cliques = []
+basis = ["III", "XII", "YII", "ZII", "IXI", "IYI", "IZI", "IIX", "IIY", "IIZ", "XXI", "XYI", "XZI", "XIX", "XIY"]
+case = "supplied"
+certificate_rational = "-600000000718946697//200000000000000000"
+certified_lower = -3.0000000035947334
+cold_s = 20.081712337
+constraints = []
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+exact_energy = -2.9999999999999996
+julia = "1.12.7"
+method = "extra5"
+moments = ["III", "XII", "XXI", "XXX", "XXY", "XXZ", "XYI", "XYX", "XYY", "XYZ", "XZI", "XZX", "XZY", "XZZ", "XIX", "XIY", "XIZ", "IXI", "IXX", "IXY", "IXZ", "IYI", "IYX", "IYY", "IYZ", "IZI", "IZX", "IZY", "IZZ", "IIX", "IIY", "IIZ"]
+mosektools_version = "0.15.10"
+peak_rss_bytes = 0x72b32000
+solver = "Mosek"
+solver_version = "11.2.7"
+threads = 1
+tolerance = 1.0e-9
+
+[certificate_details]
+affine_constant = "-2999999999//1000000000"
+identity_index = 1
+lower = -3.0000000035947334
+lower_rational = "-600000000718946697//200000000000000000"
+real_residuals = ["-239236451//200000000000000000", "1223607//250000000000000000", "0//1", "0//1", "0//1", "-745587//500000000000000000", "-21257779//25000000000000000", "0//1", "-1223607//250000000000000000", "0//1", "0//1", "368601//250000000000000000", "0//1", "0//1", "0//1", "35997869//62500000000000000", "0//1", "0//1", "7482807//250000000000000000", "0//1", "0//1", "0//1", "0//1", "-211299017//125000000000000000", "0//1", "0//1", "0//1", "0//1", "14949773//62500000000000000", "0//1", "0//1", "0//1"]
+residual_l1 = 3.39855123e-9
+residual_l1_rational = "339855123//100000000000000000"
+
+[hamiltonian]
+IXX = -1.0
+IYY = -1.0
+IZZ = -1.0
+XIY = -1.0
+XYI = -1.0
+
+[[samples]]
+anticommutation_cones = 0
+basis_words = 15
+construction_bytes = 1031320
+construction_s = 0.002311886
+dual = -2.9999999986614996
+invariant_cones = 0
+moments = 32
+objectives = [-2.999999998505974]
+primal = -2.999999998505974
+separation_s = 0.0
+solve_s = 0.016094675
+status = "OPTIMAL"
+variables = 64
+[[samples]]
+anticommutation_cones = 0
+basis_words = 15
+construction_bytes = 1031320
+construction_s = 0.00312549
+dual = -2.9999999986614996
+invariant_cones = 0
+moments = 32
+objectives = [-2.999999998505974]
+primal = -2.999999998505974
+separation_s = 0.0
+solve_s = 0.015540821
+status = "OPTIMAL"
+variables = 64
+[[samples]]
+anticommutation_cones = 0
+basis_words = 15
+construction_bytes = 1031320
+construction_s = 0.002941754
+dual = -2.9999999986614996
+invariant_cones = 0
+moments = 32
+objectives = [-2.999999998505974]
+primal = -2.999999998505974
+separation_s = 0.0
+solve_s = 0.017972698
+status = "OPTIMAL"
+variables = 64

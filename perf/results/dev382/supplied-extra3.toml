@@ -1,0 +1,77 @@
+anticommutation_cliques = []
+basis = ["III", "XII", "YII", "ZII", "IXI", "IYI", "IZI", "IIX", "IIY", "IIZ", "XXI", "XYI", "XZI"]
+case = "supplied"
+certificate_rational = "-3989275708256746977//1000000000000000000"
+certified_lower = -3.989275708256747
+cold_s = 20.429458801
+constraints = []
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+exact_energy = -2.9999999999999996
+julia = "1.12.7"
+method = "extra3"
+moments = ["III", "XII", "XXI", "XXX", "XXY", "XXZ", "XYI", "XYX", "XYY", "XYZ", "XZI", "XZX", "XZY", "XZZ", "XIX", "XIY", "XIZ", "IXI", "IXX", "IXY", "IXZ", "IYI", "IYX", "IYY", "IYZ", "IZI", "IZX", "IZY", "IZZ", "IIX", "IIY", "IIZ"]
+mosektools_version = "0.15.10"
+peak_rss_bytes = 0x728fb000
+solver = "Mosek"
+solver_version = "11.2.7"
+threads = 1
+tolerance = 1.0e-9
+
+[certificate_details]
+affine_constant = "-1994637847//500000000"
+identity_index = 1
+lower = -3.989275708256747
+lower_rational = "-3989275708256746977//1000000000000000000"
+real_residuals = ["-4174829517//1000000000000000000", "-129119//500000000000000000", "0//1", "153572099//500000000000000000", "0//1", "-346010631//250000000000000000", "-11209661//62500000000000000", "0//1", "0//1", "0//1", "0//1", "191311977//250000000000000000", "0//1", "-76736483//250000000000000000", "0//1", "-209794161//100000000000000000", "0//1", "0//1", "-456196823//500000000000000000", "0//1", "-172045027//250000000000000000", "15793//62500000000000000", "0//1", "-209794161//100000000000000000", "0//1", "0//1", "17402171//125000000000000000", "0//1", "-150366733//125000000000000000", "0//1", "6319//100000000000000000", "0//1"]
+residual_l1 = 1.008191746e-8
+residual_l1_rational = "504095873//50000000000000000"
+
+[hamiltonian]
+IXX = -1.0
+IYY = -1.0
+IZZ = -1.0
+XIY = -1.0
+XYI = -1.0
+
+[[samples]]
+anticommutation_cones = 0
+basis_words = 13
+construction_bytes = 796536
+construction_s = 0.002328552
+dual = -3.9892756938304887
+invariant_cones = 0
+moments = 32
+objectives = [-3.989275693829981]
+primal = -3.989275693829981
+separation_s = 0.0
+solve_s = 0.012549052
+status = "OPTIMAL"
+variables = 64
+[[samples]]
+anticommutation_cones = 0
+basis_words = 13
+construction_bytes = 796536
+construction_s = 0.003304228
+dual = -3.9892756938304887
+invariant_cones = 0
+moments = 32
+objectives = [-3.989275693829981]
+primal = -3.989275693829981
+separation_s = 0.0
+solve_s = 0.012805528
+status = "OPTIMAL"
+variables = 64
+[[samples]]
+anticommutation_cones = 0
+basis_words = 13
+construction_bytes = 796536
+construction_s = 0.002617136
+dual = -3.9892756938304887
+invariant_cones = 0
+moments = 32
+objectives = [-3.989275693829981]
+primal = -3.989275693829981
+separation_s = 0.0
+solve_s = 0.010797403
+status = "OPTIMAL"
+variables = 64

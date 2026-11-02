@@ -41,6 +41,45 @@ import Graphs, TOML
     @test_throws ArgumentError pauli_invariant_soc_nctssos(pop, config; clusters=[[3,2,1]])
     @test_throws ArgumentError pauli_invariant_soc_nctssos(pop, config; batch_size=0)
 
+    @testset "Antiunitary reduction with nonredundant SOC tightening" begin
+        # Y₁K fixes all five objective words, so their squared-norm bound survives.
+        # The unreduced and reduced bare models allow all five moments to be 1.
+        # One radius-√3 cone instead gives -√15 by Cauchy–Schwarz, attained with
+        # all five moments √(3/5). These are analytic expectations, not solver fixtures.
+        theta = PauliAntiunitary([1,0,0], [1,0,0])
+        reduced = pauli_invariant_soc_nctssos(pop, config; theta, max_rounds=0)
+        combined = pauli_invariant_soc_nctssos(pop, config; theta, max_rounds=1, batch_size=1)
+        @test isnothing(bare.reduction)
+        @test reduced.objective ≈ bare.objective atol=2e-5
+        @test combined.objective ≈ -sqrt(15) atol=2e-5
+        @test combined.objective ≈ strengthened.objective atol=2e-5
+        @test combined.objective > reduced.objective + 1
+        @test keys(reduced.monomap) == keys(combined.monomap)
+        @test num_variables(reduced.model) == num_variables(combined.model)
+        @test length(combined.monomap) < length(bare.monomap)
+        @test all(!antiunitary_parity(theta, m) for m in combined.moment_problem.total_basis)
+        @test only(combined.records).constant_squared == 3
+        @test all(label -> label in only(combined.records).labels, subset.labels)
+        cone_sides(model) = sort([constraint_object(c).set.side_dimension
+            for (F,S) in list_of_constraint_types(model)
+            if S <: Union{MOI.PositiveSemidefiniteConeTriangle,MOI.PositiveSemidefiniteConeSquare}
+            for c in all_constraints(model,F,S)])
+        @test 2 .* cone_sides(combined.model) == cone_sides(strengthened.model)
+
+        # The explicit-subset API must also operate directly on the real model.
+        fixed = add_pauli_invariant_soc!(reduced.model, reduced.moment_problem, [1,2,3], "YII";
+            labels=subset.labels)
+        @test fixed.constant_squared == 3
+        optimize!(reduced.model)
+        @test objective_value(reduced.model) ≈ -sqrt(15) atol=2e-5
+        @test num_variables(reduced.model) == num_variables(combined.model)
+        @test_throws ArgumentError add_pauli_invariant_soc!(reduced.model,
+            reduced.moment_problem, [1,2,3], "YII"; labels=["XXX"])
+        # Plain conjugation does not fix this Hamiltonian; never reduce silently.
+        @test_throws ArgumentError pauli_invariant_soc_nctssos(pop, config;
+            theta=PauliAntiunitary(zeros(Int,3), zeros(Int,3)))
+    end
+
     # Check the selected maximal score by direct matrix conjugation, including
     # asymmetry and unavailable higher-weight words. This catches a missing
     # x/z swap or Y-transpose sign in the Walsh transform through the public API.

@@ -80,16 +80,20 @@ end
     add_pauli_invariant_soc!(model, mp, cluster, r; labels=nothing)
 
 Add a second-order cone (SOC), a constraint `norm(y[labels]) ≤ constant`, to
-the direct moment-variable model returned by `build_jump_model(mp)`. `mp` must
-be an unreduced Pauli moment problem. `cluster` contains three or four sorted
-site numbers; strings `r` and `labels` use that site order and the alphabet
+the direct moment-variable model returned by `build_jump_model(mp)`. `mp` may
+also be the real problem returned by `antiunitary_moment_relaxation`.
+`cluster` contains three or four sorted site numbers; strings `r` and `labels`
+use that site order and the alphabet
 `IXYZ`. `r` must contain an odd number of Y letters. By default select every
 available, nonidentity Pauli label fixed by `P_r * conjugation`.
 
 No scalar moments or basis words are added. Returns an audit record including
 the selected labels, radius, squared radius, and JuMP constraint reference.
 The caller must pass the matching model and moment problem, without symmetry
-identifications. This pilot supports the default `build_jump_model` lowering.
+identifications other than antiunitary elimination of odd moments. Explicit
+`labels` must be present in `mp`; eliminated or unavailable labels are rejected.
+The radius is unchanged when fewer moments survive. This pilot supports the
+default `build_jump_model` lowering.
 """
 function add_pauli_invariant_soc!(model, mp::MomentProblem{PauliAlgebra}, cluster, r::AbstractString; labels=nothing)
     sites = _soc_cluster(cluster)
@@ -102,7 +106,7 @@ function add_pauli_invariant_soc!(model, mp::MomentProblem{PauliAlgebra}, cluste
     !isempty(selected) && allunique(selected) || throw(ArgumentError("Select a nonempty set of distinct labels."))
     all(v -> v != 0 && haskey(available, v) && _soc_invariant(v, code, k), selected) ||
         throw(ArgumentError("Selected labels must be available, nonidentity, and invariant under r."))
-    y = model[:y_re]
+    y = model[_is_real_moment_problem(mp) ? :y : :y_re]
     radius_squared = 2^(k - 1) - 1
     radius = sqrt(Float64(radius_squared))
     constraint = @constraint(model, [radius; [y[available[v]] for v in selected]] in SecondOrderCone())
@@ -144,14 +148,17 @@ function _soc_clusters(pop, sparsity, max_clusters)
 end
 
 """
-    pauli_invariant_soc_nctssos(pop, config; clusters=nothing,
+    pauli_invariant_soc_nctssos(pop, config; theta=nothing, clusters=nothing,
         max_clusters=64, max_rounds=3, batch_size=4, violation_tolerance=1e-6)
 
 Solve a Pauli moment relaxation, score local invariant SOCs with a symplectic
 Walsh–Hadamard transform, add the most violated constraints in limited batches,
 and re-solve. Neither the moment order nor the scalar-moment universe changes.
-Hamiltonian antiunitary symmetry is not required. Symmetry-reduced models are
-not supported. This function accepts ordinary Pauli polynomials only.
+Hamiltonian antiunitary symmetry is not required by default. Pass a
+`PauliAntiunitary` as `theta` to first apply `antiunitary_moment_relaxation`;
+it must fix the objective and every constraint individually. Cones then use
+only surviving physical Pauli moments, with unchanged radii. Other symmetry
+identifications are unsupported. This accepts ordinary Pauli polynomials only.
 
 Automatic clusters are connected three-/four-site subsets of the Hamiltonian
 support graph inside sparsity cliques, with at most `max_clusters` candidates
@@ -160,35 +167,41 @@ test uses squared norm minus squared radius, not the norm itself. Duplicate
 selected sets are skipped. `max_rounds=0` solves only the bare relaxation.
 
 Returns the model, numerical primal objective and dual objective (`bound`),
-moment map, sparsity, symbolic problem, audit records, per-solve objectives,
-and accumulated solve/separation wall times. Solver dual values are numerical
+moment map, sparsity, symbolic problem, `reduction` (or `nothing`), audit records,
+per-solve objectives, and accumulated solve/separation wall times. The reduction
+retains the original problem and phases for `recover_antiunitary_gram`; a full
+certificate must also account for the added SOCs. Solver dual values are numerical
 lower-bound estimates, not interval-certified bounds. Inspect solver accuracy
 before interpreting small improvements.
 """
 function pauli_invariant_soc_nctssos(
     pop::PolyOpt{PauliAlgebra,T,P}, config::SolverConfig;
-    clusters=nothing, max_clusters::Int=64, max_rounds::Int=3,
+    theta=nothing, clusters=nothing, max_clusters::Int=64, max_rounds::Int=3,
     batch_size::Int=4, violation_tolerance::Real=1e-6,
 ) where {T,P<:Polynomial{PauliAlgebra}}
-    isnothing(config.symmetry) || throw(ArgumentError("Invariant SOC separation requires unreduced scalar moments."))
+    isnothing(config.symmetry) || throw(ArgumentError("Invariant SOC separation does not support config.symmetry; use theta for antiunitary reduction."))
     max_clusters > 0 || throw(ArgumentError("max_clusters must be positive."))
     sparsity = compute_sparsity(pop, config)
-    mp = moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+    reduction = isnothing(theta) ? nothing : antiunitary_moment_relaxation(pop, sparsity; theta)
+    mp = isnothing(reduction) ? moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities) :
+        reduction.moment_problem
     model, extract = build_jump_model(mp)
     set_optimizer(model, config.optimizer)
     set_silent(model)
     sites = isnothing(clusters) ? _soc_clusters(pop, sparsity, max_clusters) : clusters
     result = separate_pauli_invariant_socs!(model, mp, sites; max_rounds, batch_size, violation_tolerance)
-    return merge(result, (; monomap=extract(), sparsity, moment_problem=mp))
+    return merge(result, (; monomap=extract(), sparsity, moment_problem=mp, reduction))
 end
 
 """
     separate_pauli_invariant_socs!(model, mp, clusters;
         max_rounds=3, batch_size=4, violation_tolerance=1e-6)
 
-Solve, score, and add local invariant cones to an existing unreduced Pauli
-moment-variable model with an attached optimizer. This allows composition with
-other valid constraints, such as anticommutation inequalities. Model and moment
+Solve, score, and add local invariant cones to an existing Pauli
+moment-variable model with an attached optimizer, including an antiunitary-reduced
+real model. Only represented moments are scored; omitted moments are not added.
+This allows composition with other valid constraints, such as anticommutation
+inequalities. Model and moment
 problem must match, as for `add_pauli_invariant_soc!`. Existing constraints are
 preserved. Each call tracks duplicates among its own newly added constraints.
 Returns numerical primal/dual objectives, audit records, objectives after each
@@ -213,7 +226,7 @@ function separate_pauli_invariant_socs!(model, mp::MomentProblem{PauliAlgebra}, 
         round == max_rounds && break
         added = 0
         separation_seconds += @elapsed begin
-            values = value.(model[:y_re])
+            values = value.(model[_is_real_moment_problem(mp) ? :y : :y_re])
             candidates = Tuple{Float64,Int,Int}[]
             for (i, cluster) in enumerate(sites)
                 k = length(cluster)

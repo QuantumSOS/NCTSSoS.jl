@@ -1,0 +1,17 @@
+DEV-382 documentation regeneration attempt evidence
+Thu Oct 29 04:02:31 UTC 2026
+
+Initial command: make examples
+Initial observation after ~20 minutes: no log progress; Julia VmRSS 25761944 kB (about 24.6 GiB). Stopped before further pressure.
+
+Retry command:
+env JULIA_PKG_PRECOMPILE_AUTO=0 JULIA_NUM_PRECOMPILE_TASKS=2 OPENBLAS_NUM_THREADS=1 make examples JULIA="julia --heap-size-hint=4G --gcthreads=1"
+
+Bounded retry process snapshot:
+    PID     ELAPSED     TIME   RSS %CPU STAT
+  24525       06:03 00:09:05 7332528 149 Rl
+
+Retry output:
+julia --heap-size-hint=4G --gcthreads=1 --project docs/generate_examples.jl
+
+Tracked documentation diff:

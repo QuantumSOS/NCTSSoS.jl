@@ -274,8 +274,9 @@ function compute_rook_numbers(board::Vector{Int})::Vector{Int}
     rook = zeros(Int, max_rooks + 1)
     rook[1] = 1  # r₀ = 1
 
-    for j in 1:n_cols
-        h = board[j]
+    # Process shortest columns first: every previously occupied row must
+    # belong to the current column for the h - (k - 1) recurrence to hold.
+    for (j, h) in enumerate(sort(board))
         # Process in reverse to avoid using updated values
         for k in min(j, max_rooks):-1:1
             # When placing k-th rook in column j:

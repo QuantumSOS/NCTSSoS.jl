@@ -61,6 +61,22 @@ end
     @test objective_value(model) ≈ -2.0 atol = 1e-6
     monomap = extract()
     @test monomap[symmetric_canon(NCTSSoS.expval(one(b[1])))] ≈ 1.0 atol = 1e-7
+
+    # A real moment and its adjoint must agree even when the raw operator
+    # matrix is Hermitian rather than symbolically symmetric.
+    real_mp = NCTSSoS.MomentProblem(
+        objective, [(:PSD, block)], [one(b[1]), b[1], b_dag[1]], 3;
+        real_moments=true,
+    )
+    real_model, real_extract = build_jump_model(real_mp)
+    set_optimizer(real_model, SOLVER)
+    set_silent(real_model)
+    optimize!(real_model)
+    NCTSSoS._check_solver_status(real_model)
+    @test objective_value(real_model) ≈ -2.0 atol = 1e-6
+    real_values = real_extract()
+    key(m) = symmetric_canon(NCTSSoS.expval(m))
+    @test real_values[key(b[1])] ≈ real_values[key(b_dag[1])] atol = 1e-7
 end
 
 @testset "Moment lowering PSD-block resolver uses Hermitian adjoint pivots" begin

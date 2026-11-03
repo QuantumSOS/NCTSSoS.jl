@@ -126,9 +126,11 @@ include("optimization/elimination.jl")
 include("optimization/sparsity.jl")
 include("optimization/moment_linear.jl")
 include("optimization/v2rdm_structured.jl")
+include("optimization/paired_v2rdm.jl")
 include("optimization/moment.jl")
 include("optimization/lowering.jl")
 include("optimization/symmetry.jl")
+include("optimization/v2rdm_symmetry.jl")
 include("optimization/pauli_chains.jl")
 include("sympleq/SympleQ.jl")
 include("optimization/fermionic_irreps.jl")
@@ -170,6 +172,7 @@ export add_pauli_invariant_soc!, separate_pauli_invariant_socs!, pauli_invariant
 export FlatnessResult, test_flatness, flat_extend
 export RobustnessReport, robustness_report
 export build_pqg_moment_data
+export build_paired_moment_data
 export VerificationReport, verify_gns
 
 # Elimination Strategies

@@ -31,6 +31,7 @@ using .TestExpectations: expectations_oracle
 
     # 8. Structured V2RDM benchmark fast path
     include("v2rdm_structured/runtests.jl")
+    include("v2rdm_structured/paired.jl")
 
     # 9. Curated problems
     @testset "Problems" begin

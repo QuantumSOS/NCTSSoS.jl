@@ -934,6 +934,53 @@ end
 @testset "BosonicAlgebra CCR Identities" begin
     reg, (c, c_dag) = create_bosonic_variables(1:3)
 
+    @testset "Raw words retain complete contractions" begin
+        # (c*c†)^2 = (n+1)^2 = c†²c² + 3n + 1.
+        expansion = Dict(Tuple(word) => coefficient for (coefficient, word) in
+            simplify(BosonicAlgebra, Int[1, -1, 1, -1]))
+        @test expansion == Dict(() => 1, (-1, 1) => 3, (-1, -1, 1, 1) => 1)
+
+        # Independent exact ladder action on unnormalized occupation states:
+        # creation has coefficient 1; annihilation has coefficient n.
+        # There is no occupation cutoff and no use of polynomial rewriting.
+        function ladder_action(word, occupation)
+            state = collect(occupation)
+            amplitude = 1
+            for op in reverse(word)
+                mode = abs(op)
+                if op > 0
+                    state[mode] == 0 && return (Tuple(state), 0)
+                    amplitude *= state[mode]
+                    state[mode] -= 1
+                else
+                    state[mode] += 1
+                end
+            end
+            return (Tuple(state), amplitude)
+        end
+        # Include asymmetric mixed-mode words and non-neutral transitions,
+        # not only vacuum expectations or already normal-ordered products.
+        for (alphabet, occupations, max_length) in
+            (([1, -1], ((0,), (1,), (4,)), 6),
+             ([1, -1, 2, -2], ((0, 2), (3, 1)), 4))
+            for len in 0:max_length, letters in Iterators.product(ntuple(_ -> alphabet, len)...)
+                word = Int[letters...]
+                normal = simplify(BosonicAlgebra, word)
+                for occupation in occupations
+                    state, amplitude = ladder_action(word, occupation)
+                    expected = amplitude == 0 ? Dict{typeof(state),Int}() : Dict(state => amplitude)
+                    actual = Dict{typeof(state),Int}()
+                    for (coefficient, term) in normal
+                        target, value = ladder_action(term, occupation)
+                        value == 0 && continue
+                        actual[target] = get(actual, target, 0) + coefficient * value
+                    end
+                    @test actual == expected
+                end
+            end
+        end
+    end
+
     @testset "Commutation: [cᵢ, cⱼ†] = δᵢⱼ" begin
         # Same mode: c₁ c₁† = c₁† c₁ + 1
         p = simplify(c[1] * c_dag[1])

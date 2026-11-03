@@ -487,6 +487,27 @@ function _v2rdm_g_entry_form(acc::_V2RDMAccumulator{T}, left::Vector{T}, right::
     return _v2rdm_form(acc, pairs)
 end
 
+function _v2rdm_three_index_entry_form(acc::_V2RDMAccumulator{T}, left::Vector{T}, right::Vector{T}) where {T<:Signed}
+    # Cubic rows use <L†R + RL†>. T2prime's additional annihilator rows
+    # use only <L†R>, including the mixed cubic/linear entries. Thus its
+    # lower block is the 1RDM, not the identity from a full anticommutator.
+    adjoint_left = _v2rdm_adjoint_word(left)
+    terms = normal_order_terms(vcat(adjoint_left, right))
+    if length(left) == 3 && length(right) == 3
+        for (word, coeff) in normal_order_terms(vcat(right, adjoint_left))
+            _v2rdm_accumulate_word!(terms, word, coeff)
+        end
+    end
+    pairs = Pair{Vector{T},ComplexF64}[]
+    for (word, coeff) in terms
+        # Cancellation must happen before registering moments: the T maps
+        # constrain the 2RDM and must never introduce a 3RDM variable.
+        length(word) <= 4 || error("three-index anticommutator did not cancel degree-six terms")
+        _v2rdm_add_term!(pairs, acc, word, coeff)
+    end
+    return _v2rdm_form(acc, pairs)
+end
+
 function pqg_block_entries(family::Symbol, K, two_Sz, rows::Vector{M}, acc::_V2RDMAccumulator{T}) where {T<:Signed,M<:NormalMonomial{FermionicAlgebra,T}}
     n = length(rows)
     entries = Matrix{LinearMomentForm{Vector{T},ComplexF64}}(undef, n, n)
@@ -499,6 +520,8 @@ function pqg_block_entries(family::Symbol, K, two_Sz, rows::Vector{M}, acc::_V2R
         _v2rdm_g_entry_form
     elseif family == :oneD
         _v2rdm_oned_entry_form
+    elseif family in (:T1, :T2prime)
+        _v2rdm_three_index_entry_form
     else
         throw(ArgumentError("unknown PQG block family $(repr(family))"))
     end
@@ -813,6 +836,7 @@ function build_pqg_moment_data(
     singlet_s2::Bool = true,
     include_one_d::Bool = false,
     real_moments::Bool = false,
+    three_index::Symbol = :none,
 )
     nk >= 1 || throw(ArgumentError("nk must be positive"))
     norb >= 1 || throw(ArgumentError("norb must be positive"))
@@ -826,6 +850,9 @@ function build_pqg_moment_data(
         "spin-resolved D traces assume M_s = 0 and an even total electron count"
     ))
     blocking in (:momentum, :spin, :none) || throw(ArgumentError("blocking must be :momentum, :spin, or :none"))
+    three_index in (:none, :T1, :T1T2prime) || throw(ArgumentError(
+        "three_index must be :none, :T1, or :T1T2prime"
+    ))
     if real_moments && !(all(block -> all(isreal, block), values(h1e)) &&
                          all(block -> all(isreal, block), values(eri)))
         throw(ArgumentError("real_moments=true requires real h1e and eri integrals"))
@@ -860,6 +887,21 @@ function build_pqg_moment_data(
     append_family!(:D, _v2rdm_group_rows(rows.D, blocking; nk, norb))
     append_family!(:Q, _v2rdm_group_rows(rows.Q, blocking; nk, norb))
     append_family!(:G, _v2rdm_group_rows_with_identity(rows.G, identity_mono, blocking; nk, norb))
+
+    if three_index != :none
+        triples = M[_v2rdm_monomial(T, (p, q, r))
+            for p in 1:n_modes for q in (p + 1):n_modes for r in (q + 1):n_modes]
+        append_family!(:T1, _v2rdm_group_rows(triples, blocking; nk, norb))
+    end
+    if three_index == :T1T2prime
+        # Rows remove one net particle, C = a†_r a_p a_q (p<q).
+        # Repeated r=p or r=q rows are retained. Appending a_l gives the
+        # positive form <(A+B)†(A+B) + AA†>, A=Σu C, B=Σv a.
+        triples = M[_v2rdm_monomial(T, (-r, p, q))
+            for p in 1:n_modes for q in (p + 1):n_modes for r in 1:n_modes]
+        append!(triples, [_v2rdm_monomial(T, (p,)) for p in 1:n_modes])
+        append_family!(:T2prime, _v2rdm_group_rows(triples, blocking; nk, norb))
+    end
 
     objective = objective_from_integrals(h1e, eri, acc; nk, norb)
 

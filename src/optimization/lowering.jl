@@ -175,7 +175,15 @@ function _check_complex_psd_block_cones!(mp::MomentProblem)
 end
 
 function _moment_values_resolver(model, L::MomentLinearData{K}, ::Type{C}) where {K,C}
-    @variable(model, y[1:length(L.moments)], set_string_name=false)
+    # On the real slice, an operator and its adjoint have the same moment.
+    # Keep the original moment-index view for extraction, but do not introduce
+    # independent variables (and null directions) for each adjoint pair.
+    representative(key) = key_lt(L.adjoint_key[key], key) ? L.adjoint_key[key] : key
+    representatives = unique(representative.(L.moments))
+    slots = Dict(key => i for (i, key) in enumerate(representatives))
+    @variable(model, independent_y[1:length(representatives)], set_string_name=false)
+    y = [independent_y[slots[representative(key)]] for key in L.moments]
+    model[:y] = y
     values = Dict{K,Any}(key => one(C) * y[idx] for (idx, key) in enumerate(L.moments))
     return y, AffineResolver(values, zero(C) * y[1])
 end

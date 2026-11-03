@@ -2,6 +2,27 @@ using Test
 using NCTSSoS
 using JuMP, LinearAlgebra
 
+# Independent occupation-basis operator actions, including every particle sector.
+# Negative mode IDs create; positive IDs annihilate. No symbolic rewrite calls.
+function _occupation_operator(word, m)
+    matrix = zeros(1 << m, 1 << m)
+    for state in 0:((1 << m) - 1)
+        target, amplitude = state, 1
+        for op in reverse(word)
+            bit = 1 << (abs(op) - 1)
+            occupied = target & bit != 0
+            if op < 0 ? occupied : !occupied
+                amplitude = 0
+                break
+            end
+            isodd(count_ones(target & (bit - 1))) && (amplitude = -amplitude)
+            target ⊻= bit
+        end
+        matrix[target + 1, state + 1] = amplitude
+    end
+    return matrix
+end
+
 function _toy_periodic_integrals(; nk::Int=2, norb::Int=1)
     h1e = Dict{Int,Matrix{ComplexF64}}(
         k => fill(ComplexF64(1.0 + 0.25k), norb, norb) for k in 0:(nk - 1)
@@ -18,6 +39,37 @@ function _toy_periodic_integrals(; nk::Int=2, norb::Int=1)
 end
 
 @testset "structured PQG V2RDM assembler" begin
+    @testset "three-index maps equal finite occupation-space operators" begin
+        for (nk, norb, blocking) in ((1, 2, :none), (2, 1, :spin))
+            h, eri = _toy_periodic_integrals(; nk, norb)
+            options = (; nk, norb, nelec_per_cell=2 ÷ nk, blocking)
+            linear = build_pqg_moment_data(h, eri; options..., three_index=:T1T2prime)
+            @test NCTSSoS.assert_moment_linear_data_invariants(linear) === nothing
+            @test all(length(key) <= 4 for key in linear.moments)
+            matrices = Dict(key => _occupation_operator(key, 4) for key in linear.moments)
+            for block in linear.psd_blocks_lin
+                block.meta.origin.family in (:T1, :T2prime) || continue
+                rows = block.meta.row_labels
+                operators = [_occupation_operator(row.word, 4) for row in rows]
+                for j in eachindex(rows), i in eachindex(rows)
+                    expected = operators[i]' * operators[j]
+                    if length(rows[i].word) == 3 && length(rows[j].word) == 3
+                        expected += operators[j] * operators[i]'
+                    end
+                    actual = zeros(ComplexF64, 16, 16)
+                    for (key, c) in block.entries[i, j]
+                        actual .+= c .* matrices[key]
+                    end
+                    @test actual == expected
+                end
+            end
+            t1 = build_pqg_moment_data(h, eri; options..., three_index=:T1)
+            @test any(b.meta.origin.family == :T1 for b in t1.psd_blocks_lin)
+            @test !any(b.meta.origin.family == :T2prime for b in t1.psd_blocks_lin)
+            @test_throws ArgumentError build_pqg_moment_data(h, eri; options..., three_index=:T2)
+        end
+    end
+
     @testset "canonical moment helper normal-orders small fermionic words" begin
         @test NCTSSoS.canonical_moment_id(:identity, 0, 0, ()) == Int[]
         @test NCTSSoS.canonical_moment_id(:one, 0, 0, (1, 1)) == Int[-1, 1]
@@ -172,3 +224,5 @@ end
         )
     end
 end
+
+include("symmetry.jl")

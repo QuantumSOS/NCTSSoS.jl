@@ -1247,8 +1247,6 @@ struct NCPauliChargeSpatialAction <: SymbolicWedderburn.BySignedPermutations
     axis_maps::Dict{Any,_PauliChargeAxisMap}
 end
 
-NCPauliChargeSpatialAction() = NCPauliChargeSpatialAction(Dict{Any,_PauliChargeAxisMap}())
-
 struct _FiniteSymmetryGroup{G,T<:Integer} <: GroupsCore.Group
     domain::Vector{T}
     elements::Vector{G}
@@ -3304,14 +3302,19 @@ function _pauli_charge_word_image(g::CliffordSymmetry, word::_PauliChargeWord)
     return _pauli_charge_word_image(axis_map, word)
 end
 
-function _charge_axis_map!(action::NCPauliChargeSpatialAction, g::CliffordSymmetry)
-    return get!(action.axis_maps, g) do
+function NCPauliChargeSpatialAction(group::CliffordSymmetryGroup)
+    # SymbolicWedderburn shares this action across decomposition tasks. Populate
+    # the finite group's maps before spawning them; action lookups are read-only.
+    axis_maps = Dict{Any,_PauliChargeAxisMap}()
+    for element in group
+        g = _clifford_group_value(element)
         axis_map = _pauli_charge_axis_map(g)
         isnothing(axis_map) && throw(ArgumentError(
             "Pauli charge-sector finite reduction received a Clifford group element that is not charge-compatible: $g."
         ))
-        axis_map
+        axis_maps[g] = axis_map
     end
+    return NCPauliChargeSpatialAction(axis_maps)
 end
 
 function SymbolicWedderburn.action(
@@ -3319,11 +3322,11 @@ function SymbolicWedderburn.action(
     g::CliffordSymmetryGroupElement,
     word::_PauliChargeWord,
 )
-    return _pauli_charge_word_image(_charge_axis_map!(action, _clifford_group_value(g)), word)
+    return _pauli_charge_word_image(action.axis_maps[_clifford_group_value(g)], word)
 end
 
 function _sw_decompose_charge_basis(basis::Vector{_PauliChargeWord}, group::CliffordSymmetryGroup)
-    action = NCPauliChargeSpatialAction()
+    action = NCPauliChargeSpatialAction(group)
     tbl = SymbolicWedderburn.CharacterTable(Rational{Int}, group)
     ehom = SymbolicWedderburn.CachedExtensionHomomorphism(
         parent(tbl),
@@ -3331,6 +3334,11 @@ function _sw_decompose_charge_basis(basis::Vector{_PauliChargeWord}, group::Clif
         basis;
         precompute=false,
     )
+    # The dependency's lazy cache locks writes but reads outside that lock.
+    # Warm it serially too: its parallel precompute option has the same race.
+    for g in parent(tbl)
+        SymbolicWedderburn.induce(ehom, g)
+    end
     SymbolicWedderburn.check_group_action(group, ehom; full_check=false)
     return SymbolicWedderburn.symmetry_adapted_basis(Float64, tbl, ehom)
 end

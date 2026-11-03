@@ -32,6 +32,7 @@ using Test
         :action,
         :CharacterTable,
         :CachedExtensionHomomorphism,
+        :induce,
         :check_group_action,
         :HasLength,
     ))

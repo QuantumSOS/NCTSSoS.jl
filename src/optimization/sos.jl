@@ -260,6 +260,8 @@ function _sos_dualize_real(mp::MomentProblem{A,TI,M,P}) where {A<:AlgebraType, T
         push!(psd_duals, @variable(dual_model, [1:block.size, 1:block.size] in PSDCone()))
     end
     zero_duals = [@variable(dual_model) for _ in L.zero_constraints]
+    dual_model[:psd_duals] = psd_duals
+    dual_model[:zero_duals] = zero_duals
 
     fα_constraints = [zero(GenericAffExpr{C,VariableRef}) for _ in L.moments]
 

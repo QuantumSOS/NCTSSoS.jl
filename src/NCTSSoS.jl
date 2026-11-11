@@ -137,6 +137,10 @@ include("optimization/fermionic_irreps.jl")
 include("optimization/fermionic_spin.jl")
 include("optimization/sos.jl")
 include("optimization/interface.jl")
+include("optimization/continuous_symmetry.jl")
+include("optimization/physics_sparsity.jl")
+include("optimization/continuous_reduction.jl")
+include("optimization/pauli_strengthening.jl")
 include("optimization/pauli_invariant_soc.jl")
 include("optimization/antiunitary.jl")
 include("optimization/gns.jl")
@@ -165,6 +169,12 @@ export PauliAntiunitary, detect_pauli_antiunitary, antiunitary_parity
 export antiunitary_moment_relaxation, recover_antiunitary_gram
 export SparsityResult, compute_sparsity
 export particle_number_constraint
+export SuppliedDerivation, differentiate, validate_continuous_symmetry
+export detect_continuous_symmetries, continuous_moment_relaxation, continuous_nctssos
+export reconstruct_continuous_moments, reconstruct_continuous_matrices, verify_continuous_certificate
+export PhysicsSparsity, hamiltonian_interactions, physics_moment_basis
+export pauli_strengthened_relaxation, verify_pauli_strengthening_certificate
+export pauli_chain_strengthened_relaxation
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult

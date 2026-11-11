@@ -551,8 +551,10 @@ function cs_nctssos(
     formulation::Symbol=:moment_variables,
     representation::Symbol=:real,
     orphan_policy::Symbol=:error,
+    physics=nothing,
 ) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
-    sparsity = compute_sparsity(pop, solver_config)
+    sparsity = isnothing(physics) ? compute_sparsity(pop, solver_config) :
+        compute_sparsity(pop, solver_config, physics)
     _check_symmetry_mvp_support(pop, solver_config, sparsity)
 
     if isnothing(solver_config.symmetry)

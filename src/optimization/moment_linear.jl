@@ -605,8 +605,8 @@ function _assert_pivots(
             "pivot phase for key $(repr(key)) is not unit: $(repr(pivot.phase))"
         ))
         if !is_complex
-            pivot.phase == one(C) || throw(ArgumentError(
-                "real-algebra pivot phase must be 1, got $(repr(pivot.phase))"
+            isreal(pivot.phase) || throw(ArgumentError(
+                "real-algebra pivot phase must be ±1, got $(repr(pivot.phase))"
             ))
         end
         push!(get!(expected_pivot_at, (pivot.block, pivot.row, pivot.col), K[]), key)

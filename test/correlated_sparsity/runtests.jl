@@ -197,6 +197,7 @@ function build_e9_chained_singular_polydisc_problem(n::Int)
 end
 
 @testset "Correlated Sparsity" begin
+    include("physics_sparsity.jl")
     include("graph_and_cliques.jl")
     include("core_pipeline_structure.jl")
     include("core_pipeline_numeric.jl")

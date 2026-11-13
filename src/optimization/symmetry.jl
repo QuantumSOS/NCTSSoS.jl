@@ -19,7 +19,10 @@ Finite signed permutation acting on registry indices.
 Stored images are `(sign, target_index)` pairs with `sign ∈ {-1, +1}`.
 Indices not listed in `images` are fixed.
 
-Use this for monoid-algebra registry-index symmetries. Pauli problems should
+Use this for monoid-algebra registry-index symmetries, or bosonic signed mode
+permutations. Bosonic images must preserve creation versus annihilation and
+map adjoint indices with the same sign: explicitly supply both `i` and `-i`
+when changing mode `i`. Pauli problems should
 use [`CliffordSymmetry`](@ref), and fermionic problems should use
 [`FermionicModePermutation`](@ref) plus optional sector/spin specs.
 """
@@ -1231,7 +1234,7 @@ end
 
 const _AnyOrbitReducer{A,T} = Union{_OrbitReducer{A,T},_LazyOrbitReducer{A,T}}
 
-struct NCWordSignedPermutationAction{A<:MonoidAlgebra,T<:Integer} <: SymbolicWedderburn.BySignedPermutations
+struct NCWordSignedPermutationAction{A<:Union{MonoidAlgebra,BosonicAlgebra},T<:Integer} <: SymbolicWedderburn.BySignedPermutations
     algebra::Type{A}
 end
 
@@ -1725,7 +1728,7 @@ function SymbolicWedderburn.action(
     ::NCWordSignedPermutationAction{A,T},
     g::_SignedPermutationGroupElement{T},
     mono::NormalMonomial{A,T},
-) where {A<:MonoidAlgebra,T<:Integer}
+) where {A<:Union{MonoidAlgebra,BosonicAlgebra},T<:Integer}
     sign, image = _act_monomial(_sw_group_value(g), mono)
     return image, sign
 end
@@ -1751,7 +1754,7 @@ end
 function _sw_decompose_half_basis(
     basis::Vector{M},
     group::_SignedPermutationGroup{T},
-) where {A<:MonoidAlgebra,T<:Integer,M<:NormalMonomial{A,T}}
+) where {A<:Union{MonoidAlgebra,BosonicAlgebra},T<:Integer,M<:NormalMonomial{A,T}}
     action = NCWordSignedPermutationAction{A,T}(A)
     return SymbolicWedderburn.symmetry_adapted_basis(Float64, group, action, basis)
 end
@@ -1776,9 +1779,16 @@ end
 @inline _sw_action_elements(group::CliffordSymmetryGroup) = group.inner.elements
 
 function _basis_action_is_trivial(basis::AbstractVector{M}, sw_group) where {M<:NormalMonomial}
-    for g in _sw_action_elements(sw_group), mono in basis
-        sign, image = _act_monomial(g, mono)
-        (sign == 1 && image == mono) || return false
+    # Trivial action on matrices includes scalar -I on rows: conjugating a
+    # whole odd-parity block by -I leaves it unchanged and cannot split it.
+    for g in _sw_action_elements(sw_group)
+        phase = 0
+        for mono in basis
+            sign, image = _act_monomial(g, mono)
+            image == mono || return false
+            phase == 0 && (phase = sign)
+            sign == phase || return false
+        end
     end
     return true
 end
@@ -1856,6 +1866,24 @@ function _act_monomial(
     return sign, image
 end
 
+function _act_monomial(
+    g::SignedPermutation{T},
+    mono::NormalMonomial{BosonicAlgebra,T},
+) where {T<:Integer}
+    phase = 1
+    word = similar(mono.word)
+    for (i, idx) in pairs(mono.word)
+        letter_phase, dst = _signed_image(g, idx)
+        phase *= letter_phase
+        word[i] = dst
+    end
+    # A validated mode permutation preserves normal-order degree and cannot
+    # create contractions. Reordering equal-kind bosonic letters has no sign.
+    terms = _simplified_to_terms(BosonicAlgebra, simplify(BosonicAlgebra, word), T)
+    coef, image = only(terms)
+    return phase * coef, image
+end
+
 function _permute_fermionic_word(
     g::FermionicModePermutation,
     word::Vector{T},
@@ -1893,7 +1921,7 @@ end
 function _act_polynomial(
     g::SignedPermutation{T},
     poly::Polynomial{A,T,C},
-) where {A<:MonoidAlgebra,T<:Integer,C<:Number}
+) where {A<:Union{MonoidAlgebra,BosonicAlgebra},T<:Integer,C<:Number}
     acted_terms = Tuple{C,NormalMonomial{A,T}}[]
     sizehint!(acted_terms, length(poly.terms))
     for (coef, mono) in poly.terms
@@ -3624,6 +3652,28 @@ function _pauli_degree_basis_count(nqubits::Integer, max_degree::Integer)
     return Int(count)
 end
 
+function _check_sparse_block_action(pop, corr_sparsity, cliques_term_sparsities, group,
+    moment_eq_row_bases, moment_eq_row_basis_degrees)
+    # Match the multiplier as well as the row set: closure of the moment
+    # domain alone does not imply invariance of the selected PSD constraints.
+    blocks = [(poly, Set(basis))
+        for (terms, indices) in zip(cliques_term_sparsities, corr_sparsity.clq_cons)
+        for (term, poly) in zip(terms, [one(pop.objective); corr_sparsity.cons[indices]...])
+        for basis in term.block_bases]
+    for (poly, basis) in blocks, g in group
+        image = Set(last(_act_monomial(g, mono)) for mono in basis)
+        any(block -> block[1] == poly && block[2] == image, blocks) || throw(ArgumentError(
+            "Symmetry does not preserve the selected sparse block family for multiplier $poly. " *
+            "Choose symmetry-compatible sparsity or disable symmetry; blocks are not automatically enlarged."
+        ))
+    end
+    for poly in pop.moment_eq_constraints
+        rows = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, poly)
+        _check_basis_closure("sparse moment-equality row basis", rows, group)
+    end
+    return nothing
+end
+
 function _half_basis_vector(
     corr_sparsity::CorrelativeSparsity{A,T,P,M,Nothing},
 ) where {A<:AlgebraType,T<:Integer,P,M<:NormalMonomial{A,T}}
@@ -3638,7 +3688,9 @@ end
     moment_relax_symmetric(pop, corr_sparsity, cliques_term_sparsities, symmetry)
 
 Construct a symmetry-reduced symbolic moment problem for ordinary polynomial
-relaxations. Fermionic sector splitting also supports sparse monomial blocks.
+relaxations. Finite actions may preserve or transport whole sparse blocks; the
+selected block family, multipliers and shared moment domain must be invariant.
+Fermionic sector splitting alone also supports sparse monomial blocks.
 The output contract is still the usual `MomentProblem`.
 """
 function moment_relax_symmetric(
@@ -3652,6 +3704,18 @@ function moment_relax_symmetric(
     spin_adaptation = symmetry.spin_adaptation
     pauli_charge = symmetry.pauli_charge
     pauli_singlet = symmetry.pauli_singlet
+    sparse_layout = length(corr_sparsity.cliques) != 1 ||
+        any(length(term.block_bases) != 1 for terms in cliques_term_sparsities for term in terms)
+    # Sector-only splitting multiplies each row by a phase, so every sparse row
+    # subset stays invariant; other sector, spin, charge and singlet reductions
+    # mix rows and keep the dense-layout requirement.
+    sparse_sector_ok = isnothing(sector) || !isnothing(_sector_first_sector(symmetry))
+    if sparse_layout && (!sparse_sector_ok || any(!isnothing, (spin_adaptation, pauli_charge, pauli_singlet)))
+        throw(ArgumentError(
+            "Sparse symmetry composition supports finite actions and fermionic sector splitting alone; " *
+            "spin, charge and singlet reductions, and sectors combined with mode permutations, require a dense layout."
+        ))
+    end
     if !isnothing(sector)
         A === FermionicAlgebra || throw(ArgumentError(
             "Fermionic sector splitting is only supported for `FermionicAlgebra`; got `$(nameof(A))`."
@@ -3725,6 +3789,17 @@ function moment_relax_symmetric(
     if !isempty(symmetry.generators)
         spec = _convert_symmetry_spec(T, symmetry)
         domain = _symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)
+        if A === BosonicAlgebra
+            domain = sort!(unique!([domain; -domain]))
+            for g in spec.generators, idx in union(domain, collect(keys(g.images)))
+                sign, dst = _signed_image(g, idx)
+                same_kind = (idx > 0 && dst > 0) || (idx < 0 && dst < 0)
+                (same_kind && _signed_image(g, -idx) == (sign, -dst)) || throw(ArgumentError(
+                    "Bosonic SignedPermutation must preserve creation/annihilation and adjoints; " *
+                    "supply matching signed images for both mode indices i and -i."
+                ))
+            end
+        end
         group = _enumerate_symmetry_group(spec, domain)
         sw_group = _sw_signed_permutation_group(spec, group, domain)
     elseif !isempty(symmetry.fermionic_generators)
@@ -3743,32 +3818,37 @@ function moment_relax_symmetric(
 
     if !isnothing(group)
         (!isnothing(pauli_charge) || !isnothing(pauli_singlet)) && _validate_pauli_charge_compatible_group(group)
-        symmetry.check_invariance && _check_symmetry_invariance(pop, group)
+        (sparse_layout || symmetry.check_invariance) && _check_symmetry_invariance(pop, group)
 
-        for (clique_idx, basis) in enumerate(corr_sparsity.clq_mom_mtx_bases)
-            if !isnothing(sector) && A === FermionicAlgebra
-                _check_sectorwise_basis_closure("moment basis of clique $clique_idx", basis, group, sector)
-            else
-                _check_basis_closure("moment basis of clique $clique_idx", basis, group)
+        if sparse_layout
+            _check_sparse_block_action(pop, corr_sparsity, cliques_term_sparsities, group,
+                moment_eq_row_bases, moment_eq_row_basis_degrees)
+        else
+            for (clique_idx, basis) in enumerate(corr_sparsity.clq_mom_mtx_bases)
+                if !isnothing(sector) && A === FermionicAlgebra
+                    _check_sectorwise_basis_closure("moment basis of clique $clique_idx", basis, group, sector)
+                else
+                    _check_basis_closure("moment basis of clique $clique_idx", basis, group)
+                end
             end
-        end
 
-        for (clique_idx, term_sparsities) in enumerate(cliques_term_sparsities)
-            for (poly_idx, term_sparsity) in enumerate(term_sparsities)
-                for (block_idx, basis) in enumerate(term_sparsity.block_bases)
-                    if !isnothing(sector) && A === FermionicAlgebra
-                        _check_sectorwise_basis_closure(
-                            "constraint block basis $(poly_idx).$(block_idx) of clique $clique_idx",
-                            basis,
-                            group,
-                            sector,
-                        )
-                    else
-                        _check_basis_closure(
-                            "constraint block basis $(poly_idx).$(block_idx) of clique $clique_idx",
-                            basis,
-                            group,
-                        )
+            for (clique_idx, term_sparsities) in enumerate(cliques_term_sparsities)
+                for (poly_idx, term_sparsity) in enumerate(term_sparsities)
+                    for (block_idx, basis) in enumerate(term_sparsity.block_bases)
+                        if !isnothing(sector) && A === FermionicAlgebra
+                            _check_sectorwise_basis_closure(
+                                "constraint block basis $(poly_idx).$(block_idx) of clique $clique_idx",
+                                basis,
+                                group,
+                                sector,
+                            )
+                        else
+                            _check_basis_closure(
+                                "constraint block basis $(poly_idx).$(block_idx) of clique $clique_idx",
+                                basis,
+                                group,
+                            )
+                        end
                     end
                 end
             end
@@ -3912,7 +3992,13 @@ function moment_relax_symmetric(
                 else
                     _, raw_mat = _build_constraint_matrix(poly, basis, cone)
                     mat = _convert_polynomial_matrix(MP_P, raw_mat)
-                    diagonal_blocks = isnothing(sw_group) ?
+                    # A transported block need not carry a representation of the
+                    # full group. Keep its whole matrix, with globally shared
+                    # orbit coordinates, rather than dropping off-block entries.
+                    block_invariant = isnothing(group) || all(
+                        last(_act_monomial(g, mono)) in basis for g in group for mono in basis
+                    )
+                    diagonal_blocks = isnothing(sw_group) || !block_invariant ?
                         [_maybe_orbit_reduce_matrix(mat, reducer; atol)] :
                         _reduce_constraint_matrix_symmetric(
                             mat,
@@ -3924,7 +4010,8 @@ function moment_relax_symmetric(
                             offblock_check=symmetry.offblock_check,
                         )
                     diagonal_labels = fill(nothing, length(diagonal_blocks))
-                    diagonal_provenance = fill(isnothing(sw_group) ? :identity : :wedderburn, length(diagonal_blocks))
+                    provenance = !block_invariant ? :transported : isnothing(sw_group) ? :identity : :wedderburn
+                    diagonal_provenance = fill(provenance, length(diagonal_blocks))
                 end
 
                 for (diag_block, label, provenance) in zip(diagonal_blocks, diagonal_labels, diagonal_provenance)

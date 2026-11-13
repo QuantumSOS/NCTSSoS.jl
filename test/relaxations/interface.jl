@@ -1042,41 +1042,26 @@ end
             @test occursin("maps outside the basis", sprint(showerror, closure_err))
         end
 
-        @testset "unsupported ordinary solver configs error cleanly" begin
+        @testset "finite symmetry accepts compatible sparse solver configs" begin
             reg, (x,) = create_unipotent_variables([("x", 1:2)])
             pop = polyopt(-(1.0 * x[1] + x[2]), reg)
             basis = [one(x[1]), x[1], x[2]]
             symmetry = swap_symmetry(x[1], x[2])
 
-            cs_err = symmetry_error() do
-                cs_nctssos(
+            for (cs_algo, ts_algo) in ((MF(), NoElimination()), (NoElimination(), MMD()))
+                result = cs_nctssos(
                     pop,
                     SolverConfig(
                         optimizer=SOLVER,
                         moment_basis=basis,
-                        cs_algo=MF(),
-                        ts_algo=NoElimination(),
+                        cs_algo=cs_algo,
+                        ts_algo=ts_algo,
                         symmetry=symmetry,
                     ),
                 )
+                @test result.objective ≈ -2.0 atol=1e-6
+                @test result.symmetry.group_order == 2
             end
-            @test cs_err isa ArgumentError
-            @test occursin("`cs_algo=NoElimination()`", sprint(showerror, cs_err))
-
-            ts_err = symmetry_error() do
-                cs_nctssos(
-                    pop,
-                    SolverConfig(
-                        optimizer=SOLVER,
-                        moment_basis=basis,
-                        cs_algo=NoElimination(),
-                        ts_algo=MMD(),
-                        symmetry=symmetry,
-                    ),
-                )
-            end
-            @test ts_err isa ArgumentError
-            @test occursin("`ts_algo=NoElimination()`", sprint(showerror, ts_err))
         end
 
         @testset "unsupported algebra-action combinations fail loudly" begin

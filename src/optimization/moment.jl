@@ -722,7 +722,8 @@ end
 function _polynomial_total_basis(
     pop::PolyOpt{A,TI,P},
     corr_sparsity::CorrelativeSparsity{A,TI,P,M,Nothing},
-    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}}
+    cliques_term_sparsities::Vector{Vector{TermSparsity{M}}};
+    sector=nothing,
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
     one_word = one(NormalMonomial{A,TI})
     total_basis = Dict{M,Nothing}()
@@ -761,6 +762,8 @@ function _polynomial_total_basis(
             row_bases = _truncate_moment_eq_row_bases(moment_eq_row_bases, moment_eq_row_basis_degrees, g)
             isempty(row_bases) && continue
             for row_mono in row_bases
+                !isnothing(sector) && _fermionic_sector_label(row_mono, sector) !=
+                    _neutral_fermionic_sector_label(sector) && continue
                 for (_, row_word) in row_mono
                     for (_, mono) in g.terms
                         _neat_dot3!(buf, row_word, mono, one_word)

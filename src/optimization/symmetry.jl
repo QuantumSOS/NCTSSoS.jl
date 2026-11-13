@@ -944,7 +944,9 @@ end
 """
     SymmetrySpec
 
-Symmetry configuration for dense ordinary polynomial relaxations.
+Symmetry configuration for ordinary polynomial relaxations. Fermionic sector
+splitting alone supports sparse relaxations; the other actions require dense
+relaxations through `SolverConfig`.
 
 Supported pieces today:
 - signed permutations on monoid-algebra registry indices;
@@ -2828,6 +2830,37 @@ function _check_sectorwise_basis_closure(
     return nothing
 end
 
+function _sector_first_sector(symmetry::Union{Nothing,SymmetrySpec})
+    isnothing(symmetry) && return nothing
+    return isempty(symmetry.fermionic_generators) && isnothing(symmetry.spin_adaptation) ?
+        symmetry.sector : nothing
+end
+
+function _sector_first_sparsities(pop, cliques_term_sparsities, sector::FermionicSectorSpec)
+    _validate_fermionic_sector_spec(sector)
+    modes = sort!(unique(Int(abs(i)) for ts in cliques_term_sparsities for t in ts
+        for basis in t.block_bases for row in basis for i in row.word))
+    _validate_active_fermionic_sector_metadata(sector, modes)
+    neutral = _neutral_fermionic_sector_label(sector)
+    for (name, polys) in (("objective", (pop.objective,)),
+                         ("constraint", (pop.eq_constraints..., pop.ineq_constraints...)),
+                         ("moment equality constraint", pop.moment_eq_constraints))
+        for poly in polys
+            _fermionic_polynomial_sector_label(poly, sector, name) == neutral ||
+                throw(ArgumentError("Fermionic sector splitting requires sector-neutral $name."))
+        end
+    end
+    # Only equal-label row products survive symmetry averaging. Partition the
+    # existing sparse blocks, without changing their within-sector positivity.
+    return map(cliques_term_sparsities) do term_sparsities
+        map(term_sparsities) do ts
+            blocks = [basis[block.indices] for basis in ts.block_bases
+                for block in first(_sector_partition_blocks(basis, sector))]
+            TermSparsity(ts.term_sparse_graph_supp, blocks)
+        end
+    end
+end
+
 function _append_sector_zero_constraints!(
     constraints::Vector{Tuple{Symbol, Matrix{MP}}},
     mat::Matrix{MP},
@@ -2876,6 +2909,7 @@ function _add_moment_eq_constraints_symmetric!(
     reducer::Union{Nothing,_AnyOrbitReducer{A,T}},
     ::Type{MP};
     atol::Float64=_SYMMETRY_ATOL,
+    sector::Union{Nothing,FermionicSectorSpec}=nothing,
 ) where {A<:AlgebraType,T<:Integer,CMP<:Number,CPP<:Number,M<:NormalMonomial{A,T},MP<:Polynomial{A,T,CMP},PP<:Polynomial{A,T,CPP}}
     isempty(pop.moment_eq_constraints) && return nothing
 
@@ -2885,6 +2919,10 @@ function _add_moment_eq_constraints_symmetric!(
         isempty(row_bases) && continue
 
         for row_mono in row_bases
+            # A neutral equality multiplied by a charged row has zero
+            # expectation identically in the symmetry-averaged state.
+            !isnothing(sector) && _fermionic_sector_label(row_mono, sector) !=
+                _neutral_fermionic_sector_label(sector) && continue
             poly = sum(
                 _conj_coef(A, c_row) * coef * Polynomial(_simplified_to_terms(A, simplify(A, _neat_dot3(row_word, mono, one_mono)), T))
                 for (c_row, row_word) in row_mono
@@ -3599,8 +3637,9 @@ end
 """
     moment_relax_symmetric(pop, corr_sparsity, cliques_term_sparsities, symmetry)
 
-Construct a symmetry-reduced symbolic moment problem for dense ordinary polynomial
-relaxations. The output contract is still the usual `MomentProblem`.
+Construct a symmetry-reduced symbolic moment problem for ordinary polynomial
+relaxations. Fermionic sector splitting also supports sparse monomial blocks.
+The output contract is still the usual `MomentProblem`.
 """
 function moment_relax_symmetric(
     pop::PolyOpt{A,T,P},
@@ -3644,6 +3683,10 @@ function moment_relax_symmetric(
 
     use_lazy_pauli_charge_candidate = _can_use_lazy_pauli_charge_reduction(pop, symmetry)
     half_basis = _half_basis_vector(corr_sparsity)
+    construction_sector = _sector_first_sector(symmetry)
+    if !isnothing(construction_sector)
+        cliques_term_sparsities = _sector_first_sparsities(pop, cliques_term_sparsities, construction_sector)
+    end
     use_lazy_pauli_charge = use_lazy_pauli_charge_candidate && length(half_basis) > _PAULI_CHARGE_WEDDERBURN_MAX_DIM
     moment_matrix_basis_size = 0
     total_basis = half_basis
@@ -3657,7 +3700,7 @@ function moment_relax_symmetric(
         moment_matrix_basis = _moment_matrix_basis(cliques_term_sparsities)
         moment_matrix_basis_size = length(moment_matrix_basis)
         total_basis, moment_eq_row_bases, moment_eq_row_basis_degrees =
-            _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+            _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities; sector=construction_sector)
     end
 
     _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
@@ -3935,6 +3978,7 @@ function moment_relax_symmetric(
         reducer,
         MP_P;
         atol,
+        sector=construction_sector,
     )
 
     if !isnothing(pauli_singlet)
@@ -3969,7 +4013,7 @@ function moment_relax_symmetric(
         group_order,
         count(mono -> !isone(mono), reduced_moment_basis),
         reduced_moment_block_sizes,
-        length(only(corr_sparsity.clq_mom_mtx_bases)),
+        length(half_basis),
         moment_matrix_basis_size,
         moment_block_labels,
         moment_block_provenance,

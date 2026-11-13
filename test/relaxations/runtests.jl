@@ -20,6 +20,7 @@ using Test
     include("symmetry.jl")
     include("continuous_symmetry.jl")
     include("continuous_reduction.jl")
+    include("unified_symmetry.jl")
     include("pauli_chains.jl")
     include("pauli_strengthening.jl")
     include("pauli_invariant_soc.jl")

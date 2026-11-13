@@ -171,6 +171,7 @@ export SparsityResult, compute_sparsity
 export particle_number_constraint
 export SuppliedDerivation, differentiate, validate_continuous_symmetry
 export detect_continuous_symmetries, continuous_moment_relaxation, continuous_nctssos
+export detect_onsite_spin_symmetries
 export reconstruct_continuous_moments, reconstruct_continuous_matrices, verify_continuous_certificate
 export PhysicsSparsity, hamiltonian_interactions, physics_moment_basis
 export pauli_strengthened_relaxation, verify_pauli_strengthening_certificate

@@ -279,6 +279,17 @@ function sympleq_symmetry_spec(
     ga_backend::Symbol=:backtracking,
     max_automorphisms::Int=100_000,
 ) where {T<:Integer,C<:Number}
+    cliffords = _sympleq_clifford_candidates(H; cycle_strategy, ga_backend, max_automorphisms)
+    isempty(cliffords) && throw(ArgumentError(
+        "SympleQ did not find any nontrivial Clifford symmetry that preserves this Pauli Hamiltonian."
+    ))
+    return SymmetrySpec(clifford_generators=cliffords; check_invariance=true)
+end
+
+function _sympleq_clifford_candidates(
+    H::Polynomial{PauliAlgebra,T,C}; cycle_strategy::Symbol=:cycle_basis,
+    ga_backend::Symbol=:backtracking, max_automorphisms::Int=100_000,
+) where {T<:Integer,C<:Number}
     tab = SymplecticTableau(H)
     tab.nqubits > 0 || throw(ArgumentError("SympleQ needs a non-constant Pauli Hamiltonian."))
 
@@ -324,9 +335,5 @@ function sympleq_symmetry_spec(
         end
     end
 
-    isempty(cliffords) && throw(ArgumentError(
-        "SympleQ did not find any nontrivial Clifford symmetry that preserves this Pauli Hamiltonian."
-    ))
-
-    return SymmetrySpec(clifford_generators=cliffords; check_invariance=true)
+    return cliffords
 end

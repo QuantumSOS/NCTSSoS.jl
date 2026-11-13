@@ -1569,8 +1569,10 @@ function _enumerate_symmetry_group(spec::SymmetrySpec, domain::Vector{T}) where 
     throw(ArgumentError("`SymmetrySpec` does not contain any finite symmetry generators."))
 end
 
-function _enumerate_symmetry_group(generators::Vector{G}, domain::Vector{T}) where {G,T<:Integer}
+function _enumerate_symmetry_group(generators::Vector{G}, domain::Vector{T};
+    max_group_order::Int=typemax(Int)) where {G,T<:Integer}
     isempty(generators) && throw(ArgumentError("Symmetry reduction needs at least one finite generator."))
+    max_group_order >= 1 || throw(ArgumentError("max_group_order must be positive."))
 
     for generator in generators
         _validate_finite_action(generator, domain)
@@ -1586,6 +1588,8 @@ function _enumerate_symmetry_group(generators::Vector{G}, domain::Vector{T}) whe
             candidate = _compose_finite_actions(generator, current, domain)
             key = _symmetry_key(candidate, domain)
             if !haskey(seen, key)
+                length(seen) < max_group_order || throw(ArgumentError(
+                    "Finite symmetry closure exceeds max_group_order=$max_group_order; no partial group is used."))
                 seen[key] = candidate
                 push!(queue, candidate)
             end

@@ -48,6 +48,12 @@ _coeff_to_number(::Type{<:AlgebraType}, c::Number) = c
 # Dispatch via monomial (extracts algebra type from type parameter)
 _coeff_to_number(::NormalMonomial{A}, c) where {A<:AlgebraType} = _coeff_to_number(A, c)
 
+# Pauli phases are exact units. Do not promote rational certificate data to
+# floating point merely because the algebra's default coefficients are complex.
+_product_coeff_type(::Type{A}, ::Type{C}) where {A<:AlgebraType,C} = promote_type(C, coeff_type(A))
+_product_coeff_type(::Type{A}, ::Type{C}) where {A<:TwistedGroupAlgebra,C<:Rational} = Complex{C}
+_product_coeff_type(::Type{A}, ::Type{C}) where {A<:TwistedGroupAlgebra,C<:Complex{<:Rational}} = C
+
 # =============================================================================
 # Helper: Convert simplified result to Polynomial terms
 # =============================================================================
@@ -412,8 +418,7 @@ function Base.:(*)(
     isempty(p.terms) && return zero(Polynomial{A,T,C})
     isempty(m.word) && return p  # m is identity
 
-    DC = coeff_type(A)
-    NC = promote_type(C, DC)
+    NC = _product_coeff_type(A, C)
     result_terms = Tuple{NC,NormalMonomial{A,T}}[]
     sizehint!(result_terms, length(p.terms))
 
@@ -436,8 +441,7 @@ function Base.:(*)(
     isempty(p.terms) && return zero(Polynomial{A,T,C})
     isempty(m.word) && return p  # m is identity
 
-    DC = coeff_type(A)
-    NC = promote_type(C, DC)
+    NC = _product_coeff_type(A, C)
     result_terms = Tuple{NC,NormalMonomial{A,T}}[]
     sizehint!(result_terms, length(p.terms))
 
@@ -509,8 +513,7 @@ function Base.:(*)(
     isempty(p1.terms) && return zero(Polynomial{A,T,C})
     isempty(p2.terms) && return zero(Polynomial{A,T,C})
 
-    DC = coeff_type(A)
-    NC = promote_type(C, DC)
+    NC = _product_coeff_type(A, C)
     result_terms = Tuple{NC,NormalMonomial{A,T}}[]
     sizehint!(result_terms, length(p1.terms) * length(p2.terms))
 

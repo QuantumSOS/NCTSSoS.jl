@@ -58,6 +58,18 @@ NCTSSoS.SymmetrySpec
 NCTSSoS.SymmetryReport
 ```
 
+### Unified Symmetry Front
+
+`Symmetry` describes finite and continuous generators in one object and selects
+one of the existing reductions; it adds no reduction of its own. The
+`SymmetryCheckReport` states which checks the selected reduction ran.
+
+```@docs
+NCTSSoS.Symmetry
+NCTSSoS.SymmetryCheckReport
+NCTSSoS.check_symmetry
+```
+
 ## SympleQ Automatic Symmetry Detection
 
 The SympleQ pipeline recognizes Clifford symmetries of Pauli Hamiltonians

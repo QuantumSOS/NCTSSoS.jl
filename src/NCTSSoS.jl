@@ -143,6 +143,7 @@ include("optimization/continuous_reduction.jl")
 include("optimization/pauli_strengthening.jl")
 include("optimization/pauli_invariant_soc.jl")
 include("optimization/antiunitary.jl")
+include("optimization/unified_symmetry.jl")
 include("optimization/gns.jl")
 include("optimization/flat_extension.jl")
 include("optimization/gns_cholesky.jl")
@@ -159,6 +160,7 @@ export pauli_site_permutation, pauli_contiguous_chain_basis, pauli_sign_symmetry
 export PauliChargeSectorSpec, PauliSingletConstraintSpec, PauliChargeBlockLabel
 export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
 export SymmetrySpec, SymmetryReport
+export Symmetry, SymmetryCheckReport, check_symmetry
 export heisenberg_chain_hamiltonian
 export pauli_chain_translation, pauli_chain_reflection, pauli_global_axis_rotation_generators, heisenberg_chain_symmetry_spec
 export TranslationInvariantReport, TranslationInvariantResult

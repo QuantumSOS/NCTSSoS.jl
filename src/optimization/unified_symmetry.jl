@@ -1,9 +1,10 @@
 # Unified symmetry front.
 #
-# This file adds no reduction kernel. `Symmetry` records what the user supplies,
-# `check_symmetry` and `cs_nctssos(pop, config, symmetry)` select one existing
-# backend, call it with unchanged arguments, and report which checks that
-# backend ran. Compositions no backend implements are rejected here.
+# This file adds no reduction kernel. `Symmetry` records what the user supplies;
+# `SolverConfig(symmetry=sym)` passed to the usual `cs_nctssos(pop, config)` or
+# `check_symmetry(pop, config)` selects one existing backend, calls it with
+# unchanged arguments, and reports which checks that backend ran. Every route
+# returns a `PolyOptResult`. Compositions no backend implements are rejected.
 
 const _FINITE_SYMMETRY_GENERATOR = Union{SignedPermutation,CliffordSymmetry,FermionicModePermutation}
 
@@ -11,8 +12,11 @@ const _FINITE_SYMMETRY_GENERATOR = Union{SignedPermutation,CliffordSymmetry,Ferm
     Symmetry(; finite=[], continuous=[], compact_metric=nothing, kwargs...)
     Symmetry(spec::SymmetrySpec)
 
-One description of the symmetry of an optimization problem, used by
-[`check_symmetry`](@ref) and `cs_nctssos(pop, config, symmetry)`.
+One description of the symmetry of an optimization problem. Pass it as
+`SolverConfig(symmetry=sym)` to the usual `cs_nctssos(pop, config)`, or to
+[`check_symmetry`](@ref) to validate and reduce without a solver. The solve
+signature and the result type (`PolyOptResult`, with a
+[`SymmetryCheckReport`](@ref) in `result.symmetry`) are the same on every route.
 
 A symmetry is supplied as generators of two kinds:
 
@@ -57,11 +61,12 @@ entry points.
 ```julia
 sym = Symmetry(finite=[pauli_site_permutation([2, 3, 1])],
                continuous=spin_rotations, compact_metric=metric)
-report = check_symmetry(pop, config, sym)     # validate and reduce, no solver
-solved = cs_nctssos(pop, config, sym)         # solved.objective, solved.report
+config = SolverConfig(optimizer=COSMO.Optimizer, order=1, symmetry=sym)
+report = check_symmetry(pop, config)   # validate and reduce, no solver
+result = cs_nctssos(pop, config)       # PolyOptResult; result.symmetry isa SymmetryCheckReport
 ```
 """
-struct Symmetry
+struct Symmetry <: AbstractSymmetry
     finite::Vector{Any}
     continuous::Vector{SuppliedDerivation}
     compact_metric::Union{Nothing,AbstractMatrix}
@@ -210,8 +215,8 @@ end
 """
     SymmetryCheckReport
 
-What [`check_symmetry`](@ref) or `cs_nctssos(pop, config, symmetry)` did, in the
-same terms for every route. Each label states what the selected backend checked,
+What [`check_symmetry`](@ref) or `cs_nctssos(pop, SolverConfig(symmetry=sym))`
+did, in the same terms for every route. `cs_nctssos` stores it in `result.symmetry`. Each label states what the selected backend checked,
 not what is true of the problem.
 
 # Fields
@@ -243,10 +248,14 @@ not what is true of the problem.
 - `invariant_moment_count`: free moment coordinates reported by the backend.
 - `psd_block_sizes`: sizes of the positive semidefinite blocks given to the solver.
 - `notes`: plain statements of skipped checks, asserted properties, and limits.
-- `backend_report`: the untouched backend output ([`SymmetryReport`](@ref), or
-  the named tuple of `continuous_moment_relaxation`).
+- `backend_report`: the untouched backend output. Finite route: the
+  [`SymmetryReport`](@ref). Continuous routes: the named tuple of
+  `continuous_moment_relaxation` from `check_symmetry`, or the full named tuple
+  of `continuous_nctssos` from `cs_nctssos` (its `reduction`, plus `moments`
+  and `matrices` with `dualize=false`, or `grams`, `multipliers` and the exact
+  `certificate` with `dualize=true`).
 """
-struct SymmetryCheckReport
+struct SymmetryCheckReport <: AbstractSymmetryReport
     route::Symbol
     backend::Symbol
     finite_generators::Int
@@ -318,7 +327,7 @@ function _finite_check_report(symmetry::Symmetry, backend_report::SymmetryReport
     )
 end
 
-function _continuous_check_report(symmetry::Symmetry, reduction)
+function _continuous_check_report(symmetry::Symmetry, reduction; backend_report=reduction)
     mixed = !isempty(symmetry.finite)
     notes = String[]
     mixed && push!(notes,
@@ -341,18 +350,11 @@ function _continuous_check_report(symmetry::Symmetry, reduction)
         size(reduction.section, 2),
         Int[block.size for block in reduction.moment_problem.linear.psd_blocks_lin],
         notes,
-        reduction,
+        backend_report,
     )
 end
 
-function _require_unset_config_symmetry(config::SolverConfig)
-    isnothing(config.symmetry) || throw(ArgumentError(
-        "Supply the symmetry once: either `SolverConfig(symmetry=SymmetrySpec(...))` or the `Symmetry` argument, not both."
-    ))
-    return nothing
-end
-
-function _config_with_symmetry_spec(config::SolverConfig, spec::SymmetrySpec)
+function _config_with_symmetry_spec(config::SolverConfig, spec::Union{Nothing,SymmetrySpec})
     return SolverConfig(;
         optimizer=config.optimizer,
         order=config.order,
@@ -366,6 +368,9 @@ end
 # Reject before any backend work, so an unsupported composition never reaches a
 # code path that would handle part of it.
 function _check_continuous_route_support(pop::OptimizationProblem{A,P}, symmetry::Symmetry) where {A<:AlgebraType,P}
+    P <: Polynomial || throw(ArgumentError(
+        "Continuous symmetry supports ordinary polynomial problems only; state/trace problems are not supported."
+    ))
     isnothing(symmetry.compact_metric) && throw(ArgumentError(
         "Continuous generators need `compact_metric`: a positive definite matrix on the registered letters " *
         "that every generator preserves. Without it the reduction is not known to be exact."
@@ -385,36 +390,33 @@ end
 
 _clifford_generators(symmetry::Symmetry) = CliffordSymmetry[g for g in symmetry.finite]
 
-# Keywords that `Symmetry` already carries must not be overridden by a second
-# value passed at solve time.
-function _reject_symmetry_keywords(kwargs)
-    for key in (:compact_metric, :compress, :clifford_generators)
-        haskey(kwargs, key) && throw(ArgumentError(
-            "`$key` is part of the `Symmetry` argument; do not pass it again as a keyword."
-        ))
-    end
-    return nothing
-end
+# `compute_sparsity` validates a supplied `moment_basis` against the sector-first
+# blocks; a finite-only `Symmetry` uses the same rule as its `SymmetrySpec`.
+_sector_first_sector(symmetry::Symmetry) =
+    isempty(symmetry.continuous) ? _sector_first_sector(SymmetrySpec(symmetry)) : nothing
+
+_config_symmetry(config::SolverConfig) = _config_symmetry(config.symmetry)
+_config_symmetry(symmetry::Symmetry) = symmetry
+_config_symmetry(spec::SymmetrySpec) = Symmetry(spec)
+_config_symmetry(::Nothing) = throw(ArgumentError(
+    "`check_symmetry` needs `SolverConfig(symmetry=Symmetry(...))`; this configuration has no symmetry."
+))
 
 """
-    check_symmetry(pop, config::SolverConfig, symmetry::Symmetry; physics=nothing) -> SymmetryCheckReport
+    check_symmetry(pop, config::SolverConfig; physics=nothing) -> SymmetryCheckReport
 
-Validate `symmetry` against the whole relaxation of `pop` selected by `config`
-(objective, constraints, and row bases) and build the reduced problem, without
-calling a solver. Runs exactly the validation that
-`cs_nctssos(pop, config, symmetry)` runs, through the same backend.
+Validate `config.symmetry` (a [`Symmetry`](@ref), or a [`SymmetrySpec`](@ref),
+which is wrapped as `Symmetry(spec)`) against the whole relaxation of `pop`
+selected by `config` (objective, constraints, and row bases) and build the
+reduced problem, without calling a solver. Runs exactly the validation that
+`cs_nctssos(pop, config)` runs, through the same backend.
 
 Throws an `ArgumentError` when the symmetry does not hold or when no backend
-supports the composition. `config.symmetry` must be `nothing`. `physics` is
-forwarded to the backend, which rejects it where it is unsupported.
+supports the composition. `physics` is forwarded to the backend, which rejects
+it where it is unsupported.
 """
-function check_symmetry(
-    pop::OptimizationProblem,
-    config::SolverConfig,
-    symmetry::Symmetry;
-    physics=nothing,
-)
-    _require_unset_config_symmetry(config)
+function check_symmetry(pop::OptimizationProblem, config::SolverConfig; physics=nothing)
+    symmetry = _config_symmetry(config)
     if _symmetry_route(symmetry) === :finite
         finite_config = _config_with_symmetry_spec(config, SymmetrySpec(symmetry))
         sparsity = isnothing(physics) ? compute_sparsity(pop, finite_config) :
@@ -429,47 +431,32 @@ function check_symmetry(
         return _finite_check_report(symmetry, backend_report)
     end
     _check_continuous_route_support(pop, symmetry)
-    reduction = continuous_moment_relaxation(pop, config, symmetry.continuous;
+    reduction = continuous_moment_relaxation(pop, _config_with_symmetry_spec(config, nothing), symmetry.continuous;
         compact_metric=symmetry.compact_metric, compress=symmetry.compress, physics,
         clifford_generators=_clifford_generators(symmetry))
     return _continuous_check_report(symmetry, reduction)
 end
 
-"""
-    cs_nctssos(pop, config::SolverConfig, symmetry::Symmetry; kwargs...)
-
-Solve the relaxation of `pop` reduced by `symmetry`, through the backend that
-[`Symmetry`](@ref) selects. Returns `(objective, report, result)`:
-
-- `objective`: the solver's optimal value;
-- `report`: a [`SymmetryCheckReport`](@ref);
-- `result`: the untouched backend result, a `PolyOptResult` on the `:finite`
-  route and the named tuple of `continuous_nctssos` on the continuous routes.
-
-Keyword arguments are forwarded to the backend and keep its defaults: the
-`:finite` route accepts those of `cs_nctssos(pop, config)` (`dualize=true`, ...),
-the continuous routes those of `continuous_nctssos` (`dualize=false`,
-`physics`). With `dualize=true` the continuous routes also return
-`result.certificate`, the exact-arithmetic check of the solver's dual solution;
-it reports the residual of floating-point output instead of chopping it.
-
-`config.symmetry` must be `nothing`.
-"""
-function cs_nctssos(
-    pop::OptimizationProblem,
-    config::SolverConfig,
-    symmetry::Symmetry;
-    kwargs...,
-)
-    _require_unset_config_symmetry(config)
+# `cs_nctssos(pop, SolverConfig(symmetry=sym::Symmetry))` lands here. Every route
+# returns a `PolyOptResult` whose `symmetry` field is a `SymmetryCheckReport`;
+# the engine's own output stays in `result.symmetry.backend_report`.
+function _cs_nctssos_symmetry(pop::OptimizationProblem, config::SolverConfig, symmetry::Symmetry;
+    dualize::Bool, formulation::Symbol, representation::Symbol, orphan_policy::Symbol, physics)
     if _symmetry_route(symmetry) === :finite
-        result = cs_nctssos(pop, _config_with_symmetry_spec(config, SymmetrySpec(symmetry)); kwargs...)
-        return (; objective=result.objective, report=_finite_check_report(symmetry, result.symmetry), result)
+        result = cs_nctssos(pop, _config_with_symmetry_spec(config, SymmetrySpec(symmetry));
+            dualize, formulation, representation, orphan_policy, physics)
+        return PolyOptResult(result.objective, result.sparsity, result.model,
+            result.n_unique_moment_matrix_elements; symmetry=_finite_check_report(symmetry, result.symmetry))
     end
     _check_continuous_route_support(pop, symmetry)
-    _reject_symmetry_keywords(kwargs)
-    result = continuous_nctssos(pop, config, symmetry.continuous;
-        compact_metric=symmetry.compact_metric, compress=symmetry.compress,
-        clifford_generators=_clifford_generators(symmetry), kwargs...)
-    return (; objective=result.objective, report=_continuous_check_report(symmetry, result.reduction), result)
+    (formulation === :moment_variables && representation === :real && orphan_policy === :error) || throw(ArgumentError(
+        "The continuous symmetry engine builds its own exact real section and does not accept " *
+        "`formulation`, `representation`, or `orphan_policy`; leave them at their defaults."
+    ))
+    engine = continuous_nctssos(pop, _config_with_symmetry_spec(config, nothing), symmetry.continuous;
+        compact_metric=symmetry.compact_metric, compress=symmetry.compress, dualize, physics,
+        clifford_generators=_clifford_generators(symmetry))
+    report = _continuous_check_report(symmetry, engine.reduction; backend_report=engine)
+    return PolyOptResult(engine.objective, engine.reduction.sparsity, engine.model,
+        report.invariant_moment_count; symmetry=report)
 end

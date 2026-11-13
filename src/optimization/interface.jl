@@ -51,7 +51,9 @@ Result of a polynomial optimization problem solution.
 - `model::GenericModel{T}`: JuMP model used for solving
 - `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix before any symmetry reduction; when `symmetry !== nothing`, the final solver PSD block sizes live in `symmetry.psd_block_sizes`
 - `n_unique_moment_matrix_elements::Int`: Number of unique moment variables in all moment matrices (after canonicalization)
-- `symmetry::Union{Nothing,SymmetryReport}`: Summary of an applied symmetry reduction, or `nothing` for the ordinary path
+- `symmetry`: Summary of an applied symmetry reduction, or `nothing` for the ordinary path:
+  a [`SymmetryReport`](@ref) for `SolverConfig(symmetry=SymmetrySpec(...))`, or a
+  [`SymmetryCheckReport`](@ref) for `SolverConfig(symmetry=Symmetry(...))`
 """
 struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P, M, ST}
     objective::T
@@ -59,7 +61,7 @@ struct PolyOptResult{T, A<:AlgebraType, TI<:Integer, P, M, ST}
     model::GenericModel{T}
     moment_matrix_sizes::Vector{Vector{Int}}
     n_unique_moment_matrix_elements::Int
-    symmetry::Union{Nothing,SymmetryReport}
+    symmetry::Union{Nothing,AbstractSymmetryReport}
 end
 
 """
@@ -87,7 +89,7 @@ function PolyOptResult(
     sparsity::SparsityResult{A,TI,P,M,ST},
     model::GenericModel{T},
     n_unique_elements::Int;
-    symmetry::Union{Nothing,SymmetryReport}=nothing,
+    symmetry::Union{Nothing,AbstractSymmetryReport}=nothing,
 ) where {T, A<:AlgebraType, TI<:Integer, P, M, ST}
     moment_matrix_sizes = _compute_moment_matrix_sizes(sparsity.cliques_term_sparsities)
 
@@ -336,8 +338,10 @@ Configuration for solving polynomial optimization problems.
   raise an error instead of silently dropping terms. Default: `nothing`
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
 - `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity exploitation (default: NoElimination())
-- `symmetry::Union{Nothing,SymmetrySpec}`: Optional symmetry reduction spec for
-  ordinary polynomial relaxations, with supported combinations limited to either
+- `symmetry`: Optional symmetry, either a [`Symmetry`](@ref) (finite and/or
+  continuous generators through one front; see its docstring for the routes) or
+  a [`SymmetrySpec`](@ref) for the finite engine directly. The `SymmetrySpec`
+  path supports ordinary polynomial relaxations, with combinations limited to either
   - `MonoidAlgebra` or `BosonicAlgebra` + `SignedPermutation`,
   - `PauliAlgebra` + `CliffordSymmetry`, optionally with `PauliChargeSectorSpec` and `PauliSingletConstraintSpec`, or
   - `FermionicAlgebra` + `FermionicModePermutation`, `FermionicSectorSpec`, and optional `FermionicSpinAdaptationSpec` layered on sector blocks.
@@ -369,7 +373,7 @@ SolverConfig(COSMO.Optimizer, 2, nothing, NoElimination(), NoElimination(), noth
     moment_basis::Union{Nothing,Vector} = nothing
     cs_algo::EliminationAlgorithm = NoElimination()
     ts_algo::EliminationAlgorithm = NoElimination()
-    symmetry::Union{Nothing,SymmetrySpec} = nothing
+    symmetry::Union{Nothing,SymmetrySpec,AbstractSymmetry} = nothing
 end
 
 function _resolve_relaxation_spec(pop::OptimizationProblem, solver_config::SolverConfig)
@@ -554,6 +558,10 @@ function cs_nctssos(
     orphan_policy::Symbol=:error,
     physics=nothing,
 ) where {A<:AlgebraType, P, OP<:OptimizationProblem{A,P}}
+    # The unified front selects an engine and returns the same `PolyOptResult`.
+    solver_config.symmetry isa AbstractSymmetry && return _cs_nctssos_symmetry(
+        pop, solver_config, solver_config.symmetry;
+        dualize, formulation, representation, orphan_policy, physics)
     sparsity = isnothing(physics) ? compute_sparsity(pop, solver_config) :
         compute_sparsity(pop, solver_config, physics)
     _check_symmetry_mvp_support(pop, solver_config, sparsity)

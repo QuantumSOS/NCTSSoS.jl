@@ -944,6 +944,12 @@ struct FermionicSectorLabel
     irrep
 end
 
+# Supertypes that let `SolverConfig` and `PolyOptResult` carry the unified
+# `Symmetry` front and its `SymmetryCheckReport`, which are defined after
+# `interface.jl` (see `unified_symmetry.jl`).
+abstract type AbstractSymmetry end
+abstract type AbstractSymmetryReport end
+
 """
     SymmetrySpec
 
@@ -1178,7 +1184,7 @@ end
 
 Summary of the symmetry reduction applied to a relaxation.
 """
-struct SymmetryReport
+struct SymmetryReport <: AbstractSymmetryReport
     group_order::Int
     invariant_moment_count::Int
     psd_block_sizes::Vector{Int}

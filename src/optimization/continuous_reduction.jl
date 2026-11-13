@@ -534,6 +534,7 @@ end
 function continuous_moment_relaxation(pop::PolyOpt{A,T,P}, config::SolverConfig,
     actions::AbstractVector{<:SuppliedDerivation}; compact_metric,
     compress::Bool=true, physics::Union{Nothing,PhysicsSparsity}=nothing,
+    additional_moments::AbstractVector=NormalMonomial{A,T}[],
     clifford_generators::AbstractVector{<:CliffordSymmetry}=CliffordSymmetry[],
     max_group_order::Int=typemax(Int)) where {A,T,P<:Polynomial{A,T}}
     isnothing(config.symmetry) || throw(ArgumentError("Use clifford_generators for checked finite/continuous composition; other SymmetrySpec options are unsupported."))
@@ -544,6 +545,7 @@ function continuous_moment_relaxation(pop::PolyOpt{A,T,P}, config::SolverConfig,
     sparsity = isnothing(physics) ? compute_sparsity(pop, config) :
         compute_sparsity(pop, config, physics; actions, clifford_generators)
     original = _continuous_exact_problem(pop, sparsity)
+    original = merge(original,(words=sort!(unique([original.words; additional_moments])),))
     validation = validate_continuous_symmetry(pop, actions;
         positivity_bases=original.positive_rows, compact_metric)
     validation.compactness == :verified || throw(ArgumentError("Exact reduction requires a verified compact action."))

@@ -503,9 +503,9 @@ function pauli_translation_invariant_moment_relaxation(
 
     translated = Dict{NormalMonomial{PauliAlgebra,T},Vector{NormalMonomial{PauliAlgebra,T}}}()
     for rep in nontrivial_reps
-        translated[rep] = [_translate_pauli_monomial(rep, r, n) for r in 0:(n - 1)]
+        translated[rep] = [_translate_pauli_monomial(rep, r, n) for r in 0:(_translation_orbit_length(rep,n) - 1)]
     end
-    translated[one_mono] = fill(one_mono, n)
+    translated[one_mono] = [one_mono]
 
     constraints = Tuple{Symbol,Matrix{MP_P}}[]
     moment_terms = NormalMonomial{PauliAlgebra,T}[]
@@ -513,7 +513,7 @@ function pauli_translation_invariant_moment_relaxation(
     block_labels = Any[]
 
     for k in sectors
-        sector_basis = k == 0 ? orbit_reps : nontrivial_reps
+        sector_basis = [m for m in orbit_reps if mod(k*length(translated[m]),n) == 0]
         blocks = sign_symmetry ?
             _pauli_signature_blocks(sector_basis; axis_permutation_symmetry) :
             [(:all, sector_basis)]
@@ -569,15 +569,16 @@ function pauli_translation_invariant_moment_relaxation(
         pso_reps = _translation_orbit_representatives(pso_basis, n)
         for rep in pso_reps
             haskey(translated, rep) || (
-                translated[rep] = [_translate_pauli_monomial(rep, r, n) for r in 0:(n - 1)]
+                translated[rep] = [_translate_pauli_monomial(rep, r, n) for r in 0:(_translation_orbit_length(rep,n) - 1)]
             )
         end
         pso_pairing = reflection ? _mirror_pairing(pso_reps, n) : nothing
         hamiltonian_by_site = _pauli_hamiltonian_terms_by_site(pop.objective, n)
         for k in sectors
+            sector_reps = [m for m in pso_reps if mod(k*length(translated[m]),n) == 0]
             blocks = sign_symmetry ?
-                _pauli_signature_blocks(pso_reps; axis_permutation_symmetry) :
-                [(:all, pso_reps)]
+                _pauli_signature_blocks(sector_reps; axis_permutation_symmetry) :
+                [(:all, sector_reps)]
             for (signature, block_basis) in blocks
                 isempty(block_basis) && continue
                 complex_mat = _translation_state_optimality_block(
@@ -766,7 +767,7 @@ function _pauli_rdm_blocks(
     k::Int,
     reducer,
     ::Type{P};
-    sign_symmetry::Bool,
+    sign_symmetry::Bool, sites=collect(1:k),
 ) where {T<:Unsigned,P<:Polynomial{PauliAlgebra,T}}
     C = _coefficient_type(P)
     M = NormalMonomial{PauliAlgebra,T}
@@ -788,7 +789,7 @@ function _pauli_rdm_blocks(
             code >>= 2
             axis == 0x00 && continue
             ptype = Int(axis) - 1
-            push!(word, _pauli_index_from_site_type(T, site, ptype))
+            push!(word, _pauli_index_from_site_type(T, sites[site], ptype))
             bit = 1 << (k - site)
             if ptype == _PAULI_X_TYPE
                 px = !px
@@ -805,8 +806,8 @@ function _pauli_rdm_blocks(
         end
 
         sign_symmetry && !(px == py == pz) && continue
-        reducer.drop_odd_y && isodd(y_count) && continue
-        rep = _reduce_moment(reducer, M(copy(word)))
+        !isnothing(reducer) && reducer.drop_odd_y && isodd(y_count) && continue
+        rep = isnothing(reducer) ? M(copy(word)) : _reduce_moment(reducer, M(copy(word)))
         rep === nothing && continue
         y_phase = C(im)^y_count
         push!(options_by_flip[flip_mask + 1], (yz_mask, y_phase, rep))
@@ -911,10 +912,25 @@ function _translation_orbit_representative(
     mono::NormalMonomial{PauliAlgebra,T},
     n_sites::Integer,
 ) where {T<:Unsigned}
+    isempty(mono.word) && return mono
+    n = Int(n_sites)
     rep = mono
-    for shift in 1:(Int(n_sites) - 1)
-        image = _translate_pauli_monomial(mono, shift, n_sites)
-        image < rep && (rep = image)
+    if all(idx -> 1 <= _pauli_site(idx) <= n, mono.word)
+        # A minimizing image must occupy site 1: its first letter is at most
+        # 3, whereas every image leaving site 1 empty starts at 4 or above.
+        # Keep the existing translation helper and ordering, including phases.
+        for idx in mono.word
+            shift = 1 - _pauli_site(idx)
+            iszero(shift) && continue
+            image = _translate_pauli_monomial(mono, shift, n)
+            image < rep && (rep = image)
+        end
+    else
+        # Preserve the previous behavior for words outside the declared chain.
+        for shift in 1:(n - 1)
+            image = _translate_pauli_monomial(mono, shift, n)
+            image < rep && (rep = image)
+        end
     end
     return rep
 end
@@ -934,10 +950,6 @@ function _translation_orbit_representatives(
     reps = Dict{NormalMonomial{PauliAlgebra,T},Nothing}()
     for mono in basis
         rep = _translation_orbit_representative(mono, n_sites)
-        len = _translation_orbit_length(rep, n_sites)
-        (isone(rep) || len == Int(n_sites)) || throw(ArgumentError(
-            "Translation-invariant Pauli path currently supports only identity and full-length translation orbits; orbit representative $rep has length $len."
-        ))
         reps[rep] = nothing
     end
     return sort!(collect(keys(reps)))
@@ -1267,6 +1279,8 @@ function _pauli_linear_state_polynomial(
     sign_symmetry::Bool,
     ::Type{P};
     atol,
+    relevant_terms=nothing,
+    support_before_reduction::Bool=false,
 ) where {
     T<:Unsigned,
     M<:NormalMonomial{PauliAlgebra,T},
@@ -1274,22 +1288,26 @@ function _pauli_linear_state_polynomial(
 }
     C = _coefficient_type(P)
     terms = Tuple{C,M}[]
-    relevant = Int[]
-    marks = zeros(Int, length(hamiltonian.terms))
-    _pauli_relevant_hamiltonian_terms!(relevant, marks, 0, candidate, by_site)
+    if isnothing(relevant_terms)
+        relevant_terms = Int[]
+        marks = zeros(Int, length(hamiltonian.terms))
+        _pauli_relevant_hamiltonian_terms!(relevant_terms, marks, 0, candidate, by_site)
+    end
 
-    for term_idx in relevant
+    for term_idx in relevant_terms
         hcoef, hmono = hamiltonian.terms[term_idx]
+        _pauli_anticommutes(hmono,candidate) || continue
         left_coef, left_mono = _mul_term(hmono, candidate)
-        right_coef, right_mono = _mul_term(candidate, hmono)
-        left_mono == right_mono || throw(ArgumentError(
-            "Internal error: Pauli commutator products disagree on their normal monomial."
-        ))
-        raw_coef = -im * hcoef * (left_coef - right_coef)
+        # Anticommuting Pauli words satisfy QH = -HQ, exactly. Multiplication
+        # by a fixed word is injective, so distinct H terms cannot raw-cancel.
+        raw_coef = -2im * hcoef * left_coef
         iszero(raw_coef) && continue
         sign_symmetry && !iszero(_pauli_sign_signature(left_mono)) && continue
         rep = _reduce_moment(reducer, left_mono)
         rep === nothing && continue
+        # Historical candidate selection rejects unsupported raw terms before
+        # distinct moments can cancel after symmetry reduction.
+        support_before_reduction && !(rep in supported) && return nothing
 
         coef = if C <: Real
             abs(imag(raw_coef)) <= atol || throw(ArgumentError(
@@ -1512,11 +1530,11 @@ function _translation_momentum_entry(
 
     C = _coefficient_type(P)
     R = typeof(real(one(C)))
-    cross_scale = xor(isone(row), isone(col)) ? C(inv(sqrt(R(n)))) : one(C)
+    cross_scale = C(sqrt(R(length(translated[row]))/R(length(translated[col]))))
     terms = Tuple{C,M}[]
     sizehint!(terms, n)
     col_translates = translated[col]
-    for r in 0:(n - 1)
+    for r in 0:(length(col_translates) - 1)
         phase = C(_momentum_phase(R, k, r, n))
         prod = row * col_translates[r + 1]
         for (coef, mono) in prod.terms
@@ -1734,12 +1752,13 @@ function _translation_state_optimality_entry(
 }
     C = _coefficient_type(P)
     R = typeof(real(one(C)))
+    scale = C(sqrt(R(length(translated[row]))/R(length(translated[col]))))
     terms = Tuple{C,M}[]
     relevant = Int[]
     marks = zeros(Int, length(hamiltonian.terms))
     generation = 0
 
-    for r in 0:(n - 1)
+    for r in 0:(length(translated[col]) - 1)
         col_r = translated[col][r + 1]
         generation = _pauli_relevant_hamiltonian_terms!(
             relevant,
@@ -1757,7 +1776,7 @@ function _translation_state_optimality_entry(
             end
         end
 
-        phase = C(_momentum_phase(R, k, r, n))
+        phase = scale*C(_momentum_phase(R, k, r, n))
         for term_idx in relevant
             hcoef, hmono = hamiltonian.terms[term_idx]
 

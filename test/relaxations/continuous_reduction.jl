@@ -538,3 +538,79 @@ end
     @test_throws ArgumentError compute_sparsity(pop, order1,
         PhysicsSparsity(max_region_sites=1,max_block_size=3); actions)
 end
+
+@testset "Automatic on-site spin and Clifford composition" begin
+    reg,(x,y,z) = create_pauli_variables(1:3)
+    bond(i,j) = x[i]*x[j]+y[i]*y[j]+z[i]*z[j]
+    h = bond(1,2)+2bond(2,3)
+    # Connected isotropic, axial, fully anisotropic, field-broken, disconnected,
+    # and constant controls distinguish global rotations from local rotations.
+    for (objective,dim) in ((h,3), (h+z[1]*z[2],1),
+        (h+z[1]*z[2]+2x[2]*x[3],0), (h+z[1],1),
+        (h+z[1]+x[3],0), (bond(1,2),6), (zero(h),9))
+        pop = polyopt(objective,reg)
+        found = detect_onsite_spin_symmetries(pop)
+        @test found.dimension == dim
+        @test all(iszero(differentiate(a,objective)) for a in found.generators)
+        # Independently check the reported Q and sign convention by multiplication.
+        for (j,a) in enumerate(found.generators)
+            q = Polynomial([(found.coefficients[k,j],
+                NormalMonomial{PauliAlgebra,eltype(found.letters)}([i]))
+                for (k,i) in enumerate(found.letters)])
+            for v in vcat(x,y,z)
+                @test differentiate(a,v) == (im/2)*(q*v-v*q)
+            end
+        end
+    end
+    # A tilted axis cannot be found by merely testing X/Y/Z global rotations.
+    tilted = detect_onsite_spin_symmetries(polyopt(h+x[1]+2y[1]+3z[1],reg))
+    @test tilted.dimension == 1
+    @test tilted.coefficients[:,1] == repeat([1//3,2//3,1],3)
+    twisted = detect_onsite_spin_symmetries(polyopt(-x[1]*x[2]-y[1]*y[2]+z[1]*z[2]+2bond(2,3),reg))
+    @test twisted.dimension == 3
+    @test twisted.coefficients == [Diagonal([-1, -1, 1]); Matrix{Int}(I,3,3); Matrix{Int}(I,3,3)]
+    @test detect_onsite_spin_symmetries(polyopt(h+1e-12z[1]+2e-12x[3],reg)).dimension == 0
+    @test_throws ArgumentError detect_onsite_spin_symmetries(polyopt(im*h,reg))
+
+    solver = optimizer_with_attributes(COSMO.Optimizer,"verbose"=>false,
+        "eps_abs"=>1e-8,"eps_rel"=>1e-8,"max_iter"=>50000)
+    config = SolverConfig(optimizer=solver,order=1)
+    triangle = polyopt(bond(1,2)+bond(2,3)+bond(1,3),reg)
+    automatic = continuous_moment_relaxation(triangle,config)
+    @test automatic.discovery.dimension == 3
+    @test !isempty(automatic.clifford_generators)
+    supplied = supplied_vector_rotations(reg,[[x[i],y[i],z[i]] for i in 1:3])
+    control = continuous_moment_relaxation(triangle,config,supplied;
+        compact_metric=Matrix{Int}(I,9,9), clifford_generators=automatic.clifford_generators)
+    @test automatic.original.positive_rows == control.original.positive_rows
+    @test automatic.section == control.section
+    for reduction in (automatic,control)
+        model,_ = build_jump_model(reduction.moment_problem)
+        set_optimizer(model,solver)
+        optimize!(model)
+        @test termination_status(model) == MOI.OPTIMAL
+        # This relaxation is not tight: -4.5, not the ground-state energy -3.
+        @test objective_value(model) ≈ -4.5 atol=2e-5
+    end
+    @test_throws ArgumentError continuous_moment_relaxation(triangle,config; max_group_order=1)
+    @test_throws ArgumentError continuous_moment_relaxation(triangle,config; max_automorphisms=0)
+    # Detection supports constant H, but the SympleQ reduction entry point
+    # requires a nonconstant Hamiltonian, as does sympleq_symmetry_spec.
+    @test_throws ArgumentError continuous_moment_relaxation(polyopt(zero(h),reg),config)
+    broken = continuous_moment_relaxation(polyopt(h+z[1]+2x[3],reg),config)
+    @test broken.discovery.dimension == 0
+    @test broken.relation_to_input == :equivalent
+    one_reg,(a,b,c) = create_pauli_variables(1:1)
+    tilted_pop = polyopt(a[1]+2b[1]+3c[1],one_reg)
+    # Discovery is exact even when rational representation splitting is not
+    # supported. Moment averaging without compression remains available.
+    @test_throws ArgumentError continuous_moment_relaxation(tilted_pop,config)
+    tilted_only = continuous_moment_relaxation(tilted_pop,config;compress=false)
+    @test tilted_only.discovery.dimension == 1
+    @test isempty(tilted_only.clifford_generators)
+    model,_ = build_jump_model(tilted_only.moment_problem)
+    set_optimizer(model,solver)
+    optimize!(model)
+    @test termination_status(model) == MOI.OPTIMAL
+    @test objective_value(model) ≈ -sqrt(14) atol=2e-5
+end

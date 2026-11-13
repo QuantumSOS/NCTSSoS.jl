@@ -481,7 +481,8 @@ end
 # Finite averaging must preserve the continuous invariant space and permute
 # whole positivity blocks. Initially this composition supports unconstrained
 # Pauli problems only; localizer/equality orbit lifting is not implicit.
-function _continuous_clifford_actions(pop::PolyOpt{A,T}, original, actions, generators) where {A,T}
+function _continuous_clifford_actions(pop::PolyOpt{A,T}, original, actions, generators;
+    max_group_order::Int=typemax(Int)) where {A,T}
     isempty(generators) && return []
     A === PauliAlgebra || throw(ArgumentError("Clifford composition requires Pauli algebra."))
     isempty(pop.eq_constraints) && isempty(pop.ineq_constraints) &&
@@ -506,7 +507,8 @@ function _continuous_clifford_actions(pop::PolyOpt{A,T}, original, actions, gene
             all(iszero, transpose(first(_continuous_nullspace(transpose(r)))) * l) ||
             throw(ArgumentError("Clifford generator does not normalize the supplied continuous generator span."))
     end
-    group = _enumerate_symmetry_group([_convert_clifford_symmetry(T, g) for g in generators], collect(domain))
+    group = _enumerate_symmetry_group([_convert_clifford_symmetry(T, g) for g in generators], collect(domain);
+        max_group_order)
     lookup = Dict(Tuple(sort(rows)) => idx for (idx, rows) in zip(original.positive_indices, original.positive_rows))
     result = []
     for g in group
@@ -532,7 +534,8 @@ end
 function continuous_moment_relaxation(pop::PolyOpt{A,T,P}, config::SolverConfig,
     actions::AbstractVector{<:SuppliedDerivation}; compact_metric,
     compress::Bool=true, physics::Union{Nothing,PhysicsSparsity}=nothing,
-    clifford_generators::AbstractVector{<:CliffordSymmetry}=CliffordSymmetry[]) where {A,T,P<:Polynomial{A,T}}
+    clifford_generators::AbstractVector{<:CliffordSymmetry}=CliffordSymmetry[],
+    max_group_order::Int=typemax(Int)) where {A,T,P<:Polynomial{A,T}}
     isnothing(config.symmetry) || throw(ArgumentError("Use clifford_generators for checked finite/continuous composition; other SymmetrySpec options are unsupported."))
     if !_is_complex_problem(A)
         all(isreal(c) for p in [pop.objective; pop.eq_constraints; pop.ineq_constraints; pop.moment_eq_constraints]
@@ -550,7 +553,7 @@ function continuous_moment_relaxation(pop::PolyOpt{A,T,P}, config::SolverConfig,
         _action_coordinates(original.equalities, differentiate.(Ref(action),original.equalities);
             context="Finite relaxation equality-test span")
     end
-    finite_actions = _continuous_clifford_actions(pop, original, actions, clifford_generators)
+    finite_actions = _continuous_clifford_actions(pop, original, actions, clifford_generators; max_group_order)
     moment_map = invariant_moment_map(actions, original.words; clifford_generators)
     section = _continuous_real_section(moment_map, !_is_complex_problem(A))
     projector = isempty(original.equalities) ? nothing : _continuous_projector(moment_map.generators)
@@ -892,4 +895,76 @@ function detect_continuous_symmetries(pop::PolyOpt{A,T}, candidates::AbstractVec
     isempty(actions) || validate_continuous_symmetry(pop,actions;positivity_bases,compact_metric)
     return (generators=actions, coefficients=real.(weights), dimension=size(weights,2),
         search_class=:real_span_of_supplied_compact_generators, arithmetic=:exact)
+end
+
+# Complete within Q = sum_i q_i σ_i over registered on-site Pauli letters.
+# δ(p) = i[Q,p]/2. Exact binary floating-point inputs are not rounded to a
+# nearby symmetric Hamiltonian. Constraints and finite row closure are checked
+# by the reduction, not inferred from Hamiltonian invariance here.
+function detect_onsite_spin_symmetries(pop::PolyOpt{PauliAlgebra,T}) where {T}
+    domain = indices(pop.registry)
+    positions = Dict(i => j for (j,i) in enumerate(domain))
+    all(T(_pauli_index(_pauli_site(i), a)) in domain for i in domain for a in 0:2) ||
+        throw(ArgumentError("On-site spin discovery requires all three Pauli axes at each registered site."))
+    h = _action_polynomial(pop.objective)
+    _action_zero(h - _action_adjoint(h), "Objective must be Hermitian")
+    all(i in domain for (_,m) in terms(h) for i in m.word) ||
+        throw(ArgumentError("Hamiltonian contains an unregistered Pauli letter."))
+    M = NormalMonomial{PauliAlgebra,T}
+    # Only letters on the support of a term contribute. Avoid constructing 3n
+    # dense candidate derivations and differentiating every term with each one.
+    equations = Dict{M,Dict{Int,_ActionCoefficient}}()
+    for (c,m) in terms(h), (k,i) in enumerate(m.word), a in 0:2
+        axis = _pauli_type(i)
+        a == axis && continue
+        word = copy(m.word)
+        word[k] = T(_pauli_index(_pauli_site(i), 3-a-axis))
+        image = M(word)
+        col = positions[T(_pauli_index(_pauli_site(i), a))]
+        scale = mod(axis-a,3) == 1 ? -c : c
+        row = get!(equations,image,Dict{Int,_ActionCoefficient}())
+        row[col] = get(row,col,zero(_ActionCoefficient)) + scale
+    end
+    ii,jj,vv = Int[],Int[],_ActionCoefficient[]
+    for (r,m) in enumerate(sort!(collect(keys(equations)))), (j,c) in equations[m]
+        iszero(c) && continue
+        push!(ii,r); push!(jj,j); push!(vv,c)
+    end
+    system = sparse(ii,jj,vv,length(equations),length(domain))
+    weights = real.(first(_continuous_nullspace(system)))
+    actions = SuppliedDerivation{PauliAlgebra,T}[]
+    for j in axes(weights,2)
+        images = Dict{T,Polynomial{PauliAlgebra,T,_ActionCoefficient}}()
+        for i in domain
+            axis = _pauli_type(i)
+            images[i] = Polynomial(Tuple{_ActionCoefficient,M}[
+                ((mod(axis-a,3) == 1 ? -1 : 1)*weights[positions[T(_pauli_index(_pauli_site(i),a))],j],
+                 M(T[_pauli_index(_pauli_site(i),3-a-axis)])) for a in 0:2 if a != axis])
+        end
+        push!(actions,SuppliedDerivation(pop.registry,images))
+    end
+    return (; generators=actions, coefficients=weights, letters=domain,
+        dimension=size(weights,2), search_class=:onsite_spin, arithmetic=:exact)
+end
+
+# Automatic entry point for nonconstant Hamiltonians. SympleQ is a bounded
+# candidate search, not an exhaustive detector. Full validation is retained;
+# incompatible candidates fail explicitly rather than silently changing rows.
+function continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra,T}, config::SolverConfig;
+    cycle_strategy::Symbol=:cycle_basis, ga_backend::Symbol=:backtracking,
+    max_automorphisms::Int=100_000, max_group_order::Int=4096, kwargs...) where {T}
+    max_automorphisms >= 1 || throw(ArgumentError("max_automorphisms must be positive."))
+    max_group_order >= 1 || throw(ArgumentError("max_group_order must be positive."))
+    discovery = detect_onsite_spin_symmetries(pop)
+    finite = _sympleq_clifford_candidates(pop.objective; cycle_strategy, ga_backend, max_automorphisms)
+    actions = discovery.generators
+    if isempty(actions)
+        actions = [SuppliedDerivation(pop.registry,
+            Dict(i=>zero(pop.objective) for i in indices(pop.registry)))]
+    end
+    reduction = continuous_moment_relaxation(pop,config,actions;
+        compact_metric=Matrix{Int}(I,length(indices(pop.registry)),length(indices(pop.registry))),
+        clifford_generators=finite, max_group_order, kwargs...)
+    return merge(reduction,(; discovery, clifford_generators=finite,
+        clifford_search=:nonexhaustive, max_automorphisms, max_group_order))
 end

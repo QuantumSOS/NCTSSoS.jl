@@ -337,12 +337,15 @@ Configuration for solving polynomial optimization problems.
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
 - `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity exploitation (default: NoElimination())
 - `symmetry::Union{Nothing,SymmetrySpec}`: Optional symmetry reduction spec. The
-  current implementation is still intentionally narrow: dense ordinary polynomial
-  relaxations only (`cs_algo=NoElimination()`, `ts_algo=NoElimination()`), with
-  supported combinations limited to either
+  supported combinations for ordinary polynomial relaxations are
   - `MonoidAlgebra` + `SignedPermutation`,
   - `PauliAlgebra` + `CliffordSymmetry`, optionally with `PauliChargeSectorSpec` and `PauliSingletConstraintSpec`, or
   - `FermionicAlgebra` + `FermionicModePermutation`, `FermionicSectorSpec`, and optional `FermionicSpinAdaptationSpec` layered on sector blocks.
+  Fermionic sector splitting alone composes with correlative and term sparsity:
+  each monomial row retains its particle-number, spin and Abelian-irrep labels.
+  Symmetry preserves the chosen sparse relaxation; sparsity need not preserve
+  the dense bound. Finite actions and spin adaptation still require
+  `cs_algo=NoElimination()` and `ts_algo=NoElimination()`.
   Unsupported combinations error instead of silently doing the wrong thing.
 
 # Examples
@@ -387,20 +390,27 @@ function _check_symmetry_mvp_support(
     P <: Polynomial || throw(ArgumentError(
         "Symmetry reduction currently supports ordinary polynomial problems only; state/trace problems are not yet supported."
     ))
-    solver_config.cs_algo isa NoElimination || throw(ArgumentError(
-        "Symmetry reduction currently requires `cs_algo=NoElimination()`."
-    ))
-    solver_config.ts_algo isa NoElimination || throw(ArgumentError(
-        "Symmetry reduction currently requires `ts_algo=NoElimination()`."
-    ))
-    length(sparsity.corr_sparsity.cliques) == 1 || throw(ArgumentError(
-        "Symmetry reduction currently supports a single dense clique only."
-    ))
-
-    for term_sparsities in sparsity.cliques_term_sparsities, term_sparsity in term_sparsities
-        length(term_sparsity.block_bases) == 1 || throw(ArgumentError(
-            "Symmetry reduction does not yet compose with term-sparsity block splitting."
+    # Sector actions multiply individual monomial rows by phases, so every
+    # sparse row subset is invariant. Actions mixing rows need stronger closure
+    # checks before they can safely share this sparse path.
+    sector_only = A === FermionicAlgebra && !isnothing(symmetry.sector) &&
+        isnothing(symmetry.spin_adaptation) && isempty(symmetry.fermionic_generators)
+    if !sector_only
+        solver_config.cs_algo isa NoElimination || throw(ArgumentError(
+            "Symmetry reduction currently requires `cs_algo=NoElimination()`."
         ))
+        solver_config.ts_algo isa NoElimination || throw(ArgumentError(
+            "Symmetry reduction currently requires `ts_algo=NoElimination()`."
+        ))
+        length(sparsity.corr_sparsity.cliques) == 1 || throw(ArgumentError(
+            "Symmetry reduction currently supports a single dense clique only."
+        ))
+
+        for term_sparsities in sparsity.cliques_term_sparsities, term_sparsity in term_sparsities
+            length(term_sparsity.block_bases) == 1 || throw(ArgumentError(
+                "Symmetry reduction does not yet compose with term-sparsity block splitting."
+            ))
+        end
     end
 
     if !isempty(symmetry.generators)
@@ -474,7 +484,10 @@ function compute_sparsity(pop::OP, solver_config::SolverConfig) where {A<:Algebr
     end
 
     if !isnothing(solver_config.moment_basis)
-        total_basis, _, _ = _polynomial_total_basis(pop, corr_sparsity, cliques_term_sparsities)
+        sector = A === FermionicAlgebra ? _sector_first_sector(solver_config.symmetry) : nothing
+        validation_sparsities = isnothing(sector) ? cliques_term_sparsities :
+            _sector_first_sparsities(pop, cliques_term_sparsities, sector)
+        total_basis, _, _ = _polynomial_total_basis(pop, corr_sparsity, validation_sparsities; sector)
         _validate_polynomial_relaxation_support(pop, total_basis; source="The supplied `moment_basis`")
     end
 

@@ -177,7 +177,7 @@ export detect_onsite_spin_symmetries
 export reconstruct_continuous_moments, reconstruct_continuous_matrices, verify_continuous_certificate
 export PhysicsSparsity, hamiltonian_interactions, physics_moment_basis
 export pauli_strengthened_relaxation, verify_pauli_strengthening_certificate
-export pauli_chain_strengthened_relaxation
+export pauli_chain_strengthened_relaxation, pauli_chain_stationarity_operators
 
 # Solver Interface
 export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult

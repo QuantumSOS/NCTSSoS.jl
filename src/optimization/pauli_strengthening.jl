@@ -28,10 +28,10 @@ function _pauli_subsystem_density(::Type{T}, sites) where {T}
     return Polynomial.(entries)
 end
 
-# Exact physical constraints. Missing moments are rejected before any projection
-# or lowering, so sparse support is never silently replaced by zero.
+# Exact physical constraints, before choosing the shared moment domain.
 function _pauli_strengthening_constraints(pop::PolyOpt{PauliAlgebra,T}, original;
-    subsystems, perturbations, stationarity, max_block_size) where {T}
+    subsystems, perturbations, stationarity, max_block_size,
+    stationarity_operators=perturbations, magnetization::Bool=false) where {T}
     max_block_size >= 1 || throw(ArgumentError("max_block_size must be positive."))
     M = NormalMonomial{PauliAlgebra,T}
     P = typeof(original.objective)
@@ -39,7 +39,8 @@ function _pauli_strengthening_constraints(pop::PolyOpt{PauliAlgebra,T}, original
     for patch in subsystems
         sites = sort!(Int[patch...])
         !isempty(sites) && allunique(sites) || throw(ArgumentError("Subsystems must contain distinct sites."))
-        big(2)^length(sites) <= max_block_size || throw(ArgumentError("Subsystem matrix exceeds max_block_size."))
+        side = magnetization ? binomial(big(length(sites)),fld(length(sites),2)) : big(2)^length(sites)
+        side <= max_block_size || throw(ArgumentError("Subsystem matrix exceeds max_block_size."))
         for site in sites, axis in 0:2
             _pauli_index(site,axis) in indices(pop.registry) || throw(ArgumentError("Subsystem leaves the Pauli registry."))
         end
@@ -49,11 +50,21 @@ function _pauli_strengthening_constraints(pop::PolyOpt{PauliAlgebra,T}, original
     qs = sort!(unique!(M[perturbations...]))
     length(qs) <= max_block_size || throw(ArgumentError("Perturbative matrix exceeds max_block_size."))
     all(i in indices(pop.registry) for q in qs for i in q.word) || throw(ArgumentError("Perturbation leaves the registry."))
+    all(q isa M for q in stationarity_operators) || throw(ArgumentError("Stationarity operators must be Pauli monomials from this registry."))
+    ss = stationarity ? sort!(unique!(M[stationarity_operators...])) : M[]
+    all(i in indices(pop.registry) for q in ss for i in q.word) || throw(ArgumentError("Stationarity operator leaves the registry."))
     constraints = Tuple{Symbol,Matrix{P}}[]
     labels = Any[]
     for sites in patches
-        push!(constraints, (:HPSD,_pauli_subsystem_density(T,sites)))
-        push!(labels, (kind=:subsystem,sites=sites))
+        if magnetization
+            for (down_spins,mat) in _pauli_rdm_blocks(length(sites),nothing,P;sign_symmetry=false,sites)
+                push!(constraints, (:HPSD,mat / big(2)^length(sites)))
+                push!(labels, (kind=:subsystem,sites=sites,down_spins=down_spins))
+            end
+        else
+            push!(constraints, (:HPSD,_pauli_subsystem_density(T,sites)))
+            push!(labels, (kind=:subsystem,sites=sites))
+        end
     end
     h = original.objective
     if !isempty(qs)
@@ -70,20 +81,46 @@ function _pauli_strengthening_constraints(pop::PolyOpt{PauliAlgebra,T}, original
     end
     equalities = P[]
     if stationarity
-        for q in _action_polynomial.(qs)
+        for q in _action_polynomial.(ss)
             # Q and H are Hermitian: -i[H,Q] has real Pauli coefficients.
             p = -im*(_action_product(h,q)-_action_product(q,h))
             iszero(p) || push!(equalities,p)
         end
     end
-    domain = Set(original.words)
-    for p in [P[entry for (_,mat) in constraints for entry in mat]; equalities]
+    return (;constraints,labels,equalities,patches,qs,stationarity_operators=ss)
+end
+
+# Added variables do not add rows to the main positive matrix. Close their
+# shared domain before forming an invariant-coordinate map, never zero-fill.
+function _pauli_strengthening_domain(words, extra, policy; actions=[], clifford_generators=[])
+    policy in (:unchanged,:extend) || throw(ArgumentError("moment_domain must be :unchanged or :extend."))
+    domain = Set(words)
+    for p in Iterators.flatten(((p for (_,mat) in extra.constraints for p in mat),extra.equalities))
         for (_,word) in terms(p)
-            word in domain || throw(ArgumentError(
-                "Strengthening requires missing moment $word; enlarge the main basis or choose smaller patches/perturbations."))
+            if policy == :unchanged
+                word in domain || throw(ArgumentError(
+                    "Strengthening requires missing moment $word; use moment_domain=:extend or enlarge the main basis."))
+            else
+                push!(domain,word)
+            end
         end
     end
-    return (;constraints,labels,equalities,patches,qs)
+    if policy == :extend
+        pending = collect(domain)
+        head = 1
+        while head <= length(pending)
+            word = pending[head]
+            head += 1
+            images = [differentiate(a,word) for a in actions]
+            append!(images,[_act_polynomial(g,_action_polynomial(word)) for g in clifford_generators])
+            for image in images, (_,m) in terms(image)
+                m in domain && continue
+                push!(domain,m)
+                push!(pending,m)
+            end
+        end
+    end
+    return sort!(collect(domain))
 end
 
 # Public assembly for unconstrained finite Pauli Hamiltonians. This uses the
@@ -94,6 +131,7 @@ end
 function pauli_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, config::SolverConfig;
     subsystems=Vector{Int}[], perturbations=NormalMonomial{PauliAlgebra,T}[],
     stationarity::Bool=true, max_block_size::Integer=256,
+    stationarity_operators=perturbations, moment_domain::Symbol=:unchanged,
     actions::AbstractVector{<:SuppliedDerivation}=SuppliedDerivation[],
     clifford_generators::AbstractVector{<:CliffordSymmetry}=CliffordSymmetry[],
     compact_metric=Matrix{Int}(I,length(pop.registry),length(pop.registry)),
@@ -106,7 +144,9 @@ function pauli_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, config::Sol
     sparsity = compute_sparsity(pop,config)
     original = _continuous_exact_problem(pop,sparsity)
     extra = _pauli_strengthening_constraints(pop,original;
-        subsystems,perturbations,stationarity,max_block_size)
+        subsystems,perturbations,stationarity,max_block_size,stationarity_operators)
+    words = _pauli_strengthening_domain(original.words,extra,moment_domain;actions,clifford_generators)
+    original = merge(original,(words=words,))
     # Check preservation of the *added* constraint family, not only the main
     # moment basis. Local algebra preservation makes density positivity covariant.
     for action in actions
@@ -117,6 +157,8 @@ function pauli_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, config::Sol
         end
         isempty(extra.qs) || _action_coordinates(_action_polynomial.(extra.qs),
             differentiate.(Ref(action),extra.qs); context="Perturbation row span")
+        _action_coordinates(extra.equalities,differentiate.(Ref(action),extra.equalities);
+            context="Stationarity equality span")
     end
     for g in clifford_generators
         for sites in extra.patches
@@ -126,13 +168,15 @@ function pauli_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, config::Sol
         end
         all(last(_act_monomial(g,q)) in extra.qs for q in extra.qs) ||
             throw(ArgumentError("Clifford action does not preserve the perturbation basis."))
+        _action_coordinates(extra.equalities,[_act_polynomial(g,p) for p in extra.equalities];
+            context="Stationarity equality span")
     end
     reduction = nothing
     if !isempty(actions) || !isempty(clifford_generators)
         supplied = isempty(actions) ? [SuppliedDerivation(pop.registry,
             Dict(i=>zero(pop.objective) for i in indices(pop.registry)))] : actions
         reduction = continuous_moment_relaxation(pop,config,supplied;
-            compact_metric,compress,clifford_generators)
+            compact_metric,compress,clifford_generators,additional_moments=words)
     end
     if isnothing(reduction)
         FP = Polynomial{PauliAlgebra,T,ComplexF64}
@@ -162,8 +206,8 @@ function pauli_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, config::Sol
     end
     mp = MomentProblem(objective,constraints,copy(words),length(words);real_moments=!isnothing(reduction))
     return (moment_problem=mp,original=original,extra=extra,reduction=reduction,
-        extra_embedded=extra_embedded,ground_state_only=!isempty(extra.qs),
-        moment_domain=:unchanged,extra_cones_compressed=false)
+        extra_embedded=extra_embedded,ground_state_only=!isempty(extra.qs) || !isempty(extra.equalities),
+        moment_domain=moment_domain,extra_cones_compressed=false)
 end
 
 # Verify supplied multipliers against the exact original constraint matrices.
@@ -219,7 +263,7 @@ end
 # representation, ker(C) is exactly the common kernel of the three D_a.
 # Thus its equations on the discrete-invariant moment coordinates impose full
 # spin invariance without assembling derivations on the much larger word space.
-function _pauli_chain_spin_section(pop, ops, words, reducer)
+function _pauli_chain_spin_section(pop, ops, words, reducer; extend::Bool=false)
     vectors = [[axis[i] for axis in ops] for i in eachindex(first(ops))]
     actions = [SuppliedDerivation(pop.registry,Dict(v[i].word[1] =>
         (i == a ? Polynomial(v[b]) : i == b ? -Polynomial(v[a]) : zero(Polynomial(v[i])))
@@ -229,6 +273,21 @@ function _pauli_chain_spin_section(pop, ops, words, reducer)
     function discrete(p)
         even = Polynomial([(c,m) for (c,m) in terms(p) if iszero(_pauli_sign_signature(m))])
         return _reduce_moment_polynomial(even,reducer)
+    end
+    if extend
+        words = collect(words)
+        seen = Set(words)
+        head = 1
+        while head <= length(words)
+            p = discrete(sum(differentiate(a,differentiate(a,words[head])) for a in actions))
+            head += 1
+            for (_,m) in terms(p)
+                m in seen && continue
+                push!(seen,m)
+                push!(words,m)
+            end
+        end
+        sort!(words)
     end
     index = Dict(m=>i for (i,m) in enumerate(words))
     equations = [discrete(sum(differentiate(a,differentiate(a,m)) for a in actions)) for m in words]
@@ -250,23 +309,51 @@ function _pauli_coefficient_blocks(mat; atol=1e-9)
     all(isreal,coefficients) || throw(ArgumentError("Realify a complex matrix before coefficient splitting."))
     all(norm(a-a',Inf) <= atol for a in slices) || error("Non-Hermitian coefficient matrix")
     eye = Matrix{Float64}(I,n,n)
-    laplacian = zeros(n*n,n*n)
-    for a in slices
-        scale = norm(a)
-        iszero(scale) && continue
-        a = a/scale
-        commutator = kron(eye,a)-kron(transpose(a),eye)
-        laplacian += commutator'*commutator
-    end
-    spectrum = eigen(Symmetric(laplacian))
-    cutoff = 1e-10*max(1.0,maximum(abs,spectrum.values))
-    splitter = zeros(n,n)
-    for (j,k) in enumerate(findall(v->abs(v)<=cutoff,spectrum.values))
-        x = reshape(spectrum.vectors[:,k],n,n)
-        x = (x+x')/2
-        x -= LinearAlgebra.tr(x)/n*eye
-        all(norm(a*x-x*a,Inf) <= atol*max(1.0,norm(a,Inf)) for a in slices) || continue
-        splitter += sin(j*sqrt(2.0))*x
+    if all(norm(a-a[1,1]*eye,Inf) <= atol*max(1.0,norm(a,Inf)) for a in slices)
+        splitter = Matrix(Diagonal(collect(1.0:n)))
+    else
+        # A common symmetric commutant must preserve the eigenspaces of ANY
+        # linear combination of the coefficient matrices. Start there, then
+        # intersect the much smaller candidate space with each commutant. This
+        # avoids forming and diagonalizing a dense n²-by-n² Laplacian.
+        seed = zeros(n,n)
+        for (j,a) in enumerate(slices)
+            scale = norm(a)
+            iszero(scale) || (seed .+= (sin(j*sqrt(2.0))/scale).*a)
+        end
+        spectrum = eigen(Symmetric(seed))
+        eigenspaces = Vector{Int}[]
+        for i in eachindex(spectrum.values)
+            if isempty(eigenspaces) || abs(spectrum.values[i]-spectrum.values[first(last(eigenspaces))]) > 1e-8*max(1.0,norm(seed))
+                push!(eigenspaces,[i])
+            else
+                push!(last(eigenspaces),i)
+            end
+        end
+        candidates = Matrix{Float64}[]
+        for group in eigenspaces, (j,q) in enumerate(group), p in group[1:j]
+            u,v = spectrum.vectors[:,p],spectrum.vectors[:,q]
+            push!(candidates,p == q ? u*u' : (u*v'+v*u')/sqrt(2.0))
+        end
+        for a in slices
+            scale = norm(a)
+            iszero(scale) && continue
+            a = a/scale
+            commutators = [a*x-x*a for x in candidates]
+            all(norm(c,Inf) <= atol for c in commutators) && continue
+            decomposition = svd(reduce(hcat,vec.(commutators));full=false)
+            null = findall(s -> s <= 1e-10*max(1.0,maximum(decomposition.S)),decomposition.S)
+            isempty(null) && error("Common commutant lost the identity")
+            basis = reduce(hcat,vec.(candidates))*decomposition.V[:,null]
+            candidates = [reshape(basis[:,j],n,n) for j in axes(basis,2)]
+        end
+        splitter = zeros(n,n)
+        for (j,x) in enumerate(candidates)
+            x = (x+x')/2
+            x -= LinearAlgebra.tr(x)/n*eye
+            all(norm(a*x-x*a,Inf) <= atol*max(1.0,norm(a,Inf)) for a in slices) || continue
+            splitter += sin(j*sqrt(2.0))*x
+        end
     end
     split = eigen(Symmetric(splitter))
     groups = Vector{Int}[]
@@ -277,51 +364,214 @@ function _pauli_coefficient_blocks(mat; atol=1e-9)
             push!(last(groups),i)
         end
     end
+    # An unsplit cone needs no change of coordinates. Rotating it anyway
+    # densifies its polynomial entries without reducing the solver block.
+    length(groups) == 1 && return (;blocks=[mat],rows=[eye],error_bound=0.0)
     rows = [split.vectors[:,g] for g in groups]
     norm(split.vectors*split.vectors'-eye,Inf) <= atol || error("Incomplete orthogonal cone transform")
-    blocks = [[zero(P) for _ in 1:size(u,2), _ in 1:size(u,2)] for u in rows]
+    C = coeff_type(P)
+    term_type = Tuple{C,keytype(index)}
+    entries = [[term_type[] for _ in 1:size(u,2), _ in 1:size(u,2)] for u in rows]
     error_bound = 0.0
     for (word,i) in index
         a = slices[i]
         reconstructed = zeros(n,n)
-        for (u,b) in zip(rows,blocks)
+        for (u,b) in zip(rows,entries)
             part = u'*a*u
             part = (part+part')/2
             reconstructed += u*part*u'
             for q in axes(part,2), p in axes(part,1)
-                b[p,q] += part[p,q]*Polynomial(word)
+                iszero(part[p,q]) || push!(b[p,q],(C(part[p,q]),word))
             end
         end
         residual = norm(a-reconstructed,Inf)/max(1.0,norm(a,Inf))
         error_bound = max(error_bound,residual)
     end
     error_bound <= atol || error("Coefficientwise cone reconstruction failed: $error_bound")
+    # Canonicalize each entry once, rather than re-sorting its growing term list
+    # after every coefficient contribution.
+    blocks = [P.(b) for b in entries]
     return (;blocks,rows,error_bound)
+end
+
+# Keep the original exact matrix inspectable without storing one polynomial per
+# entry. Canonical Pauli words are Hermitian, so the entry is simply rows[i]*rows[j].
+struct _PauliMomentMatrix{T<:Integer} <: AbstractMatrix{Polynomial{PauliAlgebra,T,_ActionCoefficient}}
+    rows::Vector{NormalMonomial{PauliAlgebra,T}}
+end
+Base.size(mat::_PauliMomentMatrix) = (length(mat.rows),length(mat.rows))
+function Base.getindex(mat::_PauliMomentMatrix, i::Int, j::Int)
+    @boundscheck checkbounds(mat,i,j)
+    c,m = _mul_term(mat.rows[i],mat.rows[j])
+    return Polynomial((_action_coefficient(c),m))
+end
+
+# Full physical symmetry pipeline for rotation-invariant periodic Pauli chains.
+"""
+    pauli_chain_stationarity_operators(pop, ops; basis, subsystems=Vector{Int}[],
+        five_site_window=nsites ÷ 2, seven_site_window=7)
+
+Return QMBCertify's historical periodic-chain stationarity candidates whose
+commutator equations are supported by the reduced main-basis products and the
+supplied subsystem density moments. Zero equations are discarded; equations
+that agree up to sign are kept once. Unlike the historical random fingerprint,
+duplicate detection is exact. The result also includes `moments`, the exact
+sorted supported domain before equation cancellation, and `equations`, the
+reduced commutators in the same order as `operators`. Reuse these rather than
+rebuilding commutators or inferring support from nonzero matrix entries.
+"""
+function pauli_chain_stationarity_operators(pop::PolyOpt{PauliAlgebra,T}, ops;
+    basis, subsystems=Vector{Int}[], five_site_window::Integer=0,
+    seven_site_window::Integer=7) where {T}
+    _,_,_,n = _validate_pauli_chain_ops(ops)
+    _check_pauli_chain_support(pop.objective,n;context="objective")
+    _check_translation_invariance(pop.objective,n)
+    _check_reflection_invariance(pop.objective,n)
+    _check_pauli_sign_invariance(pop.objective)
+    _check_conjugate_invariant_objective(pop.objective)
+    _check_pauli_axis_permutation_invariance(pop.objective)
+    five = five_site_window == 0 ? fld(n,2) : Int(five_site_window)
+    seven = Int(seven_site_window)
+    2 <= five <= n && 2 <= seven <= n || throw(ArgumentError("Stationarity windows must lie in 2:nsites."))
+    M = NormalMonomial{PauliAlgebra,T}
+    reducer = _PauliMomentReducer{M}(n,true,true,true)
+    reduce(m) = iszero(_pauli_sign_signature(m)) ? _reduce_moment(reducer,m) : nothing
+    domain = Set{M}()
+    rows = collect(basis)
+    _check_pauli_chain_support(rows,n;context="basis")
+    row_set = Set(rows)
+    translation_closed = all(_translate_pauli_monomial(row,1,n) in row_set for row in rows)
+    # Translate both factors so the first is an orbit representative. This
+    # preserves the reduced product word if, and only if, all translated rows
+    # remain available. Pair each representative with ALL rows, not a triangle.
+    left_rows = translation_closed ? _translation_orbit_representatives(rows,n) : rows
+    for (i,row) in enumerate(left_rows), j in (translation_closed ? eachindex(rows) : i:length(rows))
+        rep = reduce(last(_mul_term(row,rows[j])))
+        isnothing(rep) || push!(domain,rep)
+    end
+    for patch in subsystems
+        sites = sort!(Int[patch...])
+        !isempty(sites) && allunique(sites) && all(in(1:n),sites) ||
+            throw(ArgumentError("Subsystems must contain distinct chain sites."))
+        for code0 in 0:(4^length(sites)-1)
+            code, word = code0, T[]
+            for site in sites
+                axis = code % 4
+                code ÷= 4
+                axis == 0 || push!(word,T(_pauli_index(site,axis-1)))
+            end
+            rep = reduce(M(word))
+            isnothing(rep) || push!(domain,rep)
+        end
+    end
+
+    letter(site,axis) = 3*(site-1)+axis
+    candidates = Vector{Int}[]
+    for i in 2:n-1, j in i+1:n
+        push!(candidates,[1,letter(i,2),letter(j,3)])
+    end
+    for i in 2:five-1, j in i+1:five, k in 2:five-1, l in k+1:five
+        allunique((i,j,k,l)) || continue
+        for t in 1:3
+            push!(candidates,sort([1,letter(i,2),letter(j,3),letter(k,t),letter(l,t)]))
+        end
+    end
+    for i in 2:seven-1, j in i+1:seven, k in 2:seven-3, l in k+1:seven-2, u in l+1:seven-1, v in u+1:seven
+        allunique((i,j,k,l,u,v)) || continue
+        for t in 1:3
+            push!(candidates,sort([1,letter(i,2),letter(j,3),letter(k,t),letter(l,t),letter(u,t),letter(v,t)]))
+        end
+    end
+    for i in 2:seven-1, j in i+1:seven, k in 2:seven-1, l in k+1:seven, u in 2:seven-1, v in u+1:seven
+        allunique((i,j,k,l,u,v)) || continue
+        for s in 1:2, t in s+1:3
+            push!(candidates,sort([1,letter(i,2),letter(j,3),letter(k,s),letter(l,s),letter(u,t),letter(v,t)]))
+        end
+    end
+    unique!(candidates)
+
+    h = _action_polynomial(pop.objective)
+    selected = M[]
+    equations = typeof(h)[]
+    seen = Set{Vector{Tuple{M,_ActionCoefficient}}}()
+    unsupported = zero_equations = duplicates = 0
+    by_site = _pauli_hamiltonian_terms_by_site(h,n)
+    relevant,marks = Int[],zeros(Int,length(h.terms))
+    generation = 0
+    for raw in candidates
+        q = M(T.(raw))
+        generation = _pauli_relevant_hamiltonian_terms!(relevant,marks,generation,q,by_site)
+        p = _pauli_linear_state_polynomial(q,h,reducer,by_site,domain,true,typeof(h);
+            atol=0,relevant_terms=relevant,support_before_reduction=true)
+        if isnothing(p)
+            unsupported += 1
+            continue
+        end
+        coefficients = Dict{M,_ActionCoefficient}(m=>c for (c,m) in terms(p))
+        if isempty(coefficients)
+            zero_equations += 1
+            continue
+        end
+        key = sort!([(m,c) for (m,c) in coefficients]; by=first)
+        real(last(first(key))) < 0 && (key = [(m,-c) for (m,c) in key])
+        if key in seen
+            duplicates += 1
+            continue
+        end
+        push!(seen,key)
+        push!(selected,M(T.(raw)))
+        push!(equations,Polynomial([(c,m) for (m,c) in coefficients]))
+    end
+    return (operators=selected,equations=equations,moments=sort!(collect(domain)),
+        candidate_count=length(candidates),unsupported=unsupported,
+        zero_equations=zero_equations,duplicates=duplicates,domain_size=length(domain))
 end
 
 # Full physical symmetry pipeline for rotation-invariant periodic Pauli chains.
 # The caller supplies the SAME basis, patches and perturbations as the control.
-# Short translation orbits retain the existing chain backend's explicit refusal.
 # No singlet-sector constraint is imposed. This does not claim exhaustive
 # discovery of Hamiltonian-preserving Clifford transformations.
 function pauli_chain_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, ops;
     basis, subsystems=Vector{Int}[], perturbations=eltype(basis)[],
-    stationarity::Bool=true, compress::Bool=true, max_block_size::Integer=256) where {T}
+    stationarity::Bool=true, compress::Bool=true, max_block_size::Integer=256,
+    stationarity_operators=perturbations, moment_domain::Symbol=:unchanged,
+    subsystem_symmetry::Symbol=:none) where {T}
     isempty(pop.eq_constraints) && isempty(pop.ineq_constraints) && isempty(pop.moment_eq_constraints) ||
         throw(ArgumentError("Chain strengthening requires an unconstrained Hamiltonian."))
+    subsystem_symmetry in (:none,:magnetization) || throw(ArgumentError(
+        "subsystem_symmetry must be :none or :magnetization."))
     _,_,_,n = _validate_pauli_chain_ops(ops)
-    config = SolverConfig(optimizer=nothing,moment_basis=basis)
-    original = _continuous_exact_problem(pop,compute_sparsity(pop,config))
+    subsystem_symmetry == :magnetization && _check_pauli_u1_invariance(pop.objective,ops[3])
+    matrix = _PauliMomentMatrix(collect(basis))
+    # Reversing a Pauli product changes only its phase, not its canonical word.
+    # Traverse one triangle to retain the SAME original moment domain, without
+    # materializing the full exact matrix before translation reduction.
+    words = Set([one(eltype(basis))])
+    for i in eachindex(basis), j in i:length(basis)
+        push!(words,last(_mul_term(basis[i],basis[j])))
+    end
+    h = _action_polynomial(pop.objective)
+    original = (objective=h,constraints=[(:HPSD,matrix)],words=sort!(collect(words)),
+        positive_rows=[matrix.rows],positive_indices=[1],equalities=typeof(h)[])
+    _continuous_coefficients(Dict(m=>i for (i,m) in enumerate(original.words)),h)
     extra = _pauli_strengthening_constraints(pop,original;
-        subsystems,perturbations,stationarity,max_block_size)
+        subsystems,perturbations,stationarity,max_block_size,stationarity_operators,
+        magnetization=subsystem_symmetry == :magnetization)
+    original = merge(original,(words=_pauli_strengthening_domain(original.words,extra,moment_domain),))
     main,report = pauli_translation_invariant_moment_relaxation(pop,ops,maximum(degree,basis);
         basis,axis_permutation_symmetry=true)
     reducer = _PauliMomentReducer{eltype(basis)}(n,true,true,true)
-    spin = _pauli_chain_spin_section(pop,ops,main.total_basis,reducer)
+    spin_words = Set(main.total_basis)
+    for word in original.words
+        iszero(_pauli_sign_signature(word)) || continue
+        image = _reduce_moment(reducer,word)
+        isnothing(image) || push!(spin_words,image)
+    end
+    spin = _pauli_chain_spin_section(pop,ops,sort!(collect(spin_words)),reducer;extend=moment_domain == :extend)
     row_set = Set(basis)
     all(m in row_set for a in spin.actions for b in basis for (_,m) in terms(differentiate(a,b))) ||
         throw(ArgumentError("The selected row basis is not closed under spin rotations."))
-    domain = Set(main.total_basis)
+    domain = Set(keys(spin.index))
     all(m in domain for word in original.words for (_,m) in terms(spin.discrete(_action_polynomial(word)))) ||
         error("The chain reduction omitted a discrete-invariant moment")
     labels = spin.words
@@ -346,7 +596,7 @@ function pauli_chain_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, ops;
     max_error = 0.0
     function append_matrix(mat,kind)
         projected = map(project,mat)
-        if compress
+        if compress && size(projected,1) <= 64
             split = _pauli_coefficient_blocks(projected)
             max_error = max(max_error,split.error_bound)
             for b in split.blocks
@@ -380,11 +630,13 @@ function pauli_chain_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, ops;
         all(m in qset for a in spin.actions for q in extra.qs for (_,m) in terms(differentiate(a,q))) ||
             throw(ArgumentError("Perturbation rows are not closed under spin rotations."))
         reps = _translation_orbit_representatives(extra.qs,n)
-        translated = Dict(q=>[_translate_pauli_monomial(q,r,n) for r in 0:n-1] for q in reps)
+        translated = Dict(q=>[_translate_pauli_monomial(q,r,n)
+            for r in 0:(_translation_orbit_length(q,n)-1)] for q in reps)
         pairing = _mirror_pairing(reps,n)
         by_site = _pauli_hamiltonian_terms_by_site(pop.objective,n)
         CP = Polynomial{PauliAlgebra,T,ComplexF64}
-        for k in report.momentum_sectors, (_,rows) in _pauli_signature_blocks(reps;axis_permutation_symmetry=true)
+        for k in report.momentum_sectors, (_,rows) in _pauli_signature_blocks(
+            [q for q in reps if mod(k*length(translated[q]),n) == 0];axis_permutation_symmetry=true)
             isempty(rows) && continue
             mat = _translation_state_optimality_block(rows,k,n,translated,pop.objective,by_site,reducer,CP)
             for (_,block) in _mirror_real_blocks(mat,rows,pairing,k,n,FP;atol=1e-10)
@@ -402,6 +654,7 @@ function pauli_chain_strengthened_relaxation(pop::PolyOpt{PauliAlgebra,T}, ops;
     mp = MomentProblem(project(main.objective),constraints,labels,length(labels);real_moments=true)
     return (moment_problem=mp,spin=spin,extra=extra,original=original,transforms=transforms,
         provenance=provenance,coefficient_error=max_error,main_report=report,
-        continuous_spin=true,ground_state_only=!isempty(extra.qs),compressed=compress,
+        continuous_spin=true,ground_state_only=!isempty(extra.qs) || !isempty(extra.equalities),compressed=compress,
+        moment_domain=moment_domain,subsystem_symmetry=subsystem_symmetry,
         arithmetic=:exact_spin_section_numerical_cone_transforms)
 end

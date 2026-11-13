@@ -336,16 +336,24 @@ Configuration for solving polynomial optimization problems.
   raise an error instead of silently dropping terms. Default: `nothing`
 - `cs_algo::EliminationAlgorithm`: Algorithm for correlative sparsity exploitation (default: NoElimination())
 - `ts_algo::EliminationAlgorithm`: Algorithm for term sparsity exploitation (default: NoElimination())
-- `symmetry::Union{Nothing,SymmetrySpec}`: Optional symmetry reduction spec. The
-  supported combinations for ordinary polynomial relaxations are
-  - `MonoidAlgebra` + `SignedPermutation`,
+- `symmetry::Union{Nothing,SymmetrySpec}`: Optional symmetry reduction spec for
+  ordinary polynomial relaxations, with supported combinations limited to either
+  - `MonoidAlgebra` or `BosonicAlgebra` + `SignedPermutation`,
   - `PauliAlgebra` + `CliffordSymmetry`, optionally with `PauliChargeSectorSpec` and `PauliSingletConstraintSpec`, or
   - `FermionicAlgebra` + `FermionicModePermutation`, `FermionicSectorSpec`, and optional `FermionicSpinAdaptationSpec` layered on sector blocks.
-  Fermionic sector splitting alone composes with correlative and term sparsity:
-  each monomial row retains its particle-number, spin and Abelian-irrep labels.
-  Symmetry preserves the chosen sparse relaxation; sparsity need not preserve
-  the dense bound. Finite actions and spin adaptation still require
-  `cs_algo=NoElimination()` and `ts_algo=NoElimination()`.
+  Finite actions compose with correlative and term sparsity when the selected
+  block family is closed under the action, including whole-block transport.
+  Multipliers and the objective must be individually invariant; this is checked
+  even with `check_invariance=false` for sparse layouts. Shared moment coordinates
+  are reduced globally. Fermionic sector splitting alone (no mode permutations
+  or spin adaptation) also composes with correlative and term sparsity: each
+  monomial row retains its particle-number, spin and Abelian-irrep labels.
+  Either way this preserves the selected sparse relaxation's bound, not
+  necessarily the dense bound. Spin adaptation, Pauli charge and singlet
+  options, and sector splitting combined with mode permutations, still require
+  a dense layout. Bosonic signed mode actions must preserve adjoints;
+  number constraints and compatible term sparsity can provide number-change
+  blocks without a separate sector API. State/trace actions remain unsupported.
   Unsupported combinations error instead of silently doing the wrong thing.
 
 # Examples
@@ -390,32 +398,12 @@ function _check_symmetry_mvp_support(
     P <: Polynomial || throw(ArgumentError(
         "Symmetry reduction currently supports ordinary polynomial problems only; state/trace problems are not yet supported."
     ))
-    # Sector actions multiply individual monomial rows by phases, so every
-    # sparse row subset is invariant. Actions mixing rows need stronger closure
-    # checks before they can safely share this sparse path.
-    sector_only = A === FermionicAlgebra && !isnothing(symmetry.sector) &&
-        isnothing(symmetry.spin_adaptation) && isempty(symmetry.fermionic_generators)
-    if !sector_only
-        solver_config.cs_algo isa NoElimination || throw(ArgumentError(
-            "Symmetry reduction currently requires `cs_algo=NoElimination()`."
-        ))
-        solver_config.ts_algo isa NoElimination || throw(ArgumentError(
-            "Symmetry reduction currently requires `ts_algo=NoElimination()`."
-        ))
-        length(sparsity.corr_sparsity.cliques) == 1 || throw(ArgumentError(
-            "Symmetry reduction currently supports a single dense clique only."
-        ))
-
-        for term_sparsities in sparsity.cliques_term_sparsities, term_sparsity in term_sparsities
-            length(term_sparsity.block_bases) == 1 || throw(ArgumentError(
-                "Symmetry reduction does not yet compose with term-sparsity block splitting."
-            ))
-        end
-    end
+    # Compatibility is checked against the selected block family during assembly,
+    # not against the names of the elimination algorithms.
 
     if !isempty(symmetry.generators)
-        A <: MonoidAlgebra || throw(ArgumentError(
-            "`SignedPermutation` symmetry is currently supported only for ordinary polynomial problems over `MonoidAlgebra`. Got `$(nameof(A))`."
+        A <: Union{MonoidAlgebra,BosonicAlgebra} || throw(ArgumentError(
+            "`SignedPermutation` symmetry supports ordinary polynomial problems over `MonoidAlgebra` or `BosonicAlgebra`. Got `$(nameof(A))`."
         ))
         (isnothing(symmetry.sector) && isnothing(symmetry.spin_adaptation)) || throw(ArgumentError(
             "Fermionic sector splitting / spin adaptation cannot be combined with raw `SignedPermutation` symmetry. Use `FermionicModePermutation` for fermionic problems."

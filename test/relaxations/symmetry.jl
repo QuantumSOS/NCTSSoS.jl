@@ -1,5 +1,5 @@
 # test/relaxations/symmetry.jl
-# Tests: fail-fast behavior for dense symmetry MVP
+# Tests: symmetry reduction and composition with selected sparse relaxations
 
 using Test, NCTSSoS, LinearAlgebra
 
@@ -1239,5 +1239,134 @@ end
         @test_throws ArgumentError SymmetrySpec(
             CliffordSymmetry(:SWAP, 1, 2); offblock_check=:bogus,
         )
+    end
+end
+
+@testset "Finite symmetry with sparsity" begin
+    @testset "bosonic fixed-number reflection with term sparsity" begin
+        reg, (a, ad) = create_bosonic_variables(1:2)
+        # Two oscillator modes, N=2, contact coupling g=1. Exact integrals:
+        # I0000=s, I0011=s/2, I1111=3s/4; odd-parity integrals vanish.
+        s = inv(sqrt(2pi))
+        ham = 0.5ad[1]*a[1] + 1.5ad[2]*a[2]
+        for i in 1:2, j in 1:2, k in 1:2, l in 1:2
+            odd_count = count(==(2), (i, j, k, l))
+            isodd(odd_count) && continue
+            integral = s * (odd_count == 0 ? 1.0 : odd_count == 2 ? 0.5 : 0.75)
+            ham += 0.5integral * ad[i]*ad[j]*a[l]*a[k]
+        end
+        basis = [1.0one(a[1]); [1.0a[i] for i in 1:2];
+            [1.0a[i]*a[j] for i in 1:2 for j in i:2];
+            [1.0ad[i]*a[j] for i in 1:2 for j in 1:2]]
+        pop = polyopt(ham, reg; moment_eq_constraints=particle_number_constraint(reg, 2))
+        odd = a[2].word[1]
+        reflection = SymmetrySpec(SignedPermutation(odd => (-1, odd), -odd => (-1, -odd));
+            offblock_check=:full)
+        # Independent occupation-space Hamiltonian in |20>, |11>, |02>.
+        exact = eigmin(Symmetric([1+s 0 s/2; 0 2+s 0; s/2 0 3+3s/4]))
+        for ts_algo in (NoElimination(), MaximalElimination()), symmetry in (nothing, reflection)
+            cfg = SolverConfig(optimizer=SOLVER, moment_basis=basis, ts_algo=ts_algo, symmetry=symmetry)
+            result = cs_nctssos(pop, cfg)
+            @test result.objective ≈ exact atol=1e-6
+            if ts_algo isa MaximalElimination
+                @test sort(only(result.moment_matrix_sizes)) == [1, 1, 1, 2, 2, 3]
+                if !isnothing(symmetry)
+                    @test sort(result.symmetry.psd_block_sizes) == [1, 1, 1, 2, 2, 3]
+                end
+            end
+        end
+        # Reject maps which fail to preserve the canonical commutation relations.
+        for bad in (SignedPermutation(odd => (-1, odd)),
+                    SignedPermutation(odd => -odd, -odd => odd))
+            cfg = SolverConfig(optimizer=SOLVER, moment_basis=basis,
+                ts_algo=MaximalElimination(), symmetry=SymmetrySpec(bad))
+            @test_throws ArgumentError cs_nctssos(pop, cfg)
+        end
+    end
+
+    @testset "non-invariant sparse constraints cannot bypass validation" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        swap = SignedPermutation(x[1].word[1] => x[2].word[1], x[2].word[1] => x[1].word[1])
+        spec = SymmetrySpec(swap; check_invariance=false)
+        pop = polyopt(1.0x[1]^2 + 2x[2]^2, reg)
+        cfg = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF(), symmetry=spec)
+        @test_throws ArgumentError cs_nctssos(pop, cfg)
+
+        # The full moment domain is closed, but a localizer family is not.
+        # Merely checking the moment basis would wrongly accept this layout.
+        pop = polyopt(1.0x[1]^2 + x[2]^2, reg;
+            ineq_constraints=[3.0 - x[1]^2 - x[2]^2])
+        cfg = SolverConfig(optimizer=SOLVER, order=2)
+        sparsity = compute_sparsity(pop, cfg)
+        terms = deepcopy(sparsity.cliques_term_sparsities)
+        localizer = terms[1][2]
+        terms[1][2] = NCTSSoS.TermSparsity(localizer.term_sparse_graph_supp,
+            [[one(x[1]), x[1]], [x[2]]])
+        err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
+            pop, sparsity.corr_sparsity, terms, spec))
+        @test err isa ArgumentError
+        @test occursin("sparse block family", sprint(showerror, err))
+
+        preg, (_, _, sz) = create_pauli_variables(1:2)
+        charge_pop = polyopt(1.0sz[1] + sz[2], preg)
+        charge_cfg = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF(),
+            symmetry=SymmetrySpec(pauli_charge=PauliChargeSectorSpec()))
+        err = _capture_exception(() -> cs_nctssos(charge_pop, charge_cfg))
+        @test err isa ArgumentError
+        @test occursin("charge and singlet reductions", sprint(showerror, err))
+    end
+
+    @testset "signed transported overlapping cliques share moments" begin
+        reg, (x,) = create_unipotent_variables([("x", 1:3)])
+        f = -(x[1] * x[2] + x[2] * x[1] - x[2] * x[3] - x[3] * x[2]) / 2 + 0.3x[2]
+        pop = polyopt(f, reg; moment_eq_constraints=[1.0 + x[2]])
+        symmetry = SymmetrySpec(SignedPermutation(
+            x[1].word[1] => (-1, x[3].word[1]), x[3].word[1] => (-1, x[1].word[1]),
+        ); offblock_check=:full)
+        plain_cfg = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF())
+        cfg = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF(), symmetry=symmetry)
+        for dualize in (false, true)
+            plain = cs_nctssos(pop, plain_cfg; dualize)
+            reduced = cs_nctssos(pop, cfg; dualize)
+            @test length(reduced.sparsity.corr_sparsity.cliques) == 2
+            @test reduced.objective ≈ -2.3 atol=1e-6
+            @test reduced.objective ≈ plain.objective atol=1e-6
+            @test :transported in reduced.symmetry.block_provenance
+        end
+    end
+
+    @testset "invariant term blocks preserve localizers" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:2)])
+        pop = polyopt(1.0x[1]^4 + x[2]^4 - x[1]^2 - 2x[2]^2, reg;
+            ineq_constraints=[3.0 - x[1]^2 - x[2]^2])
+        symmetry = SymmetrySpec(SignedPermutation(x[1].word[1] => (-1, x[1].word[1]));
+            offblock_check=:full)
+        plain_cfg = SolverConfig(optimizer=SOLVER, order=2, ts_algo=MaximalElimination())
+        cfg = SolverConfig(optimizer=SOLVER, order=2, ts_algo=MaximalElimination(), symmetry=symmetry)
+        plain = cs_nctssos(pop, plain_cfg)
+        reduced = cs_nctssos(pop, cfg)
+        @test length(only(reduced.moment_matrix_sizes)) > 1
+        @test reduced.objective ≈ -1.25 atol=1e-6
+        @test reduced.objective ≈ plain.objective atol=1e-6
+    end
+
+    @testset "Pauli and fermionic finite block transport" begin
+        preg, (sx, sy, sz) = create_pauli_variables(1:2)
+        freg, (a, ad) = create_fermionic_variables(1:2)
+        cases = (
+            (polyopt(1.0sz[1] + sz[2], preg), SymmetrySpec(CliffordSymmetry(:SWAP, 1, 2)), -2.0),
+            (polyopt(-1.0ad[1]*a[1] - ad[2]*a[2], freg),
+                SymmetrySpec(FermionicModePermutation(1 => 2, 2 => 1)), -2.0),
+        )
+        for (pop, symmetry, expected) in cases
+            cfg = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF(),
+                ts_algo=MaximalElimination(), symmetry=symmetry)
+            plain_cfg = SolverConfig(optimizer=SOLVER, order=1, cs_algo=MF(),
+                ts_algo=MaximalElimination())
+            plain = cs_nctssos(pop, plain_cfg)
+            reduced = cs_nctssos(pop, cfg)
+            @test reduced.objective ≈ expected atol=1e-6
+            @test reduced.objective ≈ plain.objective atol=1e-6
+        end
     end
 end

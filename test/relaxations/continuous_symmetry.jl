@@ -144,3 +144,30 @@ using Test, NCTSSoS, LinearAlgebra
         end
     end
 end
+
+@testset "Exact structured compact metrics" begin
+    reg,(v,) = create_noncommutative_variables([("v",1:2)])
+    x,y = v
+    pop = polyopt(0.0*x,reg)
+    action = SuppliedDerivation(reg,Dict(x.word[1]=>2y,y.word[1]=>-Polynomial(x)))
+    # Unequal weights matter: K is skew for diag(2,1), but not for identity.
+    for metric in ([2 0;0 1], Diagonal([2,1]), [2//7 0;0 1//7])
+        @test validate_continuous_symmetry(pop,[action];positivity_bases=[v],
+            compact_metric=metric).compactness == :verified
+    end
+    epsilon = big(1)//big(10)^40
+    for metric in ([1 0;0 1], [0 0;0 0], [-2 0;0 -1], [2 0;0 0],
+        [2 epsilon;epsilon 1], [2 epsilon;0 1])
+        @test_throws ArgumentError validate_continuous_symmetry(pop,[action];
+            positivity_bases=[v],compact_metric=metric)
+    end
+    @test_throws ArgumentError validate_continuous_symmetry(polyopt(epsilon*x,reg),[action];
+        positivity_bases=[v],compact_metric=[2 0;0 1])
+    # The dense fallback must still use conjugate transpose and certify strict
+    # positivity, not merely nonnegative eigenvalues or a positive diagonal.
+    rotation = SuppliedDerivation(reg,Dict(x.word[1]=>Polynomial(y),y.word[1]=>-Polynomial(x)))
+    @test validate_continuous_symmetry(pop,[rotation];positivity_bases=[v],
+        compact_metric=[2 im;-im 2]).compactness == :verified
+    @test_throws ArgumentError validate_continuous_symmetry(pop,[rotation];
+        positivity_bases=[v],compact_metric=[1 im;-im 1])
+end

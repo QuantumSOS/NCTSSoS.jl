@@ -181,6 +181,15 @@ function _action_metric(metric, n)
     size(metric) == (n, n) || throw(ArgumentError("Compact metric must be $n by $n."))
     h = map(_action_coefficient, metric)
     h == h' || throw(ArgumentError("Compact metric must be Hermitian."))
+    # A diagonal Hermitian form is positive definite exactly when every
+    # diagonal entry is positive. Preserve that structure in later K'H+HK
+    # checks instead of doing cubic rational arithmetic on structural zeros.
+    if isdiag(h)
+        d = diag(h)
+        all(c -> isreal(c) && real(c) > 0, d) || throw(ArgumentError(
+            "Compact metric must be positive definite."))
+        return Diagonal(d)
+    end
     # Exact Hermitian elimination: positive pivots certify positive definiteness.
     a = copy(h)
     for j in 1:n

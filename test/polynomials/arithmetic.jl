@@ -52,6 +52,22 @@ using NCTSSoS, Test
         @test degree(p_prod) == 2
     end
 
+    @testset "Exact rational Pauli products" begin
+        _, (x, y, z) = create_pauli_variables(1:1)
+        for Q in (Rational{Int}, Rational{BigInt})
+            p = Polynomial([(Q(1//3), x[1])])
+            q = Polynomial([(Complex{Q}(2//7, 1//5), y[1])])
+            @test coefficients(p*q) == Complex{Q}[Complex{Q}(-1//15, 2//21)]
+            @test eltype(coefficients(p*q)) == Complex{Q}
+            @test monomials(p*q) == [z[1]]
+            @test coefficients(p*y[1]) == Complex{Q}[Complex{Q}(0, 1//3)]
+            @test coefficients(y[1]*p) == Complex{Q}[Complex{Q}(0, -1//3)]
+            @test eltype(coefficients(p*y[1])) == Complex{Q}
+            @test eltype(coefficients(y[1]*p)) == Complex{Q}
+            @test (p*q)' == q'*p'
+        end
+    end
+
     @testset "Monomial-Polynomial Interaction" begin
         m = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1, 2))
         p = Polynomial((2.0, m))

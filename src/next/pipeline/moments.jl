@@ -19,11 +19,12 @@ mutable struct OrbitMoments{W,G,D}
     relations::Dict{W,Tuple{Phase,Bool}}
     zero_orbit::Bool
     line::Int # -1: complex; otherwise z = im^line * conj(z)
+    real_form::Bool
 end
-function OrbitMoments(::Type{W}, generators; annihilators=()) where {W<:AbstractWord}
+function OrbitMoments(::Type{W}, generators; annihilators=(),real_form=false) where {W<:AbstractWord}
     representatives = MomentTable{W}()
     t = OrbitMoments(generators,annihilators,Dict{W,OrbitCoordinates}(),
-        representatives,representatives.labels,W[],Dict{W,Tuple{Phase,Bool}}(),false,-1)
+        representatives,representatives.labels,W[],Dict{W,Tuple{Phase,Bool}}(),false,-1,real_form)
     m = orbit_coordinates!(t,one(W))
     m.re == 1 && m.im == 0 && m.real_coefficient == 1 ||
         throw(ArgumentError("A symmetry must fix the identity with phase +1."))
@@ -33,6 +34,7 @@ end
 # Relations have the convention L(v) = p * conj^b(L(seed)). A repeated
 # vertex either forces zero or constrains the seed to a real line in C.
 function _orbit_visit!(t, v, p, b)
+    t.zero_orbit |= t.real_form && !isreal(p)
     relation=get(t.relations,v,nothing)
     if !isnothing(relation)
         q,c = relation
@@ -59,7 +61,7 @@ function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
         end
     end
     empty!(t.pending); empty!(t.relations)
-    t.zero_orbit=false; t.line=-1
+    t.zero_orbit=false; t.line=t.real_form ? 0 : -1
     _orbit_visit!(t,w,one(Phase),false)
     rep=w; i=1
     while i <= length(t.pending)

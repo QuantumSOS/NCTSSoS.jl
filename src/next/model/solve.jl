@@ -61,9 +61,12 @@ function _expectation(table,result::SolveResult,p::Polynomial)
         iszero(c) && continue
         moment = moment_value(table,w,result.solution.values)
         if isnothing(moment)
-            required = cld(max(degree(w),degree(result.problem.objective),
-                maximum((degree(c.polynomial) for c in result.problem.constraints);init=0)),2)
-            throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not in this program. Use Relaxation(order=$required) with complete rows, or custom rows whose adjoint products contain this word, and solve again."))
+            if result.relaxation isa Relaxation
+                required = cld(max(degree(w),degree(result.problem.objective),
+                    maximum((degree(c.polynomial) for c in result.problem.constraints);init=0)),2)
+                throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not in this program. Use Relaxation(order=$required) with complete rows, or custom rows whose adjoint products contain this word, and solve again."))
+            end
+            throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not among the moments of the selected blocks. Try a higher order, no split (split=nothing), or a site group containing the word's sites ($(join(sites(w),", "))), and solve again."))
         end
         value += c*moment
     end

@@ -12,25 +12,26 @@
 # is trace-positive, so the true tracial minimum is 0. However, the standard
 # denominator-free SOHS hierarchy has value -Inf at every order.
 #
-# This is a local-only regression, not part of the curated CI suite in
-# `test/runtests.jl`. Clarabel/MOI combinations are not stable enough yet to
-# make the exact failure manifestation deterministic across the package-test
-# environment, but the benchmark remains useful as a manual check of the
-# dualized SOHS failure path.
+# This is a local-only Mosek regression, not part of the curated CI suite in
+# `test/runtests.jl`. It requires a Mosek license.
 #
 # Run manually with:
 #   make test-local-one SCRIPT=test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl
 # or
 #   julia --project test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl
 #
-# We solve the dualized SOS side with Clarabel without relying on an artificially
-# tiny iteration cap.
+# We solve the dualized SOS side with Mosek without an artificial iteration cap.
+# Clarabel 0.11.1 can report ALMOST_OPTIMAL with a finite objective here, despite
+# Example 4.3 ruling out every finite SOHS bound:
+# https://arxiv.org/pdf/2109.00786
+# Do not accept that numerical outcome as a certificate or widen this contract
+# to admit it. Mosek instead reports failure with no feasible solution.
 
-using Test, NCTSSoS, JuMP, Clarabel
+using Test, NCTSSoS, JuMP, MosekTools
 
 const T4_FAILURE_SOLVER = optimizer_with_attributes(
-    Clarabel.Optimizer,
-    "verbose" => false,
+    Mosek.Optimizer,
+    "MSK_IPAR_LOG" => 0,
 )
 
 function t4_nc_motzkin_problem()
@@ -56,22 +57,6 @@ function _t4_is_expected_failure(err::NCTSSoS.SolverStatusError)
     return false
 end
 
-function _t4_is_expected_noncertificate(result::NCTSSoS.PolyOptResult)
-    status = termination_status(result.model)
-    primal = primal_status(result.model)
-    dual = dual_status(result.model)
-
-    status in (JuMP.MOI.ITERATION_LIMIT, JuMP.MOI.SLOW_PROGRESS) || return false
-
-    # Clarabel/MOI version combinations can either throw a solver-status error
-    # or return an early-stop iterate that is clearly not a meaningful finite
-    # certificate for this benchmark. Accept the latter only when it is both
-    # non-optimal and obviously bogus relative to the true trace minimum 0.
-    return result.objective < -1.0 ||
-           primal ∉ (JuMP.MOI.FEASIBLE_POINT, JuMP.MOI.NEARLY_FEASIBLE_POINT) ||
-           dual ∉ (JuMP.MOI.FEASIBLE_POINT, JuMP.MOI.NEARLY_FEASIBLE_POINT)
-end
-
 @testset "T4 NC Motzkin Polynomial" begin
     pop = t4_nc_motzkin_problem()
 
@@ -90,19 +75,16 @@ end
     )
 
     # T4 is a statement about failure of the denominator-free SOHS hierarchy,
-    # so keep the regression on the dualized SOS path. Depending on the
-    # Clarabel/MOI combination, this can surface either as an explicit solver
-    # failure or as a clearly bogus early-stop iterate.
+    # so keep the regression on the dualized SOS path. A finite returned
+    # objective is not evidence for the literature's infeasibility statement.
     outcome = try
         cs_nctssos(pop, config; dualize=true)
     catch err
         err
     end
 
-    @test outcome isa Union{NCTSSoS.SolverStatusError,NCTSSoS.PolyOptResult}
+    @test outcome isa NCTSSoS.SolverStatusError
     if outcome isa NCTSSoS.SolverStatusError
         @test _t4_is_expected_failure(outcome)
-    elseif outcome isa NCTSSoS.PolyOptResult
-        @test _t4_is_expected_noncertificate(outcome)
     end
 end

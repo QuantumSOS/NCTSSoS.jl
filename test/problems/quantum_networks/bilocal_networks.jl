@@ -133,7 +133,10 @@ end
         result = cs_nctssos(spop, config)
 
         @test result.objective ≈ EXPECTED_BILOCAL.Dense_d3.opt atol = 1e-6
-        @test_broken flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BILOCAL.Dense_d3.sides
+        # Degree counts for operator words: 1, 6, 18, 38; for state words:
+        # 1, 6, 36, 172. Their products of total degree <= 3 give
+        # 1 + 12 + 90 + 534 = 637 basis elements, agreeing with the oracle.
+        @test flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BILOCAL.Dense_d3.sides
         @test result.n_unique_moment_matrix_elements == EXPECTED_BILOCAL.Dense_d3.nuniq
     end
 
@@ -151,7 +154,9 @@ end
         result = cs_nctssos(spop, config)
 
         @test result.objective ≈ EXPECTED_BILOCAL.TS_d3.opt atol = 1e-6
-        @test_broken flatten_sizes(result.moment_matrix_sizes) == EXPECTED_BILOCAL.TS_d3.sides
+        # Clique enumeration order is not part of the relaxation. Compare the
+        # oracle's block-size multiset, retaining every block and multiplicity.
+        @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(EXPECTED_BILOCAL.TS_d3.sides)
         @test result.n_unique_moment_matrix_elements == EXPECTED_BILOCAL.TS_d3.nuniq
     end
 end

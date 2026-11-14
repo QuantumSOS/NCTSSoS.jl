@@ -94,10 +94,10 @@ jobs:
           using Pkg
           Pkg.activate(joinpath(ENV["RUNNER_TEMP"], "scs-extension"))
           Pkg.develop(PackageSpec(path=pwd()))
-          Pkg.add([PackageSpec(name="SCS", version="2.7.1"), PackageSpec(name="JuMP", version="1.32.1")])
+          Pkg.add([PackageSpec(name="SCS", version="2.7.1"), PackageSpec(name="JuMP", version="1.32.1"), PackageSpec(name="ExplicitImports", version="1.15.0")])
           Pkg.precompile()
       - name: Test direct and indirect SCS with warm starts
         env:
           JULIA_NUM_THREADS: '1'
           OPENBLAS_NUM_THREADS: '1'
-        run: julia --project="$RUNNER_TEMP/scs-extension" --startup-file=no test/next/conic/extensions.jl
+        run: julia --project="$RUNNER_TEMP/scs-extension" --startup-file=no -e 'include("test/next/conic/extensions.jl"); include("test/quality/ExplicitImports.jl")'

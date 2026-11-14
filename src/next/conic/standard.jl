@@ -1,5 +1,7 @@
 using SparseArrays: SparseMatrixCSC, sparse
 
+public MomentStandardForm
+
 "A cone in consecutive coordinates. PSD/HPSD coordinates use the Frobenius-isometric svec convention."
 struct DataCone
     kind::Symbol

@@ -1,3 +1,5 @@
+public ConicSolution, solve_standard
+
 "Solver descriptions dispatch at the standard-form boundary; package extensions can add new subtypes."
 abstract type AbstractSolver end
 "Use any JuMP optimizer factory or optimizer_with_attributes value. No solver is loaded by this description."

@@ -63,6 +63,27 @@ end
         failed = N.solve(fixed,N.Positive(x-0.8))
         @test failed.bound===nothing
         @test failed.status==JuMP.MOI.INFEASIBLE
+
+        _,ops = N.site_variables(N.Free(),1,2)
+        a,b = ops[1]
+        ball = N.Problem(a*b+b*a;constraints=(N.Positive(1-a^2-b^2),))
+        relaxation = N.Relaxation(order=2)
+        for (name,cut) in ((:restricting,N.Positive(a+0.25)),(:redundant,N.Positive(2-a^2-b^2)))
+            initial = N.solve(ball,relaxation;solver=backend)
+            warm = N.solve(initial,cut)
+            fresh = N.solve(N.add_constraint(ball,cut),relaxation;solver=backend)
+            @test warm.status==fresh.status==JuMP.MOI.OPTIMAL
+            @test warm.bound ≈ -1 atol=2e-6
+            @test warm.bound ≈ fresh.bound atol=2e-6
+            @test warm.sizes.blocks==initial.sizes.blocks+1
+            @test warm.solution.diagnostics.warm_started
+            # A feasible appended slack with zero dual preserves the old optimum.
+            # A cut violated by the old moments need not reduce the iteration count.
+            if name==:redundant
+                @test warm.solution.diagnostics.iterations < fresh.solution.diagnostics.iterations
+            end
+            @info "Appended constraint: warm versus fresh" linear_solver name warm=warm.solution.diagnostics.iterations fresh=fresh.solution.diagnostics.iterations
+        end
     end
     _,p,r,_ = last(extension_models())
     failed = N.solve(p,r;solver=N.SCSBackend(verbose=0,max_iters=1))

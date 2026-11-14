@@ -26,6 +26,7 @@ function _momentum_projectors(active, actions, projections)
                 phase, b = action[a]
                 P[index[b],j] += c * phase
             end
+            all(iszero, P) && continue
             F = LinearAlgebra.svd(P)
             for j in findall(>(1e-9), F.S)
                 push!(sectors[s], [(F.U[i,j], a) for (i,a) in enumerate(orbit) if abs(F.U[i,j]) > 1e-12])
@@ -121,6 +122,20 @@ function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_la
     end
 end
 
+# The selected elements already form a subgroup. Keep their order, but give
+# character calculations a generating set instead of every subgroup element.
+function _little_group(elements)
+    generators = [first(elements)]
+    generated = OrbitGroup(generators)
+    for g in elements
+        haskey(generated.indices,g) && continue
+        push!(generators,g)
+        generated = OrbitGroup(generators)
+    end
+    indices = Dict(g=>i for (i,g) in enumerate(elements))
+    OrbitGroup(elements,indices,[indices[g] for g in generators])
+end
+
 """
     lattice_program(rows, objective, translation, order, point_generators; moment_generators=())
 
@@ -134,6 +149,7 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
     point_generators::AbstractVector{<:AbstractAction}; moment_generators=()) where {W<:AbstractWord}
     translation=_group_action(W,translation)
     point_generators=map(g->_group_action(W,g),point_generators)
+    moment_generators=map(g->_group_action(W,g),moment_generators)
     all_generators = (translation, point_generators..., moment_generators...)
     _check_objective(objective, all_generators)
     orbits = CyclicRows(rows, translation, order)
@@ -170,7 +186,7 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
         full = mod(2k, order) == 0 || !paired
         little, projections = get!(cache, full) do
             elements = point.elements[findall(i -> full || conjugations[i] == 1, eachindex(point.elements))]
-            group = OrbitGroup(elements)
+            group = full ? point : _little_group(elements)
             ps, _ = shared_projections(group)
             (group, ps)
         end

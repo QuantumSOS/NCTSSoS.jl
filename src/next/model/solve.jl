@@ -17,7 +17,7 @@ Base.show(io::IO,::MIME"text/plain",r::SolveResult) = show(io,r)
 
 "One checked build and solve. The backend receives only standard data, not model or algebra objects."
 function solve(problem::Problem,relaxation::AbstractRelaxation;solver=nothing)
-    solver isa AbstractSolver || throw(ArgumentError("Missing or invalid solver description; pass solver=JuMPBackend(optimizer_factory), with attributes on the factory if needed."))
+    solver isa AbstractSolver || throw(ArgumentError("Missing or invalid solver description; load SCS with `using SCS` and pass solver=SCSBackend(), or pass solver=JuMPBackend(optimizer_factory), with attributes on the factory if needed."))
     built = build(problem,relaxation)
     solution = solve_standard(moment_standard_form(built.program),solver)
     kind = isnothing(solution.bound) ? :unavailable : :numerical_optimum_not_certificate

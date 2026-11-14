@@ -19,6 +19,16 @@ using Test
         :NEARLY_FEASIBLE_POINT,
         :INFEASIBLE,
         :INFEASIBLE_OR_UNBOUNDED,
+        :DUAL_INFEASIBLE,
+        :OTHER_ERROR,
+
+        # SCS documents these native API names without exporting/marking them public.
+        :DirectSolver,
+        :IndirectSolver,
+        :raw_status,
+
+        # Our extension shares this private check with its owning package.
+        :_check_append_only,
 
         # Clarabel exposes the optimizer constructor as `Clarabel.Optimizer`,
         # but ExplicitImports does not currently treat it as a public name.

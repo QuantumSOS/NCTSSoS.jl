@@ -44,7 +44,7 @@ end
     @test_throws ArgumentError Nx.Relaxation(rows=[one(x[1]),2*x[1]])
     @test_throws ArgumentError Nx.build(Nx.Problem(x[1]),Nx.Relaxation(rows=[one(x2[1]),x2[1]]))
     @test_throws ArgumentError Nx.build(Nx.Problem(x[1]*x[2]*x[3]),Nx.Relaxation(order=1))
-    @test_throws ArgumentError Nx.solve(Nx.Problem(x[1]),Nx.Relaxation(order=1))
+    @test_throws r"using SCS.*SCSBackend.*JuMPBackend" Nx.solve(Nx.Problem(x[1]),Nx.Relaxation(order=1))
     custom = [x[1],one(x[1])]
     built = Nx.build(Nx.Problem(x[1]),Nx.Relaxation(rows=custom))
     @test built.sizes.rows==2 && custom==[x[1],one(x[1])]

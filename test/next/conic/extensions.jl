@@ -86,7 +86,15 @@ end
         end
     end
     _,p,r,_ = last(extension_models())
-    failed = N.solve(p,r;solver=N.SCSBackend(verbose=0,max_iters=1))
-    @test failed.bound===nothing
-    @test failed.bound_kind==:unavailable
+    for (options,status,limit) in (((max_iters=1,),JuMP.MOI.ITERATION_LIMIT,"max_iters"),
+                                  ((time_limit_secs=1e-12,),JuMP.MOI.TIME_LIMIT,"time_limit_secs"))
+        failed = N.solve(p,r;solver=N.SCSBackend(;verbose=0,options...))
+        reference = N.solve(p,r;solver=N.JuMPBackend(optimizer_with_attributes(
+            SCS.Optimizer,"verbose"=>0,(String(k)=>v for (k,v) in pairs(options))...)))
+        @test failed.status==reference.status==status
+        @test failed.bound===nothing
+        @test failed.bound_kind==:unavailable
+        @test occursin(limit,failed.solution.raw_status)
+        @test occursin(string(status),sprint(show,failed))
+    end
 end

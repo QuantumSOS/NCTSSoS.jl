@@ -42,12 +42,21 @@ function Next.solve_standard(h::SCSHandle)
         0,0,Float64[],Int[],Int[],Int[],Int[],Int[],Int[],h.x,h.y,h.slack;options...)
     status = sol.ret_val==1 ? JuMP.MOI.OPTIMAL : sol.ret_val==2 ? JuMP.MOI.ALMOST_OPTIMAL :
         sol.ret_val==-2 ? JuMP.MOI.INFEASIBLE : sol.ret_val==-1 ? JuMP.MOI.DUAL_INFEASIBLE : JuMP.MOI.OTHER_ERROR
+    raw_status = SCS.raw_status(sol.info)
+    if sol.ret_val==2
+        # Match SCS.jl's MOI wrapper: a resource limit is not an optimum.
+        if occursin("reached time_limit_secs",raw_status)
+            status = JuMP.MOI.TIME_LIMIT
+        elseif occursin("reached max_iters",raw_status)
+            status = JuMP.MOI.ITERATION_LIMIT
+        end
+    end
     bound = sol.ret_val==1 ? Float64(sol.info.pobj+f.offset) : nothing
     h.warm_start = sol.ret_val in (1,2) && all(isfinite,h.x) && all(isfinite,h.y) && all(isfinite,h.slack)
     diagnostics = (primal_residual=sol.info.res_pri,dual_residual=sol.info.res_dual,gap=sol.info.gap,
         iterations=Int(sol.info.iter),setup_seconds=sol.info.setup_time/1000,solve_seconds=sol.info.solve_time/1000,
         warm_started=options.warm_start)
-    return Next.ConicSolution(bound,status,SCS.raw_status(sol.info),copy(sol.x),h,diagnostics)
+    return Next.ConicSolution(bound,status,raw_status,copy(sol.x),h,diagnostics)
 end
 
 function Next.solve_standard(form::Next.MomentStandardForm,h::SCSHandle)

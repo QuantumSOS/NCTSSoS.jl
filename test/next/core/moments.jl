@@ -57,10 +57,15 @@ end
     Nx.moment_ids!(t,a)
     @test Nx.moment_ids(t,ad)==(0,0) # no implicit adjoint alias
     @test length(t)==2
-    for (reality,expected) in ((:real,(2,0)),(:imaginary,(0,2)),(:complex,(2,3)))
+    for (reality,expected,value) in ((:real,(2,0),1.25+0im),(:imaginary,(0,2),1.25im),
+        (:complex,(2,3),1.25-2.5im))
         forced = Nx.MomentTable{W}()
         @test Nx.moment_ids!(forced,a,reality)==expected
         @test Nx.moment_ids!(forced,a,reality)==expected
+        @test Nx.moment_value(forced,a,[1.25,-2.5])==value
+        @test Nx.moment_value(forced,ad,[1.25,-2.5])==conj(value)
+        @test Nx.moment_value(forced,one(W),Float64[])==1
+        @test Nx.moment_value(forced,Nx.fermi_letter(W,2),Float64[])===nothing
         for other in (:real,:imaginary,:complex)
             other==reality && continue
             @test_throws ArgumentError Nx.moment_ids!(forced,a,other)

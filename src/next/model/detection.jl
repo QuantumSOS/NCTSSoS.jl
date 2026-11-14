@@ -76,7 +76,7 @@ end
 detect_symmetry(objective::Polynomial;kwargs...) = detect_symmetry(Problem(objective);kwargs...)
 
 function Base.show(io::IO,s::FamilySymmetry)
-    print(io,"FamilySymmetry: ",length(s.generators)," block generators, ",
+    print(io,"Symmetry: ",length(s.generators)," block generators, ",
         length(s.moment_only)," moment-only generators")
     s.detected && print(io,"; group order not reported by the detector; the result can be a subgroup")
     return nothing

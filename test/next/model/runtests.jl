@@ -1,5 +1,46 @@
 # Tests of the model layer of NCTSSoS.Next.
 
+@testset "Public imports in fresh processes" begin
+    project=dirname(Base.active_project())
+    standalone=raw"""
+        using Test
+        using NCTSSoS.Next
+        @testset "Every exported binding is usable" begin
+            for name in names(Next)
+                Base.isexported(Next,name) || continue
+                @test Core.eval(Main,name) === getfield(Next,name)
+            end
+            registry,(X,Y,Z)=pauli_variables(2)
+            problem=Problem(X[1]*X[2];symmetry=Symmetry(SitePermutation([2,1])))
+            @test occursin("Symmetry: 1 block generators",sprint(show,problem))
+            @test !occursin("FamilySymmetry",sprint(show,problem))
+            @test inspect(problem,Relaxation(order=1)).sizes.program.rows>0
+        end
+        import NCTSSoS
+        @testset "Qualified legacy API" begin
+            @test NCTSSoS.Symmetry !== Symmetry
+            @test NCTSSoS.variables !== variables
+        end
+        """
+    combined=raw"""
+        using Test
+        using NCTSSoS
+        using NCTSSoS.Next
+        @testset "Only the documented legacy clashes" begin
+            clashes=sort!([name for name in intersect(names(NCTSSoS),names(NCTSSoS.Next))
+                if Base.isexported(NCTSSoS,name) && Base.isexported(NCTSSoS.Next,name) &&
+                    getfield(NCTSSoS,name) !== getfield(NCTSSoS.Next,name)])
+            @test clashes==[:Symmetry,:variables]
+            for name in clashes
+                @test_throws UndefVarError Core.eval(Main,name)
+            end
+        end
+        """
+    for script in (standalone,combined)
+        @test success(pipeline(`$(Base.julia_cmd()) --startup-file=no --project=$project -e $script`;stdout,stderr))
+    end
+end
+
 include("front.jl")
 FrontDoorChecks.check(Nx.JuMPBackend(SOLVER))
 include("detection.jl")

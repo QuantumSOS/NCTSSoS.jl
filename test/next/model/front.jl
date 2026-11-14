@@ -42,6 +42,9 @@ function check(backend)
         sector=Sector(cd[1]*c[1]+cd[2]*c[2],1)
         same_program(fermion,N.BlockRelaxation(order=1,strengthen=(sector,)),fermion,
             Relaxation(order=1,strengthen=sector))
+        conditions=FermionicConditions(1:2)
+        same_program(fermion,N.BlockRelaxation(order=1,strengthen=(conditions,)),fermion,
+            Relaxation(order=1,strengthen=conditions))
 
         # Empty declarations are neutral in either position, independent of provenance.
         for empty in (Symmetry(),N.FamilySymmetry(;detected=true))
@@ -64,6 +67,9 @@ function check(backend)
         @test_throws r"generator 1.*constraint 1.*Z1.*remove" N.build(constrained,Relaxation(order=1))
         @test_throws r"generator 1.*constraint 1.*remove" N.build(constrained,N.BlockRelaxation(order=1))
         @test_throws r"generator 1.*objective.*remove" N.build(Problem(z[1];symmetry),Relaxation(order=1))
+        @test_throws r"generator 2.*objective.*Z1.*remove" N.build(
+            Problem(z[1];symmetry=Symmetry(SitePermutation(1:4),SitePermutation([2,3,4,1]))),
+            Relaxation(order=1))
         @test N.add_constraint(symmetric,Positive(sum(z))).symmetry === symmetry
         @test detect_symmetry(zero(h)).detected
         @test isempty(detect_symmetry(zero(h)).generators)
@@ -72,6 +78,9 @@ function check(backend)
         report=inspect(symmetric,Relaxation(order=2,grouping=Correlative(),split=TermSplit()))
         shown=sprint(show,report)
         @test all(occursin(text,shown) for text in ("block generators","order=2","grouping=","split=","Sizes:"))
+        for value in (symmetric,report.relaxation,report,N.BlockRelaxation(;order=1,symmetry))
+            @test sprint(show,MIME"text/plain"(),value)==sprint(show,value)
+        end
 
         # Exercise the public spelling and the single result type with a real solve.
         n=6

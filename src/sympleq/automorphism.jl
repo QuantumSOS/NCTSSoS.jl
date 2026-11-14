@@ -93,6 +93,7 @@ end
 function _enumerate_color_preserving_automorphisms(
     g::SympleQGraph;
     max_automorphisms::Int=100_000,
+    paulis::Union{Nothing,Matrix{UInt8}}=nothing,
 )
     n = nv(g.graph)
     length(g.colors) == n || throw(ArgumentError("Graph colour vector length does not match vertex count."))
@@ -102,6 +103,31 @@ function _enumerate_color_preserving_automorphisms(
     assigned = zeros(Int, n)
     used = falses(n)
     automorphisms = Vector{Int}[]
+
+    # Eliminate in search order: each relation is tested as soon as its last
+    # term is assigned. Checking a basis of equations preserves the entire
+    # kernel, without requiring this particular basis to permute into itself.
+    relations = [Vector{Int}[] for _ in 1:n]
+    if !isnothing(paulis)
+        term_order = filter(v -> v <= size(paulis, 1), order)
+        position = invperm(order)
+        for relation in _gf2_nullspace_basis(transpose(paulis[term_order, :]))
+            support = term_order[findall(==(1), relation)]
+            push!(relations[maximum(position[support])], support)
+        end
+    end
+
+    function preserves_relations(depth)
+        isnothing(paulis) && return true
+        for support in relations[depth], col in axes(paulis, 2)
+            value = UInt8(0)
+            for vertex in support
+                value ⊻= paulis[assigned[vertex], col]
+            end
+            iszero(value) || return false
+        end
+        return true
+    end
 
     function search(depth::Int)
         length(automorphisms) >= max_automorphisms && return nothing
@@ -116,7 +142,7 @@ function _enumerate_color_preserving_automorphisms(
             _automorphism_consistent(g.graph, assigned, v, w) || continue
             assigned[v] = w
             used[w] = true
-            search(depth + 1)
+            preserves_relations(depth) && search(depth + 1)
             used[w] = false
             assigned[v] = 0
         end
@@ -147,10 +173,12 @@ function _restrict_to_pauli_vertices(g::SympleQGraph, automorphism::Vector{Int})
 end
 
 """
-    automorphism_generators(graph::SympleQGraph; backend=:backtracking)
+    automorphism_generators(graph::SympleQGraph; backend=:backtracking, paulis=nothing)
 
 Return a deterministic generating set of colour-preserving automorphisms,
 restricted to the Pauli-term vertices.
+When `paulis` is supplied, also require preservation of its full GF(2) relation
+space. The graph alone need not encode those relations.
 
 No extra dependency is pulled in for this MVP. `backend=:bliss` is accepted as a
 request, but currently falls back to the deterministic in-tree backtracking
@@ -161,6 +189,7 @@ function automorphism_generators(
     graph::SympleQGraph;
     backend::Symbol=:backtracking,
     max_automorphisms::Int=100_000,
+    paulis::Union{Nothing,Matrix{UInt8}}=nothing,
 )
     if backend in (:auto, :backtracking)
         # native path
@@ -170,7 +199,7 @@ function automorphism_generators(
         throw(ArgumentError("Unsupported SympleQ graph automorphism backend $backend."))
     end
 
-    autos = _enumerate_color_preserving_automorphisms(graph; max_automorphisms)
+    autos = _enumerate_color_preserving_automorphisms(graph; max_automorphisms, paulis)
     restricted = TermPermutation[]
     seen = Set{Tuple{Vararg{Int}}}()
     for auto in autos

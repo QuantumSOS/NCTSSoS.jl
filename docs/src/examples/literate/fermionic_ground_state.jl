@@ -419,9 +419,9 @@ println("N = $N₁:  SDP = $(result₁.objective),  exact = $exact₁,  gap = $(
 # $H_{\mathrm{even}}$, but we do **not** add `P - I = 0` again for these
 # larger cases.
 #
-# A second call to [`cs_nctssos_higher`](@ref) reads the moment values from
-# the first solve, discovers which cross-correlations matter, and refines
-# the sparsity pattern.  The result is typically tight.
+# A call to [`cs_nctssos_higher`](@ref) propagates support from the first
+# step's completed graphs, including clique-fill edges, to refine the
+# sparsity pattern. It does not read numerical moment values.
 # -------------------------------------------------------------------
 
 # ### Helper — build and solve for arbitrary N

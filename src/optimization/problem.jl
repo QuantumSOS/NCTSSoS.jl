@@ -165,6 +165,9 @@ For state-polynomial inputs, the stored polynomial type is the promoted
 - Coefficient type cannot be an integer subtype (JuMP solver requirement)
 - Constraint coefficients are converted to the objective coefficient type when the algebra and index types match
 - Simplification rules are determined by the algebra type, not manual flags
+- For real-algebra polynomial problems, optimization uses the symmetric part
+  `(f + adjoint(f)) / 2` of the objective, including when `f` is not Hermitian.
+  The real moment formulation identifies a word with its adjoint.
 - For complex-algebra polynomial problems (`PauliAlgebra`, `FermionicAlgebra`, `BosonicAlgebra`),
   the objective and inequality constraints must be Hermitian. Non-Hermitian PSD constraints are
   rejected.

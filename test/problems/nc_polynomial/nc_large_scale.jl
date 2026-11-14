@@ -20,7 +20,7 @@ end
 
 # Oracle values from NCTSSOS
 const NC_LARGE_SCALE_ORACLES = (
-    CS_TS_d3 = (opt=3.011288353315061, nblocks=1544, nuniq=1165),
+    CS_TS_d3 = (opt=3.011288353315061, nblocks=1544),
 )
 
 if !isdefined(@__MODULE__, :flatten_sizes)
@@ -33,9 +33,7 @@ if USE_LOCAL
         reg, (x,) = create_noncommutative_variables([("x", 1:n)])
 
         # Build polynomial
-        f = Polynomial{NonCommutativeAlgebra,UInt8,Float64}(
-            Term{NormalMonomial{NonCommutativeAlgebra,UInt8},Float64}[]
-        )
+        f = zero(typeof(1.0 * x[1]))
         for i = 1:n
             jset = max(1, i - 5):min(n, i + 1)
             jset = setdiff(jset, i)
@@ -69,7 +67,14 @@ if USE_LOCAL
             result = cs_nctssos(pop, config; dualize=false)
             @test result.objective ≈ oracle.opt atol = 1e-4
             @test length(flatten_sizes(result.moment_matrix_sizes)) == oracle.nblocks
-            @test result.n_unique_moment_matrix_elements == oracle.nuniq
+            # The legacy oracle's 1165 counts ksupp, not moment-matrix entries.
+            # Count words u'*v modulo reversal in the moment blocks only.
+            moment_words = Set(
+                min((reverse(u.word)..., v.word...), (reverse(v.word)..., u.word...))
+                for clique in result.sparsity.cliques_term_sparsities
+                for basis in clique[1].block_bases for u in basis for v in basis
+            )
+            @test result.n_unique_moment_matrix_elements == length(moment_words)
         end
 
         @testset "SOS Dualization (order=3)" begin

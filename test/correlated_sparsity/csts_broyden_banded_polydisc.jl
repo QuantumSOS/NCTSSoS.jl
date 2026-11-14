@@ -126,7 +126,7 @@ end
         result = cs_nctssos(
             pop,
             SolverConfig(
-                optimizer=SOLVER,
+                optimizer=optimizer_with_attributes(SOLVER.optimizer_constructor, SOLVER.params..., "max_iter" => 100_000),
                 order=CSTS_BROYDEN_POLYDISC_ORDER,
                 cs_algo=MF(),
                 ts_algo=MMD(),

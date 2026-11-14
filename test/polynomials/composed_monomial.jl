@@ -2,9 +2,6 @@
 using Test, NCTSSoS
 using NCTSSoS: encode_index, ComposedMonomial
 
-# Import internal functions for testing
-import NCTSSoS: _expand_simplified_components, _infer_coef_type_from_types
-
 # Helper: Pauli indices on different sites (site = (idx-1)÷3 + 1)
 # Site 1: 1,2,3; Site 2: 4,5,6; Site 3: 7,8,9
 const P_S1 = UInt16(1)  # Pauli X on site 1
@@ -327,52 +324,6 @@ const P_S3 = UInt16(7)  # Pauli X on site 3
         # Result is Vector{(coefficient, ComposedMonomial)} pairs with identity
         @test result isa Vector{<:Tuple}
         @test length(result) >= 1
-    end
-
-    @testset "_infer_coef_type_from_types" begin
-        # Test compile-time coefficient type inference using coeff_type
-        m_pauli = NormalMonomial{PauliAlgebra,UInt16}(UInt16[P_S1])
-        m_fermi = NormalMonomial{FermionicAlgebra,Int32}(Int32[1])
-
-        # Monomial + Monomial: Pauli (ComplexF64) + Fermionic (Float64) -> ComplexF64
-        T1 = _infer_coef_type_from_types((m_pauli, m_fermi))
-        @test T1 == ComplexF64
-
-        # All Float64 monomials
-        m_nc = NormalMonomial{NonCommutativeAlgebra,UInt16}(nc_word(1))
-        T3 = _infer_coef_type_from_types((m_fermi, m_nc))
-        @test T3 == Float64
-
-        # Polynomial (ComplexF64) + Monomial (Float64) -> ComplexF64
-        p_pauli = Polynomial([(1.0 + 0.0im, m_pauli)])
-        T4 = _infer_coef_type_from_types((p_pauli, m_fermi))
-        @test T4 == ComplexF64
-    end
-
-    @testset "_cartesian_product_iter! (via _expand_simplified_components)" begin
-        # Test _cartesian_product_iter! indirectly through _expand_simplified_components
-        # The helper expects components iterable as `(coef, NormalMonomial)` pairs.
-        f1 = NormalMonomial{FermionicAlgebra,Int32}(Int32[1])
-        f2 = NormalMonomial{FermionicAlgebra,Int32}(Int32[2])
-        ferm_multi = Polynomial([(1.0, f1), (2.0, f2)])
-
-        p = NormalMonomial{PauliAlgebra,UInt16}(UInt16[P_S1])
-        pauli_phase = Polynomial([(0.0 + 1.0im, p)])
-
-        cm_template = ComposedMonomial((f1, p))
-        result = _expand_simplified_components(typeof(cm_template), (ferm_multi, pauli_phase))
-
-        # Should produce 2 * 1 = 2 terms (Cartesian product across components)
-        @test length(result) == 2
-
-        # Coefficients pick up the Pauli phase: {i, 2i}
-        coeffs = Set(map(imag ∘ first, result))
-        @test 1.0 in coeffs
-        @test 2.0 in coeffs
-
-        # Check monomials are composed correctly
-        @test all(t -> t[2] isa ComposedMonomial, result)
-        @test all(t -> length(t[2].components) == 2, result)
     end
 
     @testset "Display - ComposedMonomial" begin

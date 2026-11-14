@@ -82,43 +82,10 @@ The output of the symmetry path is therefore an ordinary
 non-symmetric path — just with fewer moment variables and several small PSD
 blocks instead of one big one.
 
-## [Supported MVP scope](@id sab-scope)
+## [Supported scope](@id sab-scope)
 
-The current MVP is intentionally narrow and is enforced by fail-fast checks in
-[`SolverConfig`](@ref) handling. Symmetry reduction is supported only when
-**all** of the following hold:
-
-- **Dense** relaxation — `cs_algo = NoElimination()` and
-  `ts_algo = NoElimination()`.
-- **Single clique** — exactly one correlative-sparsity clique.
-- **Ordinary polynomial problems** — `PolyOpt` over `Polynomial`. State and
-  trace polynomial problems are not yet supported on the symmetry path.
-- **Monoid, Pauli, or supported fermionic algebras** — `A <: MonoidAlgebra`
-  (i.e. `NonCommutative`, `Projector`, `Unipotent`) with
-  [`SignedPermutation`](@ref) actions; `PauliAlgebra` with
-  [`CliffordSymmetry`](@ref) actions, optionally layered with
-  [`PauliChargeSectorSpec`](@ref) and [`PauliSingletConstraintSpec`](@ref);
-  or `FermionicAlgebra` with [`FermionicModePermutation`](@ref) and optional
-  sector/spin splitting. See [Pauli Symmetry Reduction](@ref
-  pauli-clifford-symmetry) for Clifford examples,
-  [Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry) for the
-  order-2 XXX Heisenberg path, and [`sympleq_symmetry_spec`](@ref) for
-  automatic Clifford detection.
-- **Real signed-permutation or Clifford actions** — monoid-algebra group
-  elements act on registry indices via permutations with ``\pm 1`` signs;
-  Pauli group elements act via Clifford conjugation
-  (``g \cdot P = U_g P U_g^\dagger``). No general orthogonal action, no
-  complex characters.
-- **Conservative finite-group decompositions** — the plain finite-group path
-  accepts only multiplicity-free scalar isotypic components. The Pauli
-  charge-sector path is a specialized order-2 branch that builds explicit
-  charge/spatial blocks; see [Pauli Charge/Singlet Symmetry](@ref
-  pauli-charge-singlet-symmetry).
-
-Anything outside this scope raises an `ArgumentError` instead of silently
-constructing the wrong relaxation. This is the right default while the path
-matures: the failure mode for a bug in symmetry reduction is a wrong but
-plausible-looking objective, which is much worse than a clear error.
+For the supported algebras, actions, sector options, and sparsity combinations,
+see the `symmetry` keyword of [`SolverConfig`](@ref).
 
 In particular, [`cs_nctssos_higher`](@ref) does not yet accept a
 `SymmetrySpec`. The monomap-based GNS path is also not symmetry-aware today:
@@ -150,16 +117,11 @@ function performs the following steps in order:
    group element is applied to the objective and to every equality, inequality,
    and moment-equality constraint. If any of these polynomials changes, the
    call errors out (this can be opted out of via
-   `SymmetrySpec(...; check_invariance = false)`, but the default is to
+   `SymmetrySpec(...; check_invariance = false)` in dense layouts, but the default is to
    check). This is a hard prerequisite: if the *problem* is not invariant,
    block-diagonalizing its moment matrix is meaningless.
 
-4. **Basis closure is checked.** The moment-matrix basis of the single clique,
-   and the block bases of all term-sparsity blocks, must be mapped to
-   themselves (up to sign) by every group element. If any element of the
-   half-basis is sent outside the basis, the call errors out. This is what
-   guarantees that the action descends to a well-defined linear action on the
-   span of the half-basis.
+4. **Basis closure is checked against the selected block family.**
 
 5. **A local monomial action is built.** The function `_act_monomial` applies
    a `SignedPermutation` to a `NormalMonomial` letter-by-letter, multiplying
@@ -180,14 +142,7 @@ function performs the following steps in order:
    is a list of "blocks", one per isotypic component, each providing the
    change-of-basis rows used to project the moment matrix into that component.
 
-8. **Unsupported plain finite-group decompositions are rejected.** On the
-   monomial-coordinate finite-group branch, each returned block must (a) have
-   multiplicity 1, (b) be simple, and (c) be 1×1. If any of those checks
-   fails, the call errors out with a message indicating which assumption was
-   violated. Pauli charge sectors use the separate degree-2 branch described
-   next.
-
-9. **Pauli charge/singlet options are layered before emission when requested.**
+8. **Pauli charge/singlet options are layered before emission when requested.**
    If [`PauliChargeSectorSpec`](@ref) is present, the complete Pauli half-basis
    through degree 2 is rewritten into the local ``\{Z,S^+,S^-\}`` charge basis
    and split by total charge. If spatial [`CliffordSymmetry`](@ref) generators
@@ -197,7 +152,7 @@ function performs the following steps in order:
    Axis-mixing Cliffords are rejected on this branch; only site permutations
    that preserve Pauli axes commute with the charge/singlet structure.
 
-10. **Moment variables are orbit-reduced and a smaller `MomentProblem` is
+9. **Moment variables are orbit-reduced and a smaller `MomentProblem` is
    emitted.** For each monomial appearing in the relaxation, NCTSSoS computes
    its orbit under the group, picks a canonical representative, and either
    maps the monomial to ``\pm`` that representative or — when the orbit has
@@ -259,8 +214,6 @@ Keeping the boundary explicit makes it easy to upgrade either side later.
 - The actual symmetry-adapted decomposition of the half-basis: computing
   characters, identifying isotypic components, building the change-of-basis
   rows.
-- The `multiplicity`, `issimple`, and `degree` queries used to gate which
-  decompositions the MVP accepts.
 
 The adapter layer exposing the NC action to `SymbolicWedderburn` is
 deliberately small: a `BySignedPermutations` action type, a `GroupsCore.Group`
@@ -298,30 +251,13 @@ reduction is otherwise invisible past the boundary of `moment_relax_symmetric`.
 
 ## [Current limitations and fail-fast behavior](@id sab-limits)
 
-!!! note "Where to go next"
-    The companion page [Extending Symmetry Support](@ref extending-symmetry)
-    audits each of these limitations and what it would take to lift them,
-    using the fermionic case as the worked example.
-
-
 The MVP errors out, rather than silently doing the wrong thing, on any of:
 
-- algebra/spec combinations outside the supported families (monoid + signed
-  permutations, Pauli + Clifford/charge/singlet reductions, or fermionic mode
-  permutations with optional sector/spin splitting);
+- algebra/spec combinations outside the supported families documented in
+  [`SolverConfig`](@ref);
 - state or trace polynomial problems;
-- any active correlative or term sparsity (`cs_algo`/`ts_algo` other than
-  `NoElimination()`);
-- more than one correlative-sparsity clique;
-- term-sparsity block splitting inside a clique (more than one block basis per
-  constraint);
 - group elements that send a basis monomial outside the basis (basis closure
   fails);
-- objective or constraint polynomials that are not invariant under the group
-  (unless `check_invariance = false` is passed *and* the user has independently
-  verified invariance);
-- decompositions returned by the plain finite-group `SymbolicWedderburn` path
-  whose blocks have multiplicity > 1, are non-simple, or have size > 1×1;
 - constraint blocks whose off-isotypic coupling fails to vanish within
   `_SYMMETRY_ATOL = 1e-10`;
 - use via [`cs_nctssos_higher`](@ref), or monomap-based GNS reconstruction
@@ -399,8 +335,8 @@ result.symmetry.group_order   # 16
 result.symmetry.psd_block_sizes  # [1, 1, 1]
 ```
 
-Regression tests for the MVP failure modes (non-invariant objective,
-basis-closure violation, multiplicity > 1) live in
+Regression tests for failure modes (non-invariant objective and
+basis-closure violation) live in
 `test/relaxations/symmetry.jl`.
 
 ## [Contrast with a full symmetry-adapted-coordinate redesign](@id sab-contrast)
@@ -429,16 +365,6 @@ The benefits of that conservative choice are:
   result types) sees ordinary monomial moments and needs no changes.
 - The symmetry feature is concentrated in one file and one boundary.
 
-The cost is that the generic finite-group MVP is still restricted to
-multiplicity-free, scalar-block cases. Higher-dimensional irreducible blocks
-(multiplicity > 1, non-scalar isotypic components) require a richer
-intermediate representation that the package does not yet maintain. The Pauli
-charge/spatial branch is deliberately narrower: it earns higher-dimensional
-small blocks by using an explicit order-2 charge basis rather than pretending
-the generic representation problem is solved. Lifting the generic restriction
-is a future extension of this same boundary, not a rewrite of the rest of the
-package.
-
 ## See also
 
 - The runnable walk-throughs:
@@ -448,9 +374,6 @@ package.
   and SympleQ automatic detection on Pauli Hamiltonians).
 - The Pauli order-2 XXX Heisenberg feature page:
   [Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry).
-- The contributor-facing roadmap for lifting MVP limitations (with the
-  fermionic case as the worked example):
-  [Extending Symmetry Support](@ref extending-symmetry).
 - [`SignedPermutation`](@ref), [`SymmetrySpec`](@ref),
   [`SymmetryReport`](@ref), and the `symmetry` keyword of
   [`SolverConfig`](@ref).

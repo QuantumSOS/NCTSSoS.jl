@@ -107,7 +107,8 @@ end
         result = cs_nctssos(
             survey_state_problem(),
             SolverConfig(
-                optimizer=SOLVER,
+                optimizer=optimizer_with_attributes(SOLVER.optimizer_constructor, SOLVER.params...,
+                    "eps_abs" => 1e-7, "eps_rel" => 1e-7, "max_iter" => 100_000),
                 order=3,
                 cs_algo=NoElimination(),
                 ts_algo=NoElimination(),

@@ -46,7 +46,7 @@ Result of a polynomial optimization problem solution.
 - `ST`: State type - `Nothing` for regular polynomials, `StateType` subtype for state polynomials
 
 # Fields
-- `objective::T`: Optimal objective value
+- `objective::T`: Numerical optimal objective, or `NaN` after an accepted early stop
 - `sparsity::SparsityResult{A,TI,P,M,ST}`: Sparsity structure (correlative + term sparsity + initial activated supports)
 - `model::GenericModel{T}`: JuMP model used for solving
 - `moment_matrix_sizes::Vector{Vector{Int}}`: Per-clique vector of term sparsity block sizes for the moment matrix before any symmetry reduction; when `symmetry !== nothing`, the final solver PSD block sizes live in `symmetry.psd_block_sizes`
@@ -184,23 +184,23 @@ end
 """
     _check_solver_status(model)
 
-Check that the solver terminated successfully. Throws an error if the solver
-failed with an unacceptable status (infeasible, unbounded, numerical error, etc.).
+Return `(status, objective)` after checking termination. An accepted early stop
+warns and returns `NaN` instead of a bound. Other unacceptable statuses throw
+`SolverStatusError` (infeasible, unbounded, numerical error, etc.).
 """
 function _check_solver_status(model)
     status = termination_status(model)
-    status ∈ _ACCEPTABLE_STATUSES && return status
+    status ∈ _ACCEPTABLE_STATUSES && return (; status, objective=objective_value(model))
 
     primal = primal_status(model)
     dual = dual_status(model)
 
-    # Some solvers can terminate early (e.g. iteration limit, slow progress) while still
-    # returning a usable (nearly) feasible point. Treat those as acceptable so that
-    # downstream callers can validate objective values against known tolerances.
+    # Preserve the solver state for inspection, but do not report an uncertified bound.
     if status in (MOI.ITERATION_LIMIT, MOI.SLOW_PROGRESS) &&
        (primal ∈ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT) ||
         dual ∈ (MOI.FEASIBLE_POINT, MOI.NEARLY_FEASIBLE_POINT))
-        return status
+        @warn "Solver stopped early; no bound is reported (objective = NaN). result.model holds the solver state." termination=status primal=primal dual=dual
+        return (; status, objective=NaN)
     end
 
     throw(SolverStatusError(status, primal, dual))
@@ -266,6 +266,8 @@ For ordinary complex-algebra polynomial problems (`PauliAlgebra`, `FermionicAlge
   explicit Hermitian decomposition instead of being modeled implicitly.
 
 Returns a named tuple `(objective, model, n_unique_elements, status)`.
+An accepted iteration limit or slow-progress stop returns `objective=NaN` and
+warns with all three solver statuses; `model` retains the solver state.
 
 Throws an error if the solver fails (infeasible, unbounded, numerical error).
 """
@@ -287,12 +289,12 @@ function solve_sdp(
         set_optimizer(sos_problem.model, optimizer)
         silent && set_silent(sos_problem.model)
         optimize!(sos_problem.model)
-        status = _check_solver_status(sos_problem.model)
+        checked = _check_solver_status(sos_problem.model)
         return (
-            objective = objective_value(sos_problem.model),
+            objective = checked.objective,
             model = sos_problem.model,
             n_unique_elements = moment_problem.n_unique_moment_matrix_elements,
-            status = status
+            status = checked.status
         )
     else
         result = if moment_problem isa MomentProblem
@@ -310,12 +312,12 @@ function solve_sdp(
             end
             solve_moment_problem(moment_problem, optimizer; silent=silent)
         end
-        status = _check_solver_status(result.model)
+        checked = _check_solver_status(result.model)
         return (
-            objective = result.objective,
+            objective = checked.objective,
             model = result.model,
             n_unique_elements = result.n_unique_elements,
-            status = status
+            status = checked.status
         )
     end
 end
@@ -540,6 +542,10 @@ Solve a polynomial optimization problem using the CS-NCTSSOS method with correla
 # Returns
 - `PolyOptResult`: Result containing the objective value, correlative sparsity structure, and term sparsity information
 
+An accepted `ITERATION_LIMIT` or `SLOW_PROGRESS` stop emits one warning and
+returns `objective=NaN`; `result.model` retains the solver state. Other bad
+statuses throw `SolverStatusError`.
+
 # Description
 This function solves a polynomial optimization problem by:
 1. Computing correlative sparsity to decompose the problem into smaller cliques
@@ -602,24 +608,10 @@ function cs_nctssos(
     )
 end
 
-function _higher_step_graph_support(
-    activated_supp::Vector{M}, poly::P, basis::Vector{M}
-) where {A<:AlgebraType, T<:Integer, C<:Number, P<:Polynomial{A,T,C}, M<:NormalMonomial{A,T}}
-    graph = get_term_sparsity_graph(last.(poly.terms), activated_supp, basis)
-    return term_sparsity_graph_supp(graph, basis, poly)
-end
-
-function _higher_step_graph_support(
-    activated_supp::Vector{M}, poly::P, basis::Vector{M}
-) where {ST<:StateType, A<:AlgebraType, T<:Integer, C<:Number, P<:NCStatePolynomial{C,ST,A,T}, M<:NCStateWord{ST,A,T}}
-    graph = get_term_sparsity_graph(monomials(poly), activated_supp, basis)
-    return term_sparsity_graph_supp(graph, basis, poly)
-end
-
 """
     cs_nctssos_higher(pop::PolyOpt{T}, prev_res::PolyOptResult, solver_config::SolverConfig; dualize::Bool=true) where {T}
 
-Solve a polynomial optimization problem using another raw term-sparsity iteration based on a previous result.
+Solve a polynomial optimization problem using another term-sparsity iteration based on a previous result.
 
 # Arguments
 - `pop::PolyOpt{T}`: The polynomial optimization problem to solve
@@ -635,11 +627,15 @@ Solve a polynomial optimization problem using another raw term-sparsity iteratio
 # Description
 This function performs another term-sparsity iteration of the CS-NCTSSOS method by:
 1. Reusing the correlative sparsity structure and relaxation order from the previous result
-2. Recomputing the next activated supports from the previous iteration's raw term-sparsity graphs
+2. Taking the next activated supports from the previous iteration's completed moment and localizing graphs, including clique-fill edges
 3. Formulating and solving either the moment relaxation or its SOS dual with the updated sparsity
 4. Returning the optimal objective value and updated sparsity information
 
-Importantly, this does **not** increase the relaxation order or switch to a denser basis. It only updates the raw term-sparsity support at the same order. If that raw support is already at a fixed point, `cs_nctssos_higher` may return exactly the same relaxation and objective value as the previous solve. To obtain a tighter bound in that situation, increase `order` or use a less aggressive sparsity configuration.
+This does **not** increase the relaxation order or change the basis. Propagating
+the completed graph's support can enlarge the blocks at the same order. If the
+support and completion stabilize, the relaxation can remain unchanged without
+reaching the dense bound. Increasing `order` or using a less sparse completion
+can then give a tighter bound.
 """
 function cs_nctssos_higher(
     pop::OP,
@@ -662,21 +658,9 @@ function cs_nctssos_higher(
     prev_sparsity = prev_res.sparsity
     prev_corr_sparsity = prev_sparsity.corr_sparsity
 
-    # Recompute the previous raw graph supports before clique fill.
-    # Using the stored post-fill support here can widen the next iteration too aggressively.
-    initial_activated_supps_nm = map(enumerate(prev_sparsity.initial_activated_supps)) do (clique_idx, activated_supp)
-        cons_idx = prev_corr_sparsity.clq_cons[clique_idx]
-        clique_cons = prev_corr_sparsity.cons[cons_idx]
-        clique_mom_basis = prev_corr_sparsity.clq_mom_mtx_bases[clique_idx]
-        clique_localizing_bases = prev_corr_sparsity.clq_localizing_mtx_bases[clique_idx]
-
-        supports = Vector{eltype(activated_supp)}[
-            _higher_step_graph_support(activated_supp, one(eltype(clique_cons)), clique_mom_basis),
-        ]
-        for (poly, basis) in zip(clique_cons, clique_localizing_bases)
-            push!(supports, _higher_step_graph_support(activated_supp, poly, basis))
-        end
-        reduce(sorted_union, supports)
+    # NCTSSOS propagates support after clique fill, not the raw graph support.
+    initial_activated_supps_nm = map(prev_sparsity.cliques_term_sparsities) do term_sparsities
+        reduce(sorted_union, [ts.term_sparse_graph_supp for ts in term_sparsities])
     end
 
     cliques_term_sparsities = map(zip(initial_activated_supps_nm, prev_corr_sparsity.clq_cons, prev_corr_sparsity.clq_mom_mtx_bases, prev_corr_sparsity.clq_localizing_mtx_bases)) do (init_act_supp, cons_idx, mom_mtx_bases, localizing_mtx_bases)
@@ -718,6 +702,9 @@ Solve a state polynomial optimization problem using the CS-NCTSSOS method.
 
 # Returns
 - `PolyOptResult`: Result containing the objective value and sparsity information
+
+An accepted early stop returns `objective=NaN` and warns, as for ordinary
+polynomial inputs. Inspect `result.model` for the solver state.
 
 # Description
 This function solves a state polynomial optimization problem by:

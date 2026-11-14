@@ -107,6 +107,9 @@ using NCTSSoS: variable_indices, expval, encode_index
         @test_throws ArgumentError NormalMonomial{PauliAlgebra,UInt16}(
             UInt16[pauli_s2_x, pauli_s1_x]  # non-site-sorted
         )
+        @test_throws ArgumentError NormalMonomial{PauliAlgebra,UInt16}(
+            UInt16[pauli_s1_x, pauli_s2_x, 5]  # repeated later site
+        )
 
         # --- FermionicAlgebra: requires normal-ordered, no duplicates ---
         fermi_c1, fermi_c2 = Int32(-1), Int32(-2)

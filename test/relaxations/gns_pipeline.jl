@@ -515,13 +515,8 @@ end
             cs_algo=NoElimination(),
             ts_algo=NoElimination(),
         )
-        sparsity = compute_sparsity(pop, cfg)
-        mp = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
-
         outcome = try
-            result = NCTSSoS.solve_moment_problem(mp, SOLVER)
-            NCTSSoS._check_solver_status(result.model)
-            result
+            cs_nctssos(pop, cfg; dualize=false)
         catch caught
             caught
         end
@@ -529,8 +524,8 @@ end
         if outcome isa NCTSSoS.SolverStatusError
             @test _pipeline_is_expected_noncertificate(outcome)
         else
-            problem = _dense_hankel_data(outcome.monomap, reg, 2, 1; atol=1e-6)
-            @test !problem.flatness.is_flat
+            @test isnan(outcome.objective)
+            @test termination_status(outcome.model) in (MOI.ITERATION_LIMIT, MOI.SLOW_PROGRESS)
         end
     end
 end

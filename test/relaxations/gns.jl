@@ -28,10 +28,42 @@ function _moment_key(mono::NormalMonomial)
 end
 
 @testset "GNS Construction" begin
-    @testset "Hankel dictionary and localizing matrix" begin
+    @testset "Positive semidefinite input boundary" begin
         reg, (x,) = create_noncommutative_variables([("x", 1:1)])
-        basis_full = get_ncbasis(reg, 2)
-        basis = get_ncbasis(reg, 1)
+        for H in ([1.0 0 -1; 0 -1 0; -1 0 1], [1.0 .2 .7; .2 .7 .5; .7 .5 .4])
+            for method in (:svd, :cholesky)
+                @test_throws ArgumentError gns_reconstruct(H, reg, 2; method)
+            end
+            @test_throws ArgumentError reconstruct(H, reg, 2)
+            moments = Dict(_moment_key(only(monomials(x[1]^k))) => H[cld(k + 1, 2), fld(k + 1, 2) + 1] for k in 1:4)
+            moments[_moment_key(one(x[1]))] = 1.0
+            @test_throws ArgumentError gns_reconstruct(moments, reg, 2)
+        end
+        @test_throws ArgumentError gns_reconstruct([1.0 1 0; 0 1 0; 0 0 1], reg, 2)
+        # Perturb the fourth moment of the equally weighted atoms at ±1.
+        H = [1.0 0 1; 0 1 0; 1 0 1-1e-6]
+        gns = gns_reconstruct(H, reg, 2; atol=1e-5)
+        @test norm(gns.xi)^2 ≈ 1.0
+        @test_throws ArgumentError reconstruct(H, reg, 2; atol=1e-5, psd_rtol=1e-8)
+    end
+
+    @testset "COSMO optimizer-extraction noise remains admissible" begin
+        reg, (x,) = create_noncommutative_variables([("X", 1:2)])
+        pop = polyopt(1.0 * x[1] * x[2] * x[1], reg;
+            ineq_constraints=[1.0-x[1]^2, 1.0-x[2]^2])
+        optimizer = optimizer_with_attributes(COSMO.Optimizer, "verbose" => false)
+        cfg = SolverConfig(; optimizer, order=3)
+        sparsity = compute_sparsity(pop, cfg)
+        mp = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
+        result = NCTSSoS.solve_moment_problem(mp, optimizer)
+        H = NCTSSoS.hankel_matrix(result.monomap, reg, 3)
+        @test eigmin(Hermitian(H)) >= -1e-4 * opnorm(H)
+        gns = gns_reconstruct(H, reg, 3)
+        @test norm(gns.xi)^2 ≈ 1.0 atol=1e-4
+    end
+
+    @testset "Nonflat Hankel reconstruction" begin
+        reg, (x,) = create_noncommutative_variables([("x", 1:1)])
 
         # Moments m_k = L(x^k)
         moments = Dict(
@@ -39,20 +71,11 @@ end
             1 => 0.2,
             2 => 0.7,
             3 => 0.5,
-            4 => 0.4,
+            4 => 1.0,
         )
 
         H = [moments[i + j - 2] for i in 1:3, j in 1:3]
-        dict = NCTSSoS.hankel_entries_dict(H, basis_full)
-
-        @test dict[only(monomials(x[1]))] == moments[1]
-        @test dict[only(monomials(x[1]^2))] == moments[2]
-
         x_idx = first(indices(reg))
-        K = NCTSSoS.construct_localizing_matrix(dict, x_idx, basis)
-
-        @test size(K) == (2, 2)
-        @test K ≈ [moments[1] moments[2]; moments[2] moments[3]] atol = 1e-12
 
         gns = @test_logs (:warn, r"Flatness condition violated") gns_reconstruct(
             H,

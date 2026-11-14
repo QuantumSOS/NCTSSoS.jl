@@ -55,16 +55,10 @@ Canonical form requirements:
 This is used by `NormalMonomial{PauliAlgebra,T}` constructor to enforce invariants.
 """
 function _validate_word(::Type{PauliAlgebra}, word::Vector{T}) where {T<:Integer}
-    length(word) <= 1 && return nothing
-
-    _is_site_sorted_pauli(word) || throw(ArgumentError("Pauli word not sorted by site"))
-
-    prev_site = _pauli_site(word[1])
     @inbounds for i in 2:length(word)
-        curr_site = _pauli_site(word[i])
-        curr_site == prev_site &&
+        _pauli_site(word[i - 1]) < _pauli_site(word[i]) ||
             throw(ArgumentError(
-                "Pauli word has multiple operators on site $curr_site " *
+                "Pauli word must have strictly increasing sites " *
                 "(indices $(i-1) and $i). Use simplify(PauliAlgebra, word) for raw words."
             ))
     end

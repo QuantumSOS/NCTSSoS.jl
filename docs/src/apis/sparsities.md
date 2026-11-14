@@ -24,7 +24,7 @@ simple graph on ``n`` vertices defined by
 ```
 
 where ``\mathcal{S}`` is the support of the relevant polynomial
-(objective or constraint) and ``\mathrm{supp}_{\text{act}}`` is the
+(one for the moment matrix, or the constraint for a localizing matrix) and ``\mathrm{supp}_{\text{act}}`` is the
 **activated support** — the set of monomials that have appeared in
 previous iterations (initialized from the objective, constraints, and
 diagonal moment entries).
@@ -32,7 +32,8 @@ diagonal moment entries).
 A [chordal](@ref chordal-graph-def) completion of ``G`` decomposes it into
 cliques, each defining an independent block in the SDP matrix. Iterating
 — computing the graph,
-extracting blocks, updating the activated support — produces the
+completing it, and updating the activated support from **all completed-graph
+edges, including fill edges** — produces the
 term-sparsity hierarchy at sparse orders ``k = 1, 2, \ldots``. See
 [`NCTSSoS.get_term_sparsity_graph`](@ref) for the implementation and
 [Stabilization vs. Exactness](@ref sparsity-convergence) for the

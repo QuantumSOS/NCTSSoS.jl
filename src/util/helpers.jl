@@ -392,46 +392,6 @@ is_normal_ordered(word::AbstractVector{T}) where {T<:Signed} = iszero(find_first
 end
 @inline _sorted_stateword_basis_from_ncsw(xs) = _sorted_stateword_basis_from_ncsw!(collect(xs))
 
-"""
-    combine_like_terms(terms::Vector{Tuple{C,NormalMonomial{A,T}}}) where {A,T,C} -> Vector{Tuple{C,NormalMonomial{A,T}}}
-
-Combine terms with identical monomials by summing their coefficients.
-Filters out terms with zero coefficients.
-
-    Internal utility for combining like terms by monomial word.
-    Currently used by tests; kept as a general helper.
-
-# Arguments
-- `terms`: Vector of `(coefficient, monomial)` pairs to combine
-
-# Returns
-A new vector with like terms combined. If all terms cancel to zero,
-returns a vector with a single zero term.
-"""
-function combine_like_terms(
-    terms::Vector{Tuple{C,NormalMonomial{A,T}}}
-) where {A<:AlgebraType,T<:Integer,C<:Number}
-    # Use inner constructor since we're reconstructing from existing valid words
-    isempty(terms) && return [(zero(C), one(NormalMonomial{A,T}))]
-
-    grouped = Dict{NormalMonomial{A,T},C}()
-    for (coef, mono) in terms
-        grouped[mono] = get(grouped, mono, zero(C)) + coef
-    end
-
-    result = Tuple{C,NormalMonomial{A,T}}[]
-    for (m, coef) in grouped
-        iszero(coef) && continue
-        push!(result, (coef, m))
-    end
-
-    if isempty(result)
-        push!(result, (zero(C), one(NormalMonomial{A,T})))
-    end
-
-    return result
-end
-
 # =============================================================================
 # Pauli Algebra Helpers
 # =============================================================================

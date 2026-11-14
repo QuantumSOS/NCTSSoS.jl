@@ -36,6 +36,8 @@ using .TestExpectations: expectations_oracle
     # 9. Curated problems
     @testset "Problems" begin
         include("problems/bell_inequalities/chsh_simple.jl")
+        include("problems/bell_inequalities/chsh_high_order.jl")
+        include("problems/bell_inequalities/i3322.jl")
         include("problems/bell_inequalities/pironio_toy.jl")
         include("problems/benchmarks/e1_broyden_banded.jl")
         include("problems/benchmarks/e2_chained_singular.jl")
@@ -44,6 +46,7 @@ using .TestExpectations: expectations_oracle
         include("problems/benchmarks/e5_broyden_tridiagonal.jl")
         include("problems/condensed_matter/ising.jl")
         include("problems/condensed_matter/heisenberg_symmetry.jl")
+        include("problems/condensed_matter/heisenberg_star.jl")
         include("problems/condensed_matter/hubbard.jl")
         include("problems/condensed_matter/bose_hubbard.jl")
         include("problems/fermionic/fermionic.jl")
@@ -55,6 +58,8 @@ using .TestExpectations: expectations_oracle
         include("problems/nc_polynomial/nc_example1.jl")
         include("problems/nc_polynomial/nc_example2.jl")
         include("problems/state_polynomial/survey_comparative.jl")
+        include("problems/state_polynomial/state_polynomial.jl")
+        include("problems/trace_polynomial/trace_polynomial.jl")
         include("problems/trace_polynomial/t2_broyden_tridiagonal_trace.jl")
         include("problems/trace_polynomial/t3_ncsostools_demo_polynomial.jl")
         include("problems/trace_polynomial/t5_constrained_trace_semialgebraic_set.jl")

@@ -13,8 +13,8 @@
 #
 # 1. **exactly diagonalise every** $(N_\uparrow, N_\downarrow)$ sector,
 # 2. identify the true minimum across all fillings, and
-# 3. show that the **unconstrained SDP lower bound** lands on that sector,
-#    not on the half-filled $(2,2)$ sector.
+# 3. explain the sector reached by the **unconstrained SDP lower bound**
+#    in the main Hubbard example, rather than the half-filled $(2,2)$ sector.
 #
 # The punchline is simple: if you omit `moment_eq_constraints`, the lower
 # bound drops from the half-filled energy $\approx -2.103$ to the global
@@ -126,68 +126,8 @@ println("Missing-constraint shift:  $(round(E_half - E_best; digits=6))")
 # So if you drop the canonical constraints, the SDP should target the
 # $(1,1)$ sector.  Anything else would be nonsense.
 
-# ---
-#
-# ## Build the same Hamiltonian with NCTSSoS.jl
-#
-# This is exactly the same polynomial model as in the canonical Hubbard
-# example.  The only difference is that we will **not** pass
-# `moment_eq_constraints` to [`polyopt`](@ref).
-
-using NCTSSoS
-
-registry, ((c_up, c_up_dag), (c_dn, c_dn_dag)) = create_fermionic_variables([
-    ("c_up", 1:N),
-    ("c_dn", 1:N),
-]);
-
-bonds = [(i, mod1(i + 1, N)) for i in 1:N]
-
-hopping = -t * sum(
-    c_up_dag[i] * c_up[j] + c_up_dag[j] * c_up[i] +
-    c_dn_dag[i] * c_dn[j] + c_dn_dag[j] * c_dn[i]
-    for (i, j) in bonds
-)
-
-interaction = U * sum(
-    (c_up_dag[i] * c_up[i]) * (c_dn_dag[i] * c_dn[i])
-    for i in 1:N
-)
-
-ham = hopping + interaction;
-
-# ---
-#
-# ## Solve the unconstrained SDP
-#
-# No `moment_eq_constraints`.  No fixed $(N_\uparrow, N_\downarrow)$.
-# Just the Hamiltonian over the full Fock space.
-
-using MosekTools, JuMP
-
-SOLVER = optimizer_with_attributes(Mosek.Optimizer,
-    "MSK_IPAR_LOG" => 0,
-    "MSK_IPAR_NUM_THREADS" => 0);
-
-config = SolverConfig(optimizer = SOLVER, order = 3, ts_algo = MMD())
-
-pop_unconstrained = polyopt(ham, registry)
-result_first = cs_nctssos(pop_unconstrained, config)
-result_unconstrained = cs_nctssos_higher(pop_unconstrained, result_first, config)
-
-@assert result_unconstrained.objective ≤ E_best + 1e-5                #src
-@assert abs(result_unconstrained.objective - E_best) < 1e-6           #src
-@assert abs(result_unconstrained.objective - E_half) > 1.0            #src
-
-println("Unconstrained SDP (first sparse pass):  $( @sprintf("%.6f", result_first.objective) )")
-println("Unconstrained SDP (refined):            $( @sprintf("%.6f", result_unconstrained.objective) )")
-println("Exact minimum over all sectors:         $( @sprintf("%.6f", E_best) )")
-println("Exact half-filled sector (2,2):         $( @sprintf("%.6f", E_half) )")
-
-# After one refinement step, the unconstrained SDP lands on the exact
-# minimum over **all** filling sectors.  That is exactly what it should do.
-# Without `moment_eq_constraints`, there is nothing in the problem telling
-# the solver to stay in the half-filled sector.
+# See [Hubbard Model](@ref hubbard-model) for the Hamiltonian setup and the
+# grand-canonical SDP solve that reaches this sector after one refinement step.
 
 # ---
 #

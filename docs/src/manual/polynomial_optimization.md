@@ -10,6 +10,17 @@ moment-problem) and [sum-of-squares](@ref sohs-problem) relaxations can be
 applied to obtain lower/upper bounds to polynomial optimization problems
 efficiently.
 
+## Solver results
+
+`cs_nctssos` and `cs_nctssos_higher` return a numerical objective, not an
+interval-certified bound. When a solver stops at an iteration limit or makes
+slow progress with a feasible or nearly feasible primal or dual point, the
+library emits one warning and returns `result.objective = NaN`: no bound is
+reported. `result.model` retains the solver state; inspect its termination,
+primal and dual statuses with JuMP. Other unsuccessful statuses raise
+`SolverStatusError`. The same policy applies to the continuous-symmetry,
+translation-invariant and invariant-SOC solve routes.
+
 ## [Noncommutative Polynomial Optimization](@id noncommutative-polynomial-optimization)
 
 Noncommutative polynomial optimization concerns when variables are noncommuting.

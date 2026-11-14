@@ -34,11 +34,14 @@ end
 #   opt   = optimal value (minimization)
 #   sides = moment matrix block sizes
 #   nuniq = unique moment indices (affine constraints)
+# Structure is solver-independent: the order-3 basis has 1+8+40+160 = 209
+# elements. Sparse sizes/counts describe our MMD completion, not the legacy
+# MD completion; different valid chordal completions need not match.
 const EXPECTED_STATE_POLY = (
     mosek = (
-        Ex_7_2_1_Dense_d3 = (opt=-3.9999999914666895, sides=[213], nuniq=1887),
+        Ex_7_2_1_Dense_d3 = (opt=-3.9999999914666895, sides=[209], nuniq=1887),
         Ex_7_2_2_Dense_d2 = (opt=-4.999999999824081, sides=[106], nuniq=1098),
-        Ex_7_2_2_TS_d2    = (opt=-4.99999999745226, sides=[9, 9, 9, 9, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], nuniq=93),
+        Ex_7_2_2_TS_d2    = (opt=-4.99999999745226, sides=[5, 5, 5, 8, 5, 5, 5, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 6, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 6, 7, 9, 5, 9, 9, 9, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], nuniq=92),
         Ex_7_2_3_Dense_d2 = (opt=-3.511480225797076, sides=[49], nuniq=233),
         Ex_7_2_3_TS_d2    = (opt=-3.582132180463948, sides=[7, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1], nuniq=41),
     ),
@@ -51,11 +54,9 @@ const EXPECTED_STATE_POLY = (
     ),
 )
 
-select_oracle(oracles) = getproperty(oracles, SOLVER_NAME)
-solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_tol
-
 @testset "State Polynomial Examples (7.2.x)" begin
-    oracles = select_oracle(EXPECTED_STATE_POLY)
+    oracles = getproperty(EXPECTED_STATE_POLY, SOLVER_NAME)
+    atol = SOLVER_NAME == :cosmo ? 1e-3 : 1e-6
 
     # =========================================================================
     # Example 7.2.1: Squared Expectations
@@ -72,7 +73,7 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
         @testset "Order 3 (tight bound)" begin
             config = SolverConfig(optimizer=SOLVER, order=3)
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracles.Ex_7_2_1_Dense_d3.opt atol = solver_atol()
+            @test result.objective ≈ oracles.Ex_7_2_1_Dense_d3.opt atol = atol
             @test flatten_sizes(result.moment_matrix_sizes) == oracles.Ex_7_2_1_Dense_d3.sides
             @test result.n_unique_moment_matrix_elements == oracles.Ex_7_2_1_Dense_d3.nuniq
         end
@@ -91,7 +92,7 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
         @testset "Dense" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracles.Ex_7_2_2_Dense_d2.opt atol = solver_atol()
+            @test result.objective ≈ oracles.Ex_7_2_2_Dense_d2.opt atol = atol
             @test flatten_sizes(result.moment_matrix_sizes) == oracles.Ex_7_2_2_Dense_d2.sides
             @test result.n_unique_moment_matrix_elements == oracles.Ex_7_2_2_Dense_d2.nuniq
         end
@@ -104,7 +105,7 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracles.Ex_7_2_2_TS_d2.opt atol = solver_atol()
+            @test result.objective ≈ oracles.Ex_7_2_2_TS_d2.opt atol = atol
             @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracles.Ex_7_2_2_TS_d2.sides)
             @test result.n_unique_moment_matrix_elements == oracles.Ex_7_2_2_TS_d2.nuniq
         end
@@ -124,20 +125,16 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
 
         spop = polyopt(sp * one(typeof(x[1])), reg)
 
-        @testset "Dense (Moment)" begin
+        @testset "Dense (Moment and SOS)" begin
             config = SolverConfig(optimizer=SOLVER, order=2)
-            result = cs_nctssos(spop, config; dualize=false)
-            @test result.objective ≈ oracles.Ex_7_2_3_Dense_d2.opt atol = solver_atol()
-            @test flatten_sizes(result.moment_matrix_sizes) == oracles.Ex_7_2_3_Dense_d2.sides
-            @test result.n_unique_moment_matrix_elements == oracles.Ex_7_2_3_Dense_d2.nuniq
-        end
-
-        @testset "Dense (SOS)" begin
-            config = SolverConfig(optimizer=SOLVER, order=2)
-            result = cs_nctssos(spop, config; dualize=true)
-            @test result.objective ≈ oracles.Ex_7_2_3_Dense_d2.opt atol = solver_atol()
-            @test flatten_sizes(result.moment_matrix_sizes) == oracles.Ex_7_2_3_Dense_d2.sides
-            @test result.n_unique_moment_matrix_elements == oracles.Ex_7_2_3_Dense_d2.nuniq
+            result_mom = cs_nctssos(spop, config; dualize=false)
+            result_sos = cs_nctssos(spop, config; dualize=true)
+            for result in (result_mom, result_sos)
+                @test result.objective ≈ oracles.Ex_7_2_3_Dense_d2.opt atol = atol
+                @test flatten_sizes(result.moment_matrix_sizes) == oracles.Ex_7_2_3_Dense_d2.sides
+                @test result.n_unique_moment_matrix_elements == oracles.Ex_7_2_3_Dense_d2.nuniq
+            end
+            @test result_mom.objective ≈ result_sos.objective atol = atol
         end
 
         @testset "Sparse (MMD)" begin
@@ -148,18 +145,11 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
                 ts_algo=MMD()
             )
             result = cs_nctssos(spop, config)
-            @test result.objective ≈ oracles.Ex_7_2_3_TS_d2.opt atol = solver_atol()
+            @test result.objective ≈ oracles.Ex_7_2_3_TS_d2.opt atol = atol
             # Block sizes may differ slightly due to chordal decomposition algorithm,
             # but total block count and nuniq should match NCTSSOS
             @test length(flatten_sizes(result.moment_matrix_sizes)) == length(oracles.Ex_7_2_3_TS_d2.sides)
             @test result.n_unique_moment_matrix_elements == oracles.Ex_7_2_3_TS_d2.nuniq
-        end
-
-        @testset "Moment vs SOS Consistency" begin
-            config = SolverConfig(optimizer=SOLVER, order=2)
-            result_mom = cs_nctssos(spop, config; dualize=false)
-            result_sos = cs_nctssos(spop, config; dualize=true)
-            @test result_mom.objective ≈ result_sos.objective atol = solver_atol()
         end
     end
 end

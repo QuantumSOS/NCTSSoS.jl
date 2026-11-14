@@ -805,7 +805,7 @@ t_dense10
 ````
 
 ````
-179.626863905
+230.585644044
 ````
 
 Nearly all of that wall-clock time is the interior-point solver itself:
@@ -815,7 +815,7 @@ t_dense_mosek = JuMP.solve_time(dense_result10.model)
 ````
 
 ````
-178.58660208999936
+229.11819428300078
 ````
 
 ### SympleQ detection + symmetry-reduced solve (timed)
@@ -839,7 +839,7 @@ t_detect10
 ````
 
 ````
-0.002063538
+0.004837335
 ````
 
 Solve with the auto-detected symmetry at order 2:
@@ -895,7 +895,7 @@ t_sym10
 ````
 
 ````
-1.275067804
+1.659256261
 ````
 
 And the solver time hiding inside that total:
@@ -905,7 +905,7 @@ t_sym_mosek = JuMP.solve_time(result10.model)
 ````
 
 ````
-0.8010979599994243
+1.0692544169996836
 ````
 
 ### Comparison
@@ -930,11 +930,11 @@ println("Group order: $(report10.group_order), generators: $(length(auto_spec10.
 ````
 Steady-state timing; warm-up solves discarded
 run       total        of which Mosek   moment vars   PSD blocks
-dense     179.6s      178.6s           20686         [[436]]
-symmetry  1.3s       0.8s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
-  symmetry time = detect 0.0021s + solve 1.3s
-End-to-end speedup: 140.6x
-Solver-only speedup: 223.0x
+dense     230.6s      229.1s           20686         [[436]]
+symmetry  1.7s       1.1s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
+  symmetry time = detect 0.0048s + solve 1.7s
+End-to-end speedup: 138.6x
+Solver-only speedup: 214.0x
 Moment variable reduction: 20686 → 1421
 Objective difference: 6.63e-9
 Group order: 16, generators: 11

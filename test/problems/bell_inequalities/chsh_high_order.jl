@@ -26,14 +26,13 @@ if !isdefined(@__MODULE__, :flatten_sizes)
     flatten_sizes(sizes) = reduce(vcat, sizes)
 end
 
-function create_chsh_problem()
-    reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-    f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
-    pop = polyopt(-f, reg)
-    return pop, reg
-end
-
 @testset "CHSH High Order" begin
+    function create_chsh_problem()
+        reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+        f = 1.0 * x[1] * y[1] + x[1] * y[2] + x[2] * y[1] - x[2] * y[2]
+        pop = polyopt(-f, reg)
+        return pop, reg
+    end
 
     @testset "Combined CS+TS (order=2) - KNOWN LOOSE BOUND" begin
         pop, _ = create_chsh_problem()

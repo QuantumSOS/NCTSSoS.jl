@@ -26,7 +26,7 @@ end
 # -----------------------------------------------------------------------------
 
 const _COMPOSED_MONOMIAL_DOC = """
-    ComposedMonomial{As<:Tuple,Ts<:Tuple} <: AbstractTensorMonomial{As}
+    ComposedMonomial{As<:Tuple,Ts<:Tuple}
 
 Represents a product of monomials from different algebra types.
 
@@ -64,7 +64,7 @@ julia> cm[1] === m_pauli
 true
 ```
 
-Simplification dispatches to each component's algebra and returns a vector of `(coefficient, ComposedMonomial)` pairs:
+Simplification returns the canonical tensor product as one `(coefficient, ComposedMonomial)` pair:
 ```jldoctest
 julia> using NCTSSoS
 
@@ -91,7 +91,7 @@ true
 ```
 """
 
-struct ComposedMonomial{As<:Tuple,Ts<:Tuple} <: AbstractTensorMonomial{As}
+struct ComposedMonomial{As<:Tuple,Ts<:Tuple}
     components::Ts
 
     function ComposedMonomial{As,Ts}(components::Ts) where {As<:Tuple,Ts<:Tuple}
@@ -253,16 +253,9 @@ end
 """
     simplify(cm::ComposedMonomial) -> Vector{Tuple{<:Number,<:ComposedMonomial}}
 
-Simplify each component according to its algebra type.
-
-Always returns `Vector{Tuple{coefficient,ComposedMonomial}}` for consistent API.
-Each entry contains a ComposedMonomial with the simplified component monomials.
-
-# Algorithm
-1. Simplify each component using its algebra's simplify function
-2. Convert all results to (coefficient, monomial) pairs
-3. Compute Cartesian product across all components
-4. Filter zero terms
+Return the canonical tensor product as a single term with coefficient one.
+Components are already normal monomials, so no expansion is needed.
+The coefficient type promotes the component coefficient types with `Float64`.
 
 # Examples
 ```jldoctest
@@ -294,69 +287,8 @@ true
 ```
 """
 function simplify(cm::ComposedMonomial{As,Ts}) where {As<:Tuple,Ts<:Tuple}
-    simplified_components = map(simplify, cm.components)
-    return _expand_simplified_components(ComposedMonomial{As,Ts}, simplified_components)
-end
-
-# Helper to expand Cartesian product of simplified components
-function _expand_simplified_components(::Type{CM}, simplified::Tuple) where {CM<:ComposedMonomial}
-    # Infer coefficient type from tuple element types at compile time
-    CoefType = _infer_coef_type_from_types(simplified)
-
-    # Compute Cartesian product using iteration protocol
-    result = Tuple{CoefType,CM}[]
-
-    _cartesian_product_iter!(result, simplified, 1, (), one(CoefType))
-
-    # Filter zeros and return
-    filter!(t -> !iszero(t[1]), result)
-
-    if isempty(result)
-        # Return zero term with identity monomials
-        one_components = map(_get_identity_monomial, simplified)
-        return Tuple{CoefType,CM}[(zero(CoefType), ComposedMonomial(one_components))]
-    end
-
-    return result
-end
-
-# Get identity monomial from a simplified component (for zero-result fallback)
-function _get_identity_monomial(::NormalMonomial{A,T}) where {A<:AlgebraType,T<:Integer}
-    return one(NormalMonomial{A,T})
-end
-
-# Compile-time coefficient type inference using coeff_type
-@generated function _infer_coef_type_from_types(::T) where {T<:Tuple}
-    types = T.parameters
-    result_type = Float64
-    for t in types
-        ct = coeff_type(t)
-        result_type = promote_type(result_type, ct)
-    end
-    return :($result_type)
-end
-
-# New helper using iteration protocol
-function _cartesian_product_iter!(
-    result::Vector{Tuple{CoefType,CM}},
-    components::Tuple,
-    idx::Int,
-    current_monomials::Tuple,
-    current_coef::CoefType,
-) where {CoefType<:Number,CM<:ComposedMonomial}
-    if idx > length(components)
-        # Base case: all components processed
-        cm = ComposedMonomial(current_monomials)
-        push!(result, (current_coef, cm))
-        return nothing
-    end
-
-    # Iterate over simplified component using new iteration protocol
-    for (coef_internal, mono) in components[idx]
-        new_coef = current_coef * _coeff_to_number(mono, coef_internal)
-        new_monomials = (current_monomials..., mono)
-        _cartesian_product_iter!(result, components, idx + 1, new_monomials, new_coef)
-    end
+    C = promote_type(Float64, map(coeff_type, cm.components)...)
+    return [(one(C), cm)]
 end
 
 # Show method for ComposedMonomial

@@ -39,9 +39,7 @@ end
 
     registry, (x, y, z) = create_pauli_variables(1:N)
 
-    energy_lower_bounds = zeros(length(J2s))
-
-    for (idx, J2) in enumerate(J2s)
+    for J2 in J2s
         ham = sum(T(J1 / 4) * op[i] * op[mod1(i + 1, N)] + T(J2 / 4) * op[i] * op[mod1(i + 2, N)] for op in [x, y, z] for i in 1:N)
 
         pop = polyopt(ham, registry)
@@ -50,12 +48,14 @@ end
 
         res = cs_nctssos(pop, solver_config)
 
-        res = cs_nctssos_higher(pop, res, solver_config)
-        energy_lower_bounds[idx] = res.objective / N
+        higher = cs_nctssos_higher(pop, res, solver_config)
+        # Couple opposite-site pairs: the ground state is either two
+        # triplets coupled to spin zero, or two singlets. J2 bonds count twice.
+        exact_energy = min(-2J1 + J2, -3J2)
+        @test is_solved_and_feasible(higher.model)
+        @test higher.objective >= res.objective - 1e-6
+        @test higher.objective ≈ exact_energy atol = 1e-6
     end
-
-    # Just verify we get reasonable bounds
-    @test all(e -> e < 0, energy_lower_bounds)
 end
 
 @testset "J1 J2 Model (N=6)" begin
@@ -74,9 +74,15 @@ end
 
     res = cs_nctssos(pop, solver_config)
 
-    res = cs_nctssos_higher(pop, res, solver_config)
+    higher = cs_nctssos_higher(pop, res, solver_config)
 
-    @test res.objective / N ≈ -0.4270083225302217 atol = 1e-6
+    # Independent diagonalization of the 64×64 spin-1/2 Hamiltonian gives
+    # E0 = -2.562049935181331, attained after one sparse higher step.
+    exact_per_site = -0.4270083225302217
+    @test is_solved_and_feasible(res.model)
+    @test is_solved_and_feasible(higher.model)
+    @test res.objective <= higher.objective + 1e-6
+    @test higher.objective / N ≈ exact_per_site atol = 1e-6
 end
 
 @testset "2D Model (3x3)" begin
@@ -99,11 +105,20 @@ end
 
     res = cs_nctssos(pop, solver_config)
 
-    res = cs_nctssos_higher(pop, res, solver_config)
-    res = cs_nctssos_higher(pop, res, solver_config)
-    res = cs_nctssos_higher(pop, res, solver_config)
-    @test_broken res.objective ≈ -4.390300714054776 atol = 1e-6
-    res = cs_nctssos_higher(pop, res, solver_config)
-    @test_broken res.objective ≈ -4.381164563801521 atol = 1e-6
-    @test_broken res.objective / N ≈ -0.44100019443650207 atol = 1e-6
+    # Six periodic rows/columns are three-spin triangles. Each triangle has
+    # H_triangle = (S_total² - 9/4)/2 >= -3/4, giving an SOS bound of -4.5.
+    # Independent diagonalization of the 512×512 spin matrix gives
+    # E0 = -3.969001749928519 = N * -0.44100019443650207.
+    # A sparse relaxation need not reach E0; test both bound directions and
+    # monotonicity, rather than old iteration-specific solver outputs.
+    exact_energy = N * -0.44100019443650207
+    @test is_solved_and_feasible(res.model)
+    @test -4.5 - 1e-6 <= res.objective <= exact_energy + 1e-6
+    for _ in 1:4
+        higher = cs_nctssos_higher(pop, res, solver_config)
+        @test is_solved_and_feasible(higher.model)
+        @test res.objective <= higher.objective + 1e-6
+        @test -4.5 - 1e-6 <= higher.objective <= exact_energy + 1e-6
+        res = higher
+    end
 end

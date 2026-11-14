@@ -33,13 +33,6 @@ end
     return (op > 0, op)
 end
 
-function _v2rdm_is_normal_ordered(word::AbstractVector{<:Signed})
-    @inbounds for i in 1:(length(word) - 1)
-        _v2rdm_normal_key(word[i]) > _v2rdm_normal_key(word[i + 1]) && return false
-    end
-    return true
-end
-
 function _v2rdm_first_out_of_order(word::AbstractVector{<:Signed})
     @inbounds for i in 1:(length(word) - 1)
         _v2rdm_normal_key(word[i]) > _v2rdm_normal_key(word[i + 1]) && return i
@@ -302,10 +295,6 @@ end
 
 function _v2rdm_form(acc::_V2RDMAccumulator{T}, pairs::Vector{Pair{Vector{T},ComplexF64}}) where {T}
     return LinearMomentForm{Vector{T},ComplexF64}(pairs)
-end
-
-function _v2rdm_empty_form(::Type{T}) where {T<:Signed}
-    return LinearMomentForm{Vector{T},ComplexF64}(Pair{Vector{T},ComplexF64}[])
 end
 
 function _v2rdm_adjoint_key(key::Vector{T}) where {T<:Signed}
@@ -716,43 +705,11 @@ function pqg_equality_rows(
 end
 
 function _v2rdm_discover_pivots(psd_blocks_lin::Vector{PSDBlockLin{Vector{T},ComplexF64,M}}, adjoint_key::Dict{Vector{T},Vector{T}}) where {T<:Signed,M}
-    pivots = Dict{Vector{T},Pivot{ComplexF64}}()
-    for (block_idx, block) in enumerate(psd_blocks_lin)
-        for i in 1:block.size, j in i:block.size
-            form = block.entries[i, j]
-            length(form.terms) == 1 || continue
-            key, coef = only(form.terms)
-            phase = if coef == 1
-                1.0 + 0.0im
-            elseif coef == -1
-                -1.0 + 0.0im
-            elseif coef == im
-                0.0 + 1.0im
-            elseif coef == -im
-                0.0 - 1.0im
-            else
-                nothing
-            end
-            phase === nothing && continue
-            _v2rdm_get_key(pivots, key) === nothing && (pivots[key] = Pivot{ComplexF64}(block_idx, i, j, phase, false))
-            adj = _get_key_value(adjoint_key, key, "adjoint key")
-            if i != j && !key_isequal(adj, key) && _v2rdm_get_key(pivots, adj) === nothing
-                pivots[adj] = Pivot{ComplexF64}(block_idx, i, j, phase, true)
-            end
-        end
-    end
-    return pivots
+    return _discover_linear_pivots(psd_blocks_lin, adjoint_key)
 end
 
 function _v2rdm_build_pivot_at(pivots::Dict{Vector{T},Pivot{ComplexF64}}) where {T}
-    pivot_at = Dict{Tuple{Int,Int,Int},Vector{Vector{T}}}()
-    for (key, pivot) in pivots
-        push!(get!(pivot_at, (pivot.block, pivot.row, pivot.col), Vector{T}[]), key)
-    end
-    for keys_at_position in values(pivot_at)
-        sort!(keys_at_position; lt=key_lt)
-    end
-    return pivot_at
+    return _build_pivot_at(pivots)
 end
 
 function _v2rdm_adjoint_dict(acc::_V2RDMAccumulator{T}) where {T}

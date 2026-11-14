@@ -155,31 +155,6 @@ function _sympleq_base_phase_values(S::SymplecticMatrix, nqubits::Integer)
     return values
 end
 
-function _sympleq_gf2_solution_space(A::AbstractMatrix{<:Integer}, b::AbstractVector{<:Integer})
-    size(A, 1) == length(b) || throw(DimensionMismatch("GF(2) solve has incompatible right-hand side."))
-    nvars = size(A, 2)
-    if isempty(b)
-        return zeros(UInt8, nvars), _gf2_nullspace_basis(zeros(UInt8, 0, nvars))
-    end
-
-    augmented = hcat(UInt8.(mod.(A, 2)), reshape(UInt8.(mod.(b, 2)), :, 1))
-    rref, pivots = _gf2_rref(augmented)
-    rhs_col = nvars + 1
-
-    for r in axes(rref, 1)
-        if all(rref[r, c] == 0 for c in 1:nvars) && rref[r, rhs_col] == 1
-            throw(ArgumentError("SympleQ phase equations are inconsistent for this graph automorphism."))
-        end
-    end
-
-    x = zeros(UInt8, nvars)
-    for (r, pivot_col) in enumerate(pivots)
-        pivot_col <= nvars || continue
-        x[pivot_col] = rref[r, rhs_col]
-    end
-    return x, _gf2_nullspace_basis(A)
-end
-
 function _sympleq_sign_bit(sign::Integer)
     sign == 1 && return UInt8(0)
     sign == -1 && return UInt8(1)
@@ -238,7 +213,9 @@ function _sympleq_phase_vectors_for_hamiltonian(
         push!(rhs, _sympleq_sign_bit(sign0 * desired_sign))
     end
 
-    particular, kernel = _sympleq_gf2_solution_space(tab.paulis, rhs)
+    solution = _gf2_affine_solution_space(tab.paulis, rhs)
+    isnothing(solution) && throw(ArgumentError("SympleQ phase equations are inconsistent for this graph automorphism."))
+    particular, kernel = solution
     phases = PhaseVector[_sympleq_phase_from_sign_bits(base_phase, particular)]
     active_phase_indices = _sympleq_active_phase_indices(tab)
     for direction in kernel

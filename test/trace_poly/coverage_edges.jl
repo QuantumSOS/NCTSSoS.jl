@@ -331,7 +331,7 @@ end
         mp_pauli.total_basis,
         mp_pauli.n_unique_moment_matrix_elements
     )
-    @test_throws ErrorException NCTSSoS._solve_complex_moment_problem(bad_mp_pauli, SOLVER, true)
+    @test_throws ErrorException("Unexpected cone type PSD for complex problem") build_jump_model(bad_mp_pauli)
 
     @test_throws ArgumentError NCTSSoS.moment_relax(pop_state, corr_state, [ts_state])
 

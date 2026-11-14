@@ -78,6 +78,16 @@ import Graphs
         sw1 = ς(m1)
         sw2 = ς(m2)
 
+        @testset "Constructor length agreement" begin
+            for (constructor, word) in ((StatePolynomial, sw1), (NCStatePolynomial, NCStateWord(sw1, m1)))
+                @test_throws ArgumentError constructor([1.0, 99.0], [word])
+                @test_throws ArgumentError constructor([1.0], [word, word])
+                @test_throws ArgumentError constructor([1.0], typeof(word)[])
+                @test_throws ArgumentError constructor(Float64[], [word])
+                @test iszero(constructor(Float64[], typeof(word)[]))
+            end
+        end
+
         # Accessors
         sp = StatePolynomial([1.0, 2.0], [sw1, sw2])
         @test coefficients(sp) == sp.coeffs
@@ -295,12 +305,12 @@ import Graphs
         res_p = NCTSSoS.PolyOptResult(sol_p.objective, sparsity_p, sol_p.model, sol_p.n_unique_elements)
         @test sprint(show, res_p) isa String
 
-        # Complex solve: unexpected cone branch
+        # Complex model builder: unexpected cone branch
         bad_constraints_p = copy(mp_p.constraints)
         bad_constraints_p[1] = (:BadCone, bad_constraints_p[1][2])
         bad_mp_p = typeof(mp_p)(mp_p.objective, bad_constraints_p, mp_p.total_basis, mp_p.n_unique_moment_matrix_elements)
         err_bad_p = try
-            NCTSSoS._solve_complex_moment_problem(bad_mp_p, SOLVER, true)
+            build_jump_model(bad_mp_p)
             nothing
         catch e
             e

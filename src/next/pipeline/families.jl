@@ -142,7 +142,7 @@ end
 
 "Build one cone per block orbit, sharing orbit moments across all blocks."
 function family_program(family::AbstractVector{<:RowBlock{W}},objective;
-    generators=AbstractAction[],moment_generators=(),custom=false,site_letters=nothing) where {W<:AbstractWord}
+    generators=AbstractAction[],moment_generators=(),custom=false,site_letters=nothing,real_form=false) where {W<:AbstractWord}
     generators=map(g->_group_action(W,g),generators)
     moment_generators=map(g->_group_action(W,g),moment_generators)
     any(is_antiunitary,generators) && throw(ArgumentError("Put antiunitary maps in moment_only; block generators must be unitary."))
@@ -157,7 +157,9 @@ function family_program(family::AbstractVector{<:RowBlock{W}},objective;
         added_blocks=length(blocks)-length(family),block_orbits=[orbit for (_,orbit,_,_) in orbits],
         representatives=[root for (root,_,_,_) in orbits],family=blocks,
         block_generators=generators,moment_only=moment_generators)
-    if length(blocks)==1
+    # Real site-word forms use real group-algebra projections, not complex
+    # Fourier rows. Pauli and other complex forms retain the lattice route.
+    if length(blocks)==1 && !real_form
         lattice=_whole_lattice_family(only(blocks),objective,generators,moment_generators,site_letters)
         if !isnothing(lattice)
             p,table,route=lattice
@@ -167,12 +169,12 @@ function family_program(family::AbstractVector{<:RowBlock{W}},objective;
             return p,table,merge(report,(route=:lattice,reduction=route))
         end
     end
-    table=OrbitMoments(W,all_generators)
-    program=MomentProgram{ComplexF64}()
+    table=OrbitMoments(W,all_generators;real_form)
+    program=MomentProgram{real_form ? Float64 : ComplexF64}()
     for (root,_,stabilizers,transport) in orbits
         block=blocks[root]
         sectors,real_blocks=_family_sectors(block,stabilizers,transport,index,moment_generators)
-        _append_family_sectors!(program,table,block,sectors;real_blocks)
+        _append_family_sectors!(program,table,block,sectors;real_blocks=real_blocks || real_form)
     end
     # A representative found while following an orbit is not necessarily
     # covered by an entry. Check the actual cone coordinates, not table size.

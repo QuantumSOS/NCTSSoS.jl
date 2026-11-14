@@ -189,3 +189,61 @@ end
     @test length(only(contiguous.sizes.closure.family).rows)==49 # 1 + 4*3 + 4*9
     @test solve_reference(contiguous.program)[1]≈solve_reference(family_reference(problem,2,contiguous.sizes.closure.family)[1])[1] atol=1e-6
 end
+
+@testset "Automatic real block families and complex fallback" begin
+    function hermitian_reference(problem,built;generators=Nx.AbstractAction[])
+        W=eltype(built.table.representatives.keys)
+        objective=[(c,Nx.word_from_legacy(W,Nx.legacy_letters(w))) for (c,w) in Nx.terms(problem.objective)]
+        first(Nx.family_program(built.sizes.closure.family,objective;generators))
+    end
+    _,(a,b)=Nx.site_variables(Nx.Unipotent(),2,2)
+    problem=Nx.Problem(-(a[1]*b[1]+a[1]*b[2]+a[2]*b[1]-a[2]*b[2]))
+    built=Nx.build(problem,Nx.BlockRelaxation(order=1))
+    @test only(built.program.blocks).kind==Nx.PSD
+    @test only(built.program.blocks).side==5
+    @test built.program.nvars==11 # Includes normalization; Hermitian has 13.
+    @test eltype(built.program.forms.coefs)==Float64
+    reference=hermitian_reference(problem,built)
+    @test reference.nvars==13
+    bound=solve_reference(built.program)[1]
+    @test bound≈-2sqrt(2) atol=1e-6
+    @test bound≈solve_reference(reference)[1] atol=1e-6
+
+    for rule in (Nx.Free(),Nx.Projector(),Nx.Unipotent())
+        _,ops=Nx.site_variables(rule,1,2)
+        a,b=ops[1]
+        real_build=Nx.build(Nx.Problem(a*b+b*a),Nx.BlockRelaxation(order=1))
+        @test only(real_build.program.blocks).kind==Nx.PSD
+        @test all(label.part!=2 for label in real_build.table.labels)
+        complex_problem=Nx.Problem(im*(a*b-b*a))
+        complex_build=Nx.build(complex_problem,Nx.BlockRelaxation(order=1))
+        @test only(complex_build.program.blocks).kind==Nx.HPSD
+        @test any(label.part==2 for label in complex_build.table.labels)
+        rule isa Nx.Unipotent && @test solve_reference(complex_build.program)[1]≈-2 atol=1e-6
+        for constraint in (Nx.Positive(1+0.25im*(a*b-b*a)),Nx.Zero(im*(a*b-b*a)))
+            constrained=Nx.build(Nx.Problem(a+b;constraints=(constraint,)),Nx.BlockRelaxation(order=1))
+            @test first(constrained.program.blocks).kind==Nx.HPSD
+        end
+    end
+    _,ops=Nx.site_variables(Nx.Free(),1,2)
+    a,b=ops[1]
+    problem=Nx.Problem(a*b+b*a;constraints=(Nx.Positive(1-a^2-b^2),))
+    built=Nx.build(problem,Nx.BlockRelaxation(order=2))
+    @test all(block.kind==Nx.PSD for block in built.program.blocks)
+    bound=solve_reference(built.program)[1]
+    @test bound≈-1 atol=1e-6
+    @test bound≈solve_reference(hermitian_reference(problem,built))[1] atol=1e-6
+
+    # Real finite-group projections must retain the conjugate momentum
+    # pair of a three-cycle, rather than discard imaginary Fourier entries.
+    _,ops=Nx.site_variables(Nx.Unipotent(),3,2)
+    problem=Nx.Problem(sum(ops[i][1]*ops[mod1(i+1,3)][1]+0.3ops[i][2] for i in 1:3))
+    for generators in ([Nx.SitePermutation([2,3,1])],
+        [Nx.SitePermutation([2,3,1]),Nx.SitePermutation([1,3,2])]),split in (nothing,Nx.TermSplit())
+        built=Nx.build(problem,Nx.BlockRelaxation(;order=1,split,symmetry=Nx.FamilySymmetry(generators)))
+        @test all(block.kind==Nx.PSD for block in built.program.blocks)
+        @test solve_reference(built.program)[1]≈solve_reference(hermitian_reference(problem,built;generators))[1] atol=1e-6
+    end
+    _,(_,_,z)=Nx.pauli_variables(1)
+    @test only(Nx.build(Nx.Problem(z[1]),Nx.BlockRelaxation(order=1)).program.blocks).kind==Nx.HPSD
+end

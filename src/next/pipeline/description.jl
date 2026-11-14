@@ -111,7 +111,7 @@ function build(problem::Problem,description::BlockRelaxation)
     family=unique(_block_key,custom ? family : _split_family(family,objective,description.split))
     letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
     program,table,closure=family_program(family,objective;generators=description.symmetry.generators,
-        moment_generators=description.symmetry.moment_only,custom,site_letters=letters)
+        moment_generators=description.symmetry.moment_only,custom,site_letters=letters,real_form=_real_form(problem))
     extra=_strengthen!(program,table,problem,description.strengthen,closure)
     valid_for=isempty(description.strengthen) ? ValidStates(problem.constraints) :
         StrengthenedStates(ValidStates(problem.constraints),description.strengthen)

@@ -60,6 +60,9 @@ ID 1 is the constant 1, and ID k ≥ 2 is `values[k-1]`. Return `nothing`
 if the word is absent (not zero). Table providers may add methods to reconstruct
 orbit moments; the model layer handles coefficients and user-named errors.
 """
+moment_value(table,word,values) = throw(ArgumentError(
+    "This relaxation route cannot yet return expectations (moment table $(typeof(table)))."))
+
 function moment_value(t::MomentTable{W},w::AbstractWord,values) where {W}
     packed = try
         _pack_word(W,w)

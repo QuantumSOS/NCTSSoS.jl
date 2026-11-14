@@ -25,6 +25,7 @@ include("core/core.jl")
 include("conic/conic.jl")
 include("model/model.jl")
 include("pipeline/pipeline.jl")
+include("model/detection.jl")
 include("precompile.jl")
 
 end

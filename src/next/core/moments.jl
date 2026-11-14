@@ -80,7 +80,9 @@ end
 function push_term!(sink::MomentSink{W,C},c::Number,w::W) where {W,C}
     iszero(c) && return sink
     key,p,conjugated = moment_key(w)
-    re,im_id = moment_ids!(sink.table,key)
+    # A real site-algebra form identifies a word with its adjoint.
+    reality = W <: SiteWord && C <: Real ? :real : moment_reality(key)
+    re,im_id = moment_ids!(sink.table,key,reality)
     C <: Real && im_id != 0 && throw(ArgumentError("These rows have complex moments; use C=ComplexF64 for the plain program."))
     cc = scale(p,convert(C,c))
     re != 0 && push_term!(sink.forms,cc,re)
@@ -153,6 +155,7 @@ function plain_program(rows::Vector{W},objective; C::Type{<:Number}=ComplexF64,c
     missing = nothing
     for (c,w) in objective
         iszero(c) && continue
+        C <: Real && !isreal(c) && throw(ArgumentError("A real program needs real objective coefficients; use C=ComplexF64."))
         key,p,conjugated = moment_key(w)
         re,im_id = moment_ids(table,key)
         if (re,im_id)==(0,0)

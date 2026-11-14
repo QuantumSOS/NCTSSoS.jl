@@ -100,7 +100,7 @@ struct RightProductSink{S,W}
 end
 push_term!(s::RightProductSink,c::Number,w) = mul!(s.sink,w,s.right,c)
 
-function _localize!(program,table,c::OperatorConstraint,order,index)
+function _localize!(program::MomentProgram{C},table,c::OperatorConstraint,order,index) where {C}
     g = c.polynomial
     local_order = order-cld(degree(g),2)
     local_order>=0 || throw(ArgumentError("Constraint $index ($g) has degree $(degree(g)), above the relaxation capacity; use order ≥ $(cld(degree(g),2))."))
@@ -113,9 +113,17 @@ function _localize!(program,table,c::OperatorConstraint,order,index)
         phase,left = star(rows[i])
         right = RightProductSink(sink,rows[j])
         for (coef,w) in terms(g); mul!(right,left,_pack_word(W,w),scale(phase,coef)); end
+        if i==j && C <: Complex
+            # g is checked Hermitian: r'*g*r is real. Its separate terms can
+            # have cancelling imaginary parts; store the real diagonal directly.
+            for t in program.forms.offsets[end]:length(program.forms.coefs)
+                program.forms.coefs[t] = real(program.forms.coefs[t])
+            end
+        end
         close_form!(program.forms)
     end
-    push_block!(program,c isa Positive ? HPSD : ZERO,c isa Positive ? n : n*(n+1)÷2,index)
+    kind = c isa Positive ? (C <: Real ? PSD : HPSD) : ZERO
+    push_block!(program,kind,c isa Positive ? n : n*(n+1)÷2,index)
     return n
 end
 
@@ -135,6 +143,13 @@ function Base.show(io::IO,s::ProgramSizes)
 end
 Base.show(io::IO,::MIME"text/plain",s::ProgramSizes) = show(io,s)
 
+# These algebras have real structure constants. With real objective and
+# constraint coefficients, averaging a functional with its conjugate preserves
+# positivity, normalization and the objective, so a real optimum suffices.
+_real_form(p::Problem) = p.objective.registry.algebra isa SiteAlgebra{<:Union{Free,Projector,Unipotent}} &&
+    all(isreal,p.objective.data.coefficients) &&
+    all(c->all(isreal,c.polynomial.data.coefficients),p.constraints)
+
 "Build without a solver. The returned program and table are suitable for pipeline/conic inspection."
 function build(p::Problem,r::Relaxation)
     # Recheck mutable polynomial storage rather than trusting stale construction checks.
@@ -144,6 +159,7 @@ function build(p::Problem,r::Relaxation)
     W = word_type(p.objective.registry,max_letters)
     rows = _rows(p,r,W)
     program,table = plain_program(rows,((c,_pack_word(W,w)) for (c,w) in terms(p.objective));
+        C=_real_form(p) ? Float64 : ComplexF64,
         word_string=w->_word_string(p.objective.registry,w))
     local_sizes = Int[_localize!(program,table,c,order,i) for (i,c) in enumerate(p.constraints)]
     program.nvars = nvars(table)

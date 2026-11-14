@@ -81,6 +81,8 @@ jobs:
     name: Native SCS extension
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: julia-actions/setup-julia@v3
@@ -100,4 +102,12 @@ jobs:
         env:
           JULIA_NUM_THREADS: '1'
           OPENBLAS_NUM_THREADS: '1'
-        run: julia --project="$RUNNER_TEMP/scs-extension" --startup-file=no -e 'include("test/next/conic/extensions.jl"); include("test/quality/ExplicitImports.jl")'
+        run: julia --project="$RUNNER_TEMP/scs-extension" --startup-file=no --code-coverage=user -e 'include("test/next/conic/extensions.jl"); include("test/quality/ExplicitImports.jl")'
+      - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: src,ext
+      - uses: codecov/codecov-action@v7
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

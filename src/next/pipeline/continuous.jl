@@ -157,12 +157,34 @@ function refresh_coverage!(t::ContinuousMoments,program::MomentProgram)
     return t
 end
 
+# Floating coefficients can promote differently with machine and BigInt
+# rationals. Preserve the original exact conversion path for such derivations.
+function push_term!(s::SectorTerms{W,Complex{Rational{Int}}},c::Union{AbstractFloat,Complex{<:AbstractFloat}},w::W) where W
+    throw(InexactError(:continuous_coefficient,Complex{Rational{Int}},c))
+end
+
 function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},derivations;diagonal=true) where {C,W}
+    # Closing the word domain may extend the table. A failed machine attempt
+    # must not change the BigInt retry's coordinate or equation order.
+    trial=deepcopy(table)
+    try
+        return _continuous_program_rational(program,trial,derivations,Rational{Int};diagonal)
+    catch error
+        error isa Union{OverflowError,InexactError} || rethrow()
+        return _continuous_program_rational(program,table,derivations,Rational{BigInt};diagonal)
+    end
+end
+
+function _continuous_program_rational(program::MomentProgram{C},table::OrbitMoments{W},derivations,::Type{R};diagonal=true) where {C,W,R}
     initial=program.nvars
-    support=sort!(unique!(reduce(vcat,[collect(sites(label.word)) for label in table.labels];init=Int[])))
+    support=sort!(unique!([site for label in table.labels for site in sites(label.word)]))
     letters=basis_rows(W,W<:PauliWord ? Pauli() : Fermionic(),support,1)
     diagonal &= all(d->all(w->all(==(w),keys(_derivative(d,w))),letters),derivations)
-    pivots=Dict{Int,Dict{Int,Rational{BigInt}}}()
+    pivots=Dict{Int,Dict{Int,R}}()
+    derivative=SectorTerms(Dict{W,Complex{R}}())
+    image=Pair{W,Complex{R}}[]
+    sink=OrbitFormSink(table,Dict{Int32,Complex{R}}())
+    row=Dict{Int,R}()
     # Close words, not only nonzero orbit coordinates: D(w) can be nonzero
     # when finite invariance forces w itself to zero (a normalizer can rotate
     # the derivations). Such equations must not disappear with that orbit.
@@ -174,18 +196,20 @@ function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},de
         w=queue[cursor]
         cursor+=1
         for d in derivations
+            empty!(derivative.terms)
+            derive!(derivative,d,w,one(Complex{R}))
             if diagonal
-                isempty(_derivative(d,w)) && continue
+                isempty(derivative.terms) && continue
                 m=orbit_coordinates!(table,w)
                 for id in (m.re,m.im)
                     id==0 && continue
                     id==1 && throw(ArgumentError("A derivation must annihilate the identity."))
-                    pivots[id]=Dict(Int(id)=>one(Rational{BigInt}))
+                    pivots[id]=Dict(Int(id)=>one(R))
                 end
             else
-                image=_derivative(d,w)
-                sink=OrbitFormSink(table,Dict{Int32,Complex{Rational{BigInt}}}())
-                for (v,c) in sort!(collect(image);by=first)
+                empty!(image); append!(image,derivative.terms)
+                empty!(sink.terms)
+                for (v,c) in sort!(image;by=first)
                     if !(v in seen)
                         push!(seen,v); push!(queue,v)
                     end
@@ -193,8 +217,12 @@ function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},de
                 end
                 equation=sink.terms
                 for part in (real,imag)
-                    row=Dict(Int(id)=>part(c) for (id,c) in equation if !iszero(part(c)))
-                    _insert_generator_equation!(pivots,row)
+                    empty!(row)
+                    for (id,c) in equation
+                        iszero(part(c)) || (row[Int(id)]=part(c))
+                    end
+                    # A new pivot owns its row; dependent rows reuse the buffer.
+                    _insert_generator_equation!(pivots,row) || (row=Dict{Int,R}())
                 end
             end
         end
@@ -207,12 +235,12 @@ function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},de
         end
     end
     free=[id for id in eachindex(table.labels) if !haskey(pivots,id)]
-    directions=[Pair{Int32,Rational{BigInt}}[] for _ in table.labels]
+    directions=[Pair{Int32,R}[] for _ in table.labels]
     for (id,old) in enumerate(free)
-        push!(directions[old],Int32(id)=>one(Rational{BigInt}))
+        push!(directions[old],Int32(id)=>one(R))
     end
     for pivot in sort!(collect(keys(pivots));rev=true)
-        coefficients=Dict{Int32,Rational{BigInt}}()
+        coefficients=Dict{Int32,R}()
         for (old,c) in pivots[pivot]
             old==pivot && continue
             for (id,factor) in directions[old]
@@ -221,10 +249,12 @@ function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},de
         end
         directions[pivot]=sort!([id=>c for (id,c) in coefficients if !iszero(c)];by=first)
     end
+    # Keep the same rational-to-Float64 rounding as the original implementation.
+    exact_directions=convert(Vector{Vector{Pair{Int32,Rational{BigInt}}}},directions)
     out=MomentProgram{C}(length(free))
     function rewrite(ids,coefs)
         result=Dict{Int32,C}()
-        for (old,c) in zip(ids,coefs),(id,factor) in directions[old]
+        for (old,c) in zip(ids,coefs),(id,factor) in exact_directions[old]
             result[id]=get(result,id,zero(C))+c*Float64(factor)
         end
         sort!([id=>c for (id,c) in result if !iszero(c)];by=first)
@@ -240,9 +270,10 @@ function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},de
     for (id,c) in rewrite(program.objective_ids,program.objective_coefs)
         push!(out.objective_ids,id); push!(out.objective_coefs,real(c))
     end
-    reduced=ContinuousMoments(table,table.labels[free],directions,derivations,BitSet([1]))
+    reduced=ContinuousMoments(table,table.labels[free],exact_directions,derivations,BitSet([1]))
     refresh_coverage!(reduced,out)
     report=(method=diagonal ? :diagonal : :exact_elimination,initial_variables=initial-1,
-        closed_variables=length(table.labels)-1,variables=length(free)-1,equations=length(pivots),arithmetic=:complex_rationals)
+        closed_variables=length(table.labels)-1,variables=length(free)-1,equations=length(pivots),
+        arithmetic=R==Rational{Int} ? :checked_machine_rationals : :complex_rationals)
     return validate(out),reduced,report
 end

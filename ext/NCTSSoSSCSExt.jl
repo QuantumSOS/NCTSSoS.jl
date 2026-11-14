@@ -1,5 +1,8 @@
 module NCTSSoSSCSExt
 using NCTSSoS: Next
+using NCTSSoS.Next: pauli_variables, site_variables, Unipotent, Problem, Relaxation,
+    BlockRelaxation, Correlative, FamilySymmetry, SitePermutation, solve
+using PrecompileTools: @compile_workload
 import SCS
 import JuMP
 using SparseArrays: spzeros
@@ -64,5 +67,19 @@ function Next.solve_standard(form::Next.MomentStandardForm,h::SCSHandle)
     end
     h.form,h.permutation,h.x,h.y,h.slack = next.form,next.permutation,next.x,next.y,next.slack
     return Next.solve_standard(h)
+end
+
+# This extension is loaded only with SCS. Keep native solves tiny and silent;
+# the base package's workload builds programs without loading a solver.
+@compile_workload let
+    n=4
+    _,(x,y,z)=pauli_variables(n)
+    h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+0.7z[i]*z[mod1(i+1,n)] for i in 1:n)
+    backend=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
+    solve(Problem(h),BlockRelaxation(order=2,grouping=Correlative(),
+        symmetry=FamilySymmetry([SitePermutation([2:n;1])])),solver=backend)
+    _,(a,b)=site_variables(Unipotent(),2,2)
+    bell=Problem(-(a[1]*b[1]+a[1]*b[2]+a[2]*b[1]-a[2]*b[2]))
+    solve(bell,Relaxation(order=1);solver=backend)
 end
 end

@@ -34,7 +34,7 @@
     @test Nx.expectation(result,y[1])==0
     # The degree-three word was never built, but conjugation forces it to zero.
     @test Nx.expectation(result,y[1]*z[2]*z[3])==0
-    @test_throws r"Moment Z1 Z2 Z3.*not in this program.*order=2" Nx.expectation(result,z[1]*z[2]*z[3])
+    @test_throws r"Moment Z1 Z2 Z3.*selected blocks.*higher order.*no split.*group.*1, 2, 3" Nx.expectation(result,z[1]*z[2]*z[3])
     @test before==(length(result.table.labels),length(result.table.cache))
 end
 
@@ -51,7 +51,7 @@ end
     @test Nx.expectation(result,ops[1][1]*ops[2][1])≈Nx.expectation(result,ops[2][1]*ops[3][1]) atol=1e-12
     @test Nx.expectation(result,ops[1][1]*ops[1][2]) isa Complex
     @test imag(Nx.expectation(result,ops[1][1]*ops[1][2]))==0
-    @test_throws r"not in this program" Nx.expectation(result,ops[1][1]*ops[1][2]*ops[2][1])
+    @test_throws r"Moment s1_1 s1_2 s2_1.*selected blocks.*higher order.*no split.*group.*1, 2" Nx.expectation(result,ops[1][1]*ops[1][2]*ops[2][1])
 
     _,(a,ad)=Nx.fermionic_variables(2)
     t=ad[1]*a[2]

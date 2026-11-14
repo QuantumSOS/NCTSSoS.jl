@@ -59,7 +59,7 @@ struct PauliExtra{W}
     kind::ConeKind
     source::Int
 end
-_extra_key(e::PauliExtra)=(e.kind,e.radius,Tuple(sort(e.words)))
+_extra_key(e::PauliExtra)=(e.kind,e.radius,sort(e.words))
 function _extra_image(e::PauliExtra,g)
     images=[act(g,w) for w in e.words]
     PauliExtra(last.(images),e.phases.*first.(images),e.matrices,e.radius,e.kind,e.source)

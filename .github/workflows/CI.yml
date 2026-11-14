@@ -76,3 +76,31 @@ jobs:
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  solver-extensions:
+    name: Native solver extensions
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12.3'
+      - name: Install pinned standalone environment
+        env:
+          JULIA_PKG_USE_CLI_GIT: 'true'
+          JULIA_NUM_PRECOMPILE_TASKS: '2'
+        shell: julia --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.activate(joinpath(ENV["RUNNER_TEMP"], "solver-extensions"))
+          Pkg.add(PackageSpec(url="https://github.com/exaclior/BPSDP.jl", rev="7baca4140922f980a7e87dd7aae0c4d16acda43c"))
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.add([PackageSpec(name="SCS", version="2.7.1"), PackageSpec(name="Mosek", version="11.2.1"), PackageSpec(name="JuMP", version="1.32.1")])
+          Pkg.precompile()
+      - name: Test SCS and BPSDP solves and unlicensed Mosek construction
+        env:
+          JULIA_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          NCTSSOS_TEST_MOSEK: 'false'
+        run: julia --project="$RUNNER_TEMP/solver-extensions" --startup-file=no test/next/conic/extensions.jl

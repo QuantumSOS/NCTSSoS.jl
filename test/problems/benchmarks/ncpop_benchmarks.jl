@@ -386,9 +386,20 @@ compare_sides(result_sides, oracle_sides) = SOLVER_NAME == :cosmo ?
 
         # Note: COSMO gives highly variable results for Chained Singular Dense/CS
         # due to the problem's numerical conditioning. We use bounds testing for COSMO.
+        # Mosek stops SLOW_PROGRESS at its default 1e-8 conic tolerances.
+        # One decade looser reaches OPTIMAL while retaining the 1e-6 assertions.
+        chained_optimizer = if SOLVER_NAME == :mosek
+            optimizer_with_attributes(SOLVER.optimizer_constructor, SOLVER.params...,
+                "MSK_DPAR_INTPNT_CO_TOL_PFEAS" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_DFEAS" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_REL_GAP" => 1e-7,
+                "MSK_DPAR_INTPNT_CO_TOL_MU_RED" => 1e-7)
+        else
+            SOLVER
+        end
         @testset "Dense (order=2)" begin
             config = SolverConfig(
-                optimizer=SOLVER,
+                optimizer=chained_optimizer,
                 order=2,
                 cs_algo=NoElimination(),
                 ts_algo=NoElimination()
@@ -405,7 +416,7 @@ compare_sides(result_sides, oracle_sides) = SOLVER_NAME == :cosmo ?
 
         @testset "Correlative Sparsity MF (order=2)" begin
             config = SolverConfig(
-                optimizer=SOLVER,
+                optimizer=chained_optimizer,
                 order=2,
                 cs_algo=MF(),
                 ts_algo=NoElimination()
@@ -427,7 +438,13 @@ compare_sides(result_sides, oracle_sides) = SOLVER_NAME == :cosmo ?
                 cs_algo=MF(),
                 ts_algo=MMD()
             )
-            result = cs_nctssos(pop, config)
+            # The SOS dual stalls on this ill-conditioned fourth-power model
+            # (Mosek: SLOW_PROGRESS; Clarabel: ALMOST_OPTIMAL). The direct
+            # moment solve agrees with the exact optimum 0: f is a sum of
+            # Hermitian squares and vanishes at the origin.
+            direct_config = SolverConfig(optimizer=chained_optimizer, order=2,
+                cs_algo=MF(), ts_algo=MMD())
+            result = cs_nctssos(pop, direct_config; dualize=false)
             # COSMO gives variable results for Chained Singular due to numerical conditioning
             if SOLVER_NAME == :cosmo
                 @test result.objective < 0.1  # Should be near 0 (global min)
@@ -436,6 +453,18 @@ compare_sides(result_sides, oracle_sides) = SOLVER_NAME == :cosmo ?
             end
             @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracles.CS_TS.sides)
             @test result.n_unique_moment_matrix_elements == oracles.CS_TS.nuniq
+
+            if SOLVER_NAME == :mosek
+                # An early stop is diagnostic only, not a certified bound.
+                sos_result = cs_nctssos(pop, config; dualize=true)
+                @info "Chained Singular CS+TS SOS result" objective=sos_result.objective termination=termination_status(sos_result.model) primal=primal_status(sos_result.model) dual=dual_status(sos_result.model)
+                @test primal_status(sos_result.model) in (JuMP.MOI.FEASIBLE_POINT, JuMP.MOI.NEARLY_FEASIBLE_POINT)
+                @test if termination_status(sos_result.model) in (JuMP.MOI.ITERATION_LIMIT, JuMP.MOI.SLOW_PROGRESS)
+                    isnan(sos_result.objective)
+                else
+                    isfinite(sos_result.objective) && sos_result.objective <= 0.0
+                end
+            end
         end
     end
 

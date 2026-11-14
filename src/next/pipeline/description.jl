@@ -2,12 +2,13 @@
 struct FamilySymmetry{G,M}
     generators::G
     moment_only::M
-    function FamilySymmetry(generators=AbstractAction[];moment_only=())
+    detected::Bool
+    function FamilySymmetry(generators=AbstractAction[];moment_only=(),detected=false)
         gs=collect(generators); ms=Tuple(moment_only)
         all(g->g isa AbstractAction,gs) && all(g->g isa AbstractAction,ms) ||
             throw(ArgumentError("FamilySymmetry needs multiplicative actions; continuous derivations are a separate reduction."))
         any(is_antiunitary,gs) && throw(ArgumentError("Put antiunitary actions in moment_only."))
-        new{typeof(gs),typeof(ms)}(gs,ms)
+        new{typeof(gs),typeof(ms)}(gs,ms,detected)
     end
 end
 

@@ -150,6 +150,12 @@ include("optimization/gns_cholesky.jl")
 include("optimization/gns_diagnostics.jl")
 
 # ============================================================================
+# Redesign work area. The code above does not use it. See src/next/Next.jl.
+# ============================================================================
+
+include("next/Next.jl")
+
+# ============================================================================
 # Exports - User-Facing API Only
 # ============================================================================
 

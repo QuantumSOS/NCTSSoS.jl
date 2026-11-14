@@ -20,6 +20,9 @@ using .TestExpectations: expectations_oracle
     # 4. Relaxation components
     include("relaxations/runtests.jl")
 
+    # 4b. Redesign work area (NCTSSoS.Next)
+    include("next/runtests.jl")
+
     # 5. State polynomials suite
     include("state_poly/runtests.jl")
 

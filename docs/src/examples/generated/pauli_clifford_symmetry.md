@@ -530,8 +530,11 @@ combined_result.objective
 -0.7500000003352729
 ````
 
-The union recovers the full order-48 group and the three-scalar SDP of
+The union recovers the order-48 global-axis-and-SWAP subgroup and the three-scalar SDP of
 Step 4 — without anyone having to invent the axis rotations by hand:
+this is not the full Clifford stabilizer, whose order is 192. For example,
+``V=\exp(-i\pi X_1X_2/4)`` fixes each Hamiltonian term but maps
+``Y_1`` to ``Z_1X_2``, outside this order-one moment basis.
 
 ````julia
 combined_report = combined_result.symmetry
@@ -824,7 +827,7 @@ t_dense10
 ````
 
 ````
-219.589257561
+204.094877225
 ````
 
 Nearly all of that wall-clock time is the interior-point solver itself:
@@ -834,7 +837,7 @@ t_dense_mosek = JuMP.solve_time(dense_result10.model)
 ````
 
 ````
-218.25750135400085
+202.9592902559998
 ````
 
 ### Detection plus a basis-preserving subgroup solve (timed)
@@ -858,7 +861,7 @@ t_detect10
 ````
 
 ````
-0.12748911
+0.126496134
 ````
 
 The detected degree-changing maps need not preserve the order-2 basis.
@@ -936,7 +939,7 @@ t_sym10
 ````
 
 ````
-184.886890393
+174.517256056
 ````
 
 And the solver time hiding inside that total:
@@ -946,7 +949,7 @@ t_sym_mosek = JuMP.solve_time(result10.model)
 ````
 
 ````
-0.048630563000187976
+0.044259860000238405
 ````
 
 ### Comparison
@@ -971,11 +974,11 @@ println("Detected generators (not used directly for the SDP): $(length(auto_spec
 ````
 Steady-state timing; warm-up solves discarded
 run       total        of which Mosek   moment vars   PSD blocks
-dense     219.6s      218.3s           20686         [[436]]
-symmetry  185.0s       0.0s             72          [6, 2, 2, 5, 4, 5, 4, 5, 2, 2, 2, 4, 2, 2, 5, 4, 1, 5, 4, 5, 4, 4, 5, 4, 5, 6, 5, 6, 5]
-  symmetry time = detect 0.13s + solve 184.9s
+dense     204.1s      203.0s           20686         [[436]]
+symmetry  174.6s       0.0s             72          [6, 2, 2, 5, 4, 5, 4, 5, 2, 2, 2, 4, 2, 2, 5, 4, 1, 5, 4, 5, 4, 4, 5, 4, 5, 6, 5, 6, 5]
+  symmetry time = detect 0.13s + solve 174.5s
 End-to-end speedup: 1.2x
-Solver-only speedup: 4488.0x
+Solver-only speedup: 4586.0x
 Moment variable reduction: 20686 → 72
 Objective difference: 3.68e-9
 SDP subgroup order: 480, subgroup generators: 4

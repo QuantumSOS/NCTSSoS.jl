@@ -32,3 +32,64 @@ function real_program(p::MomentProgram)
 end
 
 _anti_real_program(p, generators) = any(is_antiunitary, generators) ? real_program(p) : p
+
+_conjugate_action(g,h) = compose(compose(g,h),inv(g))
+_action_image(g,w,::Nothing) = act(g,w)
+function _action_image(g,w,before)
+    p,u = act(before,w)
+    q,v = act(g,u)
+    q*(is_antiunitary(g) ? conj(p) : p),v
+end
+
+# Q has orthonormal columns; image is their anti-linear image. A preserving
+# involution admits a fixed real basis of the same complex dimension.
+function _fixed_real_columns(Q,image)
+    B=Q'*image
+    LinearAlgebra.norm(image-Q*B)<=1e-9 || return nothing
+    LinearAlgebra.norm(B*conj(B)-LinearAlgebra.I)<=1e-9 || return nothing
+    fixed=Vector{ComplexF64}[]
+    for j in axes(Q,2),odd in (false,true)
+        v=odd ? (Q[:,j]-image[:,j])/2im : (Q[:,j]+image[:,j])/2
+        for u in fixed
+            c=LinearAlgebra.dot(u,v)
+            abs(c)>1e-12 && (v .-= real(c).*u)
+        end
+        norm=LinearAlgebra.norm(v)
+        norm>1e-9 || continue
+        push!(fixed,v/norm)
+    end
+    length(fixed)==size(Q,2) || error("Antiunitary fixed-space rank mismatch.")
+    fixed
+end
+
+function _real_finite_sectors(rows::AbstractVector{W},sectors,group,anti) where {W}
+    result=[Vector{Tuple{ComplexF64,W}}[] for _ in sectors]
+    index=Dict(w=>i for (i,w) in enumerate(rows))
+    for (s,sector) in enumerate(sectors)
+        isempty(sector) && continue
+        Q=zeros(ComplexF64,length(rows),length(sector))
+        for (j,row) in enumerate(sector),(c,w) in row
+            Q[index[w],j]=c
+        end
+        found=false
+        for g in group.elements
+            image=zeros(ComplexF64,size(Q)); closed=true
+            for (i,w) in enumerate(rows)
+                p,u=_action_image(g,w,anti)
+                if !haskey(index,u)
+                    closed=false; break
+                end
+                for j in axes(Q,2)
+                    image[index[u],j]+=scale(p,conj(Q[i,j]))
+                end
+            end
+            closed || continue
+            fixed=_fixed_real_columns(Q,image)
+            isnothing(fixed) && continue
+            result[s]=[[(c,rows[i]) for (i,c) in enumerate(v) if abs(c)>1e-12] for v in fixed]
+            found=true; break
+        end
+        found || throw(ArgumentError("No same-side real basis was certified: no supplied antiunitary coset element preserves this projected sector as an involution. A degree-changing antiunitary needs a closed row family; exchanged or quaternionic sectors need a different decomposition. No doubled block was substituted."))
+    end
+    result
+end

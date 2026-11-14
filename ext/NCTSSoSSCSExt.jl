@@ -1,7 +1,7 @@
 module NCTSSoSSCSExt
 using NCTSSoS: Next
 using NCTSSoS.Next: pauli_variables, site_variables, Unipotent, Problem, Relaxation,
-    BlockRelaxation, Correlative, FamilySymmetry, SitePermutation, solve,
+    Correlative, Symmetry, SitePermutation, solve,
     TermSplit, fermionic_variables, Free, Positive, word_type, AntiunitaryPauli,
     pauli_letter, DensityMatrix, InvariantCone
 using PrecompileTools: @compile_workload
@@ -87,10 +87,10 @@ end
     _,(x,y,z)=pauli_variables(n)
     h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+0.7z[i]*z[mod1(i+1,n)] for i in 1:n)
     backend=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
-    solve(Problem(h),BlockRelaxation(order=2,grouping=Correlative(),
-        symmetry=FamilySymmetry([SitePermutation([2:n;1])])),solver=backend)
-    solve(Problem(h),BlockRelaxation(order=2,grouping=Correlative(),split=TermSplit(),
-        symmetry=FamilySymmetry([SitePermutation([2:n;1]),SitePermutation([mod1(2-i,n) for i in 1:n])])),solver=backend)
+    solve(Problem(h;symmetry=Symmetry(SitePermutation([2:n;1]))),
+        Relaxation(order=2,grouping=Correlative());solver=backend)
+    solve(Problem(h;symmetry=Symmetry(SitePermutation([2:n;1]),SitePermutation([mod1(2-i,n) for i in 1:n]))),
+        Relaxation(order=2,grouping=Correlative(),split=TermSplit());solver=backend)
     _,(a,b)=site_variables(Unipotent(),2,2)
     bell=Problem(-(a[1]*b[1]+a[1]*b[2]+a[2]*b[1]-a[2]*b[2]))
     solve(bell,Relaxation(order=1);solver=backend)
@@ -111,9 +111,9 @@ end
     registry,(x,y,z)=pauli_variables(3)
     h=-(x[1]*y[2]+x[1]*y[3]+x[2]*x[3]+y[2]*y[3]+z[2]*z[3])
     W=word_type(registry,4)
-    symmetry=FamilySymmetry([SitePermutation([1,3,2])];moment_only=(AntiunitaryPauli(pauli_letter(W,1,1)),))
+    symmetry=Symmetry(SitePermutation([1,3,2]);moment_only=(AntiunitaryPauli(pauli_letter(W,1,1)),))
     for kind in (DensityMatrix(1:3),InvariantCone(1:3,"YII"))
-        solve(Problem(h),BlockRelaxation(order=1,strengthen=(kind,),symmetry=symmetry);solver=backend)
+        solve(Problem(h;symmetry),Relaxation(order=1,strengthen=(kind,));solver=backend)
     end
 end
 end

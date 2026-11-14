@@ -1,13 +1,12 @@
 import ..NCTSSoS: PauliAlgebra, NormalMonomial, _sympleq_clifford_candidates, _clifford_action_signature
 import ..NCTSSoS: Polynomial as LegacyPolynomial
 
-public detect_symmetry
-
 """
+    detect_symmetry(objective::Polynomial; kwargs...)
     detect_symmetry(problem::Problem; kwargs...)
 
 Detect Clifford symmetries of an unconstrained Pauli objective and return a
-`FamilySymmetry` for `BlockRelaxation`. Detection is explicit, never part of
+`Symmetry` to declare on `Problem`. Detection is explicit, never part of
 `solve`. Keywords (including `max_automorphisms`, `cycle_strategy`, and
 `ga_backend`) pass through to the existing SympleQ detector.
 
@@ -73,6 +72,8 @@ function detect_symmetry(problem::Problem;kwargs...)
     end
     return FamilySymmetry(block;moment_only=moments,detected=true)
 end
+
+detect_symmetry(objective::Polynomial;kwargs...) = detect_symmetry(Problem(objective);kwargs...)
 
 function Base.show(io::IO,s::FamilySymmetry)
     print(io,"FamilySymmetry: ",length(s.generators)," block generators, ",

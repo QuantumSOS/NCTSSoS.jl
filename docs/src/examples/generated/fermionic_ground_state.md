@@ -501,9 +501,9 @@ what broke the old page.  We therefore keep the same reduced Hamiltonian
 $H_{\mathrm{even}}$, but we do **not** add `P - I = 0` again for these
 larger cases.
 
-A second call to [`cs_nctssos_higher`](@ref) reads the moment values from
-the first solve, discovers which cross-correlations matter, and refines
-the sparsity pattern.  The result is typically tight.
+A call to [`cs_nctssos_higher`](@ref) propagates support from the first
+step's completed graphs, including clique-fill edges, to refine the
+sparsity pattern. It does not read numerical moment values.
 -------------------------------------------------------------------
 
 ### Helper — build and solve for arbitrary N
@@ -552,8 +552,8 @@ println("  gap after refinement: $(abs(r6.refined - r6.exact))")
 ````
 
 ````
-N = 6:  first = -2.0375379457268554,  refined = -1.7320508239211092,  exact = -1.7320508075688772
-  gap after refinement: 1.6352232012906143e-8
+N = 6:  first = -2.0375379457268554,  refined = -1.7320508079404786,  exact = -1.7320508075688772
+  gap after refinement: 3.716014163046566e-10
 
 ````
 
@@ -566,8 +566,8 @@ println("  gap after refinement: $(abs(r8.refined - r8.exact))")
 ````
 
 ````
-N = 8:  first = -2.7442065412959598,  refined = -2.613125929748312,  exact = -2.6131259297527527
-  gap after refinement: 4.440892098500626e-12
+N = 8:  first = -2.7442065412959598,  refined = -2.6131259295165825,  exact = -2.6131259297527527
+  gap after refinement: 2.361701945119421e-10
 
 ````
 

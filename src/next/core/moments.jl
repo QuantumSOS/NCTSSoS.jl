@@ -149,16 +149,24 @@ function plain_program(rows::Vector{W},objective; C::Type{<:Number}=ComplexF64,c
         close_form!(program.forms)
     end
     push_block!(program,C <: Complex ? HPSD : PSD,n)
-    weights = Float64[]
+    weights = zeros(Float64,nvars(table))
+    missing = nothing
     for (c,w) in objective
+        iszero(c) && continue
         key,p,conjugated = moment_key(w)
-        re,im_id = moment_ids!(table,key)
-        oldn = length(weights)
-        resize!(weights,nvars(table))
-        for i in oldn+1:length(weights); weights[i]=0.0; end
+        re,im_id = moment_ids(table,key)
+        if (re,im_id)==(0,0)
+            isnothing(missing) && (missing=W[])
+            push!(missing,w)
+            continue
+        end
         cc = scale(p,complex(float(c)))
         re != 0 && (weights[re] += real(cc))
         im_id != 0 && (weights[im_id] += real(cc*(conjugated ? -im : im)))
+    end
+    if !isnothing(missing)
+        required = maximum(w->cld(degree(w),2),missing)
+        throw(ArgumentError("Objective words $(unique(missing)) are not covered by the rows. Use complete rows through degree $required on all objective sites, or add custom rows whose adjoint products cover these words."))
     end
     for id in eachindex(weights)
         if !iszero(weights[id])

@@ -71,6 +71,20 @@ end
 end
 
 @testset "Plain programs equal the dense reference" begin
+    W = Nx.PauliWord{1}
+    sparse_rows = Nx.basis_rows(W,Nx.Pauli(),1:3,1)
+    uncovered = Nx.mul(Nx.mul(Nx.pauli_letter(W,1,0),Nx.pauli_letter(W,2,0))[2],Nx.pauli_letter(W,3,0))[2]
+    error = try
+        Nx.plain_program(sparse_rows,[(1.0,uncovered)])
+        nothing
+    catch e
+        e
+    end
+    @test error isa ArgumentError
+    @test occursin("degree 2",sprint(showerror,error))
+    @test occursin(string(uncovered),sprint(showerror,error))
+    covered,_ = Nx.plain_program(Nx.basis_rows(W,Nx.Pauli(),1:3,2),[(1.0,uncovered)])
+    @test length(covered.objective_ids)==1
     for (algebra,W) in ((Nx.Pauli(),Nx.PauliWord{2}),(Nx.Fermionic(),Nx.FermiWord{2}),
             ((Nx.SiteAlgebra(rule,2),Nx.word_type(Nx.SiteAlgebra(rule,2),3,4)) for rule in (Nx.Free(),Nx.Projector(),Nx.Unipotent()))...)
         rows = Nx.basis_rows(W,algebra,1:3,2)

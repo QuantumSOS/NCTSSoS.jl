@@ -51,7 +51,33 @@ _pack_word(::Type{W},w::AbstractWord) where {W<:AbstractWord} = convert(W,w)
 _pack_word(::Type{SiteWord{A,V,B,S}},w::SiteWord{A,U,B,S}) where {A,U,V,B,S} =
     SiteWord{A,V,B,S}(V(w.bits),Val(:normal))
 
-public moment_value
+public moment_value, moment_terms, moment_covered
+"""
+    moment_terms(table, word)
+
+Return coordinate pairs `(id, coefficient)` reconstructing the word's moment.
+ID 1 is the constant 1; ID k ≥ 2 is solution `values[k-1]`. Return `nothing`
+for an absent word and an empty collection for a symmetry-forced zero.
+Implement together with `moment_covered`; the model combines a polynomial's
+coefficients before checking coverage. Providers without this hook retain the
+legacy `moment_value` path.
+"""
+function moment_terms end
+
+"""
+    moment_covered(table, id) -> Bool
+
+Whether a coordinate occurs in a solved form or the objective. ID 1 is covered.
+For `MomentTable` returned by `plain_program`, all allocated coordinates are
+covered: insertion emits nonzero matrix-entry coefficients, and the supported
+algebras' monomial products do not cancel these coordinates. Real site-algebra
+forms allocate only real coordinates. Tests check the final standard-form
+columns, including custom rows, rather than assuming allocated means covered.
+This invariant does not apply to tables that reserve symmetry coordinates.
+"""
+function moment_covered end
+moment_covered(t::MomentTable,id::Integer) = 1<=id<=nvars(t)
+
 """
     moment_value(table, word, values)
 
@@ -63,7 +89,7 @@ orbit moments; the model layer handles coefficients and user-named errors.
 moment_value(table,word,values) = throw(ArgumentError(
     "This relaxation route cannot yet return expectations (moment table $(typeof(table)))."))
 
-function moment_value(t::MomentTable{W},w::AbstractWord,values) where {W}
+function moment_terms(t::MomentTable{W},w::AbstractWord) where {W}
     packed = try
         _pack_word(W,w)
     catch e
@@ -74,8 +100,20 @@ function moment_value(t::MomentTable{W},w::AbstractWord,values) where {W}
     key,p,conjugated = moment_key(packed)
     re,im_id = moment_ids(t,key)
     (re,im_id)==(0,0) && return nothing
-    value = complex(re==0 ? 0.0 : re==1 ? 1.0 : values[re-1],im_id==0 ? 0.0 : values[im_id-1])
-    return scale(p,conjugated ? conj(value) : value)
+    a,b = scale(p,1.0+0im),scale(p,conjugated ? -1.0im : 1.0im)
+    re==0 && return ((Int(im_id),b),)
+    im_id==0 && return ((Int(re),a),)
+    return ((Int(re),a),(Int(im_id),b))
+end
+
+function moment_value(t::MomentTable,w::AbstractWord,values)
+    coordinates=moment_terms(t,w)
+    isnothing(coordinates) && return nothing
+    value=0.0+0im
+    for (id,c) in coordinates
+        value+=c*(id==1 ? 1.0 : values[id-1])
+    end
+    return value
 end
 
 "Insert a representative with its intrinsic or symmetry-imposed reality; repeated declarations must agree."

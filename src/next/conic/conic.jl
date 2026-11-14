@@ -3,3 +3,4 @@
 include("reference_jump.jl")
 include("standard.jl")
 include("solver.jl")
+include("direct.jl")

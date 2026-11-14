@@ -27,6 +27,7 @@ end
     end
     # At order zero the mean number alone accepts the vacuum/full mixture.
     b=Nx.build(Nx.Problem(zero(H)),Nx.BlockRelaxation(order=0,strengthen=(Nx.Sector(N,1),)))
+    check_used_coordinates(b.program)
     rho=diagm(ComplexF64[0.5,0,0,0.5])
     @test maximum(abs,equality_values(b.program,physical_coordinates(b.table,rho,2),b.sizes.closure.strengthening.first_block))>0.1
     @test_throws r"not Hermitian" Nx.Sector(im*x[1],0)
@@ -48,6 +49,7 @@ end
     for symmetry in (Nx.FamilySymmetry([flip]),Nx.FamilySymmetry(;moment_only=(flip,)))
         @test_throws r"remove the generator or choose an invariant sector" Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,symmetry=symmetry,strengthen=(Nx.Sector(N,1),)))
         built=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,symmetry=symmetry,strengthen=(Nx.Sector(N,2),)))
+        check_used_coordinates(built.program)
         @test built.sizes.closure.strengthening.added_equalities>0
     end
 end
@@ -121,6 +123,7 @@ end
     # These row products do not contain parity. Only its localizer does.
     family=[[one(z[1]);z;x[1]*x[2]]]
     built=Nx.build(problem,Nx.BlockRelaxation(family=family,strengthen=(Nx.Sector(N,1),)))
+    check_used_coordinates(built.program)
     reference=Nx.build(problem,Nx.BlockRelaxation(family=family))
     start=length(reference.program.blocks)+1
     independent_sector!(reference,N,1,4,2)

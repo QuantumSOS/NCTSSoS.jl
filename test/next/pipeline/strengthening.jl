@@ -63,7 +63,8 @@ function strengthening_fixture(n=3)
     Nx.Problem(H),registry
 end
 
-function strengthening_bound(program)
+function strengthening_bound(program;unused=0)
+    check_used_coordinates(program;expected=unused)
     # COSMO's complex chordal decomposition crashes on a reduced density
     # cone. Keep the cone unchanged and solve without that preprocessing.
     model,_=Nx.to_jump(Nx.moment_standard_form(program))
@@ -84,6 +85,7 @@ end
         symmetry=Nx.FamilySymmetry(symmetric ? [g] : Nx.AbstractAction[])
         description=Nx.BlockRelaxation(order=1,split=Nx.TermSplit(),symmetry=symmetry,strengthen=(kind,))
         built=Nx.build(problem,description)
+        check_used_coordinates(built.program)
         report=built.sizes.closure.strengthening
         @test length(report.representatives)==1
         expected=symmetric ? (kind isa Nx.InvariantCone || length(kind.sites)<n ? n : 1) : 1

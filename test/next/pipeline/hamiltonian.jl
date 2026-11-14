@@ -75,6 +75,12 @@ end
             mode==:dihedral ? Nx.FamilySymmetry([translation,Nx.SitePermutation([1,3,2])]) : Nx.FamilySymmetry([translation])
         built=Nx.build(problem,Nx.BlockRelaxation(;order=1,symmetry,
             split=mode==:split ? Nx.TermSplit() : nothing,strengthen=(kind,)))
+        # Products cancelled after orbit lookup leave allocated coordinates.
+        unused=kind isa Nx.Stationarity ?
+            (plain=3,translation=11,reflection=3,anti=2,split=2,dihedral=10) :
+            (plain=3,translation=9,reflection=3,anti=2,split=0,dihedral=10)
+        check_used_coordinates(built.program;expected=getproperty(unused,mode))
+        @test built.sizes.closure.unused_coordinates==getproperty(unused,mode)
         report=built.sizes.closure.strengthening
         reference=Nx.build(problem,Nx.BlockRelaxation(order=1))
         start=length(reference.program.blocks)+1
@@ -116,6 +122,7 @@ end
     for kind in (Nx.Stationarity(),Nx.StateOptimality()),symmetric in (false,true)
         symmetry=Nx.FamilySymmetry(symmetric ? [Nx.SitePermutation([2,1])] : Nx.AbstractAction[])
         built=Nx.build(problem,Nx.BlockRelaxation(;order=1,strengthen=(kind,),symmetry))
+        check_used_coordinates(built.program)
         start=built.sizes.closure.strengthening.first_block
         # A nontrivial mixture and a coherent superposition in the ground
         # space. Both must work, as must their symmetry averages.
@@ -158,7 +165,8 @@ end
         built=Nx.build(problem,Nx.BlockRelaxation(order=1,strengthen=(kind,),symmetry=Nx.FamilySymmetry([Nx.SitePermutation([1,3,2])])))
         reference=Nx.build(problem,Nx.BlockRelaxation(order=1))
         independent_hamiltonian!(reference,problem,kind)
-        bound=strengthening_bound(built.program)
+        # Orbit cancellation can leave allocated, unused coordinates.
+        bound=strengthening_bound(built.program;unused=kind isa Nx.Stationarity ? 7 : 8)
         @test bound≈strengthening_bound(reference.program) atol=1e-6
         @test bound<=exact+1e-6
     end

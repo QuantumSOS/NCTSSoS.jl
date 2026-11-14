@@ -52,12 +52,19 @@ function _certify_coefficient_copies(matrices,copies;atol=1e-9)
         B .= (B+B')/2
     end
     error=0.0
+    reconstructed=zeros(ComplexF64,n,n)
+    product=similar(reconstructed)
+    workspace=zeros(ComplexF64,n,maximum(size(first(component),2) for component in copies))
     for (k,A) in enumerate(matrices)
-        reconstructed=zeros(ComplexF64,n,n)
+        fill!(reconstructed,0)
         for (component,coefficients) in zip(copies,reduced),V in component
-            reconstructed .+= V*coefficients[k]*V'
+            work=view(workspace,:,1:size(V,2))
+            LinearAlgebra.mul!(work,V,coefficients[k])
+            LinearAlgebra.mul!(product,work,V')
+            reconstructed .+= product
         end
-        error=max(error,norm(A-reconstructed,Inf)/max(1.0,norm(A,Inf)))
+        residual=maximum(abs(A[i]-reconstructed[i]) for i in eachindex(A))
+        error=max(error,residual/max(1.0,norm(A,Inf)))
     end
     return (accepted=max(orthogonality,error)<=atol,reconstruction_error=error,
         orthogonality_error=orthogonality,reduced=reduced)

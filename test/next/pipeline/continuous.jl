@@ -6,6 +6,12 @@ function Nx.derive!(sink,::TestNumberDerivation,w::Nx.FermiWord,c::Number=1)
     sink
 end
 
+struct TestScaledDerivation{D,T} <: Nx.AbstractDerivation
+    base::D
+    factor::T
+end
+Nx.derive!(sink,d::TestScaledDerivation,w::Nx.AbstractWord,c::Number=1) = Nx.derive!(sink,d.base,w,c*d.factor)
+
 function continuous_true_result(built,problem,description,rho,matrix)
     values=[label.part==2 ? imag(LinearAlgebra.tr(rho*matrix(label.word))) : real(LinearAlgebra.tr(rho*matrix(label.word)))
         for label in built.table.labels]
@@ -174,5 +180,32 @@ end
         @test Nx.expectation(result,x[1]*y[2]*z[3])≈expected/6 atol=1e-11
         Nx.refresh_coverage!(built.table,built.program)
         @test all(id->Nx.moment_covered(built.table,id),built.program.forms.ids)
+    end
+end
+
+@testset "Exact continuous arithmetic survives coefficient overflow" begin
+    registry,(x,y,z)=Nx.pauli_variables(4)
+    H=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+0.4z[i]*z[mod1(i+1,4)] for i in 1:4)
+    ds=(Nx.SpinRotation(registry,:z),)
+    translation=Nx.SitePermutation([2,3,4,1])
+    description=Nx.Relaxation(order=2)
+    baseline=Nx.build(Nx.Problem(H;symmetry=Nx.Symmetry(translation;continuous=ds)),description)
+    # Two derivative terms meet in one translated orbit. Their sum overflows
+    # Int even though each coefficient fits; the next case fails conversion.
+    # D_z(XXXY) = 2 XXYY + XYXY - XXXX on these orbits. Wrapping the
+    # doubled coefficient would change a nonzero invariant moment relation.
+    for factor in (1//3,(typemax(Int)÷2+1)//1,big(2)^80,0.1)
+        scaled=Tuple(TestScaledDerivation(d,factor) for d in ds)
+        built=Nx.build(Nx.Problem(H;symmetry=Nx.Symmetry(translation;continuous=scaled)),description)
+        @test built.program.nvars==baseline.program.nvars
+        @test built.program.blocks==baseline.program.blocks
+        @test built.program.forms.ids==baseline.program.forms.ids
+        @test built.program.forms.coefs==baseline.program.forms.coefs
+        @test built.program.forms.offsets==baseline.program.forms.offsets
+        @test built.program.objective_ids==baseline.program.objective_ids
+        @test built.program.objective_coefs==baseline.program.objective_coefs
+        @test built.table.labels==baseline.table.labels
+        @test built.table.coordinates==baseline.table.coordinates
+        @test built.sizes.closure.continuous.arithmetic==(factor==1//3 ? :checked_machine_rationals : :complex_rationals)
     end
 end

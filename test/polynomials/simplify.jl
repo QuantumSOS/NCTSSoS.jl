@@ -1,6 +1,6 @@
 # NCTSSoS is loaded by parent runtests.jl
 # Exported: simplify, create_*_variables, get_ncbasis, terms, monomials, has_even_parity
-# Internal (not exported): encode_index, decode_site, normal_order_key, is_normal_ordered, find_first_out_of_order, combine_like_terms
+# Internal (not exported): encode_index, decode_site, normal_order_key, is_normal_ordered, find_first_out_of_order
 using NCTSSoS:
     encode_index,
     decode_site,
@@ -8,7 +8,6 @@ using NCTSSoS:
     normal_order_key,
     is_normal_ordered,
     find_first_out_of_order,
-    combine_like_terms,
     _coeff_to_number,
     _simplified_to_terms
 
@@ -731,42 +730,6 @@ end
         ops = Int32[2, -1, 1, -2]  # c₂ c₁† c₁ c₂†
         sorted_ops = sort(ops, by=normal_order_key)
         @test sorted_ops == Int32[-2, -1, 1, 2]  # c₂† c₁† c₁ c₂
-    end
-
-    @testset "combine_like_terms" begin
-        # Test with FermionicAlgebra
-        t1 = (1.0, NormalMonomial{FermionicAlgebra,Int32}(Int32[-1, 1]))
-        t2 = (2.0, NormalMonomial{FermionicAlgebra,Int32}(Int32[-1, 1]))
-        t3 = (1.0, NormalMonomial{FermionicAlgebra,Int32}(Int32[]))
-
-        result = combine_like_terms([t1, t2, t3])
-        @test length(result) == 2
-
-        # Find the combined term
-        combined_term = findfirst(t -> last(t).word == Int32[-1, 1], result)
-        @test !isnothing(combined_term)
-        @test first(result[combined_term]) == 3.0  # 1.0 + 2.0
-
-        # Test cancellation
-        t4 = (1.0, NormalMonomial{FermionicAlgebra,Int32}(Int32[1]))
-        t5 = (-1.0, NormalMonomial{FermionicAlgebra,Int32}(Int32[1]))
-        result_cancel = combine_like_terms([t4, t5])
-        # Should return zero term when everything cancels
-        @test length(result_cancel) == 1
-        @test first(result_cancel[1]) == 0.0
-
-        # Test with BosonicAlgebra
-        b1 = (2.0, NormalMonomial{BosonicAlgebra,Int32}(Int32[-1, 1]))
-        b2 = (3.0, NormalMonomial{BosonicAlgebra,Int32}(Int32[-1, 1]))
-        result_bos = combine_like_terms([b1, b2])
-        @test length(result_bos) == 1
-        @test first(result_bos[1]) == 5.0
-
-        # Test empty input
-        empty_terms = Tuple{Float64,NormalMonomial{FermionicAlgebra,Int32}}[]
-        empty_result = combine_like_terms(empty_terms)
-        @test length(empty_result) == 1
-        @test first(empty_result[1]) == 0.0
     end
 end
 

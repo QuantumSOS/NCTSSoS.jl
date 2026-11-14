@@ -11,6 +11,8 @@ Returns (processed_coeffs, processed_words).
 This is shared logic between StatePolynomial and NCStatePolynomial constructors.
 """
 function _process_state_terms(coeffs::Vector{C}, words::Vector{W}) where {C<:Number, W}
+    length(coeffs) == length(words) ||
+        throw(ArgumentError("Coefficients and words must have the same length"))
     isempty(words) && return (C[], W[])
 
     perm = sortperm(words)

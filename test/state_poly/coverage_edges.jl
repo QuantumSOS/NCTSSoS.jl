@@ -78,6 +78,16 @@ import Graphs
         sw1 = ς(m1)
         sw2 = ς(m2)
 
+        @testset "Constructor length agreement" begin
+            for (constructor, word) in ((StatePolynomial, sw1), (NCStatePolynomial, NCStateWord(sw1, m1)))
+                @test_throws ArgumentError constructor([1.0, 99.0], [word])
+                @test_throws ArgumentError constructor([1.0], [word, word])
+                @test_throws ArgumentError constructor([1.0], typeof(word)[])
+                @test_throws ArgumentError constructor(Float64[], [word])
+                @test iszero(constructor(Float64[], typeof(word)[]))
+            end
+        end
+
         # Accessors
         sp = StatePolynomial([1.0, 2.0], [sw1, sw2])
         @test coefficients(sp) == sp.coeffs

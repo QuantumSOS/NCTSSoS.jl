@@ -522,23 +522,6 @@ function simplify!(::Type{FermionicAlgebra}, word::Vector{T}) where {T<:Signed}
     return result
 end
 
-"""
-    _is_fermionic_nilpotent(word::Vector{T}) where {T<:Signed} -> Bool
-
-Check if a fermionic word contains repeated identical operators (nilpotent: aᵢ² = 0 or (a†ᵢ)² = 0).
-
-Note: aᵢ and a†ᵢ are DIFFERENT operators (indices 1 and -1 for mode 1), so
-[1, -1] is NOT nilpotent, but [1, 1] or [-1, -1] are.
-"""
-function _is_fermionic_nilpotent(word::Vector{T}) where {T<:Signed}
-    seen = Set{T}()
-    for idx in word
-        idx ∈ seen && return true
-        push!(seen, idx)
-    end
-    return false
-end
-
 # =============================================================================
 # Validation (for NormalMonomial constructor)
 # =============================================================================

@@ -198,7 +198,7 @@ export create_projector_variables, create_unipotent_variables, create_noncommuta
 # Core Types (users need these for type annotations and construction)
 export NormalMonomial, Polynomial, VariableRegistry
 export ComposedMonomial
-export AbstractTensorMonomial, AbstractMonomial
+export AbstractMonomial
 
 # Algebra Types (users need for dispatch)
 export AlgebraType

@@ -5,10 +5,9 @@
 # This file defines the core monomial representations for non-commutative
 # polynomial optimization:
 #
-#   AbstractTensorMonomial{As}      # Abstract base for tensor-product monomials
-#   ├── AbstractMonomial{A,T}       # Single-algebra monomials
-#   │   ├── NormalMonomial{A,T}     # Canonical word representation (immutable)
-#   └── ComposedMonomial{As,Ts}     # Multi-algebra tensor products (defined elsewhere)
+#   AbstractMonomial{A,T}          # Single-algebra monomials
+#   └── NormalMonomial{A,T}        # Canonical word representation (immutable)
+#   ComposedMonomial{As,Ts}        # Multi-algebra tensor products (defined elsewhere)
 #
 # Design Principles:
 # - Algebra type `A` is a type parameter for zero-overhead dispatch
@@ -24,36 +23,16 @@
 # =============================================================================
 
 """
-    AbstractTensorMonomial{As<:Tuple}
-
-Abstract supertype for monomials living in an **ordered tensor-product algebra**
-`⊗_{i} As[i]`.
-
-The signature `As` is **semantic and ordered**:
-`Tuple{PauliAlgebra,FermionicAlgebra}` is different from
-`Tuple{FermionicAlgebra,PauliAlgebra}`.
-
-This type exists to enable signature-level multiple dispatch without wrapper
-objects.
-
-See also: [`AbstractMonomial`](@ref), [`ComposedMonomial`](@ref)
-"""
-abstract type AbstractTensorMonomial{As<:Tuple} end
-
-"""
     AbstractMonomial{A<:AlgebraType, T<:Integer}
 
-Abstract supertype for all monomial types, parameterized by algebra type and integer type.
+Abstract supertype for single-algebra monomial types, parameterized by algebra type and integer type.
 
 The type hierarchy is:
 ```
-AbstractTensorMonomial{As}
-├── AbstractMonomial{A,T}                 # Single-algebra monomials (As == Tuple{A})
-│   ├── NormalMonomial{A,T}               # Bare word (always in canonical form)
-│   ├── Monomial{A,T,C,W}                 # User-facing wrapper (coeff + word(s))
-│   ├── StateSymbol{ST,A,T}               # State expectation symbol (in src/states/)
-│   └── StateWord{ST,A,T}                 # Product of state symbols (in src/states/)
-└── ComposedMonomial{As,Ts}               # Multi-algebra tensor monomial (in composed.jl)
+AbstractMonomial{A,T}
+├── NormalMonomial{A,T}                  # Bare word (always in canonical form)
+├── StateSymbol{ST,A,T}                  # State expectation symbol (in src/states/)
+└── StateWord{ST,A,T}                    # Product of state symbols (in src/states/)
 ```
 
 # Interface
@@ -64,9 +43,9 @@ All subtypes should implement:
 - `Base.:(==)(m1, m2)`: Equality comparison
 - `Base.hash(m, h)`: Hash function
 
-See also: [`NormalMonomial`](@ref), [`AbstractTensorMonomial`](@ref)
+See also: [`NormalMonomial`](@ref), [`ComposedMonomial`](@ref)
 """
-abstract type AbstractMonomial{A<:AlgebraType,T<:Integer} <: AbstractTensorMonomial{Tuple{A}} end
+abstract type AbstractMonomial{A<:AlgebraType,T<:Integer} end
 
 # =============================================================================
 # Shared helpers (keep NormalMonomial / Monomial definitions DRY)

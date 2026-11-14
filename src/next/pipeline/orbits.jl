@@ -1,5 +1,5 @@
-# M1 spike: signed actions on self-adjoint words. No word representation is
-# inspected here. In particular, the orbit table also accepts degree-changing
+# Signed actions through contract 1. No word representation is inspected here.
+# In particular, the orbit table also accepts degree-changing
 # actions; only the cyclic action used to split a block must preserve its rows.
 
 struct CyclicRows{W,G}
@@ -38,79 +38,14 @@ function CyclicRows(rows::AbstractVector{W}, g::AbstractAction, order::Integer) 
     return CyclicRows(g, Int(order), orbits, phases, stabilizers)
 end
 
-mutable struct OrbitMoments{W,G,D}
-    generators::G
-    annihilators::D
-    cache::Dict{W,Tuple{Int32,Phase}}
-    labels::Vector{MomentLabel{W}}
-    pending::Vector{W}
-    phases::Dict{W,Phase}
-end
-
-function OrbitMoments(::Type{W}, generators; annihilators=()) where {W<:AbstractWord}
-    e = one(W)
-    t = OrbitMoments(generators, annihilators, Dict{W,Tuple{Int32,Phase}}(),
-        [MomentLabel(e, 0x00)], W[], Dict{W,Phase}())
-    id, p = orbit_moment!(t, e)
-    id == 1 && isone(p) || throw(ArgumentError("A symmetry must fix the identity with phase +1."))
-    return t
-end
-
-"Return id and phase with L(w) = phase*y[id]; id zero means a forced zero."
-function orbit_moment!(t::OrbitMoments{W}, w::W) where {W}
-    # A signed stabilizer forces zero without enumerating or caching its
-    # whole orbit. The supplied actions are elements of the symmetry group.
-    for g in t.annihilators
-        p, u = act(g, w)
-        u == w && p.k == 0x02 && return (Int32(0), one(Phase))
-    end
-    haskey(t.cache, w) && return t.cache[w]
-    empty!(t.pending); empty!(t.phases)
-    push!(t.pending, w); t.phases[w] = one(Phase)
-    rep, zero_orbit = w, false
-    i = 1
-    while i <= length(t.pending)
-        v = t.pending[i]; pv = t.phases[v]
-        moment_reality(v) == :real || throw(ArgumentError(
-            "The M1 orbit spike requires self-adjoint words with real moments."))
-        for g in t.generators
-            q, u = act(g, v)
-            isreal(q) || throw(ArgumentError("A self-adjoint word must map to a self-adjoint word with real phase."))
-            # Antiunitary invariance is L(g(v)) = conj(L(v)). The moments
-            # in this spike are real, so the same signed relation applies.
-            pu = pv * q
-            if haskey(t.phases, u)
-                zero_orbit |= t.phases[u] != pu
-            else
-                t.phases[u] = pu; push!(t.pending, u)
-                isless(u, rep) && (rep = u)
-            end
-        end
-        i += 1
-    end
-    id = if zero_orbit
-        Int32(0)
-    elseif isone(rep)
-        Int32(1)
-    else
-        push!(t.labels, MomentLabel(rep, 0x01))
-        Int32(length(t.labels))
-    end
-    pr = t.phases[rep]
-    for v in t.pending
-        t.cache[v] = (id, t.phases[v] * conj(pr))
-    end
-    return t.cache[w]
-end
-
 struct OrbitFormSink{T}
     table::T
     terms::Dict{Int32,ComplexF64}
 end
 function push_term!(s::OrbitFormSink, c::Number, w::AbstractWord)
-    id, p = orbit_moment!(s.table, w)
-    id == 0 && return s
-    s.terms[id] = get(s.terms, id, 0.0im) + scale(p, ComplexF64(c))
+    m = orbit_coordinates!(s.table, w)
+    m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, 0.0im) + c*m.real_coefficient)
+    m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, 0.0im) + c*m.imag_coefficient)
     return s
 end
 
@@ -169,8 +104,7 @@ orbits. `labels` are commuting diagonal actions on these rows. Additional
 antiunitary maps; they do not claim a further block split. Returns program,
 orbit table, and the (momentum, row-label) of each block.
 
-This M1 implementation requires real self-adjoint moments. It constructs no
-site-space moment matrix. A single sum over the second row orbit suffices:
+This constructs no site-space moment matrix. A single sum over the second row orbit suffices:
 translation invariance removes the sum over the first orbit.
 """
 function cyclic_program(rows::AbstractVector{W}, objective, g::AbstractAction, order::Integer;

@@ -17,7 +17,7 @@ function OrbitGroup(generators::AbstractVector{A}; limit=65535) where {A<:Abstra
     any(is_antiunitary, generators) && throw(ArgumentError("Finite block generators must be unitary; pass antiunitary maps as moment generators."))
     1 <= limit <= 65535 || throw(ArgumentError("The generic group limit must be at most 65,535."))
     elements = A[one(first(generators))]
-    indices = Dict(first(elements) => 1)
+    indices = Dict{A,Int}(first(elements) => 1)
     i = 1
     while i <= length(elements)
         for g in generators
@@ -114,7 +114,7 @@ function _project_orbits(rows::AbstractVector{W}, generators, group, projections
     sectors
 end
 
-function _projected_program(::Type{W}, sectors, objective, generators) where {W<:AbstractWord}
+function _projected_program(::Type{W}, sectors, objective, generators;real_blocks=false) where {W<:AbstractWord}
     table = OrbitMoments(W, generators)
     program = MomentProgram{ComplexF64}()
     sink = OrbitFormSink(table, Dict{Int32,ComplexF64}())
@@ -126,9 +126,9 @@ function _projected_program(::Type{W}, sectors, objective, generators) where {W<
                 p, sa = star(a)
                 mul!(sink, sa, b, scale(p, conj(ca) * cb))
             end
-            _close_orbit_form!(program.forms, sink.terms; diagonal=i == j)
+            _close_orbit_form!(program.forms, sink.terms; diagonal=real_blocks || i == j)
         end
-        push_block!(program, HPSD, length(rows), s)
+        push_block!(program, real_blocks ? PSD : HPSD, length(rows), s)
     end
     _orbit_objective!(program, table, objective)
 end
@@ -136,11 +136,16 @@ end
 "Direct finite-group reduction, using shared projectors on one row orbit at a time."
 function finite_program(rows::AbstractVector{W}, objective, generators::AbstractVector{<:AbstractAction};
     moment_generators=(), limit=65535) where {W<:AbstractWord}
+    generators=map(g->_group_action(W,g),generators)
     all_generators = (generators..., moment_generators...)
     _check_objective(objective, all_generators)
     group = OrbitGroup(generators; limit)
     projections, ranks = shared_projections(group)
     sectors = _project_orbits(rows, generators, group, projections)
-    p, table = _projected_program(W, sectors, objective, all_generators)
+    anti_index=findfirst(is_antiunitary,moment_generators)
+    if !isnothing(anti_index)
+        sectors=_real_finite_sectors(rows,sectors,group,moment_generators[anti_index])
+    end
+    p, table = _projected_program(W, sectors, objective, all_generators;real_blocks=!isnothing(anti_index))
     return _anti_real_program(p, all_generators), table, (; group_order=length(group), projection_ranks=ranks, sectors)
 end

@@ -1,8 +1,8 @@
 "Induced signed/phase action on the cyclic row representatives at momentum k."
-function _momentum_action(orbits, index, h, k)
+function _momentum_action(orbits, index, h, k; before=nothing)
     images = Vector{Tuple{ComplexF64,Int}}(undef, length(orbits.words))
     for (a, ws) in enumerate(orbits.words)
-        p, w = act(h, first(ws))
+        p, w = _action_image(h, first(ws), before)
         haskey(index, w) || throw(ArgumentError("The point group does not preserve the row family."))
         b, t = index[w]
         q = p * conj(orbits.phases[b][t])
@@ -36,6 +36,11 @@ function _momentum_projectors(active, actions, projections)
 end
 
 function _real_momentum_sectors(sectors, orbits, index, k, anti, point, conjugations)
+    candidates=[h for (h,r) in zip(point.elements,conjugations) if mod((r+1)*k,orbits.order)==0]
+    _real_character_sectors(sectors,orbits,index,k,anti,candidates)
+end
+
+function _real_character_sectors(sectors,orbits,index,k,anti,candidates)
     result = [Vector{Tuple{ComplexF64,Int}}[] for _ in sectors]
     n = length(orbits.words)
     for (s, rows) in enumerate(sectors)
@@ -45,32 +50,15 @@ function _real_momentum_sectors(sectors, orbits, index, k, anti, point, conjugat
             Q[a,j] = c
         end
         found = false
-        for (h,r) in zip(point.elements, conjugations)
-            mod((r + 1)*k, orbits.order) == 0 || continue
-            action = _momentum_action(orbits, index, compose(h,anti), k)
+        for h in candidates
+            action = _momentum_action(orbits, index, h, k; before=anti)
             image = zeros(ComplexF64, size(Q))
             for a in 1:n, j in axes(Q,2)
                 phase,b = action[a]
                 image[b,j] += phase * conj(Q[a,j])
             end
-            B = Q' * image
-            LinearAlgebra.norm(image - Q*B) <= 1e-9 || continue
-            LinearAlgebra.norm(B*conj(B) - LinearAlgebra.I) <= 1e-9 || continue
-            # Fixed vectors of an antiunitary involution form a real space.
-            # Real Gram-Schmidt keeps the sparse orbit/pair support, unlike
-            # a dense Takagi factorization of the entire momentum sector.
-            fixed = Vector{ComplexF64}[]
-            for j in axes(Q,2), odd in (false,true)
-                v = odd ? (Q[:,j]-image[:,j])/2im : (Q[:,j]+image[:,j])/2
-                for u in fixed
-                    c = LinearAlgebra.dot(u,v)
-                    abs(c) > 1e-12 && (v .-= real(c).*u)
-                end
-                norm = LinearAlgebra.norm(v)
-                norm > 1e-9 || continue
-                push!(fixed,v/norm)
-            end
-            length(fixed) == length(rows) || error("Antiunitary fixed-space rank mismatch.")
+            fixed = _fixed_real_columns(Q,image)
+            isnothing(fixed) && continue
             result[s] = [[(c,a) for (a,c) in enumerate(v) if abs(c)>1e-12] for v in fixed]
             found = true
             break
@@ -110,6 +98,10 @@ end
 
 function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, cache; real_blocks=false)
     characters = [cispi(-2k*t/orbits.order) for t in 0:(orbits.order-1)]
+    _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks)
+end
+
+function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks=false)
     fourier = Dict{Tuple{Int,Int},Dict{Int32,ComplexF64}}()
     for (s, reduced_rows) in enumerate(sectors)
         isempty(reduced_rows) && continue
@@ -140,12 +132,14 @@ The full lattice group is never enumerated.
 """
 function lattice_program(rows::AbstractVector{W}, objective, translation, order,
     point_generators::AbstractVector{<:AbstractAction}; moment_generators=()) where {W<:AbstractWord}
+    translation=_group_action(W,translation)
+    point_generators=map(g->_group_action(W,g),point_generators)
     all_generators = (translation, point_generators..., moment_generators...)
     _check_objective(objective, all_generators)
     orbits = CyclicRows(rows, translation, order)
     point = OrbitGroup(point_generators)
     conjugations = map(point.elements) do h
-        t = compose(compose(h, translation), inv(h))
+        t = _conjugate_action(h,translation)
         t == translation && return 1
         t == inv(translation) && return -1
         throw(ArgumentError("Name a normal translation subgroup: each point map must conjugate the translation to itself or its inverse."))
@@ -167,7 +161,7 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
     anti_index = findfirst(is_antiunitary, moment_generators)
     if !isnothing(anti_index)
         anti = moment_generators[anti_index]
-        compose(compose(anti,translation),inv(anti)) == translation ||
+        _conjugate_action(anti,translation) == translation ||
             throw(ArgumentError("The M1 lattice antiunitary must commute with the named translation."))
     end
     for k in 0:(order - 1)

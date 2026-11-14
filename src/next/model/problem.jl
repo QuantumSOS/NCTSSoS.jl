@@ -67,10 +67,6 @@ struct Relaxation{R} <: AbstractRelaxation
     end
 end
 
-_pack_word(::Type{W},w::AbstractWord) where {W<:AbstractWord} = convert(W,w)
-_pack_word(::Type{SiteWord{A,V,B,S}},w::SiteWord{A,U,B,S}) where {A,U,V,B,S} =
-    SiteWord{A,V,B,S}(V(w.bits),Val(:normal))
-
 function _rows(p::Problem,r::Relaxation,::Type{W}) where {W}
     registry = p.objective.registry
     if isnothing(r.rows)

@@ -96,5 +96,12 @@ end
         @test failed.bound_kind==:unavailable
         @test occursin(limit,failed.solution.raw_status)
         @test occursin(string(status),sprint(show,failed))
+        @test_throws Regex("$(status).*no accepted solution") N.expectation(failed,p.objective)
     end
+end
+
+isdefined(@__MODULE__,:check_expectations) || include("../model/expectations.jl")
+@testset "Reading expectations through native SCS" begin
+    check_expectations(N.SCSBackend(verbose=0,eps_abs=TOL,eps_rel=TOL),
+        optimizer_with_attributes(SCS.Optimizer,"verbose"=>0,"eps_abs"=>TOL,"eps_rel"=>TOL))
 end

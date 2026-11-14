@@ -1,5 +1,10 @@
 # Tests of the model layer of NCTSSoS.Next.
 
+isdefined(@__MODULE__,:check_expectations) || include("expectations.jl")
+@testset "Reading expectations through JuMP" begin
+    check_expectations(Nx.JuMPBackend(SOLVER),SOLVER)
+end
+
 @testset "Registry display and minimal relaxation storage" begin
     r = Nx.Registry(Nx.Pauli(),3,[:Alice=>(1,0),:Bob=>(2,0),:Carol=>(3,0)])
     v = Nx.variables(r)
@@ -168,10 +173,13 @@ end
     fixed = Nx.solve(limited,Nx.Zero(x-0.6))
     @test fixed.bound ≈ 0.6 atol=2e-5
     @test fixed.solution.handle === result.solution.handle
+    @test Nx.expectation(fixed,x) ≈ 0.6 atol=2e-5
+    @test Nx.expectation(result,x) ≈ -1 atol=2e-5
     failed = Nx.solve(fixed,Nx.Positive(x-0.8))
     @test failed.bound === nothing
     @test failed.bound_kind==:unavailable
     @test failed.status in (JuMP.MOI.INFEASIBLE,JuMP.MOI.INFEASIBLE_OR_UNBOUNDED)
+    @test_throws r"INFEASIBLE.*no accepted solution" Nx.expectation(failed,x)
     @test_throws ArgumentError Nx.build(Nx.Problem(x;constraints=(Nx.Positive(1-x^4),)),Nx.Relaxation(order=1))
     # Direct use of both standard forms shares the same backend entry point.
     built = Nx.build(p,Nx.Relaxation(order=2))

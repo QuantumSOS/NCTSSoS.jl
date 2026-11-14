@@ -88,7 +88,7 @@ function sympleq_generators(
 ) where {T<:Integer,C<:Number}
     tab = SymplecticTableau(H)
     graph = cycle_augmented_graph(tab; cycle_strategy)
-    perms = automorphism_generators(graph; backend=ga_backend, max_automorphisms)
+    perms = automorphism_generators(graph; backend=ga_backend, max_automorphisms, paulis=tab.paulis)
     generators = SympleQGenerator[]
 
     for perm in perms

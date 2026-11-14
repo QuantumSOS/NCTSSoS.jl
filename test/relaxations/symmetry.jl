@@ -621,6 +621,64 @@ end
         end
     end
 
+    @testset "SympleQ preserves the relation space, not a chosen basis" begin
+        # A faithful action on signed words avoids enumerating thousands of
+        # full Clifford objects. Include all letters, so this also distinguishes
+        # maps with the same action on Hamiltonian terms.
+        function signed_word_group(generators, letters)
+            PG = NCTSSoS.PermutationGroups
+            words = unique([letters; [w for g in generators for (_, w) in values(g.images)]])
+            lookup = Dict(w => i for (i, w) in enumerate(words))
+            d = length(words)
+            function permutation(g)
+                images = zeros(Int, 2d)
+                for (i, w) in enumerate(words)
+                    sign, image = NCTSSoS._act_monomial(g, w)
+                    j = lookup[image] # fails if the proposed domain is not closed
+                    images[i] = sign == 1 ? j : j + d
+                    images[i + d] = sign == 1 ? j + d : j
+                end
+                return PG.Perm{Int}(images)
+            end
+            return PG.PermGroup(permutation.(generators)), permutation
+        end
+
+        for (model, sizes) in ((:heisenberg, (4, 6, 8, 16, 32)), (:ising, (16, 32, 64)))
+            for n in sizes
+                _, ops = create_pauli_variables(1:n)
+                x, y, z = ops
+                H = model == :heisenberg ?
+                    sum(o[i] * o[mod1(i + 1, n)] for o in ops for i in 1:n) :
+                    sum(z[i] * z[mod1(i + 1, n)] + 0.7x[i] for i in 1:n)
+                spec = sympleq_symmetry_spec(H)
+                @test all(g -> NCTSSoS._act_polynomial(g, H) == H, spec.clifford_generators)
+                @test length(spec.clifford_generators) <= 10
+                group, permutation = signed_word_group(spec.clifford_generators, [x; y; z])
+                @test permutation(pauli_chain_translation(ops)) in group
+                @test permutation(pauli_chain_reflection(ops)) in group
+                @test NCTSSoS.GroupsCore.order(Int, group) == (model == :heisenberg ? 96n : 4n)
+                if model == :heisenberg
+                    @test all(g -> permutation(g) in group, pauli_global_axis_rotation_generators(ops))
+                end
+            end
+        end
+
+        # No triples exist here. Four commuting terms have one relation; the
+        # fifth is independent. The empty anticommutation graph alone permits
+        # 5! permutations; exactly 4! preserve the relation (identity omitted).
+        _, (x, _, _) = create_pauli_variables(1:4)
+        H = 1.0 * (x[1] + x[2] + x[3] + x[1] * x[2] * x[3] + x[4])
+        tab = SymplecticTableau(H)
+        @test only(length.(NCTSSoS.pauli_cycle_basis(tab))) == 4
+        # Invalid graph permutations must be pruned before consuming this cap.
+        generators = NCTSSoS.sympleq_generators(H; max_automorphisms=25)
+        @test length(generators) == 23
+        independent = findfirst(==(x[4]), tab.monomials)
+        @test all(g -> g.permutation[independent] == independent, generators)
+        spec = sympleq_symmetry_spec(H)
+        @test all(g -> NCTSSoS._act_polynomial(g, H) == H, spec.clifford_generators)
+    end
+
     @testset "SympleQ deterministic internals" begin
         reg, (σx, σy, σz) = create_pauli_variables(1:3)
         hamiltonian = 2.0 * σx[1] + 2.0 * σz[1] + 3.0 * σx[2] * σz[3]
@@ -648,8 +706,8 @@ end
         cycle_tab = SymplecticTableau(1.0 * (σx[1] + σx[2] + σx[1] * σx[2]))
         @test NCTSSoS.pauli_cycle_basis(cycle_tab) == [[1, 2, 3]]
         augmented = NCTSSoS.cycle_augmented_graph(cycle_tab)
-        @test augmented.cycles == [[1, 2, 3]]
-        @test augmented.auxiliary_vertices == [4]
+        @test isempty(augmented.cycles)
+        @test isempty(augmented.auxiliary_vertices)
         @test_throws ArgumentError NCTSSoS.pauli_cycle_basis(cycle_tab; cycle_strategy=:minimal_circuits)
 
         @test_throws ArgumentError NCTSSoS.TermPermutation([1, 1])

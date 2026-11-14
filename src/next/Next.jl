@@ -36,6 +36,7 @@ include("model/front.jl")
 export pauli_variables, fermionic_variables, site_variables, variables,
     Pauli, Fermionic, Free, Projector, Unipotent, SiteAlgebra,
     Problem, Positive, Zero, Symmetry, SitePermutation, CliffordMap, AntiunitaryPauli,
+    SpinRotation, spin_rotations, NumberRotation,
     detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,
     DensityMatrix, InvariantCone, Stationarity, StateOptimality, Sector, FermionicConditions,
     inspect, solve, expectation, SCSBackend, JuMPBackend

@@ -247,3 +247,63 @@ function derive!(sink,d::SpinRotation{K},w::PauliWord{K},c::Number=1) where {K}
     end
     return sink
 end
+
+"Infinitesimal number rotation d(w) = i [Σ a†a, w] on the selected modes."
+struct NumberRotation{K} <: AbstractDerivation
+    support::NTuple{K,UInt64}
+end
+Base.:(==)(a::NumberRotation,b::NumberRotation) = a.support==b.support
+Base.hash(d::NumberRotation,h::UInt) = hash(d.support,hash(NumberRotation,h))
+function derive!(sink,d::NumberRotation{K},w::FermiWord{K},c::Number=1) where {K}
+    charge=0
+    for i in 1:K
+        charge+=count_ones(w.c[i]&d.support[i])-count_ones(w.a[i]&d.support[i])
+    end
+    iszero(charge) || push_term!(sink,im*charge*c,w)
+    return sink
+end
+
+function _rotation_support(r::Registry,selected)
+    support=zeros(UInt64,max(1,cld(r.nsites,64)))
+    for site in selected
+        site isa Integer && 1<=site<=r.nsites || throw(ArgumentError(
+            "Select integer sites or modes in 1:$(r.nsites) from this registry."))
+        limb,bit=divrem(Int(site)-1,64)
+        mask=UInt64(1)<<bit
+        iszero(support[limb+1]&mask) || throw(ArgumentError("Select distinct sites or modes; $site is repeated."))
+        support[limb+1]|=mask
+    end
+    return Tuple(support)
+end
+
+"""
+    SpinRotation(registry, axis; sites=1:registry.nsites)
+
+Spin rotation about `:x`, `:y` or `:z` on a Pauli registry's selected sites.
+Its convention is d(w) = -i/2 [Σ σ_axis, w]. An empty selection gives zero.
+"""
+function SpinRotation(r::Registry,axis;sites=1:r.nsites)
+    r.algebra isa Pauli || throw(ArgumentError("SpinRotation needs a Pauli registry; use NumberRotation for fermions."))
+    index=findfirst(==(axis),(:x,:y,:z))
+    isnothing(index) && throw(ArgumentError("Use the named spin axis :x, :y or :z."))
+    return SpinRotation(index-1,_rotation_support(r,sites))
+end
+
+"Return the three spin generators (x, y, z) on a Pauli registry's selected sites."
+function spin_rotations(r::Registry;sites=1:r.nsites)
+    x=SpinRotation(r,:x;sites)
+    return (x,SpinRotation(1,x.support),SpinRotation(2,x.support))
+end
+
+"""
+    NumberRotation(registry; modes=1:registry.nsites)
+
+Particle-number rotation on a fermionic registry's selected modes, with
+d(a†) = i a† and d(a) = -i a on those modes. An empty selection gives zero.
+The caller supplies mode subsets such as `modes=1:2:registry.nsites` for
+spin-up orbitals when that is the chosen orbital ordering.
+"""
+function NumberRotation(r::Registry;modes=1:r.nsites)
+    r.algebra isa Fermionic || throw(ArgumentError("NumberRotation needs a fermionic registry; use SpinRotation for Pauli variables."))
+    return NumberRotation(_rotation_support(r,modes))
+end

@@ -197,3 +197,90 @@ end
         @test derivation_allocations(d,rows[end])==0
     end
 end
+
+function derived_terms(d,p::TermDict{W,C}) where {W,C}
+    out=TermDict{W,C}()
+    for (w,c) in p.terms
+        Nx.derive!(out,d,w,c)
+    end
+    return out
+end
+function derived_polynomial(d,p::Nx.Polynomial{W}) where {W}
+    out=TermDict{W,ComplexF64}()
+    for (c,w) in Nx.terms(p)
+        Nx.derive!(out,d,w,c)
+    end
+    return clean(out)
+end
+
+@testset "User derivations and contract 1" begin
+    rng=MersenneTwister(423)
+    r,(x,y,z)=Nx.pauli_variables(3)
+    rotations=Nx.spin_rotations(r)
+    @test rotations==Tuple(Nx.SpinRotation(r,axis) for axis in (:x,:y,:z))
+    h=sum(x[i]*x[mod1(i+1,3)]+y[i]*y[mod1(i+1,3)]+z[i]*z[mod1(i+1,3)] for i in 1:3)
+    xxz=h+sum(z[i]*z[mod1(i+1,3)] for i in 1:3)
+    @test all(isempty(derived_polynomial(d,h)) for d in rotations)
+    @test map(d->isempty(derived_polynomial(d,xxz)),rotations)==(false,false,true)
+    @test !isempty(derived_polynomial(Nx.SpinRotation(r,:z;sites=[1]),h))
+    @test isempty(derived_polynomial(Nx.SpinRotation(r,:x;sites=Int[]),h))
+    @test_throws r"named spin axis" Nx.SpinRotation(r,:bad)
+    @test_throws r"distinct" Nx.SpinRotation(r,:x;sites=[1,1])
+    @test_throws r"integer sites" Nx.SpinRotation(r,:x;sites=[0])
+    @test_throws r"integer sites" Nx.SpinRotation(r,:x;sites=[1.5])
+    @test_throws r"fermionic registry" Nx.NumberRotation(r)
+    f,(a,ad)=Nx.fermionic_variables(3)
+    @test_throws r"Pauli registry" Nx.SpinRotation(f,:z)
+    number=Nx.NumberRotation(f)
+    hopping=ad[1]*a[2]+ad[2]*a[1]+ad[2]*a[3]+ad[3]*a[2]
+    pair=ad[1]*ad[2]+a[2]*a[1]
+    @test isempty(derived_polynomial(number,hopping))
+    @test derived_polynomial(number,pair)==Dict(w=>c for (c,w) in Nx.terms(2im*(ad[1]*ad[2]-a[2]*a[1])))
+    @test !isempty(derived_polynomial(Nx.NumberRotation(f;modes=[1]),hopping))
+    @test isempty(derived_polynomial(Nx.NumberRotation(f;modes=Int[]),pair))
+
+    pauli_rows=Nx.basis_rows(Nx.PauliWord{1},Nx.Pauli(),1:3,3)
+    cases=[(d,pauli_rows) for d in Nx.spin_rotations(r;sites=[1,3])]
+    for (n,active,selected) in ((4,[1,2,4],[1,4]),(100,[1,64,65,100],[1,65,100]))
+        registry,_=Nx.fermionic_variables(n)
+        d=Nx.NumberRotation(registry;modes=selected)
+        @test d==Nx.NumberRotation(registry;modes=reverse(selected))
+        @test hash(d)==hash(Nx.NumberRotation(registry;modes=reverse(selected)))
+        @test d!=Nx.NumberRotation(registry;modes=Int[])
+        W=Nx.word_type(registry,1)
+        K=cld(n,64)
+        masks=[ntuple(k->sum((UInt64(1)<<((site-1)%64) for site in active
+            if (site-1)÷64+1==k && rand(rng,Bool));init=UInt64(0)),K) for _ in 1:80]
+        words=[Nx.FermiWord(rand(rng,masks),rand(rng,masks)) for _ in 1:100]
+        push!(words,Nx.fermi_letter(W,-last(selected)))
+        for w in words
+            charge=-sum((sign(l) for l in Nx.legacy_letters(w) if abs(l) in selected);init=0)
+            got=Nx.derive!(TermDict{W,ComplexF64}(),d,w,2-3im)
+            @test clean(got)==(charge==0 ? Dict{W,ComplexF64}() : Dict(w=>im*charge*(2-3im)))
+            @test derivation_allocations(d,w)==0
+        end
+        # Keep the cases heterogeneous: the tests must exercise both mask widths.
+        for _ in 1:100
+            u,v=rand(rng,words),rand(rng,words)
+            du=Nx.derive!(TermDict{W,ComplexF64}(),d,u,1)
+            dv=Nx.derive!(TermDict{W,ComplexF64}(),d,v,1)
+            rhs=times(du,v)
+            for (w,c) in times(u,dv).terms; Nx.push_term!(rhs,c,w); end
+            @test clean(derived_terms(d,product_terms(u,v,ComplexF64)))==clean(rhs)
+            single=TermDict{W,ComplexF64}(Dict(u=>2-3im))
+            @test clean(derived_terms(d,star_terms(single)))==clean(star_terms(derived_terms(d,single)))
+        end
+    end
+    for (d,words) in cases, _ in 1:100
+        u,v=rand(rng,words),rand(rng,words)
+        W=typeof(u)
+        du=Nx.derive!(TermDict{W,ComplexF64}(),d,u,1)
+        dv=Nx.derive!(TermDict{W,ComplexF64}(),d,v,1)
+        rhs=times(du,v)
+        for (w,c) in times(u,dv).terms; Nx.push_term!(rhs,c,w); end
+        @test clean(derived_terms(d,product_terms(u,v,ComplexF64)))==clean(rhs)
+        single=TermDict{W,ComplexF64}(Dict(u=>2-3im))
+        @test clean(derived_terms(d,star_terms(single)))==clean(star_terms(derived_terms(d,single)))
+        @test derivation_allocations(d,u)==0
+    end
+end

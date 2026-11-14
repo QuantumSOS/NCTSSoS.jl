@@ -6,7 +6,9 @@ struct RowBlock{W,C}
     source::Int
 end
 
-_block_key(b::RowBlock) = (b.source,Tuple(b.rows))
+# Vector keys hash/compare by contents without specializing on row count.
+# Rows must not be mutated after their block is indexed.
+_block_key(b::RowBlock) = (b.source,b.rows)
 function _mapped_block(b::RowBlock,g)
     rows=sort!([act(g,w)[2] for w in b.rows])
     RowBlock(rows,b.polynomial,b.kind,b.source)

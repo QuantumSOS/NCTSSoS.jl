@@ -1,5 +1,5 @@
 # =============================================================================
-# SympleQ Step 4: cycle-basis augmentation
+# SympleQ Step 4: linear relations (checked algebraically during search)
 # =============================================================================
 
 function _gf2_rref(A::AbstractMatrix{<:Integer})
@@ -98,9 +98,8 @@ Return cycles as vectors of Pauli-term vertex indices. The default and currently
 only implemented strategy is a GF(2) cycle basis of `pᵀ`, i.e. a basis for
 linear relations among tableau rows.
 
-This is deliberately *not* called "minimal circuits": the audit flags that word
-as ambiguous in SympleQ Step 4. The `cycle_strategy` keyword exists so the
-implementation can be swapped once the SympleQ source clarifies the convention.
+This algebraic basis is not invariant under term permutations and must not be
+used as a set of graph vertices. The detection search checks its span instead.
 """
 function pauli_cycle_basis(tab::SymplecticTableau; cycle_strategy::Symbol=:cycle_basis)
     cycle_strategy == :cycle_basis || throw(ArgumentError(
@@ -120,28 +119,13 @@ end
 """
     cycle_augmented_graph(tab; cycle_strategy=:cycle_basis)
 
-Build the Step-4 graph by adding one green auxiliary vertex for each selected
-cycle and connecting it to every Pauli-term vertex in that cycle.
+Return the anticommutation graph without auxiliary relation vertices.
+The full relation space is checked algebraically during automorphism search:
+an arbitrary basis must not be required to permute into itself, and enumerating
+all circuits can be exponential. The empty auxiliary set cannot exclude any
+symmetry. The legacy name and `:cycle_basis` keyword remain for compatibility.
 """
 function cycle_augmented_graph(tab::SymplecticTableau; cycle_strategy::Symbol=:cycle_basis)
-    base = anticommutation_graph(tab)
-    cycles = pauli_cycle_basis(tab; cycle_strategy)
-    graph = SimpleGraph(nv(base.graph) + length(cycles))
-
-    for edge in edges(base.graph)
-        add_edge!(graph, src(edge), dst(edge))
-    end
-
-    colors = copy(base.colors)
-    auxiliary_vertices = Int[]
-    for (cycle_idx, cycle) in enumerate(cycles)
-        aux = length(base.pauli_vertices) + cycle_idx
-        push!(auxiliary_vertices, aux)
-        push!(colors, (:cycle, cycle_strategy))
-        for vertex in cycle
-            add_edge!(graph, aux, vertex)
-        end
-    end
-
-    return SympleQGraph(graph, colors, copy(base.pauli_vertices), auxiliary_vertices, cycles)
+    cycle_strategy == :cycle_basis || throw(ArgumentError("Unsupported SympleQ cycle strategy $cycle_strategy."))
+    return anticommutation_graph(tab)
 end

@@ -85,22 +85,23 @@ The SympleQ algorithm encodes the structure of a Pauli Hamiltonian
   absolute value of the coefficient).
 - **Edges:** connect every anticommuting pair
   (``\langle \vec{p}_i, \vec{p}_j \rangle = 1``).
-- **Auxiliary vertices:** one per ``\mathbb{F}_2``-linear dependency among the
-  Pauli vectors ``\{\vec{p}_i\}``. These "cycle vertices" are coloured
-  distinctly and connected to every Pauli vertex involved in the dependency.
+- **Linear relations:** checked algebraically during the search, without
+  auxiliary vertices. The graph alone is not a complete encoding.
 
-A colour-preserving graph automorphism ``\Pi`` permutes Pauli terms while
-preserving three invariants simultaneously:
+The search accepts term permutations ``\Pi`` that preserve three invariants
+simultaneously:
 
 1. **Coefficients** (same colour → same ``|c_i|``).
 2. **Commutation relations** (edges are preserved → symplectic products are
    preserved).
-3. **Linear dependencies** (cycle vertices are preserved → the ``\mathbb{F}_2``
-   column space of the Pauli matrix is preserved).
+3. **Linear dependencies** (the algebraic checks preserve the kernel of the
+   transposed Pauli matrix, including relations longer than three terms).
 
 These are exactly the three invariants of Clifford conjugation. Therefore,
-**every colour-preserving graph automorphism lifts to a Clifford symmetry
-``\hat{S}``** [nation2026sympleq](@cite). The graph construction translates
+**a graph automorphism that also preserves all linear relations admits a
+binary symplectic lift** [nation2026sympleq](@cite). The phase equations must
+still admit a solution for that lift to preserve the signed Hamiltonian.
+The graph construction translates
 the algebraic problem of finding Clifford symmetries into the combinatorial
 problem of finding graph automorphisms — a problem with mature, fast solvers
 [mckay2014practical](@cite) [babai2016graph](@cite).
@@ -131,18 +132,26 @@ to a source file:
    with equal coefficient magnitudes can be exchanged.
    → [`graph.jl`]
 
-4. **Find the ``\mathbb{F}_2`` null space of the Pauli matrix; add auxiliary
-   cycle vertices.** Each null-space basis vector identifies a
-   ``\mathbb{F}_2``-linear dependency among the Pauli rows. A distinctly
-   coloured auxiliary vertex is added for each dependency and connected to
-   every Pauli vertex in that dependency. This forces automorphisms to
-   preserve the linear structure, not just pairwise commutation.
+4. **Prepare exact relation checks, without relation vertices.**
+   Gaussian elimination in search order finds a basis of the
+   full relation space. Each equation is checked on the image rows as soon
+   as its last term is assigned. Zero images of a basis imply zero images
+   of its entire span; since the term map is a permutation, this preserves
+   the full kernel. **Basis relations are equations, not graph vertices:**
+   requiring a particular basis to permute into itself can discard valid
+   translations. The chosen auxiliary-vertex set is empty, so it cannot
+   discard any symmetry. The full-kernel checks enforce linear structure
+   without enumerating all circuits or basis sums, or enlarging the graph
+   with a redundant invariant family of short relations.
+   The legacy keyword `cycle_strategy=:cycle_basis` selects this corrected
+   implementation; `pauli_cycle_basis` itself remains an algebraic utility.
    → [`cycles.jl`]
 
 5. **Run a graph-automorphism solver.** The current implementation uses a
    deterministic in-tree backtracking search (no external binary dependencies).
-   The solver returns all colour-preserving automorphisms restricted to Pauli
-   vertices, yielding a set of term permutations ``\Pi``.
+   The solver returns colour-preserving automorphisms satisfying the full
+   relation checks, restricted to Pauli vertices. Enumeration stops with a
+   warning at `max_automorphisms`; a truncated search is not complete.
    → [`automorphism.jl`]
 
 6. **Synthesize the binary symplectic matrix** ``\underline{S}`` from each
@@ -175,6 +184,13 @@ transform the ``3n`` single-site Pauli generators (``X_i``, ``Y_i``, ``Z_i``
 for each qubit ``i``). The ``Y`` image is derived from the ``X`` and ``Z``
 images using ``Y = iXZ``, so only ``2n`` symplectic lookups are needed.
 
+When the letters and their candidate images form a small closed set (at most
+four times the number of letters), signed permutations on that set give a
+faithful action. Permutation-group membership tests remove redundant
+generators without enumerating the Clifford group. If the set is too large
+or not closed, all candidates are retained. Reduction preserves the generated
+group; it does not promise a minimum generating set.
+
 The collection of `CliffordSymmetry` generators is wrapped in a
 [`SymmetrySpec`](@ref) and handed to the existing SAB machinery:
 
@@ -194,12 +210,15 @@ blocks.
 
 ## [Scaling and limitations](@id sympleq-limits)
 
-**Scaling.** The find-side is dominated by the symplectic product matrix
-computation at ``O(M^2)`` where ``M`` is the number of Pauli terms, and by the
-graph automorphism search whose worst case is exponential but is fast in
-practice for structured Hamiltonians. The SympleQ paper reports tractable
-symmetry detection for systems up to ``n = 1000`` qubits
-[nation2026sympleq](@cite).
+**Scaling.** With dense binary rows, computing symplectic products costs
+``O(M^2 n)`` for ``M`` terms on ``n`` qubits. Relation preprocessing uses
+Gaussian elimination and polynomial storage; no auxiliary vertices or
+exponential set of circuits is constructed. Automorphism search and the number of term
+permutations can still be exponential. Each accepted permutation is currently
+synthesized before the final generator reduction, so compact output does not
+remove this enumeration cost. The SympleQ paper reports systems up to
+``n = 1000`` [nation2026sympleq](@cite); this is not a scaling guarantee for
+this in-tree backend.
 
 **Exploit side not implemented.** The SympleQ paper also describes an
 "exploit" side — qubit-cost minimization and block decomposition into
@@ -230,10 +249,16 @@ spec = SymmetrySpec(auto.clifford_generators..., CliffordSymmetry(:SWAP, 1, 2))
 Every manual generator is still verified for invariance before use, so a
 wrong guess errors out instead of corrupting the relaxation. The
 [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry) example shows this
-union recovering the full group on both the 2-site model and a 4-site ring
-(where ``D_4`` point-group generators plus the detected generators reach a
-group of order 64 and reduce a ``13 \times 13`` moment block to seven
-scalars).
+union recovering the order-48 group on the 2-site model. On Heisenberg rings,
+the corrected relation checks also recover translation; the old order-16
+detection result was an artifact of treating a relation basis as graph vertices.
+
+**Detected maps need not preserve degree.** A Clifford can map a single-site
+letter to a multi-site Pauli word while preserving the Hamiltonian. An
+order-based moment basis need not be closed under it, and
+`SolverConfig(symmetry=...)` then raises a closure error. Use a verified
+basis-preserving subgroup or an explicitly closed basis. Detection does not
+silently discard these valid symmetries to accommodate an SDP basis.
 
 **Hermitian Pauli Hamiltonians only.** The current scope requires that every
 Clifford image of a Pauli generator is a real ``(\pm 1)`` multiple of another

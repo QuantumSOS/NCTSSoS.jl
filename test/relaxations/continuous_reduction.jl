@@ -576,12 +576,30 @@ end
         "eps_abs"=>1e-8,"eps_rel"=>1e-8,"max_iter"=>50000)
     config = SolverConfig(optimizer=solver,order=1)
     triangle = polyopt(bond(1,2)+bond(2,3)+bond(1,3),reg)
-    automatic = continuous_moment_relaxation(triangle,config)
+    # Corrected Clifford discovery includes nonlocal maps that do not
+    # normalize the on-site continuous span. The automatic composition must
+    # reject them; support for enlarging that span is a separate feature.
+    @test_throws r"does not normalize the supplied continuous generator span" continuous_moment_relaxation(triangle,config)
+    triangle_actions = supplied_vector_rotations(reg,[[x[i],y[i],z[i]] for i in 1:3])
+    triangle_control = continuous_moment_relaxation(triangle,config,triangle_actions;
+        compact_metric=Matrix{Int}(I,9,9),
+        clifford_generators=pauli_global_axis_rotation_generators((x,y,z)))
+    triangle_model,_ = build_jump_model(triangle_control.moment_problem)
+    set_optimizer(triangle_model,solver)
+    optimize!(triangle_model)
+    @test termination_status(triangle_model) == MOI.OPTIMAL
+    @test objective_value(triangle_model) ≈ -4.5 atol=2e-5
+
+    # Keep a positive automatic/supplied equivalence check on a model whose
+    # detected Clifford group does preserve the on-site span and basis.
+    pair_reg,(px,py,pz) = create_pauli_variables(1:2)
+    pair = polyopt(px[1]*px[2]+py[1]*py[2]+pz[1]*pz[2],pair_reg)
+    automatic = continuous_moment_relaxation(pair,config)
     @test automatic.discovery.dimension == 3
     @test !isempty(automatic.clifford_generators)
-    supplied = supplied_vector_rotations(reg,[[x[i],y[i],z[i]] for i in 1:3])
-    control = continuous_moment_relaxation(triangle,config,supplied;
-        compact_metric=Matrix{Int}(I,9,9), clifford_generators=automatic.clifford_generators)
+    supplied = supplied_vector_rotations(pair_reg,[[px[i],py[i],pz[i]] for i in 1:2])
+    control = continuous_moment_relaxation(pair,config,supplied;
+        compact_metric=Matrix{Int}(I,6,6), clifford_generators=automatic.clifford_generators)
     @test automatic.original.positive_rows == control.original.positive_rows
     @test automatic.section == control.section
     for reduction in (automatic,control)
@@ -589,11 +607,10 @@ end
         set_optimizer(model,solver)
         optimize!(model)
         @test termination_status(model) == MOI.OPTIMAL
-        # This relaxation is not tight: -4.5, not the ground-state energy -3.
-        @test objective_value(model) ≈ -4.5 atol=2e-5
+        @test objective_value(model) ≈ -3 atol=2e-5
     end
-    @test_throws ArgumentError continuous_moment_relaxation(triangle,config; max_group_order=1)
-    @test_throws ArgumentError continuous_moment_relaxation(triangle,config; max_automorphisms=0)
+    @test_throws ArgumentError continuous_moment_relaxation(pair,config; max_group_order=1)
+    @test_throws ArgumentError continuous_moment_relaxation(pair,config; max_automorphisms=0)
     # Detection supports constant H, but the SympleQ reduction entry point
     # requires a nonconstant Hamiltonian, as does sympleq_symmetry_spec.
     @test_throws ArgumentError continuous_moment_relaxation(polyopt(zero(h),reg),config)

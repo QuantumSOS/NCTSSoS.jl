@@ -1,17 +1,18 @@
-# Run each kind in a fresh process: julia --project benchmark_strengthening.jl density|soc
+# Run each kind in a fresh process: julia --project benchmark_strengthening.jl density|soc|stationarity|optimality
 # Requires MosekTools and a working license. Construction and package loading
 # are outside the timer; the first build includes JIT. No solves are timed.
 using NCTSSoS, JuMP, MosekTools, LinearAlgebra, Statistics
 const Nx=NCTSSoS.Next
 
 function strengthening_measurement(name)
-    name in ("density","soc") || error("Choose density or soc.")
+    name in ("density","soc","stationarity","optimality") || error("Choose density, soc, stationarity or optimality.")
     registry,(x,y,z)=Nx.pauli_variables(3)
     H=-(x[1]*y[2]+x[1]*y[3]+x[2]*x[3]+y[2]*y[3]+z[2]*z[3])
     problem=Nx.Problem(H)
     W=Nx.word_type(registry,4)
     symmetry=Nx.FamilySymmetry([Nx.SitePermutation([1,3,2])];moment_only=(Nx.AntiunitaryPauli(Nx.pauli_letter(W,1,1)),))
-    kind=name=="density" ? Nx.DensityMatrix(1:3) : Nx.InvariantCone(1:3,"YII")
+    kind=name=="density" ? Nx.DensityMatrix(1:3) : name=="soc" ? Nx.InvariantCone(1:3,"YII") :
+        name=="stationarity" ? Nx.Stationarity() : Nx.StateOptimality()
     description=Nx.BlockRelaxation(order=1,strengthen=(kind,),symmetry=symmetry)
     plain=Nx.BlockRelaxation(order=1,symmetry=symmetry)
     println("ENV Julia=",VERSION," threads=",Threads.nthreads()," BLAS=",BLAS.get_num_threads()," CPU=",Sys.cpu_info()[1].model)
@@ -53,10 +54,16 @@ function strengthening_measurement(name)
         old=pauli_strengthened_relaxation(pop,config;subsystems=[[1,2,3]],stationarity=false,moment_domain=:extend)
         model,_=build_jump_model(old.moment_problem)
         set_optimizer(model,optimizer)
-    else
+    elseif name=="soc"
         old=pauli_invariant_soc_nctssos(pop,config;max_rounds=0)
         model=old.model
         add_pauli_invariant_soc!(model,old.moment_problem,[1,2,3],"YII")
+    else
+        old=pauli_strengthened_relaxation(pop,config;moment_domain=:extend,
+            stationarity=name=="stationarity",stationarity_operators=get_ncbasis(registry,2),
+            perturbations=name=="optimality" ? get_ncbasis(registry,1) : typeof(x[1])[])
+        model,_=build_jump_model(old.moment_problem)
+        set_optimizer(model,optimizer)
     end
     optimize!(model)
     println("LEGACY ",name," value=",objective_value(model)," status=",termination_status(model))

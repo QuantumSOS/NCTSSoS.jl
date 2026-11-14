@@ -18,6 +18,18 @@ struct InvariantCone <: StrengtheningKind
     end
 end
 
+"Commutator equalities for the moment words of the selected block family."
+struct Stationarity <: StrengtheningKind end
+
+"Positivity of the objective's second variation on each selected row block."
+struct StateOptimality <: StrengtheningKind end
+
+_validity(::Union{DensityMatrix,InvariantCone}) = "valid for each state"
+_validity(::Stationarity) = "valid for eigenstates of the objective"
+_validity(::StateOptimality) = "valid for the ground space of the objective"
+_strengthening_width(k::Union{DensityMatrix,InvariantCone},problem,order) = length(k.sites)
+_strengthening_width(::Union{Stationarity,StateOptimality},problem,order) = 2order+degree(problem.objective)
+
 function _strengthening_sites(sites)
     ss=Int[sites...]
     !isempty(ss) && issorted(ss) && allunique(ss) && all(>(0),ss) ||
@@ -32,7 +44,7 @@ end
 function Base.show(io::IO,v::StrengthenedStates)
     show(io,v.base)
     for kind in v.kinds
-        print(io,"; ",nameof(typeof(kind)),": valid for each state")
+        print(io,"; ",nameof(typeof(kind)),": ",_validity(kind))
     end
 end
 Base.show(io::IO,::MIME"text/plain",v::StrengthenedStates)=show(io,v)
@@ -139,20 +151,27 @@ function _append_extra!(program,table,extra)
     error
 end
 
-function _strengthen!(program,table,problem,kinds,generators)
+function _strengthen!(program,table,problem,kinds,closure)
     isempty(kinds) && return nothing
     problem.objective.registry.algebra isa Pauli ||
-        throw(ArgumentError("DensityMatrix and InvariantCone require Pauli variables; use fermionic strengthening for a fermionic problem."))
-    all(k->maximum(k.sites)<=problem.objective.registry.nsites,kinds) ||
+        throw(ArgumentError("These strengthening kinds require Pauli variables; use fermionic strengthening for a fermionic problem."))
+    site_kinds=filter(k->k isa Union{DensityMatrix,InvariantCone},kinds)
+    all(k->maximum(k.sites)<=problem.objective.registry.nsites,site_kinds) ||
         throw(ArgumentError("A strengthening site is outside the registry; select existing sites."))
     W=eltype(table.representatives.keys)
-    initial=[_pauli_extra(kind,W,length(problem.constraints)+i) for (i,kind) in enumerate(kinds)]
-    extras,representatives=_extra_orbits(initial,generators)
+    initial=PauliExtra{W}[_pauli_extra(kind,W,length(problem.constraints)+i)
+        for (i,kind) in enumerate(kinds) if kind isa Union{DensityMatrix,InvariantCone}]
+    extras,representatives=_extra_orbits(initial,closure.block_generators)
     start=length(program.blocks)
     errors=[_append_extra!(program,table,extras[i]) for i in representatives]
+    hamiltonian=_hamiltonian_strengthen!(program,table,problem,kinds,closure)
     program.nvars=length(table.labels)
     validate(program)
-    return (initial_cones=length(initial),closed_cones=length(extras),representatives=extras[representatives],
-        added_blocks=length(program.blocks)-start,added_equalities=0,first_block=start+1,
-        reconstruction_error=maximum(errors),kinds=kinds)
+    noptimal=count(k->k isa StateOptimality,kinds)
+    cones=isnothing(hamiltonian) ? extras[representatives] : [extras[representatives];hamiltonian.representatives]
+    return (initial_cones=length(initial)+noptimal*closure.initial_blocks,
+        closed_cones=length(extras)+noptimal*closure.closed_blocks,representatives=cones,
+        added_blocks=count(b->b.kind!=ZERO,program.blocks[start+1:end]),
+        added_equalities=sum((b.side for b in program.blocks[start+1:end] if b.kind==ZERO);init=0),first_block=start+1,
+        reconstruction_error=maximum(errors;init=0.0),kinds=kinds,hamiltonian=hamiltonian)
 end

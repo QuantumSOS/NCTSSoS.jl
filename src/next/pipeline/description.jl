@@ -49,7 +49,7 @@ function Base.show(io::IO,s::FamilySizes)
         " orbits; block generators: ",[nameof(typeof(g)) for g in r.block_generators],
         "; moment-only: ",[nameof(typeof(g)) for g in r.moment_only])
     if !isnothing(r.strengthening)
-        print(io,"; strengthening: ",r.strengthening.added_blocks," blocks; ")
+        print(io,"; strengthening: ",r.strengthening.added_blocks," blocks, ",r.strengthening.added_equalities," equalities; ")
         show(io,r.valid_for)
     end
 end
@@ -70,6 +70,7 @@ end
 
 function build(problem::Problem,description::BlockRelaxation)
     Problem(problem.objective;constraints=problem.constraints)
+    _check_hamiltonian_strengthening(problem,description.strengthen)
     custom=!isnothing(description.family)
     if custom
         all(p->p isa Polynomial,Iterators.flatten(description.family)) ||
@@ -77,7 +78,7 @@ function build(problem::Problem,description::BlockRelaxation)
     end
     order=custom ? maximum(degree,Iterators.flatten(description.family)) : description.order
     max_letters=max(2order,degree(problem.objective),maximum((degree(c.polynomial) for c in problem.constraints);init=0))
-    max_letters=max(max_letters,maximum((length(k.sites) for k in description.strengthen);init=0))
+    max_letters=max(max_letters,maximum((_strengthening_width(k,problem,order) for k in description.strengthen);init=0))
     registry=problem.objective.registry
     W=word_type(registry,max_letters)
     objective=[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(problem.objective)]
@@ -111,7 +112,7 @@ function build(problem::Problem,description::BlockRelaxation)
     letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
     program,table,closure=family_program(family,objective;generators=description.symmetry.generators,
         moment_generators=description.symmetry.moment_only,custom,site_letters=letters)
-    extra=_strengthen!(program,table,problem,description.strengthen,closure.block_generators)
+    extra=_strengthen!(program,table,problem,description.strengthen,closure)
     valid_for=isempty(description.strengthen) ? ValidStates(problem.constraints) :
         StrengthenedStates(ValidStates(problem.constraints),description.strengthen)
     closure=merge(closure,(strengthening=extra,valid_for=valid_for))

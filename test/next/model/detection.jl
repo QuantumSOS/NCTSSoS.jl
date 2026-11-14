@@ -5,6 +5,29 @@ function detection_ring(n,kind)
     return Nx.Problem(h)
 end
 
+@testset "Detected symmetry without nontrivial generators" begin
+    @testset "Manual provenance" begin
+        manual=Nx.FamilySymmetry([Nx.SitePermutation([2,1])])
+        @test sprint(show,manual)=="FamilySymmetry: 1 block generators, 0 moment-only generators"
+        @test sprint(show,MIME"text/plain"(),Nx.FamilySymmetry())==
+            "FamilySymmetry: 0 block generators, 0 moment-only generators"
+    end
+    @testset "Asymmetric Hamiltonian" begin
+        rng=MersenneTwister(414)
+        _,ops=Nx.pauli_variables(4)
+        h=sum(randn(rng)*ops[a][i]*ops[b][j] for i in 1:4 for j in i+1:4 for a in 1:3 for b in 1:3)+
+            sum(randn(rng)*ops[a][i] for i in 1:4 for a in 1:3)
+        problem=Nx.Problem(h)
+        symmetry=Nx.detect_symmetry(problem)
+        @test isempty(symmetry.generators) && isempty(symmetry.moment_only)
+        @test occursin("group order not reported by the detector",sprint(show,symmetry))
+        detected=Nx.solve(problem,Nx.BlockRelaxation(;order=1,symmetry);solver=Nx.JuMPBackend(SOLVER))
+        plain=Nx.solve(problem,Nx.BlockRelaxation(order=1);solver=Nx.JuMPBackend(SOLVER))
+        @test detected.bound ≈ plain.bound atol=1e-6
+        @test detected.sizes.program==plain.sizes.program
+    end
+end
+
 @testset "Detected symmetry in user problems" begin
     @testset "$kind ($n sites)" for (n,kind) in ((8,:heisenberg),(16,:heisenberg),(8,:ising))
         problem=detection_ring(n,kind)
@@ -60,7 +83,13 @@ end
     _,ops=Nx.site_variables(Nx.Free(),1,2)
     @test_throws r"Pauli problems only" Nx.detect_symmetry(Nx.Problem(ops[1][1]))
     @test_throws r"with constraints" Nx.detect_symmetry(Nx.Problem(problem.objective;constraints=(Nx.Positive(one(problem.objective)),)))
-    @test_throws r"non-constant Pauli" Nx.detect_symmetry(Nx.Problem(one(problem.objective)))
+    for value in (0,1)
+        constant=Nx.Problem(value*one(problem.objective))
+        symmetry=Nx.detect_symmetry(constant)
+        @test isempty(symmetry.generators) && isempty(symmetry.moment_only)
+        result=Nx.solve(constant,Nx.BlockRelaxation(;order=0,symmetry);solver=Nx.JuMPBackend(SOLVER))
+        @test result.bound==value
+    end
     @test_throws r"cannot yet return expectations" Nx.moment_value(nothing,one(W),Float64[])
 
     # Unused registry sites stay fixed; unequal coefficients and local fields

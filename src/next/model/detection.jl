@@ -1,4 +1,4 @@
-import ..NCTSSoS: PauliAlgebra, NormalMonomial, sympleq_symmetry_spec, _clifford_action_signature
+import ..NCTSSoS: PauliAlgebra, NormalMonomial, _sympleq_clifford_candidates, _clifford_action_signature
 import ..NCTSSoS: Polynomial as LegacyPolynomial
 
 public detect_symmetry
@@ -9,12 +9,14 @@ public detect_symmetry
 Detect Clifford symmetries of an unconstrained Pauli objective and return a
 `FamilySymmetry` for `BlockRelaxation`. Detection is explicit, never part of
 `solve`. Keywords (including `max_automorphisms`, `cycle_strategy`, and
-`ga_backend`) pass through to `sympleq_symmetry_spec`.
+`ga_backend`) pass through to the existing SympleQ detector.
 
 Each returned generator is verified against the packed objective; the result
 can be incomplete, and the detector does not report the group order. Detector
 warnings pass through unchanged; raise `max_automorphisms` after a cap warning
 if a larger subgroup is needed.
+Return an empty detected `FamilySymmetry` when no nontrivial generator is
+found, or for a constant objective; it can still be passed to `BlockRelaxation`.
 
 A generator is a block generator exactly when it maps every one-site Pauli
 letter to a signed one-site letter (a site permutation with local Clifford
@@ -31,15 +33,18 @@ function detect_symmetry(problem::Problem;kwargs...)
     Problem(problem.objective)
     objective = problem.objective
     W = eltype(objective.data.words)
+    degree(objective)==0 && return FamilySymmetry(CliffordMap{W}[];detected=true)
     # Legacy Pauli labels have the same site-major X,Y,Z encoding. Use Int
     # rather than a small label type so large registries cannot overflow.
     legacy = LegacyPolynomial([(ComplexF64(c),NormalMonomial{PauliAlgebra,Int}(
         collect(Int,legacy_letters(w)))) for (c,w) in terms(objective)])
-    spec = sympleq_symmetry_spec(legacy;kwargs...)
+    # The public SymmetrySpec wrapper rejects an empty candidate list. Use the
+    # same detector without that restriction; never interpret exception text.
+    candidates = _sympleq_clifford_candidates(legacy;kwargs...)
     n = objective.registry.nsites
     block = CliffordMap{W}[]
     moments = CliffordMap{W}[]
-    for g in spec.clifford_generators
+    for g in candidates
         images = [_clifford_action_signature(g,only(legacy_letters(pauli_letter(W,i,a))))
             for a in (0,2) for i in 1:n]
         packed = CliffordMap([word_from_legacy(W,collect(word)) for (_,word) in images],
@@ -66,12 +71,13 @@ function detect_symmetry(problem::Problem;kwargs...)
         _polynomial(objective.registry,mapped) == objective || throw(ArgumentError(
             "Detector defect: a returned Clifford generator does not preserve the objective in the packed algebra."))
     end
-    return FamilySymmetry(block;moment_only=moments)
+    return FamilySymmetry(block;moment_only=moments,detected=true)
 end
 
 function Base.show(io::IO,s::FamilySymmetry)
     print(io,"FamilySymmetry: ",length(s.generators)," block generators, ",
-        length(s.moment_only)," moment-only generators; ",
-        "group order not reported by the detector; the result can be a subgroup")
+        length(s.moment_only)," moment-only generators")
+    s.detected && print(io,"; group order not reported by the detector; the result can be a subgroup")
+    return nothing
 end
 Base.show(io::IO,::MIME"text/plain",s::FamilySymmetry) = show(io,s)

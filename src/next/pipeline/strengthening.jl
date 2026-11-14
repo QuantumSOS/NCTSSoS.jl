@@ -151,11 +151,11 @@ function _append_extra!(program,table,extra)
     error
 end
 
-function _strengthen!(program,table,problem,kinds,closure)
+function _strengthen!(program,table,problem,kinds,closure;sectors=())
     isempty(kinds) && return nothing
-    problem.objective.registry.algebra isa Pauli ||
-        throw(ArgumentError("These strengthening kinds require Pauli variables; use fermionic strengthening for a fermionic problem."))
     site_kinds=filter(k->k isa Union{DensityMatrix,InvariantCone},kinds)
+    isempty(site_kinds) || problem.objective.registry.algebra isa Pauli ||
+        throw(ArgumentError("These strengthening kinds require Pauli variables; use fermionic strengthening for a fermionic problem."))
     all(k->maximum(k.sites)<=problem.objective.registry.nsites,site_kinds) ||
         throw(ArgumentError("A strengthening site is outside the registry; select existing sites."))
     W=eltype(table.representatives.keys)
@@ -165,6 +165,7 @@ function _strengthen!(program,table,problem,kinds,closure)
     start=length(program.blocks)
     errors=[_append_extra!(program,table,extras[i]) for i in representatives]
     hamiltonian=_hamiltonian_strengthen!(program,table,problem,kinds,closure)
+    _sector_equalities!(program,table,closure,sectors)
     program.nvars=length(table.labels)
     validate(program)
     noptimal=count(k->k isa StateOptimality,kinds)

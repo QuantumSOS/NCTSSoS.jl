@@ -38,14 +38,14 @@ function CyclicRows(rows::AbstractVector{W}, g::AbstractAction, order::Integer) 
     return CyclicRows(g, Int(order), orbits, phases, stabilizers)
 end
 
-struct OrbitFormSink{T}
+struct OrbitFormSink{T,C}
     table::T
-    terms::Dict{Int32,ComplexF64}
+    terms::Dict{Int32,C}
 end
-function push_term!(s::OrbitFormSink, c::Number, w::AbstractWord)
+function push_term!(s::OrbitFormSink{T,C}, c::Number, w::AbstractWord) where {T,C}
     m = orbit_coordinates!(s.table, w)
-    m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, 0.0im) + c*m.real_coefficient)
-    m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, 0.0im) + c*m.imag_coefficient)
+    m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, zero(C)) + c*m.real_coefficient)
+    m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, zero(C)) + c*m.imag_coefficient)
     return s
 end
 

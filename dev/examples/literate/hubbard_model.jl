@@ -237,11 +237,11 @@ SOLVER = optimizer_with_attributes(Mosek.Optimizer,
 # Plain order-2 dense relaxations leave visible gaps, while dense order 3 is
 # essentially exact but much slower.  The practical compromise here is to use
 # **term sparsity only** with one refinement step.  The grand-canonical case is
-# already tight at order 3, while the canonical half-filled case benefits from
-# pushing to order 4.
+# tight at order 3. With support propagated from the completed graphs, the
+# canonical half-filled case also reaches the exact energy at order 3.
 
 config_gc = SolverConfig(optimizer = SOLVER, order = 3, ts_algo = MMD())
-config_can = SolverConfig(optimizer = SOLVER, order = 4, ts_algo = MMD())
+config_can = SolverConfig(optimizer = SOLVER, order = 3, ts_algo = MMD())
 
 # ---
 #
@@ -319,19 +319,21 @@ pop_can = polyopt(ham, registry; moment_eq_constraints = canonical_constraints)
 result_can_first = cs_nctssos(pop_can, config_can)
 result_can = cs_nctssos_higher(pop_can, result_can_first, config_can)
 
-@assert result_can.objective ≤ E_half + 1e-4   #src
+@assert termination_status(result_can_first.model) == JuMP.MOI.OPTIMAL   #src
+@assert termination_status(result_can.model) == JuMP.MOI.OPTIMAL         #src
 @assert abs(result_can.objective - E_half) < 1e-6   #src
-@assert result_can.objective > -3.0             #src
 println("Canonical SDP (first sparse pass):        $(round(result_can_first.objective; digits=6))")
 println("Canonical SDP (refined):                  $(round(result_can.objective; digits=6))")
 println("Exact half-filled GS:                     $(round(E_half; digits=6))")
-println("Gap after refinement:                     $(round(abs(result_can.objective - E_half); digits=6))")
+println("Gap after refinement:                     $(abs(result_can.objective - E_half))")
 
 # The helper expands to the same one-sided constraints you would write by
 # hand, but without exposing that plumbing in every model.  The canonical
 # bound tracks the half-filled sector — it is *not* pulled down to the lower
-# full-Fock minimum.  At order 4, one refinement step drives the gap down to
-# about ${\sim}10^{-7}$.
+# full-Fock minimum. At order 3, the measured first bound is about −3.631145;
+# one refinement gives −2.102748483464, with a gap of about 2.1×10⁻¹² to
+# the exact half-filled energy. Both solves return `OPTIMAL` with default
+# Mosek tolerances. The assertion allows 1e-6 for numerical variation.
 
 # ---
 #
@@ -342,14 +344,12 @@ println("Gap after refinement:                     $(round(abs(result_can.object
 # | Exact full-Fock $E_0$ | $-3.419$ |
 # | Grand-canonical SDP (order 3 TS + higher) | $\approx -3.419$ |
 # | Exact half-filled $E_0\;(N_\uparrow{=}N_\downarrow{=}2)$ | $-2.103$ |
-# | Canonical SDP (order 4 TS + higher) | $\approx -2.103$ |
+# | Canonical SDP (order 3 TS + higher) | $\approx -2.103$ |
 #
 # Both SDP values are **valid lower bounds** on their respective exact
-# energies.  For this example, the practical sweet spot is not plain dense
-# order 2, and it is not naive correlative sparsity either.  Using **term
-# sparsity plus one refinement step**, the grand-canonical case is already
-# essentially exact at order 3, while the canonical case reaches numerical
-# precision at order 4.
+# energies up to solver tolerance. Using **term sparsity plus one refinement
+# step**, both sectors reach numerical agreement with exact diagonalisation
+# at order 3.
 
 # ---
 #
@@ -364,11 +364,8 @@ println("Gap after refinement:                     $(round(abs(result_can.object
 # finds a lower bound across all Fock sectors; the canonical relaxation,
 # using `particle_number_constraint(registry, c_up => 2, c_dn => 2)` to fix
 # $N_\uparrow = N_\downarrow = 2$, targets the half-filled Mott sector
-# specifically.  Numerically, this is a case where **term sparsity plus one
-# refinement step** works well, but the
-# two sectors are not equally hard: the grand-canonical problem is already
-# essentially exact at order 3, while the canonical half-filled problem needs
-# order 4 to close the gap to numerical precision.
+# specifically. Here **term sparsity plus one refinement step** at order 3
+# reaches both exact energies to within numerical tolerance.
 #
 # ### The code recipe
 #
@@ -377,7 +374,7 @@ println("Gap after refinement:                     $(round(abs(result_can.object
 # | 1 | Create spin-up and spin-down operators on disjoint mode ranges | [`create_fermionic_variables`](@ref) with species list |
 # | 2 | Build the Hubbard Hamiltonian (hopping + on-site repulsion) | Standard Julia arithmetic |
 # | 3 | Grand-canonical solve with order-3 term sparsity refinement | [`polyopt`](@ref) $\to$ [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
-# | 4 | Canonical solve with fixed particle number, order 4, and one refinement | [`particle_number_constraint`](@ref) in `moment_eq_constraints`, then [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
+# | 4 | Canonical solve with fixed particle number, order 3, and one refinement | [`particle_number_constraint`](@ref) in `moment_eq_constraints`, then [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
 # | 5 | Verify against exact diagonalisation | `hubbard_exact_matrix` + `sector_ground_state_energy` |
 #
 # ### Key concepts

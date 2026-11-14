@@ -27,10 +27,11 @@
 #
 # Wang and Magron make this precise in
 # [wangExploitingTermSparsity2020](@cite) with two clean
-# counterexamples. Example 3.4 is the **trap**: the graph stabilizes
-# immediately yet the sparse bound stays strictly loose. Example 3.8
-# is the **happy path**: stabilization and exactness arrive together.
-# We reproduce both below, live, so you can see the gap for yourself.
+# examples. In Example 3.4, the chordal extension chosen in the paper's
+# Figure 3 stabilizes with a loose bound. That result depends on the
+# extension: the package's `MMD()` completion reaches zero at the second
+# step. Example 3.8 reaches the exact bound already at the first step.
+# We compare these bounds below without imposing the paper's completion.
 
 # ## Setup
 #
@@ -55,7 +56,7 @@ const PAPER_EX34_SPARSE = -0.0035
 include(joinpath(pkgdir(NCTSSoS), "docs", "src", "examples", "literate", "data", "sparsity_convergence_helpers.jl")) #hide
 nothing #hide
 
-# ## The trap: stabilization without exactness (Example 3.4)
+# ## Chordal extension matters (Example 3.4)
 #
 # Here is the polynomial that exposes the gap. It is unconstrained, so
 # the true minimum ``\lambda_{\min}`` is determined entirely by the
@@ -167,23 +168,23 @@ result_34_sparse.objective
 #
 # ### Trying harder: the next sparse step
 #
-# Can climbing one more rung help? We call `cs_nctssos_higher` to
-# refine the term-sparsity graph. The answer: no — the bound does
-# not budge.
+# `cs_nctssos_higher` propagates the support of the completed graph,
+# including fill edges, as in Equation (23) of the paper. With `MMD()`,
+# this enlarges the blocks and reaches zero at the second step.
 
 result_34_higher = cs_nctssos_higher(pop_34, result_34_sparse, config_34_higher)
 check_isapprox(
-    "Example 3.4 higher sparse step matches the same rounded sparse value",
+    "Example 3.4 MMD higher step reaches the exact bound",
     result_34_higher.objective,
-    PAPER_EX34_SPARSE;
-    atol=1e-4,
+    PAPER_EX34_LAMBDA_MIN;
+    atol=1e-6,
 )
 
 # The higher sparse-step bound:
 result_34_higher.objective
 #
-# All three values side by side tell the whole story: dense hits ``0``,
-# while both sparse steps are stuck near ``-0.0035``.
+# The dense bound and the second sparse bound are both approximately
+# zero; only the first sparse step stays near ``-0.0035``.
 
 ex34_bounds = (
     dense = result_34_dense.objective,
@@ -195,15 +196,11 @@ nothing #hide
 # The three objectives:
 ex34_bounds
 
-# The graph has stabilized — we will confirm that visually next — but the
-# bound has not reached the true optimum. That is the trap.
-
-# ### Visualizing stabilization
+# ### Visualizing support propagation
 #
-# To see *why* the hierarchy stops, look at the term-sparsity graph.
-# Starting from the initial graph at ``k = 1``, a chordal completion
-# adds fill edges (dashed below). A second completion attempt adds
-# nothing: the graph is already chordal, so the structure is frozen.
+# Completing a chordal graph again adds no edges, but that is not a
+# hierarchy step. A step first extends support using the previous
+# completed graph, rebuilds the graph, and then completes it.
 
 sparsity_34 = compute_sparsity(pop_34, config_34_sparse)
 package_basis_34 = only(sparsity_34.corr_sparsity.clq_mom_mtx_bases)
@@ -211,16 +208,18 @@ package_init_34 = only(sparsity_34.initial_activated_supps)
 
 package_graph_34_k1 = NCTSSoS.get_term_sparsity_graph([one(X)], package_init_34, package_basis_34)
 package_edges_34_k1 = edge_pairs(package_graph_34_k1)
-completed_graph_34 = deepcopy(package_graph_34_k1)
-for block in NCTSSoS.clique_decomp(package_graph_34_k1, MMD())
-    NCTSSoS.add_clique!(completed_graph_34, block)
-end
+completed_graph_34 = completed_term_graph(package_graph_34_k1, MMD())
 package_edges_34_completed = edge_pairs(completed_graph_34)
 package_fill_34 = sort(setdiff(package_edges_34_completed, package_edges_34_k1))
 check_equal(
-    "Example 3.4 chordal extension is already stable after one completion",
-    chordal_completion_edges(completed_graph_34, MMD()),
-    package_edges_34_completed,
+    "Example 3.4 first-step block sides",
+    sort(only(result_34_sparse.moment_matrix_sizes)),
+    [3, 3, 3, 3],
+)
+check_equal(
+    "Example 3.4 higher-step block sides",
+    sort(only(result_34_higher.moment_matrix_sizes)),
+    [4, 4, 4],
 )
 
 figure_34_graph = draw_term_graph(
@@ -232,14 +231,29 @@ figure_34_graph = draw_term_graph(
 )
 nothing #hide
 
-# Solid lines are the original edges; dashed lines are the fill from
-# chordal completion. A second completion adds nothing new.
+# Solid lines are the original edges; dashed lines are the first fill.
 figure_34_graph
 
-# The graph is frozen, yet the objective is still ``-0.0035`` — not
-# ``0``. Structural convergence happened; numerical convergence did
-# not. The missing edges that *would* tighten the bound simply cannot
-# be discovered by the term-sparsity refinement on this basis.
+# The next graph uses the stored post-fill support from the solved
+# relaxation. New edges appear, giving three blocks of side four.
+
+package_graph_34_k2 = NCTSSoS.get_term_sparsity_graph(
+    [one(X)], only(result_34_higher.sparsity.initial_activated_supps), package_basis_34,
+)
+completed_graph_34_k2 = completed_term_graph(package_graph_34_k2, MMD())
+package_edges_34_k2 = edge_pairs(completed_graph_34_k2)
+figure_34_higher = draw_term_graph(
+    paper_basis_34_labels,
+    PAPER_GRAPH_34.coords,
+    package_edges_34_completed;
+    dashed_edges=sort(setdiff(package_edges_34_k2, package_edges_34_completed)),
+    title="Example 3.4: second step with MMD",
+)
+figure_34_higher
+
+# The dashed edges in this second figure are additions to the previous
+# completed graph. The paper's Figure 3 chooses a different completion;
+# its stabilized loose bound is not the result of this `MMD()` sequence.
 
 # ## The happy path: stabilization with exactness (Example 3.8)
 #
@@ -413,7 +427,8 @@ paper_edges_38_k1
 
 # One refinement cycle: graph → refined support → rebuilt graph.
 
-paper_supp_38_k1 = NCTSSoS.term_sparsity_graph_supp(paper_graph_38_k1, paper_basis_38, one(f_38))
+paper_completed_38_k1 = completed_term_graph(paper_graph_38_k1, MMD())
+paper_supp_38_k1 = NCTSSoS.term_sparsity_graph_supp(paper_completed_38_k1, paper_basis_38, one(f_38))
 nothing #hide
 
 paper_graph_38_k2 = NCTSSoS.get_term_sparsity_graph([one(X_38)], paper_supp_38_k1, paper_basis_38)
@@ -451,19 +466,19 @@ draw_term_graph(
 
 # ## What to take away
 #
-# These two examples bracket the range of outcomes when the
-# term-sparsity graph stabilizes:
+# Chordal completion and support extension are separate operations.
+# The numerical behavior also depends on which completion is chosen:
 #
-# | | Example 3.4 | Example 3.8 |
+# | Case | First bound | Higher bound |
 # |:---|:---|:---|
-# | **Graph stabilizes?** | Yes (one chordal completion) | Yes (already a fixed point) |
-# | **Bound exact?** | No — gap of ≈ 0.0035 | Yes — dense and sparse both hit ``-1`` |
-# | **Lesson** | Stabilization alone proves nothing about the value. | When the algebra cooperates, sparsity is free. |
+# | Example 3.4, paper Figure 3 | ≈ −0.0035 | Stays loose with that completion |
+# | Example 3.4, package `MMD()` | ≈ −0.0035 | ≈ 0, exact |
+# | Example 3.8, package solve | ≈ −1 | ≈ −1, exact |
 #
-# The practical rule: **graph stabilization tells you the hierarchy
-# has done all it can at the current relaxation order.** If the bound
-# is not yet satisfactory, the next move is to increase the relaxation
-# order ``d``, not the sparse refinement order ``k``. The algebraic
+# **Stabilization means a full support-extension and completion cycle
+# adds nothing**, not merely that the current graph is chordal. If a
+# stabilized bound is not satisfactory, increase the relaxation order
+# or choose a less sparse completion. The algebraic
 # conditions under which stabilization *does* guarantee exactness are
 # discussed in [wangExploitingTermSparsity2020](@cite); they must be
 # verified for each problem, not assumed.

@@ -63,12 +63,12 @@ function labeled_edges(edges, labels)
     [(labels[i], labels[j]) for (i, j) in edges]
 end
 
-function chordal_completion_edges(graph, ts_algo)
+function completed_term_graph(graph, ts_algo)
     completed = deepcopy(graph)
     for block in NCTSSoS.clique_decomp(graph, ts_algo)
         NCTSSoS.add_clique!(completed, block)
     end
-    return edge_pairs(completed)
+    return completed
 end
 
 function draw_term_graph(
@@ -77,8 +77,8 @@ function draw_term_graph(
     solid_edges;
     dashed_edges=Tuple{Int,Int}[],
     title,
-    markersize=34,
-    fontsize=18,
+    markersize=46,
+    fontsize=16,
 )
     fig = Figure(size=(520, 320))
     ax = Axis(fig[1, 1], title=title)

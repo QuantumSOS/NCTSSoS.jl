@@ -29,11 +29,18 @@ function _checked_hermitian(p::Polynomial,name)
     LinearAlgebra.ishermitian(p) || throw(ArgumentError("$name ($p) is not Hermitian; supply a self-adjoint polynomial. If the Hermitian part is intended, explicitly use (p + p')/2 via 0.5*(p + p')."))
     return p
 end
-"Checked minimization problem. Constraints describe operator inequalities/equalities, not a state sector."
-struct Problem{P<:Polynomial,C<:Tuple}
+"""
+Checked minimization problem with operator constraints and optional `Symmetry`.
+Declare symmetry here, not on `Relaxation`. Empty symmetries mean none declared.
+For a legacy `BlockRelaxation`, use whichever declaration is nonempty; if both
+are nonempty, remove the legacy declaration and keep the one on the problem.
+Constraints describe operator inequalities/equalities, not a state sector.
+"""
+struct Problem{P<:Polynomial,C<:Tuple,S}
     objective::P
     constraints::C
-    function Problem(objective::Polynomial;constraints=())
+    symmetry::S
+    function Problem(objective::Polynomial;constraints=(),symmetry=nothing)
         _checked_hermitian(objective,"Objective")
         cs = Tuple(constraints)
         for (i,c) in enumerate(cs)
@@ -41,29 +48,63 @@ struct Problem{P<:Polynomial,C<:Tuple}
             c.polynomial.registry === objective.registry || throw(ArgumentError("Constraint $i uses a different registry from the objective; rebuild it with the objective's variables."))
             _checked_hermitian(c.polynomial,"Constraint $i")
         end
-        new{typeof(objective),typeof(cs)}(objective,cs)
+        isnothing(symmetry) || _check_symmetry_domain(objective,symmetry)
+        new{typeof(objective),typeof(cs),typeof(symmetry)}(objective,cs,symmetry)
     end
 end
-add_constraint(p::Problem,c::OperatorConstraint) = Problem(p.objective;constraints=(p.constraints...,c))
+add_constraint(p::Problem,c::OperatorConstraint) = Problem(p.objective;constraints=(p.constraints...,c),symmetry=p.symmetry)
 
 abstract type AbstractRelaxation end
-"Plain relaxation. Specify exactly one of order or custom polynomial rows; custom rows are never filtered."
-struct Relaxation{R} <: AbstractRelaxation
+"""
+    Relaxation(; order, rows, row_rule, grouping, split, family, strengthen=())
+
+Choose exactly one of `order`, custom `rows`, or a custom block `family`.
+Declare symmetry on `Problem`. Without symmetry or block options, use complete
+moment/localizing matrices. Otherwise use the selected block family.
+Custom rows/families are never filtered: remove grouping, split and row_rule
+when supplying them. A single strengthening kind is accepted without a tuple.
+"""
+struct Relaxation{R,U,G,S,F,K} <: AbstractRelaxation
     order::Union{Nothing,Int}
     rows::R
-    function Relaxation(;order=nothing,rows=nothing)
-        xor(isnothing(order),isnothing(rows)) || throw(ArgumentError("Relaxation needs exactly one of order or rows; remove the other option."))
+    row_rule::U
+    grouping::G
+    split::S
+    family::F
+    strengthen::K
+    function Relaxation(;order=nothing,rows=nothing,row_rule=nothing,grouping=nothing,
+        split=nothing,family=nothing,strengthen=(),symmetry=nothing)
+        isnothing(symmetry) || throw(ArgumentError("Declare symmetry on Problem(H; symmetry=Symmetry(...)), not on Relaxation; remove the symmetry keyword here."))
+        count(!isnothing,(order,rows,family))==1 || throw(ArgumentError("Relaxation needs exactly one of order, rows, or family; remove the other options."))
+        if !isnothing(rows) || !isnothing(family)
+            all(isnothing,(row_rule,grouping,split)) || throw(ArgumentError("Custom rows or family cannot be combined with row_rule, grouping, or split; remove these options or use order instead of custom rows/family."))
+        end
+        isnothing(row_rule) || row_rule isa Union{Contiguous,Function} || throw(ArgumentError("Use row_rule=Contiguous(...) or a row-rule function, or remove row_rule."))
+        isnothing(grouping) || grouping isa Union{Correlative,PhysicsInformed} || throw(ArgumentError("Use grouping=Correlative() or PhysicsInformed(...), or remove grouping."))
+        isnothing(split) || split isa Union{TermSplit,PhysicsInformed} || throw(ArgumentError("Use split=TermSplit() or PhysicsInformed(...), or remove split."))
+        strengthen isa StrengtheningKind && (strengthen=(strengthen,))
+        strengthen isa Union{Tuple,AbstractVector} || throw(ArgumentError("Use strengthen=(DensityMatrix(...), Stationarity(), ...) or a single strengthening kind; use () for none."))
+        kinds=Tuple(strengthen)
+        all(k->k isa StrengtheningKind,kinds) || throw(ArgumentError("Use strengthening kinds such as DensityMatrix(...), Stationarity(), or Sector(Q,q), not types or arbitrary values."))
         if !isnothing(order)
             order isa Integer && order>=0 || throw(ArgumentError("Relaxation order must be a nonnegative integer; use order=1 or a larger integer."))
-            return new{Nothing}(Int(order),nothing)
+            order=Int(order)
         end
-        rs = collect(rows)
-        !isempty(rs) || throw(ArgumentError("Custom rows are empty; include the identity and rows that cover the objective."))
-        all(r->r isa Polynomial,rs) || throw(ArgumentError("Custom rows must be polynomials from the problem registry; write one(X[1]) for the identity."))
-        all(r->length(r.data)==1 && r.data.coefficients[1]==1,rs) || throw(ArgumentError("Custom rows must each be a single normal word with coefficient 1; supply such rows explicitly."))
-        allunique(rs[i].data.words[1] for i in eachindex(rs)) || throw(ArgumentError("Custom rows contain duplicates; remove duplicate rows explicitly."))
-        any(r->isone(r.data.words[1]),rs) || throw(ArgumentError("Custom rows lack the identity; include one(variable)."))
-        new{typeof(rs)}(nothing,rs)
+        rs=nothing
+        if !isnothing(rows)
+            rs = collect(rows)
+            !isempty(rs) || throw(ArgumentError("Custom rows are empty; include the identity and rows that cover the objective."))
+            all(r->r isa Polynomial,rs) || throw(ArgumentError("Custom rows must be polynomials from the problem registry; write one(X[1]) for the identity."))
+            all(r->length(r.data)==1 && r.data.coefficients[1]==1,rs) || throw(ArgumentError("Custom rows must each be a single normal word with coefficient 1; supply such rows explicitly."))
+            allunique(rs[i].data.words[1] for i in eachindex(rs)) || throw(ArgumentError("Custom rows contain duplicates; remove duplicate rows explicitly."))
+            any(r->isone(r.data.words[1]),rs) || throw(ArgumentError("Custom rows lack the identity; include one(variable)."))
+        end
+        if !isnothing(family)
+            family=collect.(family)
+            !isempty(family) && all(!isempty,family) || throw(ArgumentError("The custom family and each block must be nonempty; supply rows in each block."))
+        end
+        new{typeof(rs),typeof(row_rule),typeof(grouping),typeof(split),typeof(family),typeof(kinds)}(
+            order,rs,row_rule,grouping,split,family,kinds)
     end
 end
 
@@ -148,6 +189,7 @@ _real_form(p::Problem) = p.objective.registry.algebra isa SiteAlgebra{<:Union{Fr
 
 "Build without a solver. The returned program and table are suitable for pipeline/conic inspection."
 function build(p::Problem,r::Relaxation)
+    _uses_blocks(p,r) && return _build_blocks(p,r)
     # Recheck mutable polynomial storage rather than trusting stale construction checks.
     Problem(p.objective;constraints=p.constraints)
     order = isnothing(r.order) ? maximum(degree,r.rows) : r.order
@@ -165,4 +207,3 @@ function build(p::Problem,r::Relaxation)
         local_sizes)
     return (program=program,table=table,sizes=sizes,valid_for=ValidStates(p.constraints))
 end
-inspect(p::Problem,r::AbstractRelaxation) = build(p,r).sizes

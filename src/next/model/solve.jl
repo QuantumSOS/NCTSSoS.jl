@@ -1,4 +1,4 @@
-struct SolveResult{P,R,S,B,V,Q}
+struct SolveResult{P,R,S,B,V,Q,D}
     bound::Union{Nothing,Float64}
     status::S
     sizes::B
@@ -8,6 +8,7 @@ struct SolveResult{P,R,S,B,V,Q}
     solution::Q
     # Width is chosen at build time. Do not make solve's return type depend on it.
     table::Any
+    solver::D
 end
 
 # Reuse the redundant tag's storage for the already-built moment table.
@@ -16,10 +17,11 @@ end
     return getfield(r,name)
 end
 Base.propertynames(::SolveResult,private::Bool=false) =
-    (:bound,:bound_kind,:status,:sizes,:valid_for,:problem,:relaxation,:solution,:table)
+    (:bound,:bound_kind,:status,:sizes,:valid_for,:problem,:relaxation,:solution,:table,:solver)
 
 function Base.show(io::IO,r::SolveResult)
     print(io,"Bound: ",r.bound," (",r.bound_kind,"); status: ",r.status,
+        "\n",r.problem,"\n",r.relaxation,
         "\nSizes: ",r.sizes,"\nValid for: ",r.valid_for)
 end
 Base.show(io::IO,::MIME"text/plain",r::SolveResult) = show(io,r)
@@ -29,17 +31,17 @@ function solve(problem::Problem,relaxation::AbstractRelaxation;solver=nothing)
     solver isa AbstractSolver || throw(ArgumentError("Missing or invalid solver description; load SCS with `using SCS` and pass solver=SCSBackend(), or pass solver=JuMPBackend(optimizer_factory), with attributes on the factory if needed."))
     built = build(problem,relaxation)
     solution = solve_standard(moment_standard_form(built.program),solver)
-    return SolveResult(solution.bound,solution.status,built.sizes,built.valid_for,problem,relaxation,solution,built.table)
+    return SolveResult(solution.bound,solution.status,built.sizes,built.valid_for,problem,relaxation,solution,built.table,solver)
 end
-"Add an operator constraint and solve again on the same open moment-form handle."
+"Add an operator constraint, retaining symmetry and solver settings. Complete matrices reuse their open handle; selected blocks rebuild because closure can change their coordinates."
 function solve(previous::SolveResult,constraint::OperatorConstraint)
     problem = add_constraint(previous.problem,constraint)
     built = build(problem,previous.relaxation)
-    solution = solve_standard(moment_standard_form(built.program),previous.solution.handle)
-    return SolveResult(solution.bound,solution.status,built.sizes,built.valid_for,problem,previous.relaxation,solution,built.table)
+    plain = previous.relaxation isa Relaxation && !_uses_blocks(problem,previous.relaxation)
+    solution = solve_standard(moment_standard_form(built.program),plain ? previous.solution.handle : previous.solver)
+    return SolveResult(solution.bound,solution.status,built.sizes,built.valid_for,problem,previous.relaxation,solution,built.table,previous.solver)
 end
 
-public expectation
 """
     expectation(result::SolveResult, p::Polynomial)
 
@@ -61,7 +63,7 @@ function _expectation(table,result::SolveResult,p::Polynomial)
         iszero(c) && continue
         moment = moment_value(table,w,result.solution.values)
         if isnothing(moment)
-            if result.relaxation isa Relaxation
+            if result.relaxation isa Relaxation && !_uses_blocks(result.problem,result.relaxation)
                 required = cld(max(degree(w),degree(result.problem.objective),
                     maximum((degree(c.polynomial) for c in result.problem.constraints);init=0)),2)
                 throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not in this program. Use Relaxation(order=$required) with complete rows, or custom rows whose adjoint products contain this word, and solve again."))

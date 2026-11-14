@@ -49,8 +49,8 @@ function input(mode)
         n=12
         _,(x,y,z)=N.pauli_variables(n)
         h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+0.7z[i]*z[mod1(i+1,n)] for i in 1:n)
-        return N.Problem(h),N.BlockRelaxation(order=2,grouping=N.Correlative(),split=N.TermSplit(),
-            symmetry=N.FamilySymmetry([N.SitePermutation([2:n;1]),N.SitePermutation([mod1(2-i,n) for i in 1:n])]))
+        return N.Problem(h;symmetry=N.Symmetry(N.SitePermutation([2:n;1]),N.SitePermutation([mod1(2-i,n) for i in 1:n]))),
+            N.Relaxation(order=2,grouping=N.Correlative(),split=N.TermSplit())
     elseif mode=="hubbard"
         _,(a,ad)=N.fermionic_variables(4)
         h=-(ad[1]*a[3]+ad[3]*a[1]+ad[2]*a[4]+ad[4]*a[2])+2*(ad[1]*a[1]*ad[2]*a[2]+ad[3]*a[3]*ad[4]*a[4])

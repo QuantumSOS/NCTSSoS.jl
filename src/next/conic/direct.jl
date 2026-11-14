@@ -1,4 +1,4 @@
-public SCSBackend, prepare_standard
+public prepare_standard
 
 """
 Native SCS moment-form writer. Load SCS before solving. Set

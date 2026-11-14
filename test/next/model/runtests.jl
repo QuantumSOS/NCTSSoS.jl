@@ -1,5 +1,7 @@
 # Tests of the model layer of NCTSSoS.Next.
 
+include("front.jl")
+FrontDoorChecks.check(Nx.JuMPBackend(SOLVER))
 include("detection.jl")
 isdefined(@__MODULE__,:check_expectations) || include("expectations.jl")
 @testset "Reading expectations through JuMP" begin
@@ -83,7 +85,7 @@ end
     @test result.bound_kind==:numerical_optimum_not_certificate
     @test occursin("numerical_optimum_not_certificate",sprint(show,result))
     @test occursin("status: OPTIMAL",sprint(show,result))
-    @test result.sizes==Nx.inspect(result.problem,result.relaxation)
+    @test result.sizes==Nx.inspect(result.problem,result.relaxation).sizes
     @test isempty(result.valid_for.constraints)
     @info "One call: Heisenberg4" old new=result.bound sizes=result.sizes
 

@@ -21,8 +21,9 @@ end
 Sparse generator equations `A*y == 0` for invariant moments on an explicitly
 closed domain. No group elements or moment matrix are formed. Exact generator
 coefficients stay exact when `C` is exact; orthonormalization is not required.
-M1 exposes this calculation only: joint elimination with finite orbit moments
-and direct PSD block reduction under continuous groups are not implemented.
+`Symmetry(continuous=...)` joins these generator relations with finite orbit
+moments and eliminates dependent coordinates. Continuous block splitting is
+a separate step; moment elimination keeps each assembled block's shape.
 """
 function derivation_constraints(words::AbstractVector{W}, derivations;
     C::Type=ComplexF64) where {W<:AbstractWord}

@@ -52,6 +52,7 @@ function _checked_sectors(problem,kinds,symmetry,W)
             throw(ArgumentError("Sector currently requires Pauli or fermionic variables."))
         k.operator.registry===problem.objective.registry ||
             throw(ArgumentError("The sector operator must use the problem registry."))
+        _check_derivation_polynomial(k.operator,W,symmetry.continuous,"Sector operator")
         any(x->x isa StateOptimality,kinds) && throw(ArgumentError(
             "StateOptimality with a sector is not supported in this delivery; remove StateOptimality or the sector restriction."))
         s=_sector_terms(k.operator,W)

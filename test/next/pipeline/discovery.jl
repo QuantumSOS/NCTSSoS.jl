@@ -42,3 +42,27 @@
     mixed=zeros(selected.nvars); mixed[1]=1
     @test minimum(eigmin(Hermitian(A)) for A in evaluated_blocks(selected,mixed))>=-1e-9
 end
+
+@testset "Current detector feeds the packed lattice pipeline" begin
+    n=8
+    registry,ops=create_pauli_variables(1:n)
+    H=heisenberg_chain_hamiltonian(ops;periodic=true,coupling=1)
+    spec=sympleq_symmetry_spec(H)
+    W=Nx.word_type(Nx.Pauli(),n,2)
+    T=eltype(indices(registry))
+    generators=map(spec.clifford_generators) do g
+        images=[NCTSSoS._clifford_action_signature(g,T(only(Nx.legacy_letters(Nx.pauli_letter(W,i,a)))))
+            for a in (0,2) for i in 1:n]
+        Nx.CliffordMap([Nx.word_from_legacy(W,collect(word)) for (_,word) in images],
+            [sign==-1 for (sign,_) in images])
+    end
+    atoms=[[Nx.pauli_letter(W,i,a) for a in 0:2] for i in 1:n]
+    @test any(Nx.degree(Nx.act(g,w)[2])>1 for g in generators for ws in atoms for w in ws)
+    rows=Nx.basis_rows(W,Nx.Pauli(),1:n,1)
+    objective=[(c,Nx.word_from_legacy(W,Nx.legacy_letters(w))) for (c,w) in ring_objective(n,:heisenberg)]
+    program,_,report=Nx.generators_program(rows,objective,generators,atoms)
+    @test length(report.discovery.translations.elements)==n
+    @test !isempty(report.discovery.moment_generators)
+    reference=cs_nctssos(polyopt(H,registry),SolverConfig(optimizer=SOLVER,order=1);dualize=false)
+    @test solve_reference(program)[1]≈reference.objective atol=1e-6
+end

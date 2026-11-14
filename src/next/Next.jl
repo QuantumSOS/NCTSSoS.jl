@@ -23,7 +23,7 @@ include("contracts/words.jl")
 include("contracts/conic.jl")
 include("core/core.jl")
 include("conic/conic.jl")
-include("pipeline/pipeline.jl")
 include("model/model.jl")
+include("pipeline/pipeline.jl")
 
 end

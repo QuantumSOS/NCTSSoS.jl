@@ -18,14 +18,7 @@ struct BlockMomentResolver{L,B,F,A,Z}
 end
 
 function _dict_get_value_or(dict::Dict, key, default)
-    haskey(dict, key) && return dict[key]
-
-    # Current canonical keys may be vectors. Keep lookup value-based so lowering
-    # is not hostage to object identity if a form carries an equal-but-distinct key.
-    for (candidate, value) in dict
-        key_isequal(candidate, key) && return value
-    end
-    return default
+    return get(dict, key, default)
 end
 
 function (resolver::AffineResolver)(key)
@@ -237,23 +230,6 @@ function _build_real_moment_variable_model(
     return model, extract_monomap
 end
 
-function _solve_real_moment_problem(
-    mp::MomentProblem{A,T,M,P},
-    optimizer,
-    silent::Bool,
-) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
-    model, extract_monomap = _build_real_moment_variable_model(mp)
-    set_optimizer(model, optimizer)
-    silent && set_silent(model)
-    optimize!(model)
-    return (
-        objective=objective_value(model),
-        model=model,
-        monomap=extract_monomap(),
-        n_unique_elements=mp.n_unique_moment_matrix_elements,
-    )
-end
-
 """
     _build_complex_moment_variable_model(mp) -> (model, extract_monomap)
 
@@ -307,23 +283,6 @@ function _build_complex_moment_variable_model(
     end
 
     return model, extract_monomap
-end
-
-function _solve_complex_moment_problem(
-    mp::MomentProblem{A,T,M,P},
-    optimizer,
-    silent::Bool,
-) where {A<:AlgebraType,T<:Integer,M<:NormalMonomial{A,T},P}
-    model, extract_monomap = _build_complex_moment_variable_model(mp)
-    set_optimizer(model, optimizer)
-    silent && set_silent(model)
-    optimize!(model)
-    return (
-        objective=objective_value(model),
-        model=model,
-        monomap=extract_monomap(),
-        n_unique_elements=mp.n_unique_moment_matrix_elements,
-    )
 end
 
 function _declare_psd_block_variable!(model, cone::Symbol, n::Int)

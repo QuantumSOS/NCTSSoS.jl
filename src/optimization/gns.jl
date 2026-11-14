@@ -177,83 +177,6 @@ function hankel_matrix(monomap::AbstractDict, registry::VariableRegistry{A,TI}, 
     return hankel_matrix(monomap, basis)
 end
 
-"""
-    construct_localizing_matrix(monomap::AbstractDict, var_idx::TI, basis::Vector{M})
-
-Construct the localizing matrix for left multiplication by a variable using a
-moment lookup dictionary.
-
-The entry `(i, j)` equals `L(basis[i]' * x_var * basis[j])`.
-"""
-function construct_localizing_matrix(
-    monomap::AbstractDict,
-    var_idx::TI,
-    basis::Vector{M},
-) where {A<:AlgebraType,TI<:Integer,T<:Integer,M<:NormalMonomial{A,T}}
-    var_word = T[T(var_idx)]
-    return [
-        _gns_moment_from_word(monomap, A, _neat_dot3(row_mono.word, var_word, col_mono.word))
-        for row_mono in basis, col_mono in basis
-    ]
-end
-
-"""
-    hankel_entries_dict(hankel::Matrix{T}, basis::Vector{<:NormalMonomial}) where {T <: Number}
-
-Create a lookup dictionary mapping canonical monomials to Hankel matrix entries.
-
-This helper is mainly useful for tests and debugging. If multiple basis pairs
-produce the same canonical monomial, the first encountered entry is kept; for
-valid Hankel data these entries should agree.
-"""
-function hankel_entries_dict(hankel::Matrix{T}, basis::Vector{M}) where {A<:MonoidAlgebra,TM<:Integer,M<:NormalMonomial{A,TM},T<:Number}
-    size(hankel, 1) == size(hankel, 2) ||
-        throw(ArgumentError("Hankel matrix must be square, got size $(size(hankel))."))
-    length(basis) == size(hankel, 1) || throw(
-        ArgumentError(
-            "Basis length $(length(basis)) must match Hankel size $(size(hankel, 1)).",
-        ),
-    )
-
-    dict = Dict{M,T}()
-    for (i, row_mono) in enumerate(basis)
-        for (j, col_mono) in enumerate(basis)
-            key = M(simplify(A, neat_dot(row_mono.word, col_mono.word)))
-            get!(dict, key, hankel[i, j])
-        end
-    end
-
-    return dict
-end
-
-"""
-    construct_localizing_matrix(hankel_dict::Dict{M,T}, var_idx::TI, basis::Vector{M})
-
-Construct the localizing matrix for left multiplication by a variable using a
-precomputed Hankel dictionary.
-
-This method is currently defined for monoid algebras, where products reduce to a
-single canonical monomial.
-"""
-function construct_localizing_matrix(
-    hankel_dict::Dict{M,T},
-    var_idx::TI,
-    basis::Vector{M},
-) where {A<:MonoidAlgebra,TM<:Integer,M<:NormalMonomial{A,TM},T<:Number,TI<:Integer}
-    n = length(basis)
-    K = zeros(T, n, n)
-    var_word = TM[TM(var_idx)]
-
-    for (i, row_mono) in enumerate(basis)
-        for (j, col_mono) in enumerate(basis)
-            key = M(simplify(A, _neat_dot3(row_mono.word, var_word, col_mono.word)))
-            K[i, j] = get(hankel_dict, key, zero(T))
-        end
-    end
-
-    return K
-end
-
 function _gns_localizing_from_hankel(
     hankel::AbstractMatrix{T},
     full_basis::Vector{M},
@@ -356,7 +279,8 @@ end
 
 """
     gns_reconstruct(hankel::AbstractMatrix, registry::VariableRegistry, H_deg::Int;
-                    method::Symbol=:svd, hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
+                    method::Symbol=:svd, hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0,
+                    psd_rtol::Real=1e-4)
 
 Perform GNS reconstruction from a full Hankel matrix.
 
@@ -367,6 +291,12 @@ principal block used to define the quotient space (standard choice:
 
 The result contains the reconstructed matrices, the distinguished vector `ξ`,
 and rank information.
+
+The input must be Hermitian and positive semidefinite up to solver noise.
+`psd_rtol=1e-4` sets the tolerance `psd_rtol * opnorm(hankel)` for both
+the skew-Hermitian part and negative eigenvalues. Inputs outside this tolerance
+raise `ArgumentError`. This check is independent of the rank cutoffs `atol` and
+`rtol`; increasing them does not admit an indefinite matrix.
 
 !!! tip "Recommended workflow"
     Raw solver Hankel matrices are typically not flat. For best results,
@@ -393,9 +323,22 @@ function gns_reconstruct(
     hankel_deg::Int=H_deg - 1,
     atol::Real=1e-8,
     rtol::Real=0.0,
+    psd_rtol::Real=1e-4,
 ) where {T<:Number,A<:AlgebraType,TI<:Integer}
     _gns_validate_degrees(H_deg, hankel_deg)
+    isfinite(psd_rtol) && psd_rtol >= 0 || throw(ArgumentError("psd_rtol must be finite and nonnegative."))
+    size(hankel, 1) == size(hankel, 2) ||
+        throw(ArgumentError("Hankel matrix must be square, got size $(size(hankel))."))
     full_basis, basis = _gns_basis_pair(registry, H_deg, hankel_deg)
+    length(full_basis) == size(hankel, 1) ||
+        throw(ArgumentError("Hankel matrix size $(size(hankel, 1)) does not match full basis length $(length(full_basis))."))
+    tolerance = psd_rtol * opnorm(hankel)
+    skew = opnorm(hankel - hankel')
+    skew <= tolerance || throw(ArgumentError("Hankel matrix is not Hermitian: skew norm=$skew exceeds tolerance=$tolerance."))
+    minimum_eigenvalue = eigmin(Hermitian((hankel + hankel') / 2))
+    minimum_eigenvalue >= -tolerance || throw(ArgumentError(
+        "Hankel matrix is not positive semidefinite: eigmin=$minimum_eigenvalue, tolerance=$tolerance. Raising psd_rtol accepts larger negative eigenvalues; atol only controls rank."
+    ))
     if method == :svd
         return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
     elseif method == :cholesky
@@ -406,7 +349,8 @@ end
 
 """
     gns_reconstruct(monomap::AbstractDict, registry::VariableRegistry, H_deg::Int;
-                    method::Symbol=:svd, hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
+                    method::Symbol=:svd, hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0,
+                    psd_rtol::Real=1e-4)
 
 Perform GNS reconstruction directly from solved moment values.
 
@@ -433,17 +377,13 @@ function gns_reconstruct(
     hankel_deg::Int=H_deg - 1,
     atol::Real=1e-8,
     rtol::Real=0.0,
+    psd_rtol::Real=1e-4,
 ) where {A<:AlgebraType,TI<:Integer}
     _gns_validate_degrees(H_deg, hankel_deg)
     full_basis, basis = _gns_basis_pair(registry, H_deg, hankel_deg)
     _gns_validate_monomap_coverage(monomap, full_basis, H_deg)
     hankel = hankel_matrix(monomap, full_basis)
-    if method == :svd
-        return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
-    elseif method == :cholesky
-        return _gns_finalize_cholesky(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
-    end
-    throw(ArgumentError("Unknown GNS method: $method. Use :svd or :cholesky."))
+    return gns_reconstruct(hankel, registry, H_deg; method, hankel_deg, atol, rtol, psd_rtol)
 end
 
 @inline _gns_abs_index(idx::Integer) = abs(Int(idx))
@@ -564,7 +504,7 @@ end
 
 """
     gns_reconstruct(monomap::AbstractDict, sparsity::SparsityResult, H_deg::Int;
-                    hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
+                    hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0, psd_rtol::Real=1e-4)
 
 Perform sparse GNS reconstruction from solved sparse moments and their sparsity
 metadata.
@@ -586,6 +526,7 @@ function gns_reconstruct(
     hankel_deg::Int=H_deg - 1,
     atol::Real=1e-8,
     rtol::Real=0.0,
+    psd_rtol::Real=1e-4,
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
     _gns_validate_degrees(H_deg, hankel_deg)
 
@@ -602,6 +543,7 @@ function gns_reconstruct(
         hankel_deg=hankel_deg,
         atol=atol,
         rtol=rtol,
+        psd_rtol=psd_rtol,
     )
 
     isempty(corr_sparsity.global_cons) || throw(ArgumentError(
@@ -614,12 +556,12 @@ function gns_reconstruct(
     clique_data = _gns_sparse_clique_data(monomap, corr_sparsity, H_deg)
     full_basis, basis = _gns_basis_pair(registry, H_deg, hankel_deg)
     hankel = _gns_sparse_disjoint_hankel(clique_data, full_basis)
-    return _gns_finalize(hankel, full_basis, basis, registry; atol=atol, rtol=rtol)
+    return gns_reconstruct(hankel, registry, H_deg; hankel_deg, atol, rtol, psd_rtol)
 end
 
 """
     reconstruct(H::AbstractMatrix, registry::VariableRegistry, H_deg::Int;
-                hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0)
+                hankel_deg::Int=H_deg-1, atol::Real=1e-8, rtol::Real=0.0, psd_rtol::Real=1e-4)
 
 Compatibility wrapper returning only the reconstructed operator matrices.
 
@@ -633,6 +575,7 @@ function reconstruct(
     hankel_deg::Int=H_deg - 1,
     atol::Real=1e-8,
     rtol::Real=0.0,
+    psd_rtol::Real=1e-4,
 )
     return gns_reconstruct(
         hankel,
@@ -641,6 +584,7 @@ function reconstruct(
         hankel_deg=hankel_deg,
         atol=atol,
         rtol=rtol,
+        psd_rtol=psd_rtol,
     ).matrices
 end
 
@@ -651,6 +595,7 @@ function reconstruct(
     hankel_deg::Int=H_deg - 1,
     atol::Real=1e-8,
     rtol::Real=0.0,
+    psd_rtol::Real=1e-4,
 ) where {A<:AlgebraType,TI<:Integer,C<:Number,P<:Polynomial{A,TI,C},M<:NormalMonomial{A,TI}}
     return gns_reconstruct(
         monomap,
@@ -659,5 +604,6 @@ function reconstruct(
         hankel_deg=hankel_deg,
         atol=atol,
         rtol=rtol,
+        psd_rtol=psd_rtol,
     ).matrices
 end

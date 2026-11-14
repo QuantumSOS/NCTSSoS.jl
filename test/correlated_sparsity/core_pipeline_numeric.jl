@@ -32,16 +32,20 @@
     # Source mapping:
     # - oracle verifier: test/oracles/nctssos_corr_sparsity.jl
     # - literature context: @wangExploitingTermSparsity2021
+    # COSMO does not reach 1e-8 here in 100,000 iterations; it stops OPTIMAL at 1e-7.
+    ts_optimizer = optimizer_with_attributes(SOLVER.optimizer_constructor, SOLVER.params...,
+        "eps_abs" => 1e-7, "eps_rel" => 1e-7)
     @testset "TS MMD (moment, order=3 + higher)" begin
         oracle = CORRELATED_PIPELINE_ORACLES.TS_d3
         structure = correlated_structure_case("correlated_pipeline_ts_d3_numeric_structure")
         config = SolverConfig(
-            optimizer=SOLVER,
+            optimizer=ts_optimizer,
             order=3,
             cs_algo=NoElimination(),
             ts_algo=MMD()
         )
         result = cs_nctssos(pop, config; dualize=false)
+        config = SolverConfig(optimizer=SOLVER, order=3, ts_algo=MMD())
         result = cs_nctssos_higher(pop, result, config; dualize=false)
         @test result.objective ≈ oracle.opt atol = 1e-5
         @test result.n_unique_moment_matrix_elements ==
@@ -50,9 +54,9 @@
 
     @testset "TS MMD (SOS, order=3)" begin
         oracle = CORRELATED_PIPELINE_ORACLES.TS_d3
-        config = SolverConfig(optimizer=SOLVER, order=3, ts_algo=MMD())
+        config = SolverConfig(optimizer=ts_optimizer, order=3, ts_algo=MMD())
         result = cs_nctssos(pop, config; dualize=true)
-        @test result.objective ≈ oracle.opt atol = 2e-4
+        @test result.objective ≈ oracle.opt atol = 1e-4
     end
 
     @testset "E8 constrained polyball (dualized SOS hierarchy)" begin

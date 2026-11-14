@@ -804,6 +804,13 @@ function verify_continuous_certificate(reduction, bound, grams::AbstractVector,
         grams=lifted, equality_coefficients=equality_coefficients)
 end
 
+"""
+    continuous_nctssos(pop, config, actions; compact_metric, kwargs...)
+
+Solve a continuous-symmetry reduced relaxation. An accepted early solver stop
+emits one warning and returns `objective=NaN`; `model` retains the solver state.
+The SOS route returns `certificate=nothing` in that case.
+"""
 function continuous_nctssos(pop, config::SolverConfig, actions; compact_metric,
     compress::Bool=true, dualize::Bool=false, physics::Union{Nothing,PhysicsSparsity}=nothing,
     clifford_generators::AbstractVector{<:CliffordSymmetry}=CliffordSymmetry[])
@@ -815,18 +822,17 @@ function continuous_nctssos(pop, config::SolverConfig, actions; compact_metric,
         set_optimizer(model,config.optimizer)
         set_silent(model)
         optimize!(model)
-        status = _check_solver_status(model)
+        status, bound = _check_solver_status(model)
         grams = [value.(q) for q in model[:psd_duals]]
         multipliers = value.(model[:zero_duals])
-        bound = objective_value(model)
-        certificate = verify_continuous_certificate(reduction,bound,grams,multipliers)
+        certificate = isnan(bound) ? nothing : verify_continuous_certificate(reduction,bound,grams,multipliers)
         return (; objective=bound, model, status, reduction, grams, multipliers, certificate)
     end
     model, extract = build_jump_model(reduction.moment_problem)
     set_optimizer(model,config.optimizer)
     set_silent(model)
     optimize!(model)
-    status = _check_solver_status(model)
+    status, objective = _check_solver_status(model)
     values = extract()
     K = typeof(reduction.moment_problem.linear.identity)
     # Some invariant coordinates occur only in equality tests annihilated by
@@ -835,7 +841,7 @@ function continuous_nctssos(pop, config::SolverConfig, actions; compact_metric,
     coordinates = [get(values,_moment_key(K,m),0.0) for m in reduction.coordinate_labels]
     moments = reconstruct_continuous_moments(reduction,coordinates)
     matrices = reconstruct_continuous_matrices(reduction,coordinates)
-    return (; objective=objective_value(model), model, status, reduction, coordinates, moments, matrices)
+    return (; objective, model, status, reduction, coordinates, moments, matrices)
 end
 
 # Search only the real linear span of supplied compact candidate derivations.

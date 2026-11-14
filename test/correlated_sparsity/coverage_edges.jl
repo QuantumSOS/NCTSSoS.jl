@@ -18,12 +18,16 @@ JuMP.dual_status(model::_StatusStub) = model.dual
         @test NCTSSoS.compute_relaxation_order(pop, 0) == 2
     end
 
-    @testset "_check_solver_status accepts iteration-limit feasible" begin
+    @testset "_check_solver_status withholds early-stop bounds" begin
         model = _StatusStub(MOI.ITERATION_LIMIT, MOI.FEASIBLE_POINT, MOI.NO_SOLUTION)
-        @test NCTSSoS._check_solver_status(model) == MOI.ITERATION_LIMIT
+        checked = @test_logs (:warn, r"Solver stopped early; no bound is reported") NCTSSoS._check_solver_status(model)
+        @test checked.status == MOI.ITERATION_LIMIT
+        @test isnan(checked.objective)
 
         model = _StatusStub(MOI.SLOW_PROGRESS, MOI.NO_SOLUTION, MOI.NEARLY_FEASIBLE_POINT)
-        @test NCTSSoS._check_solver_status(model) == MOI.SLOW_PROGRESS
+        checked = @test_logs (:warn, r"Solver stopped early; no bound is reported") NCTSSoS._check_solver_status(model)
+        @test checked.status == MOI.SLOW_PROGRESS
+        @test isnan(checked.objective)
     end
 
     @testset "_check_solver_status throws with status details" begin
@@ -98,7 +102,7 @@ JuMP.dual_status(model::_StatusStub) = model.dual
         @test any(cone == :Zero && size(mat) == (1, 1) && mat[1, 1] == odd_imag for (cone, mat) in mp.constraints)
     end
 
-    @testset "_solve_real_moment_problem rejects unknown cone" begin
+    @testset "build_jump_model rejects unknown real cone" begin
         reg, (u,) = create_unipotent_variables([("u", 1:1)])
         objective = 1.0 * u[1]
         pop = polyopt(objective, reg)
@@ -116,7 +120,7 @@ JuMP.dual_status(model::_StatusStub) = model.dual
         bad_mp = typeof(mp)(mp.objective, bad_constraints, mp.total_basis, mp.n_unique_moment_matrix_elements)
 
         err = try
-            NCTSSoS._solve_real_moment_problem(bad_mp, SOLVER, true)
+            build_jump_model(bad_mp)
             nothing
         catch e
             e

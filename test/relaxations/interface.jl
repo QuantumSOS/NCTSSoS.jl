@@ -519,6 +519,27 @@ end
 @testset "_check_solver_status" begin
     using JuMP
 
+    @testset "Early stops report no bound on either route" begin
+        reg, (xs,) = create_noncommutative_variables([("x", 1:1)])
+        x = only(xs)
+        for (dualize, limit, f, exact) in ((false, 30, 10.0*x^2 + 2.0*x, -0.1), (true, 5, 1.0*x, -1.0))
+            pop = polyopt(f, reg; ineq_constraints=[1.0-x^2])
+            optimizer = optimizer_with_attributes(COSMO.Optimizer,
+                "verbose" => false, "max_iter" => limit, "check_termination" => 1)
+            result = @test_logs (:warn, r"Solver stopped early; no bound is reported") cs_nctssos(
+                pop, SolverConfig(; optimizer, order=1); dualize)
+            @test isnan(result.objective)
+            @test termination_status(result.model) == MOI.ITERATION_LIMIT
+            @test primal_status(result.model) == MOI.INFEASIBLE_POINT
+            @test dual_status(result.model) == MOI.FEASIBLE_POINT
+            optimizer = optimizer_with_attributes(COSMO.Optimizer,
+                "verbose" => false, "max_iter" => 10_000, "check_termination" => 1)
+            control = cs_nctssos(pop, SolverConfig(; optimizer, order=1); dualize)
+            @test termination_status(control.model) == MOI.OPTIMAL
+            @test control.objective ≈ exact atol=1e-4
+        end
+    end
+
     @testset "Acceptable statuses don't throw" begin
         # Create a simple feasible model
         reg, (x,) = create_noncommutative_variables([("x", 1:2)])

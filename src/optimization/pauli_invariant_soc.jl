@@ -206,6 +206,8 @@ problem must match, as for `add_pauli_invariant_soc!`. Existing constraints are
 preserved. Each call tracks duplicates among its own newly added constraints.
 Returns numerical primal/dual objectives, audit records, objectives after each
 solve, and solve/separation wall times. No interval certification is performed.
+An accepted early stop warns, ends separation, and returns `NaN` for both
+objectives; `result.model` retains the solver state.
 """
 function separate_pauli_invariant_socs!(model, mp::MomentProblem{PauliAlgebra}, clusters;
     max_rounds::Int=3, batch_size::Int=4, violation_tolerance::Real=1e-6)
@@ -220,9 +222,10 @@ function separate_pauli_invariant_socs!(model, mp::MomentProblem{PauliAlgebra}, 
     separation_seconds = 0.0
     for round in 0:max_rounds
         solve_seconds += @elapsed optimize!(model)
-        _check_solver_status(model)
+        checked = _check_solver_status(model)
+        push!(objectives, checked.objective)
+        isnan(checked.objective) && break
         has_values(model) && has_duals(model) || error("Separation requires primal and dual solver results.")
-        push!(objectives, objective_value(model))
         round == max_rounds && break
         added = 0
         separation_seconds += @elapsed begin
@@ -252,6 +255,6 @@ function separate_pauli_invariant_socs!(model, mp::MomentProblem{PauliAlgebra}, 
         end
         added == 0 && break
     end
-    return (; objective=objective_value(model), bound=dual_objective_value(model), model,
+    return (; objective=last(objectives), bound=isnan(last(objectives)) ? NaN : dual_objective_value(model), model,
         records, objectives, solve_seconds, separation_seconds)
 end

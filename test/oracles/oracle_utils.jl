@@ -3,9 +3,7 @@
 #
 # ENVIRONMENT SETUP:
 #   These scripts must be run from the NCTSSOS repository (not NCTSSoS.jl).
-#   Set NCTSSOS_PATH environment variable or use default locations:
-#     - Local (macOS): /Users/yushengzhao/projects/NCTSSOS
-#     - a800 server:   /home/yushengzhao/NCTSSOS
+#   Set NCTSSOS_PATH to the legacy repository; there is no default location.
 #
 # RUNNING ORACLE SCRIPTS:
 #   Option 1: Using make (from NCTSSoS.jl repo)
@@ -32,12 +30,8 @@
 #       result = run_oracle(...)
 #   end
 
-# Detect NCTSSOS path for informational purposes
-const NCTSSOS_PATH = get(ENV, "NCTSSOS_PATH",
-    isdir("/Users/yushengzhao/projects/NCTSSOS") ? "/Users/yushengzhao/projects/NCTSSOS" :
-    isdir("/home/yushengzhao/NCTSSOS") ? "/home/yushengzhao/NCTSSOS" :
-    "(not detected - set NCTSSOS_PATH)"
-)
+# Read NCTSSOS path for informational purposes
+const NCTSSOS_PATH = get(ENV, "NCTSSOS_PATH", "(not set - set NCTSSOS_PATH)")
 
 # Solver selection via ORACLE_SOLVER env var (default: mosek)
 const ORACLE_SOLVER_NAME = Symbol(get(ENV, "ORACLE_SOLVER", "mosek"))

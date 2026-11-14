@@ -75,17 +75,15 @@ const CHSH_ORACLES = Dict(
 
 ### NCTSSOS Repository Paths
 
-| Machine | Path |
-|---------|------|
-| Local (macOS) | `/Users/yushengzhao/projects/NCTSSOS` |
-| a800 server | `/home/yushengzhao/NCTSSOS` |
-
-Set `NCTSSOS_PATH` environment variable to override.
+Set the `NCTSSOS_PATH` environment variable to the legacy NCTSSOS repository.
+There is no default location.
 
 ### Using Makefile (Recommended)
 
 From NCTSSoS.jl repository:
 ```bash
+export NCTSSOS_PATH=/path/to/NCTSSOS
+
 # Run with Mosek (default)
 make oracle-chsh
 make oracle-i3322

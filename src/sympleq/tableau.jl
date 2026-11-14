@@ -91,15 +91,6 @@ function _symplectic_row_to_pauli_word(
     return word, eta
 end
 
-function _single_pauli_letter_from_symplectic(
-    row::AbstractVector{<:Integer},
-    ::Type{T}=UInt8,
-) where {T<:Integer}
-    word, eta = _symplectic_row_to_pauli_word(row, T)
-    length(word) == 1 || return nothing
-    return only(word), eta
-end
-
 """
     SymplecticTableau(H::Polynomial{PauliAlgebra})
 

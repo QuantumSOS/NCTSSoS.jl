@@ -300,7 +300,7 @@ function _finite_check_report(symmetry::Symmetry, backend_report::SymmetryReport
     asserted = intersect(options, (:pauli_singlet, :spin_adaptation))
     :pauli_singlet in options && push!(notes,
         "`pauli_singlet` adds moment equations that hold for spin-rotation-invariant states; " *
-        "this route does not check that the problem is spin-rotation invariant.")
+        "exact total-spin commutators are checked, but equivalence of the truncated relaxation is not certified.")
     :spin_adaptation in options && push!(notes,
         "`spin_adaptation` assumes spin-rotation invariance; this route does not check it for the problem.")
     isempty(setdiff(options, asserted)) || push!(notes,

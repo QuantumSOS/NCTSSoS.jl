@@ -295,6 +295,31 @@ end
         @test z_report.psd_block_sizes == [2]
     end
 
+    @testset "Pauli reductions require exact problem invariance" begin
+        reg, (x, y, z) = create_pauli_variables(1:1)
+        for (symmetry, noninvariant) in (
+            (Symmetry(pauli_charge=PauliChargeSectorSpec(nqubits=1)), (1//10^12) * x[1]),
+            (Symmetry(pauli_singlet=PauliSingletConstraintSpec(nqubits=1)), x[1] + y[1] + z[1]),
+        )
+            cfg = SolverConfig(optimizer=SOLVER, order=1,
+                cs_algo=NoElimination(), ts_algo=NoElimination(), symmetry=symmetry)
+            err = _capture_exception(() -> cs_nctssos(polyopt(noninvariant, reg), cfg))
+            @test err isa ArgumentError
+            @test occursin("This check is exact", sprint(showerror, err))
+            for kind in (:eq_constraints, :ineq_constraints, :moment_eq_constraints)
+                pop = polyopt(1//1 * one(x[1]), reg; kind => [noninvariant])
+                @test_throws ArgumentError cs_nctssos(pop, cfg)
+            end
+        end
+
+        reg2, (xx, yy, _) = create_pauli_variables(1:2)
+        cfg = SolverConfig(optimizer=SOLVER, order=1,
+            cs_algo=NoElimination(), ts_algo=NoElimination(),
+            symmetry=Symmetry(pauli_charge=PauliChargeSectorSpec(nqubits=2)))
+        rounded = polyopt((0.1 + 0.2) * xx[1] * xx[2] + 0.3 * yy[1] * yy[2], reg2)
+        @test_throws ArgumentError cs_nctssos(rounded, cfg)
+    end
+
     @testset "Pauli charge sectors and singlet constraints" begin
         n_ring = 4
         reg, (σx, σy, σz) = create_pauli_variables(1:n_ring)
@@ -515,7 +540,7 @@ end
         @test empty_clifford_charge.pauli_charge isa PauliChargeSectorSpec
 
         overspecified_singlet = SymmetrySpec(
-            pauli_singlet=PauliSingletConstraintSpec(nqubits=2),
+            pauli_singlet=PauliSingletConstraintSpec(nqubits=n_ring + 1),
         )
         overspecified_cfg = SolverConfig(
             optimizer=nothing,
@@ -524,9 +549,9 @@ end
             ts_algo=NoElimination(),
             symmetry=overspecified_singlet,
         )
-        overspecified_sparsity = compute_sparsity(bad_pop, overspecified_cfg)
+        overspecified_sparsity = compute_sparsity(pop, overspecified_cfg)
         err = _capture_exception(() -> NCTSSoS.moment_relax_symmetric(
-            bad_pop,
+            pop,
             overspecified_sparsity.corr_sparsity,
             overspecified_sparsity.cliques_term_sparsities,
             overspecified_singlet,
@@ -613,8 +638,6 @@ end
         y_word, eta_back = NCTSSoS._symplectic_row_to_pauli_word(y_row, UInt8)
         @test eta_back == 1
         @test y_word == σy[2].word
-        @test NCTSSoS._single_pauli_letter_from_symplectic(y_row, UInt8) == (only(σy[2].word), Int8(1))
-        @test isnothing(NCTSSoS._single_pauli_letter_from_symplectic(UInt8[1, 1, 0, 0], UInt8))
 
         products = NCTSSoS.symplectic_product_matrix(tab)
         @test products == UInt8[0 1 0; 1 0 0; 0 0 0]
@@ -739,11 +762,6 @@ end
 
         @test domain == sort!(T[x[1].word[1], x[2].word[1]])
         @test NCTSSoS._check_symmetry_invariance(pop, group) === nothing
-
-        @test NCTSSoS._assert_poly_equal(invariant_poly, invariant_poly, "same") === nothing
-        err = _capture_exception(() -> NCTSSoS._assert_poly_equal(invariant_poly, invariant_poly + 1.0, "different"))
-        @test err isa ArgumentError
-        @test occursin("different", sprint(showerror, err))
 
         reducer = NCTSSoS._build_orbit_reducer([one(x[1])], group)
         scalar_blocks = NCTSSoS._reduce_constraint_matrix_symmetric(

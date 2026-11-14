@@ -2215,19 +2215,6 @@ function _assert_poly_small(
     return nothing
 end
 
-function _assert_poly_equal(
-    lhs::Polynomial{A,T,C},
-    rhs::Polynomial{A,T,C},
-    context::AbstractString;
-    atol::Float64=_SYMMETRY_ATOL,
-) where {A<:AlgebraType,T<:Integer,C<:Number}
-    diff = _chop_polynomial(lhs - rhs; atol)
-    iszero(diff) || throw(ArgumentError(
-        "$context should match after symmetry reduction, but differs by $diff."
-    ))
-    return nothing
-end
-
 struct _BasisPartitionBlock{L}
     indices::Vector{Int}
     label::L
@@ -3114,16 +3101,6 @@ function _pauli_charge_words_for_basis(
     return _pauli_charge_words_from_basis(basis, d)
 end
 
-function _pauli_charge_insert_op(word::_PauliChargeWord, site::Integer, op::Int8)
-    new_ops = Tuple{Int,Int8}[(Int(existing_site), Int8(existing_op)) for (existing_site, existing_op) in word.ops]
-    any(first(existing) == site for existing in new_ops) && throw(ArgumentError(
-        "Pauli charge expansion encountered two non-identity operators on site $site."
-    ))
-    push!(new_ops, (Int(site), op))
-    sort!(new_ops; by=first)
-    return _PauliChargeWord(Tuple(new_ops))
-end
-
 function _pauli_charge_letter_expansion(::Type{T}, site::Integer, op::Int8) where {T<:Integer}
     if op == _PAULI_CHARGE_Z
         return Tuple{ComplexF64,NormalMonomial{PauliAlgebra,T}}[(1.0 + 0.0im, _pauli_letter(T, site, _PAULI_Z_TYPE))]
@@ -3179,20 +3156,6 @@ function _pauli_charge_transform_entries(
     return entries
 end
 
-function _pauli_charge_transform_row(
-    ::Type{T},
-    word::_PauliChargeWord,
-    basis_index::Dict{NormalMonomial{PauliAlgebra,T},Int},
-    ncols::Integer;
-    atol::Float64=_SYMMETRY_ATOL,
-) where {T<:Integer}
-    row = zeros(ComplexF64, ncols)
-    for (idx, coef) in _pauli_charge_transform_entries(T, word, basis_index; atol)
-        row[idx] += coef
-    end
-    return row
-end
-
 function _pauli_charge_sector_rows(
     row_entries::AbstractVector{<:AbstractVector{Tuple{Int,ComplexF64}}},
     ncols::Integer,
@@ -3216,67 +3179,24 @@ function _pauli_charge_sector_rows(
     return sparse(row_indices, col_indices, values, length(row_entries), Int(ncols))
 end
 
-function _pauli_monomial_charge_components(mono::NormalMonomial{PauliAlgebra,T}) where {T<:Integer}
-    terms = Dict{_PauliChargeWord,ComplexF64}(_PauliChargeWord(()) => 1.0 + 0.0im)
-    for idx in mono.word
-        site = _pauli_site(idx)
-        letter_terms = if _pauli_type(idx) == _PAULI_X_TYPE
-            Tuple{ComplexF64,Int8}[(1.0 + 0.0im, _PAULI_CHARGE_SP), (1.0 + 0.0im, _PAULI_CHARGE_SM)]
-        elseif _pauli_type(idx) == _PAULI_Y_TYPE
-            Tuple{ComplexF64,Int8}[(0.0 - 1.0im, _PAULI_CHARGE_SP), (0.0 + 1.0im, _PAULI_CHARGE_SM)]
-        else
-            Tuple{ComplexF64,Int8}[(1.0 + 0.0im, _PAULI_CHARGE_Z)]
+function _check_pauli_total_spin(pop::PolyOpt{PauliAlgebra,T}; axes=0:2) where {T}
+    M = NormalMonomial{PauliAlgebra,T}
+    for poly in (pop.objective, pop.eq_constraints..., pop.ineq_constraints..., pop.moment_eq_constraints...), axis in axes
+        entries = Tuple{_ActionCoefficient,M}[]
+        for (c, m) in terms(poly), idx in m.word
+            _pauli_type(idx) == axis && continue
+            g = M(T[_pauli_index(_pauli_site(idx), axis)])
+            lc, lm = _mul_term(g, m)
+            rc, rm = _mul_term(m, g)
+            push!(entries, (_action_coefficient(c) * _action_coefficient(lc), lm))
+            push!(entries, (-_action_coefficient(c) * _action_coefficient(rc), rm))
         end
-
-        next_terms = Dict{_PauliChargeWord,ComplexF64}()
-        for (word, coef) in terms, (letter_coef, charge_op) in letter_terms
-            image = _pauli_charge_insert_op(word, site, charge_op)
-            next_terms[image] = get(next_terms, image, 0.0 + 0.0im) + coef * letter_coef
-        end
-        terms = next_terms
-    end
-    return terms
-end
-
-function _pauli_polynomial_charge_components(poly::Polynomial{PauliAlgebra,T,C}) where {T<:Integer,C<:Number}
-    components = Dict{_PauliChargeWord,ComplexF64}()
-    for (coef, mono) in poly.terms
-        for (word, charge_coef) in _pauli_monomial_charge_components(mono)
-            components[word] = get(components, word, 0.0 + 0.0im) + ComplexF64(coef) * charge_coef
-        end
-    end
-    return components
-end
-
-function _check_pauli_charge_neutral(
-    label::AbstractString,
-    poly::Polynomial{PauliAlgebra,T,C};
-    atol::Float64=_SYMMETRY_ATOL,
-) where {T<:Integer,C<:Number}
-    for (word, coef) in _pauli_polynomial_charge_components(poly)
-        _pauli_charge(word) == 0 && continue
-        abs(coef) <= atol && continue
-        throw(ArgumentError(
-            "Pauli U(1) charge-sector reduction requires $label to be charge-neutral. " *
-            "Found charge $(_pauli_charge(word)) component with coefficient $coef."
-        ))
+        iszero(Polynomial(entries)) || throw(ArgumentError("Pauli symmetry requires the objective and every constraint to commute with total spin on axis $(('X', 'Y', 'Z')[axis + 1]) (charge-neutral for Z). This check is exact; coefficients equal only up to rounding error are rejected."))
     end
     return nothing
 end
 
-function _check_pauli_charge_neutral(pop::PolyOpt{PauliAlgebra,T,P}; atol::Float64=_SYMMETRY_ATOL) where {T<:Integer,C<:Number,P<:Polynomial{PauliAlgebra,T,C}}
-    _check_pauli_charge_neutral("the objective", pop.objective; atol)
-    for (i, poly) in pairs(pop.eq_constraints)
-        _check_pauli_charge_neutral("equality constraint $i", poly; atol)
-    end
-    for (i, poly) in pairs(pop.ineq_constraints)
-        _check_pauli_charge_neutral("inequality constraint $i", poly; atol)
-    end
-    for (i, poly) in pairs(pop.moment_eq_constraints)
-        _check_pauli_charge_neutral("moment equality constraint $i", poly; atol)
-    end
-    return nothing
-end
+_check_pauli_charge_neutral(pop::PolyOpt{PauliAlgebra}) = _check_pauli_total_spin(pop; axes=2:2)
 
 function _pauli_spatial_permutation(g::CliffordSymmetry)
     perm = Vector{Int}(undef, g.nqubits)
@@ -3778,7 +3698,8 @@ function moment_relax_symmetric(
     end
 
     _validate_polynomial_relaxation_support(pop, total_basis; source="Constructed relaxation basis")
-    !isnothing(pauli_charge) && _check_pauli_charge_neutral(pop; atol)
+    !isnothing(pauli_charge) && _check_pauli_charge_neutral(pop)
+    !isnothing(pauli_singlet) && _check_pauli_total_spin(pop)
 
     active_modes = if A === FermionicAlgebra && (!isnothing(sector) || !isnothing(spin_adaptation) || !isempty(symmetry.fermionic_generators))
         _mode_symmetry_domain(pop, corr_sparsity, cliques_term_sparsities)

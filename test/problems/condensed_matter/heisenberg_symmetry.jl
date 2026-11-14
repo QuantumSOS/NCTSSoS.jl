@@ -52,6 +52,16 @@ end
     @test symmetric.symmetry.group_order == 2
     @test symmetric.symmetry.psd_block_sizes == [4, 3]
     @test maximum(symmetric.symmetry.psd_block_sizes) < only(flatten_sizes(plain.moment_matrix_sizes))
+
+    for symmetry in (
+        Symmetry(pauli_charge=PauliChargeSectorSpec(nqubits=2)),
+        Symmetry(pauli_singlet=PauliSingletConstraintSpec(nqubits=2)),
+    )
+        reduced = cs_nctssos(pop, SolverConfig(optimizer=SOLVER, moment_basis=basis,
+            cs_algo=NoElimination(), ts_algo=NoElimination(), symmetry=symmetry))
+        @test reduced.objective ≈ plain.objective atol = 1e-6
+        @test reduced.objective ≈ -0.75 atol = 1e-6
+    end
 end
 
 @testset "4-site Heisenberg ring with charge/spatial/singlet symmetry" begin

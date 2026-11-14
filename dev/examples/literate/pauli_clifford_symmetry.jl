@@ -34,10 +34,9 @@
 # - the union of both is a group of order **48** that reduces the whole
 #   ``7 \times 7`` PSD constraint to three scalars.
 #
-# Detection and inspection find *different* parts of the symmetry group, so
-# the best spec is their union. We demonstrate this on 2 and 4 sites where
-# every number can be checked by hand, then time the payoff on a 10-site ring
-# at relaxation order 2.
+# Detection and inspection can find different parts of the symmetry group.
+# We demonstrate their union on 2 sites, then distinguish Hamiltonian
+# symmetries from basis-preserving symmetries on 4 and 10-site rings.
 #
 # **Prerequisites:** the [CHSH symmetry](@ref chsh-symmetry) example (the
 # same workflow with signed permutations on measurement variables) and the
@@ -354,7 +353,7 @@ combined_result.objective
 combined_report = combined_result.symmetry
 (combined_report.group_order, combined_report.psd_block_sizes)
 
-# ## Step 6 — Bigger ring, same lesson: the 4-site Heisenberg chain
+# ## Step 6 — A ring: detection and basis closure are different requirements
 #
 # On a 4-site periodic chain
 #
@@ -414,32 +413,46 @@ spatial_report4 = spatial_result4.symmetry
 (spatial_report4.group_order, spatial_report4.psd_block_sizes,
  spatial_report4.invariant_moment_count)
 
-# Now automatic detection — the Hamiltonian has 12 terms, and SympleQ returns
-# its verified generators in a fraction of a second:
+# Automatic detection also finds degree-changing Clifford maps. They preserve
+# H4, but not the order-1 basis above. Keep the detection result separate from
+# the degree-preserving lattice-and-axis subgroup used for the SDP.
 
 auto_spec4 = sympleq_symmetry_spec(H4);
 length(auto_spec4.clifford_generators)
+
+# This explicit subgroup has order 48N. Unlike filtering a small generating
+# set, constructing it this way cannot accidentally drop products that preserve
+# the basis even though their factors do not.
+
+function ring_basis_spec(ops)
+    SymmetrySpec(
+        pauli_chain_translation(ops), pauli_chain_reflection(ops),
+        pauli_global_axis_rotation_generators(ops)...,
+    )
+end
+
+basis_spec4 = ring_basis_spec((σx4, σy4, σz4));
 
 auto_config4 = SolverConfig(
     optimizer    = SILENT_MOSEK,
     moment_basis = basis4,
     cs_algo      = NoElimination(),
     ts_algo      = NoElimination(),
-    symmetry     = auto_spec4,
+    symmetry     = basis_spec4,
 )
 
 auto_result4 = cs_nctssos(pop4, auto_config4);
 auto_result4.objective
 
-# A different group of order 16 — again containing axis-mixing Cliffords the
-# spatial spec lacks, again missing part of the point group the spatial spec
-# has:
+# The basis-preserving lattice-and-axis group has order 192. The full detected
+# group has order 384, but cannot be passed to this degree-1 basis unchanged:
 
 auto_report4 = auto_result4.symmetry
 (auto_report4.group_order, auto_report4.psd_block_sizes,
  auto_report4.invariant_moment_count)
 
-# Neither alone is the whole story; their union is strictly bigger than both:
+# Translation and reflection are already in this subgroup, so adding them
+# again leaves the reduction unchanged:
 
 combined_config4 = SolverConfig(
     optimizer    = SILENT_MOSEK,
@@ -447,15 +460,14 @@ combined_config4 = SolverConfig(
     cs_algo      = NoElimination(),
     ts_algo      = NoElimination(),
     symmetry     = SymmetrySpec(
-        auto_spec4.clifford_generators..., translation, reflection,
+        basis_spec4.clifford_generators..., translation, reflection,
     ),
 )
 
 combined_result4 = cs_nctssos(pop4, combined_config4);
 combined_result4.objective
 
-# Order 64 — and the ``13 \times 13`` moment matrix dissolves into **seven
-# scalars** with just four invariant moments:
+# Read the group order and block sizes from the verified reduction:
 
 combined_report4 = combined_result4.symmetry
 (combined_report4.group_order, combined_report4.psd_block_sizes,
@@ -467,8 +479,8 @@ combined_report4 = combined_result4.symmetry
 # |:-----|:------------|:-----------|:------------------|
 # | dense | — | `[13]` | 67 |
 # | manual ``D_4`` (translation + reflection) | 8 | `[4, 3, 3]` | 15 |
-# | `sympleq_symmetry_spec` | 16 | `[1, 2, 2, 2, 2]` | 8 |
-# | union of both | 64 | `[1, 1, 1, 1, 1, 1, 1]` | 4 |
+# | lattice and axis subgroup | 192 | see output above | see output above |
+# | same subgroup plus redundant spatial generators | 192 | unchanged | unchanged |
 
 # ## Step 7 — The payoff at scale: 10-site Heisenberg ring at order 2
 #
@@ -523,7 +535,8 @@ dense_config10 = SolverConfig(
 # model construction, and the optimizer solve. What they exclude is cold-start
 # compilation noise.
 
-warm_spec10 = sympleq_symmetry_spec(H10);
+warm_detected10 = sympleq_symmetry_spec(H10);
+warm_spec10 = ring_basis_spec((σx10, σy10, σz10));
 warm_config10 = SolverConfig(
     optimizer = SILENT_MOSEK,
     order     = 2,
@@ -558,7 +571,7 @@ t_dense10
 
 t_dense_mosek = JuMP.solve_time(dense_result10.model)
 
-# ### SympleQ detection + symmetry-reduced solve (timed)
+# ### Detection plus a basis-preserving subgroup solve (timed)
 #
 # SympleQ detection depends on the *Hamiltonian* (30 Pauli terms), not on the
 # relaxation order, so it stays cheap relative to the solve.
@@ -572,14 +585,17 @@ length(auto_spec10.clifford_generators)
 
 t_detect10
 
-# Solve with the auto-detected symmetry at order 2:
+# The detected degree-changing maps need not preserve the order-2 basis.
+# Use the explicit lattice-and-axis subgroup (order 480) for this solve:
+
+basis_spec10 = ring_basis_spec((σx10, σy10, σz10));
 
 config10 = SolverConfig(
     optimizer = SILENT_MOSEK,
     order     = 2,
     cs_algo   = NoElimination(),
     ts_algo   = NoElimination(),
-    symmetry  = auto_spec10,
+    symmetry  = basis_spec10,
 )
 
 GC.gc()
@@ -606,9 +622,8 @@ t_sym_mosek = JuMP.solve_time(result10.model)
 
 # ### Comparison
 #
-# The ``436 \times 436`` dense PSD block splits into **10 smaller blocks**
-# (largest ~ 51), and the distinct moment variables drop from ~20,000 to
-# ~1,400. The objectives match — the reduction is exact.
+# The output below gives the current block sizes, moment counts, and timings.
+# The objectives must match: the subgroup reduction is exact.
 
 println("Steady-state timing; warm-up solves discarded")
 println("run       total        of which Mosek   moment vars   PSD blocks")
@@ -619,9 +634,16 @@ println("End-to-end speedup: $(round(t_dense10 / (t_detect10 + t_sym10); digits=
 println("Solver-only speedup: $(round(t_dense_mosek / t_sym_mosek; digits=0))x")
 println("Moment variable reduction: $(dense_result10.n_unique_moment_matrix_elements) → $(result10.n_unique_moment_matrix_elements)")
 println("Objective difference: $(round(abs(dense_result10.objective - result10.objective); sigdigits=3))")
-println("Group order: $(report10.group_order), generators: $(length(auto_spec10.clifford_generators))")
+println("SDP subgroup order: $(report10.group_order), subgroup generators: $(length(basis_spec10.clifford_generators))")
+println("Detected generators (not used directly for the SDP): $(length(auto_spec10.clifford_generators))")
 
-# ### Where does the remaining time go?
+# ### Historical timings: the old order-16 subgroup
+#
+# **The following measurements predate the relation-space fix.** They used an
+# incomplete order-16 detected group, not the order-480 subgroup used above.
+# They are retained as historical measurements, not as predictions for the
+# current detection or current solve. In particular, the former need to add
+# translations to the detected ring group was a detection bug, now corrected.
 #
 # Look at the two speedup numbers separately. The **solver-only** speedup is
 # roughly two orders of magnitude: Mosek's share collapses from ~130 s to
@@ -668,7 +690,7 @@ println("Group order: $(report10.group_order), generators: $(length(auto_spec10.
 #   moment matrix, detection and construction can eat the gains — measure
 #   both parts (`JuMP.solve_time` vs. total) before scaling up.
 
-# ### Scaling beyond 10 sites
+# ### Historical scaling beyond 10 sites (old order-16 subgroup)
 #
 # The gap between dense and symmetry-reduced widens rapidly with system
 # size. The numbers below were measured once with the same protocol as the
@@ -728,21 +750,16 @@ println("Group order: $(report10.group_order), generators: $(length(auto_spec10.
 # Three takeaways:
 #
 # 1. **Symmetry reduction is exact** — every row certifies the same bound,
-#    only the SDP shrinks. At low orders the overhead is not worth it; by
-#    order 2 on 10 qubits the pure solver time drops by two orders of
-#    magnitude (~130 s → under a second), and the advantage widens with
-#    size — 68× end-to-end at 14 sites, and at 16 sites the symmetry-reduced
-#    relaxation solves in minutes where the dense one is out of reach. The
-#    remaining overhead — detection plus symmetry-adapted construction —
-#    grows with the group order, so the largest group is not automatically
-#    the fastest run.
+#    only the SDP shrinks. Use the executed output above for current timings;
+#    the historical scaling measurements used a smaller subgroup. Detection
+#    and symmetry-adapted construction cost time too, so the largest group
+#    is not automatically the fastest run.
 # 2. **Inspection and detection see different things.** Humans spot spatial
 #    symmetries (SWAP, translations); SympleQ finds internal, axis-mixing
 #    Clifford symmetries that fix no individual term — but can miss Cliffords
 #    that fix *every* term, because those induce the identity permutation on
 #    the detection graph.
-# 3. **So use both.** For production runs, start from
-#    `sympleq_symmetry_spec(H)` and splice in the structural generators you
-#    know: `SymmetrySpec(auto.clifford_generators..., your_gates...)`. The
-#    union is often strictly stronger than either part — as a *reduction*;
-#    check Step 7's caveat before assuming it is also faster end-to-end.
+# 3. **Check basis closure separately.** A valid Hamiltonian symmetry can
+#    change monomial degree. Use a basis-preserving subgroup or an explicitly
+#    closed moment basis; do not pass every detected map to an order-based
+#    relaxation without that check.

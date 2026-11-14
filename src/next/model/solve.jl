@@ -100,5 +100,5 @@ function _expectation(table,result::SolveResult,p::Polynomial{W}) where {W}
             value+=c*moment
         end
     end
-    return LinearAlgebra.ishermitian(p) ? real(value) : value
+    return LinearAlgebra.ishermitian(p) ? Float64(real(value)) : ComplexF64(value)
 end

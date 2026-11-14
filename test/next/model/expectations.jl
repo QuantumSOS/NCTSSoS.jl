@@ -33,6 +33,18 @@ function check_expectations(backend,reference_optimizer)
     @test N.expectation(result,im*h) isa Complex
     @test N.expectation(result,im*h) ≈ im*result.bound atol=2e-5
 
+    # Continuous relations have exact rational coefficients. Only the final
+    # observable is narrowed, after exact cancellation and coverage checks.
+    registry=x[1].registry
+    heisenberg=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+z[i]*z[mod1(i+1,4)] for i in 1:4)
+    continuous=N.solve(N.Problem(heisenberg;symmetry=N.Symmetry(;continuous=N.spin_rotations(registry))),
+        N.Relaxation(order=2);solver=backend)
+    @test continuous.bound ≈ -8 atol=2e-5
+    @test N.expectation(continuous,x[1]*x[2]) isa Float64
+    @test N.expectation(continuous,x[1]*x[2]) ≈ -2/3 atol=2e-5
+    @test N.expectation(continuous,im*x[1]*x[2]) isa ComplexF64
+    @test N.expectation(continuous,im*x[1]*x[2]) ≈ -2im/3 atol=2e-5
+
     # A split can omit a degree-one moment even at order two. Increasing the
     # plain Relaxation order is not the right advice for this result's route.
     ring=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+1.5*z[i]*z[mod1(i+1,4)] for i in 1:4)

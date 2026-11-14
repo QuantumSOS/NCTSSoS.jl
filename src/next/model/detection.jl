@@ -77,7 +77,8 @@ detect_symmetry(objective::Polynomial;kwargs...) = detect_symmetry(Problem(objec
 
 function Base.show(io::IO,s::FamilySymmetry)
     print(io,"Symmetry: ",length(s.generators)," block generators, ",
-        length(s.moment_only)," moment-only generators")
+        length(s.moment_only)," moment-only generators, ",
+        length(s.continuous)," continuous generators")
     s.detected && print(io,"; group order not reported by the detector; the result can be a subgroup")
     return nothing
 end

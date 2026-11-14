@@ -8,9 +8,15 @@ end
 @testset "Detected symmetry without nontrivial generators" begin
     @testset "Manual provenance" begin
         manual=Nx.FamilySymmetry([Nx.SitePermutation([2,1])])
-        @test sprint(show,manual)=="Symmetry: 1 block generators, 0 moment-only generators"
+        @test sprint(show,manual)=="Symmetry: 1 block generators, 0 moment-only generators, 0 continuous generators"
         @test sprint(show,MIME"text/plain"(),Nx.FamilySymmetry())==
-            "Symmetry: 0 block generators, 0 moment-only generators"
+            "Symmetry: 0 block generators, 0 moment-only generators, 0 continuous generators"
+        registry,_=Nx.pauli_variables(4)
+        continuous=Nx.Symmetry(Nx.SitePermutation([2,3,4,1]),Nx.SitePermutation([4,3,2,1]);
+            continuous=Nx.spin_rotations(registry))
+        for render in (repr,s->repr(MIME"text/plain"(),s))
+            @test render(continuous)=="Symmetry: 2 block generators, 0 moment-only generators, 3 continuous generators"
+        end
     end
     @testset "Asymmetric Hamiltonian" begin
         rng=MersenneTwister(414)

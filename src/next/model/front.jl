@@ -1,8 +1,8 @@
 "Declare block generators and optional moment-only actions on `Problem`."
-Symmetry(generators...;moment_only=()) = FamilySymmetry(collect(generators);moment_only)
+Symmetry(generators...;moment_only=(),continuous=()) = FamilySymmetry(collect(generators);moment_only,continuous)
 
 _has_symmetry(::Nothing) = false
-_has_symmetry(s::FamilySymmetry) = !isempty(s.generators) || !isempty(s.moment_only)
+_has_symmetry(s::FamilySymmetry) = !isempty(s.generators) || !isempty(s.moment_only) || !isempty(s.continuous)
 _uses_blocks(p::Problem,r::Relaxation) = _has_symmetry(p.symmetry) ||
     !all(isnothing,(r.row_rule,r.grouping,r.split,r.family)) || !isempty(r.strengthen)
 

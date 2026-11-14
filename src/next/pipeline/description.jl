@@ -1,14 +1,16 @@
 "Block generators close the family; moment-only generators add moment relations only."
-struct FamilySymmetry{G,M}
+struct FamilySymmetry{G,M,D}
     generators::G
     moment_only::M
+    continuous::D
     detected::Bool
-    function FamilySymmetry(generators=AbstractAction[];moment_only=(),detected=false)
-        gs=collect(generators); ms=Tuple(moment_only)
+    function FamilySymmetry(generators=AbstractAction[];moment_only=(),continuous=(),detected=false)
+        gs=collect(generators); ms=Tuple(moment_only); ds=Tuple(continuous)
         all(g->g isa AbstractAction,gs) && all(g->g isa AbstractAction,ms) ||
-            throw(ArgumentError("FamilySymmetry needs multiplicative actions; continuous derivations are a separate reduction."))
+            throw(ArgumentError("Put multiplicative actions in generators or moment_only and derivations in continuous."))
+        all(d->d isa AbstractDerivation,ds) || throw(ArgumentError("continuous needs AbstractDerivation generators."))
         any(is_antiunitary,gs) && throw(ArgumentError("Put antiunitary actions in moment_only."))
-        new{typeof(gs),typeof(ms)}(gs,ms,detected)
+        new{typeof(gs),typeof(ms),typeof(ds)}(gs,ms,ds,detected)
     end
 end
 
@@ -83,6 +85,7 @@ function build(problem::Problem,description::BlockRelaxation)
     max_letters=max(max_letters,maximum((_strengthening_width(k,problem,order) for k in description.strengthen);init=0))
     registry=problem.objective.registry
     W=word_type(registry,max_letters)
+    _check_continuous(problem,description.symmetry,W)
     sectors=_checked_sectors(problem,description.strengthen,description.symmetry,W)
     objective=[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(problem.objective)]
     identity=[(1.0+0im,one(W))]
@@ -112,6 +115,7 @@ function build(problem::Problem,description::BlockRelaxation)
         end
     end
     family=unique(_block_key,custom ? family : _split_family(family,objective,description.split))
+    family=_continuous_family(family,description.symmetry.continuous;custom)
     letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
     # The 2RDM conditions can supply a quartic objective with order-one rows.
     defer_coverage=any(k->k isa FermionicConditions,description.strengthen)
@@ -126,9 +130,15 @@ function build(problem::Problem,description::BlockRelaxation)
     end
     valid_for=isempty(description.strengthen) ? ValidStates(problem.constraints) :
         StrengthenedStates(ValidStates(problem.constraints),description.strengthen)
+    moments=length(table.representatives)
+    continuous=nothing
+    if !isempty(description.symmetry.continuous)
+        program,table,continuous=_continuous_program(program,table,description.symmetry.continuous)
+        moments=length(unique(label.word for label in table.labels))
+    end
     refresh_coverage!(table,program)
-    closure=merge(closure,(strengthening=extra,valid_for=valid_for,unused_coordinates=program.nvars-length(table.covered)))
-    sizes=ProgramSizes(sum(length(b.rows) for b in closure.family),length(table.representatives),program.nvars-1,
+    closure=merge(closure,(strengthening=extra,continuous=continuous,valid_for=valid_for,unused_coordinates=program.nvars-length(table.covered)))
+    sizes=ProgramSizes(sum(length(b.rows) for b in closure.family),moments,program.nvars-1,
         length(program.blocks),maximum((b.side for b in program.blocks if b.kind in (PSD,HPSD));init=0),local_sizes)
     return (program=program,table=table,sizes=FamilySizes(sizes,closure),valid_for=valid_for)
 end

@@ -234,21 +234,57 @@ function _sympleq_clifford_is_identity(g::CliffordSymmetry{T}, nqubits::Integer)
     return all(idx -> _clifford_action_signature(g, idx) == (1, (idx,)), domain)
 end
 
+# Use a small faithful permutation representation when the images of letters
+# already form a closed set. Otherwise keep the candidates: constructing a
+# full Pauli orbit can be exponential in the number of qubits.
+function _sympleq_reduce_generators(candidates::Vector{CliffordSymmetry{T}}, nqubits::Int) where {T}
+    domain = _clifford_letter_domain(T, nqubits)
+    words = [NormalMonomial{PauliAlgebra,T}(T[idx]) for idx in domain]
+    lookup = Dict(word => i for (i, word) in enumerate(words))
+    for candidate in candidates, (_, word) in values(candidate.images)
+        haskey(lookup, word) && continue
+        length(words) < 4 * length(domain) || return candidates
+        push!(words, word)
+        lookup[word] = length(words)
+    end
+    degree = length(words)
+    permutations = PermutationGroups.Perm{Int}[]
+    generators = CliffordSymmetry{T}[]
+    group = PermutationGroups.PermGroup(PermutationGroups.Perm{Int}(collect(1:(2 * degree))))
+    for candidate in candidates
+        images = Vector{Int}(undef, 2 * degree)
+        for (i, word) in enumerate(words)
+            sign, image = _act_monomial(candidate, word)
+            j = get(lookup, image, 0)
+            iszero(j) && return candidates
+            images[i] = sign == 1 ? j : j + degree
+            images[i + degree] = sign == 1 ? j + degree : j
+        end
+        permutation = PermutationGroups.Perm{Int}(images)
+        permutation in group && continue
+        push!(generators, candidate)
+        push!(permutations, permutation)
+        group = PermutationGroups.PermGroup(permutations)
+    end
+    return generators
+end
+
 """
     sympleq_symmetry_spec(H; cycle_strategy=:cycle_basis, ga_backend=:backtracking, max_automorphisms=100_000)
 
 Recognize Clifford symmetries of a Pauli Hamiltonian using SympleQ's find-side
-pipeline and return a ready-to-use [`SymmetrySpec`](@ref).
+pipeline and return a [`SymmetrySpec`](@ref).
 
 The implemented pipeline is the qubit/Pauli version of SympleQ: build a binary
-symplectic tableau, encode commutation and linear-dependency structure as a
-coloured graph, enumerate colour-preserving automorphisms, synthesize candidate
-symplectic Clifford actions, convert them to `CliffordSymmetry`, and keep only
+symplectic tableau, encode commutation as a coloured graph, search
+automorphisms with exact full-relation checks, synthesize candidate symplectic
+Clifford actions, convert them to `CliffordSymmetry`, and keep only
 candidates that leave `H` invariant under the existing Pauli action.
 
 This is a recognizer/bridge, not the SympleQ exploit-side qubit-tapering
 machinery. Dense/no-sparsity SDP reductions are handled by the existing
-`SolverConfig(symmetry=...)` path.
+`SolverConfig(symmetry=...)` path, provided its moment basis is closed under
+the returned maps. Detection can return degree-changing Clifford symmetries.
 """
 function sympleq_symmetry_spec(
     H::Polynomial{PauliAlgebra,T,C};
@@ -312,5 +348,5 @@ function _sympleq_clifford_candidates(
         end
     end
 
-    return cliffords
+    return _sympleq_reduce_generators(cliffords, tab.nqubits)
 end

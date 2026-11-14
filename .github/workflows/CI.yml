@@ -76,3 +76,28 @@ jobs:
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  scs-extension:
+    name: Native SCS extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12.3'
+      - name: Install standalone SCS environment
+        env:
+          JULIA_NUM_PRECOMPILE_TASKS: '2'
+        shell: julia --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.activate(joinpath(ENV["RUNNER_TEMP"], "scs-extension"))
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.add([PackageSpec(name="SCS", version="2.7.1"), PackageSpec(name="JuMP", version="1.32.1")])
+          Pkg.precompile()
+      - name: Test direct and indirect SCS with warm starts
+        env:
+          JULIA_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+        run: julia --project="$RUNNER_TEMP/scs-extension" --startup-file=no test/next/conic/extensions.jl

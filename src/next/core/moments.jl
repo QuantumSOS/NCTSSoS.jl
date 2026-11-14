@@ -46,6 +46,35 @@ function reserve!(t::MomentTable{W},capacity::Integer) where {W}
 end
 "Lookup only; (0,0) means absent. The caller supplies the orbit representative."
 moment_ids(t::MomentTable{W},key::W) where {W} = t.ids[_moment_slot(t,key)]
+
+_pack_word(::Type{W},w::AbstractWord) where {W<:AbstractWord} = convert(W,w)
+_pack_word(::Type{SiteWord{A,V,B,S}},w::SiteWord{A,U,B,S}) where {A,U,V,B,S} =
+    SiteWord{A,V,B,S}(V(w.bits),Val(:normal))
+
+public moment_value
+"""
+    moment_value(table, word, values)
+
+Read a word's complex moment from standard-form solution coordinates: moment
+ID 1 is the constant 1, and ID k ≥ 2 is `values[k-1]`. Return `nothing`
+if the word is absent (not zero). Table providers may add methods to reconstruct
+orbit moments; the model layer handles coefficients and user-named errors.
+"""
+function moment_value(t::MomentTable{W},w::AbstractWord,values) where {W}
+    packed = try
+        _pack_word(W,w)
+    catch e
+        # Modeling site words can be wider than every word in this program.
+        e isa InexactError || rethrow()
+        return nothing
+    end
+    key,p,conjugated = moment_key(packed)
+    re,im_id = moment_ids(t,key)
+    (re,im_id)==(0,0) && return nothing
+    value = complex(re==0 ? 0.0 : re==1 ? 1.0 : values[re-1],im_id==0 ? 0.0 : values[im_id-1])
+    return scale(p,conjugated ? conj(value) : value)
+end
+
 "Insert a representative with its intrinsic or symmetry-imposed reality; repeated declarations must agree."
 function moment_ids!(t::MomentTable{W},key::W,reality::Symbol=moment_reality(key)) where {W}
     reality in (:real,:imaginary,:complex) || throw(ArgumentError("Moment reality must be :real, :imaginary, or :complex."))

@@ -272,9 +272,6 @@ warning.
 - **Architecture:**
   [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) — how NCTSSoS uses
   the detected symmetries to shrink the SDP.
-- **Extension roadmap:**
-  [Extending Symmetry Support](@ref extending-symmetry) — contributor-facing
-  audit of current limitations and what it would take to lift them.
 - **API reference:**
   [`sympleq_symmetry_spec`](@ref), [`CliffordSymmetry`](@ref),
   [`SymmetrySpec`](@ref), [`SymmetryReport`](@ref).

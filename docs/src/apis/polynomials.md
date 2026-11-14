@@ -54,5 +54,5 @@ Pages = ["simplification/pauli.jl", "simplification/fermionic.jl", "simplificati
 
 ```@autodocs
 Modules = [NCTSSoS]
-Pages = ["algorithms/basis.jl", "utils.jl"]
+Pages = ["algorithms/basis.jl"]
 ```

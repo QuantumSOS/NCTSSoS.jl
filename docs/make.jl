@@ -12,12 +12,10 @@ makedocs(;
         "Quick Start"=>"quick_start.md",
         "Manual"=>Any[
             "Polynomials"=>"manual/polynomials.md",
-            "Monomials"=>"manual/monomials.md",
             "Polynomial Optimization"=>"manual/polynomial_optimization.md",
             "Sparsities"=>"manual/sparsities.md",
             "Symmetry-Adapted Basis"=>"manual/symmetry_adapted_basis.md",
             "Pauli Charge/Singlet Symmetry"=>"manual/pauli_charge_singlet_symmetry.md",
-            "Extending Symmetry Support"=>"manual/extending_symmetry.md",
             "Clifford Symmetry Detection"=>"manual/clifford_symmetry_detection.md",
             "SDP Relaxation"=>"manual/sdp_relaxation.md",
             "Optimizers"=>"manual/optimizers.md"
@@ -50,7 +48,7 @@ makedocs(;
     ],
     plugins=[bib],
     # modules=[NCTSSoS],
-    format=Documenter.HTML(; prettyurls=get(ENV, "CI", nothing) == "true", assets=String["assets/citations.css"], size_threshold=10^6),
+    format=Documenter.HTML(; prettyurls=get(ENV, "CI", nothing) == "true", size_threshold=10^6),
 )
 
 deploydocs(; repo="github.com/QuantumSOS/NCTSSoS.jl.git", devbranch="main")

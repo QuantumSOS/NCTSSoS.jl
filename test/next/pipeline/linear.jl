@@ -27,4 +27,8 @@ end
     @test iszero(A*Z)
     @test rank(Matrix{Float64}(A)) == 14
     @test_throws ArgumentError Nx.derivation_constraints([toy_letter(1,0)],[TestSpinDerivation(2,2)])
+    W=Nx.word_type(Nx.Pauli(),2,2)
+    packed=[Nx.word_from_legacy(W,Nx.legacy_letters(w)) for w in words]
+    core=Nx.derivation_constraints(packed,[Nx.SpinRotation(a,(UInt64(3),)) for a in 0:2];C=Rational{Int})
+    @test core == -A # the fixture uses +i/2, core uses the specified -i/2
 end

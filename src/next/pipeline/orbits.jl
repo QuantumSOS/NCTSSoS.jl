@@ -76,7 +76,7 @@ function _orbit_objective!(program, table, objective)
     return validate(program), table
 end
 
-function _check_objective(objective, generators)
+function _check_objective(objective, generators; name="the objective")
     isempty(objective) && return
     W = typeof(first(objective)[2])
     terms = Dict{W,ComplexF64}()
@@ -91,7 +91,7 @@ function _check_objective(objective, generators)
             image[u] = get(image, u, 0im) + scale(p, is_antiunitary(g) ? conj(c) : c)
         end
         filter!(p -> !iszero(last(p)), image)
-        image == terms || throw(ArgumentError("A supplied symmetry does not preserve the objective."))
+        image == terms || throw(ArgumentError("A supplied symmetry does not preserve $name."))
     end
 end
 

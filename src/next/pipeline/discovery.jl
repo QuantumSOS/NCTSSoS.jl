@@ -29,7 +29,7 @@ moment-only generators. Their degree-changing orbit relations remain active;
 they are not incorrectly advertised as block symmetries. The caller can inspect
 this partition. A failed bounded search asks for named translations.
 """
-function discover_lattice(generators::AbstractVector{<:AbstractAction},site_letters;candidate_limit=256)
+function discover_lattice(generators::AbstractVector{<:AbstractAction},site_letters;candidate_limit=256,required=true)
     isempty(generators) && throw(ArgumentError("Supply symmetry generators."))
     n=length(site_letters)
     n>1 && all(length(ws)==length(first(site_letters))>0 for ws in site_letters) ||
@@ -85,6 +85,7 @@ function discover_lattice(generators::AbstractVector{<:AbstractAction},site_lett
         return (;translations,point_generators=point,moment_generators=remainder,
             searched_candidates=length(candidates),source=:verified_generator_search)
     end
+    required || return nothing
     throw(ArgumentError("No regular abelian translation subgroup was found in the bounded generator/product search. Supply named translations and their orders, or use the generic finite route."))
 end
 

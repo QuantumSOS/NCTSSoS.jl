@@ -86,7 +86,11 @@ end
     W = Nx.word_type(algebra,2,2)
     rows = Nx.basis_rows(W,algebra,1:2,1)
     objective = [(-s,Nx.mul(Nx.site_letter(W,1,i),Nx.site_letter(W,2,j))[2]) for (i,j,s) in ((1,1,1.),(1,2,1.),(2,1,1.),(2,2,-1.))]
-    @test_throws ArgumentError Nx.plain_program(rows,objective;C=Float64)
+    real_program,_ = Nx.plain_program(rows,objective;C=Float64)
+    @test only(real_program.blocks).kind==Nx.PSD
+    @test real_program.nvars==11
+    @test conic_bound(real_program) ≈ old atol=2e-5
+    @test_throws r"real objective coefficients" Nx.plain_program(rows,[(im,rows[2])];C=Float64)
     p,_ = Nx.plain_program(rows,objective)
     check_forms(p;expected=old)
     @test old ≈ -2sqrt(2) atol=2e-5

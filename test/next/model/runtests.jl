@@ -97,10 +97,61 @@ end
     old = cs_nctssos(polyopt(oldH,reg),SolverConfig(optimizer=SOLVER,order=1);dualize=false).objective
     r,(x,y) = Nx.site_variables(Nx.Unipotent(),2,2)
     H = -(x[1]*y[1]+x[1]*y[2]+x[2]*y[1]-x[2]*y[2])
+    built = Nx.build(Nx.Problem(H),Nx.Relaxation(order=1))
+    @test only(built.program.blocks).kind==Nx.PSD
+    @test only(built.program.blocks).side==5
+    @test built.program.nvars==11
     result = Nx.solve(Nx.Problem(H),Nx.Relaxation(order=1);solver=backend)
     @test result.bound ≈ old atol=2e-5
     @test result.bound ≈ -2sqrt(2) atol=2e-5
     @info "One call: CHSH" old new=result.bound sizes=result.sizes
+end
+
+@testset "Real site-algebra form and complex fallback" begin
+    backend=Nx.JuMPBackend(SOLVER)
+    for rule in (Nx.Free(),Nx.Projector(),Nx.Unipotent())
+        _,ops=Nx.site_variables(rule,1,2)
+        a,b=ops[1]
+        real_build=Nx.build(Nx.Problem(a*b+b*a),Nx.Relaxation(order=1))
+        @test only(real_build.program.blocks).kind==Nx.PSD
+        complex_build=Nx.build(Nx.Problem(im*(a*b-b*a)),Nx.Relaxation(order=1))
+        @test only(complex_build.program.blocks).kind==Nx.HPSD
+        for constraint in (Nx.Positive(1+0.25im*(a*b-b*a)),Nx.Zero(im*(a*b-b*a)))
+            constrained=Nx.build(Nx.Problem(a+b;constraints=(constraint,)),Nx.Relaxation(order=1))
+            @test first(constrained.program.blocks).kind==Nx.HPSD
+        end
+    end
+    _,ops=Nx.site_variables(Nx.Unipotent(),1,2)
+    a,b=ops[1]
+    @test Nx.solve(Nx.Problem(im*(a*b-b*a)),Nx.Relaxation(order=1);solver=backend).bound ≈ -2 atol=2e-5
+    restricted=Nx.Problem(im*(a*b-b*a);constraints=(Nx.Positive(0.5+im*(a*b-b*a)),))
+    @test Nx.solve(restricted,Nx.Relaxation(order=1);solver=backend).bound ≈ -0.5 atol=2e-5
+
+    _,ops=Nx.site_variables(Nx.Free(),1,2)
+    a,b=ops[1]
+    h,g=a*b+b*a,1-a^2-b^2
+    problem=Nx.Problem(h;constraints=(Nx.Positive(g),))
+    built=Nx.build(problem,Nx.Relaxation(order=2))
+    @test all(block.kind==Nx.PSD for block in built.program.blocks)
+    # Independent complex reference, with the same rows and localizing polynomial.
+    W=Nx.word_type(h.registry,4)
+    packed(w)=Nx.word_from_legacy(W,Nx.legacy_letters(w))
+    rows=Nx.basis_rows(W,h.registry.algebra,1:1,2)
+    reference,table=Nx.plain_program(rows,[(c,packed(w)) for (c,w) in Nx.terms(h)])
+    sink=Nx.MomentSink(table,reference.forms)
+    local_rows=[one(a),a,b]
+    for j in 1:3,i in j:3
+        for (c,w) in Nx.terms(local_rows[i]'*g*local_rows[j])
+            Nx.push_term!(sink,c,packed(w))
+        end
+        Nx.close_form!(reference.forms)
+    end
+    Nx.push_block!(reference,Nx.HPSD,3,1)
+    reference.nvars=Nx.nvars(table)
+    complex=Nx.solve_standard(Nx.moment_standard_form(reference),backend)
+    real=Nx.solve(problem,Nx.Relaxation(order=2);solver=backend)
+    @test real.bound ≈ -1 atol=2e-5
+    @test real.bound ≈ complex.bound atol=2e-5
 end
 
 @testset "Localizers and re-solving an open backend" begin

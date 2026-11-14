@@ -48,7 +48,8 @@ function Base.show(io::IO,s::FamilySizes)
     r=s.closure
     print(io,"; family ",r.initial_blocks," → ",r.closed_blocks," blocks, ",length(r.block_orbits),
         " orbits; block generators: ",[nameof(typeof(g)) for g in r.block_generators],
-        "; moment-only: ",[nameof(typeof(g)) for g in r.moment_only])
+        "; moment-only: ",[nameof(typeof(g)) for g in r.moment_only],
+        "; ",r.unused_coordinates," unused coordinates")
     if !isnothing(r.strengthening)
         print(io,"; strengthening: ",r.strengthening.added_blocks," blocks, ",r.strengthening.added_equalities," equalities; ")
         show(io,r.valid_for)
@@ -112,12 +113,21 @@ function build(problem::Problem,description::BlockRelaxation)
     end
     family=unique(_block_key,custom ? family : _split_family(family,objective,description.split))
     letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
+    # The 2RDM conditions can supply a quartic objective with order-one rows.
+    defer_coverage=any(k->k isa FermionicConditions,description.strengthen)
     program,table,closure=family_program(family,objective;generators=description.symmetry.generators,
-        moment_generators=description.symmetry.moment_only,custom,site_letters=letters,real_form=_real_form(problem))
+        moment_generators=description.symmetry.moment_only,custom,site_letters=letters,real_form=_real_form(problem),
+        check_coverage=!defer_coverage)
     extra=_strengthen!(program,table,problem,description.strengthen,closure;sectors)
+    if defer_coverage
+        covered=Set(program.forms.ids)
+        all(id==1 || id in covered for id in program.objective_ids) || throw(ArgumentError(
+            "The block family and fermionic conditions do not cover the objective; increase the row order or select modes containing its moments."))
+    end
     valid_for=isempty(description.strengthen) ? ValidStates(problem.constraints) :
         StrengthenedStates(ValidStates(problem.constraints),description.strengthen)
-    closure=merge(closure,(strengthening=extra,valid_for=valid_for))
+    covered=union!(BitSet([1]),program.forms.ids,program.objective_ids)
+    closure=merge(closure,(strengthening=extra,valid_for=valid_for,unused_coordinates=program.nvars-length(covered)))
     sizes=ProgramSizes(sum(length(b.rows) for b in closure.family),length(table.representatives),program.nvars-1,
         length(program.blocks),maximum((b.side for b in program.blocks if b.kind in (PSD,HPSD));init=0),local_sizes)
     return (program=program,table=table,sizes=FamilySizes(sizes,closure),valid_for=valid_for)

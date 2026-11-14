@@ -165,14 +165,16 @@ function _strengthen!(program,table,problem,kinds,closure;sectors=())
     start=length(program.blocks)
     errors=[_append_extra!(program,table,extras[i]) for i in representatives]
     hamiltonian=_hamiltonian_strengthen!(program,table,problem,kinds,closure)
+    fermionic=_fermionic_strengthen!(program,table,problem,kinds,closure)
     _sector_equalities!(program,table,closure,sectors)
     program.nvars=length(table.labels)
     validate(program)
     noptimal=count(k->k isa StateOptimality,kinds)
     cones=isnothing(hamiltonian) ? extras[representatives] : [extras[representatives];hamiltonian.representatives]
-    return (initial_cones=length(initial)+noptimal*closure.initial_blocks,
-        closed_cones=length(extras)+noptimal*closure.closed_blocks,representatives=cones,
+    isnothing(fermionic) || (cones=[cones;fermionic.representatives])
+    return (initial_cones=length(initial)+noptimal*closure.initial_blocks+(isnothing(fermionic) ? 0 : fermionic.initial_cones),
+        closed_cones=length(extras)+noptimal*closure.closed_blocks+(isnothing(fermionic) ? 0 : fermionic.closed_cones),representatives=cones,
         added_blocks=count(b->b.kind!=ZERO,program.blocks[start+1:end]),
         added_equalities=sum((b.side for b in program.blocks[start+1:end] if b.kind==ZERO);init=0),first_block=start+1,
-        reconstruction_error=maximum(errors;init=0.0),kinds=kinds,hamiltonian=hamiltonian)
+        reconstruction_error=maximum(errors;init=0.0),kinds=kinds,hamiltonian=hamiltonian,fermionic=fermionic)
 end

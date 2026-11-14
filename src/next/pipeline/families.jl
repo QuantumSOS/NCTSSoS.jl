@@ -144,7 +144,8 @@ end
 
 "Build one cone per block orbit, sharing orbit moments across all blocks."
 function family_program(family::AbstractVector{<:RowBlock{W}},objective;
-    generators=AbstractAction[],moment_generators=(),custom=false,site_letters=nothing,real_form=false) where {W<:AbstractWord}
+    generators=AbstractAction[],moment_generators=(),custom=false,site_letters=nothing,real_form=false,
+    check_coverage=true) where {W<:AbstractWord}
     generators=map(g->_group_action(W,g),generators)
     moment_generators=map(g->_group_action(W,g),moment_generators)
     any(is_antiunitary,generators) && throw(ArgumentError("Put antiunitary maps in moment_only; block generators must be unitary."))
@@ -166,7 +167,7 @@ function family_program(family::AbstractVector{<:RowBlock{W}},objective;
         if !isnothing(lattice)
             p,table,route=lattice
             covered=Set(p.forms.ids)
-            all(id==1 || id in covered for id in p.objective_ids) ||
+            !check_coverage || all(id==1 || id in covered for id in p.objective_ids) ||
                 throw(ArgumentError("The block family does not cover the objective; increase the row order."))
             return p,table,merge(report,(route=:lattice,reduction=route))
         end
@@ -183,7 +184,7 @@ function family_program(family::AbstractVector{<:RowBlock{W}},objective;
     covered=Set(program.forms.ids)
     sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
     for (c,w) in objective; push_term!(sink,c,w); end
-    all(id==1 || iszero(c) || id in covered for (id,c) in sink.terms) ||
+    !check_coverage || all(id==1 || iszero(c) || id in covered for (id,c) in sink.terms) ||
         throw(ArgumentError("The block family does not cover the objective; increase the row order or supply blocks containing its moments."))
     program,table=_orbit_objective!(program,table,objective)
     return program,table,merge(report,(route=:block_stabilizers,))

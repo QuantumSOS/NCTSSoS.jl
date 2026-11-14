@@ -33,6 +33,14 @@ function check_expectations(backend,reference_optimizer)
     @test N.expectation(result,im*h) isa Complex
     @test N.expectation(result,im*h) ≈ im*result.bound atol=2e-5
 
+    # A split can omit a degree-one moment even at order two. Increasing the
+    # plain Relaxation order is not the right advice for this result's route.
+    ring=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+1.5*z[i]*z[mod1(i+1,4)] for i in 1:4)
+    blocks=N.BlockRelaxation(order=2,grouping=N.Correlative(),split=N.TermSplit(),
+        symmetry=N.FamilySymmetry([N.SitePermutation([2,3,4,1])]))
+    blocked=N.solve(N.Problem(ring),blocks;solver=backend)
+    @test_throws r"Moment Z2.*selected blocks.*higher order.*no split.*group.*2" N.expectation(blocked,z[2])
+
     _,(a,ad)=N.fermionic_variables(2)
     t=ad[1]*a[2]
     result=N.solve(N.Problem(-((1+2im)*t+(1-2im)*t')),N.Relaxation(order=1);solver=backend)

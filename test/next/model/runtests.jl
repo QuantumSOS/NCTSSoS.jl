@@ -1,5 +1,6 @@
 # Tests of the model layer of NCTSSoS.Next.
 
+include("detection.jl")
 isdefined(@__MODULE__,:check_expectations) || include("expectations.jl")
 @testset "Reading expectations through JuMP" begin
     check_expectations(Nx.JuMPBackend(SOLVER),SOLVER)

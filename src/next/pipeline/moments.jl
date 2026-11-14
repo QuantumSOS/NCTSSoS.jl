@@ -107,6 +107,28 @@ function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
     t.cache[w]
 end
 
+"Read a represented orbit moment without adding coordinates to the solved program."
+function moment_value(t::OrbitMoments{W},w::AbstractWord,values) where {W}
+    packed=try
+        _pack_word(W,w)
+    catch e
+        e isa InexactError || rethrow()
+        return nothing
+    end
+    m=get(t.cache,packed,nothing)
+    if isnothing(m)
+        # Every represented orbit is cached in full. An unseen orbit may
+        # still be forced to zero, including by the annihilator shortcut.
+        # Use a scratch table: querying must not grow the solved table.
+        probe=OrbitMoments(W,t.generators;annihilators=t.annihilators,real_form=t.real_form)
+        zero=orbit_coordinates!(probe,packed)
+        return zero.re==0 && zero.im==0 ? 0.0+0.0im : nothing
+    end
+    re=m.re==0 ? 0.0 : m.re==1 ? 1.0 : values[m.re-1]
+    imaginary=m.im==0 ? 0.0 : values[m.im-1]
+    m.real_coefficient*re+m.imag_coefficient*imaginary
+end
+
 "Compatibility accessor for real signed moments used by the M1 oracle tests."
 function orbit_moment!(t::OrbitMoments,w)
     m=orbit_coordinates!(t,w)

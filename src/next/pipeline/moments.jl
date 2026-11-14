@@ -2,8 +2,10 @@
 struct OrbitCoordinates
     re::Int32
     im::Int32
-    real_coefficient::ComplexF64
-    imag_coefficient::ComplexF64
+    # Phase relations give Gaussian integers with components in -1:1,
+    # including ±(1±im) for a rotated real line. No floating basis is stored.
+    real_coefficient::Complex{Int8}
+    imag_coefficient::Complex{Int8}
 end
 const ZERO_ORBIT_COORDINATES = OrbitCoordinates(0,0,0,0)
 
@@ -31,8 +33,9 @@ end
 # Relations have the convention L(v) = p * conj^b(L(seed)). A repeated
 # vertex either forces zero or constrains the seed to a real line in C.
 function _orbit_visit!(t, v, p, b)
-    if haskey(t.relations,v)
-        q,c = t.relations[v]
+    relation=get(t.relations,v,nothing)
+    if !isnothing(relation)
+        q,c = relation
         if b == c
             t.zero_orbit |= p != q
         else
@@ -47,13 +50,14 @@ function _orbit_visit!(t, v, p, b)
 end
 
 function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
+    cached=get(t.cache,w,nothing)
+    !isnothing(cached) && return cached
     for g in t.annihilators
         p,u = act(g,w)
         if u == w && p.k == 0x02 && (!is_antiunitary(g) || moment_reality(w) == :real)
             return ZERO_ORBIT_COORDINATES
         end
     end
-    haskey(t.cache,w) && return t.cache[w]
     empty!(t.pending); empty!(t.relations)
     t.zero_orbit=false; t.line=-1
     _orbit_visit!(t,w,one(Phase),false)

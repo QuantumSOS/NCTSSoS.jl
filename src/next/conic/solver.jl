@@ -11,13 +11,15 @@ mutable struct JuMPHandle{F}
     form::F
 end
 "Numerical relaxation optimum and status, not a rigorous certificate. A failed solve has bound=nothing."
-struct ConicSolution{H,S}
+struct ConicSolution{H,S,D}
     bound::Union{Nothing,Float64}
     status::S
     raw_status::String
     values::Vector{Float64}
     handle::H
+    diagnostics::D
 end
+ConicSolution(bound,status,raw_status,values,handle) = ConicSolution(bound,status,raw_status,values,handle,nothing)
 
 "Solve standard data with a backend description, or re-solve an open backend handle."
 function solve_standard end

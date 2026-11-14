@@ -81,6 +81,7 @@ function build(problem::Problem,description::BlockRelaxation)
     max_letters=max(max_letters,maximum((_strengthening_width(k,problem,order) for k in description.strengthen);init=0))
     registry=problem.objective.registry
     W=word_type(registry,max_letters)
+    sectors=_checked_sectors(problem,description.strengthen,description.symmetry,W)
     objective=[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(problem.objective)]
     identity=[(1.0+0im,one(W))]
     if custom
@@ -112,7 +113,7 @@ function build(problem::Problem,description::BlockRelaxation)
     letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
     program,table,closure=family_program(family,objective;generators=description.symmetry.generators,
         moment_generators=description.symmetry.moment_only,custom,site_letters=letters,real_form=_real_form(problem))
-    extra=_strengthen!(program,table,problem,description.strengthen,closure)
+    extra=_strengthen!(program,table,problem,description.strengthen,closure;sectors)
     valid_for=isempty(description.strengthen) ? ValidStates(problem.constraints) :
         StrengthenedStates(ValidStates(problem.constraints),description.strengthen)
     closure=merge(closure,(strengthening=extra,valid_for=valid_for))

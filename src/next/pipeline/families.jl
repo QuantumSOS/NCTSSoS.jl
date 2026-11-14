@@ -84,14 +84,14 @@ function _block_product!(sink,a,b,polynomial,coefficient=1)
     end
 end
 
-function _append_family_sectors!(program,table,block,sectors;real_blocks=false)
+function _append_family_sectors!(program,table,block,sectors;real_blocks=false,product! = _block_product!)
     sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
     for rows in sectors
         isempty(rows) && continue
         for j in eachindex(rows),i in j:length(rows)
             empty!(sink.terms)
             for (ca,a) in rows[i],(cb,b) in rows[j]
-                _block_product!(sink,a,b,block.polynomial,conj(ca)*cb)
+                product!(sink,a,b,block.polynomial,conj(ca)*cb)
             end
             _close_orbit_form!(program.forms,sink.terms;diagonal=real_blocks || i==j)
         end
@@ -99,6 +99,28 @@ function _append_family_sectors!(program,table,block,sectors;real_blocks=false)
         kind=block.kind==ZERO ? ZERO : real_blocks ? PSD : HPSD
         push_block!(program,kind,kind==ZERO ? n*(n+1)÷2 : n,block.source)
     end
+end
+
+function _family_sectors(block,stabilizers,transport,index,moment_generators)
+    if isempty(stabilizers)
+        sectors=[[[(1.0+0im,w)] for w in block.rows]]
+    else
+        group=OrbitGroup(stabilizers)
+        projections,_=shared_projections(group)
+        sectors=_project_orbits(block.rows,stabilizers,group,projections)
+    end
+    anti_index=findfirst(is_antiunitary,moment_generators)
+    if !isnothing(anti_index)
+        anti=moment_generators[anti_index]
+        root=index[_block_key(block)]
+        target=get(index,_block_key(_mapped_block(block,anti)),0)
+        if target!=root && !isnothing(transport) && haskey(transport,target)
+            anti=compose(inv(transport[target]),anti)
+        end
+        isempty(stabilizers) && (group=OrbitGroup([one(anti)]))
+        sectors=_real_finite_sectors(block.rows,sectors,group,anti)
+    end
+    sectors,!isnothing(anti_index)
 end
 
 function _whole_lattice_family(block,objective,generators,moment_generators,site_letters)
@@ -147,28 +169,10 @@ function family_program(family::AbstractVector{<:RowBlock{W}},objective;
     end
     table=OrbitMoments(W,all_generators)
     program=MomentProgram{ComplexF64}()
-    anti_index=findfirst(is_antiunitary,moment_generators)
     for (root,_,stabilizers,transport) in orbits
         block=blocks[root]
-        if isempty(stabilizers)
-            sectors=[[[(1.0+0im,w)] for w in block.rows]]
-        else
-            group=OrbitGroup(stabilizers)
-            projections,_=shared_projections(group)
-            sectors=_project_orbits(block.rows,stabilizers,group,projections)
-        end
-        if !isnothing(anti_index)
-            anti=moment_generators[anti_index]
-            # Bring the antiunitary image back to this representative using
-            # the unitary block orbit, before testing its real structure.
-            target=get(index,_block_key(_mapped_block(block,anti)),0)
-            if target!=root && !isnothing(transport) && haskey(transport,target)
-                anti=compose(inv(transport[target]),anti)
-            end
-            isempty(stabilizers) && (group=OrbitGroup([one(anti)]))
-            sectors=_real_finite_sectors(block.rows,sectors,group,anti)
-        end
-        _append_family_sectors!(program,table,block,sectors;real_blocks=!isnothing(anti_index))
+        sectors,real_blocks=_family_sectors(block,stabilizers,transport,index,moment_generators)
+        _append_family_sectors!(program,table,block,sectors;real_blocks)
     end
     # A representative found while following an orbit is not necessarily
     # covered by an entry. Check the actual cone coordinates, not table size.

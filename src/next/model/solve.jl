@@ -9,6 +9,12 @@ struct SolveResult{P,R,S,B,V,Q}
     solution::Q
 end
 
+function Base.show(io::IO,r::SolveResult)
+    print(io,"Bound: ",r.bound," (",r.bound_kind,"); status: ",r.status,
+        "\nSizes: ",r.sizes,"\nValid for: ",r.valid_for)
+end
+Base.show(io::IO,::MIME"text/plain",r::SolveResult) = show(io,r)
+
 "One checked build and solve. The backend receives only standard data, not model or algebra objects."
 function solve(problem::Problem,relaxation::AbstractRelaxation;solver=nothing)
     solver isa AbstractSolver || throw(ArgumentError("Missing or invalid solver description; pass solver=JuMPBackend(optimizer_factory), with attributes on the factory if needed."))

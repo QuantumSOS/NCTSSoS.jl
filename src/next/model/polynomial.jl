@@ -4,6 +4,38 @@ struct Polynomial{W,C,R}
     data::PolynomialBuffer{W,C}
 end
 
+_locations(w::PauliWord) = ((div(l-1,3)+1,mod(l-1,3)) for l in legacy_letters(w))
+_locations(w::FermiWord) = ((abs(l),sign(l)) for l in legacy_letters(w))
+_locations(w::SiteWord{A,U,B,S}) where {A,U,B,S} =
+    ((_site(typeof(w),_letter(w,i)),Int(_letter(w,i)>>S)) for i in 1:degree(w))
+"Display a word in the names of its registry, without changing kernel word storage."
+function Base.show(io::IO,w::AbstractWord,r::Registry)
+    isone(w) && return print(io,"1")
+    for (i,location) in enumerate(_locations(w))
+        i>1 && print(io," ")
+        name = findfirst(==(location),r.names)
+        if isnothing(name)
+            print(io,"operator(site=",location[1],", label=",location[2],")")
+        else
+            print(io,name)
+        end
+    end
+end
+_word_string(r::Registry,w::AbstractWord) = sprint(show,w,r)
+function Base.show(io::IO,p::Polynomial)
+    isempty(p.data) && return print(io,"0")
+    for (i,(c,w)) in enumerate(terms(p))
+        i>1 && print(io," + ")
+        if isone(w)
+            print(io,isreal(c) ? real(c) : c)
+        else
+            c==1 || print(io,"(",isreal(c) ? real(c) : c,") ")
+            show(io,w,p.registry)
+        end
+    end
+end
+Base.show(io::IO,::MIME"text/plain",p::Polynomial) = show(io,p)
+
 terms(p::Polynomial) = ((p.data.coefficients[i],p.data.words[i]) for i in 1:length(p.data))
 degree(p::Polynomial) = maximum(degree,p.data.words[1:length(p.data)];init=0)
 Base.iszero(p::Polynomial) = isempty(p.data)

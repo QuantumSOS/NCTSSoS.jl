@@ -1,5 +1,27 @@
 # Tests of the model layer of NCTSSoS.Next.
 
+@testset "Registry display and minimal relaxation storage" begin
+    r = Nx.Registry(Nx.Pauli(),3,[:Alice=>(1,0),:Bob=>(2,0),:Carol=>(3,0)])
+    v = Nx.variables(r)
+    p = v[:Alice]*v[:Bob]*v[:Carol]
+    @test sprint(show,p)=="Alice Bob Carol"
+    @test sprint(show,p.data.words[1],r)=="Alice Bob Carol"
+    @test_throws r"Alice Bob Carol.*degree 2" Nx.build(Nx.Problem(p),Nx.Relaxation(order=1))
+    r,(a,ad) = Nx.fermionic_variables(2)
+    @test sprint(show,ad[2]*a[1])=="ad2 a1"
+    r,ops = Nx.site_variables(Nx.Free(),1,2)
+    x,y = ops[1]
+    built = Nx.build(Nx.Problem(x*y+y*x;constraints=(Nx.Positive(1-x^2-y^2),)),Nx.Relaxation(order=2))
+    @test eltype(built.table.keys)===Nx.SiteWord{Nx.Free,UInt16,3,1}
+    @test occursin("s1_1",sprint(show,built.valid_for))
+    @test occursin("⪰ 0",sprint(show,built.valid_for))
+    @test occursin("rows",sprint(show,built.sizes))
+    r,(x,y) = Nx.site_variables(Nx.Unipotent(),2,2)
+    bell = Nx.Problem(x[1]*y[1]+x[2]*y[2])
+    @test eltype(Nx.build(bell,Nx.Relaxation(order=1)).table.keys)===Nx.SiteWord{Nx.Unipotent,UInt8,4,2}
+    @test eltype(Nx.build(bell,Nx.Relaxation(rows=[one(x[1]),x[1],x[2],y[1],y[2]])).table.keys)===Nx.SiteWord{Nx.Unipotent,UInt8,4,2}
+end
+
 @testset "Model arithmetic and checked inputs" begin
     r,(x,y,z) = Nx.pauli_variables(1:3)
     @test x[1]*y[1]==im*z[1]
@@ -53,6 +75,8 @@ end
     @test result.bound ≈ old atol=2e-5
     @test result.status==JuMP.MOI.OPTIMAL
     @test result.bound_kind==:numerical_optimum_not_certificate
+    @test occursin("numerical_optimum_not_certificate",sprint(show,result))
+    @test occursin("status: OPTIMAL",sprint(show,result))
     @test result.sizes==Nx.inspect(result.problem,result.relaxation)
     @test isempty(result.valid_for.constraints)
     @info "One call: Heisenberg4" old new=result.bound sizes=result.sizes

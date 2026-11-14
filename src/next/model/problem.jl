@@ -13,9 +13,20 @@ struct ValidStates{C}
     constraints::C
 end
 
+function Base.show(io::IO,v::ValidStates)
+    print(io,"Normalized states")
+    isempty(v.constraints) && return print(io,"; no additional state conditions")
+    print(io," satisfying: ")
+    for (i,c) in enumerate(v.constraints)
+        i>1 && print(io,"; ")
+        print(io,c.polynomial,c isa Positive ? " ⪰ 0" : " = 0")
+    end
+end
+Base.show(io::IO,::MIME"text/plain",v::ValidStates) = show(io,v)
+
 function _checked_hermitian(p::Polynomial,name)
     all(isfinite(c) for (c,_) in terms(p)) || throw(ArgumentError("$name contains a nonfinite coefficient; replace NaN or Inf before constructing Problem."))
-    LinearAlgebra.ishermitian(p) || throw(ArgumentError("$name is not Hermitian; supply a self-adjoint polynomial. If the Hermitian part is intended, explicitly use (p + p')/2 via 0.5*(p + p')."))
+    LinearAlgebra.ishermitian(p) || throw(ArgumentError("$name ($p) is not Hermitian; supply a self-adjoint polynomial. If the Hermitian part is intended, explicitly use (p + p')/2 via 0.5*(p + p')."))
     return p
 end
 "Checked minimization problem. Constraints describe operator inequalities/equalities, not a state sector."
@@ -71,14 +82,15 @@ function _rows(p::Problem,r::Relaxation,::Type{W}) where {W}
     return W[_pack_word(W,row.data.words[1]) for row in r.rows]
 end
 
-struct CoveredMomentSink{S}
+struct CoveredMomentSink{S,R}
     sink::S
     name::String
+    registry::R
 end
 function push_term!(s::CoveredMomentSink,c::Number,w)
     iszero(c) && return s
     key,_,_ = moment_key(w)
-    moment_ids(s.sink.table,key)!=(0,0) || throw(ArgumentError("$(s.name) needs word $w which the custom rows do not cover; use complete rows through degree $(cld(degree(w),2)) or add rows covering this word."))
+    moment_ids(s.sink.table,key)!=(0,0) || throw(ArgumentError("$(s.name) needs word $(_word_string(s.registry,w)) which the custom rows do not cover; use complete rows through degree $(cld(degree(w),2)) or add rows covering this word."))
     push_term!(s.sink,c,w)
     return s
 end
@@ -91,11 +103,11 @@ push_term!(s::RightProductSink,c::Number,w) = mul!(s.sink,w,s.right,c)
 function _localize!(program,table,c::OperatorConstraint,order,index)
     g = c.polynomial
     local_order = order-cld(degree(g),2)
-    local_order>=0 || throw(ArgumentError("Constraint $index has degree $(degree(g)), above the relaxation capacity; use order ≥ $(cld(degree(g),2))."))
+    local_order>=0 || throw(ArgumentError("Constraint $index ($g) has degree $(degree(g)), above the relaxation capacity; use order ≥ $(cld(degree(g),2))."))
     W = eltype(table.keys)
     r = g.registry
     rows = basis_rows(W,r.algebra,1:r.nsites,local_order)
-    sink = CoveredMomentSink(MomentSink(table,program.forms),"Constraint $index")
+    sink = CoveredMomentSink(MomentSink(table,program.forms),"Constraint $index",r)
     n = length(rows)
     for j in 1:n,i in j:n
         phase,left = star(rows[i])
@@ -107,6 +119,22 @@ function _localize!(program,table,c::OperatorConstraint,order,index)
     return n
 end
 
+struct ProgramSizes
+    rows::Int
+    moments::Int
+    real_variables::Int
+    blocks::Int
+    largest_block::Int
+    localizing_rows::Vector{Int}
+end
+Base.:(==)(a::ProgramSizes,b::ProgramSizes) = all(getfield(a,k)==getfield(b,k) for k in fieldnames(ProgramSizes))
+function Base.show(io::IO,s::ProgramSizes)
+    print(io,s.rows," rows, ",s.moments," moments, ",s.real_variables,
+        " real variables, ",s.blocks," blocks (largest ",s.largest_block,
+        "); localizing rows: ",s.localizing_rows)
+end
+Base.show(io::IO,::MIME"text/plain",s::ProgramSizes) = show(io,s)
+
 "Build without a solver. The returned program and table are suitable for pipeline/conic inspection."
 function build(p::Problem,r::Relaxation)
     # Recheck mutable polynomial storage rather than trusting stale construction checks.
@@ -115,13 +143,14 @@ function build(p::Problem,r::Relaxation)
     max_letters = max(2order,degree(p.objective),maximum((degree(c.polynomial) for c in p.constraints);init=0))
     W = word_type(p.objective.registry,max_letters)
     rows = _rows(p,r,W)
-    program,table = plain_program(rows,((c,_pack_word(W,w)) for (c,w) in terms(p.objective)))
+    program,table = plain_program(rows,((c,_pack_word(W,w)) for (c,w) in terms(p.objective));
+        word_string=w->_word_string(p.objective.registry,w))
     local_sizes = Int[_localize!(program,table,c,order,i) for (i,c) in enumerate(p.constraints)]
     program.nvars = nvars(table)
     validate(program)
-    sizes = (rows=length(rows),moments=length(table),real_variables=nvars(program)-1,
-        blocks=length(program.blocks),largest_block=maximum(b.side for b in program.blocks if b.kind in (PSD,HPSD)),
-        localizing_rows=local_sizes)
+    sizes = ProgramSizes(length(rows),length(table),nvars(program)-1,
+        length(program.blocks),maximum(b.side for b in program.blocks if b.kind in (PSD,HPSD)),
+        local_sizes)
     return (program=program,table=table,sizes=sizes,valid_for=ValidStates(p.constraints))
 end
 inspect(p::Problem,r::AbstractRelaxation) = build(p,r).sizes

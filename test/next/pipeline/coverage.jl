@@ -20,4 +20,34 @@ end
     result=Nx.solve(Nx.Problem(H),description;solver)
     @test result.status==MOI.OPTIMAL
     @test result.bound≈-2 atol=1e-7
+    before=(length(result.table.labels),length(result.table.cache),copy(result.table.covered))
+    missing=setdiff(2:built.program.nvars,union(built.program.forms.ids,built.program.objective_ids))
+    for id in missing
+        @test !Nx.moment_covered(result.table,id)
+        word=result.table.labels[id].word
+        polynomial=prod(l<0 ? ad[-l] : a[l] for l in Nx.legacy_letters(word))
+        @test_throws r"Moment .*selected blocks" Nx.expectation(result,polynomial)
+    end
+    @test Nx.expectation(result,H)≈result.bound atol=1e-7
+    @test Nx.expectation(result,one(H))==1
+    @test before==(length(result.table.labels),length(result.table.cache),result.table.covered)
+
+    # Manual objective edits require an explicit refresh, including removals.
+    id=first(missing)
+    push!(built.program.objective_ids,id)
+    push!(built.program.objective_coefs,1.0)
+    @test !Nx.moment_covered(built.table,id)
+    Nx.refresh_coverage!(built.table,built.program)
+    @test Nx.moment_covered(built.table,id)
+    pop!(built.program.objective_ids); pop!(built.program.objective_coefs)
+    Nx.refresh_coverage!(built.table,built.program)
+    @test !Nx.moment_covered(built.table,id)
+    Nx.push_term!(built.program.forms,1.0,id)
+    Nx.close_form!(built.program.forms)
+    Nx.push_block!(built.program,Nx.ZERO,1)
+    @test !Nx.moment_covered(built.table,id)
+    Nx.refresh_coverage!(built.table,built.program)
+    @test Nx.moment_covered(built.table,id)
+    @test Nx.moment_covered(built.table,1)
+    @test !Nx.moment_covered(built.table,0)
 end

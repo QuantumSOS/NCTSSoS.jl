@@ -73,6 +73,7 @@ function _orbit_objective!(program, table, objective)
         push!(program.objective_ids, id); push!(program.objective_coefs, real(c))
     end
     program.nvars = length(table.labels)
+    refresh_coverage!(table,program)
     return validate(program), table
 end
 

@@ -12,25 +12,28 @@ struct FamilySymmetry{G,M}
 end
 
 "A row rule per site group, a split algorithm, or an unchanged custom family."
-struct BlockRelaxation{R,G,S,F,Y} <: AbstractRelaxation
+struct BlockRelaxation{R,G,S,F,Y,K} <: AbstractRelaxation
     order::Union{Int,Nothing}
     row_rule::R
     grouping::G
     split::S
     family::F
     symmetry::Y
+    strengthen::K
     function BlockRelaxation(;order=nothing,row_rule=nothing,grouping=nothing,split=nothing,
-        family=nothing,symmetry=FamilySymmetry())
+        family=nothing,symmetry=FamilySymmetry(),strengthen=())
         xor(isnothing(order),isnothing(family)) || throw(ArgumentError("Supply exactly one of order or a custom family."))
         isnothing(order) || order isa Integer && order>=0 || throw(ArgumentError("The row order must be a nonnegative integer."))
         symmetry isa FamilySymmetry || throw(ArgumentError("Use FamilySymmetry to name block generators and moment-only maps."))
+        strengthen=Tuple(strengthen)
+        all(k->k isa StrengtheningKind,strengthen) || throw(ArgumentError("Use strengthening descriptions such as DensityMatrix(sites) or InvariantCone(sites, r)."))
         if !isnothing(family)
             all(isnothing,(row_rule,grouping,split)) || throw(ArgumentError("A custom family is used as supplied; remove the row rule, grouping and split options."))
             family=collect.(family)
             !isempty(family) && all(!isempty,family) || throw(ArgumentError("A custom family and each of its blocks must be nonempty."))
         end
-        new{typeof(row_rule),typeof(grouping),typeof(split),typeof(family),typeof(symmetry)}(
-            isnothing(order) ? nothing : Int(order),row_rule,grouping,split,family,symmetry)
+        new{typeof(row_rule),typeof(grouping),typeof(split),typeof(family),typeof(symmetry),typeof(strengthen)}(
+            isnothing(order) ? nothing : Int(order),row_rule,grouping,split,family,symmetry,strengthen)
     end
 end
 
@@ -45,6 +48,10 @@ function Base.show(io::IO,s::FamilySizes)
     print(io,"; family ",r.initial_blocks," → ",r.closed_blocks," blocks, ",length(r.block_orbits),
         " orbits; block generators: ",[nameof(typeof(g)) for g in r.block_generators],
         "; moment-only: ",[nameof(typeof(g)) for g in r.moment_only])
+    if !isnothing(r.strengthening)
+        print(io,"; strengthening: ",r.strengthening.added_blocks," blocks; ")
+        show(io,r.valid_for)
+    end
 end
 Base.show(io::IO,::MIME"text/plain",s::FamilySizes) = show(io,s)
 
@@ -70,6 +77,7 @@ function build(problem::Problem,description::BlockRelaxation)
     end
     order=custom ? maximum(degree,Iterators.flatten(description.family)) : description.order
     max_letters=max(2order,degree(problem.objective),maximum((degree(c.polynomial) for c in problem.constraints);init=0))
+    max_letters=max(max_letters,maximum((length(k.sites) for k in description.strengthen);init=0))
     registry=problem.objective.registry
     W=word_type(registry,max_letters)
     objective=[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(problem.objective)]
@@ -103,7 +111,11 @@ function build(problem::Problem,description::BlockRelaxation)
     letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
     program,table,closure=family_program(family,objective;generators=description.symmetry.generators,
         moment_generators=description.symmetry.moment_only,custom,site_letters=letters)
+    extra=_strengthen!(program,table,problem,description.strengthen,closure.block_generators)
+    valid_for=isempty(description.strengthen) ? ValidStates(problem.constraints) :
+        StrengthenedStates(ValidStates(problem.constraints),description.strengthen)
+    closure=merge(closure,(strengthening=extra,valid_for=valid_for))
     sizes=ProgramSizes(sum(length(b.rows) for b in closure.family),length(table.representatives),program.nvars-1,
         length(program.blocks),maximum((b.side for b in program.blocks if b.kind in (PSD,HPSD));init=0),local_sizes)
-    return (program=program,table=table,sizes=FamilySizes(sizes,closure),valid_for=ValidStates(problem.constraints))
+    return (program=program,table=table,sizes=FamilySizes(sizes,closure),valid_for=valid_for)
 end

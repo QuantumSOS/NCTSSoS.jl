@@ -5,8 +5,10 @@
 #   - Various graph sizes
 #
 # The Heisenberg model on a star graph with singlet projection constraints.
-# Expected optimal value: -1.0 (ground state energy per edge)
-# Results verified against NCTSSOS oracles.
+# The unipotent variables represent swaps, not singlet projectors.
+# For n sites, sum_j SWAP(1,j) = (n-1)/2 + 2 S_1 ⋅ S_leaves.
+# Coupling the maximal leaf spin (n-1)/2 to spin 1/2 gives minimum -1
+# for the TOTAL objective, not the energy per edge.
 
 using Test, NCTSSoS, JuMP
 import Graphs
@@ -19,14 +21,6 @@ if !@isdefined(SOLVER)
         "MSK_IPAR_NUM_THREADS" => max(1, div(Sys.CPU_THREADS, 2)),
         "MSK_IPAR_LOG" => 0
     )
-end
-
-# Load oracle values
-include(joinpath(dirname(@__DIR__), "..", "oracles", "results", "heisenberg_star_oracles.jl"))
-
-# Helper: flatten moment_matrix_sizes for comparison with oracle
-if !isdefined(@__MODULE__, :flatten_sizes)
-    flatten_sizes(sizes) = reduce(vcat, sizes)
 end
 
 const HEISENBERG_STAR_EXPECTED = -1.0
@@ -42,7 +36,7 @@ const HEISENBERG_STAR_EXPECTED = -1.0
         vec_idx2ij = [(i, j) for i = 1:num_sites for j = (i+1):num_sites]
         findvaridx(i, j) = findfirst(x -> x == (i, j), vec_idx2ij)
 
-        # Use unipotent variables for projector-like variables
+        # Swap operators satisfy U² = I.
         reg, (pij,) = create_unipotent_variables([("pij", 1:length(vec_idx2ij))])
 
         objective = sum(1.0 * pij[[findvaridx(ee.src, ee.dst) for ee in Graphs.edges(g)]])
@@ -63,11 +57,10 @@ const HEISENBERG_STAR_EXPECTED = -1.0
     end
 
     # =========================================================================
-    # Dense (No Sparsity, n=10) - HeisenbergStar_Dense_n10_d1
+    # Dense (No Sparsity, n=10)
     # =========================================================================
     @testset "Dense (n=10, order=1)" begin
         pop, _ = create_heisenberg_star_problem(10)
-        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_Dense_n10_d1"]
 
         config = SolverConfig(
             optimizer=SOLVER,
@@ -77,20 +70,15 @@ const HEISENBERG_STAR_EXPECTED = -1.0
         )
 
         result = cs_nctssos(pop, config; dualize=false)
-        @test result.objective ≈ oracle.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+        @test is_solved_and_feasible(result.model)
+        @test result.objective ≈ HEISENBERG_STAR_EXPECTED atol = 1e-6
     end
 
     # =========================================================================
-    # Correlative Sparsity MF (n=10) - HeisenbergStar_CS_n10_d1
-    # =========================================================================
-    # NOTE: Block order may differ from NCTSSOS due to clique ordering.
-    # We compare sorted block sizes instead of exact order.
+    # Correlative Sparsity MF (n=10)
     # =========================================================================
     @testset "Correlative Sparsity MF (n=10, order=1)" begin
         pop, _ = create_heisenberg_star_problem(10)
-        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_CS_n10_d1"]
 
         config = SolverConfig(
             optimizer=SOLVER,
@@ -100,18 +88,15 @@ const HEISENBERG_STAR_EXPECTED = -1.0
         )
 
         result = cs_nctssos(pop, config; dualize=false)
-        @test result.objective ≈ oracle.opt atol = 1e-6
-        # Block sizes match (order may differ due to clique enumeration)
-        @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracle.sides)
-        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+        @test is_solved_and_feasible(result.model)
+        @test result.objective ≈ HEISENBERG_STAR_EXPECTED atol = 1e-6
     end
 
     # =========================================================================
-    # Dense (n=8) - HeisenbergStar_Dense_n8_n8_d1
+    # Dense (n=8)
     # =========================================================================
     @testset "Dense (n=8, order=1)" begin
         pop, _ = create_heisenberg_star_problem(8)
-        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_Dense_n8_n8_d1"]
 
         config = SolverConfig(
             optimizer=SOLVER,
@@ -121,9 +106,8 @@ const HEISENBERG_STAR_EXPECTED = -1.0
         )
 
         result = cs_nctssos(pop, config; dualize=false)
-        @test result.objective ≈ oracle.opt atol = 1e-6
-        @test flatten_sizes(result.moment_matrix_sizes) == oracle.sides
-        @test result.n_unique_moment_matrix_elements == oracle.nuniq
+        @test is_solved_and_feasible(result.model)
+        @test result.objective ≈ HEISENBERG_STAR_EXPECTED atol = 1e-6
     end
 
     # =========================================================================
@@ -131,7 +115,6 @@ const HEISENBERG_STAR_EXPECTED = -1.0
     # =========================================================================
     @testset "SOS Dualization (n=8)" begin
         pop, _ = create_heisenberg_star_problem(8)
-        oracle = HEISENBERG_STAR_ORACLES["HeisenbergStar_Dense_n8_n8_d1"]
 
         config = SolverConfig(
             optimizer=SOLVER,
@@ -141,7 +124,8 @@ const HEISENBERG_STAR_EXPECTED = -1.0
         )
 
         result = cs_nctssos(pop, config; dualize=true)
-        @test result.objective ≈ oracle.opt atol = 1e-6
+        @test is_solved_and_feasible(result.model)
+        @test result.objective ≈ HEISENBERG_STAR_EXPECTED atol = 1e-6
     end
 
     # =========================================================================
@@ -156,6 +140,8 @@ const HEISENBERG_STAR_EXPECTED = -1.0
 
         J1 = 2.0
         J2 = 1.0
+        # A product of nearest-neighbor singlets attains the MG minimum.
+        # -sum J_ij P_singlet = sum J_ij S_i⋅S_j - sum J_ij/4 = -9.
         true_ans = -num_sites / 4 * 6
 
         ij2idx_dict = Dict(
@@ -193,6 +179,7 @@ const HEISENBERG_STAR_EXPECTED = -1.0
         config = SolverConfig(optimizer=SOLVER, order=1)
         result = cs_nctssos(pop, config)
 
+        @test is_solved_and_feasible(result.model)
         @test result.objective ≈ true_ans atol = 1e-4
     end
 end

@@ -106,3 +106,23 @@
         @test sparse_d3_result.objective ≈ dense_d2_result.objective atol = e8_objective_atol
     end
 end
+
+@testset "Higher step propagates chordal fill" begin
+    # Wang–Magron Example 3.4 has minimum zero. Its Figure 3 uses a
+    # different chordal extension; MMD reaches zero at the second step.
+    reg, (x,) = create_noncommutative_variables([("X", 1:3)])
+    X, Y, Z = x
+    pop = polyopt(nc_chain_objective(x), reg)
+    basis = [one(X), X, Y, Z, only(monomials(Y * X)), only(monomials(Y * Z))]
+    first_config = SolverConfig(optimizer=SOLVER, moment_basis=basis, ts_algo=MMD())
+    higher_config = SolverConfig(optimizer=SOLVER, ts_algo=MMD())
+    first_step = cs_nctssos(pop, first_config)
+    higher = cs_nctssos_higher(pop, first_step, higher_config)
+
+    @test is_solved_and_feasible(first_step.model)
+    @test is_solved_and_feasible(higher.model)
+    @test sort(flatten_sizes(first_step.moment_matrix_sizes)) == [3, 3, 3, 3]
+    @test sort(flatten_sizes(higher.moment_matrix_sizes)) == [4, 4, 4]
+    @test first_step.objective < -0.003
+    @test higher.objective ≈ 0.0 atol = 1e-6
+end

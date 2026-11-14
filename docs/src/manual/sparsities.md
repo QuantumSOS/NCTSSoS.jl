@@ -66,9 +66,10 @@ refinement order ``k`` (columns)
 Reading this grid:
 
 - **Along a row** (fixed ``d``, increasing ``k``): each term-sparsity refinement
-  step can only add edges to the adjacency graph, so the SDP grows weakly larger
-  and the bound tightens toward the correlative-sparsity-only bound
-  ``\lambda^{\text{cs}}_d``.
+  step uses support from the previous completed moment and localizing graphs,
+  including clique-fill edges. With nested chordal extensions, the SDP grows
+  weakly larger and the bound tightens toward the correlative-sparsity-only
+  bound ``\lambda^{\text{cs}}_d``.
 - **Along a column** (fixed ``k``, increasing ``d``): raising the relaxation
   order enlarges the moment matrix and tightens the bound.
 - The rightmost column ``\lambda^{\text{cs}}_d`` is the bound obtained with
@@ -80,5 +81,9 @@ bounds approach ``\lambda_{\min}(f, S)``
 graph stabilization (the term-sparsity graph becoming a fixed point in ``k``)
 does not guarantee that the bound reaches ``\lambda_{\min}(f, S)``; it may even
 stay below the dense SDP bound at the same ``d``.
+The choice of chordal extension matters: Example 3.4 in the paper stabilizes
+with the extension in its Figure 3, whereas the package's `MMD()` sequence
+reaches the exact bound at the second step. Completing an already chordal
+graph again is not a refinement step; support extension must come first.
 For concrete examples illustrating this distinction, see
 [Stabilization vs. Exactness](@ref sparsity-convergence).

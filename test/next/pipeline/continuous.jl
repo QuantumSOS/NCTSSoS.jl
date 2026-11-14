@@ -42,8 +42,10 @@ end
         base=Nx.build(plain,description)
         built=Nx.build(invariant,description)
         @test built.program.nvars<base.program.nvars
-        @test [(b.kind,b.side) for b in built.program.blocks]==[(b.kind,b.side) for b in base.program.blocks]
+        @test maximum(b.side for b in built.program.blocks)<maximum(b.side for b in base.program.blocks)
         @test built.sizes.closure.continuous.method==:exact_elimination
+        report=built.sizes.closure.continuous
+        @test occursin("continuous: $(report.equations) independent generator equations, $(report.initial_variables) → $(report.variables) variables",sprint(show,Nx.inspect(invariant,description)))
         baseline=Nx.solve(plain,description;solver)
         result=Nx.solve(invariant,description;solver)
         @test result.status==baseline.status==MOI.OPTIMAL
@@ -64,7 +66,7 @@ end
 end
 
 @testset "Continuous diagonal labels equal general elimination" begin
-    _,(a,ad)=Nx.fermionic_variables(4)
+    registry,(a,ad)=Nx.fermionic_variables(4)
     N=sum(ad[i]*a[i] for i in 1:4)
     H=sum((1+0.2im)*ad[i]*a[mod1(i+1,4)]+(1-0.2im)*ad[mod1(i+1,4)]*a[i]+
         0.4ad[i]*a[i]*ad[mod1(i+1,4)]*a[mod1(i+1,4)] for i in 1:4)
@@ -77,6 +79,8 @@ end
         base=Nx.build(plain,description)
         built=Nx.build(invariant,description)
         general,_,report=Nx._continuous_program(deepcopy(base.program),deepcopy(base.table),(d,);diagonal=false)
+        family_blocks=base.sizes.closure.strengthening.first_block-1
+        general,_=Nx._continuous_blocks(general;family_blocks)
         @test built.sizes.closure.continuous.method==:diagonal
         @test report.method==:exact_elimination
         @test built.program.nvars<base.program.nvars
@@ -86,6 +90,14 @@ end
         @test built.program.forms.coefs==general.forms.coefs
         @test built.program.objective_ids==general.objective_ids
         @test built.program.objective_coefs==general.objective_coefs
+        production=Nx.build(Nx.Problem(H;symmetry=Nx.Symmetry(generators...;continuous=(Nx.NumberRotation(registry),))),description).program
+        @test production.nvars==built.program.nvars
+        @test production.forms.ids==built.program.forms.ids
+        @test production.forms.offsets==built.program.forms.offsets
+        @test production.forms.coefs==built.program.forms.coefs
+        @test production.objective_ids==built.program.objective_ids
+        @test production.objective_coefs==built.program.objective_coefs
+        @test production.blocks==built.program.blocks
         solver=Nx.JuMPBackend(optimizer_with_attributes(COSMO.Optimizer,"verbose"=>false,
             "decompose"=>false,"eps_abs"=>1e-9,"eps_rel"=>1e-9))
         baseline=Nx.solve(plain,description;solver)

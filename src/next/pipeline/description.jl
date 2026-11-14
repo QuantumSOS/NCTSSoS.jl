@@ -52,6 +52,17 @@ function Base.show(io::IO,s::FamilySizes)
         " orbits; block generators: ",[nameof(typeof(g)) for g in r.block_generators],
         "; moment-only: ",[nameof(typeof(g)) for g in r.moment_only],
         "; ",r.unused_coordinates," unused coordinates")
+    if !isnothing(r.continuous)
+        c=r.continuous
+        print(io,"; continuous: ",c.equations," independent generator equations, ",
+            c.initial_variables," → ",c.variables," variables")
+        b=c.blocks
+        print(io,"; continuous blocks: ",b.split," split, kept ",sort!(collect(b.kept);by=first),
+            ", largest side ",b.largest_before," → ",b.largest_after,
+            ", reconstruction error ",b.reconstruction_error,", orthogonality error ",b.orthogonality_error,
+            ", tolerance ",b.tolerance,", side cap ",b.side_cap,", coefficient memory cap ",b.memory_cap,
+            " bytes (largest candidate ",b.max_coefficient_bytes," bytes)")
+    end
     if !isnothing(r.strengthening)
         print(io,"; strengthening: ",r.strengthening.added_blocks," blocks, ",r.strengthening.added_equalities," equalities; ")
         show(io,r.valid_for)
@@ -122,6 +133,7 @@ function build(problem::Problem,description::BlockRelaxation)
     program,table,closure=family_program(family,objective;generators=description.symmetry.generators,
         moment_generators=description.symmetry.moment_only,custom,site_letters=letters,real_form=_real_form(problem),
         check_coverage=!defer_coverage)
+    family_block_count=length(program.blocks)
     extra=_strengthen!(program,table,problem,description.strengthen,closure;sectors)
     if defer_coverage
         covered=Set(program.forms.ids)
@@ -134,6 +146,11 @@ function build(problem::Problem,description::BlockRelaxation)
     continuous=nothing
     if !isempty(description.symmetry.continuous)
         program,table,continuous=_continuous_program(program,table,description.symmetry.continuous)
+        program,block_report=_continuous_blocks(program;family_blocks=family_block_count)
+        continuous=merge(continuous,(blocks=block_report,))
+        if !isnothing(extra)
+            extra=merge(extra,(first_block=1+sum(length(r.outputs) for r in block_report.blocks),))
+        end
         moments=length(unique(label.word for label in table.labels))
     end
     refresh_coverage!(table,program)

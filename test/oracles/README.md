@@ -71,7 +71,8 @@ const CHSH_ORACLES = Dict(
 1. NCTSSOS repository
 2. Solver installed:
    - **Mosek** (default): MosekTools + valid license
-   - **COSMO** (open-source): COSMO.jl package
+
+The generator scripts use the legacy NCTSSOS solver default, Mosek.
 
 ### NCTSSOS Repository Paths
 
@@ -88,10 +89,6 @@ export NCTSSOS_PATH=/path/to/NCTSSOS
 make oracle-chsh
 make oracle-i3322
 
-# Run with COSMO solver (set ORACLE_SOLVER env var)
-ORACLE_SOLVER=cosmo make oracle-chsh
-ORACLE_SOLVER=cosmo make oracle-i3322
-
 # With custom NCTSSOS path
 NCTSSOS_PATH=/custom/path make oracle-chsh
 ```
@@ -106,7 +103,4 @@ cd /path/to/NCTSSOS
 
 # Run with Mosek (default)
 julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
-
-# Run with COSMO
-ORACLE_SOLVER=cosmo julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
 ```

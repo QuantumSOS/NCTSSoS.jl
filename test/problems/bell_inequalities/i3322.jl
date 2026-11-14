@@ -43,11 +43,10 @@ const EXPECTED_I3322 = (
 if !isdefined(@__MODULE__, :flatten_sizes)
     flatten_sizes(sizes) = reduce(vcat, sizes)
 end
-select_oracle(oracles) = getproperty(oracles, SOLVER_NAME)
-solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_tol
 
 @testset "I_3322 Bell Inequality" begin
-    oracles = select_oracle(EXPECTED_I3322)
+    oracles = getproperty(EXPECTED_I3322, SOLVER_NAME)
+    atol = SOLVER_NAME == :cosmo ? 1e-3 : 1e-6
 
     # =========================================================================
     # Problem Setup Helper
@@ -67,15 +66,20 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
     # =========================================================================
     @testset "Dense (order=2)" begin
         pop, _ = create_i3322_problem()
+        # COSMO still reaches its limit at 1e-8 with 100,000 iterations;
+        # 1e-7 converges without changing the objective assertion tolerance.
+        dense_optimizer = SOLVER_NAME == :cosmo ?
+            optimizer_with_attributes(SOLVER.optimizer_constructor, SOLVER.params...,
+                "eps_abs" => 1e-7, "eps_rel" => 1e-7) : SOLVER
         config = SolverConfig(
-            optimizer=SOLVER,
+            optimizer=dense_optimizer,
             order=2,
             cs_algo=NoElimination(),
             ts_algo=NoElimination()
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ oracles.Dense_d2.opt atol = solver_atol()
+        @test result.objective ≈ oracles.Dense_d2.opt atol = atol
         @test flatten_sizes(result.moment_matrix_sizes) == oracles.Dense_d2.sides
         @test result.n_unique_moment_matrix_elements == oracles.Dense_d2.nuniq
     end
@@ -85,15 +89,20 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
     # =========================================================================
     @testset "Dense (order=3)" begin
         pop, _ = create_i3322_problem()
+        # This COSMO solve needs both 1e-7 accuracy and 100,000 iterations
+        # to reach OPTIMAL; the objective assertion tolerance stays unchanged.
+        dense_optimizer = SOLVER_NAME == :cosmo ?
+            optimizer_with_attributes(SOLVER.optimizer_constructor, SOLVER.params...,
+                "eps_abs" => 1e-7, "eps_rel" => 1e-7, "max_iter" => 100_000) : SOLVER
         config = SolverConfig(
-            optimizer=SOLVER,
+            optimizer=dense_optimizer,
             order=3,
             cs_algo=NoElimination(),
             ts_algo=NoElimination()
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ oracles.Dense_d3.opt atol = solver_atol()
+        @test result.objective ≈ oracles.Dense_d3.opt atol = atol
         @test flatten_sizes(result.moment_matrix_sizes) == oracles.Dense_d3.sides
         @test result.n_unique_moment_matrix_elements == oracles.Dense_d3.nuniq
     end
@@ -111,7 +120,7 @@ solver_atol(base_tol=1e-6) = SOLVER_NAME == :cosmo ? max(base_tol, 1e-3) : base_
         )
         result = cs_nctssos(pop, config)
 
-        @test result.objective ≈ oracles.TS_d3.opt atol = solver_atol()
+        @test result.objective ≈ oracles.TS_d3.opt atol = atol
         @test sort(flatten_sizes(result.moment_matrix_sizes)) == sort(oracles.TS_d3.sides)
         @test result.n_unique_moment_matrix_elements == oracles.TS_d3.nuniq
     end

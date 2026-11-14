@@ -8,14 +8,11 @@
 # RUNNING ORACLE SCRIPTS:
 #   Option 1: Using make (from NCTSSoS.jl repo)
 #     make oracle-chsh                         # default: mosek
-#     ORACLE_SOLVER=cosmo make oracle-chsh     # use COSMO solver
-#     ORACLE_SOLVER=mosek make oracle-i3322    # use Mosek solver
 #     NCTSSOS_PATH=/custom/path make oracle-chsh
 #
 #   Option 2: Manual (from NCTSSOS repo)
 #     cd /path/to/NCTSSOS
 #     julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
-#     ORACLE_SOLVER=cosmo julia --project /path/to/NCTSSoS.jl/test/oracles/nctssos_chsh.jl
 #
 # ORACLE FORMAT:
 #   (opt, sides, nuniq) where:
@@ -33,32 +30,11 @@
 # Read NCTSSOS path for informational purposes
 const NCTSSOS_PATH = get(ENV, "NCTSSOS_PATH", "(not set - set NCTSSOS_PATH)")
 
-# Solver selection via ORACLE_SOLVER env var (default: mosek)
-const ORACLE_SOLVER_NAME = Symbol(get(ENV, "ORACLE_SOLVER", "mosek"))
+# Generators use the legacy NCTSSOS solver default (Mosek).
 
-using NCTSSOS, DynamicPolynomials, JuMP
+using NCTSSOS, DynamicPolynomials
 
-if ORACLE_SOLVER_NAME == :cosmo
-    using COSMO
-    const ORACLE_SOLVER = optimizer_with_attributes(
-        COSMO.Optimizer,
-        "verbose" => false,
-        "eps_abs" => 1e-8,
-        "eps_rel" => 1e-8,
-        "eps_prim_inf" => 1e-6,
-        "eps_dual_inf" => 1e-6,
-        "max_iter" => 50_000,
-        "rho" => 1.0,
-        "adaptive_rho" => true,
-        "alpha" => 1.0,
-        "scaling" => 10,
-    )
-else
-    using MosekTools
-    const ORACLE_SOLVER = Mosek.Optimizer
-end
-
-@info "Oracle utilities loaded" NCTSSOS_PATH ORACLE_SOLVER_NAME
+@info "Oracle utilities loaded (legacy solver default: Mosek)" NCTSSOS_PATH
 
 # Extract oracle info from NCTSSOS result
 function extract_oracle(name, opt, data; use_cs=false)
@@ -80,7 +56,7 @@ end
 function print_summary(prefix, results)
     println()
     println("=" ^ 70)
-    println("$(uppercase(prefix)) ORACLE SUMMARY (solver: $ORACLE_SOLVER_NAME)")
+    println("$(uppercase(prefix)) ORACLE SUMMARY (legacy solver default: Mosek)")
     println("=" ^ 70)
     println()
     println("const $(uppercase(prefix))_ORACLES = Dict(")
@@ -93,7 +69,7 @@ end
 # Print header
 function print_header(title)
     println("=" ^ 70)
-    println("NCTSSOS Oracle: $title (solver: $ORACLE_SOLVER_NAME)")
+    println("NCTSSOS Oracle: $title (legacy solver default: Mosek)")
     println("=" ^ 70)
     println()
 end

@@ -1,5 +1,6 @@
 using JuMP, COSMO
 
+const SOLVER_NAME = :cosmo
 const SOLVER = optimizer_with_attributes(
     COSMO.Optimizer,
     "verbose" => false,

@@ -44,10 +44,8 @@ const EXPECTED_TRACE_POLY = (
     ),
 )
 
-select_oracle(oracles) = getproperty(oracles, SOLVER_NAME)
-
 @testset "Trace Polynomial Examples (6.x)" begin
-    oracles = select_oracle(EXPECTED_TRACE_POLY)
+    oracles = getproperty(EXPECTED_TRACE_POLY, SOLVER_NAME)
 
     # =========================================================================
     # Example 6.1: Projector Algebra

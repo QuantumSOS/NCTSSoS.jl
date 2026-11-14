@@ -20,11 +20,12 @@ mutable struct OrbitMoments{W,G,D}
     zero_orbit::Bool
     line::Int # -1: complex; otherwise z = im^line * conj(z)
     real_form::Bool
+    covered::BitSet
 end
 function OrbitMoments(::Type{W}, generators; annihilators=(),real_form=false) where {W<:AbstractWord}
     representatives = MomentTable{W}()
     t = OrbitMoments(generators,annihilators,Dict{W,OrbitCoordinates}(),
-        representatives,representatives.labels,W[],Dict{W,Tuple{Phase,Bool}}(),false,-1,real_form)
+        representatives,representatives.labels,W[],Dict{W,Tuple{Phase,Bool}}(),false,-1,real_form,BitSet([1]))
     m = orbit_coordinates!(t,one(W))
     m.re == 1 && m.im == 0 && m.real_coefficient == 1 ||
         throw(ArgumentError("A symmetry must fix the identity with phase +1."))
@@ -107,8 +108,8 @@ function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
     t.cache[w]
 end
 
-"Read a represented orbit moment without adding coordinates to the solved program."
-function moment_value(t::OrbitMoments{W},w::AbstractWord,values) where {W}
+"Read orbit coordinates without registering words; an empty tuple is a symmetry-forced zero."
+function moment_terms(t::OrbitMoments{W},w::AbstractWord) where {W}
     packed=try
         _pack_word(W,w)
     catch e
@@ -122,11 +123,40 @@ function moment_value(t::OrbitMoments{W},w::AbstractWord,values) where {W}
         # Use a scratch table: querying must not grow the solved table.
         probe=OrbitMoments(W,t.generators;annihilators=t.annihilators,real_form=t.real_form)
         zero=orbit_coordinates!(probe,packed)
-        return zero.re==0 && zero.im==0 ? 0.0+0.0im : nothing
+        return zero.re==0 && zero.im==0 ? () : nothing
     end
-    re=m.re==0 ? 0.0 : m.re==1 ? 1.0 : values[m.re-1]
-    imaginary=m.im==0 ? 0.0 : values[m.im-1]
-    m.real_coefficient*re+m.imag_coefficient*imaginary
+    m.re==0 && m.im==0 && return ()
+    m.re==0 && return ((m.im,m.imag_coefficient),)
+    m.im==0 && return ((m.re,m.real_coefficient),)
+    return ((m.re,m.real_coefficient),(m.im,m.imag_coefficient))
+end
+
+moment_covered(t::OrbitMoments,id::Integer) = id in t.covered
+
+public refresh_coverage!
+"""
+    refresh_coverage!(table::OrbitMoments, program::MomentProgram)
+
+Replace the coverage snapshot with coordinates in the final forms or objective.
+Builders call this after assembly and strengthening. After manually extending or
+editing a program, call this again before solving and querying its moments.
+Registration alone does not make a coordinate covered. ID 1 is always covered.
+"""
+function refresh_coverage!(t::OrbitMoments,program::MomentProgram)
+    empty!(t.covered)
+    union!(t.covered,(1,),program.forms.ids,program.objective_ids)
+    return t
+end
+
+"Compatibility evaluation; polynomial coverage is checked by the model after cancellation."
+function moment_value(t::OrbitMoments,w::AbstractWord,values)
+    coordinates=moment_terms(t,w)
+    isnothing(coordinates) && return nothing
+    value=0.0+0.0im
+    for (id,c) in coordinates
+        value+=c*(id==1 ? 1.0 : values[id-1])
+    end
+    return value
 end
 
 "Compatibility accessor for real signed moments used by the M1 oracle tests."

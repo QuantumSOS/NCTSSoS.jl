@@ -126,8 +126,8 @@ function build(problem::Problem,description::BlockRelaxation)
     end
     valid_for=isempty(description.strengthen) ? ValidStates(problem.constraints) :
         StrengthenedStates(ValidStates(problem.constraints),description.strengthen)
-    covered=union!(BitSet([1]),program.forms.ids,program.objective_ids)
-    closure=merge(closure,(strengthening=extra,valid_for=valid_for,unused_coordinates=program.nvars-length(covered)))
+    refresh_coverage!(table,program)
+    closure=merge(closure,(strengthening=extra,valid_for=valid_for,unused_coordinates=program.nvars-length(table.covered)))
     sizes=ProgramSizes(sum(length(b.rows) for b in closure.family),length(table.representatives),program.nvars-1,
         length(program.blocks),maximum((b.side for b in program.blocks if b.kind in (PSD,HPSD));init=0),local_sizes)
     return (program=program,table=table,sizes=FamilySizes(sizes,closure),valid_for=valid_for)

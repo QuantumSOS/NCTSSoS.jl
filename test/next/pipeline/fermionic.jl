@@ -205,10 +205,35 @@ end
 @testset "T1 exposes unused imaginary coordinates" begin
     _,(a,ad)=Nx.fermionic_variables(4)
     H=-(ad[1]*a[2]+ad[2]*a[1]+ad[3]*a[4]+ad[4]*a[3])
-    built=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
+    description=Nx.BlockRelaxation(order=1,
         symmetry=Nx.FamilySymmetry([Nx.SitePermutation([2,1,4,3])]),
-        strengthen=(Nx.FermionicConditions(1:4;conditions=(:T1,)),)))
+        strengthen=(Nx.FermionicConditions(1:4;conditions=(:T1,)),))
+    built=Nx.build(Nx.Problem(H),description)
     missing=check_used_coordinates(built.program;expected=2)
     @test built.sizes.closure.unused_coordinates==2
     @test all(built.table.labels[i].part==2 for i in missing)
+    solver=Nx.JuMPBackend(optimizer_with_attributes(COSMO.Optimizer,"verbose"=>false,
+        "decompose"=>false,"eps_abs"=>1e-9,"eps_rel"=>1e-9))
+    result=Nx.solve(Nx.Problem(H),description;solver)
+    @test result.status==MOI.OPTIMAL
+    @test result.bound≈-2 atol=1e-7
+    w=ad[3]*ad[1]*a[1]*a[4]
+    coordinates=Nx.moment_terms(result.table,last(only(Nx.terms(w))))
+    @test length(coordinates)==2
+    @test count(pair->Nx.moment_covered(result.table,first(pair)),coordinates)==1
+    before=(length(result.table.labels),length(result.table.cache),copy(result.table.covered))
+    @test_throws r"Moment .*selected blocks" Nx.expectation(result,w)
+    @test_throws r"Moment .*selected blocks" Nx.expectation(result,im*(w-w'))
+    @test isfinite(Nx.expectation(result,w+w'))
+    # The relaxation need not determine the physical ground state's quartics.
+    # Check reconstruction separately on independent, feasible true moments.
+    matrices=fermi_matrices(4)
+    ground=eigen(Hermitian(matrices.polynomial(H))).vectors[:,1]
+    values=fermi_coordinates(result.table,ground*ground',matrices)[2:end]
+    solution=Nx.ConicSolution(-2.0,MOI.OPTIMAL,"true-state fixture",values,nothing)
+    physical=Nx.SolveResult(-2.0,MOI.OPTIMAL,result.sizes,result.valid_for,result.problem,
+        result.relaxation,solution,result.table,result.solver)
+    @test Nx.expectation(physical,w+w')≈real(dot(ground,matrices.polynomial(w+w')*ground)) atol=1e-12
+    @test Nx.expectation(result,H)≈result.bound atol=1e-7
+    @test before==(length(result.table.labels),length(result.table.cache),result.table.covered)
 end

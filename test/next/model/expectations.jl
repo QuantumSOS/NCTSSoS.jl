@@ -63,3 +63,47 @@ function check_expectations(backend,reference_optimizer)
     # Suggested complete rows must cover the existing objective too, not only Bob.
     @test_throws r"Moment Bob.*order=2.*custom rows" N.expectation(custom,bob)
 end
+
+# A covered real coordinate and a reserved, unconstrained imaginary coordinate.
+# No solver is needed: the arbitrary imaginary value must never be observable.
+struct PartialMomentTable{W}
+    word::W
+    adjoint_word::W
+    forced_zero::W
+end
+function NCTSSoS.Next.moment_terms(t::PartialMomentTable,w)
+    isone(w) && return ((1,1.0),)
+    w==t.word && return ((2,1.0),(3,1.0im))
+    w==t.adjoint_word && return ((2,1.0),(3,-1.0im))
+    w==t.forced_zero && return ()
+    return nothing
+end
+NCTSSoS.Next.moment_covered(::PartialMomentTable,id) = id in (1,2)
+function NCTSSoS.Next.moment_value(t::PartialMomentTable,w,values)
+    pairs=NCTSSoS.Next.moment_terms(t,w)
+    isnothing(pairs) && return nothing
+    return sum(c*(id==1 ? 1.0 : values[id-1]) for (id,c) in pairs;init=0.0im)
+end
+
+@testset "Expectation checks combined coordinate coverage" begin
+    N=NCTSSoS.Next
+    _,(a,ad)=N.fermionic_variables(4)
+    w=ad[3]*ad[1]*a[1]*a[4]
+    table=PartialMomentTable(only(N.terms(w))[2],only(N.terms(w'))[2],only(N.terms(a[2]))[2])
+    problem=N.Problem(w+w')
+    result=N.SolveResult(1.5,:stub,nothing,nothing,problem,N.Relaxation(order=2),
+        (values=[0.75,99.0],),table,nothing)
+    @test N.expectation(result,w+w')==1.5
+    @test N.expectation(result,0.1w+0.1w') ≈ 0.15
+    @test N.expectation(result,one(w))==1
+    @test N.expectation(result,a[2])==0
+    @test_throws r"Moment ad3 ad1 a1 a4.*not in this program.*order=2" N.expectation(result,w)
+    @test_throws r"Moment a3.*not in this program" N.expectation(result,a[3])
+    # Hermitian does not imply independence of Im⟨w⟩: this uses 4 Re⟨w⟩−6 Im⟨w⟩.
+    @test_throws r"Moment ad[34] ad1 a1 a[34].*not in this program" N.expectation(result,(2+3im)*w+(2-3im)*w')
+    # No tolerance may silently erase a small dependence on an unbounded variable.
+    @test_throws r"Moment ad[34] ad1 a1 a[34].*not in this program" N.expectation(result,(1+eps())*w+w')
+    @test_throws r"Moment ad3 ad1 a1 a4.*not in this program" N.expectation(result,big"1e-400"*w)
+    result.solution.values[2]=NaN
+    @test N.expectation(result,w+w')==1.5
+end

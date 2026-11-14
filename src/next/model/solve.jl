@@ -56,21 +56,49 @@ function expectation(result::SolveResult,p::Polynomial)
     return _expectation(result.table,result,p)
 end
 
+function _missing_moment(result::SolveResult,p::Polynomial,w)
+    if result.relaxation isa Relaxation && !_uses_blocks(result.problem,result.relaxation)
+        required = cld(max(degree(w),degree(result.problem.objective),
+            maximum((degree(c.polynomial) for c in result.problem.constraints);init=0)),2)
+        throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not in this program. Use Relaxation(order=$required) with complete rows, or custom rows whose adjoint products contain this word, and solve again."))
+    end
+    throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not among the moments of the selected blocks. Try a higher order, no split (split=nothing), or a site group containing the word's sites ($(join(sites(w),", "))), and solve again."))
+end
+
 # Specialize the evaluation loop on the table's packed word type only on demand.
-function _expectation(table,result::SolveResult,p::Polynomial)
+function _expectation(table,result::SolveResult,p::Polynomial{W}) where {W}
     value = 0.0+0.0im
-    for (c,w) in terms(p)
-        iszero(c) && continue
-        moment = moment_value(table,w,result.solution.values)
-        if isnothing(moment)
-            if result.relaxation isa Relaxation && !_uses_blocks(result.problem,result.relaxation)
-                required = cld(max(degree(w),degree(result.problem.objective),
-                    maximum((degree(c.polynomial) for c in result.problem.constraints);init=0)),2)
-                throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not in this program. Use Relaxation(order=$required) with complete rows, or custom rows whose adjoint products contain this word, and solve again."))
+    if applicable(moment_terms,table,one(W))
+        # Keep coefficient precision; narrowing a tiny coefficient could falsely
+        # remove its dependence on an unconstrained coordinate.
+        coordinates=Dict{Int,Tuple{Number,W}}()
+        for (c,w) in terms(p)
+            iszero(c) && continue
+            pairs=moment_terms(table,w)
+            isnothing(pairs) && _missing_moment(result,p,w)
+            for (id,factor) in pairs
+                coefficient=c*factor
+                iszero(coefficient) && continue
+                previous=get(coordinates,id,(0,w))[1]
+                coordinates[id]=(previous+coefficient,w)
             end
-            throw(ArgumentError("Moment $(_word_string(p.registry,w)) is not among the moments of the selected blocks. Try a higher order, no split (split=nothing), or a site group containing the word's sites ($(join(sites(w),", "))), and solve again."))
         end
-        value += c*moment
+        for (id,(c,w)) in coordinates
+            # Zero tolerance, including general floating coefficients: any
+            # nonzero dependence on an unconstrained coordinate is undetermined.
+            # Opposite contributions cancel before this coverage check.
+            iszero(c) && continue
+            moment_covered(table,id) || _missing_moment(result,p,w)
+            value+=c*(id==1 ? 1.0 : result.solution.values[id-1])
+        end
+    else
+        # Compatibility until a table provider implements both coordinate hooks.
+        for (c,w) in terms(p)
+            iszero(c) && continue
+            moment=moment_value(table,w,result.solution.values)
+            isnothing(moment) && _missing_moment(result,p,w)
+            value+=c*moment
+        end
     end
     return LinearAlgebra.ishermitian(p) ? real(value) : value
 end

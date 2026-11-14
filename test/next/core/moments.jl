@@ -100,5 +100,18 @@ end
         @test Dict(zip(p.objective_ids,p.objective_coefs))==
             Dict(id=>c for (id,c) in zip(ref.objective_ids,ref.objective_coefs) if !iszero(c))
         @test t.labels==rt.labels
+        # Test the plain coverage invariant after lowering/coalescing forms,
+        # not merely by inspecting allocated IDs. Include sparse custom rows
+        # and the real-only site-algebra form.
+        for selected in (rows,unique([one(W);rows[1:3:end]])), C in
+                (W<:Nx.SiteWord ? (Float64,ComplexF64) : (ComplexF64,))
+            program,table=Nx.plain_program(selected,[(1.,one(W))];C)
+            form=Nx.moment_standard_form(program)
+            covered=[id==1 || !iszero(form.c[id-1]) || any(!iszero,form.A[:,id-1])
+                for id in 1:Nx.nvars(table)]
+            @test all(covered)
+            @test [Nx.moment_covered(table,id) for id in 1:Nx.nvars(table)]==covered
+            @test !Nx.moment_covered(table,0) && !Nx.moment_covered(table,Nx.nvars(table)+1)
+        end
     end
 end

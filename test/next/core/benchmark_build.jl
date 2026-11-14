@@ -66,4 +66,4 @@ function main()
     end
     compare_build("CHSH/d2",polyopt(ham,reg),algebra,W,2,2,convert_site)
 end
-main()
+abspath(PROGRAM_FILE)==(@__FILE__) && main()

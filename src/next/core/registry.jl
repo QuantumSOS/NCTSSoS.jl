@@ -10,7 +10,7 @@ struct Registry{A}
         for (name, (site, label)) in entries
             name isa Symbol || throw(ArgumentError("Registry names must be Symbols."))
             1 <= site <= nsites || throw(ArgumentError("$name has site $site outside 1:$nsites."))
-            _check_label(algebra, label)
+            _check_label(algebra, site, label)
             haskey(names, name) && throw(ArgumentError("Duplicate operator name $name."))
             location = (Int(site), Int(label))
             location in locations && throw(ArgumentError("Two names refer to the same site and operator label $location."))
@@ -20,6 +20,7 @@ struct Registry{A}
         new{A}(algebra, Int(nsites), names)
     end
 end
+_check_label(algebra, site, label) = _check_label(algebra,label)
 _check_label(::Pauli, label) = 0 <= label <= 2 || throw(ArgumentError("Pauli labels are 0 (X), 1 (Y), or 2 (Z)."))
 _check_label(::Fermionic, label) = label in (-1,1) || throw(ArgumentError("Fermionic labels are -1 (creation) or 1 (annihilation)."))
 _check_label(::Bosonic, label) = label in (-1,1) || throw(ArgumentError("Bosonic labels are -1 (creation) or 1 (annihilation)."))

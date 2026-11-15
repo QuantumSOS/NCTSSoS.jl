@@ -41,7 +41,7 @@ include("model/newton_chip.jl")
 include("model/letter_permutation.jl")
 include("model/inspection.jl")
 
-public Symmetry, variables, RealState, RealTrace, newton_chip_basis
+public Symmetry, variables, mixed_variables, RealState, RealTrace, newton_chip_basis
 public build, BuiltRelaxation, prepare, prepare_standard, solve_standard
 public task_sizes
 public polynomial, terms, word_letters, support_letters, sites, degree, operator_name, basis, block_rows, block_sides

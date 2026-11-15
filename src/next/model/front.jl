@@ -20,6 +20,8 @@ function _check_symmetry_domain(p::Polynomial,s)
     end
     s isa FamilySymmetry || throw(ArgumentError(
         "Use Problem(H; symmetry=(generators...,)) or Next.Symmetry(...; moment_only=(...), continuous=(...))."))
+    p.registry.algebra isa MixedAlgebra && _has_symmetry(s) && throw(ArgumentError(
+        "Mixed symmetry needs component-aware actions; remove symmetry and use the plain relaxation."))
     p.registry.algebra isa FunctionalAlgebra && _has_symmetry(s) && throw(ArgumentError(
         "State/trace polynomials currently support the plain dense route only; remove symmetry until functional block routing is available."))
     W=eltype(p.data.words)

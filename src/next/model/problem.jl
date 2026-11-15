@@ -257,8 +257,8 @@ Base.show(io::IO,::MIME"text/plain",s::ProgramSizes) = show(io,s)
 # FunctionalAlgebra instead declares real-valued symbols explicitly; no
 # averaging argument for products of arbitrary complex expectations is used.
 _real_form(p::Problem) = p.objective.registry.algebra isa Union{SiteAlgebra{<:Union{Free,Projector,Unipotent}},FunctionalAlgebra} &&
-    all(isreal,p.objective.data.coefficients) &&
-    all(c->all(isreal,c.polynomial.data.coefficients),p.constraints)
+    all(isreal(c) for (c,_) in terms(p.objective)) &&
+    all(c->all(isreal(a) for (a,_) in terms(c.polynomial)),p.constraints)
 
 "A built plain or block relaxation, with lazily cached solver data. Treat its program and inputs as read-only; rebuild after changing them."
 struct BuiltRelaxation{P,R,G,S,V}

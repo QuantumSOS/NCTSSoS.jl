@@ -4,10 +4,11 @@ EditURL = "../literate/fermionic_ground_state.jl"
 
 # [Fermionic Ground State (XY Model)](@id fermionic-ground-state)
 
-This example computes **certified lower bounds** on the ground-state energy
+This example computes **lower bounds on the even-parity sector energy**
 of a quantum spin chain — and it does so by translating the problem into the
 language of **fermions**.  If those words don't mean anything to you yet,
 good — we'll build every concept from scratch.
+The even-sector minimum need not be the global ground-state energy.
 
 ## What is a ground-state energy?
 
@@ -78,7 +79,7 @@ $a_i a_i^\dagger + a_i^\dagger a_i = 1$.  The second and third say
 A direct corollary is $(a_i)^2 = 0$: removing a fermion from the same
 site twice always gives zero — the operator itself is nilpotent.
 
-In `NCTSSoS.jl`, [`create_fermionic_variables`](@ref) gives you operators
+In `NCTSSoS.jl`, `fermionic_variables` gives you operators
 that already obey these rules — every product is automatically simplified
 (normal-ordered) by the library.
 
@@ -191,31 +192,34 @@ H_{\mathrm{even}} = -\frac{j_c}{2}\sum_{i=1}^{N-1}
     \bigl(a_N^\dagger a_1 + a_1^\dagger a_N\bigr).
 ```
 
-This reduced Hamiltonian already *is* the even-sector problem.  For a very
-small system we can additionally certify $P = I$ inside the SDP, but that
-parity polynomial has degree $2N$, so it stops fitting inside low-order
-relaxations once $N$ grows.
+This reduced Hamiltonian uses the even-sector boundary condition. We still
+check that its ground state has even parity. For a very small system we
+also impose `Sector(P, 1)` inside the SDP. That parity polynomial has
+degree $2N$, so it introduces high-degree moments as $N$ grows.
 
 !!! warning "Do not impose `P - I = 0` blindly"
     The polynomial `P - I` has degree `2N`.  For `N = 4`, an order-4
-    relaxation can still represent it, so the explicit equality constraint
-    works.  For `N = 6` and `N = 8`, the order-3 sparse relaxations used
-    below only carry moments up to degree 6, so a model with
-    `eq_constraints = [P - I]` is under-supported.
-
-    `NCTSSoS.jl` now rejects that setup instead of silently dropping the
-    missing high-degree moments.  So for the larger cases below we solve the
-    already-reduced Hamiltonian $H_{\mathrm{even}}$ directly rather than
-    adding a separate parity polynomial.
+    relaxation covers that degree. For `N = 6` and `N = 8`, the order-3
+    moment matrices below only use products through degree 6.
+    `Sector(P, 1)` can add moments beyond that degree; it is not the
+    operator identity `Zero(P - 1)`. To keep the larger examples quadratic,
+    we solve $H_{\mathrm{even}}$ without a separate parity condition and
+    check the result against the even-parity free-fermion ground state.
 
 !!! tip "What about the odd-parity sector?"
     In the odd sector ($P = -1$), the boundary sign flips: all hopping
     terms get the *same* sign, giving periodic (not anti-periodic)
-    boundary conditions.  For the XY model with $j_c > 0$, the ground
-    state lives in the even sector for all chain lengths we consider —
-    you can verify this by checking that the number of filled Fermi-sea
-    modes is even.  In general, one should solve both sectors and take
-    the lower energy.
+    boundary conditions. For $j_c=1$, the global ground state is even
+    at $N=4$ and $N=8$, but **odd at $N=6$**: its energy is $-2$,
+    below the even-sector value $-\sqrt{3}$. This page keeps the
+    even-sector target in all three cases. To find the global minimum,
+    compare both sectors, filling an even or odd number of modes as required.
+
+| ``N`` | Even-sector minimum | Odd-sector minimum | Global minimum |
+|:-----:|--------------------:|-------------------:|---------------:|
+| 4 | −1.41421356 | −1 | −1.41421356 (even) |
+| 6 | −1.73205081 | −2 | −2 (odd) |
+| 8 | −2.61312593 | −2.41421356 | −2.61312593 (even) |
 
 ---
 
@@ -256,8 +260,8 @@ using LinearAlgebra
 """
     xy_exact_energy(N; j_c=1.0)
 
-Exact ground-state energy of the periodic N-site XY spin chain via
-numerical diagonalisation of the hopping matrix (even-parity sector).
+Exact even-sector energy of the periodic N-site XY spin chain via
+numerical diagonalisation of the hopping matrix.
 """
 function xy_exact_energy(N::Int; j_c::Real = 1.0)
     # Single-particle hopping matrix (anti-periodic BC from parity twist)
@@ -272,7 +276,7 @@ end
 ````
 
 ````
-Main.var"##284".xy_exact_energy
+Main.var"##278".xy_exact_energy
 ````
 
 ### Method 2 — analytic Fourier formula
@@ -321,7 +325,7 @@ end
 ````
 
 ````
-Main.var"##284".xy_exact_energy_analytic
+Main.var"##278".xy_exact_energy_analytic
 ````
 
 Both methods agree:
@@ -353,23 +357,22 @@ $\langle H \rangle$ that is consistent with the CAR, the chosen
 even-sector Hamiltonian, and the requirement that expectation values come
 from a valid quantum state.  Because every valid quantum state satisfies
 those conditions, the SDP answer is guaranteed to be **at or below** the
-true ground-state energy — it is a **certified lower bound**.
+true even-sector energy. The numerical solver result is subject to
+solver tolerances; it is not a certificate in exact arithmetic.
 
 !!! note "SDP Solver"
-    These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
-    Any SDP-capable solver works: replace `Mosek.Optimizer` with
-    `COSMO.Optimizer` or `Clarabel.Optimizer` for open-source alternatives.
+    These examples use [Mosek](https://www.mosek.com/) through `MosekBackend`.
+    For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS, MosekTools, JuMP
+using NCTSSoS.Next, Mosek
+import NCTSSoS.Next as Next
 
-SOLVER = optimizer_with_attributes(Mosek.Optimizer,
-    "MSK_IPAR_LOG" => 0,                               # quiet output
-    "MSK_IPAR_NUM_THREADS" => 0)                        # use all threads
+SOLVER = MosekBackend()
 ````
 
 ````
-MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.RawOptimizerAttribute("MSK_IPAR_LOG") => 0, MathOptInterface.RawOptimizerAttribute("MSK_IPAR_NUM_THREADS") => 0])
+MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
 ````
 
 -------------------------------------------------------------------
@@ -378,12 +381,12 @@ MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.
 For $N = 4$ the parity polynomial has degree $2N = 8$.  At **order 4**
 the moment matrix includes monomials up to degree 8, which covers the
 full fermionic Fock space, and the parity constraint is enforced.
-A single call to [`cs_nctssos`](@ref) is sufficient.
+A single call to `solve` is sufficient.
 -------------------------------------------------------------------
 
 ### Step 1 — Create fermionic variables
 
-[`create_fermionic_variables`](@ref) returns a registry and two vectors:
+`fermionic_variables` returns a registry and two vectors:
 annihilation operators `a[i]` and creation operators `a_dag[i]`.
 All CAR relations are encoded automatically — you never need to manually
 specify $\{a_i, a_j^\dagger\} = \delta_{ij}$.
@@ -391,11 +394,11 @@ specify $\{a_i, a_j^\dagger\} = \delta_{ij}$.
 ````julia
 N₁ = 4
 j_c = 1.0
-registry₁, (a₁, a₁_dag) = create_fermionic_variables(1:N₁)
+registry₁, (a₁, a₁_dag) = fermionic_variables(1:N₁)
 ````
 
 ````
-(VariableRegistry with 8 variables: a⁺₄, a⁺₃, a⁺₂, a⁺₁, a₁, a₂, a₃, a₄, (NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a₁, a₂, a₃, a₄], NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a⁺₁, a⁺₂, a⁺₃, a⁺₄]))
+(NCTSSoS.Next.Registry{Fermionic}(Fermionic(), 4, Dict(:a2 => (2, 1), :a3 => (3, 1), :ad2 => (2, -1), :a4 => (4, 1), :ad3 => (3, -1), :ad1 => (1, -1), :a1 => (1, 1), :ad4 => (4, -1))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{Fermionic}}[a1, a2, a3, a4], NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{Fermionic}}[ad1, ad2, ad3, ad4]))
 ````
 
 ### Step 2 — Build the even-parity Hamiltonian
@@ -414,13 +417,13 @@ ham₁ = sum(
 ````
 
 ````
-0.5 + 0.0im * a⁺₄a₁ + -0.5 - 0.0im * a⁺₄a₃ + -0.5 - 0.0im * a⁺₃a₂ + -0.5 - 0.0im * a⁺₃a₄ + -0.5 - 0.0im * a⁺₂a₁ + -0.5 - 0.0im * a⁺₂a₃ + -0.5 - 0.0im * a⁺₁a₂ + 0.5 + 0.0im * a⁺₁a₄
+(-0.5) ad1 a2 + (0.5) ad1 a4 + (-0.5) ad2 a1 + (-0.5) ad2 a3 + (-0.5) ad3 a2 + (-0.5) ad3 a4 + (0.5) ad4 a1 + (-0.5) ad4 a3
 ````
 
 ### Step 3 — Parity constraint: $P - I = 0$
 
 We build $P = \prod_{i=1}^{N}(1 - 2\,a_i^\dagger a_i)$ and impose
-$P = I$ as an equality constraint.  Each factor $(1-2n_i)$ maps site $i$
+$P|\psi\rangle = |\psi\rangle$ as a state constraint. Each factor $(1-2n_i)$ maps site $i$
 to $+1$ (empty) or $-1$ (occupied); the product is $+1$ exactly when the
 total particle number is even.
 
@@ -429,57 +432,40 @@ parity₁ = prod(one(ham₁) - 2.0 * a₁_dag[i] * a₁[i] for i in 1:N₁)
 ````
 
 ````
-1 + -2.0 + 0.0im * a⁺₄a₄ + -2.0 + 0.0im * a⁺₃a₃ + -2.0 + 0.0im * a⁺₂a₂ + -2.0 + 0.0im * a⁺₁a₁ + 4.0 + 0.0im * a⁺₄a⁺₃a₃a₄ + 4.0 + 0.0im * a⁺₄a⁺₂a₂a₄ + 4.0 + 0.0im * a⁺₄a⁺₁a₁a₄ + 4.0 + 0.0im * a⁺₃a⁺₂a₂a₃ + 4.0 + 0.0im * a⁺₃a⁺₁a₁a₃ + 4.0 + 0.0im * a⁺₂a⁺₁a₁a₂ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₂a₂a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₁a₁a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₂a⁺₁a₁a₂a₄ + -8.0 + 0.0im * a⁺₃a⁺₂a⁺₁a₁a₂a₃ + 16.0 + 0.0im * a⁺₄a⁺₃a⁺₂a⁺₁a₁a₂a₃a₄
+1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4
 ````
 
 ### Step 4 — Solve the SDP relaxation
 
-[`polyopt`](@ref) packages the Hamiltonian and constraints into a
-polynomial optimisation problem.  [`cs_nctssos`](@ref) builds and solves
+`Problem` packages the Hamiltonian into a polynomial optimisation
+problem. `solve` builds and solves
 the SDP relaxation, exploiting sparsity.  The `order` parameter controls
 the size of the moment matrix (higher = tighter but costlier).
 
 ````julia
-pop₁ = polyopt(ham₁, registry₁; eq_constraints = [parity₁ - one(ham₁)])
-config₁ = SolverConfig(optimizer = SOLVER, order = 4, ts_algo = MMD())
-result₁ = cs_nctssos(pop₁, config₁)
+problem₁ = Problem(ham₁)
+relaxation₁ = Relaxation(order=4, split=TermSplit(algorithm=Next.MMD()),
+    strengthen=Sector(parity₁, 1))
+result₁ = solve(problem₁, relaxation₁; solver=SOLVER)
 ````
 
 ````
-Objective: -1.414213568933294
-Correlative Sparsity (FermionicAlgebra): 
-
-   maximum clique size: 4
-   number of cliques: 1
-   Clique 1: 
-       Variables: [:a₁, :a₂, :a₃, :a₄]
-       Bases length: 163
-       Constraints: 
-           -2.0 + 0.0im * a⁺₄a₄ + -2.0 + 0.0im * a⁺₃a₃ + -2.0 + 0.0im * a⁺₂a₂ + -2.0 + 0.0im * a⁺₁a₁ + 4.0 + 0.0im * a⁺₄a⁺₃a₃a₄ + 4.0 + 0.0im * a⁺₄a⁺₂a₂a₄ + 4.0 + 0.0im * a⁺₄a⁺₁a₁a₄ + 4.0 + 0.0im * a⁺₃a⁺₂a₂a₃ + 4.0 + 0.0im * a⁺₃a⁺₁a₁a₃ + 4.0 + 0.0im * a⁺₂a⁺₁a₁a₂ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₂a₂a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₃a⁺₁a₁a₃a₄ + -8.0 + 0.0im * a⁺₄a⁺₂a⁺₁a₁a₂a₄ + -8.0 + 0.0im * a⁺₃a⁺₂a⁺₁a₁a₂a₃ + 16.0 + 0.0im * a⁺₄a⁺₃a⁺₂a⁺₁a₁a₂a₃a₄ :  with 1 basis monomials
-   Global Constraints: 
-Term Sparsity:
-Clique 1:
-   Moment Matrix Block Sizes: [4, 5, 6, 5, 5, 4, 5, 6, 7, 5, 5, 6, 4, 5, 4, 5, 6, 7, 8, 9, 5, 7, 5, 7, 7, 7, 5, 7, 7, 10, 10, 5, 4, 4, 4, 3, 3, 4, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 3, 3, 4, 3, 3, 3, 3, 4, 11, 4, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-   Moment Matrix:
-Number of Activated supp:   68
-Number of Bases Activated in each sub-block[4, 5, 6, 5, 5, 4, 5, 6, 7, 5, 5, 6, 4, 5, 4, 5, 6, 7, 8, 9, 5, 7, 5, 7, 7, 7, 5, 7, 7, 10, 10, 5, 4, 4, 4, 3, 3, 4, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3, 3, 3, 4, 3, 3, 3, 3, 4, 11, 4, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-
-   Localizing Matrix:
-Number of Activated supp:   15
-Number of Bases Activated in each sub-block[1]
-Unique Moment Matrix Elements: 68
-
+Bound: -1.4142135808363274 (numerical_optimum_not_certificate); status: OPTIMAL
+Problem: minimize (-0.5) ad1 a2 + (0.5) ad1 a4 + (-0.5) ad2 a1 + (-0.5) ad2 a3 + (-0.5) ad3 a2 + (-0.5) ad3 a4 + (0.5) ad4 a1 + (-0.5) ad4 a3; 0 operator constraints
+Relaxation(order=4, split=TermSplit(algorithm=MMD()), strengthen=(Sector(1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4, 1),))
+Sizes: 342 rows, 42 moments, 67 real variables, 96 blocks (largest 11); localizing rows: Int64[]; family 95 → 95 blocks, 95 orbits; block generators: Any[]; moment-only: Union{}[]; 0 unused coordinates; strengthening: 0 blocks, 39 equalities; Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4) = 1
+Valid for: Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4) = 1
 ````
 
 ### Step 5 — Verify against the exact answer
 
 ````julia
 exact₁ = xy_exact_energy(N₁)
-println("N = $N₁:  SDP = $(result₁.objective),  exact = $exact₁,  gap = $(abs(result₁.objective - exact₁))")
+println("N = $N₁:  SDP = $(result₁.bound),  exact = $exact₁,  gap = $(abs(result₁.bound - exact₁))")
 ````
 
 ````
-N = 4:  SDP = -1.414213568933294,  exact = -1.414213562373095,  gap = 6.560199050653637e-9
+N = 4:  SDP = -1.4142135808363274,  exact = -1.414213562373095,  gap = 1.8463232498433513e-8
 
 ````
 
@@ -496,14 +482,13 @@ distant sites can be missed in the first decomposition.
 
 There is also a modeling detail that matters here: for `N = 6` and `N = 8`,
 the explicit parity polynomial has degree 12 and 16, so the order-3 sparse
-relaxation below cannot support it as an `eq_constraint`.  That was exactly
-what broke the old page.  We therefore keep the same reduced Hamiltonian
-$H_{\mathrm{even}}$, but we do **not** add `P - I = 0` again for these
-larger cases.
+moment matrices do not cover those degrees. We keep the same reduced
+Hamiltonian $H_{\mathrm{even}}$, but do **not** add a separate parity
+sector for these larger cases.
 
-A call to [`cs_nctssos_higher`](@ref) propagates support from the first
-step's completed graphs, including clique-fill edges, to refine the
-sparsity pattern. It does not read numerical moment values.
+`TermSplit(level=2)` adds one support-extension and completion step,
+including clique-fill edges, to refine the sparsity pattern. It rebuilds
+the graphs from the problem; it does not read numerical moment values.
 -------------------------------------------------------------------
 
 ### Helper — build and solve for arbitrary N
@@ -513,34 +498,35 @@ sparsity pattern. It does not read numerical moment values.
     solve_xy(N; j_c=1.0, order=3)
 
 Build the already-reduced even-sector fermionic XY Hamiltonian for `N` sites,
-run one round of `cs_nctssos` and one of `cs_nctssos_higher`,
+solve at term-sparsity levels 1 and 2,
 and return `(first_obj, refined_obj, exact)`.
 
 For `N ≥ 6` we intentionally do **not** add `P - I = 0` as an explicit
-`eq_constraint`: that degree-`2N` polynomial does not fit inside the low-order
-sparse relaxation used here.
+sector condition: that degree-`2N` polynomial would add high-degree moments
+to the low-order sparse relaxation used here.
 """
 function solve_xy(N::Int; j_c::Real = 1.0, order::Int = 3)
-    registry, (a, a_dag) = create_fermionic_variables(1:N)
+    registry, (a, a_dag) = fermionic_variables(1:N)
 
     ham = sum(
         -ComplexF64(j_c / 2) * (a_dag[i] * a[i+1] + a_dag[i+1] * a[i])
         for i in 1:N-1
     ) + ComplexF64(j_c / 2) * (a_dag[N] * a[1] + a_dag[1] * a[N])
 
-    pop = polyopt(ham, registry)
-    config = SolverConfig(optimizer = SOLVER, order = order, ts_algo = MMD())
+    problem = Problem(ham)
+    first = Relaxation(; order, split=TermSplit(algorithm=Next.MMD(), level=1))
+    refined = Relaxation(; order, split=TermSplit(algorithm=Next.MMD(), level=2))
 
-    res1 = cs_nctssos(pop, config)
-    res2 = cs_nctssos_higher(pop, res1, config)
+    res1 = solve(problem, first; solver=SOLVER)
+    res2 = solve(problem, refined; solver=SOLVER)
 
-    return (first = res1.objective, refined = res2.objective,
+    return (first = res1.bound, refined = res2.bound,
             exact = xy_exact_energy(N; j_c))
 end
 ````
 
 ````
-Main.var"##284".solve_xy
+Main.var"##278".solve_xy
 ````
 
 ### N = 6
@@ -552,8 +538,8 @@ println("  gap after refinement: $(abs(r6.refined - r6.exact))")
 ````
 
 ````
-N = 6:  first = -2.0375379457268554,  refined = -1.7320508079404786,  exact = -1.7320508075688772
-  gap after refinement: 3.716014163046566e-10
+N = 6:  first = -2.0416755808491414,  refined = -1.7320508163630925,  exact = -1.7320508075688772
+  gap after refinement: 8.794215355933943e-9
 
 ````
 
@@ -566,15 +552,15 @@ println("  gap after refinement: $(abs(r8.refined - r8.exact))")
 ````
 
 ````
-N = 8:  first = -2.7442065412959598,  refined = -2.6131259295165825,  exact = -2.6131259297527527
-  gap after refinement: 2.361701945119421e-10
+N = 8:  first = -2.7454871439463724,  refined = -2.613125930203476,  exact = -2.6131259297527527
+  gap after refinement: 4.507234585560127e-10
 
 ````
 
 -------------------------------------------------------------------
 ## Results
 
-| ``N`` | Exact ``E_0``             | First iteration | After `cs_nctssos_higher` |
+| ``N`` | Exact even-sector energy | First level | Second level |
 |:-----:|:-------------------------:|:---------------:|:-------------------------:|
 | 4     | ``-\sqrt{2} \approx -1.414``  | tight       | —                         |
 | 6     | ``-\sqrt{3} \approx -1.732``  | loose       | tight                     |
@@ -582,7 +568,17 @@ N = 8:  first = -2.7442065412959598,  refined = -2.6131259295165825,  exact = -2
 
 For $N = 4$ the first SDP iteration already matches the exact energy.
 For $N = 6$ and $N = 8$, the sparsity-refined second iteration
-([`cs_nctssos_higher`](@ref)) tightens the bound to the exact value.
+(`TermSplit(level=2)`) tightens the bound to the exact value.
+The new levels do not imply the same programs as the earlier implementation.
+The first bounds changed from −2.037538 to −2.041676 (`N=6`) and from
+−2.744207 to −2.745487 (`N=8`). `MMD()` depends on the row order:
+a different order can select a different chordal extension and thus
+different first-pass blocks. This explains the change in a Hubbard
+control problem; we assume the same cause here. These XY cases have
+not been diagnosed separately. Row order does not change the dense
+relaxation.
+The refined bounds agree with the earlier results within 1e-6, and the
+exact-energy checks above retain their 1e-5 tolerance.
 -------------------------------------------------------------------
 
 ## Summary
@@ -595,21 +591,22 @@ particles that obey anticommutation rules enforced automatically by
 `NCTSSoS.jl`.  The boundary term of the ring acquired a parity operator
 $P$ that measures whether the total fermion count is even or odd.
 Restricting to the even sector fixes the boundary sign and turns the
-Hamiltonian into a free-fermion problem whose ground-state energy we can
-check exactly.  For `N = 4` we also enforce `P = I` explicitly; for
+Hamiltonian into a free-fermion problem whose even-sector energy we can
+check exactly. For `N = 4` we also fix even parity explicitly; for
 `N = 6` and `N = 8` we keep the already-reduced Hamiltonian and avoid the
-high-degree parity polynomial that would break the low-order sparse
-relaxation.  In every case the SDP matches the exact answer, certifying a
-rigorous lower bound.
+high-degree parity polynomial that would enlarge the low-order sparse
+relaxation. In every case the SDP matches the exact even-sector answer
+within solver tolerance. For `N = 6`, the global ground state is instead
+in the odd sector, with energy −2.
 
 ### The code recipe
 
 | Step | What we did | API |
 |------|-------------|-----|
-| 1 | Create fermionic operators (CAR built in) | [`create_fermionic_variables`](@ref) |
+| 1 | Create fermionic operators (CAR built in) | `fermionic_variables` |
 | 2 | Write the even-sector Hamiltonian | standard Julia arithmetic on operators |
-| 3 | Keep the large-`N` model low-degree by solving $H_{\mathrm{even}}$ directly (the `N = 4` sanity check also enforces `P = I`) | [`polyopt`](@ref) |
-| 4 | Solve & refine the SDP relaxation | [`cs_nctssos`](@ref), [`cs_nctssos_higher`](@ref) |
+| 3 | Keep the large-`N` model low-degree by solving $H_{\mathrm{even}}$ directly (the `N = 4` check also fixes even parity) | `Problem`; `Sector(parity₁, 1)` in `Relaxation` |
+| 4 | Solve & refine the SDP relaxation | `solve`; `TermSplit(algorithm=Next.MMD(), level=1)` then `level=2` |
 | 5 | Compare with exact free-fermion energy | `xy_exact_energy` (above) |
 
 ### Spin–fermion dictionary

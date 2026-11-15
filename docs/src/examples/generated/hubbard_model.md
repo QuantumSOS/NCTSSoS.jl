@@ -13,8 +13,7 @@ electron systems.  We solve the problem two ways:
 2. **Canonical** — fix the number of spin-up and spin-down electrons
    (half-filling).
 
-The canonical case uses [`particle_number_constraint`](@ref), which builds
-the right `moment_eq_constraints` for fixed particle-number sectors.  The
+The canonical case uses `Sector` for each fixed particle-number sector. The
 difference between the two cases teaches a key lesson about **state
 constraints vs. operator identities** in SDP relaxations.
 
@@ -22,7 +21,7 @@ If you haven't seen fermionic operators before, start with the
 [Fermionic Ground State (XY Model)](@ref fermionic-ground-state) example,
 which builds creation/annihilation operators and the CAR from scratch.
 Here we assume that background and focus on what's new: **spin degrees of
-freedom**, **doubled fermionic modes**, and **moment equality constraints**
+freedom**, **doubled fermionic modes**, and **state constraints**
 for fixing particle number.
 
 ---
@@ -198,17 +197,17 @@ for Mott physics.
 ## Building the Hamiltonian with NCTSSoS.jl
 
 We now build the *same* Hamiltonian using the polynomial interface.
-[`create_fermionic_variables`](@ref) returns creation and annihilation
+`fermionic_variables` returns creation and annihilation
 operators that already obey all CAR — including cross-species
 anticommutation.
 
 ````julia
-using NCTSSoS
+using NCTSSoS.Next
+import NCTSSoS.Next as Next
 
-registry, ((c_up, c_up_dag), (c_dn, c_dn_dag)) = create_fermionic_variables([
-    ("c_up", 1:N),   ## modes 1..N   (spin-up)
-    ("c_dn", 1:N),   ## modes N+1..2N (spin-down)
-]);
+registry, (c, c_dag) = fermionic_variables(1:2N);
+c_up, c_up_dag = c[1:N], c_dag[1:N];
+c_dn, c_dn_dag = c[N+1:2N], c_dag[N+1:2N];
 println("Created $(length(registry)) variables: $(2N) fermionic modes ($(N) up + $(N) down)")
 ````
 
@@ -246,7 +245,7 @@ ham = hopping + interaction   ## quadratic hops + quartic on-site terms
 ````
 
 ````
--c_dn⁺₄c_dn₁ + -c_dn⁺₄c_dn₃ + -c_dn⁺₃c_dn₂ + -c_dn⁺₃c_dn₄ + -c_dn⁺₂c_dn₁ + -c_dn⁺₂c_dn₃ + -c_dn⁺₁c_dn₂ + -c_dn⁺₁c_dn₄ + -c_up⁺₄c_up₁ + -c_up⁺₄c_up₃ + -c_up⁺₃c_up₂ + -c_up⁺₃c_up₄ + -c_up⁺₂c_up₁ + -c_up⁺₂c_up₃ + -c_up⁺₁c_up₂ + -c_up⁺₁c_up₄ + 4.0 * c_dn⁺₄c_up⁺₄c_up₄c_dn₄ + 4.0 * c_dn⁺₃c_up⁺₃c_up₃c_dn₃ + 4.0 * c_dn⁺₂c_up⁺₂c_up₂c_dn₂ + 4.0 * c_dn⁺₁c_up⁺₁c_up₁c_dn₁
+(-1.0) ad1 a2 + (-1.0) ad1 a4 + (-1.0) ad2 a1 + (-1.0) ad2 a3 + (-1.0) ad3 a2 + (-1.0) ad3 a4 + (-1.0) ad4 a1 + (-1.0) ad4 a3 + (-1.0) ad5 a6 + (-1.0) ad5 a8 + (-1.0) ad6 a5 + (-1.0) ad6 a7 + (-1.0) ad7 a6 + (-1.0) ad7 a8 + (-1.0) ad8 a5 + (-1.0) ad8 a7 + (4.0) ad5 ad1 a1 a5 + (4.0) ad6 ad2 a2 a6 + (4.0) ad7 ad3 a3 a7 + (4.0) ad8 ad4 a4 a8
 ````
 
 ---
@@ -254,16 +253,13 @@ ham = hopping + interaction   ## quadratic hops + quartic on-site terms
 ## Setting up the SDP solver
 
 !!! note "SDP Solver"
-    These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
-    Any SDP-capable solver works: replace `Mosek.Optimizer` with
-    `COSMO.Optimizer` or `Clarabel.Optimizer` for open-source alternatives.
+    These examples use [Mosek](https://www.mosek.com/) through `MosekBackend`.
+    For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using MosekTools, JuMP
+using Mosek
 
-SOLVER = optimizer_with_attributes(Mosek.Optimizer,
-    "MSK_IPAR_LOG" => 0,
-    "MSK_IPAR_NUM_THREADS" => 0);
+SOLVER = MosekBackend();
 ````
 
 This quartic Hubbard example is a good reminder that sparsity is not magic.
@@ -274,12 +270,12 @@ tight at order 3. With support propagated from the completed graphs, the
 canonical half-filled case also reaches the exact energy at order 3.
 
 ````julia
-config_gc = SolverConfig(optimizer = SOLVER, order = 3, ts_algo = MMD())
-config_can = SolverConfig(optimizer = SOLVER, order = 3, ts_algo = MMD())
+relaxation_gc_first = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD(), level=1))
+relaxation_gc = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD(), level=2))
 ````
 
 ````
-NCTSSoS.SolverConfig(MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.RawOptimizerAttribute("MSK_IPAR_LOG") => 0, MathOptInterface.RawOptimizerAttribute("MSK_IPAR_NUM_THREADS") => 0]), 3, nothing, NCTSSoS.NoElimination(), CliqueTrees.MMD(0), nothing)
+Relaxation(order=3, split=TermSplit(algorithm=MMD(), level=2))
 ````
 
 ---
@@ -291,27 +287,33 @@ lowest energy across **all** particle-number sectors simultaneously.  The
 result is a valid lower bound on the global ground-state energy.
 
 ````julia
-pop_gc = polyopt(ham, registry)
-result_gc_first = cs_nctssos(pop_gc, config_gc)
-result_gc = cs_nctssos_higher(pop_gc, result_gc_first, config_gc)
+problem = Problem(ham)
+result_gc_first = solve(problem, relaxation_gc_first; solver=SOLVER)
+result_gc = solve(problem, relaxation_gc; solver=SOLVER)
 
-println("Grand-canonical SDP (first sparse pass):  $(round(result_gc_first.objective; digits=6))")
-println("Grand-canonical SDP (refined):            $(round(result_gc.objective; digits=6))")
+println("Grand-canonical SDP (first sparse pass):  $(round(result_gc_first.bound; digits=6))")
+println("Grand-canonical SDP (refined):            $(round(result_gc.bound; digits=6))")
 println("Exact full-Fock GS:                       $(round(E_full; digits=6))")
-println("Gap after refinement:                     $(round(abs(result_gc.objective - E_full); digits=6))")
+println("Gap after refinement:                     $(round(abs(result_gc.bound - E_full); digits=6))")
 ````
 
 ````
-Grand-canonical SDP (first sparse pass):  -4.96256
+Grand-canonical SDP (first sparse pass):  -4.95709
 Grand-canonical SDP (refined):            -3.418551
 Exact full-Fock GS:                       -3.418551
 Gap after refinement:                     0.0
 
 ````
 
-The first sparse pass is still loose, but one call to
-[`cs_nctssos_higher`](@ref) refines the term-sparsity graph and drives the
-bound essentially onto the exact value.
+The first sparse pass is still loose. `level=2` adds one support-extension
+and completion step and drives the bound essentially onto the exact value.
+It rebuilds the graph from the problem; it does not read the first solution.
+The new and earlier sparse programs need not be identical at the same
+level. Here the first bound changed from −4.962560 to −4.957090; the
+refined bounds agree within 1e-6. `MMD()` depends on the row order.
+The new row order selects a different chordal extension, so the first
+pass uses different blocks. This does not change the dense relaxation.
+Each sparse block is a principal submatrix of the dense moment matrix.
 
 ---
 
@@ -320,13 +322,13 @@ bound essentially onto the exact value.
 To restrict to half-filling, we want to impose
 $(\hat{N}_\uparrow - 2)|\psi\rangle = 0$ and
 $(\hat{N}_\downarrow - 2)|\psi\rangle = 0$.  This looks like an
-equality constraint, so you might reach for `eq_constraints`.
+equality constraint, so you might reach for `Zero`.
 **That would be wrong.**  Here's why.
 
-!!! warning "`eq_constraints` vs. `moment_eq_constraints`"
-    [`polyopt`](@ref) offers two kinds of equality constraint:
+!!! warning "`Zero` vs. `Sector`"
+    Operator and state constraints have different meanings:
 
-    **`eq_constraints`** treats ``g = 0`` as an **operator identity** —
+    **`Zero(g)` in `Problem(constraints=...)`** treats ``g = 0`` as an **operator identity** —
     true in *every* quantum state.  Internally it builds a full bilinear
     localizing matrix, imposing
     $\langle b_i^\dagger \, g \, b_j \rangle = 0$ for all basis pairs
@@ -334,60 +336,67 @@ equality constraint, so you might reach for `eq_constraints`.
     Do **not** use it for sector-fixing conditions such as
     $P|\psi\rangle = |\psi\rangle$.
 
-    **`moment_eq_constraints`** treats ``g|\psi\rangle = 0`` as a **state
+    **`Sector(Q, q)` in `Relaxation(strengthen=...)`** treats
+    ``g|\psi\rangle = 0``, with ``g=Q-q``, as a **state
     constraint** — true for the *target state*, not universally.  It
-    builds the one-sided localizing form
-    $\langle b_i^\dagger \, g \rangle = 0$ for each basis element $b_i$.
+    imposes zero variance $\langle g^2\rangle=0$ and left-product
+    equations $\langle g\,u\rangle=0$ for the represented moment words $u$.
 
-    The difference matters when $g$ changes particle number.  The
+    The difference matters when a basis operator changes particle number. The
     bilinear form $\langle b_i^\dagger \, g \, b_j \rangle = 0$
     constrains matrix elements **between different particle-number
     sectors** — elements that the true state never connects.  This
-    overconstrains the SDP and produces garbage (for these parameters,
-    objective $\approx +2$ instead of $\approx -2$).
+    overconstrains the SDP. The earlier page reported an incorrect
+    objective near $+2$ instead of $-2$ with an operator-equality setup;
+    that is not a reference value for a sector solve.
 
     **Rule of thumb:** if ``g = 0`` is a law of the algebra (holds for
-    every state), use `eq_constraints`.  If ``g|\psi\rangle = 0`` is a
+    every state), use `Zero(g)`. If ``(Q-q)|\psi\rangle = 0`` is a
     property of the state you're looking for, use
-    `moment_eq_constraints`.
+    `Sector(Q, q)`.
 
 ---
 
 ## Case 2 — Canonical half-filling ($N_\uparrow = N_\downarrow = 2$)
 
-We impose half-filling with one helper call.  Each group is a vector of
-annihilation operators, so `c_up => 2` means
-``\sum_i c_{i\uparrow}^\dagger c_{i\uparrow} = 2`` and similarly for
-spin down.
+We impose half-filling with two `Sector` conditions. Each number operator
+is a sum of occupations, one for spin up and one for spin down.
 
 ````julia
-canonical_constraints = particle_number_constraint(registry, c_up => 2, c_dn => 2)
+number_up = sum(c_up_dag[i] * c_up[i] for i in 1:N)
+number_dn = sum(c_dn_dag[i] * c_dn[i] for i in 1:N)
+canonical_constraints = (Sector(number_up, 2), Sector(number_dn, 2))
 
-pop_can = polyopt(ham, registry; moment_eq_constraints = canonical_constraints)
-result_can_first = cs_nctssos(pop_can, config_can)
-result_can = cs_nctssos_higher(pop_can, result_can_first, config_can)
+relaxation_can_first = Relaxation(order=3,
+    split=TermSplit(algorithm=Next.MMD(), level=1), strengthen=canonical_constraints)
+relaxation_can = Relaxation(order=3,
+    split=TermSplit(algorithm=Next.MMD(), level=2), strengthen=canonical_constraints)
+result_can_first = solve(problem, relaxation_can_first; solver=SOLVER)
+result_can = solve(problem, relaxation_can; solver=SOLVER)
 
-println("Canonical SDP (first sparse pass):        $(round(result_can_first.objective; digits=6))")
-println("Canonical SDP (refined):                  $(round(result_can.objective; digits=6))")
+println("Canonical SDP (first sparse pass):        $(round(result_can_first.bound; digits=6))")
+println("Canonical SDP (refined):                  $(round(result_can.bound; digits=6))")
 println("Exact half-filled GS:                     $(round(E_half; digits=6))")
-println("Gap after refinement:                     $(abs(result_can.objective - E_half))")
+println("Gap after refinement:                     $(abs(result_can.bound - E_half))")
 ````
 
 ````
-Canonical SDP (first sparse pass):        -3.631145
+Canonical SDP (first sparse pass):        -2.341756
 Canonical SDP (refined):                  -2.102748
 Exact half-filled GS:                     -2.102748
-Gap after refinement:                     2.114752817305998e-12
+Gap after refinement:                     7.506466559448199e-10
 
 ````
 
-The helper expands to the same one-sided constraints you would write by
-hand, but without exposing that plumbing in every model.  The canonical
+`Sector` supplies the state equations without requiring them in every model. The canonical
 bound tracks the half-filled sector — it is *not* pulled down to the lower
-full-Fock minimum. At order 3, the measured first bound is about −3.631145;
-one refinement gives −2.102748483464, with a gap of about 2.1×10⁻¹² to
-the exact half-filled energy. Both solves return `OPTIMAL` with default
-Mosek tolerances. The assertion allows 1e-6 for numerical variation.
+full-Fock minimum. At order 3, the measured first bound is about −2.341756;
+one refinement gives −2.102748484213, with a gap of about 7.5×10⁻¹⁰ to
+the exact half-filled energy. The earlier first bound was −3.631145 and
+its refined bound was −2.102748483464. `Sector` adds variance and
+left-product equations. The first-pass blocks also change because
+`MMD()` depends on the row order, as in the full-Fock case above.
+The refined bounds agree within the unchanged 1e-6 tolerance.
 
 ---
 
@@ -416,7 +425,7 @@ The 1D Hubbard model captures the competition between electron hopping
 periodic ring at $U/t = 4$ — firmly in the correlated regime — both
 without and with particle-number constraints.  The grand-canonical SDP
 finds a lower bound across all Fock sectors; the canonical relaxation,
-using `particle_number_constraint(registry, c_up => 2, c_dn => 2)` to fix
+using `Sector(number_up, 2)` and `Sector(number_dn, 2)` to fix
 $N_\uparrow = N_\downarrow = 2$, targets the half-filled Mott sector
 specifically. Here **term sparsity plus one refinement step** at order 3
 reaches both exact energies to within numerical tolerance.
@@ -425,10 +434,10 @@ reaches both exact energies to within numerical tolerance.
 
 | Step | What we did | API |
 |:-----|:------------|:----|
-| 1 | Create spin-up and spin-down operators on disjoint mode ranges | [`create_fermionic_variables`](@ref) with species list |
+| 1 | Create spin-up and spin-down operators on disjoint mode ranges | `fermionic_variables(1:2N)`, then split the returned vectors |
 | 2 | Build the Hubbard Hamiltonian (hopping + on-site repulsion) | Standard Julia arithmetic |
-| 3 | Grand-canonical solve with order-3 term sparsity refinement | [`polyopt`](@ref) $\to$ [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
-| 4 | Canonical solve with fixed particle number, order 3, and one refinement | [`particle_number_constraint`](@ref) in `moment_eq_constraints`, then [`cs_nctssos`](@ref) $\to$ [`cs_nctssos_higher`](@ref) |
+| 3 | Grand-canonical solve with order-3 term sparsity refinement | `Problem`, `Relaxation`, `solve`; `TermSplit(level=1)` then `level=2`, both with `Next.MMD()` |
+| 4 | Canonical solve with fixed particle number, order 3, and one refinement | Two `Sector` conditions in `Relaxation(strengthen=...)` |
 | 5 | Verify against exact diagonalisation | `hubbard_exact_matrix` + `sector_ground_state_energy` |
 
 ### Key concepts
@@ -439,8 +448,8 @@ reaches both exact energies to within numerical tolerance.
 | **Doubled modes** | Spin-up and spin-down as disjoint mode ranges in one registry ($2N$ modes for $N$ sites) |
 | **Grand-canonical** | No particle-number constraint — optimise over entire Fock space |
 | **Canonical** | Fix $N_\uparrow$ and $N_\downarrow$ — optimise within a single particle-number sector |
-| **`moment_eq_constraints`** | One-sided localizing: $\langle b_i^\dagger g \rangle = 0$ — for state constraints (``g|\psi\rangle = 0``) |
-| **`eq_constraints`** | Full bilinear localizing: $\langle b_i^\dagger g\, b_j \rangle = 0$ — for operator identities (``g = 0`` always) |
+| **`Sector(Q, q)`** | State constraint: ``(Q-q)|\psi\rangle = 0`` |
+| **`Zero(g)`** | Full bilinear localizing: $\langle b_i^\dagger g\, b_j \rangle = 0$ — for operator identities (``g = 0`` always) |
 | **Mott insulator** | Large $U/t$ at half-filling: electrons localise, charge transport freezes |
 
 ### See also

@@ -68,15 +68,16 @@ end
 """
     degree(w::AbstractWord) -> Int
 
-The number of letters of `w`. `degree(one(W)) == 0`.
+The number of letters of `w`, with the letters inside scalar factors. `degree(one(W)) == 0`.
 """
 function degree end
 
 """
     sites(w::AbstractWord)
 
-An iterator of the site (or mode) numbers on which `w` acts, as `Int`, in
-ascending order and without repeats. It must not allocate.
+An iterator of the site (or mode) numbers that `w` depends on: where it acts,
+and for a word with scalar factors also the sites inside the factors. As `Int`,
+in ascending order and without repeats. It must not allocate.
 """
 function sites end
 
@@ -87,8 +88,22 @@ An iterator of the letters of `w` as words of degree one with the type of `w`,
 in the order of the normal form. A letter that occurs more than once is returned
 each time. The ordered product of the letters is `w` with phase one. `length`
 is `degree(w)`. It must not allocate.
+A word that is not a product of letters, because it has scalar factors, throws
+an `ArgumentError` that names `support_letters`.
 """
 function word_letters end
+
+"""
+    support_letters(w::AbstractWord)
+
+An iterator of the operator letters that `w` depends on, as words of degree one
+with the type of `w`, each occurrence returned. For a word that is a product
+of letters it is `word_letters(w)`, and this is the default method. For a word
+with scalar factors (a state or trace symbol) it also visits the letters inside
+the factors; those letters do not multiply to `w`. `length` is `degree(w)`.
+It must not allocate.
+"""
+support_letters(w::AbstractWord) = word_letters(w)
 
 # -----------------------------------------------------------------------------
 # Adjoint and product

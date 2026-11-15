@@ -145,4 +145,14 @@ end
     solve(Problem(h;symmetry),Relaxation(order=1);
         solver=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
 end
+
+@compile_workload let
+    backend=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
+    _,(a,b)=site_variables(Unipotent(),2,2;functional=Next.RealState())
+    h=Next.state_symbol(a[1]*b[1])-Next.state_symbol(a[1])*Next.state_symbol(b[1])
+    solve(Problem(h),Relaxation(order=2);solver=backend)
+    _,(x,)=site_variables(Unipotent(),1,4;functional=Next.RealTrace())
+    h=Next.trace_symbol(x[1]*x[3])-Next.trace_symbol(x[1])*Next.trace_symbol(x[3])
+    solve(Problem(h),Relaxation(order=2);solver=backend)
+end
 end

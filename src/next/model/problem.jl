@@ -186,12 +186,17 @@ Base.show(io::IO,::MIME"text/plain",s::ProgramSizes) = show(io,s)
 # These algebras have real structure constants. With real objective and
 # constraint coefficients, averaging a functional with its conjugate preserves
 # positivity, normalization and the objective, so a real optimum suffices.
-_real_form(p::Problem) = p.objective.registry.algebra isa SiteAlgebra{<:Union{Free,Projector,Unipotent}} &&
+# FunctionalAlgebra instead declares real-valued symbols explicitly; no
+# averaging argument for products of arbitrary complex expectations is used.
+_real_form(p::Problem) = p.objective.registry.algebra isa Union{SiteAlgebra{<:Union{Free,Projector,Unipotent}},FunctionalAlgebra} &&
     all(isreal,p.objective.data.coefficients) &&
     all(c->all(isreal,c.polynomial.data.coefficients),p.constraints)
 
 "Build without a solver. The returned program and table are suitable for pipeline/conic inspection."
 function build(p::Problem,r::Relaxation)
+    if p.objective.registry.algebra isa FunctionalAlgebra && _uses_blocks(p,r)
+        throw(ArgumentError("State/trace polynomials currently support the plain dense route only; remove symmetry, grouping, split, row_rule, family and strengthening, and use Relaxation(order=...)."))
+    end
     _uses_blocks(p,r) && return _build_blocks(p,r)
     # Recheck mutable polynomial storage rather than trusting stale construction checks.
     Problem(p.objective;constraints=p.constraints)

@@ -20,6 +20,8 @@ function _check_symmetry_domain(p::Polynomial,s)
     end
     s isa FamilySymmetry || throw(ArgumentError(
         "Use Problem(H; symmetry=(generators...,)) or Next.Symmetry(...; moment_only=(...), continuous=(...))."))
+    p.registry.algebra isa FunctionalAlgebra && _has_symmetry(s) && throw(ArgumentError(
+        "State/trace polynomials currently support the plain dense route only; remove symmetry until functional block routing is available."))
     W=eltype(p.data.words)
     n=p.registry.nsites
     for (i,g) in enumerate(Iterators.flatten((s.generators,s.moment_only)))
@@ -62,6 +64,7 @@ end
 build(p::Problem{P,C,Nothing},r::BlockRelaxation) where {P<:Polynomial,C<:Tuple} = _build_declared(p,r)
 build(p::Problem{P,C,S},r::BlockRelaxation) where {P<:Polynomial,C<:Tuple,S<:FamilySymmetry} = _build_declared(p,r)
 function _build_declared(p::Problem,r::BlockRelaxation)
+    p.objective.registry.algebra isa FunctionalAlgebra && throw(ArgumentError("State/trace polynomials do not yet support the block pipeline; use Relaxation(order=...) without symmetry or strengthening."))
     a,b=p.symmetry,r.symmetry
     _has_symmetry(a) && _has_symmetry(b) && throw(ArgumentError(
         "Symmetry is declared on both Problem and BlockRelaxation; keep it on Problem and remove the BlockRelaxation symmetry."))
@@ -82,6 +85,9 @@ end
 
 function Base.show(io::IO,p::Problem)
     print(io,"Problem: minimize ",p.objective,"; ",length(p.constraints)," operator constraints")
+    if p.objective.registry.algebra isa FunctionalAlgebra
+        print(io,"; domain: ",p.objective.registry.algebra isa FunctionalAlgebra{RealTrace} ? "normalized real traces" : "normalized real states")
+    end
     _has_symmetry(p.symmetry) && print(io,"; ",p.symmetry)
 end
 Base.show(io::IO,::MIME"text/plain",p::Problem) = show(io,p)

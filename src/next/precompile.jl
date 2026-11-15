@@ -70,3 +70,12 @@ end
     symmetry=detect_symmetry(h)
     moment_standard_form(build(Problem(h;symmetry),Relaxation(order=1)).program)
 end
+
+@compile_workload let
+    _,(a,b)=site_variables(Unipotent(),2,2;functional=RealState())
+    h=state_symbol(a[1]*b[1])-state_symbol(a[1])*state_symbol(b[1])
+    moment_standard_form(build(Problem(h),Relaxation(order=2)).program)
+    _,(x,)=site_variables(Unipotent(),1,4;functional=RealTrace())
+    h=trace_symbol(x[1]*x[3])-trace_symbol(x[1])*trace_symbol(x[3])
+    moment_standard_form(build(Problem(h),Relaxation(order=2)).program)
+end

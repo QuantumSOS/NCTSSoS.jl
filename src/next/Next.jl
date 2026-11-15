@@ -35,10 +35,12 @@ include("pipeline/pipeline.jl")
 include("model/detection.jl")
 include("model/front.jl")
 include("model/gns.jl")
+include("model/functional.jl")
 
-public Symmetry, variables
+public Symmetry, variables, RealState, RealTrace
 
 export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
+    state_symbol, trace_symbol,
     Pauli, Fermionic, Bosonic, Free, Projector, Unipotent, SiteAlgebra,
     Problem, Positive, Zero, SitePermutation, CliffordMap, AntiunitaryPauli,
     SpinRotation, spin_rotations, NumberRotation,

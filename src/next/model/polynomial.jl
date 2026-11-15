@@ -151,10 +151,12 @@ function bosonic_variables(sites)
     v=variables(r)
     return r,Tuple([v[Symbol(name,i)] for i in 1:n] for name in (:b,:bd))
 end
-"Self-adjoint operators at each commuting site; output[site][letter]."
-function site_variables(rule::SiteRule,sites,nletters::Integer)
+"Self-adjoint operators at each commuting site; output[site][letter]. Select a real functional once with functional=Next.RealState() or Next.RealTrace()."
+function site_variables(rule::SiteRule,sites,nletters::Integer;functional=nothing)
     n = _site_count(sites)
-    r = Registry(SiteAlgebra(rule,nletters),n,[(Symbol(:s,i,:_,j),(i,j)) for i in 1:n for j in 1:nletters])
+    algebra=SiteAlgebra(rule,nletters)
+    isnothing(functional) || (algebra=FunctionalAlgebra(functional,algebra))
+    r = Registry(algebra,n,[(Symbol(:s,i,:_,j),(i,j)) for i in 1:n for j in 1:nletters])
     v = variables(r)
     return r,[[v[Symbol(:s,i,:_,j)] for j in 1:nletters] for i in 1:n]
 end

@@ -40,11 +40,14 @@ function Next.prepare_standard(form::Next.MomentStandardForm,backend::Next.SCSBa
     return SCSHandle(form,backend,permutation,data,zeros(n),zeros(m),zeros(m),false)
 end
 
-function Next.solve_standard(h::SCSHandle)
+Next.solve_standard(h::SCSHandle) = _solve_standard(h,false)
+
+function _solve_standard(h::SCSHandle,warm_start::Bool)
     f,d = h.form,h.data
     m,n = size(f.A)
     linear_solver = isnothing(h.backend.linear_solver) ? SCS.DirectSolver : h.backend.linear_solver
-    options = merge((warm_start=h.warm_start,),h.backend.options)
+    # Only the append path may reuse a solution; repeated solves stay cold.
+    options = merge(h.backend.options,(warm_start=warm_start && get(h.backend.options,:warm_start,true),))
     sol = SCS.scs_solve(linear_solver,m,n,d.A,d.P,d.b,f.c,
         d.zero,d.nonnegative,Float64[],Float64[],d.soc,d.psd,d.hpsd,
         0,0,Float64[],Int[],Int[],Int[],Int[],Int[],Int[],h.x,h.y,h.slack;options...)
@@ -83,7 +86,7 @@ function Next.solve_standard(form::Next.MomentStandardForm,h::SCSHandle)
         end
     end
     h.form,h.permutation,h.data,h.x,h.y,h.slack = next.form,next.permutation,next.data,next.x,next.y,next.slack
-    return Next.solve_standard(h)
+    return _solve_standard(h,h.warm_start)
 end
 
 # This extension is loaded only with SCS. Keep native solves tiny and silent;

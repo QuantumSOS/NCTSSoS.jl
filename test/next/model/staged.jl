@@ -19,6 +19,7 @@ function check(solver;reconstruct=true)
             built=N.build(problem,relaxation)
             @test built isa N.BuiltRelaxation
             @test occursin("Sizes: ",sprint(show,built))
+            @test occursin("Sizes: ",sprint(show,MIME"text/plain"(),built))
             @test isnothing(built.sizes.closure)==isnothing(symmetry)
             @test_throws r"solver" N.prepare(built)
             prepared=N.prepare(built;solver)
@@ -31,7 +32,13 @@ function check(solver;reconstruct=true)
             @test result.relaxation===relaxation
             @test N.expectation(result,H) ≈ result.bound atol=1e-7
             again=N.solve(built;solver)
-            @test again.bound ≈ result.bound atol=1e-6
+            if solver isa N.JuMPBackend
+                @test again.bound ≈ result.bound atol=1e-8
+            else
+                @test again.bound==result.bound
+                @test again.solution.diagnostics.iterations==result.solution.diagnostics.iterations
+                @test !again.solution.diagnostics.warm_started
+            end
             @test N.prepare(built;solver)===prepared
             if reconstruct
                 g=N.gns(result;atol=1e-5,check_atol=1e-4)
@@ -47,6 +54,17 @@ function check(solver;reconstruct=true)
         changed=N.solve(initial,N.Positive(a-.25))
         @test changed.bound ≈ .25 atol=1e-5
         @test N.solve(built;solver).bound ≈ -1 atol=1e-5
+        if solver isa N.SCSBackend
+            @test changed.solution.diagnostics.warm_started
+            _,(a,b)=N.site_variables(N.Unipotent(),2,2)
+            problem=N.Problem(-(a[1]*b[1]+a[1]*b[2]+a[2]*b[1]-a[2]*b[2]))
+            built=N.build(problem,N.Relaxation(order=1))
+            first=N.solve(built;solver)
+            second=N.solve(built;solver)
+            @test first.bound==second.bound
+            @test first.solution.diagnostics.iterations==second.solution.diagnostics.iterations
+            @test !second.solution.diagnostics.warm_started
+        end
     end
 end
 end

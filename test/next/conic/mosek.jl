@@ -37,6 +37,21 @@ end
         @test Mosek.getnumvar(handle.task)>=0
         Mosek.deletetask(handle.task)
     end
+    _,(_,_,z)=N.pauli_variables(1)
+    built=N.build(N.Problem(-z[1]),N.Relaxation(order=1))
+    for form in (:moment,:sos,:auto)
+        backend=N.MosekBackend(;form)
+        handle=N.prepare(built;solver=backend)
+        @test N.prepare(built;solver=N.MosekBackend(;form))===handle
+        # Three Pauli moments: moment form has three scalar variables;
+        # SOS has three matching equations and one realified PSD variable.
+        if form===:moment
+            @test Mosek.getnumvar(handle.task)==3
+        else
+            @test Mosek.getnumcon(handle.task)==3
+            @test Mosek.getnumbarvar(handle.task)==1
+        end
+    end
     @test_throws r"MSK_IPAR_" N.prepare_standard(first(mosek_forms())[1],N.MosekBackend(bad_option=1))
 end
 
@@ -107,6 +122,9 @@ else
             result=N.solve(built;solver)
             direct=N.solve(problem,relaxation;solver)
             @test result.bound==direct.bound
+            again=N.solve(built;solver)
+            @test again.bound==result.bound
+            @test again.solution.diagnostics.iterations==result.solution.diagnostics.iterations
             @test result.bound ≈ -sqrt(1.09) atol=1e-7
             @test result.solution.diagnostics.representation==form
             @test N.prepare(built;solver)===prepared

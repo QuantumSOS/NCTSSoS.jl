@@ -185,7 +185,8 @@ function Next.solve_standard(h::MosekHandle)
         termination==Mosek.MSK_RES_TRM_STALL ? JuMP.MOI.SLOW_PROGRESS : JuMP.MOI.OTHER_ERROR
     bound=optimal ? Mosek.getprimalobj(h.task,Mosek.MSK_SOL_ITR) : nothing
     values=optimal ? (sos ? -Mosek.gety(h.task,Mosek.MSK_SOL_ITR) : Mosek.getxx(h.task,Mosek.MSK_SOL_ITR)) : Float64[]
-    diagnostics=(representation=h.representation,termination=sprint(show,termination),warm_started=false)
+    diagnostics=(representation=h.representation,termination=sprint(show,termination),warm_started=false,
+        iterations=Int(Mosek.getintinf(h.task,Mosek.MSK_IINF_INTPNT_ITER)))
     return Next.ConicSolution(bound,status,sprint(show,raw),values,h,diagnostics)
 end
 

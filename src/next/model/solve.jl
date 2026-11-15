@@ -47,6 +47,10 @@ _prepare(built::BuiltRelaxation,solver) = prepare_standard(_standard_form!(built
 Lower solver data and prepare its task without optimizing; cache and return the
 prepared handle. Repeating this call with the same solver description reuses it.
 Forms are created only when requested, and backend options have separate tasks.
+Repeated solve(built; solver) calls through native SCSBackend and MosekBackend
+start cold; only solve(result, constraint) may warm-start an appended constraint.
+JuMPBackend reuses the optimizer's workspace, so repeated results depend on the
+optimizer (COSMO starts from retained state); use a new Next.build for a cold solve.
 For SCS, this caches cone ordering and sparse arrays, but solve still includes
 the vendor's one-shot setup, reported separately as solution.diagnostics.setup_seconds.
 Use Next.build for formulation, this call for canonicalization/preparation, and

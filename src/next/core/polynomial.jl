@@ -82,6 +82,48 @@ function canonicalize!(p::PolynomialBuffer)
     return p
 end
 
+_sort_unique!(p::PolynomialBuffer) = canonicalize!(p)
+
+# Stable byte passes preserve the (degree, creators, annihilators) word order.
+# This path receives distinct words from the bulk constructor's dictionary.
+function _sort_unique!(p::PolynomialBuffer{FermiWord{K},C}) where {K,C<:Number}
+    p.n <= 1 && (p.canonical=true; return p)
+    scratch=PolynomialBuffer{FermiWord{K},C}(p.n)
+    counts=zeros(Int,256)
+    for limb in K:-1:1; _radix_field!(p,scratch,w->w.a[limb],counts); end
+    for limb in K:-1:1; _radix_field!(p,scratch,w->w.c[limb],counts); end
+    _radix_field!(p,scratch,degree,counts)
+    p.canonical=true
+    return p
+end
+function _radix_field!(p,scratch,key,counts)
+    low=typemax(UInt64); high=zero(UInt64)
+    for i in 1:p.n
+        value=UInt64(key(p.words[i])); low &= value; high |= value
+    end
+    varying=low ⊻ high
+    for shift in 0:8:56
+        iszero((varying>>shift)&0xff) && continue
+        fill!(counts,0)
+        @inbounds for i in 1:p.n
+            digit=Int((UInt64(key(p.words[i]))>>shift)&0xff)+1
+            counts[digit]+=1
+        end
+        start=1
+        for digit in eachindex(counts)
+            count=counts[digit]; counts[digit]=start; start+=count
+        end
+        @inbounds for i in 1:p.n
+            digit=Int((UInt64(key(p.words[i]))>>shift)&0xff)+1
+            j=counts[digit]; counts[digit]+=1
+            scratch.words[j]=p.words[i]; scratch.coefficients[j]=p.coefficients[i]
+        end
+        p.words,scratch.words=scratch.words,p.words
+        p.coefficients,scratch.coefficients=scratch.coefficients,p.coefficients
+    end
+    return p
+end
+
 "Copy a polynomial into caller storage, growing it when needed."
 function Base.copyto!(out::PolynomialBuffer{W,C}, p::PolynomialBuffer{W,C}) where {W,C}
     _grow!(out, p.n)
@@ -97,6 +139,27 @@ function add!(out::PolynomialBuffer{W,C}, a::PolynomialBuffer{W,C}, b::Polynomia
     out !== a && out !== b || throw(ArgumentError("add! needs a destination distinct from both inputs."))
     a.canonical && b.canonical || throw(ArgumentError("add! requires canonical inputs; call canonicalize! on both inputs first."))
     empty!(out)
+    # Otherwise multiplication by a unit can still promote or round coefficients.
+    if b.n == 1 && isbitstype(C) && α isa C && isone(α)
+        w = b.words[1]
+        at = searchsortedfirst(view(a.words,1:a.n),w)
+        found = at <= a.n && a.words[at] == w
+        c = found ? a.coefficients[at] + β*b.coefficients[1] : β*b.coefficients[1]
+        keep = !iszero(c)
+        n = a.n - found + keep
+        _grow!(out,n)
+        copyto!(out.words,1,a.words,1,at-1)
+        copyto!(out.coefficients,1,a.coefficients,1,at-1)
+        if keep
+            out.words[at],out.coefficients[at] = w,c
+        end
+        count = a.n-at-found+1
+        copyto!(out.words,at+keep,a.words,at+found,count)
+        copyto!(out.coefficients,at+keep,a.coefficients,at+found,count)
+        out.n = n
+        out.canonical = true
+        return out
+    end
     i = j = 1
     @inbounds while i <= a.n || j <= b.n
         if j > b.n || (i <= a.n && isless(a.words[i], b.words[j]))

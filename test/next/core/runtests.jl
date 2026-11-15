@@ -214,6 +214,19 @@ end
         end
         Nx.canonicalize!(out)
         @test buffer_dict(out) == Dict(y=>C(5))
+        empty!(b)
+        Nx.push_term!(b,C(1),y); Nx.canonicalize!(b)
+        @test polynomial_allocations(out,a,b,scratch) == 0
+    end
+    # Unit scaling still applies the scalar's promotion and arithmetic precision.
+    for (C,coefficient,unit) in ((Rational{Int},1//3,1.0),
+            (BigFloat,setprecision(512) do; BigFloat(1)/3; end,one(BigFloat)))
+        a,b,out=(Nx.PolynomialBuffer{W,C}(2) for _ in 1:3)
+        x,y=(Nx.pauli_letter(W,1,k) for k in 0:1)
+        Nx.push_term!(a,coefficient,x); Nx.canonicalize!(a)
+        Nx.push_term!(b,one(C),y); Nx.canonicalize!(b)
+        Nx.add!(out,a,b,unit,unit)
+        @test buffer_dict(out)==Dict(x=>C(unit*coefficient),y=>C(unit*one(C)))
     end
 end
 

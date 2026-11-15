@@ -92,7 +92,7 @@ function input_case(target,route,n,order,variant,data)
         h=[Float64(d["h_ij"][i][j]) for i in 1:m,j in 1:m]
         eri=[Float64(d["eri"][i][j][k][l]) for i in 1:m,j in 1:m,k in 1:m,l in 1:m]
         if route=="next"
-            _,(a,ad)=N.fermionic_variables(2m)
+            registry,(a,ad)=N.fermionic_variables(2m)
             H=d["nuclear_repulsion"]*one(a[1])
             for p in 1:m,q in 1:m,sigma in (0,m)
                 abs(h[p,q])>=1e-14 && (H+=h[p,q]*ad[p+sigma]*a[q+sigma])
@@ -104,8 +104,10 @@ function input_case(target,route,n,order,variant,data)
             H=(H+H')/2
             number=sum(ad[i]*a[i] for i in 1:2m)
             spin=sum(ad[i]*a[i]-ad[i+m]*a[i+m] for i in 1:m)
-            conditions=variant=="pqg" ? (:P,:Q,:G) : (:P,:Q,:G,:T1,:T2prime)
-            p=N.Problem(H)
+            conditions=variant in ("pqg","pqg_number") ? (:P,:Q,:G) : (:P,:Q,:G,:T1,:T2prime)
+            symmetry=endswith(variant,"_number") ? N.Symmetry(;continuous=(
+                N.NumberRotation(registry;modes=1:m),N.NumberRotation(registry;modes=m+1:2m))) : nothing
+            p=N.Problem(H;symmetry)
             r=N.Relaxation(order=1,strengthen=(N.FermionicConditions(1:2m;conditions),
                 N.Sector(number,d["n_electrons"]),N.Sector(spin,d["n_alpha"]-d["n_beta"])))
             return ()->N.build(p,r)

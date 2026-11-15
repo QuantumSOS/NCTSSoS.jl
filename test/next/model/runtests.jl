@@ -10,30 +10,36 @@
                 Base.isexported(Next,name) || continue
                 @test Core.eval(Main,name) === getfield(Next,name)
             end
-            registry,(X,Y,Z)=pauli_variables(2)
-            problem=Problem(X[1]*X[2];symmetry=Symmetry(SitePermutation([2,1])))
-            @test occursin("Symmetry: 1 block generators",sprint(show,problem))
+            registry,(X,Y,Z)=pauli_variables(4)
+            H=sum(X[i]*X[mod1(i+1,4)]+Y[i]*Y[mod1(i+1,4)]+Z[i]*Z[mod1(i+1,4)] for i in 1:4)
+            translation=SitePermutation([2,3,4,1])
+            reflection=SitePermutation([4,3,2,1])
+            problem=Problem(H;symmetry=(translation,reflection,spin_rotations(registry)...))
+            @test occursin("Symmetry: 2 block generators",sprint(show,problem))
+            @test occursin("3 continuous generators",sprint(show,problem))
             @test !occursin("FamilySymmetry",sprint(show,problem))
             @test inspect(problem,Relaxation(order=1)).sizes.program.rows>0
         end
         import NCTSSoS
         @testset "Qualified legacy API" begin
-            @test NCTSSoS.Symmetry !== Symmetry
-            @test NCTSSoS.variables !== variables
+            for name in (:Symmetry,:variables)
+                @test Base.ispublic(Next,name)
+                @test !Base.isexported(Next,name)
+                @test getfield(NCTSSoS,name) !== getfield(Next,name)
+            end
         end
         """
     combined=raw"""
         using Test
         using NCTSSoS
         using NCTSSoS.Next
-        @testset "Only the documented legacy clashes" begin
+        @testset "No clashing exports" begin
             clashes=sort!([name for name in intersect(names(NCTSSoS),names(NCTSSoS.Next))
                 if Base.isexported(NCTSSoS,name) && Base.isexported(NCTSSoS.Next,name) &&
                     getfield(NCTSSoS,name) !== getfield(NCTSSoS.Next,name)])
-            @test clashes==[:Symmetry,:variables]
-            for name in clashes
-                @test_throws UndefVarError Core.eval(Main,name)
-            end
+            @test isempty(clashes)
+            @test Symmetry === NCTSSoS.Symmetry
+            @test variables === NCTSSoS.variables
         end
         """
     for script in (standalone,combined)

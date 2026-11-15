@@ -62,6 +62,23 @@ Build times are median [minimum, maximum] of three fresh warm builds, in seconds
 | bell-next-6-3-dense | 0.0344437 [0.0290747,0.0359828] | 0.0178853 | 2.09027 | 769 | 91969 | 91968 | 1 | 769 | 0.0139274 / 0.0530111 | 296065/91968/296064 | complete |
 | bell-legacy-6-3-dense | 1.00095 [0.895269,1.12764] | 0.570314 | 2.61887 | 769 | 91969 | 91969 | 1 | 769 | 0.830994 / 0.550618 | 296066/91969/296066 | complete |
 
+## Hydrogen with separate spin-number rotations
+
+These additional rows use [a50c459](https://github.com/QuantumSOS/NCTSSoS.jl/commit/a50c45902aab81db2b5e5c9142161b4592f6e3b1), including continuous moment elimination and block splitting. The earlier rows above remain unchanged. Each new problem adds `NumberRotation(registry; modes=1:m)` and `NumberRotation(registry; modes=m+1:2m)` as continuous generators, with the same total-number and spin `Sector` constraints and order-1 rows. The machine, solver environment, three-sample protocol and units are unchanged. These are build-only measurements; no new energy comparison is claimed.
+
+| Case | Build s [min,max] | Build GB | Peak GB | Rows | Moments | Real vars | Blocks | Max side | Lower s / GB | Lower sizes | Completion |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| hydrogen-next-4-1-pqg_number | 0.0179316 [0.0162944,0.0195095] | 0.0257487 | 1.85762 | 17 | 199 | 360 | 10 | 65 | 0.000424433 / 0.000677768 | 6698/360/4021 | complete |
+| hydrogen-next-4-1-t12_number | 0.0362494 [0.0322683,0.036459] | 0.0449687 | 2.24947 | 17 | 199 | 360 | 12 | 232 | 0.002185 / 0.0041324 | 63658/360/18373 | complete |
+| hydrogen-next-6-1-pqg_number | 0.074684 [0.0666477,0.0920516] | 0.0972794 | 2.22612 | 25 | 949 | 1818 | 10 | 145 | 0.00129453 / 0.00304271 | 31714/1818/19102 | complete |
+| hydrogen-next-6-1-t12_number | 0.236025 [0.21119,0.246056] | 0.293677 | 2.22114 | 25 | 949 | 1818 | 12 | 804 | 0.0164856 / 0.0373893 | 726530/1818/138238 | complete |
+| hydrogen-next-8-1-pqg_number | 0.16437 [0.164299,0.275683] | 0.257848 | 2.24163 | 33 | 2965 | 5792 | 10 | 257 | 0.00349746 / 0.00983358 | 98314/5792/58508 | complete |
+| hydrogen-next-8-1-t12_number | 1.03385 [0.9835,1.06051] | 1.23684 | 2.34007 | 33 | 2965 | 5792 | 12 | 1936 | 0.105385 / 0.189371 | 4160010/5792/582380 | complete |
+
+H8 now has 5,792 real variables rather than 18,768, but its largest sides remain 257 (P/Q/G) and 1,936 (T1/T2prime), versus legacy's 129 and 744. In `pipeline/description.jl`, `family_block_count` is captured **before** `_strengthen!`; `_continuous_blocks` in `pipeline/continuous_blocks.jl` copies later cones unchanged. Thus the number rotations eliminate moments and split the initial family, but do not split the added fermionic cones by spin charge. Legacy's `_v2rdm_group_rows` and `_v2rdm_group_rows_with_identity` partition these families by `(K, two_Sz)` under `blocking=:spin`. Splitting the strengthening families by these charges is the missing structure; this measurement does not add it. New moment elimination also increases build cost; reduced variable count alone is not a build-time improvement.
+
+The six-process batch took 6.3 minutes, within the 5–10 minute estimate. Exact samples, commands and source hashes are appended to `results.json`.
+
 ## Solve checks
 
 | Case | Status / stop | Bound | Solve call s | Whole process s | Peak GB |

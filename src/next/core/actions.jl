@@ -307,3 +307,18 @@ function NumberRotation(r::Registry;modes=1:r.nsites)
     r.algebra isa Fermionic || throw(ArgumentError("NumberRotation needs a fermionic registry; use SpinRotation for Pauli variables."))
     return NumberRotation(_rotation_support(r,modes))
 end
+
+# The registry is not retained by a derivation; display the named axis and
+# selected indices rather than implementation masks or a guessed registry name.
+function Base.show(io::IO,d::Union{SpinRotation,NumberRotation})
+    if d isa SpinRotation
+        print(io,"SpinRotation(",repr((:x,:y,:z)[d.axis+1]),"; sites=")
+    else
+        print(io,"NumberRotation(modes=")
+    end
+    selected=collect(MaskSites(d.support))
+    show(io,!isempty(selected) && last(selected)-first(selected)+1==length(selected) ?
+        (first(selected):last(selected)) : selected)
+    print(io,")")
+end
+Base.show(io::IO,::MIME"text/plain",d::Union{SpinRotation,NumberRotation}) = show(io,d)

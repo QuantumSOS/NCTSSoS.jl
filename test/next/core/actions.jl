@@ -230,6 +230,14 @@ end
     @test_throws r"integer sites" Nx.SpinRotation(r,:x;sites=[1.5])
     @test_throws r"fermionic registry" Nx.NumberRotation(r)
     f,(a,ad)=Nx.fermionic_variables(3)
+    for render in (repr,d->repr(MIME"text/plain"(),d))
+        @test render(Nx.SpinRotation(r,:z))=="SpinRotation(:z; sites=1:3)"
+        @test render(Nx.SpinRotation(r,:x;sites=[1,3]))=="SpinRotation(:x; sites=[1, 3])"
+        @test render(Nx.NumberRotation(f))=="NumberRotation(modes=1:3)"
+        @test render(Nx.NumberRotation(f;modes=Int[]))=="NumberRotation(modes=$(repr(Int[])))"
+        wide,_=Nx.fermionic_variables(100)
+        @test render(Nx.NumberRotation(wide;modes=[1,65,100]))=="NumberRotation(modes=[1, 65, 100])"
+    end
     @test_throws r"Pauli registry" Nx.SpinRotation(f,:z)
     number=Nx.NumberRotation(f)
     hopping=ad[1]*a[2]+ad[2]*a[1]+ad[2]*a[3]+ad[3]*a[2]

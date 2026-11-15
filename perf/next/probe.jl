@@ -1,0 +1,259 @@
+# Standalone worker. See README.md; run through run.py for resource limits.
+import NCTSSoS as Old
+const N = Old.Next
+using LinearAlgebra, SparseArrays, Statistics, Profile, TOML
+import JuMP
+if !isempty(ARGS) && last(ARGS)=="solve"
+    if first(ARGS)=="hydrogen"
+        import SCS
+    else
+        import MosekTools
+    end
+end
+
+function cg_matrix(n)
+    n==3 && return [0 -1 -2 0; 0 1 1 -1; -1 1 1 1; 0 -1 1 0]
+    c=zeros(Int,n+1,n+1)
+    for i in 1:n-1
+        c[1,i+1]=c[i+1,1]=-1
+    end
+    for i in 1:n,j in 1:n
+        c[i+1,j+1]=(i==n || j==n) ? (i==j ? -1 : 1) :
+            i+j<n ? 0 : i+j==n ? 1 : -1
+    end
+    c
+end
+function bell(a,b)
+    n=length(a); c=cg_matrix(n)
+    sum(c[i+1,1]*a[i]+c[1,i+1]*b[i] for i in 1:n)+
+        sum(c[i+1,j+1]*a[i]*b[j] for i in 1:n,j in 1:n)
+end
+function pauli_actions(n,permutations)
+    W=N.word_type(N.Pauli(),n,8)
+    actions=N.AbstractAction[N.SitePermutation(p) for p in permutations]
+    append!(actions,[N.CliffordMap([N.pauli_letter(W,i,a) for a in axes for i in 1:n])
+        for axes in ((1,0),(1,2))])
+    N.Symmetry(actions...;moment_only=(N.AntiunitaryPauli(one(W)),))
+end
+function geometry(nx,ny)
+    site(x,y)=mod(x,nx)+nx*mod(y,ny)+1
+    bonds=Set{Tuple{Int,Int}}()
+    for x in 0:nx-1,y in 0:ny-1,(dx,dy) in ((1,0),(0,1))
+        a,b=site(x,y),site(x+dx,y+dy)
+        a==b || push!(bonds,minmax(a,b))
+    end
+    maps=[[(site(f(x,y)...)) for y in 0:ny-1 for x in 0:nx-1]
+        for f in ((x,y)->(x+1,y),(x,y)->(x,y+1),(x,y)->(-x,y),(x,y)->(x,-y))]
+    nx==ny && push!(maps,[site(y,x) for y in 0:ny-1 for x in 0:nx-1])
+    sort!(collect(bonds)),maps
+end
+function old_build(pop,order,variant)
+    cs=variant=="cs_ts" ? Old.MMD() : Old.NoElimination()
+    ts=variant=="ts" ? Old.MMD() : variant=="cs_ts" ? Old.MaximalElimination() : Old.NoElimination()
+    config=Old.SolverConfig(;optimizer=nothing,order,cs_algo=cs,ts_algo=ts)
+    sparsity=Old.compute_sparsity(pop,config)
+    Old.moment_relax(pop,sparsity.corr_sparsity,sparsity.cliques_term_sparsities)
+end
+function input_case(target,route,n,order,variant,data)
+    if target=="bell"
+        if route=="next"
+            _,(a,b)=N.site_variables(N.Projector(),2,n)
+            p=N.Problem(-bell(a,b))
+            r=variant=="cs_ts" ? N.Relaxation(;order,grouping=N.Correlative(algorithm=Old.MMD()),split=N.TermSplit()) : N.Relaxation(;order)
+            return ()->N.build(p,r)
+        end
+        reg,(a,b)=Old.create_projector_variables([("A",1:n),("B",1:n)])
+        pop=Old.polyopt(-bell(a,b),reg)
+        return ()->old_build(pop,order,variant)
+    elseif target in ("chain","torus")
+        if target=="chain"
+            bonds=[(i,mod1(i+1,n)) for i in 1:n]
+            maps=[collect([2:n;1]),collect(n:-1:1)]
+        else
+            nx,ny=n==6 ? (3,2) : n==9 ? (3,3) : (6,6)
+            bonds,maps=geometry(nx,ny)
+        end
+        if route=="next"
+            _,ops=N.pauli_variables(n)
+            h=sum(ops[a][i]*ops[a][j] for (i,j) in bonds for a in 1:3)
+            p=N.Problem(h;symmetry=pauli_actions(n,maps))
+            r=N.Relaxation(;order,row_rule=target=="chain" ? N.Contiguous(periodic=true) : nothing,
+                grouping=startswith(variant,"regions") ? N.PhysicsInformed(level=1) : nothing,
+                split=endswith(variant,"ts") ? N.TermSplit() : nothing)
+            return ()->N.build(p,r)
+        end
+        reg,ops=Old.create_pauli_variables(1:n)
+        h=target=="chain" ? Old.heisenberg_chain_hamiltonian(ops;periodic=true,coupling=1) :
+            sum(ops[a][i]*ops[a][j] for (i,j) in bonds for a in 1:3)
+        pop=Old.polyopt(h,reg)
+        return target=="chain" ? ()->first(Old.pauli_translation_invariant_moment_relaxation(pop,ops,4;axis_permutation_symmetry=true)) : ()->old_build(pop,order,variant)
+    elseif target=="hydrogen"
+        d=TOML.parsefile(data); m=d["n_spatial_orbitals"]
+        h=[Float64(d["h_ij"][i][j]) for i in 1:m,j in 1:m]
+        eri=[Float64(d["eri"][i][j][k][l]) for i in 1:m,j in 1:m,k in 1:m,l in 1:m]
+        if route=="next"
+            _,(a,ad)=N.fermionic_variables(2m)
+            H=d["nuclear_repulsion"]*one(a[1])
+            for p in 1:m,q in 1:m,sigma in (0,m)
+                abs(h[p,q])>=1e-14 && (H+=h[p,q]*ad[p+sigma]*a[q+sigma])
+            end
+            for p in 1:m,q in 1:m,r in 1:m,s in 1:m,sigma in (0,m),tau in (0,m)
+                c=eri[p,q,r,s]/2
+                abs(c)>=1e-14 && (H+=c*ad[p+sigma]*ad[r+tau]*a[s+tau]*a[q+sigma])
+            end
+            H=(H+H')/2
+            number=sum(ad[i]*a[i] for i in 1:2m)
+            spin=sum(ad[i]*a[i]-ad[i+m]*a[i+m] for i in 1:m)
+            conditions=variant=="pqg" ? (:P,:Q,:G) : (:P,:Q,:G,:T1,:T2prime)
+            p=N.Problem(H)
+            r=N.Relaxation(order=1,strengthen=(N.FermionicConditions(1:2m;conditions),
+                N.Sector(number,d["n_electrons"]),N.Sector(spin,d["n_alpha"]-d["n_beta"])))
+            return ()->N.build(p,r)
+        end
+        return ()->begin
+            linear=Old.build_pqg_moment_data(Dict(0=>h),Dict((0,0,0,0)=>eri);nk=1,norb=m,
+                nelec_per_cell=d["n_electrons"],blocking=:spin,spin_resolved_trace=true,
+                singlet_s2=false,include_one_d=true,three_index=variant=="pqg" ? :none : :T1T2prime)
+            T=eltype(linear.identity); M=typeof(first(values(linear.key_to_monomial)))
+            P=Old.Polynomial{Old.FermionicAlgebra,T,ComplexF64}
+            Old._moment_problem_with_linear(Old.FermionicAlgebra,T,M,P,zero(P),Tuple{Symbol,Matrix{P}}[],M[],
+                sum(b.size*(b.size+1)÷2 for b in linear.psd_blocks_lin),linear)
+        end
+    end
+    error("unknown target $target")
+end
+
+function dimensions(built,route)
+    if route=="next"
+        s=hasproperty(built.sizes,:program) ? built.sizes.program : built.sizes
+        return Dict{String,Any}("rows"=>s.rows,"moments"=>s.moments,"variables"=>s.real_variables,
+            "blocks"=>s.blocks,"side"=>s.largest_block,
+            "engine"=>(hasproperty(built.sizes,:closure) ? string(built.sizes.closure.route) : "plain"))
+    end
+    L=built.linear; b=L.psd_blocks_lin
+    # The native writer declares two variables per complex moment, or one per
+    # adjoint pair on the real slice. Count before a potentially oversized lowering.
+    A=typeof(built).parameters[1]
+    variables=Old._is_real_moment_problem(built) || !Old._is_complex_problem(A) ?
+        length(Set(Old.key_lt(L.adjoint_key[k],k) ? L.adjoint_key[k] : k for k in L.moments)) : 2length(L.moments)
+    Dict("rows"=>sum(x.size for x in b),"moments"=>length(L.moments),"variables"=>variables,
+        "blocks"=>length(b),"side"=>maximum(x.size for x in b;init=0))
+end
+function lower_dimensions(lowered,route)
+    if route=="next"
+        return Dict("lower_rows"=>size(lowered.A,1),"lower_cols"=>size(lowered.A,2),"nonzeros"=>nnz(lowered.A))
+    end
+    model=lowered[1]; rows=0; nonzeros=0
+    for (F,S) in JuMP.list_of_constraint_types(model), ref in JuMP.all_constraints(model,F,S)
+        obj=JuMP.constraint_object(ref)
+        rows+=JuMP.MOI.dimension(obj.set)
+        f=obj.func
+        for scalar in (f isa AbstractArray ? f : (f,))
+            nonzeros+=scalar isa JuMP.GenericAffExpr ? length(scalar.terms) : scalar isa JuMP.VariableRef ? 1 : 0
+        end
+    end
+    Dict("lower_rows"=>rows,"lower_cols"=>JuMP.num_variables(model),"nonzeros"=>nonzeros,
+        "variables"=>JuMP.num_variables(model))
+end
+function checkpoint(result,path)
+    result["peak_rss_bytes"]=Sys.maxrss()
+    open(path,"w") do io
+        TOML.print(io,result;sorted=true)
+    end
+    println("STAGE ",get(result,"stage","")); flush(stdout)
+end
+function solve_probe(built,route,target,result,out)
+    if target=="hydrogen"
+        route=="next" && result["n"]==4 && result["variant"]=="pqg" || error("Only H4 Next PQG solve is authorized")
+        form=N.moment_standard_form(built.program)
+        result["stage"]="solve"; checkpoint(result,out)
+        timed=@timed Base.invokelatest(N.solve_standard,form,N.SCSBackend(verbose=1,eps_abs=1e-5,eps_rel=1e-5,time_limit_secs=600))
+        sol=timed.value
+        result["status"]=string(sol.status)
+        result["bound"]=isnothing(sol.bound) ? "unavailable" : sol.bound
+        result["diagnostics"]=string(sol.diagnostics)
+    elseif target=="bell"
+        factory=JuMP.optimizer_with_attributes(MosekTools.Optimizer,"MSK_IPAR_NUM_THREADS"=>1,"MSK_DPAR_OPTIMIZER_MAX_TIME"=>600.0)
+        if route=="next"
+            form=N.moment_standard_form(built.program)
+            result["stage"]="solve"; checkpoint(result,out)
+            timed=@timed Base.invokelatest(N.solve_standard,form,N.JuMPBackend(factory))
+            sol=timed.value
+            result["status"]=string(sol.status)
+            result["bound"]=isnothing(sol.bound) ? "unavailable" : -sol.bound
+        else
+            model,_=Old.build_jump_model(built)
+            JuMP.set_optimizer(model,factory)
+            result["stage"]="solve"; checkpoint(result,out)
+            timed=@timed JuMP.optimize!(model)
+            result["status"]=string(JuMP.termination_status(model))
+            result["bound"]=JuMP.termination_status(model)==JuMP.MOI.OPTIMAL ? -JuMP.objective_value(model) : "unavailable"
+        end
+    else
+        error("No solves for spin scale targets")
+    end
+    result["solve_seconds"]=timed.time
+    result["stage"]="complete"; checkpoint(result,out)
+    println("| target | route | n | status | bound | solve seconds |")
+    println("| $target | $route | $(result["n"]) | $(result["status"]) | $(result["bound"]) | $(timed.time) |")
+end
+function main()
+    target,route,ns,os,variant,data,out,mode=ARGS
+    result=Dict{String,Any}("target"=>target,"route"=>route,"n"=>parse(Int,ns),"order"=>parse(Int,os),
+        "variant"=>variant,"julia"=>string(VERSION),"cpu"=>Sys.cpu_info()[1].model,
+        "threads"=>Threads.nthreads(),"blas_threads"=>BLAS.get_num_threads(),"stage"=>"input")
+    checkpoint(result,out)
+    t=@timed input_case(target,route,parse(Int,ns),parse(Int,os),variant,data)
+    build=t.value; result["input_seconds"]=t.time
+    result["stage"]="cold_build"; checkpoint(result,out)
+    cold=@timed build()
+    result["cold_seconds"]=cold.time; result["cold_bytes"]=cold.bytes
+    if mode=="solve"
+        merge!(result,dimensions(cold.value,route))
+        solve_probe(cold.value,route,target,result,out)
+        return
+    end
+    merge!(result,dimensions(cold.value,route)); cold=nothing; GC.gc()
+    lower=route=="next" ? b->N.moment_standard_form(b.program) : b->Old.build_jump_model(b)
+    times=Float64[]; bytes=Int[]; built=nothing
+    for i in 1:3
+        built=nothing; GC.gc(); result["stage"]="warm_build_$i"; checkpoint(result,out)
+        sample=@timed build(); built=sample.value
+        push!(times,sample.time); push!(bytes,sample.bytes); sample=nothing
+        result["build_seconds"]=times; result["build_bytes"]=bytes; checkpoint(result,out)
+    end
+    if mode=="profile"
+        built=nothing; GC.gc(); result["stage"]="profile"; checkpoint(result,out)
+        repetitions=clamp(ceil(Int,3/median(times)),1,100)
+        result["profile_builds"]=repetitions
+        Profile.init(n=10^7,delay=0.002)
+        Profile.clear()
+        Profile.@profile for _ in 1:repetitions
+            build()
+        end
+        open(out*".profile","w") do io
+            Profile.print(io;format=:flat,sortedby=:count,mincount=5)
+        end
+        open(out*".tree","w") do io
+            Profile.print(io;format=:tree,mincount=5)
+        end
+    else
+        result["stage"]="cold_lower"; checkpoint(result,out)
+        lowered=lower(built); dims=lower_dimensions(lowered,route)
+        @assert result["variables"]==dims["lower_cols"]
+        merge!(result,dims); lowered=nothing; GC.gc()
+        lt=Float64[]; lb=Int[]
+        for i in 1:3
+            result["stage"]="warm_lower_$i"; checkpoint(result,out)
+            sample=@timed lower(built)
+            push!(lt,sample.time); push!(lb,sample.bytes); sample=nothing; GC.gc()
+            result["lower_seconds"]=lt; result["lower_bytes"]=lb; checkpoint(result,out)
+        end
+    end
+    result["stage"]="complete"; checkpoint(result,out)
+    println("| target | route | n | order | option | warm s (median) | allocated bytes (median) | peak RSS |")
+    println("| $target | $route | $ns | $os | $variant | $(median(times)) | $(median(bytes)) | $(Sys.maxrss()) |")
+end
+if abspath(PROGRAM_FILE)==@__FILE__
+    main()
+end

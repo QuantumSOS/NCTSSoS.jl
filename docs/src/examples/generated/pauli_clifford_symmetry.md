@@ -827,7 +827,7 @@ t_dense10
 ````
 
 ````
-155.247763467
+156.288589555
 ````
 
 Nearly all of that wall-clock time is the interior-point solver itself:
@@ -837,7 +837,7 @@ t_dense_mosek = JuMP.solve_time(dense_result10.model)
 ````
 
 ````
-154.46804419799992
+155.43426208599976
 ````
 
 ### Detection plus a basis-preserving subgroup solve (timed)
@@ -861,7 +861,7 @@ t_detect10
 ````
 
 ````
-0.114577753
+0.103710794
 ````
 
 The detected degree-changing maps need not preserve the order-2 basis.
@@ -939,7 +939,7 @@ t_sym10
 ````
 
 ````
-160.23103563
+163.556663871
 ````
 
 And the solver time hiding inside that total:
@@ -949,7 +949,7 @@ t_sym_mosek = JuMP.solve_time(result10.model)
 ````
 
 ````
-0.034079861999998684
+0.03654078500039759
 ````
 
 ### Comparison
@@ -974,11 +974,11 @@ println("Detected generators (not used directly for the SDP): $(length(auto_spec
 ````
 Steady-state timing; warm-up solves discarded
 run       total        of which Mosek   moment vars   PSD blocks
-dense     155.2s      154.5s           20686         [[436]]
-symmetry  160.3s       0.0s             72          [6, 2, 2, 5, 4, 5, 4, 5, 2, 2, 2, 4, 2, 2, 5, 4, 1, 5, 4, 5, 4, 4, 5, 4, 5, 6, 5, 6, 5]
-  symmetry time = detect 0.11s + solve 160.2s
+dense     156.3s      155.4s           20686         [[436]]
+symmetry  163.7s       0.0s             72          [6, 2, 2, 5, 4, 5, 4, 5, 2, 2, 2, 4, 2, 2, 5, 4, 1, 5, 4, 5, 4, 4, 5, 4, 5, 6, 5, 6, 5]
+  symmetry time = detect 0.1s + solve 163.6s
 End-to-end speedup: 1.0x
-Solver-only speedup: 4533.0x
+Solver-only speedup: 4254.0x
 Moment variable reduction: 20686 → 72
 Objective difference: 3.68e-9
 SDP subgroup order: 480, subgroup generators: 4

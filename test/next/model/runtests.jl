@@ -27,7 +27,7 @@
                 @test !Base.isexported(Next,name)
                 @test getfield(NCTSSoS,name) !== getfield(Next,name)
             end
-            for name in (:RealState,:RealTrace,:build,:BuiltRelaxation,:prepare,:prepare_standard,:solve_standard,
+            for name in (:RealState,:RealTrace,:build,:BuiltRelaxation,:prepare,:prepare_standard,:solve_standard,:task_sizes,
                     :terms,:word_letters,:support_letters,:sites,:degree,:operator_name,:basis,:block_rows,:block_sides)
                 @test Base.ispublic(Next,name)
                 @test !Base.isexported(Next,name)

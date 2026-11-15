@@ -178,9 +178,11 @@ struct RightProductSink{S,W}
 end
 push_term!(s::RightProductSink,c::Number,w) = mul!(s.sink,w,s.right,c)
 
+_localizing_order(order,g::Polynomial) = order-cld(degree(g),2)
+
 function _localize!(program::MomentProgram{C},table,c::OperatorConstraint,order,index) where {C}
     g = c.polynomial
-    local_order = order-cld(degree(g),2)
+    local_order = _localizing_order(order,g)
     local_order>=0 || throw(ArgumentError("Constraint $index ($g) has degree $(degree(g)), above the relaxation capacity; use order ≥ $(cld(degree(g),2))."))
     W = eltype(table.keys)
     r = g.registry

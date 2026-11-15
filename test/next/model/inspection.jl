@@ -94,6 +94,10 @@ end
         @test length.(N.block_rows(built))==[7,3,3]
         @test N.block_sides(built)==[7,3] # no ZERO or scalar NONNEGATIVE blocks
     end
+    for (d,nrows) in ((1,7),(2,7),(3,3),(4,3),(5,1))
+        built=N.build(Problem(x[1];constraints=(Positive(1-x[1]^d),)),Relaxation(order=3))
+        @test length.(N.block_rows(built))==N.block_sides(built)==[15,nrows]
+    end
     r,(x,y,z)=pauli_variables(2)
     h=x[1]*x[2]+y[1]*y[2]+z[1]*z[2]
     @test N.block_sides(N.build(Problem(h),Relaxation(order=1)))==[7]

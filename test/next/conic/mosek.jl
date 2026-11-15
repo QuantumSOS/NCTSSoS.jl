@@ -31,18 +31,31 @@ end
 @testset "Mosek construction without a license" begin
     @test Base.get_extension(NCTSSoS,:NCTSSoSMosekExt)!==nothing
     @test_throws ArgumentError N.MosekBackend(form=:invalid)
-    for (f,_,_) in mosek_forms(),form in (:auto,:moment,:sos)
+    @test Base.ispublic(N,:task_sizes) && !Base.isexported(N,:task_sizes)
+    # Independent counts for HPSD, mixed cones, linear and constant fixtures.
+    moment_sizes=((10,2,[4]),(8,3,[2]),(2,2,Int[]),(1,0,Int[]))
+    sos_sizes=((2,0,[4]),(3,5,[2]),(2,2,Int[]),(0,1,Int[]))
+    for (i,(f,_,_)) in enumerate(mosek_forms()),form in (:auto,:moment,:sos)
         handle=N.prepare_standard(f,N.MosekBackend(;form))
         @test handle.form===f
         @test Mosek.getnumvar(handle.task)>=0
+        rows,variables,sides=(form===:moment ? moment_sizes : sos_sizes)[i]
+        expected=(affine_rows=rows,scalar_variables=variables,psd_sides=sides)
+        @test N.task_sizes(handle)==expected
+        empty!(N.task_sizes(handle).psd_sides)
+        @test N.task_sizes(handle)==expected
         Mosek.deletetask(handle.task)
     end
     _,(_,_,z)=N.pauli_variables(1)
     built=N.build(N.Problem(-z[1]),N.Relaxation(order=1))
+    @test_throws r"native Mosek handle" N.task_sizes(built)
     for form in (:moment,:sos,:auto)
         backend=N.MosekBackend(;form)
         handle=N.prepare(built;solver=backend)
         @test N.prepare(built;solver=N.MosekBackend(;form))===handle
+        @test N.task_sizes(handle)==(form===:moment ?
+            (affine_rows=36,scalar_variables=3,psd_sides=[8]) :
+            (affine_rows=3,scalar_variables=0,psd_sides=[8]))
         # Three Pauli moments: moment form has three scalar variables;
         # SOS has three matching equations and one realified PSD variable.
         if form===:moment
@@ -75,6 +88,13 @@ else
                 @test result.bound≈bound atol=1e-7
                 @test result.bound≈ref.bound atol=1e-7
                 @test result.values≈values atol=1e-7
+                @test result.diagnostics.iterations>=0
+                for (field,item) in ((:primal_residual,Mosek.MSK_DINF_INTPNT_PRIMAL_FEAS),
+                        (:dual_residual,Mosek.MSK_DINF_INTPNT_DUAL_FEAS))
+                    residual=getproperty(result.diagnostics,field)
+                    @test residual==Mosek.getdouinf(result.handle.task,item)
+                    @test 0<=residual<1e-6 || (residual==-1 && result.diagnostics.iterations==0)
+                end
             end
             for (p,r,expected) in mosek_models()
                 result=N.solve(p,r;solver=backend)
@@ -129,6 +149,10 @@ else
             @test again.solution.diagnostics.iterations==result.solution.diagnostics.iterations
             @test result.bound ≈ -sqrt(1.09) atol=1e-7
             @test result.solution.diagnostics.representation==form
+            @test result.solution.diagnostics.primal_residual==
+                Mosek.getdouinf(prepared.task,Mosek.MSK_DINF_INTPNT_PRIMAL_FEAS)
+            @test result.solution.diagnostics.dual_residual==
+                Mosek.getdouinf(prepared.task,Mosek.MSK_DINF_INTPNT_DUAL_FEAS)
             @test N.prepare(built;solver)===prepared
             @test StagedSolveChecks.preparation_bytes(built,solver)==0
         end

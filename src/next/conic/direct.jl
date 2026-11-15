@@ -30,6 +30,20 @@ The raw termination code is retained in the solution diagnostics, including
 `STALL` when Mosek nevertheless reports an optimal solution. Both forms
 support `expectation`; SOS recovers moments from the equality duals.
 Appended constraints rebuild the native task; no warm start is claimed.
+
+Keep `form=:auto` unless comparing formulations on a small problem; do not
+force `:moment` on large PSD blocks. In the architect's XXZ4/order-2 review
+(one Hermitian block of side 67, one thread), moment form hit a 20 s limit
+or took 26 s, while SOS took 0.2–3 s.
+
+An accurate bound does not imply accurate individual moments, even with a
+unique ground state. On that dense XXZ ring, bound error was 7.5e-9 but the
+largest checked moment error was 2.2e-5. Requested tolerances of 1e-10 gave
+raw `STALL` and 3.8e-5 moment error; 1e-12 returned no bound. Native SCS had
+2e-12 moment error in the earlier review. Validate observables separately;
+tightening Mosek tolerances need not improve them. On the same case, default
+JuMPBackend/Mosek bound error was 1.6e-6 versus about 8e-9 for native SOS,
+so prefer native SOS as the reference there, not default JuMP/Mosek settings.
 """
 struct MosekBackend{O<:NamedTuple} <: AbstractSolver
     form::Symbol

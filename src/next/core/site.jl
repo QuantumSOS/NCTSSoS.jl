@@ -74,12 +74,7 @@ end
 Base.length(s::WordSites) = count(_ -> true, s)
 sites(w::SiteWord) = WordSites(w)
 
-struct WordLetters{W<:SiteWord}
-    word::W
-end
-Base.eltype(::Type{WordLetters{W}}) where {W} = W
-Base.length(letters::WordLetters) = degree(letters.word)
-function Base.iterate(letters::WordLetters{W}, i::Int=1) where {W}
+function Base.iterate(letters::WordLetters{W}, i::Int=1) where {W<:SiteWord}
     i > degree(letters.word) && return nothing
     W(_letter(letters.word,i),Val(:normal)),i+1
 end

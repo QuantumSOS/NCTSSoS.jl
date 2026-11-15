@@ -1,6 +1,13 @@
-# Measurement-only paths; these calls are deliberately absent from workloads.
+# Full-size probes for the symmetry/condition workloads. Optional second argument: mosek.
+backend_name=length(ARGS)==2 ? ARGS[2] : "scs"
+backend_name in ("scs","mosek") || error("Backend must be scs or mosek")
 t_load=@elapsed begin
-    using NCTSSoS, SCS
+    using NCTSSoS
+    if backend_name=="mosek"
+        using Mosek
+    else
+        using SCS
+    end
 end
 const N=NCTSSoS.Next
 const detection_seconds=Ref(0.0)
@@ -35,8 +42,8 @@ function inputs(::Val{:xxz6density})
         N.Relaxation(order=1,strengthen=(N.DensityMatrix(1:3),))
 end
 
-case=only(ARGS)
-backend=N.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
+case=first(ARGS)
+backend=backend_name=="mosek" ? N.MosekBackend() : N.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
 t_inputs=@elapsed args=inputs(Val(Symbol(case)))
 t_call=@elapsed result=N.solve(args...;solver=backend)
 t_second=@elapsed N.solve(args...;solver=backend)

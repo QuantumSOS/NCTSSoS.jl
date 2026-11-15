@@ -23,6 +23,34 @@ sites(w::FermiWord{K}) where {K} = MaskSites(ntuple(i->w.c[i] | w.a[i],Val(K)))
 star(w::FermiWord) = (one(Phase),FermiWord(w.a,w.c))
 ProductStyle(::Type{<:FermiWord}) = MultiTerm()
 
+word_letters(w::FermiWord) = WordLetters(w)
+function Base.iterate(letters::WordLetters{FermiWord{K}}, state=(K,letters.word.c[K],true)) where {K}
+    w=letters.word
+    i,m,creating=state
+    while iszero(m)
+        if creating
+            i-=1
+            if i==0
+                creating=false
+                i=1
+                m=w.a[i]
+            else
+                m=w.c[i]
+            end
+        else
+            i+=1
+            i>K && return nothing
+            m=w.a[i]
+        end
+    end
+    bit=creating ? UInt64(1)<<(63-leading_zeros(m)) : m & -m
+    limb=i
+    mask=ntuple(j->j==limb ? bit : UInt64(0),Val(K))
+    empty=ntuple(_->UInt64(0),Val(K))
+    letter=FermiWord(creating ? mask : empty,creating ? empty : mask)
+    return letter,(i,m ⊻ bit,creating)
+end
+
 @inline function _count_above(m::NTuple{K,UInt64}, limb::Int, bit::UInt64) where {K}
     return sum(ntuple(i -> i > limb ? count_ones(m[i]) : i == limb ? count_ones(m[i] & ~(bit | (bit - UInt64(1)))) : 0,Val(K)))
 end

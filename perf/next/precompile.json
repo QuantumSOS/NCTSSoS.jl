@@ -2724,9 +2724,1215 @@
       },
       "wall_seconds": 204.18469452499994,
       "configuration": "restored"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "backend": "scs",
+      "source_hashes": {
+        "P": "5c7b430de7acb4817ed7c6ca72b6e065bcd0c9e9bdea1891c6746be13024bce7",
+        "E": "19012645e0d74792d8f71bc9faee3cb590a6305b202662c303117bd66bd21f9c",
+        "M": "51554f784604176d0035135f8b9a47ee20e8aca57cbcd60dc0f369cc6c933d5d",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9bfe95705b59b9b257900595c1f78559f4676072d0211a3567dd9a272e882b7a"
+      },
+      "precompile_seconds": {
+        "package": 103.58539999999999,
+        "extension": 43.5451
+      },
+      "precompile_process_seconds": 149.527355401995,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 6.046,
+          "inputs": 1.044,
+          "first_call": 1.355,
+          "second_call": 1.0704,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.488458230000106
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.932,
+          "inputs": 0.866,
+          "first_call": 0.024,
+          "second_call": 0.0177,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.514376762002939
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 6.22,
+          "inputs": 1.099,
+          "first_call": 0.146,
+          "second_call": 0.1297,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.318650380999316
+        },
+        "ball": {
+          "case": "ball",
+          "load": 5.571,
+          "inputs": 1.057,
+          "first_call": 0.003,
+          "second_call": 0.0021,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 7.4658821299963165
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 5.16,
+          "inputs": 1.016,
+          "first_call": 0.002,
+          "second_call": 0.001,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 7.017426203994546
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.795,
+          "inputs": 0.962,
+          "detection": 0.0,
+          "first_call": 7.108,
+          "second_call": 6.4002,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 20.99800992499513
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 5.329,
+          "inputs": 1.022,
+          "detection": 0.0,
+          "first_call": 0.137,
+          "second_call": 0.0141,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 7.265372798006865
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.356,
+          "inputs": 3.499,
+          "detection": 2.012,
+          "first_call": 0.03,
+          "second_call": 0.0212,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 10.629639656996005
+        }
+      },
+      "wall_seconds": 228.2276399149996,
+      "configuration": "expanded-two-mode-trial"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "backend": "mosek",
+      "source_hashes": {
+        "P": "6b970e6481deab7643330c245db7c0b342725f485160c71e015a8ab7bb67f4ef",
+        "E": "781efaded86491c75ffea1c52d3147196217dc98d5b59fe2cd20861f4bc5b79d",
+        "M": "51554f784604176d0035135f8b9a47ee20e8aca57cbcd60dc0f369cc6c933d5d",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 94.23780000000001,
+        "extension": 8.8476,
+        "mosek_extension": 6.365
+      },
+      "precompile_process_seconds": 112.21590979999746,
+      "cases": {
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.167,
+          "inputs": 0.909,
+          "detection": 0.0,
+          "first_call": 7.053,
+          "second_call": 0.1157,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 13.01953485100239
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.665,
+          "inputs": 0.796,
+          "detection": 0.0,
+          "first_call": 5.764,
+          "second_call": 0.0129,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 11.871693180000875
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.195,
+          "inputs": 2.974,
+          "detection": 2.079,
+          "first_call": 5.025,
+          "second_call": 0.0123,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 14.985939606995089
+        }
+      },
+      "wall_seconds": 152.09426382899983,
+      "configuration": "expanded-mosek-control"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "backend": "both",
+      "source_hashes": {
+        "P": "6b970e6481deab7643330c245db7c0b342725f485160c71e015a8ab7bb67f4ef",
+        "E": "781efaded86491c75ffea1c52d3147196217dc98d5b59fe2cd20861f4bc5b79d",
+        "M": "cab2e352033eac450279c7e262bd797e7b939665cd57b142769ace7ceaec4dc7",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 87.882,
+        "extension": 8.2885,
+        "mosek_extension": 18.0177
+      },
+      "precompile_process_seconds": 116.62190962101158,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.56,
+          "inputs": 0.857,
+          "first_call": 0.972,
+          "second_call": 0.8993,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 8.00636303301144
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.377,
+          "inputs": 0.907,
+          "first_call": 0.03,
+          "second_call": 0.0199,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 5.9981394770002225
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.732,
+          "inputs": 0.742,
+          "first_call": 0.106,
+          "second_call": 0.105,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.340073960003792
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.109,
+          "inputs": 0.784,
+          "first_call": 0.002,
+          "second_call": 0.0013,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.455587406991981
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.272,
+          "inputs": 0.819,
+          "first_call": 0.001,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.751436593011022
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.113,
+          "inputs": 0.794,
+          "detection": 0.0,
+          "first_call": 4.909,
+          "second_call": 4.4219,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 15.901281418991857
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.756,
+          "inputs": 0.781,
+          "detection": 0.0,
+          "first_call": 0.039,
+          "second_call": 0.009,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 6.25220798200462
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 5.056,
+          "inputs": 3.557,
+          "detection": 2.223,
+          "first_call": 0.024,
+          "second_call": 0.0177,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 11.621360003991867
+        },
+        "mosek:heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.648,
+          "inputs": 0.914,
+          "detection": 0.0,
+          "first_call": 0.319,
+          "second_call": 0.2269,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 7.858580193991656
+        },
+        "mosek:fermionic4number": {
+          "case": "fermionic4number",
+          "load": 5.452,
+          "inputs": 0.972,
+          "detection": 0.0,
+          "first_call": 0.098,
+          "second_call": 0.0202,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 7.380595531009021
+        },
+        "mosek:heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.575,
+          "inputs": 3.75,
+          "detection": 1.806,
+          "first_call": 0.035,
+          "second_call": 0.0113,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 10.764408866991289
+        }
+      },
+      "wall_seconds": 207.95503045798978,
+      "configuration": "expanded-four-site-detection-trial"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "backend": "both",
+      "source_hashes": {
+        "P": "6b970e6481deab7643330c245db7c0b342725f485160c71e015a8ab7bb67f4ef",
+        "E": "781efaded86491c75ffea1c52d3147196217dc98d5b59fe2cd20861f4bc5b79d",
+        "M": "cab2e352033eac450279c7e262bd797e7b939665cd57b142769ace7ceaec4dc7",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 93.6682,
+        "extension": 9.0963,
+        "mosek_extension": 18.4557
+      },
+      "precompile_process_seconds": 124.04775352399156,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 6.144,
+          "inputs": 1.153,
+          "first_call": 1.058,
+          "second_call": 0.7959,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.055396634998033
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 5.704,
+          "inputs": 1.116,
+          "first_call": 0.038,
+          "second_call": 0.0288,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 7.754164533005678
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 5.251,
+          "inputs": 0.831,
+          "first_call": 0.102,
+          "second_call": 0.1007,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.996588977999636
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.394,
+          "inputs": 0.786,
+          "first_call": 0.002,
+          "second_call": 0.0014,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.7476364909962285
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.097,
+          "inputs": 0.843,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.537455576006323
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 6.204,
+          "inputs": 0.926,
+          "detection": 0.0,
+          "first_call": 6.423,
+          "second_call": 4.9868,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 19.256598892010516
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.724,
+          "inputs": 0.818,
+          "detection": 0.0,
+          "first_call": 0.046,
+          "second_call": 0.0095,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 6.3018582680088
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.397,
+          "inputs": 2.673,
+          "detection": 1.556,
+          "first_call": 0.016,
+          "second_call": 0.0089,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 9.213708149996819
+        },
+        "mosek:heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.073,
+          "inputs": 0.878,
+          "detection": 0.0,
+          "first_call": 0.262,
+          "second_call": 0.2288,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 7.202952958003152
+        },
+        "mosek:fermionic4number": {
+          "case": "fermionic4number",
+          "load": 6.178,
+          "inputs": 0.876,
+          "detection": 0.0,
+          "first_call": 0.089,
+          "second_call": 0.0205,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 7.96678517399414
+        },
+        "mosek:heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 6.404,
+          "inputs": 3.013,
+          "detection": 1.648,
+          "first_call": 0.031,
+          "second_call": 0.0118,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 11.816390676991432
+        }
+      },
+      "wall_seconds": 221.9001025000034,
+      "configuration": "expanded-four-site-detection-trial"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "backend": "both",
+      "source_hashes": {
+        "P": "6b970e6481deab7643330c245db7c0b342725f485160c71e015a8ab7bb67f4ef",
+        "E": "781efaded86491c75ffea1c52d3147196217dc98d5b59fe2cd20861f4bc5b79d",
+        "M": "cab2e352033eac450279c7e262bd797e7b939665cd57b142769ace7ceaec4dc7",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 104.41980000000001,
+        "extension": 10.042399999999999,
+        "mosek_extension": 22.0627
+      },
+      "precompile_process_seconds": 139.217280708006,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 5.299,
+          "inputs": 1.087,
+          "first_call": 0.891,
+          "second_call": 0.7623,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 8.913448780993349
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.0,
+          "inputs": 0.825,
+          "first_call": 0.023,
+          "second_call": 0.0166,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 5.53783097298583
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 5.285,
+          "inputs": 0.936,
+          "first_call": 0.095,
+          "second_call": 0.0952,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 7.097862654001801
+        },
+        "ball": {
+          "case": "ball",
+          "load": 5.412,
+          "inputs": 0.932,
+          "first_call": 0.003,
+          "second_call": 0.0019,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 6.99677910200262
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 5.043,
+          "inputs": 0.911,
+          "first_call": 0.001,
+          "second_call": 0.0008,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.6541292859910754
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.96,
+          "inputs": 0.897,
+          "detection": 0.0,
+          "first_call": 7.107,
+          "second_call": 7.399,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 22.176613379997434
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 5.539,
+          "inputs": 0.756,
+          "detection": 0.0,
+          "first_call": 0.039,
+          "second_call": 0.0086,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 7.055387774002156
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.328,
+          "inputs": 2.695,
+          "detection": 1.944,
+          "first_call": 0.018,
+          "second_call": 0.0102,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 9.615645975994994
+        },
+        "mosek:heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.427,
+          "inputs": 0.726,
+          "detection": 0.0,
+          "first_call": 0.195,
+          "second_call": 0.1707,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 6.094782558007864
+        },
+        "mosek:fermionic4number": {
+          "case": "fermionic4number",
+          "load": 5.385,
+          "inputs": 0.742,
+          "detection": 0.0,
+          "first_call": 0.068,
+          "second_call": 0.0153,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 6.854794797007344
+        },
+        "mosek:heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 5.015,
+          "inputs": 3.429,
+          "detection": 1.434,
+          "first_call": 0.037,
+          "second_call": 0.016,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 10.542468508996535
+        }
+      },
+      "wall_seconds": 236.76031149299524,
+      "configuration": "expanded-four-site-detection-trial"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "backend": "both",
+      "source_hashes": {
+        "P": "c7244b100e68f5938e7b0d205f0a28ccae84f4d116ae29b0a5c937440a938852",
+        "E": "443f2af240d8fd922da41eb5a193205968b480330cc9a0f0782dcee0753f4e31",
+        "M": "1d60fcf8f14a677b31c0a4feeed7dafc015fc95b4cc657b6979ed631e142e6f1",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 88.1153,
+        "extension": 11.0228,
+        "mosek_extension": 19.0141
+      },
+      "precompile_process_seconds": 121.15156474900141,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 5.362,
+          "inputs": 0.794,
+          "first_call": 0.787,
+          "second_call": 0.6369,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 8.26686785799393
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.459,
+          "inputs": 1.032,
+          "first_call": 0.03,
+          "second_call": 0.0212,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.291016820992809
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 5.946,
+          "inputs": 1.075,
+          "first_call": 0.145,
+          "second_call": 0.1447,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.178137470007641
+        },
+        "ball": {
+          "case": "ball",
+          "load": 5.709,
+          "inputs": 1.108,
+          "first_call": 0.003,
+          "second_call": 0.0021,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 7.660266928010969
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 6.316,
+          "inputs": 0.986,
+          "first_call": 0.001,
+          "second_call": 0.0007,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.069161583989626
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.019,
+          "inputs": 0.747,
+          "detection": 0.0,
+          "first_call": 6.179,
+          "second_call": 5.4292,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 17.00756906499737
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 5.048,
+          "inputs": 0.726,
+          "detection": 0.0,
+          "first_call": 0.032,
+          "second_call": 0.0074,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 6.461315442997147
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 5.251,
+          "inputs": 2.907,
+          "detection": 0.088,
+          "first_call": 0.024,
+          "second_call": 0.0145,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 8.974810859988793
+        },
+        "mosek:heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.71,
+          "inputs": 0.846,
+          "detection": 0.0,
+          "first_call": 0.252,
+          "second_call": 0.2333,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 6.756289586002822
+        },
+        "mosek:fermionic4number": {
+          "case": "fermionic4number",
+          "load": 6.145,
+          "inputs": 1.059,
+          "detection": 0.0,
+          "first_call": 0.097,
+          "second_call": 0.0201,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 8.182868896998116
+        },
+        "mosek:heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 5.744,
+          "inputs": 4.232,
+          "detection": 0.138,
+          "first_call": 0.056,
+          "second_call": 0.0269,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 11.022774295997806
+        }
+      },
+      "wall_seconds": 218.0260400929983,
+      "configuration": "expanded-solve-trial"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "backend": "both",
+      "source_hashes": {
+        "P": "c7244b100e68f5938e7b0d205f0a28ccae84f4d116ae29b0a5c937440a938852",
+        "E": "443f2af240d8fd922da41eb5a193205968b480330cc9a0f0782dcee0753f4e31",
+        "M": "1d60fcf8f14a677b31c0a4feeed7dafc015fc95b4cc657b6979ed631e142e6f1",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 92.0757,
+        "extension": 10.1156,
+        "mosek_extension": 19.563
+      },
+      "precompile_process_seconds": 124.28822158600087,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 5.518,
+          "inputs": 0.906,
+          "first_call": 0.851,
+          "second_call": 0.5698,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 8.650666237008409
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.423,
+          "inputs": 0.984,
+          "first_call": 0.036,
+          "second_call": 0.03,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.241324874994461
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.434,
+          "inputs": 0.819,
+          "first_call": 0.114,
+          "second_call": 0.1055,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.1391973060090095
+        },
+        "ball": {
+          "case": "ball",
+          "load": 5.537,
+          "inputs": 0.927,
+          "first_call": 0.003,
+          "second_call": 0.0017,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 7.144578769002692
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.721,
+          "inputs": 0.748,
+          "first_call": 0.001,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.041470583004411
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.482,
+          "inputs": 0.662,
+          "detection": 0.0,
+          "first_call": 5.397,
+          "second_call": 4.4014,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 15.530333139002323
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.415,
+          "inputs": 0.789,
+          "detection": 0.0,
+          "first_call": 0.042,
+          "second_call": 0.0112,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 5.839147036997019
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.343,
+          "inputs": 2.924,
+          "detection": 0.087,
+          "first_call": 0.025,
+          "second_call": 0.0141,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 8.04959801500081
+        },
+        "mosek:heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.078,
+          "inputs": 0.704,
+          "detection": 0.0,
+          "first_call": 0.198,
+          "second_call": 0.1806,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 5.741423772997223
+        },
+        "mosek:fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.61,
+          "inputs": 0.749,
+          "detection": 0.0,
+          "first_call": 0.073,
+          "second_call": 0.0132,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 6.097304858005373
+        },
+        "mosek:heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.481,
+          "inputs": 3.004,
+          "detection": 0.076,
+          "first_call": 0.036,
+          "second_call": 0.0146,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 8.248924398998497
+        }
+      },
+      "wall_seconds": 208.01505740299763,
+      "configuration": "expanded-solve-trial"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "backend": "both",
+      "source_hashes": {
+        "P": "c7244b100e68f5938e7b0d205f0a28ccae84f4d116ae29b0a5c937440a938852",
+        "E": "443f2af240d8fd922da41eb5a193205968b480330cc9a0f0782dcee0753f4e31",
+        "M": "1d60fcf8f14a677b31c0a4feeed7dafc015fc95b4cc657b6979ed631e142e6f1",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 89.1694,
+        "extension": 8.7729,
+        "mosek_extension": 20.281299999999998
+      },
+      "precompile_process_seconds": 120.11955351200595,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.489,
+          "inputs": 0.859,
+          "first_call": 0.743,
+          "second_call": 0.6703,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.547823257002165
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 5.339,
+          "inputs": 1.229,
+          "first_call": 0.038,
+          "second_call": 0.0289,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 7.446136070997454
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.733,
+          "inputs": 0.783,
+          "first_call": 0.111,
+          "second_call": 0.1087,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.389728259004187
+        },
+        "ball": {
+          "case": "ball",
+          "load": 5.024,
+          "inputs": 0.882,
+          "first_call": 0.002,
+          "second_call": 0.0017,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 6.548836421992746
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.708,
+          "inputs": 0.896,
+          "first_call": 0.001,
+          "second_call": 0.0007,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.265850117008085
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.653,
+          "inputs": 0.665,
+          "detection": 0.0,
+          "first_call": 4.184,
+          "second_call": 5.1927,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 15.337025003012968
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.821,
+          "inputs": 0.853,
+          "detection": 0.0,
+          "first_call": 0.048,
+          "second_call": 0.0123,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 6.496227550989715
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.511,
+          "inputs": 3.419,
+          "detection": 0.085,
+          "first_call": 0.022,
+          "second_call": 0.0145,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 8.717885022997507
+        },
+        "mosek:heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.707,
+          "inputs": 0.923,
+          "detection": 0.0,
+          "first_call": 0.29,
+          "second_call": 0.2283,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 6.862494761997368
+        },
+        "mosek:fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.403,
+          "inputs": 0.843,
+          "detection": 0.0,
+          "first_call": 0.072,
+          "second_call": 0.0174,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 6.039779578000889
+        },
+        "mosek:heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.267,
+          "inputs": 3.503,
+          "detection": 0.075,
+          "first_call": 0.035,
+          "second_call": 0.0151,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 8.55109512299532
+        }
+      },
+      "wall_seconds": 206.32517560500128,
+      "configuration": "expanded-solve-trial"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "backend": "mosek",
+      "source_hashes": {
+        "P": "c7244b100e68f5938e7b0d205f0a28ccae84f4d116ae29b0a5c937440a938852",
+        "E": "443f2af240d8fd922da41eb5a193205968b480330cc9a0f0782dcee0753f4e31",
+        "M": "c6ed250a3792ce52012001111413ad9b659be8017f9c62d0f2d17769b081ed7c",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 90.35419999999999,
+        "extension": 9.976899999999999,
+        "mosek_extension": 22.0467
+      },
+      "precompile_process_seconds": 124.65541040401149,
+      "cases": {
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.241,
+          "inputs": 0.705,
+          "detection": 0.0,
+          "first_call": 0.233,
+          "second_call": 0.1759,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 6.995683799003018
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.558,
+          "inputs": 0.787,
+          "detection": 0.0,
+          "first_call": 0.165,
+          "second_call": 0.0167,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 6.241160285993828
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.771,
+          "inputs": 2.831,
+          "detection": 0.081,
+          "first_call": 0.104,
+          "second_call": 0.0157,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 8.503875244990923
+        }
+      },
+      "wall_seconds": 146.39716045100067,
+      "configuration": "expanded-task-only"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "backend": "mosek",
+      "source_hashes": {
+        "P": "c7244b100e68f5938e7b0d205f0a28ccae84f4d116ae29b0a5c937440a938852",
+        "E": "443f2af240d8fd922da41eb5a193205968b480330cc9a0f0782dcee0753f4e31",
+        "M": "c6ed250a3792ce52012001111413ad9b659be8017f9c62d0f2d17769b081ed7c",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 98.1988,
+        "extension": 10.085,
+        "mosek_extension": 23.8778
+      },
+      "precompile_process_seconds": 134.67897152098885,
+      "cases": {
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.179,
+          "inputs": 0.805,
+          "detection": 0.0,
+          "first_call": 0.309,
+          "second_call": 0.267,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 7.452706961994409
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.887,
+          "inputs": 0.957,
+          "detection": 0.0,
+          "first_call": 0.158,
+          "second_call": 0.0181,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 6.807420580997132
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.876,
+          "inputs": 3.168,
+          "detection": 0.094,
+          "first_call": 0.121,
+          "second_call": 0.0275,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 9.032500496992725
+        }
+      },
+      "wall_seconds": 157.97279528400395,
+      "configuration": "expanded-task-only"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "backend": "mosek",
+      "source_hashes": {
+        "P": "c7244b100e68f5938e7b0d205f0a28ccae84f4d116ae29b0a5c937440a938852",
+        "E": "443f2af240d8fd922da41eb5a193205968b480330cc9a0f0782dcee0753f4e31",
+        "M": "c6ed250a3792ce52012001111413ad9b659be8017f9c62d0f2d17769b081ed7c",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72"
+      },
+      "precompile_seconds": {
+        "package": 104.1922,
+        "extension": 11.655899999999999,
+        "mosek_extension": 22.8673
+      },
+      "precompile_process_seconds": 141.0208663920057,
+      "cases": {
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 5.204,
+          "inputs": 0.915,
+          "detection": 0.0,
+          "first_call": 0.363,
+          "second_call": 0.251,
+          "bound": -14.606832405653952,
+          "status": "OPTIMAL",
+          "process_seconds": 7.5513469529978465
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 5.092,
+          "inputs": 0.961,
+          "detection": 0.0,
+          "first_call": 0.187,
+          "second_call": 0.0197,
+          "bound": -2.0000000053016898,
+          "status": "OPTIMAL",
+          "process_seconds": 7.091652406001231
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 5.78,
+          "inputs": 3.453,
+          "detection": 0.088,
+          "first_call": 0.101,
+          "second_call": 0.0163,
+          "bound": -23.999999996467714,
+          "status": "OPTIMAL",
+          "process_seconds": 10.133965633009211
+        }
+      },
+      "wall_seconds": 165.79887491700356,
+      "configuration": "expanded-task-only"
     }
   ],
-  "selected_configuration": "restored",
+  "selected_configuration": "expanded-task-only",
   "selection_date": "2026-11-15",
-  "restored_measurement_base_revision": "aa062275e1082bda52b1dc48bfaadf2d604258d7"
+  "restored_measurement_base_revision": "aa062275e1082bda52b1dc48bfaadf2d604258d7",
+  "expanded_measurement_base_revision": "18a1476",
+  "mosek_threads": "automatic for default MosekBackend probes",
+  "scs_probe_configuration": "expanded-solve-trial (identical loaded package and SCS sources)",
+  "license_free_precompile": {
+    "environment": "empty HOME, all MOSEK*/MSK_* variables removed",
+    "cache": "native Mosek extension rebuilt",
+    "checks": [
+      {
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      },
+      {
+        "exit_code": 0,
+        "stdout_bytes": 0,
+        "stderr_bytes": 0
+      }
+    ],
+    "elapsed_seconds": 29.447199549991637
+  },
+  "final_mosek_source_hash": "ba1122213fc203a42bbc8a80721afd4bfe66efd964f9fa6345547e42c95b0ff6",
+  "mosek_julia_version": "11.2.1",
+  "final_mosek_smoke": {
+    "heisenberg8continuous": {
+      "case": "heisenberg8continuous",
+      "load": 4.963,
+      "inputs": 0.689,
+      "detection": 0.0,
+      "first_call": 0.231,
+      "second_call": 0.2026,
+      "bound": -14.606832405653952,
+      "status": "OPTIMAL"
+    },
+    "fermionic4number": {
+      "case": "fermionic4number",
+      "load": 4.893,
+      "inputs": 0.803,
+      "detection": 0.0,
+      "first_call": 0.177,
+      "second_call": 0.0156,
+      "bound": -2.0000000053016898,
+      "status": "OPTIMAL"
+    },
+    "heisenberg8detect": {
+      "case": "heisenberg8detect",
+      "load": 5.03,
+      "inputs": 4.308,
+      "detection": 0.11,
+      "first_call": 0.122,
+      "second_call": 0.0221,
+      "bound": -23.999999996467714,
+      "status": "OPTIMAL"
+    }
+  }
 }

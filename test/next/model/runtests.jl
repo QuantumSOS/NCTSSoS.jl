@@ -64,6 +64,10 @@ end
     @test_throws r"Alice Bob Carol.*degree 2" Nx.build(Nx.Problem(p),Nx.Relaxation(order=1))
     r,(a,ad) = Nx.fermionic_variables(2)
     @test sprint(show,ad[2]*a[1])=="ad2 a1"
+    r,(x,y,z) = Nx.pauli_variables(130)
+    @test sprint(show,x[1]*y[64]*z[130])=="X1 Y64 Z130"
+    r,(a,ad) = Nx.fermionic_variables(130)
+    @test sprint(show,ad[130]*ad[64]*a[64]*a[130])=="ad130 ad64 a64 a130"
     r,ops = Nx.site_variables(Nx.Free(),1,2)
     x,y = ops[1]
     built = Nx.build(Nx.Problem(x*y+y*x;constraints=(Nx.Positive(1-x^2-y^2),)),Nx.Relaxation(order=2))

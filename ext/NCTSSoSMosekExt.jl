@@ -1,8 +1,11 @@
 module NCTSSoSMosekExt
 using NCTSSoS: Next
+# Internal construction helpers shared by this package's precompile workload.
+using NCTSSoS.Next: build, moment_standard_form
 import Mosek
 import JuMP
 using SparseArrays: sparse, findnz, nzrange, rowvals, nonzeros
+using PrecompileTools: @compile_workload
 
 struct MosekHandle{B}
     task::Mosek.MSKtask
@@ -176,5 +179,32 @@ end
 function Next.solve_standard(form::Next.MomentStandardForm,h::MosekHandle)
     Next._check_append_only(h.form,form)
     return Next.solve_standard(form,h.backend)
+end
+
+# Build both native forms without calling the optimizer or requesting a license.
+@compile_workload let
+    forms=Next.MomentStandardForm[]
+    n=4
+    registry,(x,y,z)=Next.pauli_variables(n)
+    h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    symmetry=(Next.SitePermutation([2:n;1]),Next.SitePermutation(collect(n:-1:1)),Next.spin_rotations(registry)...)
+    push!(forms,moment_standard_form(build(Next.Problem(h;symmetry),Next.Relaxation(order=2)).program))
+    registry,(a,ad)=Next.fermionic_variables(n)
+    h=-sum(ad[i]*a[mod1(i+1,n)]+ad[mod1(i+1,n)]*a[i] for i in 1:n)
+    number=sum(ad[i]*a[i] for i in 1:n)
+    problem=Next.Problem(h;symmetry=(Next.NumberRotation(registry),))
+    relaxation=Next.Relaxation(order=1,strengthen=(Next.FermionicConditions(1:n;conditions=(:P,:Q,:G)),Next.Sector(number,2)))
+    push!(forms,moment_standard_form(build(problem,relaxation).program))
+    n=8
+    _,(x,y,z)=Next.pauli_variables(n)
+    h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    push!(forms,moment_standard_form(build(Next.Problem(h;symmetry=Next.detect_symmetry(h)),Next.Relaxation(order=1)).program))
+    for standard in forms,form in (:sos,:moment)
+        backend=Next.MosekBackend(;form)
+        handle=Next.prepare_standard(standard,backend)
+        # Compile the solve/extraction code without executing the optimizer.
+        precompile(Next.solve_standard,(typeof(standard),typeof(backend)))
+        Mosek.deletetask(handle.task)
+    end
 end
 end

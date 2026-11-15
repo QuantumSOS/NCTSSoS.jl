@@ -41,6 +41,22 @@ function Base.iterate(s::MaskSites{K}, state=(1, s.masks[1])) where {K}
 end
 sites(w::PauliWord{K}) where {K} = MaskSites(ntuple(i -> w.x[i] | w.z[i], Val(K)))
 
+word_letters(w::PauliWord) = WordLetters(w)
+function Base.iterate(letters::WordLetters{PauliWord{K}}, state=(1,letters.word.x[1] | letters.word.z[1])) where {K}
+    w=letters.word
+    i,m=state
+    while iszero(m)
+        i+=1
+        i>K && return nothing
+        m=w.x[i] | w.z[i]
+    end
+    bit=m & -m
+    limb=i
+    letter=PauliWord(ntuple(j->j==limb ? w.x[limb]&bit : UInt64(0),Val(K)),
+        ntuple(j->j==limb ? w.z[limb]&bit : UInt64(0),Val(K)))
+    return letter,(i,m & (m-UInt64(1)))
+end
+
 function mul(a::PauliWord{K}, b::PauliWord{K}) where {K}
     x = ntuple(i -> a.x[i] ⊻ b.x[i], Val(K))
     z = ntuple(i -> a.z[i] ⊻ b.z[i], Val(K))

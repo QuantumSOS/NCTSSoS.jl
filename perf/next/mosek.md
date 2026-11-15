@@ -6,6 +6,22 @@
 
 Only `MSK_SOL_STA_OPTIMAL` returns a bound and moments. Certificates map to infeasible/unbounded statuses with the SOS direction reversed. Unaccepted time/iteration limits return `TIME_LIMIT`/`ITERATION_LIMIT` and no bound. Set `MSK_DPAR_OPTIMIZER_MAX_TIME` or `MSK_IPAR_INTPNT_MAX_ITERATIONS`; raw termination remains in diagnostics even when an optimal solution has a `STALL` termination. `solve(result, constraint)` retains the model and backend settings but rebuilds the native task; it does not claim a warm start.
 
+## Choosing a form and checking observables
+
+**Keep `form=:auto`; force `:moment` only for a small cross-check, not for a large PSD block.** In the architect's review of the dense four-site XXZ ring at order 2 (one Hermitian block of side 67, one Mosek thread), forced moment form hit a 20 s time limit in one run and took 26 s in another. SOS took 0.2–3 s. These review observations are not a controlled timing distribution or a general speedup claim.
+
+**Validate individual moments separately from the bound.** The same XXZ ring has a unique ground state, but its SDP can still give substantially less accurate moments than energy. For `H = Σᵢ(XᵢXᵢ₊₁ + YᵢYᵢ₊₁ + 0.5 ZᵢZᵢ₊₁)` with periodic boundaries and no symmetry reduction, the architect compared energy and the four observables `X1X2`, `Z1Z2`, `X1X3`, `Z1Z3` against exact diagonalization:
+
+| Requested primal/dual/gap tolerance | Bound error | Largest checked moment error | Outcome |
+|---|---:|---:|---|
+| 10⁻⁸ | 7.5×10⁻⁹ | 2.2×10⁻⁵ | Bound returned |
+| 10⁻¹⁰ | — | 3.8×10⁻⁵ | Raw `STALL` |
+| 10⁻¹² | — | — | No bound returned |
+
+Native SCS gave 2×10⁻¹² moment error on this program in the architect's earlier review. Tightening Mosek tolerances did not improve the checked observables. Likewise, default `JuMPBackend` with Mosek had 1.6×10⁻⁶ energy error, versus about 8×10⁻⁹ for native SOS: native SOS is the more accurate small-problem reference in this comparison. This does not establish that one backend is always more accurate, nor that default settings on different write paths have equal accuracy.
+
+These are architect-orb review results, not new measurements from the writer benchmark. The moment check is recorded in `review_pr433_moments.jl` in the architect thread's `.amp/in/orb-backup/proto/`; it diagonalizes the 16×16 Hamiltonian and measures those four observables at all three tolerances. See [the architect review thread](https://ampcode.com/threads/T-01a1d8d0-8ecb-7518-9f7d-ead47d4a09f3). Its broader 93/93 front-door review compared 11 programs across forms and backends; that bound agreement is not a claim about every individual moment.
+
 ## Dense Bell I_nn22, n=5, order 3
 
 Same relaxation on both routes: one PSD block of side 436, 27,555 nonconstant real moment variables, 95,265 standard-matrix nonzeros. The legacy reference uses its documented `sos_dualize` route, not a different hierarchy or a symmetry-reduced model. Objective is the negative Bell polynomial, as in the scale probe.

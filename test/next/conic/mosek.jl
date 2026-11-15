@@ -46,6 +46,7 @@ if !licensed
 else
     import MosekTools
     factory=optimizer_with_attributes(MosekTools.Optimizer,"MSK_IPAR_NUM_THREADS"=>1,
+        "QUIET"=>true,
         "MSK_DPAR_INTPNT_CO_TOL_REL_GAP"=>1e-10,"MSK_DPAR_INTPNT_CO_TOL_PFEAS"=>1e-10,
         "MSK_DPAR_INTPNT_CO_TOL_DFEAS"=>1e-10)
     @testset "Mosek native moment and SOS solutions" begin

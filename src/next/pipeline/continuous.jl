@@ -84,10 +84,11 @@ function _check_continuous(problem,symmetry,W)
     for d in ds
         _insert_generator_equation!(pivots,encode(d);constant=false)
     end
-    for (i,g) in enumerate((symmetry.generators...,symmetry.moment_only...)),(j,d) in enumerate(ds)
+    for (name,generators) in (("Finite",symmetry.generators),("moment-only",symmetry.moment_only)),
+        (i,g) in enumerate(generators),(j,d) in enumerate(ds)
         # Use a copy: a failed membership check must not enlarge the declared span.
         _insert_generator_equation!(copy(pivots),encode(d,g);constant=false) || throw(ArgumentError(
-            "Finite generator $i does not preserve the continuous span (derivation $j); add the missing derivations or remove the generator."))
+            "$name generator $i does not preserve the continuous span (derivation $j); add the missing derivations or remove the generator."))
     end
 end
 

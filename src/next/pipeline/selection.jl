@@ -1,7 +1,7 @@
 import Graphs
 import ..NCTSSoS: clique_decomp, MF, MaximalElimination
 
-"Correlative graph on sites; each constraint's complete support is a clique."
+"Correlative graph on Pauli sites, fermionic modes, or individual site-word letters; constraints form cliques."
 struct Correlative{A}
     algorithm::A
 end
@@ -34,11 +34,10 @@ struct Contiguous
 end
 Contiguous(;periodic=false) = Contiguous(periodic)
 
-function _interaction_graph(problem)
-    n=problem.objective.registry.nsites
+function _interaction_graph(problem,n=problem.objective.registry.nsites,support_of=w->collect(sites(w)))
     graph=Graphs.SimpleGraph(n)
-    supports=[sort!(collect(sites(w))) for (_,w) in terms(problem.objective)]
-    append!(supports,[sort!(unique!(reduce(vcat,[collect(sites(w)) for (_,w) in terms(c.polynomial)];init=Int[])))
+    supports=[sort!(unique!(support_of(w))) for (_,w) in terms(problem.objective)]
+    append!(supports,[sort!(unique!(reduce(vcat,[support_of(w) for (_,w) in terms(c.polynomial)];init=Int[])))
         for c in problem.constraints])
     for support in supports,i in eachindex(support),j in (i+1):length(support)
         Graphs.add_edge!(graph,support[i],support[j])
@@ -47,9 +46,19 @@ function _interaction_graph(problem)
 end
 
 _site_groups(problem,::Nothing) = [collect(1:problem.objective.registry.nsites)]
+_site_groups(problem,method,::Type{W}) where {W} = _site_groups(problem,method)
 function _site_groups(problem,method::Correlative)
     graph,_=_interaction_graph(problem)
     sort!.(clique_decomp(graph,method.algorithm))
+end
+function _site_groups(problem,method::Correlative,::Type{W}) where {W<:SiteWord}
+    registry=problem.objective.registry
+    # Site-major numbering matches the current package's letter graph.
+    letters=W[w for site in 1:registry.nsites for w in basis_rows(W,registry.algebra,[site],1) if !isone(w)]
+    index=Dict(w=>i for (i,w) in enumerate(letters))
+    support(w)=[index[v] for v in word_letters(_pack_word(W,w))]
+    graph,_=_interaction_graph(problem,length(letters),support)
+    [letters[sort!(clique)] for clique in clique_decomp(graph,method.algorithm)]
 end
 function _site_groups(problem,method::PhysicsInformed)
     graph,supports=_interaction_graph(problem)
@@ -61,12 +70,19 @@ function _site_groups(problem,method::PhysicsInformed)
 end
 
 _group_rows(::Nothing,W,registry,group,order) = basis_rows(W,registry.algebra,group,order)
+_group_sites(group) = group
+_group_sites(group::AbstractVector{<:SiteWord}) = sort!(unique!(reduce(vcat,collect.(sites.(group));init=Int[])))
+_group_region(group,region) = region
+_group_region(group::AbstractVector{<:SiteWord},region) = filter(w->only(sites(w)) in region,group)
+_in_group(w,group) = issubset(sites(w),group)
+_in_group(w::SiteWord,group::AbstractVector{<:SiteWord}) = all(in(group),word_letters(w))
 function _group_rows(rule::Contiguous,W,registry,group,order)
     rows=Set([one(W)])
-    n=length(group)
+    physical_sites=_group_sites(group)
+    n=length(physical_sites)
     for width in 1:min(order,n),start in 1:(rule.periodic ? n : n-width+1)
-        region=[group[mod1(start+i,n)] for i in 0:width-1]
-        for w in basis_rows(W,registry.algebra,region,order)
+        region=[physical_sites[mod1(start+i,n)] for i in 0:width-1]
+        for w in basis_rows(W,registry.algebra,_group_region(group,region),order)
             length(collect(sites(w)))==width && push!(rows,w)
         end
     end
@@ -74,7 +90,7 @@ function _group_rows(rule::Contiguous,W,registry,group,order)
 end
 function _group_rows(rule::Function,W,registry,group,order)
     rows=collect(rule(W,registry,copy(group),order))
-    all(w->w isa W && degree(w)<=order && issubset(collect(sites(w)),group),rows) ||
+    all(w->w isa W && degree(w)<=order && _in_group(w,group),rows) ||
         throw(ArgumentError("The row rule must return words of the requested type, on its group, and of degree at most the order."))
     allunique(rows) || throw(ArgumentError("The row rule returned duplicate rows."))
     sort!(rows)

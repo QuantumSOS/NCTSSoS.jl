@@ -140,6 +140,9 @@ end
     flip=Nx.PauliConjugation(Nx.pauli_letter(W,1,2),false)
     @test_throws r"Finite generator 1.*add the missing derivations or remove" Nx.build(
         Nx.Problem(zero(H);symmetry=Nx.Symmetry(flip;continuous=(ds[1],))),Nx.Relaxation(order=1))
+    @test_throws r"moment-only generator 1.*add the missing derivations or remove" Nx.build(
+        Nx.Problem(zero(H);symmetry=Nx.Symmetry(Nx.SitePermutation([2,1]);
+            moment_only=(flip,),continuous=(ds[1],))),Nx.Relaxation(order=1))
     # A normalizer need not commute: global X sends the Z generator to -Z.
     global_flip=Nx.PauliConjugation(first((x[1]*x[2]).data.words),false)
     axial=Nx.Problem(H;symmetry=Nx.Symmetry(global_flip;continuous=(ds[3],)))

@@ -21,9 +21,12 @@ end
 six_site_controls()=[(;n=6,problem,family=first(FAMILIES),finite,continuous,strengthening=())
     for (problem,finite,continuous) in ((:heisenberg,:dihedral,:su2),(:fermions,:translation,:number))]
 
+detected_continuous_control()=(;n=5,problem=:xxz,family=first(FAMILIES),finite=:detected,
+    continuous=:u1,strengthening=())
+
 combinations()=[[(;n=4,problem,family,finite,continuous,strengthening) for problem in PROBLEMS
     for family in FAMILIES for finite in FINITE for continuous in CONTINUOUS
-    for strengthening in strengthening_choices(problem)];six_site_controls()]
+    for strengthening in strengthening_choices(problem)];six_site_controls();detected_continuous_control()]
 
 function fixture(name,n=4;anisotropy=0.4)
     I2=Matrix{ComplexF64}(I,2,2)
@@ -341,11 +344,12 @@ function solved_cases()
     append!(selected,six_site_controls())
     append!(selected,[(;n=4,problem=:xxz,family=(order=o,rows=:complete,group=:none,split=:none),
         finite=:translation_antiunitary,continuous=:none,strengthening=()) for o in 1:2])
+    push!(selected,detected_continuous_control())
     selected
 end
 
 function smoke_cases()
-    all=filter(c->c.finite!=:translation_antiunitary,combinations())
+    all=filter(c->c.finite!=:translation_antiunitary && c!=detected_continuous_control(),combinations())
     # Fixed, stratified indices across the complete product, plus each named
     # axis in a valid dense control. No RNG chooses the acceptance subset.
     selected=all[unique(round.(Int,range(1,length(all);length=80)))]
@@ -362,6 +366,7 @@ function smoke_cases()
         finite=:detected,continuous=:none,strengthening=(:stationarity,)))
     append!(selected,[(;n=4,problem,family=first(FAMILIES),finite=:translation_antiunitary,
         continuous=:none,strengthening=()) for problem in PROBLEMS])
+    push!(selected,detected_continuous_control())
     unique(selected)
 end
 
@@ -380,12 +385,12 @@ function smoke_test()
     builds=Set([1,2,3,4,5,6,7,9,11,15,17,19,21,23,26,28,30,32,34,49,51,53,55,59,60,61,
         67,69,71,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,
         104,108,109,110,111,115,116,117,118,119,120,122,123,124,125,126,129,134,135,136,137,138,
-        139,140,141,144])
+        139,140,141,144,145])
     cases=smoke_cases()
     fixtures=Dict((c.problem,c.n)=>fixture(c.problem,c.n) for c in unique(c->(c.problem,c.n),cases))
     @testset "Combination product: fixed acceptance slice" begin
-        @test length(combinations())==83_906
-        @test length(cases)==144
+        @test length(combinations())==83_907
+        @test length(cases)==145
         for (i,c) in enumerate(cases)
             @testset "$i: $c" begin
                 r=run(c;f=fixtures[(c.problem,c.n)])

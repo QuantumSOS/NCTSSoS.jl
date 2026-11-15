@@ -256,7 +256,7 @@ Base.show(io::IO,::MIME"text/plain",s::ProgramSizes) = show(io,s)
 # positivity, normalization and the objective, so a real optimum suffices.
 # FunctionalAlgebra instead declares real-valued symbols explicitly; no
 # averaging argument for products of arbitrary complex expectations is used.
-_real_form(p::Problem) = p.objective.registry.algebra isa Union{SiteAlgebra{<:Union{Free,Projector,Unipotent}},FunctionalAlgebra} &&
+_real_form(p::Problem) = _real_structure(p.objective.registry.algebra) &&
     all(isreal(c) for (c,_) in terms(p.objective)) &&
     all(c->all(isreal(a) for (a,_) in terms(c.polynomial)),p.constraints)
 
@@ -286,6 +286,9 @@ to optimize, or omit prepare to do both on the first solve. The program, table,
 sizes and valid_for fields remain available for inspection.
 """
 function build(p::Problem,r::Relaxation)
+    if p.objective.registry.algebra isa MixedAlgebra && _uses_blocks(p,r)
+        throw(ArgumentError("Mixed algebras support the plain route only; remove symmetry, grouping, split, row_rule, family and strengthening, and use order or custom rows."))
+    end
     if p.objective.registry.algebra isa FunctionalAlgebra && _uses_blocks(p,r)
         throw(ArgumentError("State/trace polynomials currently support the plain dense route only; remove symmetry, grouping, split, row_rule, family and strengthening, and use Relaxation(order=...)."))
     end

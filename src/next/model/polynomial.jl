@@ -22,7 +22,7 @@ function Base.show(io::IO,w::AbstractWord,r::Union{Registry,Nothing})
         end
     end
 end
-function Base.show(io::IO,w::Union{PauliWord,FermiWord,BosonWord,SiteWord,FunctionalWord})
+function Base.show(io::IO,w::Union{PauliWord,FermiWord,BosonWord,SiteWord,FunctionalWord,MixedWord})
     isone(w) && return print(io,"1")
     registry=get(io,:registry,nothing)
     isnothing(registry) && print(io,nameof(typeof(w)),"(")

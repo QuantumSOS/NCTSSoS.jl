@@ -295,6 +295,7 @@ include("moments.jl")
 include("boson.jl")
 include("functional.jl")
 include("letter_actions.jl")
+include("mixed.jl")
 
 @testset "Bosonic iterator storage" begin
     for n in (2,23)

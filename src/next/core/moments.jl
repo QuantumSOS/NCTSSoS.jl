@@ -147,11 +147,14 @@ struct MomentSink{W,C}
     table::MomentTable{W}
     forms::LinearForms{C}
 end
+_real_structure(algebra) = false
+_real_structure(::Union{SiteAlgebra{<:Union{Free,Projector,Unipotent}},FunctionalAlgebra}) = true
+_real_structure(::Type{<:SiteWord}) = true
 function push_term!(sink::MomentSink{W,C},c::Number,w::W) where {W,C}
     iszero(c) && return sink
     key,p,conjugated = moment_key(w)
     # A real site-algebra form identifies a word with its adjoint.
-    reality = W <: SiteWord && C <: Real ? :real : moment_reality(key)
+    reality = _real_structure(W) && C <: Real ? :real : moment_reality(key)
     re,im_id = moment_ids!(sink.table,key,reality)
     C <: Real && im_id != 0 && throw(ArgumentError("These rows have complex moments; use C=ComplexF64 for the plain program."))
     cc = scale(p,convert(C,c))

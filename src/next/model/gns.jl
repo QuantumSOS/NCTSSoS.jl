@@ -361,6 +361,7 @@ function _gns_candidate(result,full_basis,basis,H,values,work,d,order;atol,rtol,
 end
 
 function gns(result::SolveResult;atol=nothing,rtol=0.0,check_atol=1e-6,psd_rtol=1e-8)
+    result.problem.objective.registry.algebra isa MixedAlgebra && throw(ArgumentError("Mixed GNS needs component-relation checks before reconstruction; use expectation(result, p)."))
     result.problem.objective.registry.algebra isa FunctionalAlgebra && throw(ArgumentError("State/trace-polynomial moments need scalar-factor decomposition before operator reconstruction; use expectation(result, p)."))
     result.problem.objective.registry.algebra isa Bosonic && throw(ArgumentError("No finite matrices satisfy the bosonic commutation relation; use expectation(result, p)."))
     all(x->isfinite(x)&&x>=0,(isnothing(atol) ? 0.0 : atol,rtol,check_atol,psd_rtol)) || throw(ArgumentError("GNS tolerances must be finite and nonnegative; supply nonnegative atol, rtol, check_atol and psd_rtol."))

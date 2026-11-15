@@ -1,5 +1,8 @@
 # Tests of the model layer of NCTSSoS.Next.
 
+include("mixed.jl")
+MixedModelChecks.check(Nx.JuMPBackend(SOLVER))
+
 @testset "Public imports in fresh processes" begin
     project=dirname(Base.active_project())
     standalone=raw"""
@@ -10,6 +13,8 @@
                 Base.isexported(Next,name) || continue
                 @test Core.eval(Main,name) === getfield(Next,name)
             end
+            _,parts=Next.mixed_variables(spin=(Pauli(),1),matter=(Fermionic(),1))
+            @test parts.spin[1][1]*parts.matter[1][1]==parts.matter[1][1]*parts.spin[1][1]
             registry,(X,Y,Z)=pauli_variables(4)
             H=sum(X[i]*X[mod1(i+1,4)]+Y[i]*Y[mod1(i+1,4)]+Z[i]*Z[mod1(i+1,4)] for i in 1:4)
             translation=SitePermutation([2,3,4,1])

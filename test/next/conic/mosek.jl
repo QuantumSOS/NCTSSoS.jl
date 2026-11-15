@@ -134,6 +134,8 @@ else
     StagedSolveChecks.check(N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
     isdefined(@__MODULE__,:ExpectationConstraintChecks) || include("../model/expectation_constraints.jl")
     ExpectationConstraintChecks.check(N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
+    isdefined(@__MODULE__,:MixedModelChecks) || include("../model/mixed.jl")
+    MixedModelChecks.check(N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
     @testset "One build, two native forms" begin
         _,(X,_,Z)=N.pauli_variables(1)
         problem=N.Problem(-X[1]-.3Z[1]); relaxation=N.Relaxation(order=1)

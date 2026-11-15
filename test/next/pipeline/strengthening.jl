@@ -42,6 +42,7 @@ end
 function extra_values(p,y,start)
     result=[]
     for b in p.blocks[start:end]
+        b.kind==Nx.ZERO && continue
         values=[sum((p.forms.coefs[t]*y[p.forms.ids[t]] for t in Nx.term_range(p.forms,f));init=0im)
             for f in Nx.form_range(b)]
         if b.kind==Nx.SOC

@@ -168,15 +168,17 @@ function reference(f,problem,description,built)
     objective=[(ComplexF64(c),Nx.word_from_legacy(W,Nx.legacy_letters(w))) for (c,w) in Nx.terms(f.H)]
     p,t,c=Nx.family_program(closed.family,objective;real_form=Nx._real_form(problem),check_coverage=false)
     kinds=description.strengthen
+    sectors=Nx._checked_sectors(problem,kinds,Nx.Symmetry(),W)
     initial=[Nx._pauli_extra(k,W,length(problem.constraints)+i) for (i,k) in enumerate(kinds)
         if k isa Union{Nx.DensityMatrix,Nx.InvariantCone}]
     if !isempty(initial)
         extras,_=Nx._extra_orbits(initial,closed.block_generators)
-        for extra in extras; Nx._append_extra!(p,t,extra); end
+        for extra in extras
+            Nx._append_extra!(p,t,extra;face=Nx._density_face(extra,sectors))
+        end
     end
     Nx._hamiltonian_strengthen!(p,t,problem,kinds,c)
     Nx._fermionic_strengthen!(p,t,problem,kinds,c)
-    sectors=Nx._checked_sectors(problem,kinds,Nx.Symmetry(),W)
     Nx._sector_equalities!(p,t,c,sectors)
     p.nvars=length(t.labels)
     Nx.validate(p)

@@ -2,6 +2,50 @@ function sector_matrix(p,n)
     sum(c*physical_pauli(w,1:n) for (c,w) in Nx.terms(p))
 end
 
+@testset "DensityMatrix uses the contained sector face" begin
+    _,(x,y,z)=Nx.pauli_variables(2)
+    H=z[2]+0.2y[1]*y[2]
+    # A non-diagonal sector whose exact kernel basis need not be orthonormal.
+    Q=3x[1]+4z[1]
+    kinds=(Nx.DensityMatrix(1:2),Nx.Sector(Q,5))
+    built=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,strengthen=kinds))
+    report=built.sizes.closure.strengthening
+    @test only(report.density_faces).before==4
+    @test only(report.density_faces).after==2
+    @test occursin("density sector face 4 → 2",sprint(show,built.sizes))
+    @test strengthening_bound(built.program)≈-1 atol=1e-6
+    e=eigen(Hermitian(sector_matrix(Q,2)))
+    V=e.vectors[:,findall(v->abs(v-5)<1e-10,e.values)]
+    outside=e.vectors[:,findfirst(v->abs(v+5)<1e-10,e.values)]
+    for seed in 1:3
+        A=randn(MersenneTwister(seed),ComplexF64,2,2)
+        rho=V*A*A'*V'; rho/=LinearAlgebra.tr(rho)
+        coords=physical_coordinates(built.table,rho,2)
+        @test maximum(abs,equality_values(built.program,coords,report.first_block))<1e-12
+        @test minimum(extra_values(built.program,coords,report.first_block))>=-1e-10
+    end
+    # Removing off-face entries without equations would accept this matrix:
+    # it has the same compressed density as the valid mixed-sector state.
+    rho=V*V'/2+0.1(outside*V[:,1]'+V[:,1]*outside')
+    @test maximum(abs,equality_values(built.program,physical_coordinates(built.table,rho,2),report.first_block))>0.01
+    local_density=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
+        strengthen=(Nx.DensityMatrix([1]),Nx.Sector(z[1]+z[2],0))))
+    @test isempty(local_density.sizes.closure.strengthening.density_faces)
+    trivial=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
+        strengthen=(Nx.DensityMatrix(1:2),Nx.Sector(one(H),1))))
+    @test only(trivial.sizes.closure.strengthening.density_faces).after==4
+    joint=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
+        strengthen=(kinds...,Nx.Sector(z[2],1))))
+    @test only(joint.sizes.closure.strengthening.density_faces).after==1
+    @test_throws r"Sector 2.*not an eigenvalue.*choose" Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
+        strengthen=(Nx.DensityMatrix(1:2),Nx.Sector(Q,4))))
+    @test_throws r"empty common kernel" Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
+        strengthen=(kinds...,Nx.Sector(Q,-5))))
+    _,(b,bd)=Nx.bosonic_variables(1)
+    @test_throws r"bosonic variables use Sector" Nx.build(Nx.Problem(bd[1]*b[1]),Nx.BlockRelaxation(order=1,
+        strengthen=(Nx.DensityMatrix([1]),)))
+end
+
 @testset "Sector states, not operator identities" begin
     _,(x,y,z)=Nx.pauli_variables(2)
     N=(2-z[1]-z[2])/2

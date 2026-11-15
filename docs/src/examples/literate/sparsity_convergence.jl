@@ -41,10 +41,10 @@
 # the numerical solve and switches to the paper basis only for the
 # figure.
 
-using NCTSSoS, MosekTools, CairoMakie
+using NCTSSoS.Next, Mosek, CairoMakie
+import NCTSSoS.Next as Next
 
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true)
+const SOLVER = MosekBackend()
 
 # ### Reference values
 #
@@ -53,7 +53,7 @@ const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() =
 
 const PAPER_EX34_LAMBDA_MIN = 0.0
 const PAPER_EX34_SPARSE = -0.0035
-include(joinpath(pkgdir(NCTSSoS), "docs", "src", "examples", "literate", "data", "sparsity_convergence_helpers.jl")) #hide
+include(joinpath(pkgdir(Next), "docs", "src", "examples", "literate", "data", "sparsity_convergence_helpers.jl")) #hide
 nothing #hide
 
 # ## Chordal extension matters (Example 3.4)
@@ -70,7 +70,7 @@ nothing #hide
 # \end{aligned}
 # ```
 #
-# The `moment_basis` keyword lets us fix the basis to
+# The `rows` keyword of `Relaxation` lets us fix the basis to
 # ``\{1, X, Y, Z, YX, YZ\}`` — the same six monomials used in
 # Figure 3 of the paper — so our graph and theirs sit on identical
 # node sets.
@@ -80,7 +80,7 @@ nothing #hide
 # First, we set up the variables, the polynomial, and the explicit
 # paper basis.
 
-registry_34, (vars,) = create_noncommutative_variables([("X", 1:3)])
+registry_34, (vars,) = site_variables(Free(), 1, 3)
 X, Y, Z = vars
 
 f_34 = X^2 - X * Y - Y * X + 3.0 * Y^2 -
@@ -89,45 +89,22 @@ f_34 = X^2 - X * Y - Y * X + 3.0 * Y^2 -
     9.0 * Z * Y^2 - 54.0 * Z * Y * Z +
     142.0 * Z * Y^2 * Z
 
-pop_34 = polyopt(f_34, registry_34)
-paper_basis_34_labels, paper_basis_34 = let
-    NM = typeof(one(X))
-    yx = only(monomials(Y * X))
-    yz = only(monomials(Y * Z))
-    basis_entries = [
-        ("1", one(X)),
-        ("X", X),
-        ("Y", Y),
-        ("Z", Z),
-        ("YX", yx),
-        ("YZ", yz),
-    ]
-    (first.(basis_entries), NM[last(entry) for entry in basis_entries])
-end
+problem_34 = Problem(f_34)
+paper_basis_34_labels = ["1", "X", "Y", "Z", "YX", "YZ"]
+paper_basis_34 = [one(X), X, Y, Z, Y*X, Y*Z]
 nothing #hide
 
-config_34_dense = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    moment_basis=paper_basis_34,
-    cs_algo=NoElimination(),
-    ts_algo=NoElimination(),
-)
-config_34_sparse = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    moment_basis=paper_basis_34,
-    cs_algo=NoElimination(),
-    ts_algo=MMD(),
-)
-config_34_higher = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    cs_algo=NoElimination(),
-    ts_algo=MMD(),
-)
+config_34_dense = Relaxation(rows=paper_basis_34)
+config_34_sparse = Relaxation(rows=paper_basis_34,
+    split=TermSplit(algorithm=Next.MMD(), level=1))
+config_34_higher = Relaxation(rows=paper_basis_34,
+    split=TermSplit(algorithm=Next.MMD(), level=2))
 nothing #hide
 
 const PAPER_GRAPH_34 = (
     labels = ["1", "X", "Y", "Z", "YX", "YZ"],
     coords = [(1.0, 1.0), (0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (0.0, 1.0), (2.0, 1.0)],
+    initial_edges = [(1, 5), (1, 6), (2, 3), (2, 5), (3, 4), (3, 6), (4, 6)],
 )
 nothing #hide
 
@@ -137,16 +114,17 @@ nothing #hide
 # recovers the true minimum exactly. This is the number the sparse
 # hierarchy should be chasing.
 
-result_34_dense = cs_nctssos(pop_34, config_34_dense)
+built_34_dense = Next.build(problem_34, config_34_dense);
+result_34_dense = solve(built_34_dense; solver=SOLVER)
 check_isapprox(
     "Example 3.4 dense bound matches λ_min",
-    result_34_dense.objective,
+    result_34_dense.bound,
     PAPER_EX34_LAMBDA_MIN;
     atol=1e-6,
 )
 
 # The dense bound:
-result_34_dense.objective
+result_34_dense.bound
 #
 # ### The first sparse step: where the gap appears
 #
@@ -155,41 +133,43 @@ result_34_dense.objective
 # bound *drops below zero*. This is the gap: the sparse relaxation
 # is strictly weaker than the dense one on this problem.
 
-result_34_sparse = cs_nctssos(pop_34, config_34_sparse)
+built_34_sparse = Next.build(problem_34, config_34_sparse);
+result_34_sparse = solve(built_34_sparse; solver=SOLVER)
 check_isapprox(
     "Example 3.4 sparse bound matches the expected rounded sparse value",
-    result_34_sparse.objective,
+    result_34_sparse.bound,
     PAPER_EX34_SPARSE;
     atol=1e-4,
 )
 
 # The first sparse-step bound:
-result_34_sparse.objective
+result_34_sparse.bound
 #
 # ### Trying harder: the next sparse step
 #
-# `cs_nctssos_higher` propagates the support of the completed graph,
+# `TermSplit(level=2)` propagates the support of the completed graph,
 # including fill edges, as in Equation (23) of the paper. With `MMD()`,
 # this enlarges the blocks and reaches zero at the second step.
 
-result_34_higher = cs_nctssos_higher(pop_34, result_34_sparse, config_34_higher)
+built_34_higher = Next.build(problem_34, config_34_higher);
+result_34_higher = solve(built_34_higher; solver=SOLVER)
 check_isapprox(
     "Example 3.4 MMD higher step reaches the exact bound",
-    result_34_higher.objective,
+    result_34_higher.bound,
     PAPER_EX34_LAMBDA_MIN;
     atol=1e-6,
 )
 
 # The higher sparse-step bound:
-result_34_higher.objective
+result_34_higher.bound
 #
 # The dense bound and the second sparse bound are both approximately
 # zero; only the first sparse step stays near ``-0.0035``.
 
 ex34_bounds = (
-    dense = result_34_dense.objective,
-    sparse = result_34_sparse.objective,
-    sparse_higher = result_34_higher.objective,
+    dense = result_34_dense.bound,
+    sparse = result_34_sparse.bound,
+    sparse_higher = result_34_higher.bound,
 )
 nothing #hide
 
@@ -202,46 +182,47 @@ ex34_bounds
 # hierarchy step. A step first extends support using the previous
 # completed graph, rebuilds the graph, and then completes it.
 
-sparsity_34 = compute_sparsity(pop_34, config_34_sparse)
-package_basis_34 = only(sparsity_34.corr_sparsity.clq_mom_mtx_bases)
-package_init_34 = only(sparsity_34.initial_activated_supps)
+# The seven initial edges in `PAPER_GRAPH_34` are data from Example 3.4,
+# Figure 3 of [wangExploitingTermSparsity2020](@cite). Indices refer to the
+# listed row words. They are not computed from package internals.
+# `Next.block_rows` gives the completed blocks: two rows are adjacent when
+# one block holds both. Fill edges are completed edges minus the paper data.
 
-package_graph_34_k1 = NCTSSoS.get_term_sparsity_graph([one(X)], package_init_34, package_basis_34)
-package_edges_34_k1 = edge_pairs(package_graph_34_k1)
-completed_graph_34 = completed_term_graph(package_graph_34_k1, MMD())
-package_edges_34_completed = edge_pairs(completed_graph_34)
-package_fill_34 = sort(setdiff(package_edges_34_completed, package_edges_34_k1))
+labeled_edges(PAPER_GRAPH_34.initial_edges, PAPER_GRAPH_34.labels)
+
+# Check that every paper edge belongs to a completed block.
+
+package_edges_34_completed = completed_edges(built_34_sparse, paper_basis_34, registry_34)
+missing_34 = setdiff(PAPER_GRAPH_34.initial_edges, package_edges_34_completed)
+@assert isempty(missing_34) "Missing paper edges: $missing_34; blocks: $(completed_blocks(built_34_sparse, paper_basis_34, registry_34))"
+package_fill_34 = sort(setdiff(package_edges_34_completed, PAPER_GRAPH_34.initial_edges))
 check_equal(
     "Example 3.4 first-step block sides",
-    sort(only(result_34_sparse.moment_matrix_sizes)),
+    sort(Next.block_sides(built_34_sparse)),
     [3, 3, 3, 3],
 )
 check_equal(
     "Example 3.4 higher-step block sides",
-    sort(only(result_34_higher.moment_matrix_sizes)),
+    sort(Next.block_sides(built_34_higher)),
     [4, 4, 4],
 )
 
 figure_34_graph = draw_term_graph(
     paper_basis_34_labels,
     PAPER_GRAPH_34.coords,
-    package_edges_34_k1;
+    PAPER_GRAPH_34.initial_edges;
     dashed_edges=package_fill_34,
     title="Example 3.4: term-sparsity graph and chordal extension",
 )
 nothing #hide
 
-# Solid lines are the original edges; dashed lines are the first fill.
+# Solid lines are the paper's initial edges; dashed lines are the first fill.
 figure_34_graph
 
-# The next graph uses the stored post-fill support from the solved
-# relaxation. New edges appear, giving three blocks of side four.
+# The next graph uses the level-2 completed blocks. New edges appear,
+# giving three blocks of side four. No solver moments are needed to build it.
 
-package_graph_34_k2 = NCTSSoS.get_term_sparsity_graph(
-    [one(X)], only(result_34_higher.sparsity.initial_activated_supps), package_basis_34,
-)
-completed_graph_34_k2 = completed_term_graph(package_graph_34_k2, MMD())
-package_edges_34_k2 = edge_pairs(completed_graph_34_k2)
+package_edges_34_k2 = completed_edges(built_34_higher, paper_basis_34, registry_34)
 figure_34_higher = draw_term_graph(
     paper_basis_34_labels,
     PAPER_GRAPH_34.coords,
@@ -254,6 +235,18 @@ figure_34_higher
 # The dashed edges in this second figure are additions to the previous
 # completed graph. The paper's Figure 3 chooses a different completion;
 # its stabilized loose bound is not the result of this `MMD()` sequence.
+
+# Check two further levels against the dense bound and print every completed
+# block using the paper's labels. Levels 2–4 have the same completed graph.
+
+later_34 = [Next.build(problem_34, Relaxation(rows=paper_basis_34,
+    split=TermSplit(algorithm=Next.MMD(), level=k))) for k in 3:4];
+builds_34 = [built_34_sparse, built_34_higher, later_34...];
+results_34 = [result_34_sparse, result_34_higher, [solve(b; solver=SOLVER) for b in later_34]...];
+[(level=k, bound=r.bound, blocks=[PAPER_GRAPH_34.labels[ids] for ids in
+    completed_blocks(builds_34[k], paper_basis_34, registry_34)]) for (k,r) in enumerate(results_34)]
+@assert all(isapprox(r.bound, result_34_dense.bound; atol=1e-6) for r in results_34[2:4]) #src
+@assert all(completed_edges(b, paper_basis_34, registry_34) == package_edges_34_k2 for b in later_34) #src
 
 # ## The happy path: stabilization with exactness (Example 3.8)
 #
@@ -279,32 +272,18 @@ figure_34_higher
 #
 # ### Building the problem
 
-registry_38, (vars_38,) = create_noncommutative_variables([("X", 1:2)])
+registry_38, (vars_38,) = site_variables(Free(), 1, 2)
 X_38, Y_38 = vars_38
 
 f_38 = 2.0 - X_38^2 + X_38 * Y_38^2 * X_38 - Y_38^2
 g_ball_38 = 4.0 - X_38^2 - Y_38^2
 g_link_38 = X_38 * Y_38 + Y_38 * X_38 - 2.0
 
-pop_38 = polyopt(
-    f_38,
-    registry_38;
-    ineq_constraints=[g_ball_38],
-    eq_constraints=[g_link_38],
-)
+problem_38 = Problem(f_38; constraints=(Positive(g_ball_38), Zero(g_link_38)))
 
-config_38_dense = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    order=2,
-    cs_algo=NoElimination(),
-    ts_algo=NoElimination(),
-)
-config_38_sparse = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    order=2,
-    cs_algo=NoElimination(),
-    ts_algo=MMD(),
-)
+config_38_dense = Relaxation(order=2)
+config_38_sparse = Relaxation(order=2, split=TermSplit(algorithm=Next.MMD(), level=1))
+config_38_higher = Relaxation(order=2, split=TermSplit(algorithm=Next.MMD(), level=2))
 nothing #hide
 
 # ### Dense bound: the target
@@ -312,16 +291,17 @@ nothing #hide
 # The dense relaxation at order 2 gives us the baseline. On this
 # problem it already reaches the true minimum ``\lambda_{\min} = -1``.
 
-result_38_dense = cs_nctssos(pop_38, config_38_dense)
+built_38_dense = Next.build(problem_38, config_38_dense);
+result_38_dense = solve(built_38_dense; solver=SOLVER)
 check_isapprox(
     "Example 3.8 dense bound matches λ_min",
-    result_38_dense.objective,
+    result_38_dense.bound,
     -1.0;
     atol=1e-6,
 )
 
 # The dense bound:
-result_38_dense.objective
+result_38_dense.bound
 
 # ### First sparse step: matching immediately
 #
@@ -330,16 +310,17 @@ result_38_dense.objective
 # the block structure exposed by the term-sparsity graph is rich
 # enough to preserve the full strength of the SDP.
 
-result_38_sparse = cs_nctssos(pop_38, config_38_sparse)
+built_38_sparse = Next.build(problem_38, config_38_sparse);
+result_38_sparse = solve(built_38_sparse; solver=SOLVER)
 check_isapprox(
     "Example 3.8 first sparse-step bound matches λ_min",
-    result_38_sparse.objective,
+    result_38_sparse.bound,
     -1.0;
     atol=1e-6,
 )
 
 # The first sparse-step bound:
-result_38_sparse.objective
+result_38_sparse.bound
 
 # ### Higher sparse step: confirming stability
 #
@@ -347,31 +328,32 @@ result_38_sparse.objective
 # at ``-1``, and the internal block structure may regroup but the
 # numerical answer is unchanged.
 
-result_38_higher = cs_nctssos_higher(pop_38, result_38_sparse, config_38_sparse)
+built_38_higher = Next.build(problem_38, config_38_higher);
+result_38_higher = solve(built_38_higher; solver=SOLVER)
 check_isapprox(
     "Example 3.8 higher sparse-step bound still matches λ_min",
-    result_38_higher.objective,
+    result_38_higher.bound,
     -1.0;
     atol=1e-6,
 )
 check_isapprox(
     "Example 3.8 higher sparse-step bound matches the first sparse step",
-    result_38_higher.objective,
-    result_38_sparse.objective;
+    result_38_higher.bound,
+    result_38_sparse.bound;
     atol=1e-6,
 )
 
 # The second sparse-step bound:
-result_38_higher.objective
+result_38_higher.bound
 
 # All three numbers land on the same value:
 
 ex38_bounds = (
     lambda_min = -1.0,
-    dense_bound = result_38_dense.objective,
-    sparse_bound = result_38_sparse.objective,
-    higher_bound = result_38_higher.objective,
-    higher_flat = isapprox(result_38_higher.objective, result_38_sparse.objective; atol=1e-6),
+    dense_bound = result_38_dense.bound,
+    sparse_bound = result_38_sparse.bound,
+    higher_bound = result_38_higher.bound,
+    higher_flat = isapprox(result_38_higher.bound, result_38_sparse.bound; atol=1e-6),
 )
 nothing #hide
 
@@ -380,19 +362,15 @@ ex38_bounds
 
 # ### Reconstructing Figure 4
 #
-# On the paper basis ``\{1, X, Y, X^2, XY, YX, Y^2\}``, the
-# term-sparsity graph turns out to be *already chordal* — no fill
-# edges needed. That means the very first graph is its own chordal
-# completion, and a refinement step produces the same graph. The
-# structure is a fixed point from the start.
+# On the paper basis ``\{1, X, Y, X^2, XY, YX, Y^2\}``, the five initial
+# edges below are data from Figure 4 of [wangExploitingTermSparsity2020](@cite).
+# The first completed graph needs no fill. However, a full constrained
+# refinement also propagates support from localizers. Level 2 adds six edges
+# between the quadratic rows; levels 2–4 then agree. The bound is already
+# exact at level 1, before this graph stabilizes.
 #
-# We verify this claim in four steps:
-#
-# 1. Build the initial activated support from the objective and both
-#    constraints.
-# 2. Construct the first term-sparsity graph (``k = 1``).
-# 3. Push through one refinement cycle (graph → support → graph).
-# 4. Check that the edge set is unchanged.
+# The earlier isolated moment-graph cycle did not include that localizer
+# propagation. Here both figures come from the full public build.
 
 const PAPER_GRAPH_38 = (
     labels = ["1", "X", "Y", "X^2", "XY", "YX", "Y^2"],
@@ -401,42 +379,33 @@ const PAPER_GRAPH_38 = (
 )
 nothing #hide
 
-paper_basis_38 = let
-    NM = typeof(one(X_38))
-    x2 = only(monomials(X_38^2))
-    xy = only(monomials(X_38 * Y_38))
-    yx = only(monomials(Y_38 * X_38))
-    y2 = only(monomials(Y_38^2))
-    NM[one(X_38), X_38, Y_38, x2, xy, yx, y2]
-end
+paper_basis_38 = [one(X_38), X_38, Y_38, X_38^2, X_38*Y_38, Y_38*X_38, Y_38^2]
 nothing #hide
 
 # The paper basis:
 paper_basis_38
 
-# Starting from these seven monomials, we build the activated support.
+# Starting from these seven rows, build each level with both constraints.
+# The complete localizer basis is ``\{1,X,Y\}``: largest row degree 2,
+# minus half the constraint degree 2, leaves degree 1.
 
-paper_init_38 = NCTSSoS.init_activated_supp(f_38, [g_ball_38, g_link_38], paper_basis_38)
+paper_builds_38 = [Next.build(problem_38, Relaxation(rows=paper_basis_38,
+    split=TermSplit(algorithm=Next.MMD(), level=k))) for k in 1:4];
+paper_results_38 = [solve(b; solver=SOLVER) for b in paper_builds_38];
+@assert all(isapprox(r.bound, -1; atol=1e-6) for r in paper_results_38) #src
+@assert all(r.sizes.localizing_rows == [3,3] for r in paper_results_38) #src
+paper_edges_38_k1 = completed_edges(paper_builds_38[1], paper_basis_38, registry_38)
+missing_38 = setdiff(PAPER_GRAPH_38.solid_edges, paper_edges_38_k1)
+@assert isempty(missing_38) "Missing paper edges: $missing_38; blocks: $(completed_blocks(paper_builds_38[1], paper_basis_38, registry_38))"
+labeled_edges(PAPER_GRAPH_38.solid_edges, PAPER_GRAPH_38.labels)
+
+# Compare the next completed graph from the same public row inspection.
+
+paper_edges_38_k2 = completed_edges(paper_builds_38[2], paper_basis_38, registry_38)
 nothing #hide
 
-# The first term-sparsity graph:
-
-paper_graph_38_k1 = NCTSSoS.get_term_sparsity_graph([one(X_38)], paper_init_38, paper_basis_38)
-paper_edges_38_k1 = edge_pairs(paper_graph_38_k1)
-paper_edges_38_k1
-
-# One refinement cycle: graph → refined support → rebuilt graph.
-
-paper_completed_38_k1 = completed_term_graph(paper_graph_38_k1, MMD())
-paper_supp_38_k1 = NCTSSoS.term_sparsity_graph_supp(paper_completed_38_k1, paper_basis_38, one(f_38))
-nothing #hide
-
-paper_graph_38_k2 = NCTSSoS.get_term_sparsity_graph([one(X_38)], paper_supp_38_k1, paper_basis_38)
-paper_edges_38_k2 = edge_pairs(paper_graph_38_k2)
-nothing #hide
-
-# Now the payoff: both edge sets match the paper, and the refinement
-# changes nothing.
+# The first completed edge set matches the paper. The second has eleven
+# edges, and the next two levels do not add any more.
 
 check_equal(
     "Example 3.8 paper graph matches the reviewed Figure 4 edge set",
@@ -444,10 +413,14 @@ check_equal(
     PAPER_GRAPH_38.solid_edges,
 )
 check_equal(
-    "Example 3.8 paper graph is unchanged after one refinement step",
-    paper_edges_38_k2,
-    paper_edges_38_k1,
+    "Example 3.8 level 2 has eleven completed edges",
+    length(paper_edges_38_k2),
+    11,
 )
+@assert all(completed_edges(b, paper_basis_38, registry_38) == paper_edges_38_k2 for b in paper_builds_38[3:4]) #src
+
+[(level=k, bound=r.bound, blocks=[PAPER_GRAPH_38.labels[ids] for ids in
+    completed_blocks(paper_builds_38[k], paper_basis_38, registry_38)]) for (k,r) in enumerate(paper_results_38)]
 
 # The graph, rendered in the paper's layout:
 
@@ -455,12 +428,19 @@ draw_term_graph(
     PAPER_GRAPH_38.labels,
     PAPER_GRAPH_38.coords,
     PAPER_GRAPH_38.solid_edges;
+    dashed_edges=setdiff(paper_edges_38_k1, PAPER_GRAPH_38.solid_edges),
     title="Example 3.8: Figure 4 reconstruction",
     markersize=46,
     fontsize=16,
 )
 
-# Five edges, no fill needed, and the bound is tight. Example 3.8 is
+# The second completed graph shows the six new edges as dashed lines:
+
+draw_term_graph(PAPER_GRAPH_38.labels, PAPER_GRAPH_38.coords, paper_edges_38_k1;
+    dashed_edges=setdiff(paper_edges_38_k2, paper_edges_38_k1),
+    title="Example 3.8: second step with MMD")
+
+# Five edges at level 1, no fill needed, and the bound is tight. Example 3.8 is
 # the happy path: the algebraic structure of the problem allows the
 # sparse relaxation to be just as strong as the dense one.
 

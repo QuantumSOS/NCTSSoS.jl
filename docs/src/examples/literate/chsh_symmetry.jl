@@ -111,8 +111,9 @@ party_swap = LetterPermutation(
     B[2] => A[2],
 )
 
-# Declare the generators on the problem. Construction checks invariance of
-# the objective and any operator constraints. There is no opt-out flag.
+# Declare the generators on the problem. `Next.build` (and therefore `solve`)
+# checks invariance of the objective and any operator constraints, not the
+# `Problem` constructor. There is no opt-out flag.
 
 symmetric_problem = Problem(-S; symmetry=(alice_swap, bob_swap, party_swap))
 

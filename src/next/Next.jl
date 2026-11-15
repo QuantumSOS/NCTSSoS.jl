@@ -34,6 +34,7 @@ include("model/model.jl")
 include("pipeline/pipeline.jl")
 include("model/detection.jl")
 include("model/front.jl")
+include("model/gns.jl")
 
 public Symmetry, variables
 
@@ -43,7 +44,7 @@ export pauli_variables, fermionic_variables, site_variables,
     SpinRotation, spin_rotations, NumberRotation,
     detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,
     DensityMatrix, InvariantCone, Stationarity, StateOptimality, Sector, FermionicConditions,
-    inspect, solve, expectation, SCSBackend, MosekBackend, JuMPBackend
+    inspect, solve, expectation, gns, evaluate, SCSBackend, MosekBackend, JuMPBackend
 
 include("precompile.jl")
 

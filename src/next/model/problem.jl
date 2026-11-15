@@ -102,8 +102,10 @@ abstract type AbstractRelaxation end
 Choose exactly one of `order`, custom `rows`, or a custom block `family`.
 Declare symmetry on `Problem`. Without symmetry or block options, use complete
 moment/localizing matrices. Otherwise use the selected block family.
-Custom rows/families are never filtered: remove grouping, split and row_rule
-when supplying them. A single strengthening kind is accepted without a tuple.
+Custom rows can be split with `split=TermSplit(...)`; without a split they
+are unchanged. Custom families are used as supplied. Remove grouping and
+row_rule with custom rows, and all three options with custom families.
+A single strengthening kind is accepted without a tuple.
 """
 struct Relaxation{R,U,G,S,F,K} <: AbstractRelaxation
     order::Union{Nothing,Int}
@@ -117,8 +119,10 @@ struct Relaxation{R,U,G,S,F,K} <: AbstractRelaxation
         split=nothing,family=nothing,strengthen=(),symmetry=nothing)
         isnothing(symmetry) || throw(ArgumentError("Declare symmetry on Problem(H; symmetry=(generators...,)), not on Relaxation; remove the symmetry keyword here."))
         count(!isnothing,(order,rows,family))==1 || throw(ArgumentError("Relaxation needs exactly one of order, rows, or family; remove the other options."))
-        if !isnothing(rows) || !isnothing(family)
-            all(isnothing,(row_rule,grouping,split)) || throw(ArgumentError("Custom rows or family cannot be combined with row_rule, grouping, or split; remove these options or use order instead of custom rows/family."))
+        if !isnothing(rows)
+            all(isnothing,(row_rule,grouping)) && (isnothing(split) || split isa TermSplit) || throw(ArgumentError("Custom rows cannot be combined with grouping, row_rule or PhysicsInformed; use rows with split=TermSplit(...) or remove these options."))
+        elseif !isnothing(family)
+            all(isnothing,(row_rule,grouping,split)) || throw(ArgumentError("A custom family is used as supplied; remove row_rule, grouping and split, or use rows with split=TermSplit(...)."))
         end
         isnothing(row_rule) || row_rule isa Union{Contiguous,Function} || throw(ArgumentError("Use row_rule=Contiguous(...) or a row-rule function, or remove row_rule."))
         isnothing(grouping) || grouping isa Union{Correlative,PhysicsInformed} || throw(ArgumentError("Use grouping=Correlative() or PhysicsInformed(...), or remove grouping."))

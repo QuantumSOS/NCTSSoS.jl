@@ -113,7 +113,8 @@ end
         general,_=Nx._continuous_blocks(general;family_blocks,diagonal=true)
         @test built.sizes.closure.continuous.method==:diagonal
         @test report.method==:exact_elimination
-        @test built.sizes.closure.sector_elimination==(accepted=false,reason=:continuous_symmetry)
+        @test !built.sizes.closure.sector_elimination.accepted
+        @test built.sizes.closure.sector_elimination.reason==:continuous_symmetry
         @test built.program.nvars==general.nvars
         @test built.program.forms.ids==general.forms.ids
         @test built.program.forms.offsets==general.forms.offsets

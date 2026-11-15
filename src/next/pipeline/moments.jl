@@ -9,23 +9,24 @@ struct OrbitCoordinates
 end
 const ZERO_ORBIT_COORDINATES = OrbitCoordinates(0,0,0,0)
 
-mutable struct OrbitMoments{W,G,D}
+mutable struct OrbitMoments{W,G,D,C}
     generators::G
     annihilators::D
+    cyclic::C
     cache::Dict{W,OrbitCoordinates}
     representatives::MomentTable{W}
     labels::Vector{MomentLabel{W}}
-    pending::Vector{W}
+    pending::Vector{Tuple{W,Phase,Bool,Bool}}
     relations::Dict{W,Tuple{Phase,Bool}}
     zero_orbit::Bool
     line::Int # -1: complex; otherwise z = im^line * conj(z)
     real_form::Bool
     covered::BitSet
 end
-function OrbitMoments(::Type{W}, generators; annihilators=(),real_form=false) where {W<:AbstractWord}
+function OrbitMoments(::Type{W}, generators; annihilators=(),real_form=false,cyclic=nothing) where {W<:AbstractWord}
     representatives = MomentTable{W}()
-    t = OrbitMoments(generators,annihilators,Dict{W,OrbitCoordinates}(),
-        representatives,representatives.labels,W[],Dict{W,Tuple{Phase,Bool}}(),false,-1,real_form,BitSet([1]))
+    t = OrbitMoments(generators,annihilators,cyclic,Dict{W,OrbitCoordinates}(),
+        representatives,representatives.labels,Tuple{W,Phase,Bool,Bool}[],Dict{W,Tuple{Phase,Bool}}(),false,-1,real_form,BitSet([1]))
     m = orbit_coordinates!(t,one(W))
     m.re == 1 && m.im == 0 && m.real_coefficient == 1 ||
         throw(ArgumentError("A symmetry must fix the identity with phase +1."))
@@ -34,7 +35,7 @@ end
 
 # Relations have the convention L(v) = p * conj^b(L(seed)). A repeated
 # vertex either forces zero or constrains the seed to a real line in C.
-function _orbit_visit!(t, v, p, b)
+function _orbit_relation!(t, v, p, b, head)
     t.zero_orbit |= t.real_form && !isreal(p)
     relation=get(t.relations,v,nothing)
     if !isnothing(relation)
@@ -46,10 +47,25 @@ function _orbit_visit!(t, v, p, b)
             t.zero_orbit |= t.line >= 0 && t.line != line
             t.line = line
         end
+        return false
     else
         t.relations[v] = (p,b)
-        push!(t.pending,v)
+        push!(t.pending,(v,p,b,head))
+        return true
     end
+end
+
+function _orbit_visit!(t,v,p,b)
+    isnothing(t.cyclic) && return _orbit_relation!(t,v,p,b,false)
+    # Close a translation orbit before queueing its normalizer actions.
+    # A repeated vertex still checks its phase and conjugation relation.
+    head=true
+    while _orbit_relation!(t,v,p,b,head)
+        q,v=act(t.cyclic.generator,v)
+        p=conj(q)*p
+        head=false
+    end
+    nothing
 end
 
 function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
@@ -66,13 +82,21 @@ function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
     _orbit_visit!(t,w,one(Phase),false)
     rep=w; i=1
     while i <= length(t.pending)
-        v=t.pending[i]; p,b=t.relations[v]
+        v,p,b,head=t.pending[i]
         isless(v,rep) && (rep=v)
         q,u=star(v)
         _orbit_visit!(t,u,conj(q)*conj(p),!b)
         u,q,c=moment_key(v)
         _orbit_visit!(t,u,(c ? q*conj(p) : conj(q)*p),xor(b,c))
-        for g in t.generators
+        if !isnothing(t.cyclic) && head
+            # g*T*g^-1 = T^±1: one image determines the entire cyclic orbit.
+            for g in t.cyclic.normalizers
+                q,u=act(g,v)
+                _orbit_visit!(t,u,conj(q)*p,b)
+            end
+        end
+        remaining=isnothing(t.cyclic) ? t.generators : t.cyclic.remaining
+        for g in remaining
             q,u=act(g,v)
             anti=is_antiunitary(g)
             _orbit_visit!(t,u,conj(q)*(anti ? conj(p) : p),xor(b,anti))
@@ -99,11 +123,26 @@ function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
             end
         end
     end
-    for v in t.pending
-        p,b=t.relations[v]; conjugated=xor(b,br)
-        phase=p*(conjugated ? pr : conj(pr))
-        t.cache[v]=OrbitCoordinates(re,im_id,scale(phase,conjugated ? conj(alpha) : alpha),
-            scale(phase,conjugated ? conj(beta) : beta))
+    if isnothing(t.cyclic)
+        for (v,p,b,_) in t.pending
+            conjugated=xor(b,br)
+            phase=p*(conjugated ? pr : conj(pr))
+            t.cache[v]=OrbitCoordinates(re,im_id,scale(phase,conjugated ? conj(alpha) : alpha),
+                scale(phase,conjugated ? conj(beta) : beta))
+        end
+    else
+        # Reuse the eight coordinate maps across a lattice orbit's aliases.
+        coordinates=let re=re,im_id=im_id,alpha=alpha,beta=beta,pr=pr
+            ntuple(Val(8)) do i
+                conjugated=i>4
+                phase=Phase(i-1)*(conjugated ? pr : conj(pr))
+                OrbitCoordinates(re,im_id,scale(phase,conjugated ? conj(alpha) : alpha),
+                    scale(phase,conjugated ? conj(beta) : beta))
+            end
+        end
+        for (v,p,b,_) in t.pending
+            t.cache[v]=coordinates[Int(p.k)+1+4xor(b,br)]
+        end
     end
     t.cache[w]
 end
@@ -121,7 +160,7 @@ function moment_terms(t::OrbitMoments{W},w::AbstractWord) where {W}
         # Every represented orbit is cached in full. An unseen orbit may
         # still be forced to zero, including by the annihilator shortcut.
         # Use a scratch table: querying must not grow the solved table.
-        probe=OrbitMoments(W,t.generators;annihilators=t.annihilators,real_form=t.real_form)
+        probe=OrbitMoments(W,t.generators;annihilators=t.annihilators,real_form=t.real_form,cyclic=t.cyclic)
         zero=orbit_coordinates!(probe,packed)
         return zero.re==0 && zero.im==0 ? () : nothing
     end

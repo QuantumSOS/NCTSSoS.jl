@@ -430,6 +430,11 @@ detection solves.
 
 ## Step 5 — Automatic SympleQ detection — and its blind spot
 
+This historical comparison selects `cycle_strategy=:cycle_basis`, the
+incomplete legacy recognizer. The default `:relations` detector now includes
+the term-fixing kernel and finds a larger group, which need not preserve this
+example's truncated row basis. See the manual for the generator-only path.
+
 [`sympleq_symmetry_spec`](@ref) inspects the Hamiltonian itself. It encodes
 the Pauli terms as a binary symplectic tableau, builds a coloured graph
 whose automorphisms preserve coefficients, commutation relations, and
@@ -439,7 +444,7 @@ generators that verifiably leave ``H`` invariant. Details:
 [Clifford Symmetry Detection](@ref clifford-symmetry-detection).
 
 ````julia
-auto_spec = sympleq_symmetry_spec(H);
+auto_spec = sympleq_symmetry_spec(H; cycle_strategy=:cycle_basis);
 length(auto_spec.clifford_generators)
 ````
 
@@ -628,7 +633,7 @@ Now automatic detection — the Hamiltonian has 12 terms, and SympleQ returns
 its verified generators in a fraction of a second:
 
 ````julia
-auto_spec4 = sympleq_symmetry_spec(H4);
+auto_spec4 = sympleq_symmetry_spec(H4; cycle_strategy=:cycle_basis);
 length(auto_spec4.clifford_generators)
 
 auto_config4 = SolverConfig(
@@ -762,7 +767,7 @@ model construction, and the optimizer solve. What they exclude is cold-start
 compilation noise.
 
 ````julia
-warm_spec10 = sympleq_symmetry_spec(H10);
+warm_spec10 = sympleq_symmetry_spec(H10; cycle_strategy=:cycle_basis);
 warm_config10 = SolverConfig(
     optimizer = SILENT_MOSEK,
     order     = 2,
@@ -805,7 +810,7 @@ t_dense10
 ````
 
 ````
-230.585644044
+212.413687856
 ````
 
 Nearly all of that wall-clock time is the interior-point solver itself:
@@ -815,7 +820,7 @@ t_dense_mosek = JuMP.solve_time(dense_result10.model)
 ````
 
 ````
-229.11819428300078
+210.87234177000028
 ````
 
 ### SympleQ detection + symmetry-reduced solve (timed)
@@ -825,7 +830,7 @@ relaxation order, so it stays cheap relative to the solve.
 
 ````julia
 GC.gc()
-t_detect10 = @elapsed auto_spec10 = sympleq_symmetry_spec(H10);
+t_detect10 = @elapsed auto_spec10 = sympleq_symmetry_spec(H10; cycle_strategy=:cycle_basis);
 
 length(auto_spec10.clifford_generators)
 ````
@@ -839,7 +844,7 @@ t_detect10
 ````
 
 ````
-0.004837335
+0.003513073
 ````
 
 Solve with the auto-detected symmetry at order 2:
@@ -895,7 +900,7 @@ t_sym10
 ````
 
 ````
-1.659256261
+1.625474633
 ````
 
 And the solver time hiding inside that total:
@@ -905,7 +910,7 @@ t_sym_mosek = JuMP.solve_time(result10.model)
 ````
 
 ````
-1.0692544169996836
+1.0123611400013033
 ````
 
 ### Comparison
@@ -930,11 +935,11 @@ println("Group order: $(report10.group_order), generators: $(length(auto_spec10.
 ````
 Steady-state timing; warm-up solves discarded
 run       total        of which Mosek   moment vars   PSD blocks
-dense     230.6s      229.1s           20686         [[436]]
-symmetry  1.7s       1.1s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
-  symmetry time = detect 0.0048s + solve 1.7s
-End-to-end speedup: 138.6x
-Solver-only speedup: 214.0x
+dense     212.4s      210.9s           20686         [[436]]
+symmetry  1.6s       1.0s             1421          [51, 40, 25, 20, 25, 20, 25, 30, 50, 50]
+  symmetry time = detect 0.0035s + solve 1.6s
+End-to-end speedup: 130.4x
+Solver-only speedup: 208.0x
 Moment variable reduction: 20686 → 1421
 Objective difference: 6.63e-9
 Group order: 16, generators: 11
@@ -1056,16 +1061,14 @@ Three takeaways:
    remaining overhead — detection plus symmetry-adapted construction —
    grows with the group order, so the largest group is not automatically
    the fastest run.
-2. **Inspection and detection see different things.** Humans spot spatial
-   symmetries (SWAP, translations); SympleQ finds internal, axis-mixing
-   Clifford symmetries that fix no individual term — but can miss Cliffords
-   that fix *every* term, because those induce the identity permutation on
-   the detection graph.
-3. **So use both.** For production runs, start from
-   `sympleq_symmetry_spec(H)` and splice in the structural generators you
-   know: `SymmetrySpec(auto.clifford_generators..., your_gates...)`. The
-   union is often strictly stronger than either part — as a *reduction*;
-   check Step 7's caveat before assuming it is also faster end-to-end.
+2. **The legacy detector is incomplete.** This example explicitly uses
+   `cycle_strategy=:cycle_basis`; it can miss both term-moving and
+   term-fixing Cliffords. Its group orders are not full stabilizer orders.
+3. **Use the complete detector with a closed row basis.** The default
+   `sympleq_symmetry_spec(H)` includes the term-fixing kernel. Some detected
+   generators can increase word degree, so a truncated basis may fail closure.
+   Select `clifford_backend=:generators` to avoid group enumeration in dense
+   reduction; see the manual for a full two-site example and current limits.
 
 ---
 

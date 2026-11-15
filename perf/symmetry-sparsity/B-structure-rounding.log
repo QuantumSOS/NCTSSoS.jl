@@ -1,0 +1,20 @@
+RING n=4 energy=-1.9999999999999978 scaled_to_20=-9.99999999999999 eigen_residual=2.7228500546292417e-15
+RING n=6 energy=-2.802775637731988 scaled_to_20=-9.342585459106628 eigen_residual=6.626286871321338e-15
+RING n=8 energy=-3.6510934089371743 scaled_to_20=-9.127733522342936 eigen_residual=3.4441486783395795e-15
+RING n=6 energy=-2.802775637731988 scaled_to_20=-9.342585459106628 eigen_residual=6.626286871321338e-15
+SIX_SITE_XX [-0.6228390306071101, 0.2773500981126145, -0.3090221350110093, 0.2773500981126146, -0.6228390306071101]
+LP_DIAGNOSTIC known=4 margin=0.10361307477029293 weight_min=-1.9533165876417246e-10 weight_max=0.4191074265598784 weight_sum=1.0
+ERROR: LoadError: AssertionError: minimum(weights) > -1.0e-10 && abs(sum(weights) - 1) < 1.0e-10
+Stacktrace:
+ [1] run()
+   @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/B_structure.jl:35
+ [2] top-level scope
+   @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/B_structure.jl:78
+ [3] include(mod::Module, _path::String)
+   @ Base ./Base.jl:306
+ [4] exec_options(opts::Base.JLOptions)
+   @ Base ./client.jl:317
+ [5] _start()
+   @ Base ./client.jl:550
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/B_structure.jl:78
+elapsed_seconds=53.569 peak_RSS_GiB=1.105

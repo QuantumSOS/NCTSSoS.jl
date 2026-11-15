@@ -1,0 +1,51 @@
+BEGIN input
+END input seconds=2.635350465 allocated_bytes=95450560
+BEGIN symmetry
+END symmetry seconds=30.685675911 allocated_bytes=769977792
+BEGIN row_closure
+END row_closure seconds=4.930107847 allocated_bytes=643994608
+BEGIN signed_row_actions
+END signed_row_actions seconds=4.031053016 allocated_bytes=686848768
+BEGIN sparsity
+
+[90091] signal 15: Terminated
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:148
+< at ./int.jl:519 [inlined]
+iterate at ./array.jl:901 [inlined]
+hash at ./abstractarray.jl:3585
+hash at ./hashing.jl:28 [inlined]
+hashindex at ./dict.jl:128 [inlined]
+ht_keyindex at ./dict.jl:242
+getindex at ./dict.jl:476 [inlined]
+#complete_graphs!#25 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:180
+complete_graphs! at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:156 [inlined]
+#term_blocks#21 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:153
+term_blocks at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:142
+unknown function (ip: 0x7f2927b20f7c) at (unknown file)
+#run##18 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:71
+macro expansion at ./timing.jl:697 [inlined]
+stage at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:26
+unknown function (ip: 0x7f2927b155fd) at (unknown file)
+run at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:61
+top-level scope at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:153
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1024
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+include_string at ./loading.jl:2952
+_include at ./loading.jl:3012
+include at ./Base.jl:306
+exec_options at ./client.jl:317
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7f296c44cca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 321288402 (Pool: 321287751; Big: 651); GC: 3599
+LIMIT_EXCEEDED: 16 GiB RSS or 600 s

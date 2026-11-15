@@ -1,0 +1,36 @@
+BEGIN input
+END input seconds=1.841671527 allocated_bytes=95739776
+BEGIN symmetry
+END symmetry seconds=0.588216686 allocated_bytes=23450016
+BEGIN row_closure
+END row_closure seconds=0.008027263 allocated_bytes=3735400
+BEGIN signed_row_actions
+END signed_row_actions seconds=0.344835887 allocated_bytes=22241880
+BEGIN sparsity
+END sparsity seconds=8.527e-6 allocated_bytes=19400
+BEGIN moment_coordinates
+END moment_coordinates seconds=24.506729442 allocated_bytes=5697308472
+BEGIN block_orbits_stabilizers
+END block_orbits_stabilizers seconds=0.001164394 allocated_bytes=1120312
+BEGIN decomposition
+END decomposition seconds=16.059496726 allocated_bytes=2595342232
+BEGIN symbolic_assembly
+END symbolic_assembly seconds=70.539363069 allocated_bytes=12843371448
+BEGIN solve
+END solve seconds=240.956397995 allocated_bytes=966706936
+ERROR: LoadError: solver did not report OPTIMAL
+Stacktrace:
+ [1] error(s::String)
+   @ Base ./error.jl:44
+ [2] run(sample::Dict{String, Any})
+   @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:112
+ [3] top-level scope
+   @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:159
+ [4] include(mod::Module, _path::String)
+   @ Base ./Base.jl:306
+ [5] exec_options(opts::Base.JLOptions)
+   @ Base ./client.jl:317
+ [6] _start()
+   @ Base ./client.jl:550
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:154
+elapsed_seconds=398.471 peak_RSS_GiB=6.718

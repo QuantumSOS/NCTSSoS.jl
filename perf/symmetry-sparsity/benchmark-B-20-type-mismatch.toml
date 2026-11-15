@@ -1,0 +1,45 @@
+group_enumeration = false
+route = "B"
+numeric_projection = true
+moment_limit = 2000000
+form = "explicit dual, realified Hermitian PSD"
+julia_threads = 1
+julia = "1.12.7"
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+blas_threads = 4
+n = 20
+
+[[samples]]
+generators = 4
+status = "running"
+active_stage = "moment_coordinates"
+rows = 2401
+largest_before_reduction = 2401
+sample = 0
+blocks_before_reduction = 1
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 2.07592217
+    allocated_bytes = 95696624
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.0
+    seconds = 2.570939435
+    allocated_bytes = 89252552
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.198916469
+    seconds = 1.161542123
+    allocated_bytes = 427965736
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.094792221
+    seconds = 1.443425145
+    allocated_bytes = 456455072
+    [[samples.stages]]
+    name = "sparsity"
+    gc_seconds = 0.0
+    seconds = 6.654e-6
+    allocated_bytes = 19400

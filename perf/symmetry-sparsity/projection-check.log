@@ -1,0 +1,5 @@
+PROJECTION_BOUNDS [-1.9999999998257063, -1.9999999998256563]
+Test Summary:                 | Pass  Total   Time
+Sparse coefficient projection |    7      7  53.9s
+PROJECTION_CHECK_PASSED
+elapsed_seconds=67.576 peak_RSS_GiB=1.041

@@ -1,0 +1,55 @@
+BEGIN input
+END input seconds=2.07592217 allocated_bytes=95696624
+BEGIN symmetry
+END symmetry seconds=2.570939435 allocated_bytes=89252552
+BEGIN row_closure
+END row_closure seconds=1.161542123 allocated_bytes=427965736
+BEGIN signed_row_actions
+END signed_row_actions seconds=1.443425145 allocated_bytes=456455072
+BEGIN sparsity
+END sparsity seconds=6.654e-6 allocated_bytes=19400
+BEGIN moment_coordinates
+
+[96685] signal 2: Interrupt
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:152
+_clifford_letter_action at /home/user/workspace/repo/src/optimization/symmetry.jl:274
+_assert_clifford_preserves_local_product at /home/user/workspace/repo/src/optimization/symmetry.jl:292
+_validate_clifford_symmetry at /home/user/workspace/repo/src/optimization/symmetry.jl:783
+_validate_clifford_symmetry at /home/user/workspace/repo/src/optimization/symmetry.jl:709 [inlined]
+CliffordSymmetry at /home/user/workspace/repo/src/optimization/symmetry.jl:182 [inlined]
+#CliffordSymmetry#348 at /home/user/workspace/repo/src/optimization/symmetry.jl:369
+CliffordSymmetry at /home/user/workspace/repo/src/optimization/symmetry.jl:334 [inlined]
+#_convert_clifford_symmetry#352 at /home/user/workspace/repo/src/optimization/symmetry.jl:536
+_convert_clifford_symmetry at /home/user/workspace/repo/src/optimization/symmetry.jl:520 [inlined]
+_act_monomial at /home/user/workspace/repo/src/optimization/symmetry.jl:571
+unknown function (ip: 0x7f1d6b9bd898) at (unknown file)
+#moment_coordinates#41 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:214
+moment_coordinates at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:195
+unknown function (ip: 0x7f1d6b9c5280) at (unknown file)
+#run##20 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:86
+macro expansion at ./timing.jl:697 [inlined]
+stage at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:30
+unknown function (ip: 0x7f1d6b9c3e58) at (unknown file)
+run at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:85
+top-level scope at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:157
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1024
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+include_string at ./loading.jl:2952
+_include at ./loading.jl:3012
+include at ./Base.jl:306
+exec_options at ./client.jl:317
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7f1d86c8bca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 6192167352 (Pool: 6192166817; Big: 535); GC: 702
+elapsed_seconds=588.094 peak_RSS_GiB=1.726

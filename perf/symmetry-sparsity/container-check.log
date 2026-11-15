@@ -1,0 +1,50 @@
+
+[85376] signal 15: Terminated
+in expression starting at none:1
+egal_types at /cache/build/builder-amdci5-2/julialang/julia-ci/src/builtins.c:180 [inlined]
+jl_types_egal at /cache/build/builder-amdci5-2/julialang/julia-ci/src/builtins.c:228
+ijl_types_equal at /cache/build/builder-amdci5-2/julialang/julia-ci/src/subtype.c:2357
+_typename_add_backedge at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:2306
+jl_foreach_top_typename_for at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:878 [inlined]
+ijl_method_table_add_backedge at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:2328
+store_backedges at ./../usr/share/julia/Compiler/src/typeinfer.jl:641
+finish! at ./../usr/share/julia/Compiler/src/typeinfer.jl:113
+jfptr_finishNOT._79566.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+finish_nocycle at ./../usr/share/julia/Compiler/src/typeinfer.jl:205
+jfptr_finish_nocycle_83325.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+typeinf at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:4522
+typeinf_ext at ./../usr/share/julia/Compiler/src/typeinfer.jl:1256
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1439 [inlined]
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1448
+jfptr_typeinf_ext_toplevel_83556.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+jl_type_infer at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:466
+jl_compile_method_internal at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:3516
+_jl_invoke at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4006 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4214
+union! at ./abstractset.jl:106
+Set at ./set.jl:47 [inlined]
+_Set at ./set.jl:59 [inlined]
+Set at ./set.jl:58 [inlined]
+#block_orbits#13 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:95
+block_orbits at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:94
+unknown function (ip: 0x7f3971721c60) at (unknown file)
+top-level scope at ./timing.jl:697
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1024
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+exec_options at ./client.jl:283
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7f398cb08ca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 142558194 (Pool: 142543803; Big: 14391); GC: 26

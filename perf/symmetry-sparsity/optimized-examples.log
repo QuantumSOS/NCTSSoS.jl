@@ -1,0 +1,101 @@
+julia --project docs/generate_examples.jl
+  Activating project at `~/workspace/repo/docs`
+   Resolving package versions...
+    Updating `~/workspace/repo/docs/Project.toml`
+  [bfd54a76] ~ NCTSSoS v0.1.0 `..` ⇒ v0.1.0 `~/workspace/repo`
+    Updating `~/workspace/repo/docs/Manifest.toml`
+  [bfd54a76] ~ NCTSSoS v0.1.0 `..` ⇒ v0.1.0 `~/workspace/repo`
+Precompiling packages...
+  12553.7 ms  ✓ NCTSSoS
+  1 dependency successfully precompiled in 14 seconds. 435 already precompiled.
+  24 dependencies precompiled but different versions are currently loaded (ArgTools, Base64, Dates, Downloads, JuliaSyntaxHighlighting, LibCURL, LibCURL_jll, LibGit2, LibGit2_jll, LibSSH2_jll, Logging, Markdown, MozillaCACerts_jll, NetworkOptions, OpenSSL_jll, Pkg, Printf, StyledStrings, TOML, Tar, UUIDs, Zlib_jll, nghttp2_jll and p7zip_jll). Restart julia to access the new versions. Otherwise, 274 dependents of these packages may trigger further precompilation to work with the unexpected versions.
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/bell.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/bell.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/bosonic_ground_state.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/bosonic_ground_state.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/certify_ground_state_property.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/certify_ground_state_property.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/chsh_gns_reconstruction.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/chsh_gns_reconstruction.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/chsh_symmetry.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/chsh_symmetry.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/fermionic_ground_state.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/fermionic_ground_state.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/gns_construction_guide.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/gns_construction_guide.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/gns_optimizer_extraction.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/gns_optimizer_extraction.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/ground_state_energy.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/ground_state_energy.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/hubbard_filling_scan.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/hubbard_filling_scan.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/hubbard_model.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/hubbard_model.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/kitaev_chain.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/kitaev_chain.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/mixed_algebras_tensor_products.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/mixed_algebras_tensor_products.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/monoid_algebras_showcase.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/monoid_algebras_showcase.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/newton_chip_method.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/newton_chip_method.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/pauli_algebra_interface.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/pauli_algebra_interface.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/pauli_clifford_symmetry.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/pauli_clifford_symmetry.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/pauli_gns_construction.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/pauli_gns_construction.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/pbw_algebras_showcase.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/pbw_algebras_showcase.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/sparsity_convergence.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/sparsity_convergence.md`
+[ Info: generating markdown page from `~/workspace/repo/docs/src/examples/literate/trace_poly.jl`
+[ Info: writing result to `~/workspace/repo/docs/src/examples/generated/trace_poly.md`
+Generating markdown files from Literate.jl examples...
+Source directory: /home/user/workspace/repo/docs/src/examples/literate
+Output directory: /home/user/workspace/repo/docs/src/examples/generated
+Processing: bell.jl
+  Generated: bell.md
+Processing: bosonic_ground_state.jl
+  Generated: bosonic_ground_state.md
+Processing: certify_ground_state_property.jl
+  Generated: certify_ground_state_property.md
+Processing: chsh_gns_reconstruction.jl
+  Generated: chsh_gns_reconstruction.md
+Processing: chsh_symmetry.jl
+  Generated: chsh_symmetry.md
+Processing: fermionic_ground_state.jl
+  Generated: fermionic_ground_state.md
+Processing: gns_construction_guide.jl
+  Generated: gns_construction_guide.md
+Processing: gns_optimizer_extraction.jl
+  Generated: gns_optimizer_extraction.md
+Processing: ground_state_energy.jl
+  Generated: ground_state_energy.md
+Processing: hubbard_filling_scan.jl
+  Generated: hubbard_filling_scan.md
+Processing: hubbard_model.jl
+  Generated: hubbard_model.md
+Processing: kitaev_chain.jl
+  Generated: kitaev_chain.md
+Processing: mixed_algebras_tensor_products.jl
+  Generated: mixed_algebras_tensor_products.md
+Processing: monoid_algebras_showcase.jl
+  Generated: monoid_algebras_showcase.md
+Processing: newton_chip_method.jl
+  Generated: newton_chip_method.md
+Processing: pauli_algebra_interface.jl
+  Generated: pauli_algebra_interface.md
+Processing: pauli_clifford_symmetry.jl
+  Generated: pauli_clifford_symmetry.md
+Processing: pauli_gns_construction.jl
+  Generated: pauli_gns_construction.md
+Processing: pbw_algebras_showcase.jl
+  Generated: pbw_algebras_showcase.md
+Processing: sparsity_convergence.jl
+  Generated: sparsity_convergence.md
+Processing: trace_poly.jl
+  Generated: trace_poly.md
+
+Markdown generation complete!
+Elapsed 1128.39 s

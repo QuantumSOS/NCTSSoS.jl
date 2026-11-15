@@ -1,0 +1,39 @@
+BEGIN input
+END input seconds=2.605760313 allocated_bytes=95503792
+BEGIN symmetry
+END symmetry seconds=2.704e-6 allocated_bytes=32
+BEGIN row_closure
+END row_closure seconds=0.000389647 allocated_bytes=56424
+BEGIN signed_row_actions
+END signed_row_actions seconds=0.166170834 allocated_bytes=12452712
+BEGIN sparsity
+END sparsity seconds=7.906e-6 allocated_bytes=19400
+BEGIN moment_coordinates
+ERROR: LoadError: item limit: 1910941 > 100000; no partial result
+Stacktrace:
+  [1] check
+    @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:18 [inlined]
+  [2] check
+    @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:17 [inlined]
+  [3] moment_coordinates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}, rows::Vector{NormalMonomial{PauliAlgebra, UInt8}}, groups::Vector{Vector{Int64}}, gs::Vector{CliffordSymmetry}; budget::Main.SymmetrySparsityExperiment.Budget)
+    @ Main.SymmetrySparsityExperiment ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:203
+  [4] moment_coordinates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}, rows::Vector{NormalMonomial{PauliAlgebra, UInt8}}, groups::Vector{Vector{Int64}}, gs::Vector{CliffordSymmetry})
+    @ Main.SymmetrySparsityExperiment ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:195
+  [5] (::var"#run##20#run##21"{Vector{Vector{Int64}}, Vector{NormalMonomial{PauliAlgebra, UInt8}}, Vector{CliffordSymmetry}})()
+    @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:82
+  [6] macro expansion
+    @ ./timing.jl:697 [inlined]
+  [7] stage(f::var"#run##20#run##21"{Vector{Vector{Int64}}, Vector{NormalMonomial{PauliAlgebra, UInt8}}, Vector{CliffordSymmetry}}, label::String, sample::Dict{String, Any})
+    @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:26
+  [8] run(sample::Dict{String, Any})
+    @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:81
+  [9] top-level scope
+    @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:153
+ [10] include(mod::Module, _path::String)
+    @ Base ./Base.jl:306
+ [11] exec_options(opts::Base.JLOptions)
+    @ Base ./client.jl:317
+ [12] _start()
+    @ Base ./client.jl:550
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:148
+elapsed_seconds=50.581 peak_RSS_GiB=1.245

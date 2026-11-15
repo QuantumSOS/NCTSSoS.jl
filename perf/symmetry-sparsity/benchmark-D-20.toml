@@ -1,0 +1,36 @@
+julia_threads = 1
+julia = "1.12.7"
+form = "explicit dual, realified Hermitian PSD"
+group_enumeration = false
+route = "D"
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+blas_threads = 4
+n = 20
+
+[[samples]]
+generators = 67
+status = "running"
+active_stage = "sparsity"
+rows = 7801
+sample = 0
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 2.635350465
+    allocated_bytes = 95450560
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.113146948
+    seconds = 30.685675911
+    allocated_bytes = 769977792
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.25553885
+    seconds = 4.930107847
+    allocated_bytes = 643994608
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.136932045
+    seconds = 4.031053016
+    allocated_bytes = 686848768

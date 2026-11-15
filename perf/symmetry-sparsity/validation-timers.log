@@ -1,0 +1,79 @@
+MOSEK_LICENSE_SOLVE_PASS
+ASSEMBLE reduced=false groups=1 max=16
+SOLVE reduced=false sizes=[16]
+ASSEMBLE reduced=false groups=1 max=16
+SOLVE reduced=false sizes=[16]
+ASSEMBLE reduced=true groups=1 max=16
+SOLVE reduced=true sizes=[16]
+ASSEMBLE reduced=true groups=1 max=16
+SOLVE reduced=true sizes=[16]
+CASE n=2 degree=2 window=2
+ROWS 16
+PARENTS 1
+TERM D
+TERM F
+ASSEMBLE reduced=true groups=1 max=16
+SOLVE reduced=true sizes=[1, 2, 1, 1, 1]
+ASSEMBLE reduced=false groups=1 max=16
+SOLVE reduced=false sizes=[16]
+ASSEMBLE reduced=false groups=1 max=16
+SOLVE reduced=false sizes=[16]
+PASS Dict{String, Any}("route" => "E", "reduced_sizes" => [1, 2, 1, 1, 1], "unreduced_bound" => -0.7499999999996084, "blocks" => 1, "dual_bound" => -0.7499999998130582, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.7499999998854943, "minimum_full_block_eigenvalue" => 1.526739011437671e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+ASSEMBLE reduced=true groups=4 max=4
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1]
+ASSEMBLE reduced=false groups=4 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4]
+ASSEMBLE reduced=false groups=4 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4]
+PASS Dict{String, Any}("route" => "D", "reduced_sizes" => [2, 1, 1, 1, 1], "unreduced_bound" => -0.7499999999996084, "blocks" => 4, "dual_bound" => -0.7499999998130585, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.7499999998854945, "minimum_full_block_eigenvalue" => 1.5267402639127255e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+ASSEMBLE reduced=true groups=4 max=4
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1]
+ASSEMBLE reduced=false groups=4 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4]
+ASSEMBLE reduced=false groups=4 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4]
+PASS Dict{String, Any}("route" => "F", "reduced_sizes" => [2, 1, 1, 1, 1], "unreduced_bound" => -0.7499999999996084, "blocks" => 4, "dual_bound" => -0.7499999998130585, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.7499999998854945, "minimum_full_block_eigenvalue" => 1.5267402639127255e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+CASE n=4 degree=2 window=2
+ROWS 157
+PARENTS 32
+TERM D
+TERM F
+ASSEMBLE reduced=true groups=32 max=16
+SOLVE reduced=true sizes=[1, 2, 2, 1, 1]
+ASSEMBLE reduced=false groups=32 max=16
+SOLVE reduced=false sizes=[16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
+PASS Dict{String, Any}("route" => "E", "reduced_sizes" => [1, 2, 2, 1, 1], "unreduced_bound" => -2.9999999999973244, "blocks" => 32, "dual_bound" => -2.999999996736207, "window" => 2, "variables" => 2, "rows" => 157, "reduced_bound" => -2.999999998565386, "minimum_full_block_eigenvalue" => 1.1594390649602786e-10, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+ASSEMBLE reduced=true groups=4 max=48
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 3, 2, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1]
+ASSEMBLE reduced=false groups=4 max=48
+SOLVE reduced=false sizes=[13, 48, 48, 48]
+PASS Dict{String, Any}("route" => "D", "reduced_sizes" => [2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 3, 2, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1], "unreduced_bound" => -1.999999996570864, "blocks" => 4, "dual_bound" => -1.9999999987441723, "window" => 2, "variables" => 6, "rows" => 157, "reduced_bound" => -1.9999999988201103, "minimum_full_block_eigenvalue" => 1.19771532280314e-10, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+ASSEMBLE reduced=true groups=52 max=4
+SOLVE reduced=true sizes=[2, 1, 2, 1, 1]
+ASSEMBLE reduced=false groups=52 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+PASS Dict{String, Any}("route" => "F", "reduced_sizes" => [2, 1, 2, 1, 1], "unreduced_bound" => -2.999999999997575, "blocks" => 52, "dual_bound" => -2.9999999967362063, "window" => 2, "variables" => 2, "rows" => 157, "reduced_bound" => -2.999999998565384, "minimum_full_block_eigenvalue" => 1.1594452308671016e-10, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+CASE n=4 degree=4 window=4
+ROWS 250
+PARENTS 8
+TERM D
+TERM F
+ASSEMBLE reduced=true groups=8 max=238
+SOLVE reduced=true sizes=[7, 9, 5, 6, 3, 5, 5, 3, 6, 4, 4, 1, 3, 1, 3, 2, 2, 1, 2, 1, 1, 2]
+ASSEMBLE reduced=false groups=8 max=238
+SOLVE reduced=false sizes=[238, 238, 238, 238, 238, 238, 238, 238]
+PASS Dict{String, Any}("route" => "E", "reduced_sizes" => [7, 9, 5, 6, 3, 5, 5, 3, 6, 4, 4, 1, 3, 1, 3, 2, 2, 1, 2, 1, 1, 2], "unreduced_bound" => -1.9999999998553963, "blocks" => 8, "dual_bound" => -1.9999999994284163, "window" => 4, "variables" => 6, "rows" => 250, "reduced_bound" => -1.999999999436306, "minimum_full_block_eigenvalue" => 1.9739060924598936e-10, "degree" => 4, "exact_energy" => -1.9999999999999996, "n" => 4)
+ASSEMBLE reduced=true groups=6 max=64
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1, 1, 1, 2, 3, 1, 3, 2, 3, 2, 1, 3, 4, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 4, 4, 1, 2, 2, 1, 1, 1, 1, 1, 2, 2, 3, 3, 4, 2, 2, 2, 1, 1, 1]
+ASSEMBLE reduced=false groups=6 max=64
+SOLVE reduced=false sizes=[13, 64, 64, 64, 51, 45]
+PASS Dict{String, Any}("route" => "D", "reduced_sizes" => [2, 1, 1, 1, 1, 1, 1, 2, 3, 1, 3, 2, 3, 2, 1, 3, 4, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 4, 4, 1, 2, 2, 1, 1, 1, 1, 1, 2, 2, 3, 3, 4, 2, 2, 2, 1, 1, 1], "unreduced_bound" => -1.9999999996725109, "blocks" => 6, "dual_bound" => -1.9999999971058182, "window" => 4, "variables" => 6, "rows" => 250, "reduced_bound" => -1.999999997158567, "minimum_full_block_eigenvalue" => 5.744522535563281e-10, "degree" => 4, "exact_energy" => -1.9999999999999996, "n" => 4)
+ASSEMBLE reduced=true groups=15 max=60
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1, 1, 6, 5, 3, 7, 9, 6, 3, 4, 1, 1, 3, 3, 3, 4, 4, 1, 2, 2, 1, 1, 1, 1, 1, 2, 2, 3, 3, 4, 2, 2, 2, 1, 1, 1]
+ASSEMBLE reduced=false groups=15 max=60
+SOLVE reduced=false sizes=[13, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 51, 45]
+PASS Dict{String, Any}("route" => "F", "reduced_sizes" => [2, 1, 1, 1, 1, 1, 6, 5, 3, 7, 9, 6, 3, 4, 1, 1, 3, 3, 3, 4, 4, 1, 2, 2, 1, 1, 1, 1, 1, 2, 2, 3, 3, 4, 2, 2, 2, 1, 1, 1], "unreduced_bound" => -1.999999999839894, "blocks" => 15, "dual_bound" => -1.9999999826046513, "window" => 4, "variables" => 6, "rows" => 250, "reduced_bound" => -1.999999982822968, "minimum_full_block_eigenvalue" => 4.950601043855337e-9, "degree" => 4, "exact_energy" => -1.9999999999999996, "n" => 4)
+Test Summary:                             | Pass  Total     Time
+Small-system symmetry-sparsity validation |  722    722  2m24.4s
+ALL_VALIDATION_PASSED
+elapsed_seconds=161.735 peak_RSS_GiB=2.079

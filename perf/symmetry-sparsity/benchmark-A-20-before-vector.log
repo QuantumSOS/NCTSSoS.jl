@@ -1,0 +1,103 @@
+BEGIN input
+END input seconds=2.362873929 allocated_bytes=95494944
+BEGIN symmetry
+END symmetry seconds=4.56e-7 allocated_bytes=32
+BEGIN row_closure
+END row_closure seconds=0.000534574 allocated_bytes=56424
+BEGIN signed_row_actions
+END signed_row_actions seconds=0.177556963 allocated_bytes=12441640
+BEGIN sparsity
+END sparsity seconds=0.018703852 allocated_bytes=631408
+
+======================================================================================
+Information request received. A stacktrace will print followed by a 1.0 second profile
+======================================================================================
+
+cmd: /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/bin/julia 84436 running 1 of 1
+
+signal (10): User defined signal 1
+gc_page_data at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.h:332 [inlined]
+jl_gc_small_alloc_inner at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:739 [inlined]
+ijl_gc_small_alloc at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:776
+already_inserted_ssa at ./../usr/share/julia/Compiler/src/ssair/passes.jl:363 [inlined]
+process_node! at ./../usr/share/julia/Compiler/src/ssair/ir.jl:1467
+iterate_compact at ./../usr/share/julia/Compiler/src/ssair/ir.jl:1955
+iterate at ./../usr/share/julia/Compiler/src/ssair/ir.jl:1877 [inlined]
+ir_inline_item! at ./../usr/share/julia/Compiler/src/ssair/inlining.jl:438
+batch_inline! at ./../usr/share/julia/Compiler/src/ssair/inlining.jl:663
+ssa_inlining_pass! at ./../usr/share/julia/Compiler/src/ssair/inlining.jl:79 [inlined]
+run_passes_ipo_safe at ./../usr/share/julia/Compiler/src/optimize.jl:1013
+run_passes_ipo_safe at ./../usr/share/julia/Compiler/src/optimize.jl:1027 [inlined]
+optimize at ./../usr/share/julia/Compiler/src/optimize.jl:1002
+jfptr_optimize_82151.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+finish_nocycle at ./../usr/share/julia/Compiler/src/typeinfer.jl:202
+jfptr_finish_nocycle_83325.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+typeinf at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:4522
+typeinf_ext at ./../usr/share/julia/Compiler/src/typeinfer.jl:1256
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1439 [inlined]
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1448
+jfptr_typeinf_ext_toplevel_83556.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+jl_type_infer at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:466
+jl_compile_method_internal at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:3516
+_jl_invoke at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4006 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4214
+run at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:80
+top-level scope at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:152
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1024
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+include_string at ./loading.jl:2952
+_include at ./loading.jl:3012
+include at ./Base.jl:306
+exec_options at ./client.jl:317
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7fe1da2c3ca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+
+==============================================================
+Profile collected. A report will print at the next yield point
+==============================================================
+
+BEGIN block_orbits_stabilizers
+END block_orbits_stabilizers seconds=0.043913435 allocated_bytes=1464832
+BEGIN decomposition
+END decomposition seconds=5.871061376 allocated_bytes=301897368
+BEGIN moment_coordinates
+ERROR: LoadError: item limit; no partial result
+Stacktrace:
+  [1] check
+    @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:18 [inlined]
+  [2] check
+    @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:17 [inlined]
+  [3] moment_coordinates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}, rows::Vector{NormalMonomial{PauliAlgebra, UInt8}}, groups::Vector{NTuple{2401, Int64}}, gs::Vector{CliffordSymmetry}; budget::Main.SymmetrySparsityExperiment.Budget)
+    @ Main.SymmetrySparsityExperiment ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:199
+  [4] moment_coordinates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}, rows::Vector{NormalMonomial{PauliAlgebra, UInt8}}, groups::Vector{NTuple{2401, Int64}}, gs::Vector{CliffordSymmetry})
+    @ Main.SymmetrySparsityExperiment ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:191
+  [5] (::var"#run##28#run##29"{Vector{NTuple{2401, Int64}}, Vector{NormalMonomial{PauliAlgebra, UInt8}}, Vector{CliffordSymmetry}})()
+    @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:89
+  [6] macro expansion
+    @ ./timing.jl:697 [inlined]
+  [7] stage(f::var"#run##28#run##29"{Vector{NTuple{2401, Int64}}, Vector{NormalMonomial{PauliAlgebra, UInt8}}, Vector{CliffordSymmetry}}, label::String, sample::Dict{String, Any})
+    @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:26
+  [8] run(sample::Dict{String, Any})
+    @ Main ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:88
+  [9] top-level scope
+    @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:152
+ [10] include(mod::Module, _path::String)
+    @ Base ./Base.jl:306
+ [11] exec_options(opts::Base.JLOptions)
+    @ Base ./client.jl:317
+ [12] _start()
+    @ Base ./client.jl:550
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:147
+elapsed_seconds=242.799 peak_RSS_GiB=4.406

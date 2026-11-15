@@ -1,0 +1,393 @@
+[ Info: SetupBuildDirectory: setting up build directory.
+[ Info: Doctest: running doctests.
+[ Info: Skipped ExpandTemplates step (doctest only).
+[ Info: Skipped CrossReferences step (doctest only).
+[ Info: Skipped CheckDocument step (doctest only).
+[ Info: Skipped Populate step (doctest only).
+[ Info: Skipped RenderDocument step (doctest only).
+┌ Warning: Bliss backend is not wired yet; using the in-tree backtracking automorphism solver.
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/automorphism.jl:168
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig)
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:961
+│      [7] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [8] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [9] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:579 [inlined]
+│     [10] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [11] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [12] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [13] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [14] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [15] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [16] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [17] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [18] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [19] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [20] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig)
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:961
+│      [7] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [8] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [9] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:579 [inlined]
+│     [10] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [11] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [12] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [13] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [14] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [15] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [16] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [17] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [18] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [19] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [20] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig)
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:961
+│      [7] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [8] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [9] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:579 [inlined]
+│     [10] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [11] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [12] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [13] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [14] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [15] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [16] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [17] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [18] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [19] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [20] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig)
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:961
+│      [7] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [8] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [9] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:579 [inlined]
+│     [10] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [11] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [12] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [13] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [14] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [15] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [16] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [17] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [18] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [19] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [20] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [7] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [8] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│      [9] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:774 [inlined]
+│     [10] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│     [11] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [12] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [13] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [14] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [15] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [16] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [17] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [18] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [19] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [20] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [21] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [7] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [8] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│      [9] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:774 [inlined]
+│     [10] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│     [11] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [12] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [13] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [14] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [15] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [16] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [17] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [18] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [19] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [20] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [21] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [7] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [8] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│      [9] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:774 [inlined]
+│     [10] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│     [11] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [12] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [13] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [14] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [15] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [16] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [17] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [18] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [19] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [20] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [21] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Skipping SympleQ generator whose phase lift is not representable as a CliffordSymmetry.
+│   exception =
+│    ArgumentError: SympleQ phase equations are inconsistent for this graph automorphism.
+│    Stacktrace:
+│      [1] _sympleq_phase_vectors_for_hamiltonian(tab::SymplecticTableau{UInt8, ComplexF64}, generator::SympleQGenerator; include_inactive::Bool)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:218
+│      [2] _sympleq_phase_vectors_for_hamiltonian
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:193 [inlined]
+│      [3] _sympleq_clifford_candidates(H::Polynomial{PauliAlgebra, UInt8, ComplexF64}; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_search_nodes::Int64)
+│        @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:308
+│      [4] _sympleq_clifford_candidates
+│        @ ~/workspace/repo/src/sympleq/bridge.jl:276 [inlined]
+│      [5] continuous_moment_relaxation(pop::PolyOpt{PauliAlgebra, UInt8, Polynomial{PauliAlgebra, UInt8, ComplexF64}}, config::SolverConfig; cycle_strategy::Symbol, ga_backend::Symbol, max_automorphisms::Int64, max_group_order::Int64, kwargs::@Kwargs{})
+│        @ NCTSSoS ~/workspace/repo/src/optimization/continuous_reduction.jl:967
+│      [6] top-level scope
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:543
+│      [7] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│      [8] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│      [9] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:774 [inlined]
+│     [10] macro expansion
+│        @ ~/workspace/repo/test/relaxations/continuous_reduction.jl:595 [inlined]
+│     [11] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [12] top-level scope
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:14
+│     [13] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [14] macro expansion
+│        @ ~/workspace/repo/test/relaxations/runtests.jl:23 [inlined]
+│     [15] include(mapexpr::Function, mod::Module, _path::String)
+│        @ Base ./Base.jl:307
+│     [16] top-level scope
+│        @ ~/workspace/repo/test/runtests.jl:9
+│     [17] macro expansion
+│        @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+│     [18] macro expansion
+│        @ ~/workspace/repo/test/runtests.jl:21 [inlined]
+│     [19] include(mod::Module, _path::String)
+│        @ Base ./Base.jl:306
+│     [20] exec_options(opts::Base.JLOptions)
+│        @ Base ./client.jl:317
+│     [21] _start()
+│        @ Base ./client.jl:550
+└ @ NCTSSoS ~/workspace/repo/src/sympleq/bridge.jl:310
+┌ Warning: Flatness condition violated: rank(H) = 14 ≠ rank(hankel_block) = 7. The full Hankel matrix is not a flat extension of the principal block.
+└ @ NCTSSoS ~/workspace/repo/src/optimization/gns.jl:250
+┌ Warning: Solver stopped early; no bound is reported (objective = NaN). result.model holds the solver state.
+│   termination = ITERATION_LIMIT::TerminationStatusCode = 11
+│   primal = NEARLY_FEASIBLE_POINT::ResultStatusCode = 2
+│   dual = INFEASIBLE_POINT::ResultStatusCode = 3
+└ @ NCTSSoS ~/workspace/repo/src/optimization/interface.jl:202
+┌ Warning: AsIsElimination: the sparsity graph is not chordal. The resulting clique decomposition may violate the Running Intersection Property and produce invalid bounds. Use `MF()` or `MMD()` instead.
+└ @ NCTSSoS ~/workspace/repo/src/optimization/elimination.jl:117
+┌ Warning: AsIsElimination: the sparsity graph is not chordal. The resulting clique decomposition may violate the Running Intersection Property and produce invalid bounds. Use `MF()` or `MMD()` instead.
+└ @ NCTSSoS ~/workspace/repo/src/optimization/elimination.jl:117
+┌ Warning: AsIsElimination: the sparsity graph is not chordal. The resulting clique decomposition may violate the Running Intersection Property and produce invalid bounds. Use `MF()` or `MMD()` instead.
+└ @ NCTSSoS ~/workspace/repo/src/optimization/elimination.jl:117
+Test Summary: |  Pass  Broken  Total      Time
+NCTSSoS.jl    | 12253       2  12255  21m39.6s
+Elapsed 1307.20 s

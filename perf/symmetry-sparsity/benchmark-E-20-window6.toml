@@ -1,0 +1,340 @@
+window_width = 6
+group_enumeration = false
+route = "E"
+numeric_projection = true
+moment_limit = 2000000
+form = "explicit dual, realified Hermitian PSD"
+julia_threads = 1
+julia = "1.12.7"
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+blas_threads = 4
+n = 20
+
+[[samples]]
+energy_lower_bound = -9.34258545315176
+primal_dual_gap = 9.14646136607189e-12
+moment_variables = 74
+sum_stage_seconds = 281.368396376
+generators = 67
+parent_blocks = 160
+energy_from_moments = -9.342585453142613
+status = "verified"
+min_original_block_eigenvalue = 1.6197090243530845e-10
+sample = 0
+blocks_before_reduction = 160
+seed_block_sizes = [415]
+max_conic_dual_violation = 8.336633890160261e-9
+active_stage = "between stages"
+termination_status = "OPTIMAL"
+symmetry_residual = 0.0
+zero_moment_orbits = 196
+block_orbits = 1
+hermitian_block_sizes = [6, 7, 8, 14, 15, 19, 22, 25, 27, 30]
+stabilizer_generators = [42]
+rows = 7801
+moment_words = 180421
+largest_before_reduction = 415
+primal_status = "FEASIBLE_POINT"
+dual_status = "FEASIBLE_POINT"
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 2.516267384
+    allocated_bytes = 95472744
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.13008296
+    seconds = 31.625906328
+    allocated_bytes = 771666168
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.269850546
+    seconds = 4.701608127
+    allocated_bytes = 643994608
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.157792216
+    seconds = 3.358418358
+    allocated_bytes = 690801160
+    [[samples.stages]]
+    name = "sparsity"
+    gc_seconds = 0.056273065
+    seconds = 0.241737966
+    allocated_bytes = 155709576
+    [[samples.stages]]
+    name = "moment_coordinates"
+    gc_seconds = 4.096460098
+    seconds = 120.606093628
+    allocated_bytes = 17379250520
+    [[samples.stages]]
+    name = "block_orbits_stabilizers"
+    gc_seconds = 1.541685717
+    seconds = 3.176129928
+    allocated_bytes = 2373539800
+    [[samples.stages]]
+    name = "decomposition"
+    gc_seconds = 0.132318016
+    seconds = 5.122177201
+    allocated_bytes = 595493696
+    [[samples.stages]]
+    name = "symbolic_assembly"
+    gc_seconds = 0.2250814
+    seconds = 7.095576579
+    allocated_bytes = 663587824
+    [[samples.stages]]
+    name = "solve"
+    gc_seconds = 0.0
+    seconds = 1.180543556
+    allocated_bytes = 69148672
+    [[samples.stages]]
+    name = "verification"
+    gc_seconds = 3.858333948
+    seconds = 101.743937321
+    allocated_bytes = 15325887632
+[[samples]]
+energy_lower_bound = -9.34258545315176
+primal_dual_gap = 9.14646136607189e-12
+moment_variables = 74
+sum_stage_seconds = 211.453404998
+generators = 67
+parent_blocks = 160
+energy_from_moments = -9.342585453142613
+status = "verified"
+min_original_block_eigenvalue = 1.6197090243530845e-10
+sample = 1
+blocks_before_reduction = 160
+seed_block_sizes = [415]
+max_conic_dual_violation = 8.336633890160261e-9
+active_stage = "between stages"
+termination_status = "OPTIMAL"
+symmetry_residual = 0.0
+zero_moment_orbits = 196
+block_orbits = 1
+hermitian_block_sizes = [6, 7, 8, 14, 15, 19, 22, 25, 27, 30]
+stabilizer_generators = [42]
+rows = 7801
+moment_words = 180421
+largest_before_reduction = 415
+primal_status = "FEASIBLE_POINT"
+dual_status = "FEASIBLE_POINT"
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 0.001709568
+    allocated_bytes = 519248
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.0
+    seconds = 0.315196816
+    allocated_bytes = 257166896
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.149829862
+    seconds = 4.194396047
+    allocated_bytes = 643994608
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.117894202
+    seconds = 3.22877899
+    allocated_bytes = 664761008
+    [[samples.stages]]
+    name = "sparsity"
+    gc_seconds = 0.025525588
+    seconds = 0.130671055
+    allocated_bytes = 154614624
+    [[samples.stages]]
+    name = "moment_coordinates"
+    gc_seconds = 3.745039144
+    seconds = 102.965581759
+    allocated_bytes = 17366781632
+    [[samples.stages]]
+    name = "block_orbits_stabilizers"
+    gc_seconds = 0.433178865
+    seconds = 1.836326176
+    allocated_bytes = 2373539800
+    [[samples.stages]]
+    name = "decomposition"
+    gc_seconds = 1.173883608
+    seconds = 1.752059057
+    allocated_bytes = 400873800
+    [[samples.stages]]
+    name = "symbolic_assembly"
+    gc_seconds = 0.036591468
+    seconds = 1.1230324
+    allocated_bytes = 398038504
+    [[samples.stages]]
+    name = "solve"
+    gc_seconds = 0.0
+    seconds = 0.673105911
+    allocated_bytes = 35323904
+    [[samples.stages]]
+    name = "verification"
+    gc_seconds = 2.84172121
+    seconds = 95.232547219
+    allocated_bytes = 15136720192
+[[samples]]
+energy_lower_bound = -9.34258545315176
+primal_dual_gap = 9.14646136607189e-12
+moment_variables = 74
+sum_stage_seconds = 239.272374897
+generators = 67
+parent_blocks = 160
+energy_from_moments = -9.342585453142613
+status = "verified"
+min_original_block_eigenvalue = 1.6197090243530845e-10
+sample = 2
+blocks_before_reduction = 160
+seed_block_sizes = [415]
+max_conic_dual_violation = 8.336633890160261e-9
+active_stage = "between stages"
+termination_status = "OPTIMAL"
+symmetry_residual = 0.0
+zero_moment_orbits = 196
+block_orbits = 1
+hermitian_block_sizes = [6, 7, 8, 14, 15, 19, 22, 25, 27, 30]
+stabilizer_generators = [42]
+rows = 7801
+moment_words = 180421
+largest_before_reduction = 415
+primal_status = "FEASIBLE_POINT"
+dual_status = "FEASIBLE_POINT"
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 0.001825188
+    allocated_bytes = 519248
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.0
+    seconds = 0.479689087
+    allocated_bytes = 257166896
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.137829656
+    seconds = 4.210907153
+    allocated_bytes = 643994608
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.123779402
+    seconds = 3.397440554
+    allocated_bytes = 664761008
+    [[samples.stages]]
+    name = "sparsity"
+    gc_seconds = 0.033270996
+    seconds = 0.190790842
+    allocated_bytes = 154614624
+    [[samples.stages]]
+    name = "moment_coordinates"
+    gc_seconds = 4.144072894
+    seconds = 123.743722648
+    allocated_bytes = 17366781632
+    [[samples.stages]]
+    name = "block_orbits_stabilizers"
+    gc_seconds = 0.554616446
+    seconds = 2.208450197
+    allocated_bytes = 2373539800
+    [[samples.stages]]
+    name = "decomposition"
+    gc_seconds = 1.226954696
+    seconds = 2.018090436
+    allocated_bytes = 400873800
+    [[samples.stages]]
+    name = "symbolic_assembly"
+    gc_seconds = 0.036476467
+    seconds = 1.145755482
+    allocated_bytes = 398038504
+    [[samples.stages]]
+    name = "solve"
+    gc_seconds = 0.0
+    seconds = 0.609818179
+    allocated_bytes = 35323904
+    [[samples.stages]]
+    name = "verification"
+    gc_seconds = 2.879503894
+    seconds = 101.265885131
+    allocated_bytes = 15136773216
+[[samples]]
+energy_lower_bound = -9.34258545315176
+primal_dual_gap = 9.14646136607189e-12
+moment_variables = 74
+sum_stage_seconds = 226.319883752
+generators = 67
+parent_blocks = 160
+energy_from_moments = -9.342585453142613
+status = "verified"
+min_original_block_eigenvalue = 1.6197090243530845e-10
+sample = 3
+blocks_before_reduction = 160
+seed_block_sizes = [415]
+max_conic_dual_violation = 8.336633890160261e-9
+active_stage = "between stages"
+termination_status = "OPTIMAL"
+symmetry_residual = 0.0
+zero_moment_orbits = 196
+block_orbits = 1
+hermitian_block_sizes = [6, 7, 8, 14, 15, 19, 22, 25, 27, 30]
+stabilizer_generators = [42]
+rows = 7801
+moment_words = 180421
+largest_before_reduction = 415
+primal_status = "FEASIBLE_POINT"
+dual_status = "FEASIBLE_POINT"
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 0.001758365
+    allocated_bytes = 519248
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.0
+    seconds = 0.441403557
+    allocated_bytes = 257166896
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.15633426
+    seconds = 4.515423691
+    allocated_bytes = 643994608
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.15291188
+    seconds = 3.422907041
+    allocated_bytes = 664761008
+    [[samples.stages]]
+    name = "sparsity"
+    gc_seconds = 0.032963443
+    seconds = 0.194050369
+    allocated_bytes = 154614624
+    [[samples.stages]]
+    name = "moment_coordinates"
+    gc_seconds = 4.132545128
+    seconds = 122.199369427
+    allocated_bytes = 17366781632
+    [[samples.stages]]
+    name = "block_orbits_stabilizers"
+    gc_seconds = 0.399835941
+    seconds = 1.502238185
+    allocated_bytes = 2373539800
+    [[samples.stages]]
+    name = "decomposition"
+    gc_seconds = 1.090868943
+    seconds = 1.547539652
+    allocated_bytes = 400873800
+    [[samples.stages]]
+    name = "symbolic_assembly"
+    gc_seconds = 0.031008876
+    seconds = 1.047160804
+    allocated_bytes = 398038504
+    [[samples.stages]]
+    name = "solve"
+    gc_seconds = 0.0
+    seconds = 0.492109301
+    allocated_bytes = 35323904
+    [[samples.stages]]
+    name = "verification"
+    gc_seconds = 2.801994712
+    seconds = 90.95592336
+    allocated_bytes = 15136826240

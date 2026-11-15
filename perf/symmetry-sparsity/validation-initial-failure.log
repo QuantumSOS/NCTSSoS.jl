@@ -1,0 +1,58 @@
+MOSEK_LICENSE_SOLVE_PASS
+Independent two-qubit group and stabilizers: Error During Test at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:67
+  Got exception outside of a @test
+  UndefVarError: `tr` not defined in `Main`
+  Hint: It looks like two or more modules export different bindings with this name, resulting in ambiguity. Try explicitly importing it from a particular module, or qualifying the name with the module it should come from.
+  Hint: a global variable of this name also exists in NCTSSoS.
+  Hint: a global variable of this name also exists in LinearAlgebra.
+  Stacktrace:
+    [1] (::var"#signature##3#signature##4"{Matrix{ComplexF64}, Matrix{ComplexF64}})(P::Matrix{ComplexF64})
+      @ Main ./none:-1
+    [2] iterate
+      @ ./generator.jl:48 [inlined]
+    [3] collect(itr::Base.Generator{Vector{Matrix{ComplexF64}}, var"#signature##3#signature##4"{Matrix{ComplexF64}, Matrix{ComplexF64}}})
+      @ Base ./array.jl:790
+    [4] #signature##1
+      @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:73 [inlined]
+    [5] (::var"#signature##1#signature##2"{Matrix{ComplexF64}, Vector{Matrix{ComplexF64}}})(Q::Matrix{ComplexF64})
+      @ Main ./none:0
+    [6] iterate
+      @ ./generator.jl:48 [inlined]
+    [7] collect(itr::Base.Generator{Vector{Matrix{ComplexF64}}, var"#signature##1#signature##2"{Matrix{ComplexF64}, Vector{Matrix{ComplexF64}}}})
+      @ Base ./array.jl:790
+    [8] signature
+      @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:72 [inlined]
+    [9] _broadcast_getindex_evalf
+      @ ./broadcast.jl:699 [inlined]
+   [10] _broadcast_getindex
+      @ ./broadcast.jl:672 [inlined]
+   [11] _getindex
+      @ ./broadcast.jl:620 [inlined]
+   [12] getindex
+      @ ./broadcast.jl:616 [inlined]
+   [13] copy(bc::Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Tuple{Base.OneTo{Int64}}, var"#signature#signature##0"{Vector{Matrix{ComplexF64}}}, Tuple{Vector{Matrix{ComplexF64}}}})
+      @ Base.Broadcast ./broadcast.jl:933
+   [14] materialize(bc::Base.Broadcast.Broadcasted{Base.Broadcast.DefaultArrayStyle{1}, Nothing, var"#signature#signature##0"{Vector{Matrix{ComplexF64}}}, Tuple{Vector{Matrix{ComplexF64}}}})
+      @ Base.Broadcast ./broadcast.jl:894
+   [15] top-level scope
+      @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:61
+   [16] macro expansion
+      @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [17] macro expansion
+      @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:68 [inlined]
+   [18] macro expansion
+      @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [19] macro expansion
+      @ ~/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:76 [inlined]
+   [20] include(mod::Module, _path::String)
+      @ Base ./Base.jl:306
+   [21] exec_options(opts::Base.JLOptions)
+      @ Base ./client.jl:317
+   [22] _start()
+      @ Base ./client.jl:550
+PASS Dict{String, Any}("route" => "E", "reduced_sizes" => [1, 2, 1, 1, 1], "unreduced_bound" => -0.7499999976347684, "blocks" => 1, "dual_bound" => -0.7499999993569986, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.749999999544017, "minimum_full_block_eigenvalue" => 6.079761284205811e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+PASS Dict{String, Any}("route" => "D", "reduced_sizes" => [2, 1, 1, 1, 1], "unreduced_bound" => -0.7499999999980004, "blocks" => 4, "dual_bound" => -0.7499999993569986, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.749999999544017, "minimum_full_block_eigenvalue" => 6.079771966827811e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+PASS Dict{String, Any}("route" => "F", "reduced_sizes" => [2, 1, 1, 1, 1], "unreduced_bound" => -0.7499999999980004, "blocks" => 4, "dual_bound" => -0.7499999993569986, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.749999999544017, "minimum_full_block_eigenvalue" => 6.079771966827811e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+PASS Dict{String, Any}("route" => "E", "reduced_sizes" => [1, 2, 2, 1, 1], "unreduced_bound" => -2.9999999278606557, "blocks" => 32, "dual_bound" => -2.999999999999248, "window" => 2, "variables" => 2, "rows" => 157, "reduced_bound" => -2.9999999999995235, "minimum_full_block_eigenvalue" => 1.5771286663386154e-13, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+PASS Dict{String, Any}("route" => "D", "reduced_sizes" => [2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 3, 2, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1], "unreduced_bound" => -1.9999999999945568, "blocks" => 4, "dual_bound" => -1.9999999525868908, "window" => 2, "variables" => 6, "rows" => 157, "reduced_bound" => -1.9999999538830604, "minimum_full_block_eigenvalue" => 4.9215302153159126e-9, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+PASS Dict{String, Any}("route" => "F", "reduced_sizes" => [2, 1, 2, 1, 1], "unreduced_bound" => -2.999998176509857, "blocks" => 52, "dual_bound" => -2.9999999999992335, "window" => 2, "variables" => 2, "rows" => 157, "reduced_bound" => -2.999999999999508, "minimum_full_block_eigenvalue" => 1.6424736423263953e-13, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)

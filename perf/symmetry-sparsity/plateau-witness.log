@@ -1,0 +1,8 @@
+RING n=4 energy=-1.9999999999999978 scaled_to_20=-9.99999999999999 eigen_residual=2.7228500546292417e-15
+RING n=6 energy=-2.802775637731988 scaled_to_20=-9.342585459106628 eigen_residual=6.626286871321338e-15
+RING n=8 energy=-3.6510934089371743 scaled_to_20=-9.127733522342936 eigen_residual=3.4441486783395795e-15
+RING n=6 energy=-2.802775637731988 scaled_to_20=-9.342585459106628 eigen_residual=6.626286871321338e-15
+BUILD_COORDINATES rows=7801 blocks=160
+LOCAL_ASSIGNMENT assigned=74 variables=74 max_conflict=1.6835491334354913e-15
+WITNESS_PASS Dict{String, Real}("generators" => 67, "energy6" => -2.802775637731988, "local_assignment_conflict" => 1.6835491334354913e-15, "minimum_original_block_eigenvalue" => -9.790524910627443e-15, "rows" => 7801, "symmetry_residual" => 0.0, "objective" => -9.342585459106655, "blocks" => 160, "block_orbits" => 1, "moment_variables" => 74)
+elapsed_seconds=299.900 peak_RSS_GiB=1.235

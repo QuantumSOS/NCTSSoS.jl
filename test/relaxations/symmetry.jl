@@ -228,6 +228,11 @@ end
         @test length(swap_group) == 2
         @test NCTSSoS.GroupsCore.order(Int, only(NCTSSoS.GroupsCore.gens(h_group))) == 2
 
+        h_copy = CliffordSymmetryGroup(CliffordSymmetry(:H, 1); integer_type=UInt8)
+        h = only(NCTSSoS.GroupsCore.gens(h_group))
+        @test h * only(NCTSSoS.GroupsCore.gens(h_copy)) == one(h_group)
+        @test_throws ArgumentError h * only(NCTSSoS.GroupsCore.gens(s_group))
+
         action = NCTSSoS.NCPauliCliffordAction{UInt8}()
         probe = mono(σx[1] * σz[2])
         for group in (cnot_group, hs_group), g in collect(group), h in collect(group)

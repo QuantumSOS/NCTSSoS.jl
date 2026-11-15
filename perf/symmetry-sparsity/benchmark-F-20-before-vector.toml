@@ -1,0 +1,91 @@
+julia_threads = 1
+julia = "1.12.7"
+form = "explicit dual, realified Hermitian PSD"
+group_enumeration = false
+route = "F"
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+blas_threads = 4
+n = 20
+
+[[samples]]
+energy_lower_bound = -9.999999993535125
+primal_dual_gap = 6.9615424536095816e-12
+moment_variables = 9
+parent_edge_count = 576000
+sum_stage_seconds = 357.1857839190001
+generators = 67
+parent_blocks = 160
+energy_from_moments = -9.999999993542087
+status = "verified"
+min_original_block_eigenvalue = 1.5634818848548235e-10
+sample = 0
+completion_rounds = 2
+blocks_before_reduction = 300
+active_stage = "between stages"
+termination_status = "OPTIMAL"
+symmetry_residual = 0.0
+block_orbits = 4
+zero_moment_orbits = 1
+hermitian_block_sizes = [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 4, 4, 5, 5, 6, 7, 8, 11, 11, 14]
+stabilizer_generators = [6, 7, 6, 6]
+rows = 7801
+moment_words = 961
+largest_before_reduction = 44
+primal_status = "FEASIBLE_POINT"
+dual_status = "FEASIBLE_POINT"
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 2.818613289
+    allocated_bytes = 95462792
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.13185472
+    seconds = 29.892215697
+    allocated_bytes = 770052624
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.170585642
+    seconds = 3.398253846
+    allocated_bytes = 643994608
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.199373387
+    seconds = 3.361369563
+    allocated_bytes = 686855552
+    [[samples.stages]]
+    name = "sparsity"
+    gc_seconds = 3.635011733
+    seconds = 296.032596427
+    allocated_bytes = 13571408256
+    [[samples.stages]]
+    name = "block_orbits_stabilizers"
+    gc_seconds = 0.814433632
+    seconds = 6.565816496
+    allocated_bytes = 3991799056
+    [[samples.stages]]
+    name = "decomposition"
+    gc_seconds = 0.073187492
+    seconds = 5.443326784
+    allocated_bytes = 217392688
+    [[samples.stages]]
+    name = "moment_coordinates"
+    gc_seconds = 0.0
+    seconds = 0.85788179
+    allocated_bytes = 78289168
+    [[samples.stages]]
+    name = "symbolic_assembly"
+    gc_seconds = 0.139005066
+    seconds = 6.679618077
+    allocated_bytes = 309151288
+    [[samples.stages]]
+    name = "solve"
+    gc_seconds = 0.0
+    seconds = 0.435005405
+    allocated_bytes = 35474408
+    [[samples.stages]]
+    name = "verification"
+    gc_seconds = 0.0
+    seconds = 1.701086545
+    allocated_bytes = 155145096

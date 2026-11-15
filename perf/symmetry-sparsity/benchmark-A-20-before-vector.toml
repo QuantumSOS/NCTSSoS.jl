@@ -1,0 +1,56 @@
+julia_threads = 1
+julia = "1.12.7"
+form = "explicit dual, realified Hermitian PSD"
+group_enumeration = false
+route = "A"
+cpu = "Intel(R) Xeon(R) Processor @ 2.60GHz"
+blas_threads = 4
+n = 20
+
+[[samples]]
+generators = 0
+status = "capped"
+sample = 0
+blocks_before_reduction = 1
+error = "item limit; no partial result"
+active_stage = "moment_coordinates"
+block_orbits = 1
+stabilizer_generators = [0]
+rows = 2401
+largest_before_reduction = 2401
+
+    [[samples.stages]]
+    name = "input"
+    gc_seconds = 0.0
+    seconds = 2.362873929
+    allocated_bytes = 95494944
+    [[samples.stages]]
+    name = "symmetry"
+    gc_seconds = 0.0
+    seconds = 4.56e-7
+    allocated_bytes = 32
+    [[samples.stages]]
+    name = "row_closure"
+    gc_seconds = 0.0
+    seconds = 0.000534574
+    allocated_bytes = 56424
+    [[samples.stages]]
+    name = "signed_row_actions"
+    gc_seconds = 0.0
+    seconds = 0.177556963
+    allocated_bytes = 12441640
+    [[samples.stages]]
+    name = "sparsity"
+    gc_seconds = 0.0
+    seconds = 0.018703852
+    allocated_bytes = 631408
+    [[samples.stages]]
+    name = "block_orbits_stabilizers"
+    gc_seconds = 0.0
+    seconds = 0.043913435
+    allocated_bytes = 1464832
+    [[samples.stages]]
+    name = "decomposition"
+    gc_seconds = 1.257946653
+    seconds = 5.871061376
+    allocated_bytes = 301897368

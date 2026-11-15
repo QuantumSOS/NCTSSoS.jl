@@ -1,0 +1,175 @@
+MOSEK_LICENSE_SOLVE_PASS
+CASE n=2 degree=2 window=2
+ROWS 16
+PARENTS 1
+TERM D
+TERM F
+ASSEMBLE reduced=true groups=1 max=16
+SOLVE reduced=true sizes=[1, 2, 1, 1, 1]
+ASSEMBLE reduced=false groups=1 max=16
+SOLVE reduced=false sizes=[16]
+PASS Dict{String, Any}("route" => "E", "reduced_sizes" => [1, 2, 1, 1, 1], "unreduced_bound" => -0.7499999976347684, "blocks" => 1, "dual_bound" => -0.7499999993569986, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.749999999544017, "minimum_full_block_eigenvalue" => 6.079761284205811e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+ASSEMBLE reduced=true groups=4 max=4
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1]
+ASSEMBLE reduced=false groups=4 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4]
+PASS Dict{String, Any}("route" => "D", "reduced_sizes" => [2, 1, 1, 1, 1], "unreduced_bound" => -0.7499999999980004, "blocks" => 4, "dual_bound" => -0.7499999993569986, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.749999999544017, "minimum_full_block_eigenvalue" => 6.079771966827811e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+ASSEMBLE reduced=true groups=4 max=4
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1]
+ASSEMBLE reduced=false groups=4 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4]
+PASS Dict{String, Any}("route" => "F", "reduced_sizes" => [2, 1, 1, 1, 1], "unreduced_bound" => -0.7499999999980004, "blocks" => 4, "dual_bound" => -0.7499999993569986, "window" => 2, "variables" => 2, "rows" => 16, "reduced_bound" => -0.749999999544017, "minimum_full_block_eigenvalue" => 6.079771966827811e-10, "degree" => 2, "exact_energy" => -0.7500000000000001, "n" => 2)
+CASE n=4 degree=2 window=2
+ROWS 157
+PARENTS 32
+TERM D
+TERM F
+ASSEMBLE reduced=true groups=32 max=16
+SOLVE reduced=true sizes=[1, 2, 2, 1, 1]
+ASSEMBLE reduced=false groups=32 max=16
+SOLVE reduced=false sizes=[16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16]
+PASS Dict{String, Any}("route" => "E", "reduced_sizes" => [1, 2, 2, 1, 1], "unreduced_bound" => -2.9999999278606557, "blocks" => 32, "dual_bound" => -2.999999999999248, "window" => 2, "variables" => 2, "rows" => 157, "reduced_bound" => -2.9999999999995235, "minimum_full_block_eigenvalue" => 1.5771286663386154e-13, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+ASSEMBLE reduced=true groups=4 max=48
+SOLVE reduced=true sizes=[2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 3, 2, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1]
+ASSEMBLE reduced=false groups=4 max=48
+SOLVE reduced=false sizes=[13, 48, 48, 48]
+PASS Dict{String, Any}("route" => "D", "reduced_sizes" => [2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 3, 2, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1], "unreduced_bound" => -1.9999999999945568, "blocks" => 4, "dual_bound" => -1.9999999525868908, "window" => 2, "variables" => 6, "rows" => 157, "reduced_bound" => -1.9999999538830604, "minimum_full_block_eigenvalue" => 4.9215302153159126e-9, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+ASSEMBLE reduced=true groups=52 max=4
+SOLVE reduced=true sizes=[2, 1, 2, 1, 1]
+ASSEMBLE reduced=false groups=52 max=4
+SOLVE reduced=false sizes=[4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+PASS Dict{String, Any}("route" => "F", "reduced_sizes" => [2, 1, 2, 1, 1], "unreduced_bound" => -2.999998176509857, "blocks" => 52, "dual_bound" => -2.9999999999992335, "window" => 2, "variables" => 2, "rows" => 157, "reduced_bound" => -2.999999999999508, "minimum_full_block_eigenvalue" => 1.6424736423263953e-13, "degree" => 2, "exact_energy" => -1.9999999999999996, "n" => 4)
+CASE n=4 degree=4 window=4
+ROWS 250
+PARENTS 8
+TERM D
+TERM F
+ASSEMBLE reduced=true groups=8 max=238
+SOLVE reduced=true sizes=[7, 9, 5, 6, 3, 5, 5, 3, 6, 4, 4, 1, 3, 1, 3, 2, 2, 1, 2, 1, 1, 2]
+ASSEMBLE reduced=false groups=8 max=238
+SOLVE reduced=false sizes=[238, 238, 238, 238, 238, 238, 238, 238]
+
+======================================================================================
+Information request received. A stacktrace will print followed by a 1.0 second profile
+======================================================================================
+
+cmd: /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/bin/julia 77513 running 1 of 1
+
+signal (10): User defined signal 1
+symord_shurnz at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+ipfac_symboliccomputeschur at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+ipfac_setupfactor at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+ipfac_symbolicsetup at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+intpnt_optcone at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+conic_rawoptimizer at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+conic_optimizer at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSKP_optimizeconic at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_contoptimizer at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_eorpgtpsj at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_optimize at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_optimizetrm at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+#optimize##0 at /home/user/.julia/packages/Mosek/wZpyc/src/msk_functions.jl:2399 [inlined]
+disable_sigint at ./c.jl:167 [inlined]
+optimize at /home/user/.julia/packages/Mosek/wZpyc/src/msk_functions.jl:2399
+optimize! at /home/user/.julia/packages/MosekTools/iOqst/src/MosekTools.jl:360
+optimize! at /home/user/.julia/packages/MathOptInterface/lY2WB/src/Bridges/bridge_optimizer.jl:367 [inlined]
+optimize! at /home/user/.julia/packages/MathOptInterface/lY2WB/src/MathOptInterface.jl:122 [inlined]
+optimize! at /home/user/.julia/packages/MathOptInterface/lY2WB/src/Utilities/cachingoptimizer.jl:370
+unknown function (ip: 0x7fbc51562ff2) at (unknown file)
+#optimize!#96 at /home/user/.julia/packages/JuMP/insRt/src/optimizer_interface.jl:633
+optimize! at /home/user/.julia/packages/JuMP/insRt/src/optimizer_interface.jl:569 [inlined]
+#solvecheck#2 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:40
+solvecheck at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:36
+unknown function (ip: 0x7fbc2755ec06) at (unknown file)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+do_call at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:123
+eval_value at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:243
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:581
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+jl_interpret_toplevel_thunk at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:898
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1035
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+include_string at ./loading.jl:2952
+_include at ./loading.jl:3012
+include at ./Base.jl:306
+exec_options at ./client.jl:317
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7fbc6cc54ca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+
+==============================================================
+Profile collected. A report will print at the next yield point
+==============================================================
+
+
+[77513] signal 15: Terminated
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:61
+__intel_avx_rep_memcpy at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+symord_shursparsity at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+ipfac_symboliccomputeschur at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+ipfac_setupfactor at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+ipfac_symbolicsetup at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+intpnt_optcone at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+conic_rawoptimizer at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+conic_optimizer at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSKP_optimizeconic at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_contoptimizer at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_eorpgtpsj at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_optimize at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+MSK_optimizetrm at /home/user/.julia/packages/Mosek/wZpyc/deps/src/mosek/11.2/tools/platform/linux64x86/bin/libmosek64.so.11.2 (unknown line)
+#optimize##0 at /home/user/.julia/packages/Mosek/wZpyc/src/msk_functions.jl:2399 [inlined]
+disable_sigint at ./c.jl:167 [inlined]
+optimize at /home/user/.julia/packages/Mosek/wZpyc/src/msk_functions.jl:2399
+optimize! at /home/user/.julia/packages/MosekTools/iOqst/src/MosekTools.jl:360
+optimize! at /home/user/.julia/packages/MathOptInterface/lY2WB/src/Bridges/bridge_optimizer.jl:367 [inlined]
+optimize! at /home/user/.julia/packages/MathOptInterface/lY2WB/src/MathOptInterface.jl:122 [inlined]
+optimize! at /home/user/.julia/packages/MathOptInterface/lY2WB/src/Utilities/cachingoptimizer.jl:370
+unknown function (ip: 0x7fbc51562ff2) at (unknown file)
+#optimize!#96 at /home/user/.julia/packages/JuMP/insRt/src/optimizer_interface.jl:633
+optimize! at /home/user/.julia/packages/JuMP/insRt/src/optimizer_interface.jl:569 [inlined]
+#solvecheck#2 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:40
+solvecheck at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/validate.jl:36
+unknown function (ip: 0x7fbc2755ec06) at (unknown file)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+do_call at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:123
+eval_value at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:243
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:581
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+eval_body at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:558
+jl_interpret_toplevel_thunk at /cache/build/builder-amdci5-2/julialang/julia-ci/src/interpreter.c:898
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1035
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+include_string at ./loading.jl:2952
+_include at ./loading.jl:3012
+include at ./Base.jl:306
+exec_options at ./client.jl:317
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7fbc6cc54ca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 140791182 (Pool: 140790024; Big: 1158); GC: 44
+LIMIT_EXCEEDED: 16 GiB RSS or 600 s

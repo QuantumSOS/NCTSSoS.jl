@@ -1,0 +1,76 @@
+BEGIN input
+END input seconds=2.949621723 allocated_bytes=95464104
+BEGIN symmetry
+END symmetry seconds=30.478860453 allocated_bytes=770013672
+BEGIN row_closure
+END row_closure seconds=4.957973902 allocated_bytes=643994608
+BEGIN signed_row_actions
+END signed_row_actions seconds=4.502708752 allocated_bytes=686850808
+BEGIN sparsity
+info: inference of grow_to!(Base.Dict{NTuple{7801, Int64}, Graphs.SimpleGraphs.SimpleGraph{Int64}}, Base.Generator{Array{Tuple, 1}, SymmetrySparsityExperiment.var"#23#24"}, Int64) from grow_to!(Base.AbstractDict{K, V}, Any, Any) where {K, V} exceeding 2501 frames (may be slow).
+info: inference of grow_to!(Base.Dict{NTuple{7801, Int64}, Graphs.SimpleGraphs.SimpleGraph{Int64}}, Base.Generator{Array{Tuple, 1}, SymmetrySparsityExperiment.var"#23#24"}, Int64) from grow_to!(Base.AbstractDict{K, V}, Any, Any) where {K, V} exceeding 5001 frames (may be slow).
+
+[86456] signal 15: Terminated
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:147
+gc_page_data at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.h:332 [inlined]
+jl_gc_small_alloc_inner at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:739 [inlined]
+jl_gc_small_alloc_noinline at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:785 [inlined]
+jl_gc_alloc_ at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:799
+ijl_box_int64 at /cache/build/builder-amdci5-2/julialang/julia-ci/src/datatype.c:1531
+jfptr__advance_6452.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+tojlinvoke84995.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+j__advance_80032.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+iterate at ./../usr/share/julia/Compiler/src/ssair/ir.jl:661 [inlined]
+ssa_substitute_op! at ./../usr/share/julia/Compiler/src/ssair/inlining.jl:1837
+ir_inline_item! at ./../usr/share/julia/Compiler/src/ssair/inlining.jl:385
+batch_inline! at ./../usr/share/julia/Compiler/src/ssair/inlining.jl:663
+ssa_inlining_pass! at ./../usr/share/julia/Compiler/src/ssair/inlining.jl:79 [inlined]
+run_passes_ipo_safe at ./../usr/share/julia/Compiler/src/optimize.jl:1013
+run_passes_ipo_safe at ./../usr/share/julia/Compiler/src/optimize.jl:1027 [inlined]
+optimize at ./../usr/share/julia/Compiler/src/optimize.jl:1002
+jfptr_optimize_82151.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+finish_nocycle at ./../usr/share/julia/Compiler/src/typeinfer.jl:202
+jfptr_finish_nocycle_83325.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+typeinf at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:4522
+typeinf_ext at ./../usr/share/julia/Compiler/src/typeinfer.jl:1256
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1439 [inlined]
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1448
+jfptr_typeinf_ext_toplevel_83556.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+jl_type_infer at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:466
+jl_compile_method_internal at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:3516
+_jl_invoke at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4006 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4214
+grow_to! at ./abstractdict.jl:610
+dict_with_eltype at ./abstractdict.jl:649 [inlined]
+Dict at ./dict.jl:117 [inlined]
+#term_blocks#21 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:140
+term_blocks at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:139
+unknown function (ip: 0x7f4057516d72) at (unknown file)
+#run##18 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:71
+macro expansion at ./timing.jl:697 [inlined]
+stage at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:26
+unknown function (ip: 0x7f405751562d) at (unknown file)
+run at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:61
+top-level scope at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/benchmark.jl:152
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1024
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+include_string at ./loading.jl:2952
+_include at ./loading.jl:3012
+include at ./Base.jl:306
+exec_options at ./client.jl:317
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7f409ca45ca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 1837978081 (Pool: 1837920754; Big: 57327); GC: 92
+LIMIT_EXCEEDED: 16 GiB RSS or 600 s

@@ -1,0 +1,93 @@
+BEGIN input
+END input seconds=2.746522359 allocated_bytes=95463696
+BEGIN symmetry
+END symmetry seconds=30.842661569 allocated_bytes=770539688
+BEGIN row_closure
+END row_closure seconds=3.874458983 allocated_bytes=643994608
+BEGIN signed_row_actions
+END signed_row_actions seconds=3.973294142 allocated_bytes=690800152
+BEGIN sparsity
+END sparsity seconds=0.078648764 allocated_bytes=71556840
+BEGIN moment_coordinates
+END moment_coordinates seconds=9.347686782 allocated_bytes=1445817568
+BEGIN block_orbits_stabilizers
+END block_orbits_stabilizers seconds=1.424052993 allocated_bytes=2179751896
+BEGIN decomposition
+END decomposition seconds=4.048328855 allocated_bytes=279669840
+BEGIN symbolic_assembly
+END symbolic_assembly seconds=5.922153552 allocated_bytes=212925840
+BEGIN solve
+END solve seconds=0.423641463 allocated_bytes=35281576
+BEGIN verification
+END verification seconds=7.141805294 allocated_bytes=1149601568
+VERIFIED sample=0 route=E seconds=69.823254756 bound=-9.999999988364584
+BEGIN input
+END input seconds=0.001773019 allocated_bytes=519248
+BEGIN symmetry
+END symmetry seconds=0.479122172 allocated_bytes=257166896
+BEGIN row_closure
+END row_closure seconds=4.528791487 allocated_bytes=643994608
+BEGIN signed_row_actions
+END signed_row_actions seconds=2.757653506 allocated_bytes=664761008
+BEGIN sparsity
+END sparsity seconds=0.067701121 allocated_bytes=71556840
+BEGIN moment_coordinates
+END moment_coordinates seconds=8.942414673 allocated_bytes=1433376176
+BEGIN block_orbits_stabilizers
+END block_orbits_stabilizers seconds=1.549722114 allocated_bytes=2179751896
+BEGIN decomposition
+END decomposition seconds=0.095310039 allocated_bytes=75142952
+BEGIN symbolic_assembly
+END symbolic_assembly seconds=0.480155897 allocated_bytes=50993552
+BEGIN solve
+END solve seconds=0.025946952 allocated_bytes=1461968
+BEGIN verification
+END verification seconds=6.89206354 allocated_bytes=1029861832
+VERIFIED sample=1 route=E seconds=25.82065452 bound=-9.999999988364584
+BEGIN input
+END input seconds=0.001876289 allocated_bytes=519248
+BEGIN symmetry
+END symmetry seconds=0.475328213 allocated_bytes=257166896
+BEGIN row_closure
+END row_closure seconds=5.272682184 allocated_bytes=643994608
+BEGIN signed_row_actions
+END signed_row_actions seconds=3.465984624 allocated_bytes=664761008
+BEGIN sparsity
+END sparsity seconds=0.074313899 allocated_bytes=71556840
+BEGIN moment_coordinates
+END moment_coordinates seconds=9.319329983 allocated_bytes=1433376176
+BEGIN block_orbits_stabilizers
+END block_orbits_stabilizers seconds=1.597802377 allocated_bytes=2179751896
+BEGIN decomposition
+END decomposition seconds=0.095386823 allocated_bytes=75142952
+BEGIN symbolic_assembly
+END symbolic_assembly seconds=0.491853761 allocated_bytes=50993552
+BEGIN solve
+END solve seconds=0.033253105 allocated_bytes=1461968
+BEGIN verification
+END verification seconds=7.898069075 allocated_bytes=1029861832
+VERIFIED sample=2 route=E seconds=28.725880333 bound=-9.999999988364584
+BEGIN input
+END input seconds=0.001352146 allocated_bytes=519248
+BEGIN symmetry
+END symmetry seconds=0.337345995 allocated_bytes=257166896
+BEGIN row_closure
+END row_closure seconds=3.390041575 allocated_bytes=643994608
+BEGIN signed_row_actions
+END signed_row_actions seconds=3.617298322 allocated_bytes=664761008
+BEGIN sparsity
+END sparsity seconds=0.074668569 allocated_bytes=71556840
+BEGIN moment_coordinates
+END moment_coordinates seconds=9.315363734 allocated_bytes=1433376176
+BEGIN block_orbits_stabilizers
+END block_orbits_stabilizers seconds=1.488641636 allocated_bytes=2179751896
+BEGIN decomposition
+END decomposition seconds=0.099060698 allocated_bytes=75142952
+BEGIN symbolic_assembly
+END symbolic_assembly seconds=0.561708435 allocated_bytes=50993552
+BEGIN solve
+END solve seconds=0.061352098 allocated_bytes=1461968
+BEGIN verification
+END verification seconds=7.163356073 allocated_bytes=1029861832
+VERIFIED sample=3 route=E seconds=26.110189281 bound=-9.999999988364584
+elapsed_seconds=192.705 peak_RSS_GiB=1.266

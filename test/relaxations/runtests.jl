@@ -18,6 +18,7 @@ using Test
     include("sos.jl")
     include("sparsity.jl")
     include("symmetry.jl")
+    include("clifford_generators.jl")
     include("continuous_symmetry.jl")
     include("continuous_reduction.jl")
     include("unified_symmetry.jl")

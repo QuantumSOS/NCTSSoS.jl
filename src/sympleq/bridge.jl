@@ -192,7 +192,8 @@ end
 
 function _sympleq_phase_vectors_for_hamiltonian(
     tab::SymplecticTableau{T,C},
-    generator::SympleQGenerator,
+    generator::SympleQGenerator;
+    include_inactive::Bool=false,
 ) where {T<:Integer,C<:Number}
     nqubits = tab.nqubits
     _sympleq_check_dimensions(generator.S, generator.phase, nqubits)
@@ -219,7 +220,7 @@ function _sympleq_phase_vectors_for_hamiltonian(
     phases = PhaseVector[_sympleq_phase_from_sign_bits(base_phase, particular)]
     active_phase_indices = _sympleq_active_phase_indices(tab)
     for direction in kernel
-        any(idx -> direction[idx] == 1, active_phase_indices) || continue
+        (include_inactive || any(idx -> direction[idx] == 1, active_phase_indices)) || continue
         push!(phases, _sympleq_phase_from_sign_bits(base_phase, particular .⊻ direction))
     end
     return phases
@@ -235,38 +236,54 @@ function _sympleq_clifford_is_identity(g::CliffordSymmetry{T}, nqubits::Integer)
 end
 
 """
-    sympleq_symmetry_spec(H; cycle_strategy=:cycle_basis, ga_backend=:backtracking, max_automorphisms=100_000)
+    sympleq_symmetry_spec(H; cycle_strategy=:relations, max_search_nodes=1_000_000,
+                         clifford_backend=:wedderburn)
 
-Recognize Clifford symmetries of a Pauli Hamiltonian using SympleQ's find-side
-pipeline and return a ready-to-use [`SymmetrySpec`](@ref).
+Find generators of the Clifford conjugation actions preserving a nonconstant
+Pauli Hamiltonian on sites `1:n`, where `n` is its largest site index.
 
-The implemented pipeline is the qubit/Pauli version of SympleQ: build a binary
-symplectic tableau, encode commutation and linear-dependency structure as a
-coloured graph, enumerate colour-preserving automorphisms, synthesize candidate
-symplectic Clifford actions, convert them to `CliffordSymmetry`, and keep only
-candidates that leave `H` invariant under the existing Pauli action.
+The default `:relations` search uses anticommutation edges, basis-independent
+linear-relation tests and signed phase equations. Stabilizer transversals give
+term-action generators; a second stabilizer chain recovers the term-fixing
+kernel, including symplectic maps invisible to term permutations. It does not
+list the full group. Search can still be exponential; exceeding
+`max_search_nodes` throws instead of returning a partial group.
 
-This is a recognizer/bridge, not the SympleQ exploit-side qubit-tapering
-machinery. Dense/no-sparsity SDP reductions are handled by the existing
-`SolverConfig(symmetry=...)` path.
+Set `clifford_backend=:generators` to reduce a dense, closed Pauli row basis
+without group enumeration. The default `:wedderburn` retains the existing
+reduction backend. Detection does not guarantee closure of a truncated row
+basis; entangling symmetries can increase Pauli-word degree.
+
+`cycle_strategy=:cycle_basis` retains the incomplete legacy graph recognizer
+for comparisons. Only that path uses `max_automorphisms` and the legacy
+`ga_backend=:bliss` fallback. Neither path detects non-Clifford symmetries.
 """
 function sympleq_symmetry_spec(
     H::Polynomial{PauliAlgebra,T,C};
-    cycle_strategy::Symbol=:cycle_basis,
+    cycle_strategy::Symbol=:relations,
     ga_backend::Symbol=:backtracking,
     max_automorphisms::Int=100_000,
+    max_search_nodes::Int=1_000_000,
+    clifford_backend::Symbol=:wedderburn,
 ) where {T<:Integer,C<:Number}
-    cliffords = _sympleq_clifford_candidates(H; cycle_strategy, ga_backend, max_automorphisms)
+    cliffords = _sympleq_clifford_candidates(H; cycle_strategy, ga_backend, max_automorphisms, max_search_nodes)
     isempty(cliffords) && throw(ArgumentError(
         "SympleQ did not find any nontrivial Clifford symmetry that preserves this Pauli Hamiltonian."
     ))
-    return SymmetrySpec(clifford_generators=cliffords; check_invariance=true)
+    return SymmetrySpec(clifford_generators=cliffords; check_invariance=true, clifford_backend)
 end
 
 function _sympleq_clifford_candidates(
-    H::Polynomial{PauliAlgebra,T,C}; cycle_strategy::Symbol=:cycle_basis,
+    H::Polynomial{PauliAlgebra,T,C}; cycle_strategy::Symbol=:relations,
     ga_backend::Symbol=:backtracking, max_automorphisms::Int=100_000,
+    max_search_nodes::Int=1_000_000,
 ) where {T<:Integer,C<:Number}
+    if cycle_strategy === :relations
+        ga_backend in (:auto, :backtracking) || throw(ArgumentError(
+            "Relation-preserving stabilizer search supports ga_backend=:backtracking or :auto."
+        ))
+        return _sympleq_complete_candidates(H; max_search_nodes)
+    end
     tab = SymplecticTableau(H)
     tab.nqubits > 0 || throw(ArgumentError("SympleQ needs a non-constant Pauli Hamiltonian."))
 

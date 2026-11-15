@@ -967,6 +967,15 @@ Supported pieces today:
 
 Unsupported combinations fail loudly instead of quietly doing nonsense.
 
+# Clifford backend
+
+`clifford_backend=:wedderburn` retains the group-enumerating reference path.
+`:generators` uses signed row-pair orbits and numerical complex block
+decomposition, without enumerating the group. It supports arbitrary supplied
+Clifford subgroups on a closed Pauli row basis in a dense relaxation, without
+charge/singlet splitting. Failed numerical checks throw; they never fall back
+to enumeration. `SymmetryReport.group_order` is `nothing` on this path.
+
 # Soundness checks
 
 - `check_invariance::Bool = true`: verify the objective and constraints are
@@ -997,6 +1006,7 @@ struct SymmetrySpec
     pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}
     check_invariance::Bool
     offblock_check::Symbol
+    clifford_backend::Symbol
 
     function SymmetrySpec(
         generators::Vector{SignedPermutation},
@@ -1008,7 +1018,15 @@ struct SymmetrySpec
         pauli_singlet::Union{Nothing,PauliSingletConstraintSpec},
         check_invariance::Bool,
         offblock_check::Symbol=:randomized,
+        clifford_backend::Symbol=:wedderburn,
     )
+        clifford_backend in (:wedderburn, :generators) || throw(ArgumentError(
+            "clifford_backend must be :wedderburn or :generators."
+        ))
+        if clifford_backend === :generators
+            !isempty(clifford_generators) && isnothing(pauli_charge) && isnothing(pauli_singlet) ||
+                throw(ArgumentError("Generator-only reduction requires Clifford generators without charge/singlet splitting."))
+        end
         offblock_check in (:full, :randomized, :off) || throw(ArgumentError(
             "`offblock_check` must be `:full`, `:randomized`, or `:off`; got `$(repr(offblock_check))`."
         ))
@@ -1052,6 +1070,7 @@ struct SymmetrySpec
             pauli_singlet,
             check_invariance,
             offblock_check,
+            clifford_backend,
         )
     end
 end
@@ -1126,6 +1145,7 @@ function SymmetrySpec(
     pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}=nothing,
     check_invariance::Bool=true,
     offblock_check::Symbol=:randomized,
+    clifford_backend::Symbol=:wedderburn,
 )
     isempty(clifford_generators) && isnothing(pauli_charge) && isnothing(pauli_singlet) && throw(ArgumentError(
         "`SymmetrySpec` needs at least one Clifford generator, Pauli charge sector, or Pauli singlet reduction."
@@ -1141,6 +1161,7 @@ function SymmetrySpec(
         pauli_singlet,
         check_invariance,
         offblock_check,
+        clifford_backend,
     )
 end
 
@@ -1150,8 +1171,9 @@ function SymmetrySpec(
     pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}=nothing,
     check_invariance::Bool=true,
     offblock_check::Symbol=:randomized,
+    clifford_backend::Symbol=:wedderburn,
 )
-    return SymmetrySpec(collect(clifford_generators); pauli_charge, pauli_singlet, check_invariance, offblock_check)
+    return SymmetrySpec(collect(clifford_generators); pauli_charge, pauli_singlet, check_invariance, offblock_check, clifford_backend)
 end
 
 function SymmetrySpec(
@@ -1165,6 +1187,7 @@ function SymmetrySpec(
     pauli_singlet::Union{Nothing,PauliSingletConstraintSpec}=nothing,
     check_invariance::Bool=true,
     offblock_check::Symbol=:randomized,
+    clifford_backend::Symbol=:wedderburn,
 )
     return SymmetrySpec(
         SignedPermutation[generator for generator in generators],
@@ -1176,6 +1199,7 @@ function SymmetrySpec(
         pauli_singlet,
         check_invariance,
         offblock_check,
+        clifford_backend,
     )
 end
 
@@ -1185,7 +1209,7 @@ end
 Summary of the symmetry reduction applied to a relaxation.
 """
 struct SymmetryReport <: AbstractSymmetryReport
-    group_order::Int
+    group_order::Union{Nothing,Int}
     invariant_moment_count::Int
     psd_block_sizes::Vector{Int}
     basis_half_size::Int
@@ -1374,7 +1398,8 @@ function Base.inv(g::CliffordSymmetryGroupElement{T}) where {T<:Integer}
 end
 
 function Base.:(*)(a::CliffordSymmetryGroupElement{T}, b::CliffordSymmetryGroupElement{T}) where {T<:Integer}
-    a.group.inner.domain == b.group.inner.domain && a.group.inner.elements == b.group.inner.elements || throw(ArgumentError(
+    (a.group === b.group ||
+        (a.group.inner.domain == b.group.inner.domain && a.group.inner.elements == b.group.inner.elements)) || throw(ArgumentError(
         "Cannot multiply elements from different CliffordSymmetryGroups."
     ))
     return CliffordSymmetryGroupElement{T}(a.group, a.group.inner.mult_table[a.index, b.index])
@@ -1414,6 +1439,7 @@ function _convert_symmetry_spec(::Type{T}, spec::SymmetrySpec) where {T<:Integer
         pauli_singlet=spec.pauli_singlet,
         check_invariance=spec.check_invariance,
         offblock_check=spec.offblock_check,
+        clifford_backend=spec.clifford_backend,
     )
 end
 
@@ -1678,15 +1704,41 @@ function _sw_finite_action_group(
     end
 
     n = length(elements)
-    mult_table = Matrix{Int}(undef, n, n)
-    for j in 1:n, i in 1:n
-        product = _compose_finite_actions(elements[j], elements[i], domain)
+    # Compose actions only along generator edges. The remaining products
+    # follow by associativity, using integer indices instead of new actions.
+    generator_edges = Matrix{Int}(undef, n, length(generator_indices))
+    for (k, generator_idx) in enumerate(generator_indices), i in 1:n
+        product = _compose_finite_actions(elements[generator_idx], elements[i], domain)
         idx = get(lookup, _symmetry_key(product, domain), 0)
         idx == 0 && throw(ArgumentError(
             "Internal symmetry error: enumerated symmetry group is not closed under multiplication."
         ))
-        mult_table[i, j] = idx
+        generator_edges[i, k] = idx
     end
+
+    mult_table = Matrix{Int}(undef, n, n)
+    mult_table[:, 1] = 1:n
+    reached = falses(n)
+    reached[1] = true
+    queue = [1]
+    pos = 1
+    while pos <= length(queue)
+        parent = queue[pos]
+        pos += 1
+        for k in eachindex(generator_indices)
+            target = generator_edges[parent, k]
+            reached[target] && continue
+            # table[i,j] represents elements[j] ∘ elements[i].
+            for i in 1:n
+                mult_table[i, target] = generator_edges[mult_table[i, parent], k]
+            end
+            reached[target] = true
+            push!(queue, target)
+        end
+    end
+    all(reached) || throw(ArgumentError(
+        "Internal symmetry error: generators do not generate the enumerated symmetry group."
+    ))
 
     inv_table = Vector{Int}(undef, n)
     for i in 1:n
@@ -3743,8 +3795,14 @@ function moment_relax_symmetric(
             _clifford_nqubits_from_domain(support_domain),
             _clifford_max_generator_nqubits(symmetry.clifford_generators),
         )
-        sw_group = CliffordSymmetryGroup(symmetry.clifford_generators; nqubits, integer_type=T, domain=support_domain)
-        group = CliffordSymmetry{T}[_clifford_group_value(element) for element in sw_group]
+        if symmetry.clifford_backend === :generators
+            sparse_layout && throw(ArgumentError("Generator-only Clifford reduction currently requires a dense relaxation layout."))
+            group = CliffordSymmetry{T}[_convert_clifford_symmetry(T, g) for g in symmetry.clifford_generators]
+            sw_group = _CliffordGenerators(group)
+        else
+            sw_group = CliffordSymmetryGroup(symmetry.clifford_generators; nqubits, integer_type=T, domain=support_domain)
+            group = CliffordSymmetry{T}[_clifford_group_value(element) for element in sw_group]
+        end
     end
 
     if !isnothing(group)
@@ -3786,7 +3844,7 @@ function moment_relax_symmetric(
         end
 
         reducer = use_lazy_pauli_charge ? _lazy_orbit_reducer(A, T, group) : _build_orbit_reducer(total_basis, group)
-        group_order = length(group)
+        group_order = sw_group isa _CliffordGenerators ? nothing : length(group)
     end
 
     psd_cone = _is_complex_problem(A) ? :HPSD : :PSD
@@ -3941,7 +3999,8 @@ function moment_relax_symmetric(
                             offblock_check=symmetry.offblock_check,
                         )
                     diagonal_labels = fill(nothing, length(diagonal_blocks))
-                    provenance = !block_invariant ? :transported : isnothing(sw_group) ? :identity : :wedderburn
+                    provenance = !block_invariant ? :transported : isnothing(sw_group) ? :identity :
+                        sw_group isa _CliffordGenerators ? :generators : :wedderburn
                     diagonal_provenance = fill(provenance, length(diagonal_blocks))
                 end
 

@@ -1,0 +1,14 @@
+BEGIN input
+END input seconds=2.560025595 allocated_bytes=95453824
+BEGIN symmetry
+END symmetry seconds=29.970596094 allocated_bytes=770545536
+BEGIN row_closure
+END row_closure seconds=3.917079539 allocated_bytes=643994608
+BEGIN signed_row_actions
+END signed_row_actions seconds=4.244531933 allocated_bytes=691038512
+BEGIN sparsity
+END sparsity seconds=0.001448028 allocated_bytes=366888
+BEGIN block_orbits_stabilizers
+info: inference of push!(Base.Set{Tuple}, NTuple{7801, Int64}) from push!(Base.Set{T} where T, Any) exceeding 2501 frames (may be slow).
+info: inference of push!(Base.Set{Tuple}, NTuple{7801, Int64}) from push!(Base.Set{T} where T, Any) exceeding 5001 frames (may be slow).
+LIMIT_EXCEEDED: 16 GiB RSS or 600 s

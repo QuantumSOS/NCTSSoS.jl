@@ -1,0 +1,79 @@
+
+[87378] signal 15: Terminated
+in expression starting at none:1
+obvious_subtype at /cache/build/builder-amdci5-2/julialang/julia-ci/src/subtype.c:2222
+obvious_subtype at /cache/build/builder-amdci5-2/julialang/julia-ci/src/subtype.c:1970 [inlined]
+obvious_subtype at /cache/build/builder-amdci5-2/julialang/julia-ci/src/subtype.c:2166
+ijl_subtype_env at /cache/build/builder-amdci5-2/julialang/julia-ci/src/subtype.c:2301
+jl_type_intersection_env_s at /cache/build/builder-amdci5-2/julialang/julia-ci/src/subtype.c:4614
+jl_typemap_intersection_node_visitor at /cache/build/builder-amdci5-2/julialang/julia-ci/src/typemap.c:543
+jl_typemap_intersection_visitor at /cache/build/builder-amdci5-2/julialang/julia-ci/src/typemap.c:810
+jl_typemap_intersection_visitor at /cache/build/builder-amdci5-2/julialang/julia-ci/src/typemap.c:791
+jl_typemap_intersection_visitor at /cache/build/builder-amdci5-2/julialang/julia-ci/src/typemap.c:726
+ml_matches at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4727
+ml_matches at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4608 [inlined]
+ijl_matching_methods at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:3126 [inlined]
+ijl_matching_methods at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:3113
+_methods_by_ftype at ./runtime_internals.jl:1415 [inlined]
+_findall at ./../usr/share/julia/Compiler/src/methodtable.jl:105 [inlined]
+#findall#5 at ./../usr/share/julia/Compiler/src/methodtable.jl:70 [inlined]
+findall at ./../usr/share/julia/Compiler/src/methodtable.jl:70 [inlined]
+#findall#13 at ./../usr/share/julia/Compiler/src/methodtable.jl:119
+findall at ./../usr/share/julia/Compiler/src/methodtable.jl:110 [inlined]
+find_simple_method_matches at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:386
+jfptr_find_simple_method_matches_11857.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+tojlinvoke85480.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+j_find_simple_method_matches_77276.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+#find_method_matches#135 at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:348 [inlined]
+find_method_matches at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:342 [inlined]
+abstract_call_gf_by_type at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:120
+abstract_call_known at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:2797
+abstract_call at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:2904
+infercalls at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:1865
+abstract_apply at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:1885
+abstract_call_known at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:2663
+abstract_call at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:2904
+abstract_call at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:2897 [inlined]
+abstract_call at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:3057
+abstract_eval_call at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:3075 [inlined]
+abstract_eval_statement_expr at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:3404
+abstract_eval_basic_statement at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:3850 [inlined]
+abstract_eval_basic_statement at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:3807 [inlined]
+typeinf_local at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:4357
+jfptr_typeinf_local_80383.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+typeinf at ./../usr/share/julia/Compiler/src/abstractinterpretation.jl:4515
+typeinf_ext at ./../usr/share/julia/Compiler/src/typeinfer.jl:1256
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1439 [inlined]
+typeinf_ext_toplevel at ./../usr/share/julia/Compiler/src/typeinfer.jl:1448
+jfptr_typeinf_ext_toplevel_83556.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+jl_type_infer at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:466
+jl_compile_method_internal at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:3516
+_jl_invoke at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4006 [inlined]
+ijl_apply_generic at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gf.c:4214
+union! at ./abstractset.jl:106
+Set at ./set.jl:47 [inlined]
+_Set at ./set.jl:59 [inlined]
+Set at ./set.jl:58 [inlined]
+#block_orbits#13 at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:95
+block_orbits at /home/user/workspace/repo/.amp/in/orb-backup/symmetry-sparsity/experiment.jl:94
+unknown function (ip: 0x7f2cf1b2d3d0) at (unknown file)
+top-level scope at ./timing.jl:697
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1024
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+exec_options at ./client.jl:283
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7f2d0d1a5ca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 172823694 (Pool: 172817550; Big: 6144); GC: 28

@@ -4,16 +4,16 @@ EditURL = "../literate/pbw_algebras_showcase.jl"
 
 # [PBW Algebra Showcase (Fermionic / Bosonic)](@id pbw-algebras-showcase)
 
-This page demonstrates the two `PBWAlgebra` variants supported by `NCTSSoS.jl`:
-- [`FermionicAlgebra`](@ref) (CAR / anticommutation)
-- [`BosonicAlgebra`](@ref) (CCR / commutation)
+This page demonstrates two PBW algebras supported by `NCTSSoS.Next`:
+- `Fermionic()` (CAR / anticommutation)
+- `Bosonic()` (CCR / commutation)
 
 In PBW algebras, multiplying monomials can expand into a **sum of monomials**.
-In `NCTSSoS.jl`, this means `NormalMonomial * NormalMonomial` returns a [`Polynomial`](@ref)
-that may contain multiple terms.
+Variables are polynomials. Their product can contain multiple normal words;
+`Next.terms` iterates the `(coefficient, word)` pairs.
 
 ````julia
-using NCTSSoS
+using NCTSSoS.Next
 
 repr_with_registry(reg, x) = sprint(show, x; context=:registry => reg)
 ````
@@ -22,7 +22,7 @@ repr_with_registry(reg, x) = sprint(show, x; context=:registry => reg)
 repr_with_registry (generic function with 1 method)
 ````
 
-## 1) FermionicAlgebra (CAR)
+## 1) Fermionic operators (CAR)
 
 Fermionic operators satisfy the canonical anticommutation relations (CAR):
 ```math
@@ -32,11 +32,11 @@ Fermionic operators satisfy the canonical anticommutation relations (CAR):
 Create annihilation operators `a[i]` and creation operators `a⁺[i]`:
 
 ````julia
-reg_f, (a, a⁺) = create_fermionic_variables(1:2)
+reg_f, (a, a⁺) = fermionic_variables(1:2)
 ````
 
 ````
-(VariableRegistry with 4 variables: a⁺₂, a⁺₁, a₁, a₂, (NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a₁, a₂], NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a⁺₁, a⁺₂]))
+(Registry(Fermionic, 2 sites, 4 variables), ([a1, a2], [ad1, ad2]))
 ````
 
 ### CAR example: `a₁ a₁† = 𝟙 - a₁† a₁`
@@ -47,13 +47,13 @@ repr_with_registry(reg_f, p_car)
 ````
 
 ````
-"1 + -a⁺₁a₁"
+"1.0 + (-1.0) ad1 a1"
 ````
 
 Two terms: identity + normal-ordered number operator:
 
 ````julia
-length(terms(p_car))
+length(Next.terms(p_car))
 ````
 
 ````
@@ -62,11 +62,12 @@ length(terms(p_car))
 
 ### Parity helper
 
-The helper [`has_even_parity`](@ref) checks parity of a **monomial** (not a polynomial):
+A normal word has even fermionic parity when its degree is even.
+Extract the word from this single-term polynomial:
 
 ````julia
-m_num = monomials(a⁺[1] * a[1])[1]  # monomial a₁†a₁
-has_even_parity(m_num)
+m_num = last(only(Next.terms(a⁺[1] * a[1])));
+iseven(Next.degree(m_num))
 ````
 
 ````
@@ -85,7 +86,7 @@ iszero(a[1] * a[1])
 true
 ````
 
-## 2) BosonicAlgebra (CCR)
+## 2) Bosonic operators (CCR)
 
 Bosonic operators satisfy the canonical commutation relations (CCR):
 ```math
@@ -95,11 +96,11 @@ Bosonic operators satisfy the canonical commutation relations (CCR):
 Create annihilation operators `c[i]` and creation operators `c⁺[i]`:
 
 ````julia
-reg_b, (c, c⁺) = create_bosonic_variables(1:1)
+reg_b, (c, c⁺) = bosonic_variables(1:1)
 ````
 
 ````
-(VariableRegistry with 2 variables: c⁺₁, c₁, (NCTSSoS.NormalMonomial{NCTSSoS.BosonicAlgebra, Int8}[c₁], NCTSSoS.NormalMonomial{NCTSSoS.BosonicAlgebra, Int8}[c⁺₁]))
+(Registry(Bosonic, 1 sites, 2 variables), ([b1], [bd1]))
 ````
 
 ### CCR example: `c₁ c₁† = c₁† c₁ + 𝟙`
@@ -110,13 +111,13 @@ repr_with_registry(reg_b, p_ccr)
 ````
 
 ````
-"1 + c⁺₁c₁"
+"1.0 + bd1 b1"
 ````
 
 Again, two terms:
 
 ````julia
-length(terms(p_ccr))
+length(Next.terms(p_ccr))
 ````
 
 ````

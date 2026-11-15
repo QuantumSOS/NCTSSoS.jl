@@ -38,8 +38,8 @@ include("model/gns.jl")
 
 public Symmetry, variables
 
-export pauli_variables, fermionic_variables, site_variables,
-    Pauli, Fermionic, Free, Projector, Unipotent, SiteAlgebra,
+export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
+    Pauli, Fermionic, Bosonic, Free, Projector, Unipotent, SiteAlgebra,
     Problem, Positive, Zero, SitePermutation, CliffordMap, AntiunitaryPauli,
     SpinRotation, spin_rotations, NumberRotation,
     detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,

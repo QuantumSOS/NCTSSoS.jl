@@ -9,6 +9,7 @@ Base.length(letters::WordLetters) = degree(letters.word)
 
 include("pauli.jl")
 include("fermi.jl")
+include("boson.jl")
 include("site.jl")
 include("polynomial.jl")
 include("registry.jl")

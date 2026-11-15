@@ -6,11 +6,29 @@ Base.one(g::TestCounterAction) = TestCounterAction(0,g.order)
 Nx.compose(g::TestCounterAction,h::TestCounterAction) = TestCounterAction(mod(g.shift+h.shift,g.order),g.order)
 
 @testset "Shared finite-group projections" begin
-    @test length(Nx.OrbitGroup([TestCounterAction(1,65535)])) == 65535
+    counter=Nx.OrbitGroup([TestCounterAction(1,65535)])
+    @test length(counter) == 65535
+    long=Nx.OrbitGroupElement(counter,65000)
+    @test (long*long).index == mod(2*(65000-1),65535)+1
     @test_throws r"65,535" Nx.OrbitGroup([TestCounterAction(1,65536)])
     n = 4
     generators = [test_shift(n), test_reflect(n)]
     @test_throws ArgumentError Nx.OrbitGroup(generators; limit=7)
+    W=Nx.word_type(Nx.Pauli(),3,1)
+    axes=[Nx.CliffordMap([Nx.pauli_letter(W,i,a) for a in axis for i in 1:3])
+        for axis in ((1,0),(1,2))]
+    for gs in (generators,axes)
+        original=Nx.OrbitGroup(gs)
+        elements=original.elements[[1;collect(length(original):-1:2)]]
+        indices=Dict(g=>i for (i,g) in enumerate(elements))
+        reordered=Nx.OrbitGroup(elements,indices,[indices[g] for g in gs])
+        for group in (original,reordered)
+            @test all(group.elements[(g*h).index]==Nx.compose(group.elements[g.index],group.elements[h.index])
+                for g in group,h in group)
+            @test all(g*inv(g)==one(group) for g in group)
+        end
+        @test_throws ArgumentError one(original)*one(reordered)
+    end
     for model in (:heisenberg, :ising)
         rows = toy_words(n, 1) # X, Y and Z each carry the 2D D4 irrep.
         objective = ring_objective(n, model)

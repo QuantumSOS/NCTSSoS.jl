@@ -25,6 +25,8 @@ def integral_input(checkout, n, output):
 
 def run(args, row):
     target, route, n, order, variant = row
+    if args.save_program and route != "next":
+        raise ValueError("--save-program requires route next")
     name = "-".join(map(str, row))
     if args.mode != "build":
         name += "-" + args.mode
@@ -37,6 +39,8 @@ def run(args, row):
     data = integral_input(args.checkout, n, output) if target == "hydrogen" else "-"
     cmd = ["julia", f"--project={args.project}", "--startup-file=no", str(ROOT / "perf/next/probe.jl"),
            target, route, str(n), str(order), variant, str(data), str(path), args.mode]
+    if args.save_program:
+        cmd.append("save_program")
     env = dict(os.environ, JULIA_NUM_THREADS="1", OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -93,6 +97,8 @@ if __name__ == "__main__":
     parser.add_argument("--seconds", type=float, default=600)
     parser.add_argument("--gb", type=float, default=20)
     parser.add_argument("--mode", choices=("build", "profile", "solve"), default="build")
+    parser.add_argument("--save-program", action="store_true",
+                        help="Serialize the first Next program outside the build timer for equivalence checks")
     parser.add_argument("--replace", action="store_true")
     args = parser.parse_args()
     raise SystemExit(run(args, (args.target, args.route, args.n, args.order, args.variant)))

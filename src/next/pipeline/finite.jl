@@ -1,11 +1,15 @@
 import GroupsCore
 import SymbolicWedderburn
 
-# This adapter stores O(|G|) group data, not a multiplication table.
+# Store O(number of supplied generators * |G|) edges. The enumeration order
+# stays unchanged, including the order used by the character calculations.
 struct OrbitGroup{A} <: GroupsCore.Group
     elements::Vector{A}
     indices::Dict{A,Int}
     generators::Vector{Int}
+    right::Matrix{Int}
+    parents::Vector{Int}
+    steps::Vector{Int}
 end
 struct OrbitGroupElement{A} <: GroupsCore.GroupElement
     group::OrbitGroup{A}
@@ -18,18 +22,30 @@ function OrbitGroup(generators::AbstractVector{A}; limit=65535) where {A<:Abstra
     1 <= limit <= 65535 || throw(ArgumentError("The generic group limit must be at most 65,535."))
     elements = A[one(first(generators))]
     indices = Dict{A,Int}(first(elements) => 1)
+    parents, steps = [1], [0]
     i = 1
     while i <= length(elements)
-        for g in generators
+        for (step,g) in enumerate(generators)
             h = compose(g, elements[i])
             haskey(indices, h) && continue
             length(elements) < limit || throw(ArgumentError(
                 "Generic finite group exceeds the limit $limit (SymbolicWedderburn 0.4.4 uses 16-bit indices; hard limit 65,535). Name translations for the lattice engine or use the abelian engine."))
             push!(elements, h); indices[h] = length(elements)
+            push!(parents,i); push!(steps,step)
         end
         i += 1
     end
-    OrbitGroup(elements, indices, [indices[g] for g in generators])
+    right = [indices[compose(h,g)] for g in generators,h in elements]
+    OrbitGroup(elements, indices, [indices[g] for g in generators], right, parents, steps)
+end
+
+# Little groups retain the caller's element order rather than enumeration order.
+function OrbitGroup(elements::Vector{A},indices::Dict{A,Int},generators::Vector{Int}) where {A}
+    generated = OrbitGroup(elements[generators])
+    to_order = [indices[g] for g in generated.elements]
+    from_order = [generated.indices[g] for g in elements]
+    OrbitGroup(elements,indices,generators,to_order[generated.right[:,from_order]],
+        to_order[generated.parents[from_order]],generated.steps[from_order])
 end
 Base.eltype(::Type{OrbitGroup{A}}) where {A} = OrbitGroupElement{A}
 Base.IteratorSize(::Type{<:OrbitGroup}) = Base.HasLength()
@@ -44,7 +60,15 @@ Base.hash(g::OrbitGroupElement, h::UInt) = hash(g.index, h)
 Base.inv(g::OrbitGroupElement) = OrbitGroupElement(g.group, g.group.indices[inv(g.group.elements[g.index])])
 function Base.:*(g::OrbitGroupElement, h::OrbitGroupElement)
     g.group === h.group || throw(ArgumentError("Elements belong to different groups."))
-    OrbitGroupElement(g.group, g.group.indices[compose(g.group.elements[g.index], h.group.elements[h.index])])
+    group = g.group
+    result, factor = g.index, h.index
+    # h = generator[steps[h]] * parent[h]. Consume that leftmost generator
+    # by right multiplication, then continue with its parent. No word buffers.
+    while factor != 1
+        result = group.right[group.steps[factor],result]
+        factor = group.parents[factor]
+    end
+    OrbitGroupElement(group,result)
 end
 GroupsCore.order(::Type{I}, g::OrbitGroup) where {I<:Integer} = I(length(g))
 function GroupsCore.order(::Type{I}, g::OrbitGroupElement) where {I<:Integer}

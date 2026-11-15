@@ -103,9 +103,26 @@ function _sector_equalities!(program,table,closure,sectors)
             end
         end
     end
-    sink=OrbitFormSink(table,Dict{Int32,Complex{Rational{BigInt}}}())
-    seen=Set{Vector{Pair{Int32,Rational{BigInt}}}}()
     ordered=sort!(collect(words))
+    nterms,nforms,nblocks=length(program.forms.ids),length(program.forms.offsets),length(program.blocks)
+    try
+        _sector_equations!(program,table,ordered,sectors,Rational{Int})
+    catch error
+        error isa Union{OverflowError,InexactError} || rethrow()
+        resize!(program.forms.ids,nterms); resize!(program.forms.coefs,nterms)
+        resize!(program.forms.offsets,nforms); resize!(program.blocks,nblocks)
+        # The failed traversal registered only a prefix of the same words.
+        # Keep those coordinates: replay uses the same order and ids, without
+        # copying the entire moment table on the ordinary machine path.
+        _sector_equations!(program,table,ordered,sectors,Rational{BigInt})
+    end
+    nothing
+end
+
+function _sector_equations!(program,table,ordered,sectors,::Type{R}) where R
+    sink=OrbitFormSink(table,Dict{Int32,Complex{R}}())
+    seen=Set{Vector{Pair{Int32,R}}}()
+    key=Pair{Int32,R}[]
     # Moment and Hermitian localizer entries occur with their adjoints.
     # Every right equation <u(Q-q)>=0 is therefore already the conjugate
     # (up to a word phase) of a left equation <(Q-q)u†>=0.
@@ -118,20 +135,28 @@ function _sector_equalities!(program,table,closure,sectors)
         for u in Iterators.flatten((variance,ordered))
             empty!(sink.terms)
             if u isa SectorTerms
-                for (w,c) in u.terms; push_term!(sink,c,w); end
+                for (w,c) in u.terms; push_term!(sink,Complex{R}(c),w); end
             else
                 for (w,c) in s.terms
-                    mul!(sink,w,u,c)
+                    mul!(sink,w,u,Complex{R}(c))
                 end
             end
             for part in (real,imag)
-                form=sort!([id=>part(c) for (id,c) in sink.terms if !iszero(part(c))];by=first)
-                isempty(form) && continue
-                pivot=last(first(form))
-                key=[id=>c/pivot for (id,c) in form]
+                empty!(key)
+                for (id,c) in sink.terms
+                    iszero(part(c)) || push!(key,id=>part(c))
+                end
+                isempty(key) && continue
+                sort!(key;by=first)
+                pivot=last(first(key))
+                for i in eachindex(key)
+                    id,c=key[i]; key[i]=id=>c/pivot
+                end
                 key in seen && continue
-                push!(seen,key)
-                for (id,c) in key; push_term!(program.forms,c,id); end
+                push!(seen,copy(key))
+                # Keep the reference rounding at the conic boundary. The
+                # sink, normalization and duplicate checks remain exact.
+                for (id,c) in key; push_term!(program.forms,Rational{BigInt}(c),id); end
                 close_form!(program.forms)
                 count+=1
             end

@@ -2,6 +2,30 @@ function sector_matrix(p,n)
     sum(c*physical_pauli(w,1:n) for (c,w) in Nx.terms(p))
 end
 
+@testset "Sector overflow preserves the exact program" begin
+    _,(b,bd)=Nx.bosonic_variables(1)
+    number=bd[1]*b[1]
+    Q=bd[1]^12*b[1]^12
+    # The last contraction in Q*(bd^60*b^60) exceeds Int64. Scaling Q
+    # delays overflow until normalization; a still smaller scale cannot fit
+    # the variance's denominator. Every retry must preserve the equations,
+    # including the already completed number-sector block.
+    @test prod(BigInt.(49:60))>typemax(Int64)
+    family=[[one(b[1]),b[1]^60]]
+    forms=map((1,2.0^-16,2.0^-40)) do factor
+        built=Nx.build(Nx.Problem(zero(number)),Nx.BlockRelaxation(family=family,
+            strengthen=(Nx.Sector(number,0),Nx.Sector(factor*Q,0))))
+        Nx.moment_standard_form(built.program)
+    end
+    for form in forms[2:end]
+        @test isequal(forms[1].A,form.A)
+        @test isequal(forms[1].b,form.b)
+        @test isequal(forms[1].c,form.c)
+        @test isequal(forms[1].offset,form.offset)
+        @test isequal(forms[1].cones,form.cones)
+    end
+end
+
 @testset "DensityMatrix uses the contained sector face" begin
     _,(x,y,z)=Nx.pauli_variables(2)
     H=z[2]+0.2y[1]*y[2]

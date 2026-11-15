@@ -19,6 +19,15 @@
 using Pkg
 Pkg.add("NCTSSoS")
 ```
+
+!!! note "Redesign documentation"
+    These pages describe `NCTSSoS.Next` on the `redesign` branch. Until the
+    release, install that branch to run the examples:
+
+    ```julia
+    Pkg.add(url="https://github.com/QuantumSOS/NCTSSoS.jl", rev="redesign")
+    ```
+
 To make sure everything works, you can execute the test suite.
 See `TESTING.md` in the repository root.
 

@@ -6,15 +6,15 @@ commute with each other when used carefully:
 
 1. **U(1) charge sectors** in the local basis ``\{Z, S^+, S^-\}``, with
    charges ``q(Z)=0``, ``q(S^+)=+1``, and ``q(S^-)=-1``.
-2. **Spatial site symmetries** represented as Pauli [`CliffordSymmetry`](@ref)
+2. **Spatial site symmetries** represented as Pauli `CliffordSymmetry`
    actions that preserve the Pauli axis and only permute sites.
 3. **Order-2 SU(2)-singlet moment equalities**, added as linear expectation
    constraints.
 
 This is not a new solver pipeline. The feature is wired through
-[`SymmetrySpec`](@ref) and the internal `moment_relax_symmetric` path just like
+`SymmetrySpec` and the internal `moment_relax_symmetric` path just like
 the older signed-permutation and Clifford reductions. The output is still an ordinary
-[`MomentProblem`](@ref NCTSSoS.MomentProblem), with smaller PSD blocks and fewer
+`MomentProblem`, with smaller PSD blocks and fewer
 moment variables.
 
 ## [When to use it](@id pauli-charge-when)
@@ -40,8 +40,8 @@ element must be a spatial site permutation.
 
 ## [API pattern](@id pauli-charge-api-pattern)
 
-Use [`pauli_site_permutation`](@ref) for translations and reflections. It
-constructs a [`CliffordSymmetry`](@ref) that maps ``\sigma_i^a`` to
+Use `pauli_site_permutation` for translations and reflections. It
+constructs a `CliffordSymmetry` that maps ``\sigma_i^a`` to
 ``\sigma_{p(i)}^a`` for every Pauli axis ``a``.
 
 ```julia
@@ -82,12 +82,12 @@ regression tests do.
 
 ## [What each option does](@id pauli-charge-options)
 
-[`PauliChargeSectorSpec`](@ref) changes the moment basis from Pauli words to
+`PauliChargeSectorSpec` changes the moment basis from Pauli words to
 charge words through order 2. The PSD matrix is block-partitioned by total
 charge. If spatial Clifford generators are also supplied, NCTSSoS runs the
 finite Wedderburn split **inside each charge sector**.
 
-[`PauliSingletConstraintSpec`](@ref) appends order-2 expectation equalities for
+`PauliSingletConstraintSpec` appends order-2 expectation equalities for
 an SU(2)-singlet state:
 
 - single-site expectations vanish: ``\langle \sigma_i^a\rangle = 0``;
@@ -102,7 +102,7 @@ These are linear moment constraints, not a full non-Abelian SU(2)
 representation-theory implementation. That is the right level for the first
 order-2 Pauli path: small, explicit, and easy to audit.
 
-[`PauliChargeBlockLabel`](@ref) labels the produced PSD blocks. Its fields tell
+`PauliChargeBlockLabel` labels the produced PSD blocks. Its fields tell
 you the charge sector, whether a further finite spatial block split was used,
 the spatial group order, and the dimension of the unsplit charge sector.
 
@@ -110,7 +110,7 @@ the spatial group order, and the dimension of the unsplit charge sector.
 
 The implementation is intentionally narrow:
 
-- only ordinary [`PolyOpt`](@ref) problems over `PauliAlgebra`;
+- only ordinary `PolyOpt` problems over `PauliAlgebra`;
 - dense relaxations only: `cs_algo = NoElimination()` and
   `ts_algo = NoElimination()`;
 - complete Pauli half-bases through degree 0, 1, or 2; `order = 2` is the
@@ -118,7 +118,7 @@ The implementation is intentionally narrow:
 - charge-neutral objectives and constraints when `PauliChargeSectorSpec` is
   enabled;
 - optional finite symmetries must be spatial `CliffordSymmetry` actions that
-  preserve Pauli axes; use [`pauli_site_permutation`](@ref);
+  preserve Pauli axes; use `pauli_site_permutation`;
 - `PauliSingletConstraintSpec` currently emits only order-2 singlet moment
   equalities.
 
@@ -175,5 +175,5 @@ relaxation.
   reduction pipeline and report fields.
 - [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry) for manual and
   SympleQ-detected Clifford reductions without charge-sector splitting.
-- [`SymmetrySpec`](@ref), [`PauliChargeSectorSpec`](@ref),
-  [`PauliSingletConstraintSpec`](@ref), and [`pauli_site_permutation`](@ref).
+- `SymmetrySpec`, `PauliChargeSectorSpec`,
+  `PauliSingletConstraintSpec`, and `pauli_site_permutation`.

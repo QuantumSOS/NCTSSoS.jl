@@ -28,16 +28,17 @@ on the variables in the form of polynomial inequalities. For example, we may req
 
 ## Setting Up the Problem
 
-First, create non-commutative variables using [`create_noncommutative_variables`](@ref).
-Then use [`NCTSSoS.polyopt`](@ref) to define the optimization problem with
-inequality constraints.
+First, create non-commutative variables using `site_variables(Free(), 1, n)`.
+All variables belong to one site, so no commutation between them is imposed.
+Then use `Problem` with `Positive` to define the operator inequalities.
 
 ```julia
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
+import NCTSSoS.Next as Next
 
 function broyden_banded(n::Int)
     # Create non-commutative variables
-    registry, (x,) = create_noncommutative_variables([("x", 1:n)])
+    registry, (x,) = site_variables(Free(), 1, n)
 
     # Build the objective function using sum
     f = sum(1:n) do i
@@ -49,13 +50,13 @@ function broyden_banded(n::Int)
     # Define inequality constraints
     ineq_cons = [[1.0 - x[i]^2 for i in 1:n]; [x[i] - 1//3 for i in 1:n]]
 
-    return polyopt(f, registry; ineq_constraints=ineq_cons)
+    return registry, Problem(f; constraints=Positive.(ineq_cons))
 end
 
-pop = broyden_banded(6)
+registry, problem = broyden_banded(6)
 ```
 
-The [`create_noncommutative_variables`](@ref) function returns a registry and
+The `site_variables` function returns a registry and
 variable arrays. All algebraic constraints are automatically encoded through
 the type system.
 
@@ -72,58 +73,69 @@ relaxation is tight in the limit of a parameter, moment order, reaching
 infinity. However, you may get lucky and be able to sovle the problem at finite
 moment order.
 
-Information about the relaxation is encoded in [`NCTSSoS.SolverConfig`](@ref).
-Besides moment order, it also needs to be provided with a [SDP Solver](@ref
-overview-of-optimizers). Different optimizers may have different performance
+Information about the relaxation is encoded in `Relaxation`.
+Choose the moment order here and pass a [SDP Solver](@ref
+overview-of-optimizers) to `solve`. Different optimizers may have different performance
 characteristics and may be more or less suitable for a given problem.
 
 ```julia
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3)
+relaxation = Relaxation(order=3)
+solver = MosekBackend()
 ```
 
 If you want full control over the relaxation basis, you can provide
-`moment_basis` directly instead of `order`:
+`rows` directly instead of `order`:
 
 ```julia
-basis = get_ncbasis(pop.registry, 3)
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, moment_basis=basis)
+rows = collect(Next.basis(registry, 3))
+custom_relaxation = Relaxation(rows=rows)
 ```
 
 ## Solving the Problem
 
-Finally, we are ready to solve this problem using [`NCTSSoS.cs_nctssos`](@ref).
+Finally, we are ready to solve this problem using `solve`.
 
 ```julia
-result = cs_nctssos(pop, solver_config)
-# Objective: ~2.979657977586228
+result = solve(problem, relaxation; solver)
+# Objective: ~2.9796579831938192
+@assert isapprox(result.bound, 2.97965798; atol=1e-6)
 ```
 
 Although we have reached a tight bound, time to solve the problem can still be
 significant. As a remedy, [Sparsities](@ref sparsities) can be utilized to
-reduce the problem size. This is achieved by supplying an
+reduce the problem size. Choose a correlative grouping and a term split,
+each with an
 [`EliminationAlgorithm`](https://algebraicjulia.github.io/CliqueTrees.jl/stable/api/#Elimination-Algorithms)
-to [`NCTSSoS.SolverConfig`](@ref).
+on `Relaxation`. Name `MMD()` explicitly: `TermSplit` defaults to
+`MaximalElimination()`.
 
 ```julia
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
+relaxation_sparse = Relaxation(order=3,
+    grouping=Correlative(algorithm=MF()),
+    split=TermSplit(algorithm=MMD(), level=1))
 
-result_sparse = cs_nctssos(pop, solver_config)
-# Objective: ~2.979657981888441
+result_sparse = solve(problem, relaxation_sparse; solver)
+# Objective: ~2.9796579733401436
+@assert isapprox(result_sparse.bound, result.bound; atol=1e-6)
 ```
 
-As expected, the time taken to solve the problem is significantly reduced.
+Sparse blocks can reduce the cost of solving the problem.
 However, the result may no longer be a tight lower bound since sparsity is itself
-a kind of relaxation. A follow-up call to [`NCTSSoS.cs_nctssos_higher`](@ref)
-can sometimes tighten the relaxation in the [Term Sparsity](@ref term-sparsity)
-sense by updating the raw term-sparsity support at the same order.
+a kind of relaxation. Increasing `TermSplit(level=...)` can sometimes tighten
+the relaxation in the [Term Sparsity](@ref term-sparsity) sense by extending
+the completed moment and localizing supports at the same order.
 
 This is not guaranteed to improve the bound: if the raw term-sparsity support is
 already at a fixed point, the next sparse step will return the same relaxation.
 In that case, use a higher `order` or a less aggressive sparsity configuration.
 
 ```julia
-result_higher = cs_nctssos_higher(pop, result_sparse, solver_config)
-# Objective: ~2.9796579998271047
+relaxation_higher = Relaxation(order=3,
+    grouping=Correlative(algorithm=MF()),
+    split=TermSplit(algorithm=MMD(), level=2))
+result_higher = solve(problem, relaxation_higher; solver)
+# Objective: ~2.979657987721403
+@assert isapprox(result_higher.bound, result.bound; atol=1e-6)
 ```
 
 ## Workflow

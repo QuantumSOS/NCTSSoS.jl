@@ -73,7 +73,7 @@ function _checked_sectors(problem,kinds,symmetry,W)
         if any(x->x isa Stationarity,kinds)
             h=_sector_terms(problem.objective,W)
             _sector_product(h,s).terms==_sector_product(s,h).terms || throw(ArgumentError(
-                "Stationarity with a sector requires an exactly zero commutator of the objective and sector operator."))
+                "Stationarity with a sector requires an exactly zero commutator of the objective and sector operator; remove Stationarity or choose a commuting sector operator."))
         end
         push!(result,(source,s))
     end

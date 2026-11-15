@@ -34,7 +34,7 @@ end
     @test_throws r"finite" Nx.Sector(N,Inf)
     _,(_,_,other)=Nx.pauli_variables(2)
     @test_throws r"registry" Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,strengthen=(Nx.Sector(other[1],1),)))
-    @test_throws r"exactly zero commutator" Nx.build(Nx.Problem(H+1e-14*x[1]),Nx.BlockRelaxation(order=1,strengthen=(Nx.Sector(N,1),Nx.Stationarity())))
+    @test_throws r"exactly zero commutator.*remove Stationarity or choose a commuting sector operator" Nx.build(Nx.Problem(H+1e-14*x[1]),Nx.BlockRelaxation(order=1,strengthen=(Nx.Sector(N,1),Nx.Stationarity())))
     combined=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,strengthen=(Nx.Sector(N,1),Nx.Stationarity())))
     @test strengthening_bound(combined.program)≈-2.5 atol=1e-6
     @test_throws r"StateOptimality with a sector" Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,strengthen=(Nx.Sector(N,1),Nx.StateOptimality())))

@@ -75,6 +75,10 @@ Markdown.parse(join(vcat(["| Condition | Numerical bound | Exact ground energy |
                           "|:----------|----------------:|--------------------:|"],
                          table_rows), "\n"))
 
+# ```@raw html
+# <br>
+# ```
+#
 # `Stationarity` and `StateOptimality` give **no gain on this problem**.
 # The invariant cone improves the bound but does not reach `-3`; its value
 # near `-sqrt(15)` is a checked numerical value, not an exact certificate of
@@ -237,80 +241,62 @@ report_bound("Scalar equality", equal)
 # These messages are produced by executed calls. Each block expects an
 # `ArgumentError`; any other failure is rethrown. They describe the current
 # API, not a complete compatibility table.
-#
+
+function show_rejection(f)
+    try
+        f()
+        error("Expected the call to be rejected")
+    catch err
+        err isa ArgumentError || rethrow()
+        println(replace(sprint(showerror, err),
+            ": " => ":\n", "; " => ";\n", ", " => ",\n", ". " => ".\n"))
+    end
+end
+nothing #hide
+
 # **Wrong algebra.** Density-matrix positivity requires Pauli variables.
 
-try
+show_rejection() do
     Next.build(Problem(-N), Relaxation(order=1, strengthen=DensityMatrix(1:3)))
-    error("Expected the wrong algebra to be rejected")
-catch err
-    err isa ArgumentError || rethrow()
-    println(replace(sprint(showerror, err),
-        ": " => ":\n", "; " => ";\n", ", " => ",\n", ". " => ".\n"))
 end
 
 # **Stationarity with a constraint.** A constrained minimizer need not be an
 # eigenstate of the objective. Remove stationarity for this problem.
 
-try
+show_rejection() do
     Next.build(Problem(z[1]; constraints=(Positive(x[1]),)),
         Relaxation(order=1, strengthen=Stationarity()))
-    error("Expected constrained stationarity to be rejected")
-catch err
-    err isa ArgumentError || rethrow()
-    println(replace(sprint(showerror, err),
-        ": " => ":\n", "; " => ";\n", ", " => ",\n", ". " => ".\n"))
 end
 
 # **Sector with StateOptimality.** This combination is not supported.
 
-try
+show_rejection() do
     Next.build(Problem(z[1]), Relaxation(order=1,
         strengthen=(Sector(z[1], 1), StateOptimality())))
-    error("Expected sector optimality to be rejected")
-catch err
-    err isa ArgumentError || rethrow()
-    println(replace(sprint(showerror, err),
-        ": " => ":\n", "; " => ";\n", ", " => ",\n", ". " => ".\n"))
 end
 
 # **Symmetry moves the sector.** The swap preserves the objective but does
 # not preserve the selected `Z₁=1` sector. Remove it or select an invariant sector.
 
-try
+show_rejection() do
     Next.build(Problem(z[1]+z[2]; symmetry=(SitePermutation([2,1,3]),)),
         Relaxation(order=1, strengthen=Sector(z[1], 1)))
-    error("Expected a moved sector to be rejected")
-catch err
-    err isa ArgumentError || rethrow()
-    println(replace(sprint(showerror, err),
-        ": " => ":\n", "; " => ";\n", ", " => ",\n", ". " => ".\n"))
 end
 
 # **Scalar constraint with strengthening.** This is a temporary restriction:
 # scalar-constraint integration into the block pipeline is queued. Use a
 # plain order-based or custom-row relaxation for now.
 
-try
+show_rejection() do
     Next.build(Problem(z[1]; constraints=(ExpectationZero(z[1]),)),
         Relaxation(order=1, strengthen=DensityMatrix(1:1)))
-    error("Expected scalar strengthening to be rejected")
-catch err
-    err isa ArgumentError || rethrow()
-    println(replace(sprint(showerror, err),
-        ": " => ":\n", "; " => ";\n", ", " => ",\n", ". " => ".\n"))
 end
 
 # **Non-Hermitian sector operator.** Supply the intended self-adjoint
 # observable; the API does not silently replace it with its Hermitian part.
 
-try
+show_rejection() do
     Sector(im*x[1], 0)
-    error("Expected a non-Hermitian operator to be rejected")
-catch err
-    err isa ArgumentError || rethrow()
-    println(replace(sprint(showerror, err),
-        ": " => ":\n", "; " => ";\n", ", " => ",\n", ". " => ".\n"))
 end
 
 # ## Read the domain before comparing bounds

@@ -279,3 +279,13 @@ end
 
 include("actions.jl")
 include("moments.jl")
+include("boson.jl")
+
+@testset "Bosonic iterator storage" begin
+    for n in (2,23)
+        W=Nx.word_type(Nx.Bosonic(),n,18)
+        words=[one(W),Nx.word_from_legacy(W,[-n,-n,-1,1,n,n])]
+        check_packed_letters(words)
+        @test inspection_allocations(words)==0
+    end
+end

@@ -46,6 +46,16 @@ function act(g::SitePermutation,w::FermiWord)
     pa,a = _permute_mask(g,w.a)
     return Phase(2(pc+pa)),FermiWord(c,a)
 end
+function act(g::SitePermutation,w::W) where {W<:BosonWord}
+    c,a=one(W).c,one(W).a
+    for i in sites(w)
+        target=_image(g,i)
+        target<=_boson_modes(W) || throw(ArgumentError("Permutation image exceeds the bosonic word capacity."))
+        c=_boson_set(W,c,target,_boson_count(W,w.c,i))
+        a=_boson_set(W,a,target,_boson_count(W,w.a,i))
+    end
+    return one(Phase),W(c,a)
+end
 function act(g::SitePermutation,w::W) where {A,U,B,S,W<:SiteWord{A,U,B,S}}
     bits = zero(U)
     for i in 1:degree(w)
@@ -262,6 +272,16 @@ function derive!(sink,d::NumberRotation{K},w::FermiWord{K},c::Number=1) where {K
     iszero(charge) || push_term!(sink,im*charge*c,w)
     return sink
 end
+function derive!(sink,d::NumberRotation,w::W,c::Number=1) where {W<:BosonWord}
+    charge=0
+    for i in sites(w)
+        limb,offset=divrem(i-1,64)
+        limb<length(d.support) && !iszero(d.support[limb+1] & (UInt64(1)<<offset)) || continue
+        charge+=_boson_count(W,w.c,i)-_boson_count(W,w.a,i)
+    end
+    iszero(charge) || push_term!(sink,im*charge*c,w)
+    return sink
+end
 
 function _rotation_support(r::Registry,selected)
     support=zeros(UInt64,max(1,cld(r.nsites,64)))
@@ -298,13 +318,13 @@ end
 """
     NumberRotation(registry; modes=1:registry.nsites)
 
-Particle-number rotation on a fermionic registry's selected modes, with
+Particle-number rotation on a fermionic or bosonic registry's selected modes, with
 d(a†) = i a† and d(a) = -i a on those modes. An empty selection gives zero.
 The caller supplies mode subsets such as `modes=1:2:registry.nsites` for
 spin-up orbitals when that is the chosen orbital ordering.
 """
 function NumberRotation(r::Registry;modes=1:r.nsites)
-    r.algebra isa Fermionic || throw(ArgumentError("NumberRotation needs a fermionic registry; use SpinRotation for Pauli variables."))
+    r.algebra isa Union{Fermionic,Bosonic} || throw(ArgumentError("NumberRotation needs a fermionic or bosonic registry; use SpinRotation for Pauli variables."))
     return NumberRotation(_rotation_support(r,modes))
 end
 

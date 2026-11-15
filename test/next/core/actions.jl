@@ -228,7 +228,7 @@ end
     @test_throws r"distinct" Nx.SpinRotation(r,:x;sites=[1,1])
     @test_throws r"integer sites" Nx.SpinRotation(r,:x;sites=[0])
     @test_throws r"integer sites" Nx.SpinRotation(r,:x;sites=[1.5])
-    @test_throws r"fermionic registry" Nx.NumberRotation(r)
+    @test_throws r"fermionic or bosonic registry" Nx.NumberRotation(r)
     f,(a,ad)=Nx.fermionic_variables(3)
     for render in (repr,d->repr(MIME"text/plain"(),d))
         @test render(Nx.SpinRotation(r,:z))=="SpinRotation(:z; sites=1:3)"

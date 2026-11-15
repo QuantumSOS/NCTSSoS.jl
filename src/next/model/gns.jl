@@ -57,8 +57,10 @@ function Base.show(io::IO,g::GNSResult)
     print(io,"GNS: ")
     g.verdict===:optimizer_certified && print(io,"optimizer certified within tolerance (objective equals bound, constraints hold); ")
     print(io,"moments ",g.verdict===:moments_reproduced ? "reproduced" : "NOT reproduced",
-        "; max error ",g.checks.program_moment_error,"; ",g.status,
-        "; ranks ",g.rank," → ",g.full_rank,
+        "; max error ",round(g.checks.program_moment_error;sigdigits=3))
+    g.status===:not_positive && print(io,"; Hankel matrix not positive")
+    g.status===:not_flat && print(io,"; not flat")
+    print(io,"; ranks ",g.rank," → ",g.full_rank,
         "; degrees (",g.full_degree,", ",g.principal_degree,")")
     g.full_degree>g.relaxation_order && print(io," above relaxation order ",g.relaxation_order)
     isnothing(g.operators) && print(io,"; operators withheld. ",g.advice)
@@ -229,7 +231,7 @@ function _gns_rank_advice(principal,full)
     a,b=gaps(principal),gaps(full)
     if a==b && a>0 && min(principal[a],full[a])>1000max(principal[a+1],full[a+1])
         suggested=10max(principal[a+1],full[a+1],eps(Float64)*max(first(principal),first(full)))
-        return "The common singular-value gap permits atol=$suggested with rtol=0; inspect the residuals before accepting that cutoff."
+        return "The common singular-value gap permits atol=$(round(suggested,RoundUp;sigdigits=3)) with rtol=0; inspect the residuals before accepting that cutoff."
     end
     return "No common rank gap is resolved; solve at higher order or with more accurate moments rather than flattening the matrix."
 end
@@ -335,10 +337,11 @@ function _gns_candidate(result,full_basis,basis,H,values,work,d,order;atol,rtol,
         maximum(equality_errors;init=0.0),maximum(sector_errors;init=0.0),-minimum(constraint_min;init=0.0))<=check_atol
     status=!psd ? :not_positive : !flat ? :not_flat : !reproduced ? :not_reproduced : :reproduced
     verdict=status===:reproduced ? :moments_reproduced : optimizer && (d<=order || psd) ? :optimizer_certified : :withheld
-    advice=r==0 ? "No principal singular value exceeds the cutoff; lower atol below $(first(F.S)) and rtol below 1." :
-        !psd ? "Full Hankel minimum eigenvalue is $mineig; inspect solver accuracy before increasing psd_rtol to $(max(-mineig,skew)/max(1.0,first(full_s)))." :
-        !flat ? _gns_rank_advice(F.S,full_s)*" Measured extension residual=$(max(range_error,extension_error)); check_atol=$check_atol." :
-        !reproduced ? "Measured residual requires check_atol ≥ $(max(hankel_error,program_error,objective_error,algebra_error,normalization_error,maximum(equality_errors;init=0.0),maximum(sector_errors;init=0.0),-minimum(constraint_min;init=0.0))); inspect solver accuracy before accepting it." : ""
+    advice=r==0 ? "No principal singular value exceeds the cutoff; lower atol below $(round(first(F.S),RoundDown;sigdigits=3)) and rtol below 1." :
+        -mineig>1e-3*max(1.0,first(full_s)) ? "The full Hankel matrix has substantial negativity (minimum eigenvalue $(round(mineig;sigdigits=3))); solve at a higher relaxation order." :
+        !psd ? "Full Hankel minimum eigenvalue is $(round(mineig;sigdigits=3)); inspect solver accuracy before increasing psd_rtol to $(round(max(-mineig,skew)/max(1.0,first(full_s)),RoundUp;sigdigits=3))." :
+        !flat ? _gns_rank_advice(F.S,full_s)*" Measured extension residual=$(round(max(range_error,extension_error);sigdigits=3)); check_atol=$(round(check_atol;sigdigits=3))." :
+        !reproduced ? "Measured residual requires check_atol ≥ $(round(max(hankel_error,program_error,objective_error,algebra_error,normalization_error,maximum(equality_errors;init=0.0),maximum(sector_errors;init=0.0),-minimum(constraint_min;init=0.0)),RoundUp;sigdigits=3)); inspect solver accuracy before accepting it." : ""
     flatness=(is_flat=flat,is_positive=psd,cutoff=cutoff,full_cutoff=full_cutoff,gap=gap,full_gap=full_gap,
         range_error=range_error,extension_error=extension_error,minimum_eigenvalue=mineig,
         psd_tolerance=psd_tolerance,check_atol=check_atol)
@@ -352,6 +355,7 @@ function _gns_candidate(result,full_basis,basis,H,values,work,d,order;atol,rtol,
 end
 
 function gns(result::SolveResult;atol=nothing,rtol=0.0,check_atol=1e-6,psd_rtol=1e-8)
+    result.problem.objective.registry.algebra isa Bosonic && throw(ArgumentError("No finite matrices satisfy the bosonic commutation relation; use expectation(result, p)."))
     all(x->isfinite(x)&&x>=0,(isnothing(atol) ? 0.0 : atol,rtol,check_atol,psd_rtol)) || throw(ArgumentError("GNS tolerances must be finite and nonnegative; supply nonnegative atol, rtol, check_atol and psd_rtol."))
     isnothing(result.bound) && throw(ArgumentError("GNS needs an accepted solve; resolve the problem before reconstructing."))
     relaxation=result.relaxation

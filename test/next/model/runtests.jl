@@ -34,7 +34,7 @@
         using NCTSSoS
         using NCTSSoS.Next
         @testset "No clashing exports" begin
-            for name in (:gns,:evaluate)
+            for name in (:gns,:evaluate,:bosonic_variables,:Bosonic)
                 @test Base.isexported(NCTSSoS.Next,name)
                 @test Core.eval(Main,name) === getfield(NCTSSoS.Next,name)
             end
@@ -54,6 +54,13 @@ end
 include("front.jl")
 FrontDoorChecks.check(Nx.JuMPBackend(SOLVER))
 include("gns.jl")
+include("bosonic.jl")
+# Order-three bosonic Hankel matrices need tighter solver residuals to compare
+# the two lowerings within the unchanged 1e-6 bound tolerance.
+let solver=optimizer_with_attributes(COSMO.Optimizer,"verbose"=>false,
+        "decompose"=>false,"eps_abs"=>1e-10,"eps_rel"=>1e-10,"max_iter"=>100_000)
+    BosonModelChecks.check(Nx.JuMPBackend(solver),solver)
+end
 include("detection.jl")
 isdefined(@__MODULE__,:check_expectations) || include("expectations.jl")
 @testset "Reading expectations through JuMP" begin

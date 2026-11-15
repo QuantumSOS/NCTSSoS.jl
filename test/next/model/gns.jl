@@ -142,6 +142,8 @@ end
     result=gns_fixture(N.Problem(h),2,w->dot(psi,gns_matrix_word(w,physical)*psi))
     g=check_gns_xxz(result)
     @test g.flatness.minimum_eigenvalue>=-g.flatness.psd_tolerance
+    @test !occursin("; reproduced;",sprint(show,g))
+    @test occursin("max error $(round(g.checks.program_moment_error;sigdigits=3));",sprint(show,g))
     old_registry,_=NCTSSoS.create_pauli_variables(1:4)
     old_words=NCTSSoS._gns_extract_monomials_from_basis(NCTSSoS.get_ncbasis(old_registry,4))
     old_moment(m)=dot(psi,foldl((A,i)->A*physical[i],m.word;init=Matrix{ComplexF64}(I,16,16))*psi)
@@ -180,11 +182,31 @@ end
     @test optimizer.checks.program_moment_error>0.1
     @test occursin("moments NOT reproduced",sprint(show,optimizer))
     @test N.expectation(optimizer,changed.problem.objective) ≈ changed.bound atol=1e-6
+    # A reserved coordinate is not a solved moment. The public coverage hook
+    # must exclude its arbitrary value, while checking the covered component.
+    coordinates=[[Int32(i)=>big(1)//big(1)] for i in eachindex(changed.table.labels)]
+    covered=BitSet(eachindex(coordinates)); delete!(covered,slot)
+    partial=N.ContinuousMoments(changed.table,changed.table.labels,coordinates,(),covered)
+    partial_result=N.SolveResult(changed.bound,changed.status,changed.sizes,changed.valid_for,
+        changed.problem,changed.relaxation,changed.solution,partial,changed.solver)
+    partial_gns=N.gns(partial_result)
+    @test partial_gns.verdict===:moments_reproduced
+    @test partial_gns.checks.program_moment_error<1e-6
+    @test N.expectation(partial_gns,changed.problem.objective) ≈ changed.bound atol=1e-6
+    # A missing low-degree component cannot be filled from arbitrary solver
+    # coordinates just because a flat extension would otherwise exist.
+    low=findfirst(l->N.degree(l.word)==1,changed.table.labels)
+    delete!(covered,low)
+    @test_throws r"GNS needs moment.*complete rows" N.gns(partial_result)
     # Solver OPTIMAL alone is insufficient for the optimizer verdict.
-    wrong_bound=N.SolveResult(changed.bound-0.1,changed.status,changed.sizes,changed.valid_for,
+    wrong_bound=N.SolveResult(changed.bound-0.132345,changed.status,changed.sizes,changed.valid_for,
         changed.problem,changed.relaxation,changed.solution,changed.table,changed.solver)
-    @test N.gns(wrong_bound).verdict===:withheld
-    @test occursin("check_atol",sprint(show,N.gns(wrong_bound)))
+    withheld=N.gns(wrong_bound)
+    @test withheld.verdict===:withheld
+    @test occursin("check_atol",sprint(show,withheld))
+    # Rounded advice must not recommend a tolerance below the measured error.
+    recommended=parse(Float64,match(r"check_atol ≥ ([0-9.e+-]+)",withheld.advice)[1])
+    @test recommended>=0.132345
     @test N.gns(bell_result;atol=1e6).verdict===:withheld
     # Even exact flat moments and an OPTIMAL status cannot certify matrices
     # that violate a problem constraint, including an operator equality.
@@ -209,7 +231,8 @@ end
     @test rejected.status===:not_positive
     @test rejected.flatness.minimum_eigenvalue < -rejected.flatness.psd_tolerance
     @test rejected.operators===nothing && rejected.state===nothing
-    @test occursin("psd_rtol",sprint(show,rejected))
+    @test occursin("higher relaxation order",sprint(show,rejected))
+    @test !occursin("psd_rtol",sprint(show,rejected))
     @test_throws r"withheld" rejected[x[1]]
     @test_throws r"withheld" N.expectation(rejected,one(x[1]))
 

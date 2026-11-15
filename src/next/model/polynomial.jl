@@ -6,6 +6,7 @@ end
 
 _locations(w::PauliWord) = ((only(sites(l)),all(iszero,l.x) ? 2 : all(iszero,l.z) ? 0 : 1) for l in word_letters(w))
 _locations(w::FermiWord) = ((only(sites(l)),all(iszero,l.c) ? 1 : -1) for l in word_letters(w))
+_locations(w::BosonWord) = ((only(sites(l)),all(iszero,l.c) ? 1 : -1) for l in word_letters(w))
 _locations(w::SiteWord{A,U,B,S}) where {A,U,B,S} =
     ((_site(typeof(w),_letter(w,i)),Int(_letter(w,i)>>S)) for i in 1:degree(w))
 "Display a word in the names of its registry, without changing kernel word storage."
@@ -111,6 +112,7 @@ end
 LinearAlgebra.ishermitian(p::Polynomial) = p==adjoint(p)
 
 _model_word_type(r::Registry) = word_type(r,0)
+_model_word_type(r::Registry{Bosonic}) = word_type(r,255)
 function _model_word_type(r::Registry{<:SiteAlgebra})
     bits = max(1,ndigits(r.nsites;base=2))+ndigits(r.algebra.nletters;base=2)
     return word_type(r,128÷bits)
@@ -141,6 +143,13 @@ function fermionic_variables(sites)
     r = Registry(Fermionic(),n,[(Symbol(name,i),(i,label)) for (name,label) in ((:a,1),(:ad,-1)) for i in 1:n])
     v = variables(r)
     return r,Tuple([v[Symbol(name,i)] for i in 1:n] for name in (:a,:ad))
+end
+"Bosonic annihilation and creation variables; modeling exponents have capacity 255 per mode."
+function bosonic_variables(sites)
+    n=_site_count(sites)
+    r=Registry(Bosonic(),n,[(Symbol(name,i),(i,label)) for (name,label) in ((:b,1),(:bd,-1)) for i in 1:n])
+    v=variables(r)
+    return r,Tuple([v[Symbol(name,i)] for i in 1:n] for name in (:b,:bd))
 end
 "Self-adjoint operators at each commuting site; output[site][letter]."
 function site_variables(rule::SiteRule,sites,nletters::Integer)

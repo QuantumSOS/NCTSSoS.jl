@@ -22,6 +22,7 @@ struct Registry{A}
 end
 _check_label(::Pauli, label) = 0 <= label <= 2 || throw(ArgumentError("Pauli labels are 0 (X), 1 (Y), or 2 (Z)."))
 _check_label(::Fermionic, label) = label in (-1,1) || throw(ArgumentError("Fermionic labels are -1 (creation) or 1 (annihilation)."))
+_check_label(::Bosonic, label) = label in (-1,1) || throw(ArgumentError("Bosonic labels are -1 (creation) or 1 (annihilation)."))
 _check_label(a::SiteAlgebra, label) = 1 <= label <= a.nletters || throw(ArgumentError("Site operator label must be in 1:$(a.nletters)."))
 Base.length(r::Registry) = length(r.names)
 Base.getindex(r::Registry, name::Symbol) = get(r.names, name) do
@@ -39,4 +40,8 @@ end
 function word(r::Registry{Fermionic}, name::Symbol, ::Type{W}) where {W<:FermiWord}
     site, label = r[name]
     return fermi_letter(W, site * label)
+end
+function word(r::Registry{Bosonic}, name::Symbol, ::Type{W}) where {W<:BosonWord}
+    site, label = r[name]
+    return boson_letter(W,site*label)
 end

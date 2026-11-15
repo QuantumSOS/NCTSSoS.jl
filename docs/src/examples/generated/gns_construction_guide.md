@@ -6,484 +6,241 @@ EditURL = "../literate/gns_construction_guide.jl"
 
 ## What is the GNS construction?
 
-In noncommutative polynomial optimization we solve a semidefinite program (SDP)
-that produces **moments** — numerical expectation values ``L(w)`` for every
-monomial word ``w`` up to some degree. These moments are abstract numbers; the
-**GNS (Gelfand-Naimark-Segal) construction** turns them into concrete matrices
-acting on a finite-dimensional Hilbert space that *reproduce* those moments.
+A moment relaxation gives numerical expectation values ``L(w)`` for words
+``w``. The GNS (Gelfand-Naimark-Segal) construction seeks matrices ``A_i``
+and a unit vector ``\xi`` such that
+``\langle\xi,w(A)\xi\rangle = L(w)``.
 
-Concretely, given the solved moment data the GNS construction returns:
+Solved moments need not admit this finite-dimensional representation.
+`gns(result)` checks the reconstruction before it returns operators.
+It can also return a feasible optimizer that attains the bound but does
+**not** reproduce all the moments. Read its verdict before using the model.
+These are numerical checks at stated tolerances, not rigorous certificates.
 
-- a matrix ``A_i`` for each variable ``X_i``, and
-- a distinguished unit vector ``\xi`` (called the **cyclic vector**),
+## Key concepts
 
-such that ``\langle \xi,\, w(A_1,\dots,A_n)\, \xi \rangle = L(w)`` for every
-word ``w`` in the moment table.
+**Moment matrix (Hankel matrix).** For an ordered basis of words ``b_i``,
+its entries are
 
-## Key concepts used throughout this page
-
-**Moment matrix (Hankel matrix).**
-Choose an ordered list of monomial words ``\{b_1, b_2, \dots\}`` up to some
-degree. The **moment matrix** (also called **Hankel matrix**) is the square
-matrix whose ``(i,j)`` entry is the moment of the product
-``b_i^\dagger \cdot b_j``:
 ```math
-H_{ij} \;=\; L(b_i^\dagger\, b_j),
+H_{ij} = L(b_i^\dagger b_j).
 ```
-where ``L`` is the linear functional on words defined by the SDP solution.
 
-**Relaxation order, moment degree, and Hankel degree.**
-An SDP relaxation of **order** ``d`` produces moments for all words up to
-degree ``2d``. To build a Hankel matrix whose rows and columns are indexed by
-words of degree ``\le k`` we need moments up to degree ``2k``, because
-``\deg(b_i^\dagger b_j) \le 2k``. In this guide we solve at order 3
-(moments up to degree 6) and build a Hankel matrix indexed by words up to
-degree 3 — we call this degree `H_deg = 3`.
+**Relaxation order and Hankel degree.** A dense order-``d`` relaxation
+provides moments up to degree ``2d``. A Hankel matrix with row words up to
+degree ``k`` needs moments up to degree ``2k``. Here the relaxation has
+order 3, and the selected full Hankel has row degree 3.
 
-**Principal block and full Hankel.**
-The GNS construction partitions the Hankel matrix into two nested levels:
+**Principal block and full Hankel.** `gns` selects an adjacent degree pair.
+`basis` contains the principal row words; `full_basis` contains the full
+row words. The principal numerical rank sets the operator dimension.
 
-- `full_basis` — all words up to degree `H_deg` (rows/columns of the full
-  Hankel matrix),
-- `basis` — all words up to degree `hankel_deg` (rows/columns of the
-  **principal block**, a sub-matrix of the full Hankel).
-
-`hankel_deg` is always strictly less than `H_deg`; the standard choice is
-`hankel_deg = H_deg - 1`. The principal block determines the dimension of
-the reconstructed Hilbert space (its numerical rank = the dimension of the
-output matrices).
-
-**Flat extension.**
-When the numerical rank of the full Hankel matrix equals the rank of its
-principal block, we say the Hankel matrix is **flat**. Flatness guarantees
-that the GNS quotient space — the vector space spanned by the columns of the
-principal block — already captures all the information in the larger matrix.
-In other words, the extension rows/columns are linearly dependent on the
-principal block, so no new directions appear at higher degree.
+**Flatness.** Equal principal and full ranks, with small extension
+residuals, mean that the higher-degree rows add no new directions. The
+returned diagnostics use the actual solved moments; the API does not
+replace their extension block to force equal ranks.
 
 ## API summary
 
-| Function | Purpose |
-|----------|---------|
-| `gns_reconstruct` | Full reconstruction → `GNSResult` |
-| `reconstruct` | Convenience wrapper → matrices only |
-| `test_flatness` | Check the flat-extension rank condition |
-| `flat_extend` | Project the extension block to its canonical flat form |
-| `robustness_report` | Conditioning and distance-to-flatness diagnostics |
-| `verify_gns` | Moment reproduction, symmetry, and constraint checks |
+| Call or field | Purpose |
+|:---|:---|
+| `gns(result)` | Reconstruct and check a solved result |
+| `g.verdict`, `g.status`, `g.advice` | Read what was accepted or withheld |
+| `g[x]` | Read an accepted variable matrix |
+| `g.state` | Read the cyclic vector |
+| `evaluate(g, p)` | Evaluate a polynomial as a matrix |
+| `expectation(g, p)` | Evaluate a polynomial in the reconstructed state |
+| `g.flatness`, `g.checks` | Inspect numerical checks |
 
 **Prerequisites**: the [polynomial optimization API](@ref polynomial-optimization)
 and the [SDP relaxation workflow](@ref moment-sohs-hierarchy).
 
-## Setup
-
 ````julia
-using NCTSSoS, MosekTools, LinearAlgebra, Logging
-
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(
-    Mosek.Optimizer,
-    MOI.Silent() => true,
-);
+using NCTSSoS.Next, Mosek, LinearAlgebra
 ````
 
-## Problem: noncommutative unit ball
+## Step 1 — Solve the noncommutative unit-ball problem
 
 We minimize
 
 ```math
-f \;=\; 2 - X^2 + X Y^2 X - Y^2
+f = 2-X^2+XY^2X-Y^2
 ```
 
-subject to the ball constraint ``1 - X^2 - Y^2 \ge 0``.
-The optimal value is ``f^* = 1``.
+subject to ``1-X^2-Y^2\succeq0``. The optimal value is 1.
 
 ````julia
-registry, (vars,) = create_noncommutative_variables([("X", 1:2)]);
+registry, (vars,) = site_variables(Free(), 1, 2);
 X, Y = vars;
-
 f = 2.0 - X^2 + X * Y^2 * X - Y^2;
-g = 1.0 - X^2 - Y^2;
-pop = polyopt(f, registry; ineq_constraints=[g]);
-pop
+ball = 1.0 - X^2 - Y^2;
+problem = Problem(f; constraints=(Positive(ball),));
+result = solve(problem, Relaxation(order=3); solver=MosekBackend());
+result.bound
 ````
 
 ````
-Optimization Problem (NonCommutativeAlgebra)
-────────────────────────────────────
-Objective:
-    2.0 + -X₁² + -X₂² + X₁X₂²X₁
-
-Equality constraints (0):
-    (none)
-
-Inequality constraints (1):
-    1 + -X₁² + -X₂² >= 0
-
-Moment equality constraints (0):
-    (none)
-
-Variables (2):
-    X₁, X₂
-
+0.9999999943399142
 ````
 
-## Step 1 — Solve the order-3 moment relaxation
+## Step 2 — Read the checked reconstruction
 
-We want a Hankel matrix with `H_deg = 3` and a principal block with
-`hankel_deg = 2`. Building the full Hankel requires moments up to degree
-``2 \times 3 = 6``, so we solve the SDP at **order 3** (which produces
-moments up to degree ``2 \times 3 = 6``).
+The rank cutoff is explicit here. `check_atol` sets the absolute tolerance
+for matrix, moment and objective checks.
 
 ````julia
-solver_config = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    order=3,
-    cs_algo=NoElimination(),
-    ts_algo=NoElimination(),
-);
-
-sparsity = compute_sparsity(pop, solver_config);
-moment_problem = NCTSSoS.moment_relax(
-    pop,
-    sparsity.corr_sparsity,
-    sparsity.cliques_term_sparsities,
-);
-moment_result = NCTSSoS.solve_moment_problem(moment_problem, SILENT_MOSEK);
-
-@assert isapprox(moment_result.objective, 1.0; atol=1e-5)
-
-(objective=moment_result.objective, n_moments=length(moment_result.monomap))
+g = gns(result; atol=1e-6, check_atol=5e-5);
+g.verdict
 ````
 
 ````
-(objective = 1.0000000005391851, n_moments = 78)
+:optimizer_certified
 ````
 
-## Step 2 — Build the Hankel matrix
+This example returns `:optimizer_certified`, not `:moments_reproduced`.
+The operator model attains the bound and satisfies the ball constraint,
+but it does not reproduce every solved moment.
 
-We now build the two monomial bases introduced in "Key concepts":
+The three possible verdicts have different meanings:
 
-- `full_basis`: all words up to degree `H_deg = 3` — indexes rows and columns
-  of the full Hankel matrix.
-- `basis`: all words up to degree `hankel_deg = 2` — indexes the principal
-  block (a sub-matrix sitting inside the full Hankel).
+| Verdict | Meaning |
+|:---|:---|
+| `:moments_reproduced` | A positive, flat pair passes the moment and model checks |
+| `:optimizer_certified` | The model satisfies the problem and attains the bound; moment reproduction is not certified |
+| `:withheld` | Operators and state are `nothing`; inspect `status`, `checks` and `advice` |
 
-`NCTSSoS.hankel_matrix` fills the matrix entry-by-entry from the solved
-moment table `moment_result.monomap`. It is not exported, so we qualify the
-call.
+Do not treat an optimizer-only verdict as a moment reconstruction.
+`expectation(result, p)` reads solved moments, while `expectation(g, p)`
+reads the returned model. They can differ.
 
-````julia
-using NCTSSoS: get_ncbasis
-
-full_basis = get_ncbasis(registry, 3);
-basis = get_ncbasis(registry, 2);
-hankel = NCTSSoS.hankel_matrix(moment_result.monomap, full_basis);
-
-(hankel_size=size(hankel), basis_sizes=(full=length(full_basis), principal=length(basis)))
-````
-
-````
-(hankel_size = (15, 15), basis_sizes = (full = 15, principal = 7))
-````
-
-## Step 3 — Test flatness
-
-Recall from "Key concepts": the Hankel matrix is **flat** when its full rank
-equals the rank of the principal block. `test_flatness` checks this
-numerically.
-
-````julia
-flatness = test_flatness(hankel, full_basis, basis; atol=1e-6)
-````
-
-````
-NCTSSoS.FlatnessResult(false, 5, 9, 0.03707343738593964)
-````
-
-`FlatnessResult` fields:
-
-- `is_flat`: whether the rank condition holds and the residual is small.
-- `rank_principal` / `rank_full`: numerical ranks of the principal block and
-  the full Hankel matrix, respectively.
-- `err_flat`: measures how well the extension block is predicted by the
-  principal block. Internally, the full Hankel is partitioned as
-  ```math
-  H = \begin{pmatrix} \tilde H & B \\ B^\top & C \end{pmatrix},
-  ```
-  where ``\tilde H`` is the principal block. The residual is
-  ``\|C - Z^\top \tilde H Z\| / (1 + \|C\| + \|Z^\top \tilde H Z\|)``
-  with ``\tilde H Z = B``.
-
-SDP solutions are numerical, so the Hankel matrix is only *approximately*
-flat. We can canonically project it to the nearest flat extension.
-
-## Step 4 — Flat extension
-
-`flat_extend` replaces the lower-right block ``C`` (see the partition above)
-by its least-squares prediction ``Z^\top \tilde H Z`` (where
-``\tilde H Z = B``). The result is a matrix whose rank equals
-`rank_principal`, i.e. it is exactly flat.
-
-````julia
-hankel_flat = flat_extend(hankel, full_basis, basis; atol=1e-6);
-````
-
-Verify that the flattened matrix is now exactly flat:
-
-````julia
-flatness_after = test_flatness(hankel_flat, full_basis, basis; atol=1e-6)
-````
-
-````
-NCTSSoS.FlatnessResult(true, 5, 5, 0.0)
-````
-
-## Step 5 — GNS reconstruction (SVD method)
-
-`gns_reconstruct` is the main entry point. It accepts three input forms:
-
-1. **Moment map** + registry — most common after `solve_moment_problem`;
-   builds the Hankel matrix internally.
-2. **Dense Hankel matrix** + registry — use when you want to pre-process the
-   Hankel (e.g. flat-extend it first).
-3. **Moment map** + `SparsityResult` — for problems with pairwise-disjoint
-   variable cliques (sparse GNS).
-
-Here we use form 2 with the flat-extended Hankel. The default `method=:svd`
-takes the SVD of the principal block, keeps the columns whose singular values
-exceed `atol`, and uses those columns as an orthonormal basis for the
-reconstructed Hilbert space. The operator matrix for each variable ``X_i`` is
-then computed by projecting the **localizing matrix** (the moment matrix of
-``b_k^\dagger X_i b_j``) into this basis.
-
-````julia
-gns_svd = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(hankel_flat, registry, 3; method=:svd, hankel_deg=2, atol=1e-6)
-end;
-````
-
-The returned `GNSResult` stores everything about the reconstruction:
+## Step 3 — Inspect degrees, bases and ranks
 
 ````julia
 (
-    type = typeof(gns_svd),
-    rank = gns_svd.rank,
-    full_rank = gns_svd.full_rank,
-    n_basis = length(gns_svd.basis),
-    n_full_basis = length(gns_svd.full_basis),
-    n_singular_values = length(gns_svd.singular_values),
-    xi_norm = norm(gns_svd.xi),
+    solved_order = g.relaxation_order,
+    degrees = (g.principal_degree, g.full_degree),
+    basis_sizes = (length(g.basis), length(g.full_basis)),
+    ranks = (g.rank, g.full_rank),
 )
 ````
 
 ````
-(type = NCTSSoS.GNSResult{Float64, Float64, NCTSSoS.NonCommutativeAlgebra, UInt8, NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}, rank = 5, full_rank = 5, n_basis = 7, n_full_basis = 15, n_singular_values = 7, xi_norm = 1.0000000000067428)
+(solved_order = 3, degrees = (2, 3), basis_sizes = (7, 15), ranks = (5, 9))
 ````
 
-### `GNSResult` fields
+The selected degrees are 2 and 3, with 7 and 15 row words. The actual
+ranks are **5 → 9**, not 5 → 5. The full matrix is not flat.
+Earlier versions of this guide replaced the extension block before
+extraction. The checked API keeps the original moments and reports this
+difference instead.
 
-| Field | Description |
-|-------|-------------|
-| `matrices` | `Dict{VarIdx, Matrix}` — one operator matrix per variable |
-| `xi` | The **cyclic vector**: the unit vector corresponding to the identity word ``\mathbb{1}`` in the orthonormal basis. Moments are recovered as ``L(w) = \langle \xi, w(A)\, \xi \rangle``. |
-| `basis` | Monomials of degree ≤ `hankel_deg` (index the principal block) |
-| `full_basis` | Monomials of degree ≤ `H_deg` (index the full Hankel) |
-| `singular_values` | Singular values of the principal block |
-| `rank` | Numerical rank of the principal block (= dimension of reconstructed space) |
-| `full_rank` | Numerical rank of the full Hankel |
+Singular values show which directions the cutoff retains:
 
 ````julia
-A1_svd = gns_svd.matrices[registry[:X₁]];
-A2_svd = gns_svd.matrices[registry[:X₂]];
-
-@assert gns_svd.rank == 5
-@assert size(A1_svd) == (5, 5)
-@assert norm(A1_svd - A1_svd') ≤ 1e-8   # NCTSSoS symmetrizes operators for self-adjoint algebras (NC, Pauli, …)
+(principal=g.singular_values, full=g.full_singular_values)
 ````
 
-## Step 6 — GNS reconstruction (Cholesky method)
+````
+(principal = [1.5012343702087998, 0.523614468909496, 0.4763855260778388, 0.1447750348094701, 0.11914702764208825, 1.4518008115105776e-9, 4.397520930571975e-10], full = [1.501234370208799, 0.8422166125249535, 0.7310212130853533, 0.14477503480947027, 0.1191470276420883, 0.04009663824207139, 0.03308724840421216, 0.03117658729766389, 0.024772450148146257, 2.5033927668499987e-9, 1.5543787634358816e-9, 1.4518008089914379e-9, 4.80869466570765e-10, 4.397520881391201e-10, 3.622578578784968e-10])
+````
 
-The `:cholesky` method is an alternative to SVD. Instead of using all
-singular vectors, it picks a subset of basis words whose columns in the
-principal block are numerically linearly independent (via QR with column
-pivoting). It then Cholesky-factors the corresponding sub-block. This can be
-faster for large problems, but is less tolerant of near-singular blocks.
+The flatness record includes positivity, cutoffs, singular-value gaps,
+the minimum eigenvalue, and range and extension residuals:
 
 ````julia
-gns_chol = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(hankel_flat, registry, 3; method=:cholesky, hankel_deg=2, atol=1e-6)
-end;
-
-A1_chol = gns_chol.matrices[registry[:X₁]];
-A2_chol = gns_chol.matrices[registry[:X₂]];
+collect(pairs(g.flatness))
 ````
 
-Both methods reproduce the same moments ``L(w)``. The operator matrices may
-differ — they are related by an orthogonal change of basis of the
-reconstructed Hilbert space — but all expectation values
-``\langle \xi, w(A)\, \xi \rangle`` agree:
+````
+11-element Vector{Pair{Symbol, Any}}:
+            :is_flat => false
+        :is_positive => true
+             :cutoff => 1.0e-6
+        :full_cutoff => 1.0e-6
+                :gap => (retained = 0.11914702764208825, discarded = 1.4518008115105776e-9, resolved = true, automatic = false)
+           :full_gap => (retained = 0.024772450148146257, discarded = 2.5033927668499987e-9, resolved = true, automatic = false)
+        :range_error => 1.0779543221227156e-16
+    :extension_error => 0.03673409612098843
+ :minimum_eigenvalue => -1.5543787634358816e-9
+      :psd_tolerance => 1.501234370208799e-8
+         :check_atol => 5.0e-5
+````
+
+## Step 4 — Read operators and evaluate the objective
+
+The principal rank still gives a `5 × 5` model. Matrix entries depend on
+the SVD basis, but the objective and constraint checks do not.
 
 ````julia
-function eval_moment(gns, mono)
-    sample = first(values(gns.matrices))
-    dim = size(sample, 1)
-    T = eltype(sample)
-    op = Matrix{T}(I, dim, dim)
-    for idx in mono.word
-        op = op * gns.matrices[idx]
-    end
-    return real(dot(gns.xi, op * gns.xi))
-end
+A1 = g[X];
+A2 = g[Y];
+(A1=round.(A1, digits=3), A2=round.(A2, digits=3), state=round.(g.state, digits=6))
 
-check_basis = get_ncbasis(registry, 3);
-max_diff = maximum(
-    abs(eval_moment(gns_svd, m) - eval_moment(gns_chol, m)) for m in check_basis
-)
-@assert max_diff < 1e-6
 
-(cholesky_rank=gns_chol.rank, max_moment_diff=max_diff)
-````
-
-````
-(cholesky_rank = 5, max_moment_diff = 2.6969315669589378e-11)
-````
-
-## Step 7 — Monomap shortcut
-
-When you don't need the flat-extended Hankel explicitly, pass the moment map
-directly. `gns_reconstruct` builds the Hankel internally.
-
-````julia
-gns_direct = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(moment_result.monomap, registry, 3; hankel_deg=2, atol=1e-6)
-end;
-
-@assert gns_direct.rank == 5
-````
-
-If you only need the operator matrices (no `xi`, no diagnostics), use the
-convenience wrapper `reconstruct` with a Hankel matrix:
-
-````julia
-matrices_only = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    reconstruct(hankel_flat, registry, 3; hankel_deg=2, atol=1e-6)
-end;
-
-@assert haskey(matrices_only, registry[:X₁])
-@assert haskey(matrices_only, registry[:X₂])
-
-(direct_rank=gns_direct.rank, matrices_only_keys=collect(keys(matrices_only)))
-````
-
-````
-(direct_rank = 5, matrices_only_keys = UInt8[0x05, 0x09])
-````
-
-## Step 8 — Robustness diagnostics
-
-`robustness_report` quantifies how well-conditioned the reconstruction is.
-
-````julia
-report = robustness_report(gns_svd, hankel, full_basis, basis);
-````
-
-Or, using the shorter two-argument form (bases are taken from the `GNSResult`):
-
-````julia
-report2 = robustness_report(gns_svd, hankel);
-````
-
-`RobustnessReport` fields:
-
-| Field | Meaning |
-|-------|---------|
-| `sigma_min` | Smallest singular value above the `atol` cutoff (i.e. the weakest direction retained in the basis) |
-| `sigma_max` | Largest singular value of the principal block |
-| `condition_number` | ``\kappa = \sigma_{\max} / \sigma_{\min}`` — large values signal ill-conditioning |
-| `dist_to_flat` | Operator-norm distance between the original Hankel and its canonical flat extension |
-| `operator_error_bound` | ``\text{dist\_to\_flat} / \sigma_{\min}`` — first-order bound on how much the reconstructed operators can change due to non-flatness |
-
-````julia
+F = evaluate(g, f);
 (
-    σ_min = report.sigma_min,
-    σ_max = report.sigma_max,
-    κ = report.condition_number,
-    dist_to_flat = report.dist_to_flat,
-    op_error_bound = report.operator_error_bound,
+    objective = expectation(g, f),
+    objective_error = abs(expectation(g, f) - result.bound),
+    constraint_min_eigenvalue = eigmin(Hermitian(evaluate(g, ball))),
 )
 ````
 
 ````
-(σ_min = 0.1231619952667882, σ_max = 1.501343935613296, κ = 12.189993612568143, dist_to_flat = 0.0400769766424155, op_error_bound = 0.32540051462792957)
+(objective = 1.0000000041331605, objective_error = 9.793246324996119e-9, constraint_min_eigenvalue = 4.23202513267292e-9)
 ````
 
-## Step 9 — Full verification suite
-
-`verify_gns` checks moment reproduction, symmetry, and (optionally)
-objective value, constraint feasibility, and ball containment in one call.
+## Step 5 — Separate objective checks from moment checks
 
 ````julia
-gns = gns_svd   # pick either method
-verification = verify_gns(
-    gns,
-    moment_result.monomap,
-    registry;
-    poly=f,
-    f_star=moment_result.objective,
-    constraints=[g],
-    ball=true,
-    atol=5e-5,
-);
-````
-
-`VerificationReport` fields:
-
-| Field | Meaning |
-|-------|---------|
-| `is_symmetric` | All operator matrices satisfy ``\|A_i - A_i^\top\| \le \text{atol}`` |
-| `moment_max_error` | Largest ``|L_{\text{model}}(w) - L_{\text{SDP}}(w)|`` over all words in `full_basis` |
-| `objective_error` | ``|\langle \xi,\, f(A)\, \xi \rangle - f^*|`` — how closely the model attains the SDP bound |
-| `constraint_min_eigenvalues` | Minimum eigenvalue of each constraint polynomial evaluated on the model; non-negative means feasible |
-| `ball_contained` | Whether ``I - \sum_i A_i^2 \succeq 0``, i.e. the operators lie inside the unit ball (checked only when `ball=true`) |
-
-````julia
-@assert verification.is_symmetric
-@assert verification.moment_max_error ≤ 5e-5
-@assert verification.objective_error ≤ 5e-5
-@assert all(v -> v ≥ -5e-5, verification.constraint_min_eigenvalues)
-@assert verification.ball_contained
-
-verification
+collect(pairs(g.checks))
 ````
 
 ````
-NCTSSoS.VerificationReport(true, 2.6969260158438146e-11, 8.812814922265488e-10, [1.4062072863166714e-9], true)
+14-element Vector{Pair{Symbol, Any}}:
+        :hankel_moment_error => 0.03308724840421217
+       :program_moment_error => 0.03308724840421217
+         :program_components => 78
+            :objective_error => 9.793246324996119e-9
+ :constraint_min_eigenvalues => [4.232025094404645e-9]
+            :equality_errors => [0.0]
+              :sector_errors => Float64[]
+              :algebra_error => 2.2887833992611187e-16
+        :normalization_error => 1.4658474434270374e-10
+           :distance_to_flat => 0.04127091054790795
+                  :sigma_min => 0.11914702764208825
+                  :sigma_max => 1.5012343702087998
+           :condition_number => 12.599847431514895
+    :distance_over_sigma_min => 0.34638640480301125
 ````
 
-## Summary
+`program_moment_error` checks all stored program moment components;
+`hankel_moment_error` checks the selected full Hankel. The program error
+is about 0.033 here, far above `5e-5`. The small objective error and the
+nonnegative constraint eigenvalue still support the optimizer verdict.
 
-The typical GNS workflow is:
+Conditioning is also reported: `sigma_min`, `sigma_max`, and
+`condition_number` describe the retained principal subspace.
+`distance_to_flat` and `distance_over_sigma_min` describe the departure
+from flatness. A small objective error alone says nothing about these.
 
-```
-solve SDP  →  (optional) hankel_matrix + test_flatness + flat_extend
-           →  gns_reconstruct  →  robustness_report / verify_gns
-```
+## Tolerances and withheld models
 
-**Key choices:**
-- `method=:svd` (default) is more numerically robust; `:cholesky` can be
-  faster for large problems.
-- `H_deg`: maximum degree of words indexing the full Hankel. `hankel_deg`:
-  maximum degree of words indexing the principal block (determines the
-  dimension of the output). The standard choice is `hankel_deg = H_deg - 1`.
-- `atol`: singular values below this threshold are treated as zero when
-  computing the numerical rank.
+- `atol=nothing` selects a resolved singular-value gap above the numerical
+  tail. An explicit `atol` sets the absolute rank cutoff.
+- `rtol * σmax` is a lower bound on that cutoff (default `rtol=0`).
+- `check_atol` controls the absolute matrix, moment and objective errors.
+- `psd_rtol * max(1, σmax)` controls allowed full-Hankel negativity
+  (default `psd_rtol=1e-8`).
+
+If a result is withheld, inspect its singular values, residuals and advice.
+Improve solver accuracy or increase the relaxation order when needed.
+Do not raise tolerances solely to change the verdict.
 
 **See also:**
 - [GNS Optimizer Extraction](@ref gns-optimizer-extraction) — a textbook
   example with the noncommutative polydisc.
-- [Newton Chip Method](@ref newton-chip-method) — basis reduction for
-  ordinary and tracial relaxations.
+- [Recovering the Textbook CHSH Optimizer](@ref chsh-gns-reconstruction) —
+  a flat model with explicit gauge fixing.
 
 ---
 

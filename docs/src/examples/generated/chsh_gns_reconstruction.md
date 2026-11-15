@@ -46,13 +46,7 @@ GNS model**. In this example, the first clean dense reconstruction comes from an
 **order-4** relaxation with a degree-3 Hankel and a degree-2 principal block.
 
 ````julia
-using NCTSSoS, MosekTools, LinearAlgebra, Logging
-
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(
-    Mosek.Optimizer,
-    MOI.Silent() => true,
-)
+using NCTSSoS.Next, Mosek, LinearAlgebra
 
 function blockdiag(A::AbstractMatrix, B::AbstractMatrix)
     T = promote_type(eltype(A), eltype(B))
@@ -77,99 +71,77 @@ end
 We use unipotent variables, so the relations `A_i^2 = I`, `B_j^2 = I`, and the
 bipartite commutation rules are built into the algebra.
 
-We still optimize `-S`, because [`cs_nctssos`](@ref) minimizes.
+We optimize `-S`, because `solve` minimizes.
 
 ````julia
-registry, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)]);
+registry, (A, B) = site_variables(Unipotent(), 2, 2);
 
 chsh = 1.0 * A[1] * B[1] +
        1.0 * A[1] * B[2] +
        1.0 * A[2] * B[1] -
        1.0 * A[2] * B[2];
 
-pop = polyopt(-chsh, registry);
-
-solver_config = SolverConfig(
-    optimizer = SILENT_MOSEK,
-    order = 4,
-    cs_algo = NoElimination(),
-    ts_algo = NoElimination(),
-);
-
-sparsity = compute_sparsity(pop, solver_config);
-moment_problem = NCTSSoS.moment_relax(
-    pop,
-    sparsity.corr_sparsity,
-    sparsity.cliques_term_sparsities,
-);
-moment_result = NCTSSoS.solve_moment_problem(moment_problem, SILENT_MOSEK);
+problem = Problem(-chsh);
+result = solve(problem, Relaxation(order=4); solver=MosekBackend());
 
 solve_summary = (
-    objective = moment_result.objective,
-    tsirelson = -moment_result.objective,
+    objective = result.bound,
+    tsirelson = -result.bound,
     expected = 2 * sqrt(2),
-    n_unique_moments = moment_result.n_unique_elements,
-    solved_moments = length(moment_result.monomap),
+    sizes = result.sizes,
 )
 solve_summary
 ````
 
 ````
-(objective = -2.8284271246973747, tsirelson = 2.8284271246973747, expected = 2.8284271247461903, n_unique_moments = 101, solved_moments = 101)
+(objective = -2.828427126084762, tsirelson = 2.828427126084762, expected = 2.8284271247461903, sizes = 41 rows, 101 moments, 100 real variables, 1 blocks (largest 41); localizing rows: Int64[])
 ````
 
 The objective should match `-2√2` up to solver tolerance.
 
 ````julia
-@assert isapprox(moment_result.objective, -2 * sqrt(2); atol=1e-8)
+@assert isapprox(result.bound, -2 * sqrt(2); atol=1e-8)
 ````
 
 ## Step 2 — Check the flat Hankel condition
 
-We reconstruct on a degree-3 Hankel matrix with a degree-2 principal block.
-Flatness at this pair is what makes the final `4 × 4` model close exactly.
+`gns` selects the degree pair and checks the reconstruction. Here it selects
+a degree-3 full Hankel with a degree-2 principal block. Flatness at this pair
+supports a closed `4 × 4` model, within the stated numerical tolerances.
 
 ````julia
-using NCTSSoS: get_ncbasis
-
-full_basis = get_ncbasis(registry, 3);
-basis = get_ncbasis(registry, 2);
-hankel = NCTSSoS.hankel_matrix(moment_result.monomap, full_basis);
-flatness = test_flatness(hankel, full_basis, basis; atol=1e-8)
+g = gns(result; atol=1e-8)
 ````
 
 ````
-NCTSSoS.FlatnessResult(true, 4, 4, 1.688918942568656e-11)
+GNS: moments reproduced; max error 1.0e-9; ranks 4 → 4; degrees (3, 2)
 ````
 
-`flatness` should report equal numerical ranks for the full Hankel and the
-principal block.
+The verdict reports reproduced moments. The full and principal ranks agree.
+This is a numerical check, not a rigorous certificate.
 
 ````julia
-@assert flatness.is_flat
-@assert flatness.rank_principal == 4
-@assert flatness.rank_full == 4
+@assert g.verdict == :moments_reproduced
+@assert g.flatness.is_flat
+@assert (g.principal_degree, g.full_degree) == (2, 3)
+@assert g.rank == g.full_rank == 4
 ````
 
-## Step 3 — Run the GNS reconstruction
+## Step 3 — Read the GNS operators
 
-The flatness check tells us the degree-2 quotient already closes, so GNS should
-recover a genuine `4 × 4` representation.
+Index the checked result with a variable to obtain its operator matrix.
+`g.state` is the cyclic vector.
 
 ````julia
-gns = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(moment_result.monomap, registry, 3; hankel_deg=2, atol=1e-8)
-end;
-
-A1_raw = gns.matrices[registry[:A₁]];
-A2_raw = gns.matrices[registry[:A₂]];
-B1_raw = gns.matrices[registry[:B₁]];
-B2_raw = gns.matrices[registry[:B₂]];
+A1_raw = g[A[1]];
+A2_raw = g[A[2]];
+B1_raw = g[B[1]];
+B2_raw = g[B[2]];
 
 raw_summary = (
-    rank = gns.rank,
-    full_rank = gns.full_rank,
-    xi = round.(gns.xi, digits=6),
+    rank = g.rank,
+    full_rank = g.full_rank,
+    xi = round.(g.state, digits=6),
     A₁ = round.(A1_raw, digits=3),
     B₁ = round.(B1_raw, digits=3),
 )
@@ -177,7 +149,7 @@ raw_summary
 ````
 
 ````
-(rank = 4, full_rank = 4, xi = [0.0, 1.0, -0.0, 0.0], A₁ = [-0.0 0.0 0.104 0.995; 0.0 0.0 0.995 -0.104; 0.104 0.995 -0.0 -0.0; 0.995 -0.104 -0.0 0.0], B₁ = [0.0 -0.0 0.63 -0.777; -0.0 0.0 0.777 0.63; 0.63 0.777 -0.0 0.0; -0.777 0.63 0.0 -0.0])
+(rank = 4, full_rank = 4, xi = ComplexF64[-0.0 - 0.0im, -1.0 - 0.0im, 0.0 - 0.0im, 0.0 - 0.0im], A₁ = ComplexF64[-0.0 + 0.0im 0.0 + 0.0im 0.572 + 0.0im -0.821 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.821 + 0.0im 0.572 + 0.0im; 0.572 + 0.0im 0.821 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.821 + 0.0im 0.572 + 0.0im -0.0 + 0.0im 0.0 + 0.0im], B₁ = ComplexF64[0.0 + 0.0im 0.0 + 0.0im 0.176 + 0.0im 0.984 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im 0.984 + 0.0im -0.176 + 0.0im; 0.176 + 0.0im 0.984 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.984 + 0.0im -0.176 + 0.0im 0.0 + 0.0im -0.0 + 0.0im])
 ````
 
 The raw matrices are already a valid CHSH model — just not in a friendly basis.
@@ -200,7 +172,7 @@ raw_errors
 ````
 
 ````
-(A₁² = 1.604591010091299e-11, A₂² = 1.6106381226523693e-11, B₁² = 1.606374968097433e-11, B₂² = 1.6080707622847173e-11, comm_A₁B₁ = 8.134048991728911e-12, comm_A₁B₂ = 8.154033008932664e-12, comm_A₂B₁ = 8.158695947823046e-12, comm_A₂B₂ = 8.14248669447104e-12, anticomm_A = 1.153414275053737e-11, anticomm_B = 1.162424536413253e-11)
+(A₁² = 3.8029009332895335e-10, A₂² = 3.802875038257843e-10, B₁² = 3.8028784482187984e-10, B₂² = 3.8028962609504017e-10, comm_A₁B₁ = 1.9502099935063259e-10, comm_A₁B₂ = 1.950208218684085e-10, comm_A₂B₁ = 1.9502083281693761e-10, comm_A₂B₂ = 1.9502108603336478e-10, anticomm_A = 2.7582621990107456e-10, anticomm_B = 2.758187952543606e-10)
 ````
 
 `raw_errors` should stay at the solver-noise level.
@@ -208,27 +180,19 @@ raw_errors
 ````julia
 @assert all(err -> err < 5e-8, values(raw_errors))
 
-verification = verify_gns(
-    gns,
-    moment_result.monomap,
-    registry;
-    poly = -chsh,
-    f_star = moment_result.objective,
-    atol = 1e-5,
-)
-verification
+g.checks
 ````
 
 ````
-NCTSSoS.VerificationReport(true, 8.153921982057e-12, 1.2878142996441966e-11, Float64[], true)
+(hankel_moment_error = 3.2651092940483295e-10, program_moment_error = 1.0012254358926498e-9, program_components = 101, objective_error = 2.110704500069005e-9, constraint_min_eigenvalues = Float64[], equality_errors = Float64[], sector_errors = Float64[], algebra_error = 3.8029009332895335e-10, normalization_error = 1.685029893394585e-10, distance_to_flat = 4.573799541969271e-9, sigma_min = 1.9999999996225046, sigma_max = 5.999999996426627, condition_number = 2.9999999987795567, distance_over_sigma_min = 2.286899771416282e-9)
 ````
 
-The generic verification suite should agree with the hand-checked algebra facts above.
+The built-in checks agree with the hand-checked algebra facts above.
 
 ````julia
-@assert verification.is_symmetric
-@assert verification.moment_max_error < 1e-8
-@assert verification.objective_error < 1e-8
+@assert g.checks.algebra_error < 5e-8
+@assert g.checks.program_moment_error < 1e-8
+@assert g.checks.objective_error < 1e-8
 ````
 
 The CHSH operator should have spectrum `{-2√2, 0, 0, 2√2}`.
@@ -265,7 +229,7 @@ A1_split = U_a1' * A1_raw * U_a1
 A2_split = U_a1' * A2_raw * U_a1
 B1_split = U_a1' * B1_raw * U_a1
 B2_split = U_a1' * B2_raw * U_a1
-xi_split = U_a1' * gns.xi
+xi_split = U_a1' * g.state
 
 alice_block = A2_split[1:2, 3:4]
 U_a2 = blockdiag(Matrix{ComplexF64}(I, 2, 2), alice_block')
@@ -276,7 +240,7 @@ A1_alice = U_alice' * A1_raw * U_alice
 A2_alice = U_alice' * A2_raw * U_alice
 B1_alice = U_alice' * B1_raw * U_alice
 B2_alice = U_alice' * B2_raw * U_alice
-xi_alice = U_alice' * gns.xi
+xi_alice = U_alice' * g.state
 
 alice_summary = (
     A₁ = round.(A1_alice, digits=6),
@@ -289,7 +253,7 @@ alice_summary
 ````
 
 ````
-(A₁ = ComplexF64[1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im], B₁_offdiag = 2.0367378042482094e-12, B₂_offdiag = 2.0453634025672084e-12, xi = ComplexF64[-0.00013 + 0.0im, 0.707107 + 0.0im, 0.707107 + 0.0im, 0.00013 + 0.0im])
+(A₁ = ComplexF64[1.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im], B₁_offdiag = 4.875490288524834e-11, B₂_offdiag = 4.875514030173824e-11, xi = ComplexF64[1.0e-6 + 0.0im, 0.707107 + 0.0im, 0.707107 + 0.0im, -1.0e-6 + 0.0im])
 ````
 
 After Alice's gauge-fixing, the Bob operators should be block-diagonal with
@@ -339,7 +303,7 @@ A1_aligned = U_total' * A1_raw * U_total
 A2_aligned = U_total' * A2_raw * U_total
 B1_aligned = U_total' * B1_raw * U_total
 B2_aligned = U_total' * B2_raw * U_total
-xi_aligned = U_total' * gns.xi
+xi_aligned = U_total' * g.state
 
 σx = ComplexF64[0 1; 1 0]
 σz = ComplexF64[1 0; 0 -1]
@@ -360,7 +324,7 @@ alignment_errors
 ````
 
 ````
-(A₁ = 1.834915481764266e-11, A₂ = 1.3234725630086263e-11, B₁ = 1.778228224549548e-11, B₂ = 1.781385621321695e-11)
+(A₁ = 4.325336755591638e-10, A₂ = 3.1133909645335446e-10, B₁ = 4.191940704406754e-10, B₂ = 4.191921226557759e-10)
 ````
 
 These errors should collapse to roundoff once the gauge is fixed.
@@ -382,7 +346,7 @@ aligned_summary
 ````
 
 ````
-(A₁ = ComplexF64[1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[-0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im], B₁ = ComplexF64[0.707 + 0.0im 0.707 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.707 + 0.0im -0.707 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im 0.707 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im], B₂ = ComplexF64[0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im; -0.0 + 0.0im -0.0 + 0.0im -0.707 + 0.0im -0.707 + 0.0im])
+(A₁ = ComplexF64[1.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im 0.0 + 0.0im -1.0 + 0.0im], A₂ = ComplexF64[0.0 + 0.0im 0.0 + 0.0im 1.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im 1.0 + 0.0im; 1.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im], B₁ = ComplexF64[0.707 + 0.0im 0.707 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im 0.707 + 0.0im 0.707 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im], B₂ = ComplexF64[0.707 + 0.0im -0.707 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.707 + 0.0im -0.707 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im 0.707 + 0.0im -0.707 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im -0.707 + 0.0im -0.707 + 0.0im])
 ````
 
 ## Step 6 — Recover the Bell state
@@ -404,7 +368,7 @@ state_summary
 ````
 
 ````
-(xi = ComplexF64[0.707107 + 0.0im, 0.0 + 0.0im, -0.0 + 0.0im, 0.707107 + 0.0im], phi_plus = ComplexF64[0.707107 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.707107 + 0.0im], overlap = 0.9999999999933414)
+(xi = ComplexF64[0.707107 + 0.0im, -0.0 - 0.0im, -0.0 - 0.0im, 0.707107 + 0.0im], phi_plus = ComplexF64[0.707107 + 0.0im, 0.0 + 0.0im, 0.0 + 0.0im, 0.707107 + 0.0im], overlap = 0.9999999998551515)
 ````
 
 Global phase is gone; the cyclic vector is now the textbook Bell state.
@@ -425,7 +389,7 @@ final_check
 ````
 
 ````
-(expectation = 2.828427124666442, spectrum = [-2.828427, 0.0, 0.0, 2.828427])
+(expectation = 2.8284271229456945, spectrum = [-2.828427, 0.0, 0.0, 2.828427])
 ````
 
 The aligned state still saturates Tsirelson's bound.

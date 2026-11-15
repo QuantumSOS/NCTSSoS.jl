@@ -1,6 +1,17 @@
 import ..NCTSSoS: PauliAlgebra, NormalMonomial, _sympleq_clifford_candidates, _clifford_action_signature
 import ..NCTSSoS: Polynomial as LegacyPolynomial
 
+# Specialize the image loop separately from the detector's variable-length tuples.
+function _detector_image(indices,letters::Vector{W}) where {W}
+    image=one(W)
+    # Legacy normal monomials have one letter per site, in site order;
+    # the image phase is already carried by the separate sign.
+    for index in indices
+        image=mul(image,letters[index])[2]
+    end
+    return image
+end
+
 """
     detect_symmetry(objective::Polynomial; kwargs...)
     detect_symmetry(problem::Problem; kwargs...)
@@ -33,21 +44,23 @@ function detect_symmetry(problem::Problem;kwargs...)
     objective = problem.objective
     W = eltype(objective.data.words)
     degree(objective)==0 && return FamilySymmetry(CliffordMap{W}[];detected=true)
-    # Legacy Pauli labels have the same site-major X,Y,Z encoding. Use Int
-    # rather than a small label type so large registries cannot overflow.
+    # SympleQ still consumes legacy polynomials and emits legacy Clifford images.
+    # Translate only at this boundary, using packed letters and the registry's
+    # site range. Include unnamed axes: products can contain an unnamed Y.
+    n = objective.registry.nsites
+    detector_letters = [pauli_letter(W,i,a) for i in 1:n for a in 0:2]
     legacy = LegacyPolynomial([(ComplexF64(c),NormalMonomial{PauliAlgebra,Int}(
-        collect(Int,legacy_letters(w)))) for (c,w) in terms(objective)])
+        Int[3(site-1)+axis+1 for (site,axis) in _locations(w)])) for (c,w) in terms(objective)])
     # The public SymmetrySpec wrapper rejects an empty candidate list. Use the
     # same detector without that restriction; never interpret exception text.
     candidates = _sympleq_clifford_candidates(legacy;kwargs...)
-    n = objective.registry.nsites
     block = CliffordMap{W}[]
     moments = CliffordMap{W}[]
     for g in candidates
-        images = [_clifford_action_signature(g,only(legacy_letters(pauli_letter(W,i,a))))
+        images = [_clifford_action_signature(g,3(i-1)+a+1)
             for a in (0,2) for i in 1:n]
-        packed = CliffordMap([word_from_legacy(W,collect(word)) for (_,word) in images],
-            [sign == -1 for (sign,_) in images])
+        packed_images = [_detector_image(indices,detector_letters) for (_,indices) in images]
+        packed = CliffordMap(packed_images,[sign == -1 for (sign,_) in images])
         preserves_degree = all(degree(act(packed,pauli_letter(W,i,a))[2])==1
             for i in 1:n for a in 0:2)
         push!(preserves_degree ? block : moments,packed)

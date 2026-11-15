@@ -12,14 +12,33 @@ efficiently.
 
 ## Solver results
 
-`cs_nctssos` and `cs_nctssos_higher` return a numerical objective, not an
-interval-certified bound. When a solver stops at an iteration limit or makes
-slow progress with a feasible or nearly feasible primal or dual point, the
-library emits one warning and returns `result.objective = NaN`: no bound is
-reported. `result.model` retains the solver state; inspect its termination,
-primal and dual statuses with JuMP. Other unsuccessful statuses raise
-`SolverStatusError`. The same policy applies to the continuous-symmetry,
-translation-invariant and invariant-SOC solve routes.
+`Problem` defines the objective and operator constraints. `Relaxation`
+selects the order, sparsity and strengthening. `solve` takes both and a solver:
+
+```julia
+using NCTSSoS.Next
+using Mosek
+
+_, (x,) = site_variables(Free(), 1, 1)
+problem = Problem(x[1]; constraints=(Positive(1 - x[1]^2),))
+relaxation = Relaxation(order=1)
+solver = MosekBackend()
+result = solve(problem, relaxation; solver)
+@assert isapprox(result.bound, -1; atol=1e-6)
+@assert isapprox(expectation(result, x[1]), result.bound; atol=1e-6)
+```
+
+The constraint is the operator inequality ``1-x_1^2\succeq0``. Its minimum
+is −1, attained by the scalar operator ``x_1=-1``.
+
+`result.bound` is a numerical relaxation optimum, not an interval-certified
+bound. `result.status` gives the solver termination status. If the solver
+does not return an accepted solution, `result.bound` is `nothing`, not `NaN`.
+Check it before you use the bound or call `expectation(result, p)`.
+`result.sizes` describes the SDP, and `result.valid_for` states which states
+the relaxation covers. These fields apply to dense, sparse and symmetric
+relaxations. Solver failures can also raise errors; a returned result is not
+a guarantee that a bound is available.
 
 ## [Noncommutative Polynomial Optimization](@id noncommutative-polynomial-optimization)
 

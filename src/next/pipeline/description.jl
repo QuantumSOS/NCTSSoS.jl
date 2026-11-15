@@ -68,6 +68,9 @@ function Base.show(io::IO,s::FamilySizes)
     end
     if !isnothing(r.strengthening)
         print(io,"; strengthening: ",r.strengthening.added_blocks," blocks, ",r.strengthening.added_equalities," equalities; ")
+        for face in r.strengthening.density_faces
+            print(io,"density sector face ",face.before," → ",face.after,"; ")
+        end
         show(io,r.valid_for)
     end
 end

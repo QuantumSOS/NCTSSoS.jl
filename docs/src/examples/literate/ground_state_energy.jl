@@ -18,30 +18,27 @@
 # neighbor interaction and periodic boundary condition.
 
 # !!! note "SDP Solver"
-#     These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
-#     Any SDP-capable solver works: replace `Mosek.Optimizer` with
-#     `COSMO.Optimizer` or `Clarabel.Optimizer` for open-source alternatives.
+#     These examples use [Mosek](https://www.mosek.com/) through `MosekBackend`.
+#     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
+import NCTSSoS.Next as Next
 N = 6
 
 # Create Pauli variables using the typed algebra system
 # This automatically encodes all Pauli commutation relations
-registry, (σx, σy, σz) = create_pauli_variables(1:N)
+registry, (σx, σy, σz) = pauli_variables(1:N)
 
 ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σz] for i in 1:N)
 
 # No need to manually specify constraints - they're encoded in the algebra type!
-pop = polyopt(ham, registry)
+problem = Problem(ham)
 
-solver_config = SolverConfig(
-                    optimizer=Mosek.Optimizer,          # the solver backend
-                    order=3,                            # moment matrix order
-                    ts_algo=MMD(),                      # term sparsity algorithm
-                    )
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
+solver = MosekBackend()
 
-res = cs_nctssos(pop, solver_config)
-res.objective / N
+res = solve(problem, relaxation; solver)
+res.bound / N
 
 # For this small $N = 6$ instance, the sparse order-$3$ lower bound is already
 # tight. The returned value agrees with the reference ground-state energy per
@@ -53,21 +50,21 @@ res.objective / N
 # required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
 # frustration induced by next nearest neighbor interaction can be solved as:
 
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
 J2 = 0.2                            # Next Nearest Neighbor Interaction
 
-registry, (σx, σy, σz) = create_pauli_variables(1:N)
+registry, (σx, σy, σz) = pauli_variables(1:N)
 
 ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) * op[i] * op[mod1(i + 2, N)] for op in [σx, σy, σz] for i in 1:N)
 
-pop = polyopt(ham, registry)
+problem = Problem(ham)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, ts_algo=MMD())
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
 
-res = cs_nctssos(pop, solver_config)
-res.objective / N
+res = solve(problem, relaxation; solver)
+res.bound / N
 
 # Again, for this small $N = 6$ instance the sparse order-$3$ lower bound is
 # already tight. The returned value agrees with the reference ground-state
@@ -77,22 +74,26 @@ res.objective / N
 
 # Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
 Nx = 3
 Ny = 3
 N = Nx * Ny
 J1 = 1.0
 J2 = 0.0
 
-registry, (σx, σy, σz) = create_pauli_variables(1:N)
+registry, (σx, σy, σz) = pauli_variables(1:N)
 
 LI = LinearIndices((1:Nx, 1:Ny))
 
 ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(i, mod1(j + 1, Ny))]] + ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), j)]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j + 1, Ny))]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j - 1, Ny))]] for op in [σx, σy, σz] for i in 1:Nx for j in 1:Ny)
 
-pop = polyopt(ham, registry)
+problem = Problem(ham)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
+relaxation = Relaxation(order=3, grouping=Correlative(algorithm=Next.MF()),
+    split=TermSplit(algorithm=Next.MMD()))
+
+# This last setup does not run a solve. `Correlative` groups Pauli variables
+# by site, so each group contains all three axes at its sites.
 
 
 # ## Next step

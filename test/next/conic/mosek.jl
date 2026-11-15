@@ -91,4 +91,6 @@ else
             @test_throws ArgumentError N.expectation(failed,x)
         end
     end
+    isdefined(@__MODULE__,:check_gns_backend) || include("../model/gns.jl")
+    check_gns_backend(N.MosekBackend())
 end

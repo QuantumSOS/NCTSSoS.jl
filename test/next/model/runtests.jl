@@ -34,6 +34,10 @@
         using NCTSSoS
         using NCTSSoS.Next
         @testset "No clashing exports" begin
+            for name in (:gns,:evaluate)
+                @test Base.isexported(NCTSSoS.Next,name)
+                @test Core.eval(Main,name) === getfield(NCTSSoS.Next,name)
+            end
             clashes=sort!([name for name in intersect(names(NCTSSoS),names(NCTSSoS.Next))
                 if Base.isexported(NCTSSoS,name) && Base.isexported(NCTSSoS.Next,name) &&
                     getfield(NCTSSoS,name) !== getfield(NCTSSoS.Next,name)])
@@ -49,6 +53,7 @@ end
 
 include("front.jl")
 FrontDoorChecks.check(Nx.JuMPBackend(SOLVER))
+include("gns.jl")
 include("detection.jl")
 isdefined(@__MODULE__,:check_expectations) || include("expectations.jl")
 @testset "Reading expectations through JuMP" begin

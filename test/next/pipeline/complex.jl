@@ -66,5 +66,7 @@ end
         end
     end
     g=Nx.compose(test_cnot(),test_conjugate(2))
-    @test_throws r"No same-side real basis" Nx.finite_program(toy_words(2,1),[],[one(g)];moment_generators=(g,))
+    fallback,_,_=Nx.finite_program(toy_words(2,1),[],[one(g)];moment_generators=(g,))
+    @test only(fallback.blocks).kind==Nx.HPSD
+    @test only(fallback.blocks).side==length(toy_words(2,1))
 end

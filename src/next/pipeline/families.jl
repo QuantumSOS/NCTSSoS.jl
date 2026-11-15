@@ -88,17 +88,18 @@ end
 
 function _append_family_sectors!(program,table,block,sectors;real_blocks=false,product! = _block_product!)
     sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
-    for rows in sectors
+    for (s,rows) in enumerate(sectors)
         isempty(rows) && continue
+        real_block=real_blocks isa Bool ? real_blocks : real_blocks[s]
         for j in eachindex(rows),i in j:length(rows)
             empty!(sink.terms)
             for (ca,a) in rows[i],(cb,b) in rows[j]
                 product!(sink,a,b,block.polynomial,conj(ca)*cb)
             end
-            _close_orbit_form!(program.forms,sink.terms;diagonal=real_blocks || i==j)
+            _close_orbit_form!(program.forms,sink.terms;diagonal=real_block || i==j)
         end
         n=length(rows)
-        kind=block.kind==ZERO ? ZERO : real_blocks ? PSD : HPSD
+        kind=block.kind==ZERO ? ZERO : real_block ? PSD : HPSD
         push_block!(program,kind,kind==ZERO ? n*(n+1)÷2 : n,block.source)
     end
 end
@@ -112,6 +113,7 @@ function _family_sectors(block,stabilizers,transport,index,moment_generators)
         sectors=_project_orbits(block.rows,stabilizers,group,projections)
     end
     anti_index=findfirst(is_antiunitary,moment_generators)
+    real_blocks=false
     if !isnothing(anti_index)
         anti=moment_generators[anti_index]
         root=index[_block_key(block)]
@@ -120,9 +122,9 @@ function _family_sectors(block,stabilizers,transport,index,moment_generators)
             anti=compose(inv(transport[target]),anti)
         end
         isempty(stabilizers) && (group=OrbitGroup([one(anti)]))
-        sectors=_real_finite_sectors(block.rows,sectors,group,anti)
+        sectors,real_blocks=_real_finite_sectors(block.rows,sectors,group,anti)
     end
-    sectors,!isnothing(anti_index)
+    sectors,real_blocks
 end
 
 function _whole_lattice_family(block,objective,generators,moment_generators,site_letters)
@@ -177,7 +179,7 @@ function family_program(family::AbstractVector{<:RowBlock{W}},objective;
     for (root,_,stabilizers,transport) in orbits
         block=blocks[root]
         sectors,real_blocks=_family_sectors(block,stabilizers,transport,index,moment_generators)
-        _append_family_sectors!(program,table,block,sectors;real_blocks=real_blocks || real_form)
+        _append_family_sectors!(program,table,block,sectors;real_blocks=real_form ? true : real_blocks)
     end
     # A representative found while following an orbit is not necessarily
     # covered by an entry. Check the actual cone coordinates, not table size.

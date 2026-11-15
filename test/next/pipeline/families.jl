@@ -56,8 +56,14 @@ end
     description=Nx.BlockRelaxation(order=1,grouping=Nx.Correlative(),symmetry=Nx.FamilySymmetry(generators;
         moment_only=(Nx.AntiunitaryPauli(one(W)),)))
     # With only cyclic axis rotations, conjugation exchanges projected
-    # sectors. The generic route must report that limit, not double a block.
-    @test_throws r"No same-side real basis" Nx.build(problem,description)
+    # sectors. Keep those sectors complex instead of rejecting the symmetry.
+    fallback=Nx.build(problem,description)
+    @test any(b.kind==Nx.HPSD for b in fallback.program.blocks)
+    fallback_solver=Nx.JuMPBackend(optimizer_with_attributes(COSMO.Optimizer,"verbose"=>false,
+        "decompose"=>false,"eps_abs"=>1e-9,"eps_rel"=>1e-9))
+    fallback_reference=family_reference(problem,1,fallback.sizes.closure.family)[1]
+    @test Nx.solve_standard(Nx.moment_standard_form(fallback.program),fallback_solver).bound≈
+        Nx.solve_standard(Nx.moment_standard_form(fallback_reference),fallback_solver).bound atol=1e-6
     quarter=Nx.CliffordMap([Nx.pauli_letter(W,i,a) for a in (1,2) for i in 1:n])
     description=Nx.BlockRelaxation(order=1,grouping=Nx.Correlative(),symmetry=Nx.FamilySymmetry([generators;quarter];
         moment_only=(Nx.AntiunitaryPauli(one(W)),)))

@@ -15,6 +15,20 @@ struct MosekHandle{B}
     representation::Symbol
 end
 
+function Next.task_sizes(h::MosekHandle)
+    task=h.task
+    sides=Int[Mosek.getdimbarvarj(task,i) for i in 1:Mosek.getnumbarvar(task)]
+    for i in 1:Mosek.getnumacc(task)
+        domain=Mosek.getaccdomain(task,i)
+        if Mosek.getdomaintype(task,domain)==Mosek.MSK_DOMAIN_SVEC_PSD_CONE
+            n=Mosek.getdomainn(task,domain)
+            push!(sides,(isqrt(8n+1)-1)÷2)
+        end
+    end
+    return (affine_rows=Int(Mosek.getnumcon(task)+Mosek.getnumafe(task)),
+        scalar_variables=Int(Mosek.getnumvar(task)),psd_sides=sides)
+end
+
 # Realify HPSD as [Re(M) -Im(M); Im(M) Re(M)]. This leaves moment
 # variables unchanged, so both primal values and SOS equality duals recover them.
 function real_psd_form(form)
@@ -186,7 +200,9 @@ function Next.solve_standard(h::MosekHandle)
     bound=optimal ? Mosek.getprimalobj(h.task,Mosek.MSK_SOL_ITR) : nothing
     values=optimal ? (sos ? -Mosek.gety(h.task,Mosek.MSK_SOL_ITR) : Mosek.getxx(h.task,Mosek.MSK_SOL_ITR)) : Float64[]
     diagnostics=(representation=h.representation,termination=sprint(show,termination),warm_started=false,
-        iterations=Int(Mosek.getintinf(h.task,Mosek.MSK_IINF_INTPNT_ITER)))
+        iterations=Int(Mosek.getintinf(h.task,Mosek.MSK_IINF_INTPNT_ITER)),
+        primal_residual=Mosek.getdouinf(h.task,Mosek.MSK_DINF_INTPNT_PRIMAL_FEAS),
+        dual_residual=Mosek.getdouinf(h.task,Mosek.MSK_DINF_INTPNT_DUAL_FEAS))
     return Next.ConicSolution(bound,status,sprint(show,raw),values,h,diagnostics)
 end
 

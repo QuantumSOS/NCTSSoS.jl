@@ -45,7 +45,11 @@ function Base.show(io::IO,p::Polynomial)
 end
 Base.show(io::IO,::MIME"text/plain",p::Polynomial) = show(io,p)
 
-"Borrowed, sized iterator of (coefficient, word) pairs. Read it without mutating the polynomial."
+"""
+Borrowed, sized iterator of (coefficient, word) pairs. Read it without mutating the polynomial.
+A display shows at most eight terms, including print and string; iterate Next.terms(p)
+for all terms, or show with IOContext(io, :limit => false).
+"""
 terms(p::Polynomial) = ((p.data.coefficients[i],p.data.words[i]) for i in 1:length(p.data))
 degree(p::Polynomial) = maximum((degree(w) for (_,w) in terms(p));init=0)
 Base.iszero(p::Polynomial) = isempty(p.data)

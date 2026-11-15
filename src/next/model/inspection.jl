@@ -62,7 +62,7 @@ function block_rows(built::BuiltRelaxation)
     registry=p.objective.registry
     for c in p.constraints
         c isa OperatorConstraint || continue
-        push!(result,basis_rows(W,registry.algebra,1:registry.nsites,order-cld(degree(c.polynomial),2)))
+        push!(result,basis_rows(W,registry.algebra,1:registry.nsites,_localizing_order(order,c.polynomial)))
     end
     return result
 end

@@ -29,6 +29,16 @@ The raw termination code is retained in the solution diagnostics, including
 support `expectation`; SOS recovers moments from the equality duals.
 Appended constraints rebuild the native task; no warm start is claimed.
 
+`result.solution.diagnostics` includes `iterations`, `primal_residual` and
+`dual_residual`: Mosek's INTPNT_ITER, INTPNT_PRIMAL_FEAS and INTPNT_DUAL_FEAS
+information items. These describe the native formulation named by
+`diagnostics.representation`; in SOS form primal/dual refer to the SOS task,
+not the original moment problem. Mosek measures feasibility in its homogeneous
+model, so these are not norms of the original problem's residuals. Native `-1`
+values are retained when no interior-point measure is reported (for example,
+after presolve); do not interpret them as small residuals. These are solver
+reports, not certificates.
+
 Keep `form=:auto` unless comparing formulations on a small problem; do not
 force `:moment` on large PSD blocks. In the architect's XXZ4/order-2 review
 (one Hermitian block of side 67, one thread), moment form hit a 20 s limit
@@ -55,6 +65,20 @@ function prepare_standard(form,backend::MosekBackend)
     throw(ArgumentError("Load Mosek with `using Mosek` and pass a MomentStandardForm to MosekBackend."))
 end
 solve_standard(form,backend::MosekBackend) = solve_standard(prepare_standard(form,backend))
+
+"""
+    Next.task_sizes(prepared)
+
+Read native Mosek task dimensions without solving, from the value returned by
+Next.prepare or Next.prepare_standard with MosekBackend. Returns a named tuple:
+`affine_rows` counts linear constraint rows plus affine conic expression rows;
+`scalar_variables` excludes semidefinite bar-variable entries; `psd_sides` lists
+real PSD matrix dimensions, first bar variables, then affine PSD cones.
+These are loaded task sizes before presolve, including Hermitian realification,
+not the word-family sizes or the pre-realification sides from Next.block_sides.
+The returned vector is owned by the caller. Other backends are not supported.
+"""
+task_sizes(prepared) = throw(ArgumentError("task_sizes requires a native Mosek handle from Next.prepare or Next.prepare_standard with MosekBackend."))
 
 function _check_append_only(old::MomentStandardForm,form::MomentStandardForm)
     m,k = length(old.b),length(old.cones)

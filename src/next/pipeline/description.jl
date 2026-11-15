@@ -15,28 +15,34 @@ struct FamilySymmetry{G,M,D}
 end
 
 "A row rule per group, a split algorithm, or an unchanged custom family."
-struct BlockRelaxation{R,G,S,F,Y,K} <: AbstractRelaxation
+struct BlockRelaxation{R,G,S,F,Y,K,B} <: AbstractRelaxation
     order::Union{Int,Nothing}
+    rows::B
     row_rule::R
     grouping::G
     split::S
     family::F
     symmetry::Y
     strengthen::K
-    function BlockRelaxation(;order=nothing,row_rule=nothing,grouping=nothing,split=nothing,
+    function BlockRelaxation(;order=nothing,rows=nothing,row_rule=nothing,grouping=nothing,split=nothing,
         family=nothing,symmetry=FamilySymmetry(),strengthen=())
-        xor(isnothing(order),isnothing(family)) || throw(ArgumentError("Supply exactly one of order or a custom family."))
+        count(!isnothing,(order,rows,family))==1 || throw(ArgumentError("Supply exactly one of order, starting rows with TermSplit, or a custom family."))
         isnothing(order) || order isa Integer && order>=0 || throw(ArgumentError("The row order must be a nonnegative integer."))
         symmetry isa FamilySymmetry || throw(ArgumentError("Use FamilySymmetry to name block generators and moment-only maps."))
         strengthen=Tuple(strengthen)
         all(k->k isa StrengtheningKind,strengthen) || throw(ArgumentError("Use strengthening descriptions such as DensityMatrix(sites) or InvariantCone(sites, r)."))
+        if !isnothing(rows)
+            all(isnothing,(row_rule,grouping)) && split isa TermSplit || throw(ArgumentError("Starting rows support split=TermSplit(...) only; remove grouping, row_rule or PhysicsInformed."))
+            rows=collect(rows)
+            !isempty(rows) || throw(ArgumentError("Starting rows are empty; include the identity and rows covering the objective."))
+        end
         if !isnothing(family)
             all(isnothing,(row_rule,grouping,split)) || throw(ArgumentError("A custom family is used as supplied; remove the row rule, grouping and split options."))
             family=collect.(family)
             !isempty(family) && all(!isempty,family) || throw(ArgumentError("A custom family and each of its blocks must be nonempty."))
         end
-        new{typeof(row_rule),typeof(grouping),typeof(split),typeof(family),typeof(symmetry),typeof(strengthen)}(
-            isnothing(order) ? nothing : Int(order),row_rule,grouping,split,family,symmetry,strengthen)
+        new{typeof(row_rule),typeof(grouping),typeof(split),typeof(family),typeof(symmetry),typeof(strengthen),typeof(rows)}(
+            isnothing(order) ? nothing : Int(order),rows,row_rule,grouping,split,family,symmetry,strengthen)
     end
 end
 
@@ -76,9 +82,9 @@ function Base.show(io::IO,s::FamilySizes)
 end
 Base.show(io::IO,::MIME"text/plain",s::FamilySizes) = show(io,s)
 
-function _custom_family_rows(problem,description,W)
+function _custom_family_rows(problem,family,W)
     registry=problem.objective.registry
-    map(description.family) do block
+    map(family) do block
         all(p->p isa Polynomial && p.registry===registry,block) ||
             throw(ArgumentError("Every custom row must be a polynomial from the problem registry."))
         all(p->length(p.data)==1 && p.data.coefficients[1]==1,block) ||
@@ -93,11 +99,13 @@ function build(problem::Problem,description::BlockRelaxation)
     Problem(problem.objective;constraints=problem.constraints)
     _check_hamiltonian_strengthening(problem,description.strengthen)
     custom=!isnothing(description.family)
-    if custom
-        all(p->p isa Polynomial,Iterators.flatten(description.family)) ||
+    starting=!isnothing(description.rows)
+    supplied=starting ? [description.rows] : description.family
+    if custom || starting
+        all(p->p isa Polynomial,Iterators.flatten(supplied)) ||
             throw(ArgumentError("Custom family rows must be polynomials from the problem registry."))
     end
-    order=custom ? maximum(degree,Iterators.flatten(description.family)) : description.order
+    order=custom || starting ? maximum(degree,Iterators.flatten(supplied)) : description.order
     max_letters=max(2order,degree(problem.objective),maximum((degree(c.polynomial) for c in problem.constraints);init=0))
     max_letters=max(max_letters,maximum((_strengthening_width(k,problem,order) for k in description.strengthen);init=0))
     registry=problem.objective.registry
@@ -107,16 +115,18 @@ function build(problem::Problem,description::BlockRelaxation)
     objective=[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(problem.objective)]
     identity=[(1.0+0im,one(W))]
     if custom
-        rows=_custom_family_rows(problem,description,W)
+        rows=_custom_family_rows(problem,supplied,W)
         groups=[sort!(unique!(reduce(vcat,collect.(sites.(block));init=Int[]))) for block in rows]
     else
         groups=_site_groups(problem,description.grouping,W)
-        rows=[_group_rows(description.row_rule,W,registry,group,order) for group in groups]
+        rows=starting ? _custom_family_rows(problem,supplied,W) :
+            [_group_rows(description.row_rule,W,registry,group,order) for group in groups]
     end
     family=[RowBlock(block,identity,HPSD,0) for block in rows]
     custom && length(unique(_block_key,family))!=length(family) &&
         throw(ArgumentError("The custom family has duplicate blocks; remove duplicates explicitly."))
     any(b->one(W) in b.rows,family) || throw(ArgumentError("The family must contain the identity row in at least one block."))
+    starting && _check_starting_coverage(only(family),objective,registry)
     local_sizes=Int[]
     for (i,constraint) in enumerate(problem.constraints)
         local_order=order-cld(degree(constraint.polynomial),2)
@@ -164,7 +174,9 @@ function build(problem::Problem,description::BlockRelaxation)
     if isempty(description.symmetry.continuous)
         program,table,elimination=_eliminate_sectors(program,table,sector_equations,sector_blocks)
     else
-        elimination=isnothing(sector_equations) ? nothing : (accepted=false,reason=:continuous_symmetry)
+        elimination=isnothing(sector_equations) ? nothing : (accepted=false,reason=:continuous_symmetry,
+            rank=nothing,coefficients_before=nothing,coefficients_after=nothing,arithmetic=nothing,
+            initial_variables=program.nvars-1,variables=program.nvars-1)
     end
     if !isnothing(elimination) && elimination.accepted
         moments=length(unique(label.word for label in table.labels))

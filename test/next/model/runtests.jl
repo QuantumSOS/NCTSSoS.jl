@@ -213,6 +213,51 @@ end
     @info "One call: CHSH" old new=result.bound sizes=result.sizes
 end
 
+@testset "Value hashing of polynomials and sizes" begin
+    registries=[Nx.pauli_variables(2)[1],Nx.fermionic_variables(2)[1],Nx.bosonic_variables(2)[1],
+        (Nx.site_variables(rule,1,2)[1] for rule in (Nx.Free(),Nx.Projector(),Nx.Unipotent()))...,
+        (Nx.site_variables(Nx.Free(),1,2;functional=f)[1] for f in (Nx.RealState(),Nx.RealTrace()))...,
+        Nx.mixed_variables(spin=(Nx.Pauli(),1),matter=(Nx.Fermionic(),1))[1]]
+    for r in registries
+        p=first(values(Nx.variables(r)))
+        q=adjoint(adjoint(p))
+        @test p==q && isequal(p,q)
+        @test hash(p)==hash(q)
+        @test length(unique([p,q,p+p,2p]))==2
+        @test q in Set([p])
+        @test Dict(p=>7)[q]==7
+        W=typeof(last(only(Nx.terms(p))))
+        # Construct canonical terms with distinct coefficient representations.
+        for coefficients in ((1,1.0,1//1,ComplexF32(1),ComplexF64(1,-0.0)),
+                (complex(0.0,1.0),complex(-0.0,1.0)))
+            polys=map(coefficients) do c
+                data=Nx.PolynomialBuffer{W,typeof(c)}(4)
+                Nx.push_term!(data,c,last(only(Nx.terms(p))))
+                Nx.Polynomial(r,Nx.canonicalize!(data))
+            end
+            @test all(q->q==first(polys),polys)
+            @test all(q->hash(q,UInt(17))==hash(first(polys),UInt(17)),polys)
+            @test length(Set(polys))==1
+            @test all(q->haskey(Dict(first(polys)=>1),q),polys)
+        end
+        @test length(unique([zero(p),p-p]))==1
+    end
+    r,(letters,)=Nx.site_variables(Nx.Free(),1,2)
+    a,b=letters
+    rows=unique([a,a',a*b,a*b])
+    @test length(rows)==2
+    built=Nx.build(Nx.Problem(a^2),Nx.Relaxation(rows=[one(a);rows]))
+    explicit=Nx.build(Nx.Problem(a^2),Nx.Relaxation(rows=[one(a),a,a*b]))
+    f,g=Nx.moment_standard_form(built.program),Nx.moment_standard_form(explicit.program)
+    @test (f.A,f.b,f.c,f.offset,f.cones)==(g.A,g.b,g.c,g.offset,g.cones)
+    s,t=built.sizes,explicit.sizes
+    @test s==t && hash(s)==hash(t)
+    @test length(unique([s,t]))==1
+    @test t in Set([s]) && Dict(s=>1)[t]==1
+    _,(other,)=Nx.site_variables(Nx.Free(),1,2)
+    @test a!=first(other) && length(Set([a,first(other)]))==2
+end
+
 @testset "Bulk polynomial construction" begin
     r,(x,y,z)=Nx.pauli_variables(3)
     ps=[3x[2],(2+3im)*x[1],-3x[2],x[3]*y[3],-im*z[3],2one(x[1])]

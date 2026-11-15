@@ -128,6 +128,16 @@ function Base.:(==)(a::Polynomial,b::Polynomial)
     a.registry === b.registry || return false
     return length(a.data)==length(b.data) && all(a.data.words[i]==b.data.words[i] && a.data.coefficients[i]==b.data.coefficients[i] for i in 1:length(a.data))
 end
+# Match value equality across coefficient types and signed zeros. As with any
+# mutable key, do not change the backing terms while a polynomial is in a Set/Dict.
+function Base.hash(p::Polynomial,h::UInt)
+    h=hash(objectid(p.registry),hash(:Polynomial,h))
+    for (c,w) in terms(p)
+        re,im=real(c),imag(c)
+        h=hash(iszero(im) ? 0 : im,hash(iszero(re) ? 0 : re,hash(w,h)))
+    end
+    return h
+end
 LinearAlgebra.ishermitian(p::Polynomial) = p==adjoint(p)
 
 """

@@ -1,12 +1,16 @@
 abstract type StrengtheningKind end
 
-"Positivity of the normalized density matrix on these Pauli sites."
+"Positivity of the normalized density matrix on these Pauli sites; valid for each state."
 struct DensityMatrix <: StrengtheningKind
     sites::Vector{Int}
     DensityMatrix(sites) = new(_strengthening_sites(sites))
 end
 
-"Named Kramers-invariant cone; r is an odd-Y Pauli label on 3 or 4 sites."
+"""
+Named Kramers-invariant cone; r is an odd-Y Pauli label on 3 or 4 sites;
+valid for each state. For k sites, the sum of squared expectations of the
+kept words is at most 2^(k−1)−1.
+"""
 struct InvariantCone <: StrengtheningKind
     sites::Vector{Int}
     r::String
@@ -18,10 +22,10 @@ struct InvariantCone <: StrengtheningKind
     end
 end
 
-"Commutator equalities for the moment words of the selected block family."
+"Commutator equalities for the moment words of the selected block family; valid for eigenstates of the objective."
 struct Stationarity <: StrengtheningKind end
 
-"Positivity of the objective's second variation on each selected row block."
+"Positivity of the objective's second variation on each selected row block; valid for the ground space of the objective."
 struct StateOptimality <: StrengtheningKind end
 
 _validity(::Union{DensityMatrix,InvariantCone}) = "valid for each state"

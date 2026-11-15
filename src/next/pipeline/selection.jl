@@ -7,7 +7,14 @@ struct Correlative{A}
 end
 Correlative(;algorithm=MF()) = Correlative(algorithm)
 
-"Support-graph splitting, with an explicit number of support-extension steps."
+"""
+Support-graph splitting, with an explicit number of support-extension steps.
+
+`level` counts support-extension steps. A chordal algorithm such as `MMD()` or
+`MF()` depends on the row order of `NCTSSoS.Next`. The blocks and the bound at a
+given level can differ from the old package at the same level. Each level is a
+valid relaxation, and the dense program implies it.
+"""
 struct TermSplit{A}
     algorithm::A
     level::Int
@@ -102,6 +109,26 @@ end
 function push_term!(sink::WordSupportSink,c::Number,w)
     iszero(c) || push!(sink.support,first(moment_key(w)))
     sink
+end
+
+struct MissingSupportSink{W}
+    words::Set{W}
+end
+function push_term!(sink::MissingSupportSink,c::Number,w)
+    iszero(c) || delete!(sink.words,first(moment_key(w)))
+    sink
+end
+function _check_starting_coverage(block,objective,registry)
+    W=eltype(block.rows)
+    sink=MissingSupportSink(Set{W}(first(moment_key(w)) for (c,w) in objective if !iszero(c)))
+    # Only track required words; never construct the unsplit moment matrix.
+    for j in eachindex(block.rows),i in j:length(block.rows)
+        isempty(sink.words) && return nothing
+        _block_product!(sink,block.rows[i],block.rows[j],block.polynomial)
+    end
+    isempty(sink.words) || throw(ArgumentError(
+        "Objective words $(join((_word_string(registry,w) for w in sort!(collect(sink.words))), ", ")) are not covered by the starting rows; add rows whose adjoint products cover these words before using TermSplit."))
+    nothing
 end
 
 function _initial_support(blocks,objective)

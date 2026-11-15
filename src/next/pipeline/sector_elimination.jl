@@ -118,7 +118,8 @@ function _eliminate_sectors(program::MomentProgram{C},table,equations,sector_blo
         push_block!(out,block.kind,block.side,block.label)
     end
     after=length(out.forms.ids)
-    report=(accepted=after<=before,rank=reduction.rank,coefficients_before=before,
+    report=(accepted=after<=before,reason=after<=before ? :accepted : :coefficient_growth,
+        rank=reduction.rank,coefficients_before=before,
         coefficients_after=after,arithmetic=arithmetic,initial_variables=program.nvars-1)
     after<=before || return program,table,merge(report,(variables=program.nvars-1,))
     objective=_sector_rewrite_exact!(row,wide,program.objective_ids,program.objective_coefs,directions)

@@ -16,7 +16,15 @@ end
     @test form.offset==0.0
     @test [(c.kind,c.side,c.first,c.length,c.label) for c in form.cones]==
         [(:hpsd,1,1,1,0),(:hpsd,1,2,1,0),(:hpsd,1,3,1,0),(:zero,3,4,1,1)]
-    @test built.sizes.closure.sector_elimination==(accepted=false,reason=:continuous_symmetry)
+    report=built.sizes.closure.sector_elimination
+    @test !report.accepted && report.reason==:continuous_symmetry
+    @test report.rank===nothing && report.coefficients_before===nothing
+    @test report.variables==report.initial_variables==built.sizes.real_variables
+    eliminated=Nx.build(Nx.Problem(number),Nx.Relaxation(order=1,strengthen=Nx.Sector(number,1)))
+    accepted=eliminated.sizes.closure.sector_elimination
+    @test accepted.accepted && accepted.reason==:accepted
+    @test keys(report)==keys(accepted)==(:accepted,:reason,:rank,:coefficients_before,
+        :coefficients_after,:arithmetic,:initial_variables,:variables)
 end
 
 # Check the same physical equations whether they remain explicit or have
@@ -82,7 +90,9 @@ end
         strengthen=(Nx.Sector(sum(z),0),)))
     report=built.sizes.closure.sector_elimination
     @test report.coefficients_after>report.coefficients_before
-    @test !report.accepted
+    @test !report.accepted && report.reason==:coefficient_growth
+    @test keys(report)==(:accepted,:reason,:rank,:coefficients_before,
+        :coefficients_after,:arithmetic,:initial_variables,:variables)
     # Keep the original cone entries and explicit sector equations, rather
     # than accepting a denser substitution with the same bound.
     count=length(plain.program.forms.ids)

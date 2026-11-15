@@ -102,8 +102,12 @@ abstract type AbstractRelaxation end
 Choose exactly one of `order`, custom `rows`, or a custom block `family`.
 Declare symmetry on `Problem`. Without symmetry or block options, use complete
 moment/localizing matrices. Otherwise use the selected block family.
-Custom rows can be split with `split=TermSplit(...)`; without a split they
-are unchanged. Custom families are used as supplied. Remove grouping and
+Custom rows can be split with `split=TermSplit(...)`. Before coverage checks
+and splitting, these starting rows are closed under declared block generators
+and continuous derivations. Localizing order uses the largest closed row degree.
+Moment-only maps do not add rows. The selected
+block family is then closed as well. Without a split, custom rows are unchanged.
+Custom families are used as supplied. Remove grouping and
 row_rule with custom rows, and all three options with custom families.
 A single strengthening kind is accepted without a tuple.
 """

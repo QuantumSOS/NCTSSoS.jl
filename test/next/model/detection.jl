@@ -109,4 +109,20 @@ end
         @test image==expected
         @test all(Nx.act(g,op[3].data.words[1])==(one(Nx.Phase),op[3].data.words[1]) for op in (x,y,z))
     end
+
+    # Detection must not require a registry name for every axis. These X/Z
+    # products contain Y on two sites, neither of which has a registered name.
+    partial=Nx.Registry(Nx.Pauli(),3,[:left=>(1,0),:right=>(1,2),:other=>(2,0),:axis=>(2,2)])
+    v=Nx.variables(partial)
+    h=v[:left]*v[:other]+v[:right]*v[:axis]-v[:left]*v[:right]*v[:other]*v[:axis]
+    full=x[1]*x[2]+y[1]*y[2]+z[1]*z[2]
+    sparse_sym,full_sym=Nx.detect_symmetry(h),Nx.detect_symmetry(full)
+    @test sparse_sym.generators==full_sym.generators
+    @test sparse_sym.moment_only==full_sym.moment_only
+    forms=map(((h,sparse_sym),(full,full_sym))) do (objective,symmetry)
+        built=Nx.build(Nx.Problem(objective;symmetry),Nx.Relaxation(order=1))
+        Nx.moment_standard_form(built.program)
+    end
+    f,g=forms
+    @test (f.A,f.b,f.c,f.offset,f.cones)==(g.A,g.b,g.c,g.offset,g.cones)
 end

@@ -90,4 +90,16 @@ end
     @test collect(Nx.sites(last(samples)))==[65,131,148]
     W=Nx.word_type(Nx.mixed_variables(spin=(Nx.Pauli(),1),matter=(Nx.Fermionic(),1))[1],2)
     @test_throws r"outside" W((Nx.pauli_letter(Nx.PauliWord{1},2,0),one(Nx.FermiWord{1})))
+
+    # Direct SingleTerm multiplication must retain the Pauli phase while the
+    # unipotent factor squares to identity. Independent Kronecker matrices.
+    _,p=Nx.mixed_variables(spin=(Nx.Pauli(),1),sign=(Nx.SiteAlgebra(Nx.Unipotent(),1),1))
+    x,y,z=p.spin; u=p.sign[1][1]
+    a,b=last(only(Nx.terms(x[1]*u))),last(only(Nx.terms(y[1]*u)))
+    sx=[0 1;1 0]; sy=[0 -im;im 0]; sz=[1 0;0 -1]; id=[1 0;0 1]
+    for (left,right,expected) in ((a,b,kron(sx,sz)*kron(sy,sz)),(b,a,kron(sy,sz)*kron(sx,sz)))
+        phase,word=Nx.mul(left,right)
+        @test word==last(only(Nx.terms(z[1])))
+        @test Nx.scale(phase,1.0+0im)*kron(sz,id)==expected
+    end
 end

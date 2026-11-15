@@ -64,7 +64,71 @@ function prepare(built::BuiltRelaxation;solver=nothing)
     end
 end
 
-"Solve an already-built relaxation, lazily preparing the requested backend if necessary."
+"""
+    result = solve(built; solver)
+    result = solve(problem, relaxation; solver)
+    result = solve(previous, constraint)
+
+Solve a relaxation and return its numerical result.
+The first form prepares solver data when needed.
+The second form builds the relaxation first.
+The third form adds a constraint and keeps the previous solver settings.
+
+# Result fields
+
+- `bound`: the numerical relaxation optimum, or `nothing` when no solution is accepted.
+  This value is not a rigorous certificate.
+- `bound_kind`: `:numerical_optimum_not_certificate` when `bound` is available;
+  `:unavailable` otherwise.
+- `valid_for`: a printable description of the states covered by the relaxation.
+  It includes the input constraints and any conditions from strengthening.
+  For example, `Stationarity()` restricts validity to eigenstates of the objective.
+  `StateOptimality()` restricts validity to its ground space.
+- `status`: the solver termination status, such as `OPTIMAL`, `TIME_LIMIT` or `INFEASIBLE`.
+  Check `bound !== nothing` before reading expectations.
+- `sizes`: the program counts listed below.
+- `solution.diagnostics`: the backend reports listed below.
+
+# Program sizes
+
+Read these fields from `result.sizes` or `inspect(problem, relaxation).sizes`.
+They describe the relaxation before the solver changes its representation or runs presolve.
+
+- `rows`: the number of moment-matrix rows on a plain relaxation.
+  With a block family, it is the sum of row counts in the closed family, before symmetry reduction.
+- `moments`: the number of retained moment words or symmetry representatives, including the constant.
+- `real_variables`: the number of real optimization variables, excluding the fixed constant.
+- `blocks`: the total number of cone blocks, including equality blocks.
+- `largest_block`: the largest PSD or Hermitian PSD matrix side.
+  A Hermitian side is its complex dimension, before conversion to a real matrix.
+- `localizing_rows`: a vector of row counts for the operator-constraint localizing matrices.
+- `closure`: `nothing` for a plain relaxation.
+  For a block relaxation, it reports family closure, symmetry reduction and strengthening.
+  Print `result.sizes` for a summary of these changes.
+
+# Backend diagnostics
+
+Read `d = result.solution.diagnostics`.
+These are solver reports, not certificates.
+
+- `JuMPBackend`: `d` is `nothing`.
+- `SCSBackend`: `d` has `primal_residual`, `dual_residual`, `gap`, `iterations`,
+  `setup_seconds`, `solve_seconds` and `warm_started`.
+  The times are SCS's reported setup and solve times in seconds.
+  They exclude package-side building and preparation.
+- `MosekBackend`: `d` has `representation`, `termination`, `warm_started`,
+  `solve_seconds`, `iterations`, `primal_residual` and `dual_residual`.
+  `representation` is `:moment` or `:sos`.
+  `termination` is the raw optimizer termination code as text.
+  `warm_started` is false.
+  `solve_seconds` is `MSK_DINF_OPTIMIZER_TIME`, including presolve for this optimizer call.
+  It excludes package-side building, task preparation and solution extraction.
+  Residuals describe the native formulation, not the original problem.
+  A residual of `-1` means that Mosek did not report that measure.
+  See [`MosekBackend`](@ref) for the information items and interpretation.
+
+Example: `using NCTSSoS.Next, SCS; registry, (x, y, z) = pauli_variables(1); result = solve(Problem(z[1]), Relaxation(order=1); solver=SCSBackend())`.
+"""
 function solve(built::BuiltRelaxation;solver=nothing)
     solution = solve_standard(prepare(built;solver))
     return SolveResult(solution.bound,solution.status,built.sizes,built.valid_for,built.problem,

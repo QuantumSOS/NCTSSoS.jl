@@ -1,6 +1,39 @@
 abstract type SiteRule end
+"""
+    rule = Free()
+
+Return the rule for free self-adjoint operators at each site.
+Each letter satisfies `a' = a`; different sites commute.
+There are no other relations between letters at the same site.
+`site_variables(rule, n, k)` returns `registry, operators`.
+Read letter `j` at site `i` as `operators[i][j]`.
+
+Example: `using NCTSSoS.Next; registry, operators = site_variables(Free(), 2, 2)`.
+"""
 struct Free <: SiteRule end
+"""
+    rule = Projector()
+
+Return the rule for self-adjoint projectors at each site.
+Each letter satisfies `p' = p` and `p*p = p`; different sites commute.
+Distinct letters at the same site need not commute or be orthogonal.
+`site_variables(rule, n, k)` returns `registry, operators`.
+Read letter `j` at site `i` as `operators[i][j]`.
+
+Example: `using NCTSSoS.Next; registry, operators = site_variables(Projector(), 2, 2)`.
+"""
 struct Projector <: SiteRule end
+"""
+    rule = Unipotent()
+
+Return the rule for self-adjoint letters that square to the identity.
+Each letter satisfies `u' = u` and `u*u = 1`; different sites commute.
+Distinct letters at the same site need not commute.
+`site_variables(rule, n, k)` returns `registry, operators`.
+Read letter `j` at site `i` as `operators[i][j]`.
+
+Example: `using NCTSSoS.Next; registry, operators = site_variables(Unipotent(), 2, 2)`.
+"""
 struct Unipotent <: SiteRule end
 
 "Site algebra with operator labels 1:nletters (labels can occur at several sites)."

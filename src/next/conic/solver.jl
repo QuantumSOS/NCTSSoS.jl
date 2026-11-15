@@ -3,7 +3,17 @@ using JuMP.MOI.Utilities: attach_optimizer
 
 "Solver descriptions dispatch at the standard-form boundary; package extensions can add new subtypes."
 abstract type AbstractSolver end
-"Use any JuMP optimizer factory or optimizer_with_attributes value. No solver is loaded by this description."
+"""
+    solver = JuMPBackend(optimizer)
+
+Return a solver description for a JuMP optimizer factory or `optimizer_with_attributes` value.
+This call does not load the solver package.
+`solve(problem, relaxation; solver)` writes the moment standard form.
+There is no `form` option on `JuMPBackend`.
+For explicit standard-form data, `Next.prepare_standard` writes the form supplied by the caller.
+
+Example: `using NCTSSoS.Next, COSMO; solver = JuMPBackend(COSMO.Optimizer)`.
+"""
 struct JuMPBackend{O} <: AbstractSolver
     optimizer::O
 end

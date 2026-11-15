@@ -98,7 +98,17 @@ end
     p = v[:Alice]*v[:Bob]*v[:Carol]
     @test sprint(show,p)=="Alice Bob Carol"
     @test sprint(show,p.data.words[1],r)=="Alice Bob Carol"
+    @test sprint(show,last(only(Nx.terms(p)));context=:registry=>r)=="Alice Bob Carol"
     @test_throws r"Alice Bob Carol.*degree 2" Nx.build(Nx.Problem(p),Nx.Relaxation(order=1))
+    mixed,parts=Nx.mixed_variables(spin=(Nx.Pauli(),1),sign=(Nx.SiteAlgebra(Nx.Unipotent(),1),1))
+    X,Y,Z=parts.spin; u=parts.sign[1][1]
+    phase_product=X[1]*Y[1]*u
+    coefficient,w=only(Nx.terms(phase_product))
+    @test signbit(real(coefficient))
+    @test sprint(show,phase_product)=="(0.0 + 1.0im) spin.Z1 sign.s1_1"
+    @test sprint(show,phase_product*Z[1]*u)=="0.0 + 1.0im"
+    @test sprint(show,w;context=:registry=>mixed)=="spin.Z1 sign.s1_1"
+    @test isequal(first(only(Nx.terms(phase_product))),coefficient)
     r,(a,ad) = Nx.fermionic_variables(2)
     @test sprint(show,ad[2]*a[1])=="ad2 a1"
     r,(x,y,z) = Nx.pauli_variables(130)

@@ -198,6 +198,42 @@ end
     @info "One call: CHSH" old new=result.bound sizes=result.sizes
 end
 
+@testset "Real form ignores unused polynomial capacity" begin
+    _,(letters,)=Nx.site_variables(Nx.Free(),1,2)
+    x,y=letters
+    f=1.0*x*y*x
+    g,h=1.0-x^2,1.0-y^2
+    # Make the clean baseline deterministic, then contaminate each tail alone.
+    for p in (f,g,h)
+        Nx.reserve!(p.data,max(length(p.data.words),length(p.data)+1))
+        fill!(view(p.data.coefficients,length(p.data)+1:length(p.data.coefficients)),0)
+    end
+    problem=Nx.Problem(f;constraints=(Nx.Positive(g),Nx.Positive(h)))
+    relaxation=Nx.Relaxation(order=3)
+    clean=Nx.build(problem,relaxation)
+    @test eltype(clean.program.forms.coefs)===Float64
+    @test clean.sizes.real_variables==77
+    reference=Nx.moment_standard_form(clean.program)
+    for p in (f,g)
+        used=collect(Nx.terms(p))
+        tail=length(p.data)+1:length(p.data.coefficients)
+        fill!(view(p.data.coefficients,tail),1im)
+        fill!(view(p.data.words,tail),last(only(Nx.terms(x))))
+        @test collect(Nx.terms(p))==used
+        built=Nx.build(problem,relaxation)
+        @test eltype(built.program.forms.coefs)===Float64
+        form=Nx.moment_standard_form(built.program)
+        @test all(getproperty(form,k)==getproperty(reference,k) for k in (:A,:b,:c,:offset,:cones))
+        result=Nx.solve(built;solver=Nx.JuMPBackend(SOLVER))
+        @test result.sizes==clean.sizes
+        @test result.bound≈-1 atol=2e-5
+        fill!(view(p.data.coefficients,tail),0)
+    end
+    # A non-real live coefficient must still select the Hermitian form.
+    complex=Nx.build(Nx.Problem(f+im*(x*y-y*x)),relaxation)
+    @test eltype(complex.program.forms.coefs)===ComplexF64
+end
+
 @testset "Real site-algebra form and complex fallback" begin
     backend=Nx.JuMPBackend(SOLVER)
     for rule in (Nx.Free(),Nx.Projector(),Nx.Unipotent())

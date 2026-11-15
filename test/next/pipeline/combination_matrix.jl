@@ -159,7 +159,7 @@ function relaxation(f,choice,kinds)
 end
 
 function reference(f,problem,description,built)
-    if !hasproperty(built.sizes,:closure)
+    if isnothing(built.sizes.closure)
         # Dense no-symmetry front-door route is already the reference.
         return built
     end

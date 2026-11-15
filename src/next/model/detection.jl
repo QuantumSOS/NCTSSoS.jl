@@ -79,6 +79,9 @@ function Base.show(io::IO,s::FamilySymmetry)
     print(io,"Symmetry: ",length(s.generators)," block generators, ",
         length(s.moment_only)," moment-only generators, ",
         length(s.continuous)," continuous generators")
+    for g in Iterators.flatten((s.generators,s.moment_only))
+        g isa LetterPermutation && print(io,"; ",g)
+    end
     s.detected && print(io,"; group order not reported by the detector; the result can be a subgroup")
     return nothing
 end

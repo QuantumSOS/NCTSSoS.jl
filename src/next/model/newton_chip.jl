@@ -1,9 +1,10 @@
 """
-    Next.newton_chip_basis(problem, order; solver=nothing)
+    Next.newton_chip_basis(problem, order=cld(degree(problem.objective), 2); solver=nothing)
 
 Select custom rows for an unconstrained Free problem with one noncommuting
 group. Pass the result to `Relaxation(rows=rows)`; this is not a second solve
-interface. Ordinary objectives retain right suffixes of Hermitian-square
+interface. The default order covers the objective; a larger order adds no rows.
+Ordinary objectives retain right suffixes of Hermitian-square
 support words. Scalar single-trace objectives in `Next.RealTrace()` retain
 operator words whose exponent vectors are in half the support polytope,
 including the origin for the unknown bound.
@@ -14,7 +15,7 @@ strict inequalities are checked with exact rational arithmetic. Products of
 traces, residual operator tails, state symbols, constraints, declared symmetry
 and additional algebraic relations are unsupported and give `ArgumentError`.
 """
-function newton_chip_basis(problem::Problem,order::Integer;solver=nothing)
+function newton_chip_basis(problem::Problem,order::Integer=cld(degree(problem.objective),2);solver=nothing)
     p=problem.objective; r=p.registry
     order>=0 && order>=cld(degree(p),2) || throw(ArgumentError(
         "Newton-chip order must be nonnegative and at least $(cld(degree(p),2)) to cover the objective."))

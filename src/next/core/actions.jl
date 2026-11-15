@@ -194,6 +194,18 @@ struct PauliConjugation{W<:PauliWord} <: AbstractAction
     word::W
     antiunitary::Bool
 end
+"""
+    symmetry = AntiunitaryPauli(word)
+
+Return the antiunitary symmetry `word*K`, where `K` is complex conjugation.
+It maps an operator `A` to `word*conj(A)*word'`.
+Pauli letters satisfy `X*Y = im*Z` and cyclic permutations, with `X² = Y² = Z² = 1`.
+Letters at different sites commute.
+Get `word` from `Next.terms` of a single Pauli term.
+Pass the returned symmetry in `Problem(H; symmetry=(symmetry,))`.
+
+Example: `using NCTSSoS.Next; registry, (x, y, z) = pauli_variables(1); symmetry = AntiunitaryPauli(last(only(Next.terms(y[1]))))`.
+"""
 AntiunitaryPauli(w::PauliWord) = PauliConjugation(w,true)
 is_antiunitary(g::PauliConjugation) = g.antiunitary
 Base.one(g::PauliConjugation{W}) where {W} = PauliConjugation(one(W),false)

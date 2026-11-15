@@ -1,3 +1,14 @@
+"""
+    algebra = Fermionic()
+
+Return the fermionic algebra description.
+Its operators satisfy `a[i]*a[j] + a[j]*a[i] = 0` and
+`a[i]*ad[j] + ad[j]*a[i] = δ[i,j]`, where `ad[i] = a[i]'`.
+The symbol `δ[i,j]` is 1 for equal indices and 0 otherwise.
+Use `fermionic_variables` to get a registry and operator vectors.
+
+Example: `using NCTSSoS.Next; registry, (a, ad) = fermionic_variables(2)`.
+"""
 struct Fermionic end
 
 "Normal-ordered creators (descending modes), then annihilators (ascending modes)."

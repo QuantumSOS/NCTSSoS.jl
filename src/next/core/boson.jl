@@ -1,3 +1,14 @@
+"""
+    algebra = Bosonic()
+
+Return the bosonic algebra description.
+Its operators satisfy `b[i]*b[j] = b[j]*b[i]` and
+`b[i]*bd[j] - bd[j]*b[i] = δ[i,j]`, where `bd[i] = b[i]'`.
+The symbol `δ[i,j]` is 1 for equal indices and 0 otherwise.
+Use `bosonic_variables` to get a registry and operator vectors.
+
+Example: `using NCTSSoS.Next; registry, (b, bd) = bosonic_variables(2)`.
+"""
 struct Bosonic end
 
 "Normal-ordered bosons: creation and annihilation exponents in B-bit lanes."

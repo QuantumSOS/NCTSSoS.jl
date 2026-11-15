@@ -214,12 +214,36 @@ function _site_count(sites)
     !isempty(ids) && ids==collect(1:length(ids)) || throw(ArgumentError("Variable sites must be 1:n with n > 0; use Registry and variables for custom site names or locations."))
     return length(ids)
 end
+"""
+    registry, (x, y, z) = pauli_variables(sites)
+
+Return a registry and three vectors of Pauli operator polynomials.
+Pass a positive site count `n` or the range `1:n` as `sites`.
+Read the operators at site `i` as `x[i]`, `y[i]` and `z[i]`.
+They satisfy `x[i]*y[i] = im*z[i]` and cyclic permutations, with each square equal to 1.
+Operators at different sites commute.
+The registry names are `X1`, `Y1`, `Z1`, and so on.
+
+Example: `using NCTSSoS.Next; registry, (x, y, z) = pauli_variables(2)`.
+"""
 function pauli_variables(sites)
     n = _site_count(sites)
     r = Registry(Pauli(),n,[(Symbol(axis,i),(i,a-1)) for (a,axis) in enumerate((:X,:Y,:Z)) for i in 1:n])
     v = variables(r)
     return r,Tuple([v[Symbol(axis,i)] for i in 1:n] for axis in (:X,:Y,:Z))
 end
+"""
+    registry, (a, ad) = fermionic_variables(sites)
+
+Return a registry and vectors of annihilation operators `a` and creation operators `ad`.
+Pass a positive mode count `n` or the range `1:n` as `sites`.
+They satisfy `a[i]*a[j] + a[j]*a[i] = 0` and
+`a[i]*ad[j] + ad[j]*a[i] = δ[i,j]`, where `ad[i] = a[i]'`.
+The symbol `δ[i,j]` is 1 for equal indices and 0 otherwise.
+The registry names are `a1`, `ad1`, and so on.
+
+Example: `using NCTSSoS.Next; registry, (a, ad) = fermionic_variables(2)`.
+"""
 function fermionic_variables(sites)
     n = _site_count(sites)
     r = Registry(Fermionic(),n,[(Symbol(name,i),(i,label)) for (name,label) in ((:a,1),(:ad,-1)) for i in 1:n])

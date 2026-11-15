@@ -54,7 +54,7 @@ registry, (σx, σy, σz) = pauli_variables(1:N)
 ````
 
 ````
-(NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}(NCTSSoS.Next.Pauli(), 6, Dict(:Z4 => (4, 2), :Y4 => (4, 1), :Y5 => (5, 1), :Z3 => (3, 2), :X2 => (2, 0), :X5 => (5, 0), :X6 => (6, 0), :Y2 => (2, 1), :Z6 => (6, 2), :Y6 => (6, 1), :Z2 => (2, 2), :Y1 => (1, 1), :Z1 => (1, 2), :X1 => (1, 0), :X4 => (4, 0), :Y3 => (3, 1), :X3 => (3, 0), :Z5 => (5, 2))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.PauliWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}}[X1, X2, X3, X4, X5, X6], NCTSSoS.Next.Polynomial{NCTSSoS.Next.PauliWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}}[Y1, Y2, Y3, Y4, Y5, Y6], NCTSSoS.Next.Polynomial{NCTSSoS.Next.PauliWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}}[Z1, Z2, Z3, Z4, Z5, Z6]))
+(Registry(Pauli, 6 sites, 18 variables), ([X1, X2, X3, X4, X5, X6], [Y1, Y2, Y3, Y4, Y5, Y6], [Z1, Z2, Z3, Z4, Z5, Z6]))
 ````
 
 Check the relations directly; there is no constraint list to maintain.
@@ -74,7 +74,7 @@ ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
 ````
 
 ````
-(0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + (0.25) X2 X3 + (0.25) Y2 Y3 + (0.25) X3 X4 + (0.25) Y3 Y4 + (0.25) X4 X5 + (0.25) Y4 Y5 + (0.25) X1 X6 + (0.25) Y1 Y6 + (0.25) X5 X6 + (0.25) Y5 Y6
+(0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + … (18 terms)
 ````
 
 Create the optimization problem - constraints are handled automatically by the algebra type!
@@ -84,7 +84,7 @@ problem = Problem(ham)
 ````
 
 ````
-Problem: minimize (0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + (0.25) X2 X3 + (0.25) Y2 Y3 + (0.25) X3 X4 + (0.25) Y3 Y4 + (0.25) X4 X5 + (0.25) Y4 Y5 + (0.25) X1 X6 + (0.25) Y1 Y6 + (0.25) X5 X6 + (0.25) Y5 Y6; 0 operator constraints
+Problem: minimize (0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + … (18 terms); 0 operator constraints
 ````
 
 The algebra supplies the relations, so no manual constraint equations are needed.

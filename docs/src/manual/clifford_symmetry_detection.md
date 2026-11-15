@@ -280,7 +280,7 @@ problem = Problem(H; symmetry=combined)
 built = Next.build(problem, Relaxation(order=1))
 result = solve(built; solver=MosekBackend())
 @assert abs(result.bound + 3) < 1e-6
-@assert [block.side for block in built.program.blocks] == [1, 1, 1]
+@assert Next.block_sides(built) == [1, 1, 1]
 @assert result.sizes.real_variables == 1
 ```
 

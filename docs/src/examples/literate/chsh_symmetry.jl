@@ -61,10 +61,11 @@ dense_bound = -dense_result.bound
 abs(dense_bound - 2 * sqrt(2))
 @assert abs(dense_bound - 2 * sqrt(2)) < 1e-6 #src
 
-# Inspect the block sides of this program:
+# Inspect the final PSD/HPSD block sides. Hermitian sides are reported
+# before realification:
 
-[block.side for block in dense.program.blocks]
-@assert [block.side for block in dense.program.blocks] == [5] #src
+Next.block_sides(dense)
+@assert Next.block_sides(dense) == [5] #src
 
 # `moments` includes the identity. `real_variables` does not include its
 # fixed coordinate. Here eleven moments need ten free real coordinates:
@@ -150,8 +151,8 @@ sizes = sym_result.sizes;
 
 # The one dense block is replaced by three independent scalar PSD blocks:
 
-[block.side for block in reduced.program.blocks]
-@assert [block.side for block in reduced.program.blocks] == [1, 1, 1] #src
+Next.block_sides(reduced)
+@assert Next.block_sides(reduced) == [1, 1, 1] #src
 
 # The result prints these aggregate counts:
 

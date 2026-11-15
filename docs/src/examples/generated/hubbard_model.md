@@ -245,7 +245,7 @@ ham = hopping + interaction   ## quadratic hops + quartic on-site terms
 ````
 
 ````
-(-1.0) ad1 a2 + (-1.0) ad1 a4 + (-1.0) ad2 a1 + (-1.0) ad2 a3 + (-1.0) ad3 a2 + (-1.0) ad3 a4 + (-1.0) ad4 a1 + (-1.0) ad4 a3 + (-1.0) ad5 a6 + (-1.0) ad5 a8 + (-1.0) ad6 a5 + (-1.0) ad6 a7 + (-1.0) ad7 a6 + (-1.0) ad7 a8 + (-1.0) ad8 a5 + (-1.0) ad8 a7 + (4.0) ad5 ad1 a1 a5 + (4.0) ad6 ad2 a2 a6 + (4.0) ad7 ad3 a3 a7 + (4.0) ad8 ad4 a4 a8
+(-1.0) ad1 a2 + (-1.0) ad1 a4 + (-1.0) ad2 a1 + (-1.0) ad2 a3 + (-1.0) ad3 a2 + (-1.0) ad3 a4 + (-1.0) ad4 a1 + (-1.0) ad4 a3 + … (20 terms)
 ````
 
 ---

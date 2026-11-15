@@ -130,7 +130,7 @@ function dimensions(built,route)
         s=hasproperty(built.sizes,:program) ? built.sizes.program : built.sizes
         return Dict{String,Any}("rows"=>s.rows,"moments"=>s.moments,"variables"=>s.real_variables,
             "blocks"=>s.blocks,"side"=>s.largest_block,
-            "engine"=>(hasproperty(built.sizes,:closure) ? string(built.sizes.closure.route) : "plain"))
+            "engine"=>(isnothing(built.sizes.closure) ? "plain" : string(built.sizes.closure.route)))
     end
     L=built.linear; b=L.psd_blocks_lin
     # The native writer declares two variables per complex moment, or one per

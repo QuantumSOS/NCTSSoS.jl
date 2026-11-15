@@ -11,7 +11,9 @@ repo_root() = normpath(@__DIR__, "..")
 stamp_path(root::AbstractString = repo_root()) = joinpath(root, STAMP_REL_PATH)
 
 function _git_ls_files(root::AbstractString, pathspecs::Vector{String})::Vector{String}
-    cmd = `git -C $root ls-files -z -- $(pathspecs...)`
+    # Interpolate the vector itself: each entry becomes one argument.
+    # `$(pathspecs...)` joins the entries into one word, which matches no file.
+    cmd = `git -C $root ls-files -z -- $pathspecs`
     raw = read(cmd)
     files = split(String(raw), '\0'; keepempty=false)
     filter!(rel -> isfile(joinpath(root, rel)), files)

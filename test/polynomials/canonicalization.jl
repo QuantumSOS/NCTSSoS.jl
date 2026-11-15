@@ -101,6 +101,23 @@ end
         @test cyclic_canon(boundary_reducible) == T[o2s1]
     end
 
+    @testset "Two commuting sites: $A" for A in (NonCommutativeAlgebra, UnipotentAlgebra, ProjectorAlgebra)
+        # tr(u v) = tr(u' v') when u' is a rotation of u on site 1 and v' is a
+        # rotation of v on site 2. One rotation of the whole word moves the
+        # letters of one site only, so both sites need their own rotation.
+        o5s1 = encode_index(T, 5, 1)
+        o6s2 = encode_index(T, 6, 2)
+        canon(w) = cyclic_canon(NormalMonomial{A,T}(NCTSSoS.simplify!(A, copy(w))))
+        @test canon(T[o2s1, o5s1, o1s1, o4s2, o3s2, o6s2]) == canon(T[o1s1, o2s1, o5s1, o4s2, o3s2, o6s2])
+        words(letters, n) = n == 0 ? [T[]] : [[w; l] for w in words(letters, n - 1) for l in letters]
+        rotations(w) = isempty(w) ? [w] : [circshift(w, k) for k in 0:length(w)-1]
+        pairs = [(u, v) for nu in 1:3 for nv in 1:3 for u in words([o1s1, o2s1, o5s1], nu) for v in words([o3s2, o4s2, o6s2], nv)]
+        @test all(pairs) do (u, v)
+            forms = unique!([canon([ru; rv]) for ru in rotations(u) for rv in rotations(v)])
+            length(forms) == 1 && canon(only(forms)) == only(forms)
+        end
+    end
+
     @testset "PauliAlgebra" begin
         m = NormalMonomial{PauliAlgebra,Int}(Int[1, 4, 7])
         c = cyclic_canon(m)

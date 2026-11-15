@@ -61,6 +61,7 @@ include("functional.jl")
 FunctionalModelChecks.check(Nx.JuMPBackend(SOLVER))
 include("newton_chip.jl")
 NewtonChipChecks.check(Nx.JuMPBackend(SOLVER))
+include("letter_permutation.jl")
 include("gns.jl")
 include("bosonic.jl")
 # Order-three bosonic Hankel matrices need tighter solver residuals to compare

@@ -40,11 +40,14 @@ struct BlockRelaxation{R,G,S,F,Y,K} <: AbstractRelaxation
     end
 end
 
-"Sizes and closure are available through both inspect and SolveResult.sizes."
+"Flat counts (such as result.sizes.real_variables) and result.sizes.closure on the block route."
 struct FamilySizes{R}
     program::ProgramSizes
     closure::R
 end
+Base.getproperty(s::FamilySizes,name::Symbol) = name in fieldnames(ProgramSizes) ?
+    getproperty(getfield(s,:program),name) : getfield(s,name)
+Base.propertynames(::FamilySizes,private::Bool=false) = (fieldnames(ProgramSizes)...,:closure,:program)
 function Base.show(io::IO,s::FamilySizes)
     show(io,s.program)
     r=s.closure

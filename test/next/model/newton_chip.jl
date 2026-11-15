@@ -25,6 +25,7 @@ function check(backend)
         a,b=x
         p=N.Problem(1+a^2+2b*a^2*b)
         rows=N.newton_chip_basis(p,2)
+        @test same_rows(N.newton_chip_basis(p),rows)
         @test same_rows(rows,[one(a),a,b,a*b])
         dense=N.solve(p,N.Relaxation(order=2);solver=backend)
         chip=N.solve(p,N.Relaxation(rows=rows);solver=backend)
@@ -33,6 +34,8 @@ function check(backend)
         @test (dense.sizes.rows,chip.sizes.rows)==(7,4)
         @test N.newton_chip_basis(N.Problem(one(a)),0)==[one(a)]
         @test N.newton_chip_basis(N.Problem(zero(a)),0)==[one(a)]
+        @test N.newton_chip_basis(N.Problem(one(a)))==[one(a)]
+        @test N.newton_chip_basis(N.Problem(zero(a)))==[one(a)]
         @test_throws r"at least 2" N.newton_chip_basis(p,1)
         @test_throws r"nonnegative" N.newton_chip_basis(p,-1)
         @test_throws r"unconstrained" N.newton_chip_basis(N.Problem(a^2;constraints=(N.Positive(a),)),1)
@@ -44,6 +47,7 @@ function check(backend)
         a,b=y; tr=N.trace_symbol
         p=N.Problem(tr(1+a^2+b*a^2*b))
         rows=N.newton_chip_basis(p,2;solver=backend)
+        @test same_rows(N.newton_chip_basis(p;solver=backend),rows)
         @test same_rows(rows,[one(a),a,a*b,b*a])
         dense=N.solve(p,N.Relaxation(order=2);solver=backend)
         chip=N.solve(p,N.Relaxation(rows=rows);solver=backend)

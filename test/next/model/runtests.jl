@@ -198,6 +198,67 @@ end
     @info "One call: CHSH" old new=result.bound sizes=result.sizes
 end
 
+@testset "Bulk polynomial construction" begin
+    r,(x,y,z)=Nx.pauli_variables(3)
+    ps=[3x[2],(2+3im)*x[1],-3x[2],x[3]*y[3],-im*z[3],2one(x[1])]
+    saved=deepcopy.(collect.(Nx.terms.(ps)))
+    expected=(2+3im)*x[1]+2
+    @test Nx.polynomial(r,(p for p in ps))==expected
+    @test sum(ps)==expected
+    @test sum(ps;init=one(x[1]))==expected+1
+    @test sum(ps;init=2)==expected+2
+    @test collect.(Nx.terms.(ps))==saved
+    @test Nx.polynomial(r,())==zero(x[1])
+    @test Nx.polynomial(r,(zero(x[1]),))==zero(x[1])
+    @test sum(ps[1:0];init=zero(x[1]))==zero(x[1])
+    @test_throws r"registry" sum(ps[1:0])
+    @test_throws r"polynomials" Nx.polynomial(r,(1,))
+    @test_throws r"polynomials" Nx.polynomial(r,(x[1],1))
+    _,(other,_,_)=Nx.pauli_variables(3)
+    @test_throws r"registr" Nx.polynomial(r,(other[1],))
+    @test_throws r"registr" sum([x[1],other[1]])
+    @test_throws r"finite" Nx.polynomial(r,(c*x[1] for c in (1,NaN)))
+    @test_throws r"finite" Nx.polynomial(r,(floatmax(Float64)*x[1],floatmax(Float64)*x[1]))
+    # A one-pass iterator must not be restarted when the coefficient type widens.
+    bigterm=big"1.000000000000000000001"*x[2]
+    stream=Iterators.Stateful((x[1],bigterm,-x[1]))
+    @test Nx.polynomial(r,stream)==bigterm
+    @test isempty(stream)
+    matrix=[x[1] x[2]; x[3] -x[1]]
+    @test sum(matrix)==x[2]+x[3]
+    @test sum(matrix;dims=1)==[x[1]+x[3] x[2]-x[1]]
+    # Insert, combine and cancel at each boundary without changing the saved prefix.
+    prefix=2x[2]; original=collect(Nx.terms(prefix))
+    for term in (x[1],3x[2],-2x[2],x[3],zero(x[1]))
+        @test prefix+term==Nx.polynomial(r,(prefix,term))
+        @test prefix-term==Nx.polynomial(r,(prefix,-term))
+        @test collect(Nx.terms(prefix))==original
+    end
+    fr,(a,ad)=Nx.fermionic_variables(2)
+    @test Nx.polynomial(fr,(a[1]*ad[1],ad[1]*a[1],a[2]*a[2]))==one(a[1])
+    # Multiple limbs and degree >255 exercise all radix-key fields and byte order.
+    wide,(a,ad)=Nx.fermionic_variables(130)
+    modes=(1,8,9,63,64,65,129,130)
+    ps=vec([(i+2im)*ad[j]*a[k] for (i,(j,k)) in enumerate(Iterators.product(modes,reverse(modes)))])
+    occupied=foldl(*,(ad[i]*a[i] for i in 1:130))
+    append!(ps,(occupied,one(a[1]),-ps[3],2ps[7]))
+    @test Nx.polynomial(wide,ps)==foldl(+,ps)
+    @test Nx.polynomial(wide,reverse(ps))==foldl(+,reverse(ps))
+    @test Nx.polynomial(wide,(occupied,-occupied))==zero(occupied)
+    br,(b,bd)=Nx.bosonic_variables(1)
+    @test Nx.polynomial(br,(b[1]*bd[1],-bd[1]*b[1]))==one(b[1])
+    for rule in (Nx.Free(),Nx.Projector(),Nx.Unipotent())
+        sr,(s,)=Nx.site_variables(rule,1,2)
+        @test Nx.polynomial(sr,(s[1]*s[2],-s[2]*s[1]))==s[1]*s[2]-s[2]*s[1]
+    end
+    for (functional,symbol) in ((Nx.RealState(),Nx.state_symbol),(Nx.RealTrace(),Nx.trace_symbol))
+        sr,(s,)=Nx.site_variables(Nx.Free(),1,2;functional)
+        ps=(symbol(s[1]*s[2]),symbol(s[1])*symbol(s[2]),-symbol(s[2]*s[1]))
+        @test Nx.polynomial(sr,ps)==foldl(+,ps)
+    end
+    @test Base.ispublic(Nx,:polynomial) && !Base.isexported(Nx,:polynomial)
+end
+
 @testset "Real form ignores unused polynomial capacity" begin
     _,(letters,)=Nx.site_variables(Nx.Free(),1,2)
     x,y=letters

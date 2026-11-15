@@ -54,13 +54,16 @@ terms(p::Polynomial) = ((p.data.coefficients[i],p.data.words[i]) for i in 1:leng
 degree(p::Polynomial) = maximum((degree(w) for (_,w) in terms(p));init=0)
 Base.iszero(p::Polynomial) = isempty(p.data)
 function _polynomial(r,data::PolynomialBuffer)
-    all(isfinite,data.coefficients[1:length(data)]) || throw(ArgumentError("Polynomial coefficients must be finite; replace NaN or Inf with a finite coefficient."))
+    all(isfinite(data.coefficients[i]) for i in 1:length(data)) || throw(ArgumentError("Polynomial coefficients must be finite; replace NaN or Inf with a finite coefficient."))
     return Polynomial(r,canonicalize!(data))
 end
+# Arithmetic kernels borrow their inputs without mutating them.
+_converted(p::Polynomial{W,C},::Type{C}) where {W,C} = p.data
 function _converted(p::Polynomial{W},::Type{C}) where {W,C}
     b = PolynomialBuffer{W,C}(length(p.data))
     for (c,w) in terms(p); push_term!(b,c,w); end
-    return canonicalize!(b)
+    b.canonical = true
+    return b
 end
 function _constant(p::Polynomial{W,C},c::Number) where {W,C}
     b = PolynomialBuffer{W,promote_type(C,typeof(c))}(1)
@@ -123,6 +126,61 @@ function Base.:(==)(a::Polynomial,b::Polynomial)
     return length(a.data)==length(b.data) && all(a.data.words[i]==b.data.words[i] && a.data.coefficients[i]==b.data.coefficients[i] for i in 1:length(a.data))
 end
 LinearAlgebra.ishermitian(p::Polynomial) = p==adjoint(p)
+
+"""
+    Next.polynomial(registry, summands)
+
+Construct a canonical polynomial from an iterator of polynomials belonging to
+registry, without mutating any summand. An empty iterator gives a registry-owned
+zero. Coefficient types are promoted as summands arrive; duplicate words are
+added in encounter order, with no tolerance or Hermitian projection.
+
+For fixed-width words and coefficients, accumulation uses expected O(N) work
+for N input terms and O(K) storage for K distinct words. Fermionic words use
+O(L*K) radix sorting for L key bytes; other domains use O(K log K) heap sorting.
+Repeated addition copies the growing prefix and can allocate quadratically:
+for a sum of many terms use `Next.polynomial(registry, summands)`.
+"""
+function polynomial(r::Registry,summands)
+    item=iterate(summands)
+    W=_model_word_type(r)
+    isnothing(item) && return Polynomial(r,PolynomialBuffer{W,ComplexF64}())
+    p=first(item)
+    p isa Polynomial || throw(ArgumentError("Summands must be polynomials; construct each term from variables in registry."))
+    return _sum_polynomials(r,summands,item,Dict{W,eltype(p.data.coefficients)}())
+end
+function _sum_polynomials(r,summands,item,coefficients::Dict{W,C}) where {W,C}
+    while !isnothing(item)
+        p,state=item
+        p isa Polynomial || throw(ArgumentError("Summands must be polynomials; construct each term from variables in registry."))
+        p.registry === r || throw(ArgumentError("Summands use different registries; construct all variables from the supplied registry."))
+        eltype(p.data.words) === W || throw(ArgumentError("Polynomial word types differ; use variables constructed together."))
+        T=promote_type(C,eltype(p.data.coefficients))
+        T===C || return _sum_polynomials(r,summands,item,Dict{W,T}(coefficients))
+        for (c,w) in terms(p)
+            coefficients[w]=get(coefficients,w,zero(C))+c
+        end
+        item=iterate(summands,state)
+    end
+    out=PolynomialBuffer{W,C}(length(coefficients))
+    for (w,c) in coefficients; push_term!(out,c,w); end
+    return _polynomial(r,_sort_unique!(out))
+end
+
+"Sum a polynomial array without repeated prefix copies. Empty arrays require a registry-owned polynomial init."
+function Base.sum(ps::AbstractArray{<:Polynomial};init=nothing,dims=:)
+    if !(dims isa Colon)
+        return isnothing(init) ? mapreduce(identity,+,ps;dims) : mapreduce(identity,+,ps;init,dims)
+    end
+    if isempty(ps)
+        init isa Polynomial || throw(ArgumentError("An empty polynomial sum needs a registry; use Next.polynomial(registry, ()) or sum(array; init=zero(variable))."))
+        return polynomial(init.registry,(init,))
+    end
+    r=first(ps).registry
+    isnothing(init) && return polynomial(r,ps)
+    initial=init isa Number ? _constant(first(ps),init) : init
+    return polynomial(r,Iterators.flatten(((initial,),ps)))
+end
 
 _model_word_type(r::Registry) = word_type(r,0)
 _model_word_type(r::Registry{Bosonic}) = word_type(r,255)

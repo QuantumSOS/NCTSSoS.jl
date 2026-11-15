@@ -1,0 +1,2390 @@
+{
+  "baseline_revision": "a50c45902aab81db2b5e5c9142161b4592f6e3b1",
+  "candidate_base_revision": "7c079ecf3ecfd919d606b15ce278fbfc393bc57d",
+  "julia": "1.12.7",
+  "environment_reference": "results.json: environment.packages",
+  "cpu": "Intel Xeon 2.60 GHz, shared Linux x86_64 orb",
+  "julia_blas_openmp_threads": 1,
+  "cases": [
+    {
+      "variant": "E1",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 11.968,
+        "extension": 34.9874
+      },
+      "precompile_process_seconds": 48.712295177996566,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.356,
+          "inputs": 1.171,
+          "first_call": 1.037,
+          "second_call": 0.5999,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.748636065996834
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.169,
+          "inputs": 1.262,
+          "first_call": 0.106,
+          "second_call": 0.0134,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.16221685900382
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.837,
+          "inputs": 1.83,
+          "first_call": 2.173,
+          "second_call": 0.1099,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.601187191998179
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.16,
+          "inputs": 1.722,
+          "first_call": 1.99,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.509603150007024
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.861,
+          "inputs": 1.021,
+          "first_call": 0.001,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.436439400000381
+        }
+      },
+      "wall_seconds": 85.1715976800042,
+      "configuration": "before"
+    },
+    {
+      "variant": "E1",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 12.2622,
+        "extension": 35.807
+      },
+      "precompile_process_seconds": 49.74271643800603,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.862,
+          "inputs": 1.114,
+          "first_call": 0.816,
+          "second_call": 0.7258,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.1106081800026
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.868,
+          "inputs": 1.14,
+          "first_call": 0.1,
+          "second_call": 0.0157,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 5.749624981996021
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.648,
+          "inputs": 1.559,
+          "first_call": 1.85,
+          "second_call": 0.1001,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 7.748871980998956
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.91,
+          "inputs": 1.664,
+          "first_call": 2.272,
+          "second_call": 0.0014,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.452730183998938
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.921,
+          "inputs": 0.936,
+          "first_call": 0.001,
+          "second_call": 0.0004,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.396343578999222
+        }
+      },
+      "wall_seconds": 84.20221863200277,
+      "configuration": "before"
+    },
+    {
+      "variant": "E1",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 11.9254,
+        "extension": 36.1472
+      },
+      "precompile_process_seconds": 49.62815598599991,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.882,
+          "inputs": 1.055,
+          "first_call": 0.854,
+          "second_call": 0.6102,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.008888308002497
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.69,
+          "inputs": 1.1,
+          "first_call": 0.108,
+          "second_call": 0.0212,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 5.539445367001463
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.261,
+          "inputs": 1.778,
+          "first_call": 2.244,
+          "second_call": 0.0885,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.92099138100457
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.802,
+          "inputs": 1.73,
+          "first_call": 2.131,
+          "second_call": 0.0014,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.26621491699916
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.038,
+          "inputs": 1.147,
+          "first_call": 0.001,
+          "second_call": 0.0007,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.840288043997134
+        }
+      },
+      "wall_seconds": 85.20519394899748,
+      "configuration": "before"
+    },
+    {
+      "variant": "E2",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 12.0293,
+        "extension": 14.2162
+      },
+      "precompile_process_seconds": 27.98205405099725,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.707,
+          "inputs": 2.088,
+          "first_call": 20.253,
+          "second_call": 0.5969,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 27.465025261000847
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.045,
+          "inputs": 2.256,
+          "first_call": 27.348,
+          "second_call": 0.0197,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 34.39931877100025
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.313,
+          "inputs": 0.913,
+          "first_call": 0.113,
+          "second_call": 0.1148,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.261878894001711
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.624,
+          "inputs": 0.939,
+          "first_call": 0.002,
+          "second_call": 0.0015,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.355768658002489
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.698,
+          "inputs": 1.94,
+          "first_call": 1.838,
+          "second_call": 0.0008,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.31477613899915
+        }
+      },
+      "wall_seconds": 109.78043104399694,
+      "configuration": "before"
+    },
+    {
+      "variant": "E2",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 12.094100000000001,
+        "extension": 13.6228
+      },
+      "precompile_process_seconds": 27.45067640900379,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.52,
+          "inputs": 2.009,
+          "first_call": 20.037,
+          "second_call": 0.7309,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 27.264739099002327
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.34,
+          "inputs": 1.954,
+          "first_call": 25.274,
+          "second_call": 0.0159,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 31.209229519001383
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.803,
+          "inputs": 0.907,
+          "first_call": 0.079,
+          "second_call": 0.0787,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 5.440522515993507
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.603,
+          "inputs": 1.069,
+          "first_call": 0.002,
+          "second_call": 0.0014,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.339838291001797
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.674,
+          "inputs": 1.586,
+          "first_call": 1.719,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 7.753908381993824
+        }
+      },
+      "wall_seconds": 104.46028777399624,
+      "configuration": "before"
+    },
+    {
+      "variant": "E2",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 12.4574,
+        "extension": 14.569700000000001
+      },
+      "precompile_process_seconds": 28.72476709500188,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.505,
+          "inputs": 1.687,
+          "first_call": 19.275,
+          "second_call": 0.7117,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 26.08586802100035
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.62,
+          "inputs": 2.156,
+          "first_call": 25.935,
+          "second_call": 0.0219,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 33.23482650299411
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.606,
+          "inputs": 0.824,
+          "first_call": 0.108,
+          "second_call": 0.1064,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 5.28894195099565
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.673,
+          "inputs": 0.973,
+          "first_call": 0.002,
+          "second_call": 0.0016,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.488213123004243
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.753,
+          "inputs": 1.687,
+          "first_call": 1.856,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.052772666997043
+        }
+      },
+      "wall_seconds": 106.87687170400022,
+      "configuration": "before"
+    },
+    {
+      "variant": "E3",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 12.4673,
+        "extension": 40.066
+      },
+      "precompile_process_seconds": 54.26487223299773,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.963,
+          "inputs": 1.547,
+          "first_call": 4.167,
+          "second_call": 0.6153,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.863826993998373
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.789,
+          "inputs": 1.647,
+          "first_call": 3.73,
+          "second_call": 0.0137,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 9.718750783998985
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.141,
+          "inputs": 1.949,
+          "first_call": 2.207,
+          "second_call": 0.1288,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 9.056364263000432
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.196,
+          "inputs": 2.294,
+          "first_call": 2.355,
+          "second_call": 0.0015,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.505316235001374
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.315,
+          "inputs": 1.775,
+          "first_call": 1.799,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.511256821999268
+        }
+      },
+      "wall_seconds": 101.92173368699878,
+      "configuration": "before"
+    },
+    {
+      "variant": "E3",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 11.3529,
+        "extension": 37.1969
+      },
+      "precompile_process_seconds": 50.35334746300214,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.942,
+          "inputs": 1.326,
+          "first_call": 4.194,
+          "second_call": 0.5717,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.607656558997405
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.92,
+          "inputs": 1.559,
+          "first_call": 3.707,
+          "second_call": 0.0252,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 9.865100847004214
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.149,
+          "inputs": 2.002,
+          "first_call": 2.134,
+          "second_call": 0.1089,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 9.019358432997251
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.715,
+          "inputs": 1.965,
+          "first_call": 2.465,
+          "second_call": 0.0015,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.808781242005352
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.972,
+          "inputs": 1.965,
+          "first_call": 1.883,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.358862860004592
+        }
+      },
+      "wall_seconds": 97.01439762399968,
+      "configuration": "before"
+    },
+    {
+      "variant": "E3",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 11.6304,
+        "extension": 36.3995
+      },
+      "precompile_process_seconds": 49.74769437299983,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.871,
+          "inputs": 1.315,
+          "first_call": 4.121,
+          "second_call": 0.7623,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.670417244997225
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.273,
+          "inputs": 1.441,
+          "first_call": 3.778,
+          "second_call": 0.0133,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 10.061115060001612
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.581,
+          "inputs": 1.753,
+          "first_call": 1.808,
+          "second_call": 0.0787,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 7.80589640600374
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.012,
+          "inputs": 2.079,
+          "first_call": 2.079,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.80022764000023
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.14,
+          "inputs": 2.078,
+          "first_call": 1.941,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.8003171570017
+        }
+      },
+      "wall_seconds": 95.8870173220057,
+      "configuration": "before"
+    },
+    {
+      "variant": "P1",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 43.3316,
+        "extension": 5.3183
+      },
+      "precompile_process_seconds": 50.19379654699878,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.965,
+          "inputs": 1.023,
+          "first_call": 1.356,
+          "second_call": 0.7132,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.662384718001704
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.761,
+          "inputs": 1.184,
+          "first_call": 0.573,
+          "second_call": 0.0173,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.138324610998097
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.993,
+          "inputs": 1.776,
+          "first_call": 2.169,
+          "second_call": 0.0778,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.569441389998246
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.567,
+          "inputs": 1.745,
+          "first_call": 2.532,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.350076844006253
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.917,
+          "inputs": 1.021,
+          "first_call": 0.575,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.139645523006038
+        }
+      },
+      "wall_seconds": 87.05486713400023,
+      "configuration": "before"
+    },
+    {
+      "variant": "P1",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 45.7068,
+        "extension": 5.4832
+      },
+      "precompile_process_seconds": 52.731174809996446,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.659,
+          "inputs": 1.055,
+          "first_call": 1.31,
+          "second_call": 0.5542,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.158435183999245
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.025,
+          "inputs": 1.108,
+          "first_call": 0.496,
+          "second_call": 0.0137,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.238198653998552
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.95,
+          "inputs": 1.758,
+          "first_call": 2.581,
+          "second_call": 0.1016,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.960809939999308
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.706,
+          "inputs": 1.917,
+          "first_call": 2.404,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.6010099060004
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.823,
+          "inputs": 1.086,
+          "first_call": 0.622,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.201888684998266
+        }
+      },
+      "wall_seconds": 89.8926781370028,
+      "configuration": "before"
+    },
+    {
+      "variant": "P1",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 45.2221,
+        "extension": 5.3942
+      },
+      "precompile_process_seconds": 52.185937342001125,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.768,
+          "inputs": 1.078,
+          "first_call": 1.13,
+          "second_call": 0.5435,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.042958639001881
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.473,
+          "inputs": 1.066,
+          "first_call": 0.471,
+          "second_call": 0.0135,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 5.534944684004586
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.673,
+          "inputs": 1.546,
+          "first_call": 2.051,
+          "second_call": 0.0783,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 7.855117718005204
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.82,
+          "inputs": 1.985,
+          "first_call": 2.644,
+          "second_call": 0.0013,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.056688813005167
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.609,
+          "inputs": 0.958,
+          "first_call": 0.56,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.706385577002948
+        }
+      },
+      "wall_seconds": 87.38321663000534,
+      "configuration": "before"
+    },
+    {
+      "variant": "P2",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 17.3209,
+        "extension": 4.7488
+      },
+      "precompile_process_seconds": 23.6449598209947,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.627,
+          "inputs": 1.89,
+          "first_call": 18.062,
+          "second_call": 0.7,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 25.083683043005294
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.119,
+          "inputs": 1.748,
+          "first_call": 23.17,
+          "second_call": 0.0189,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 28.84142875499674
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.611,
+          "inputs": 0.95,
+          "first_call": 0.668,
+          "second_call": 0.1006,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.239615829996183
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.203,
+          "inputs": 0.854,
+          "first_call": 0.473,
+          "second_call": 0.0016,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.343638133002969
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.82,
+          "inputs": 1.589,
+          "first_call": 2.089,
+          "second_call": 0.0009,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.401127654004085
+        }
+      },
+      "wall_seconds": 97.55574898399937,
+      "configuration": "before"
+    },
+    {
+      "variant": "P2",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 19.454,
+        "extension": 5.011100000000001
+      },
+      "precompile_process_seconds": 26.170479815998988,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.412,
+          "inputs": 1.883,
+          "first_call": 18.485,
+          "second_call": 0.7372,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 25.474903902002552
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.19,
+          "inputs": 1.81,
+          "first_call": 24.03,
+          "second_call": 0.6058,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 30.39442147000227
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.098,
+          "inputs": 0.829,
+          "first_call": 0.52,
+          "second_call": 0.0839,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 5.186821162998967
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.481,
+          "inputs": 0.936,
+          "first_call": 0.521,
+          "second_call": 0.0015,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.747655544997542
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.342,
+          "inputs": 1.732,
+          "first_call": 2.126,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.011566720997507
+        }
+      },
+      "wall_seconds": 100.98714426499646,
+      "configuration": "before"
+    },
+    {
+      "variant": "P2",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 17.137400000000003,
+        "extension": 4.8151
+      },
+      "precompile_process_seconds": 23.744830964002176,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.115,
+          "inputs": 1.582,
+          "first_call": 18.464,
+          "second_call": 0.5582,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 24.447881729000073
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.166,
+          "inputs": 1.652,
+          "first_call": 24.871,
+          "second_call": 0.0169,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 30.459669260002556
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.505,
+          "inputs": 0.93,
+          "first_call": 0.558,
+          "second_call": 0.0778,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 5.789950081001734
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.212,
+          "inputs": 0.882,
+          "first_call": 0.569,
+          "second_call": 0.0014,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.436765366001055
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.291,
+          "inputs": 1.752,
+          "first_call": 2.06,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 7.898236257999088
+        }
+      },
+      "wall_seconds": 97.77860780699848,
+      "configuration": "before"
+    },
+    {
+      "variant": "P3",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 42.280199999999994,
+        "extension": 5.306
+      },
+      "precompile_process_seconds": 49.32951379100268,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.904,
+          "inputs": 1.328,
+          "first_call": 4.125,
+          "second_call": 0.573,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.461500124998565
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.048,
+          "inputs": 1.513,
+          "first_call": 4.228,
+          "second_call": 0.0167,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 10.37295374200039
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.999,
+          "inputs": 1.928,
+          "first_call": 2.454,
+          "second_call": 0.1053,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 9.120535428999574
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.046,
+          "inputs": 2.01,
+          "first_call": 2.814,
+          "second_call": 0.0015,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.463030034006806
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.822,
+          "inputs": 2.024,
+          "first_call": 2.478,
+          "second_call": 0.0008,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.952469717994973
+        }
+      },
+      "wall_seconds": 97.7013766089949,
+      "configuration": "before"
+    },
+    {
+      "variant": "P3",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 40.6638,
+        "extension": 5.3583
+      },
+      "precompile_process_seconds": 47.84511967200524,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.035,
+          "inputs": 1.241,
+          "first_call": 3.998,
+          "second_call": 0.5496,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.408930982004676
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.124,
+          "inputs": 1.395,
+          "first_call": 4.185,
+          "second_call": 0.0174,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 10.317734522999672
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.005,
+          "inputs": 2.048,
+          "first_call": 2.65,
+          "second_call": 0.111,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 9.46412188699469
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.941,
+          "inputs": 2.158,
+          "first_call": 2.745,
+          "second_call": 0.0011,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.471192432996759
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.803,
+          "inputs": 2.065,
+          "first_call": 2.471,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.984672579004837
+        }
+      },
+      "wall_seconds": 96.49319156500133,
+      "configuration": "before"
+    },
+    {
+      "variant": "P3",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 48.9946,
+        "extension": 5.758
+      },
+      "precompile_process_seconds": 56.51311599699693,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.731,
+          "inputs": 1.887,
+          "first_call": 5.799,
+          "second_call": 0.6997,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 13.727040949001093
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.127,
+          "inputs": 1.87,
+          "first_call": 4.538,
+          "second_call": 0.0176,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 11.230667065996386
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.734,
+          "inputs": 1.926,
+          "first_call": 2.61,
+          "second_call": 0.1113,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 9.061611987002834
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.695,
+          "inputs": 2.052,
+          "first_call": 2.713,
+          "second_call": 0.0016,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.070849008996447
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.53,
+          "inputs": 2.157,
+          "first_call": 2.485,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 9.837062369995692
+        }
+      },
+      "wall_seconds": 109.44159989000036,
+      "configuration": "before"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 58.598,
+        "extension": 6.8916
+      },
+      "precompile_process_seconds": 67.28703897600644,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.779,
+          "inputs": 0.889,
+          "first_call": 0.997,
+          "second_call": 0.7152,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 6.943646039995656
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.659,
+          "inputs": 0.837,
+          "first_call": 0.023,
+          "second_call": 0.0171,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 5.036542513000313
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.907,
+          "inputs": 0.715,
+          "first_call": 0.103,
+          "second_call": 0.1035,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 5.435782417996961
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.303,
+          "inputs": 0.885,
+          "first_call": 0.002,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.74718865199975
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.131,
+          "inputs": 0.749,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.487764987999981
+        }
+      },
+      "wall_seconds": 95.93925425800262,
+      "configuration": "before"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 60.522800000000004,
+        "extension": 7.493600000000001
+      },
+      "precompile_process_seconds": 69.67484500399587,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.089,
+          "inputs": 0.87,
+          "first_call": 0.954,
+          "second_call": 0.7436,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.26029134500277
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.638,
+          "inputs": 0.858,
+          "first_call": 0.022,
+          "second_call": 0.0164,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.091168021004705
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.195,
+          "inputs": 0.756,
+          "first_call": 0.106,
+          "second_call": 0.1049,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 5.7483247880009
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.891,
+          "inputs": 0.771,
+          "first_call": 0.002,
+          "second_call": 0.0013,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.236340586001461
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.175,
+          "inputs": 0.798,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.588723266002489
+        }
+      },
+      "wall_seconds": 99.60097036699881,
+      "configuration": "before"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 65.5229,
+        "extension": 9.4229
+      },
+      "precompile_process_seconds": 76.91146495100111,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.654,
+          "inputs": 0.973,
+          "first_call": 0.801,
+          "second_call": 0.6729,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.8533719170009135
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.818,
+          "inputs": 0.884,
+          "first_call": 0.022,
+          "second_call": 0.0159,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.39434378399892
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.637,
+          "inputs": 0.874,
+          "first_call": 0.092,
+          "second_call": 0.0908,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.341388913999253
+        },
+        "ball": {
+          "case": "ball",
+          "load": 5.394,
+          "inputs": 0.936,
+          "first_call": 0.002,
+          "second_call": 0.0018,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 7.049494771999889
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.742,
+          "inputs": 1.01,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.493327687996498
+        }
+      },
+      "wall_seconds": 111.04511279500002,
+      "configuration": "before"
+    },
+    {
+      "variant": "none",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 11.4188,
+        "extension": 4.8226
+      },
+      "precompile_process_seconds": 429.00352255199687,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.567,
+          "inputs": 3.283,
+          "first_call": 19.081,
+          "second_call": 0.7177,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 27.342126572999405
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.361,
+          "inputs": 3.406,
+          "first_call": 25.459,
+          "second_call": 0.0205,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 32.91485169799853
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.166,
+          "inputs": 2.967,
+          "first_call": 3.963,
+          "second_call": 0.1004,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 10.857937471999321
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.241,
+          "inputs": 3.188,
+          "first_call": 4.255,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 11.210225217997504
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.108,
+          "inputs": 3.165,
+          "first_call": 3.115,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 10.475937584000349
+        }
+      },
+      "wall_seconds": 521.8059732070033,
+      "configuration": "before"
+    },
+    {
+      "variant": "none",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 10.4963,
+        "extension": 4.2379
+      },
+      "precompile_process_seconds": 16.48019942400424,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.191,
+          "inputs": 2.857,
+          "first_call": 17.483,
+          "second_call": 0.5484,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 24.720573779995902
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.192,
+          "inputs": 3.055,
+          "first_call": 25.856,
+          "second_call": 0.0199,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 32.81381733799935
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.056,
+          "inputs": 2.298,
+          "first_call": 4.435,
+          "second_call": 0.1002,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 10.46390110500215
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.359,
+          "inputs": 2.643,
+          "first_call": 4.899,
+          "second_call": 0.0013,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 11.474139541998738
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.351,
+          "inputs": 2.396,
+          "first_call": 3.384,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 10.160854203997587
+        }
+      },
+      "wall_seconds": 106.11486173199955,
+      "configuration": "before"
+    },
+    {
+      "variant": "none",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "e04fb6ad53338613c7860d0b0cb5eb014c41fd47c0acb55cd8d66975517d21d0",
+        "E": "ea5bf8314c94bc0b37d73ab3981337453d76a187d1d45797c9dd5629d3dcf1c4",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 11.2354,
+        "extension": 4.7636
+      },
+      "precompile_process_seconds": 17.618116648001887,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.102,
+          "inputs": 2.864,
+          "first_call": 18.149,
+          "second_call": 0.5488,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 25.28202641000098
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 2.937,
+          "inputs": 2.86,
+          "first_call": 22.879,
+          "second_call": 0.0165,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 29.280187772994395
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.19,
+          "inputs": 2.273,
+          "first_call": 3.96,
+          "second_call": 0.0778,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 10.122786531006568
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.014,
+          "inputs": 2.593,
+          "first_call": 4.615,
+          "second_call": 0.0014,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 10.814368478000688
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.131,
+          "inputs": 2.439,
+          "first_call": 3.764,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 10.411040147999302
+        }
+      },
+      "wall_seconds": 103.52970575300424,
+      "configuration": "before"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "d6da113e1a1dd5291313a497746070f5e078a25beae7e3a3471f87c3aa560913",
+        "E": "ca78e745f4ce37aa2124b84309fa4c49ecb4af2cef46ade489b5623121fb3ede",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 38.7926,
+        "extension": 6.1725
+      },
+      "precompile_process_seconds": 46.87353474000702,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.452,
+          "inputs": 0.988,
+          "first_call": 0.874,
+          "second_call": 0.5538,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 6.393458878999809
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.587,
+          "inputs": 1.247,
+          "first_call": 6.319,
+          "second_call": 0.0171,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 11.76585315799457
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.187,
+          "inputs": 1.588,
+          "first_call": 1.663,
+          "second_call": 0.1093,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.161804051000217
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.355,
+          "inputs": 1.846,
+          "first_call": 2.272,
+          "second_call": 0.0021,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.121374760994513
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.75,
+          "inputs": 1.1,
+          "first_call": 0.001,
+          "second_call": 0.0007,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.488794864002557
+        }
+      },
+      "wall_seconds": 87.80638790599915,
+      "configuration": "after"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "d6da113e1a1dd5291313a497746070f5e078a25beae7e3a3471f87c3aa560913",
+        "E": "ca78e745f4ce37aa2124b84309fa4c49ecb4af2cef46ade489b5623121fb3ede",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 37.2914,
+        "extension": 6.833699999999999
+      },
+      "precompile_process_seconds": 46.002404202001344,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.192,
+          "inputs": 1.385,
+          "first_call": 1.173,
+          "second_call": 0.7833,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 8.199893584001984
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.463,
+          "inputs": 1.153,
+          "first_call": 6.058,
+          "second_call": 0.0148,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 12.38149271900329
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.647,
+          "inputs": 1.71,
+          "first_call": 1.682,
+          "second_call": 0.087,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.763495649996912
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.065,
+          "inputs": 1.831,
+          "first_call": 2.29,
+          "second_call": 0.0014,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.862031028002093
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 5.869,
+          "inputs": 1.392,
+          "first_call": 0.001,
+          "second_call": 0.0007,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 8.052651352001703
+        }
+      },
+      "wall_seconds": 92.26333273700584,
+      "configuration": "after"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "d6da113e1a1dd5291313a497746070f5e078a25beae7e3a3471f87c3aa560913",
+        "E": "ca78e745f4ce37aa2124b84309fa4c49ecb4af2cef46ade489b5623121fb3ede",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 39.4328,
+        "extension": 8.775799999999998
+      },
+      "precompile_process_seconds": 50.29195112000161,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.172,
+          "inputs": 1.104,
+          "first_call": 0.91,
+          "second_call": 0.6496,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.4977030900045065
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 5.562,
+          "inputs": 1.199,
+          "first_call": 7.027,
+          "second_call": 0.0284,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 14.530301614999189
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.2,
+          "inputs": 1.833,
+          "first_call": 1.923,
+          "second_call": 0.1037,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.752331639996555
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.424,
+          "inputs": 2.042,
+          "first_call": 2.492,
+          "second_call": 0.0016,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.713988480005355
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.856,
+          "inputs": 1.007,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.489529318001587
+        }
+      },
+      "wall_seconds": 96.27728899499925,
+      "configuration": "after"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "f58e0cf4106016043fb79788e8b40ead2266a9bc92f06684e4aee3c6c211ee1e",
+        "E": "64fdcbdf7d8c8268bdf17b1f927ac0ef4d4eeb1b550c7fd1e3bee4f64a674b14",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 43.727599999999995,
+        "extension": 8.3237
+      },
+      "precompile_process_seconds": 53.945644339000864,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.823,
+          "inputs": 1.302,
+          "first_call": 3.772,
+          "second_call": 0.7829,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 11.428989437001292
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.35,
+          "inputs": 1.1,
+          "first_call": 3.894,
+          "second_call": 0.0136,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 9.907813963996887
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.974,
+          "inputs": 1.917,
+          "first_call": 1.768,
+          "second_call": 0.0972,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.35064684900135
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.156,
+          "inputs": 1.905,
+          "first_call": 2.456,
+          "second_call": 0.0015,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.202876362003735
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.674,
+          "inputs": 1.14,
+          "first_call": 0.002,
+          "second_call": 0.0009,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.542316043000028
+        }
+      },
+      "wall_seconds": 99.37975266899593,
+      "configuration": "common"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "f58e0cf4106016043fb79788e8b40ead2266a9bc92f06684e4aee3c6c211ee1e",
+        "E": "64fdcbdf7d8c8268bdf17b1f927ac0ef4d4eeb1b550c7fd1e3bee4f64a674b14",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 45.2964,
+        "extension": 7.3037
+      },
+      "precompile_process_seconds": 54.87844428599783,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.517,
+          "inputs": 1.178,
+          "first_call": 4.578,
+          "second_call": 0.7202,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 11.717775406003057
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.907,
+          "inputs": 1.14,
+          "first_call": 3.976,
+          "second_call": 0.0177,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 9.681000944001426
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.267,
+          "inputs": 1.678,
+          "first_call": 1.867,
+          "second_call": 0.0968,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.510682828004065
+        },
+        "ball": {
+          "case": "ball",
+          "load": 5.956,
+          "inputs": 2.301,
+          "first_call": 2.123,
+          "second_call": 0.0013,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 11.089697844996408
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.073,
+          "inputs": 1.066,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.750116689996503
+        }
+      },
+      "wall_seconds": 101.6290887819996,
+      "configuration": "common"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "f58e0cf4106016043fb79788e8b40ead2266a9bc92f06684e4aee3c6c211ee1e",
+        "E": "64fdcbdf7d8c8268bdf17b1f927ac0ef4d4eeb1b550c7fd1e3bee4f64a674b14",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 49.408199999999994,
+        "extension": 8.6085
+      },
+      "precompile_process_seconds": 59.76606148300198,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 5.188,
+          "inputs": 1.372,
+          "first_call": 3.822,
+          "second_call": 0.7529,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 11.863824653002666
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 5.522,
+          "inputs": 1.938,
+          "first_call": 5.098,
+          "second_call": 0.0209,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 13.290819451998686
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.875,
+          "inputs": 1.845,
+          "first_call": 1.817,
+          "second_call": 0.1121,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 9.374770795999211
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.258,
+          "inputs": 2.07,
+          "first_call": 2.396,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.385099919003551
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.246,
+          "inputs": 1.18,
+          "first_call": 0.001,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.166380686998309
+        }
+      },
+      "wall_seconds": 109.84843041800195,
+      "configuration": "common"
+    },
+    {
+      "variant": "E1",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "36eb6604be82440e56347febeedb0cc41faac39c02d097e0492e46c87335e053",
+        "E": "ef20b764c71ca30856a6c92fc74f0f727862d24d83146e55a06626b4316635fe",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 15.010200000000001,
+        "extension": 39.7045
+      },
+      "precompile_process_seconds": 56.71377791099803,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.481,
+          "inputs": 1.18,
+          "first_call": 3.936,
+          "second_call": 0.5562,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 10.73101632700127
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.278,
+          "inputs": 1.313,
+          "first_call": 4.586,
+          "second_call": 0.0286,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 10.914672000995779
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.888,
+          "inputs": 2.157,
+          "first_call": 1.875,
+          "second_call": 0.1107,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 9.829711536003742
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.508,
+          "inputs": 1.966,
+          "first_call": 2.386,
+          "second_call": 0.0018,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 9.421661246997246
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.244,
+          "inputs": 1.058,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.905918807002308
+        }
+      },
+      "wall_seconds": 103.51826411700313,
+      "configuration": "tiny"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "36eb6604be82440e56347febeedb0cc41faac39c02d097e0492e46c87335e053",
+        "E": "ef20b764c71ca30856a6c92fc74f0f727862d24d83146e55a06626b4316635fe",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 45.738099999999996,
+        "extension": 7.2184
+      },
+      "precompile_process_seconds": 55.33024517100421,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 5.15,
+          "inputs": 1.239,
+          "first_call": 4.095,
+          "second_call": 0.7572,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 11.921151618000295
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.215,
+          "inputs": 1.221,
+          "first_call": 5.08,
+          "second_call": 0.0183,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 11.265581216997816
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.333,
+          "inputs": 1.747,
+          "first_call": 1.714,
+          "second_call": 0.0842,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.452917181995872
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.273,
+          "inputs": 1.927,
+          "first_call": 3.238,
+          "second_call": 0.0022,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 10.23170825100533
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.252,
+          "inputs": 1.197,
+          "first_call": 0.002,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.104352531001496
+        }
+      },
+      "wall_seconds": 103.30765408300067,
+      "configuration": "tiny"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "38ceddf19ffc6c5acdc59d10e21030c6386122edadf7d723a4d3f1f41c4b62d7",
+        "E": "6516441192a5aacf49827faf43bc497aa92a52c638464f0400d3e127cd171c23",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 22.792900000000003,
+        "extension": 7.111
+      },
+      "precompile_process_seconds": 32.16223997799534,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.959,
+          "inputs": 1.393,
+          "first_call": 19.323,
+          "second_call": 0.7887,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 26.218850206998468
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.206,
+          "inputs": 1.456,
+          "first_call": 26.343,
+          "second_call": 0.2017,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 32.849834430002375
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.975,
+          "inputs": 2.027,
+          "first_call": 2.043,
+          "second_call": 0.1046,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.883574186998885
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.477,
+          "inputs": 1.94,
+          "first_call": 1.958,
+          "second_call": 0.0013,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.057423158999882
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.096,
+          "inputs": 1.593,
+          "first_call": 0.001,
+          "second_call": 0.0006,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 6.35780294000142
+        }
+      },
+      "wall_seconds": 114.53130343800149,
+      "configuration": "smallest"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "38ceddf19ffc6c5acdc59d10e21030c6386122edadf7d723a4d3f1f41c4b62d7",
+        "E": "6516441192a5aacf49827faf43bc497aa92a52c638464f0400d3e127cd171c23",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 19.5048,
+        "extension": 6.8072
+      },
+      "precompile_process_seconds": 28.491982581996126,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.378,
+          "inputs": 1.678,
+          "first_call": 21.522,
+          "second_call": 0.8359,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 29.250918489997275
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.062,
+          "inputs": 1.62,
+          "first_call": 29.234,
+          "second_call": 0.0226,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 35.63763894899603
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 3.74,
+          "inputs": 2.219,
+          "first_call": 2.062,
+          "second_call": 0.0959,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.753650195998489
+        },
+        "ball": {
+          "case": "ball",
+          "load": 3.837,
+          "inputs": 2.175,
+          "first_call": 2.168,
+          "second_call": 0.0019,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 8.909416093003529
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.938,
+          "inputs": 1.127,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.6382375190005405
+        }
+      },
+      "wall_seconds": 116.68325320899748,
+      "configuration": "smallest"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "38ceddf19ffc6c5acdc59d10e21030c6386122edadf7d723a4d3f1f41c4b62d7",
+        "E": "6516441192a5aacf49827faf43bc497aa92a52c638464f0400d3e127cd171c23",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "precompile_seconds": {
+        "package": 20.9455,
+        "extension": 6.7885
+      },
+      "precompile_process_seconds": 29.643642429000465,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 3.988,
+          "inputs": 1.876,
+          "first_call": 19.327,
+          "second_call": 0.5812,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 26.540928435999376
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 3.743,
+          "inputs": 1.785,
+          "first_call": 26.042,
+          "second_call": 0.0148,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 32.28563538099843
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.273,
+          "inputs": 2.017,
+          "first_call": 1.835,
+          "second_call": 0.0848,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 8.865160408997326
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.649,
+          "inputs": 2.452,
+          "first_call": 2.448,
+          "second_call": 0.0019,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 10.335470507001446
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 3.571,
+          "inputs": 1.354,
+          "first_call": 0.001,
+          "second_call": 0.0007,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.688982931998908
+        }
+      },
+      "wall_seconds": 113.3613327109997,
+      "configuration": "smallest"
+    }
+  ]
+}

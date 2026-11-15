@@ -75,7 +75,8 @@ function _pauli_extra(kind,W,source)
     paulis=([1 0;0 1],[0 1;1 0],[0 -im;im 0],[1 0;0 -1])
     for code in 0:4^k-1
         digits=digits!(zeros(Int,k),code;base=4)
-        word=word_from_legacy(W,[3(site-1)+axis for (site,axis) in zip(kind.sites,digits) if axis!=0])
+        word=foldl((w,sa)->last(mul(w,pauli_letter(W,sa[1],sa[2]-1))),
+            ((site,axis) for (site,axis) in zip(kind.sites,digits) if axis!=0);init=one(W))
         if kind isa InvariantCone
             code==0 && continue
             # K contributes one minus sign per Y; conjugation by P_r

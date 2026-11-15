@@ -30,7 +30,18 @@ _validity(::FermionicConditions) = "valid for each state"
 _strengthening_width(k::FermionicConditions,problem,order) = any(c->c in (:T1,:T2,:T2prime),k.conditions) ? 6 : 4
 
 function _fermionic_rows(W,modes,condition)
-    word(ls)=word_from_legacy(W,Int[ls...])
+    buffer=PolynomialBuffer{W,Int}(1)
+    function word(ls)
+        result=one(W)
+        for l in ls
+            empty!(buffer)
+            # These tuples are already normal ordered, so each product has
+            # exactly one term with coefficient one, including repeated modes.
+            mul!(buffer,result,fermi_letter(W,l))
+            result=buffer.words[1]
+        end
+        result
+    end
     rows=if condition==:P
         W[word((p,q)) for p in modes for q in modes if p<q]
     elseif condition==:Q

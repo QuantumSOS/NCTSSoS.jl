@@ -50,19 +50,25 @@ cyclic_canon(m::NormalMonomial{BosonicAlgebra}) = copy(m.word)
     length(a) == length(b) ? a < b : length(a) < length(b)
 
 function cyclic_canon(m::NormalMonomial{A}) where {A<:MonoidAlgebra}
-    word = copy(m.word)
-    n = length(word)
-    n <= 1 && return word
-
-    best = copy(word)
-    for offset in 1:(n-1)
-        rotation = [word[mod1(i + offset, n)] for i in 1:n]
-        simplify!(A, rotation)
-        if _cyclic_word_lt(rotation, best)
-            best = rotation
+    best = copy(m.word)
+    # One pass rotates the letters of one commuting site only: after
+    # `simplify!` sorts the sites, a rotation of the whole word by `offset`
+    # is a rotation inside the site that holds letter `offset`. A word on
+    # several sites needs one rotation in each site, so repeat the pass from
+    # the best word until no rotation is smaller.
+    while true
+        word = best
+        n = length(word)
+        n <= 1 && return best
+        for offset in 1:(n-1)
+            rotation = [word[mod1(i + offset, n)] for i in 1:n]
+            simplify!(A, rotation)
+            if _cyclic_word_lt(rotation, best)
+                best = rotation
+            end
         end
+        best === word && return best
     end
-    return best
 end
 
 

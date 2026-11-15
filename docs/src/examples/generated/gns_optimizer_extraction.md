@@ -15,183 +15,86 @@ f = X Y X
 on the noncommutative polydisc
 
 ```math
-1 - X^2 \ge 0, \quad 1 - Y^2 \ge 0.
+1-X^2\succeq0,\qquad 1-Y^2\succeq0.
 ```
 
-The optimal eigenvalue is ``\lambda_{\min}(f) = -1``. The order-2 relaxation
-already certifies this bound, but the GNS step needs moments up to degree `6`,
-so we solve the order-3 moment relaxation, extract a degree-2 quotient space,
-and verify the resulting `5 × 5` model.
+The optimal eigenvalue is ``\lambda_{\min}(f)=-1``. The order-2 relaxation
+already gives this bound. For GNS we solve at order 3, with moments up to
+degree 6, and check the resulting `5 × 5` model.
 
 **Prerequisites**: familiarity with the
 [polynomial optimization API](@ref polynomial-optimization) and the
 [SDP relaxation workflow](@ref moment-sohs-hierarchy).
 
-## Setup
+## Setup and problem
 
-We use Mosek in silent mode so the page stays compact.
-
-````julia
-using NCTSSoS, MosekTools, LinearAlgebra, Logging
-
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(
-    Mosek.Optimizer,
-    MOI.Silent() => true,
-);
-
-function evaluate_monomial(matrices::Dict, mono::NormalMonomial)
-    sample = first(values(matrices))
-    T = eltype(sample)
-    dim = size(sample, 1)
-    value = Matrix{T}(I, dim, dim)
-    for idx in mono.word
-        value *= matrices[idx]
-    end
-    return value
-end
-
-moment_from_model(matrices::Dict, xi::AbstractVector, mono::NormalMonomial) = real(dot(xi, evaluate_monomial(matrices, mono) * xi))
-moment_from_sdp(monomap::AbstractDict, mono::NormalMonomial) = get(monomap, symmetric_canon(NCTSSoS.expval(mono)), 0.0)
-````
-
-`evaluate_monomial` maps a word to its matrix product. The two `moment_*`
-helpers compare the extracted model with the solved SDP moments.
-
-## Define the polynomial optimization problem
-
-We keep `X` and `Y` in one noncommutative label group, so there is a single
-dense moment matrix. That matches the textbook presentation of the example.
+The two free variables share one site. `Relaxation(order=3)` requests
+the dense moment relaxation. The direct Mosek backend is silent by default.
 
 ````julia
-registry, (vars,) = create_noncommutative_variables([("X", 1:2)]);
+using NCTSSoS.Next, Mosek, LinearAlgebra
+
+registry, (vars,) = site_variables(Free(), 1, 2);
 X, Y = vars;
-````
-
-`registry` is a `VariableRegistry`; `X` and `Y` are the two operator symbols.
-
-````julia
 f = 1.0 * X * Y * X;
 g1 = 1.0 - X^2;
 g2 = 1.0 - Y^2;
+problem = Problem(f; constraints=(Positive(g1), Positive(g2)));
 ````
 
-`f` is the objective polynomial. `g1`, `g2` define the nc polydisc.
+## Solve the order-3 moment relaxation
+
+`solve` returns both the bound and the moments needed by `gns`.
 
 ````julia
-pop = polyopt(f, registry; ineq_constraints=[g1, g2]);
+result = solve(problem, Relaxation(order=3); solver=MosekBackend());
+[
+    :objective => result.bound,
+    :objective_moment => expectation(result, f),
+    :sizes => result.sizes,
+]
 ````
 
-`pop` is an ordinary noncommutative `PolyOpt`.
+````
+3-element Vector{Pair{Symbol, Any}}:
+        :objective => -1.0000000037277186
+ :objective_moment => -0.9999999934607839
+            :sizes => 15 rows, 78 moments, 77 real variables, 3 blocks (largest 15); localizing rows: [7, 7]
+````
+
+The bound agrees with -1 at tolerance `1e-5`.
 
 ````julia
-pop
+@assert isapprox(result.bound, -1.0; atol=1e-5)
 ````
 
-````
-Optimization Problem (NonCommutativeAlgebra)
-────────────────────────────────────
-Objective:
-    X₁X₂X₁
+## Run the checked GNS reconstruction
 
-Equality constraints (0):
-    (none)
-
-Inequality constraints (2):
-    1 + -X₁² >= 0
-            1 + -X₂² >= 0
-
-Moment equality constraints (0):
-    (none)
-
-Variables (2):
-    X₁, X₂
-
-````
-
-## Solve the order-3 moment relaxation directly
-
-The high-level [`cs_nctssos`](@ref) interface returns the bound, but GNS needs
-the solved moments themselves. For that reason we use the low-level symbolic
-moment workflow:
-
-1. `compute_sparsity`
-2. `NCTSSoS.moment_relax`
-3. `NCTSSoS.solve_moment_problem`
+`gns` selects the principal and full degree pair and checks the model.
+Inspect the verdict before reading operators. These are numerical checks,
+not a rigorous certificate.
 
 ````julia
-solver_config = SolverConfig(
-    optimizer=SILENT_MOSEK,
-    order=3,
-    cs_algo=NoElimination(),
-    ts_algo=NoElimination(),
-);
+g = gns(result; atol=1e-6, check_atol=5e-5);
+g.verdict
 ````
 
-`solver_config` requests the dense order-3 relaxation.
+````
+:optimizer_certified
+````
+
+This solve returns an accepted optimizer. Moment checks follow below.
 
 ````julia
-sparsity = compute_sparsity(pop, solver_config);
-moment_problem = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities);
-moment_result = NCTSSoS.solve_moment_problem(moment_problem, SILENT_MOSEK);
-````
+@assert g.verdict != :withheld
 
-`moment_result` stores the objective value and the solved numeric moment table
-in `moment_result.monomap`.
-
-````julia
-moment_summary = (
-    objective = moment_result.objective,
-    unique_moments = moment_result.n_unique_elements,
-    solved_moments = length(moment_result.monomap),
-)
-moment_summary
-````
-
-````
-(objective = -0.999999938084604, unique_moments = 78, solved_moments = 78)
-````
-
-`moment_summary` shows the certified bound together with the size of the
-solved moment table.
-
-````julia
-@assert isapprox(moment_result.objective, -1.0; atol=1e-5)
-````
-
-The relaxation already certifies the optimal value `-1`.
-
-## Run the GNS reconstruction
-
-We reconstruct from the solved moments with:
-
-- full Hankel degree `3`,
-- principal quotient degree `2`.
-
-The returned `GNSResult` contains the multiplication operators, the
-distinguished vector `xi`, the basis, and rank information.
-
-````julia
-gns = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(moment_result.monomap, registry, 3; hankel_deg=2, atol=1e-6)
-end;
-````
-
-`gns` is a `GNSResult`; `gns.matrices` stores the extracted operators and
-`gns.xi` is the class of the identity word.
-
-````julia
-A1 = gns.matrices[registry[:X₁]];
-A2 = gns.matrices[registry[:X₂]];
-````
-
-`A1` and `A2` are the extracted `5 × 5` symmetric operators.
-
-````julia
+A1 = g[X];
+A2 = g[Y];
 extraction_summary = (
-    rank = gns.rank,
-    full_rank = gns.full_rank,
-    xi = round.(gns.xi, digits=6),
+    degrees = (g.principal_degree, g.full_degree),
+    rank = g.rank,
+    full_rank = g.full_rank,
+    state = round.(g.state, digits=6),
     A1 = round.(A1, digits=3),
     A2 = round.(A2, digits=3),
 )
@@ -199,100 +102,110 @@ extraction_summary
 ````
 
 ````
-(rank = 5, full_rank = 9, xi = [-0.995501, -0.0, 0.0, 0.0, -0.094753], A1 = [0.0 -0.996 -0.0 -0.0 -0.0; -0.996 -0.0 -0.0 -0.0 -0.095; -0.0 -0.0 0.0 -0.745 -0.0; -0.0 -0.0 -0.745 -0.0 -0.0; -0.0 -0.095 -0.0 -0.0 0.0], A2 = [-0.0 0.0 0.769 0.0 0.0; 0.0 -1.0 -0.0 -0.0 -0.0; 0.769 -0.0 0.0 0.0 -0.473; 0.0 -0.0 0.0 0.0 -0.0; 0.0 -0.0 -0.473 -0.0 0.0])
+(degrees = (2, 3), rank = 5, full_rank = 9, state = ComplexF64[-0.995358 - 0.0im, 0.0 - 0.0im, -0.0 - 0.0im, 0.0 - 0.0im, 0.096241 - 0.0im], A1 = ComplexF64[-0.0 + 0.0im -0.995 + 0.0im 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.995 + 0.0im 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im 0.096 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -0.739 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im 0.0 + 0.0im -0.739 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 0.096 + 0.0im 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im], A2 = ComplexF64[0.0 + 0.0im -0.0 + 0.0im -0.785 + 0.0im 0.0 + 0.0im 0.0 + 0.0im; -0.0 + 0.0im -1.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im; -0.785 + 0.0im 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im -0.448 + 0.0im; 0.0 + 0.0im -0.0 + 0.0im -0.0 + 0.0im 0.0 + 0.0im -0.0 + 0.0im; 0.0 + 0.0im 0.0 + 0.0im -0.448 + 0.0im -0.0 + 0.0im 0.0 + 0.0im])
 ````
 
-`extraction_summary` exposes the `5 × 5` operators in a compact form.
+The principal degree is 2 and the full degree is 3. The principal
+rank gives `5 × 5` operators. Matrix entries depend on the SVD basis;
+the operator dimension, objective and constraint values do not.
 
 ````julia
-@assert gns.rank == 5
-@assert size(A1) == (5, 5)
-@assert size(A2) == (5, 5)
-@assert norm(A1 - A1') ≤ 1e-8
-@assert norm(A2 - A2') ≤ 1e-8
-@assert isapprox(norm(gns.xi), 1.0; atol=1e-8)
+@assert (g.principal_degree, g.full_degree) == (2, 3)
+@assert g.rank == 5
+@assert size(A1) == size(A2) == (5, 5)
+@assert norm(A1 - A1') <= 1e-8
+@assert norm(A2 - A2') <= 1e-8
+@assert isapprox(norm(g.state), 1.0; atol=1e-8)
 ````
-
-The exact matrix entries depend on the orthonormal basis chosen by the SVD, so
-they are unique only up to an orthogonal change of basis. The invariant facts
-are the dimension, symmetry, and reproduced moments.
 
 ## Verify the extracted optimizer
 
-First evaluate the objective polynomial on the extracted operators.
+`evaluate` substitutes the extracted operators into a polynomial;
+`expectation` also uses the reconstructed state.
 
 ````julia
-F = Matrix(A1 * A2 * A1);
-F = Symmetric((F + F') / 2);
-````
-
-`F` is the symmetric matrix `f(A1, A2) = A1 * A2 * A1`.
-
-````julia
-eigenvalues = eigvals(F)
+F = Hermitian(evaluate(g, f));
+eigenvalues = eigvals(F);
 round.(eigenvalues, digits=6)
 ````
 
 ````
 5-element Vector{Float64}:
  -1.0
- -0.536871
+ -0.545614
+ -0.0
   0.0
-  0.0
-  0.536871
+  0.545614
 ````
 
-`eigenvalues` shows that the extracted model attains the lower bound `-1`.
+The nonminimal levels are not fixed by the problem: the optimal moments
+are not unique. This run with the default SOS form gives levels near
+±0.545614. A separate run with `MosekBackend(form=:moment)` gives levels
+near ±0.536868. These are two examples of optimal moment choices, not
+properties of the forms. The models are not merely different bases of
+the same matrices. Both attain -1 within `1e-5`.
+Check that value and both constraints:
 
 ````julia
 @assert isapprox(minimum(eigenvalues), -1.0; atol=1e-5)
-@assert isapprox(real(dot(gns.xi, F * gns.xi)), -1.0; atol=1e-5)
+@assert isapprox(expectation(g, f), -1.0; atol=1e-5)
+@assert eigmin(Hermitian(evaluate(g, g1))) >= -5e-5
+@assert eigmin(Hermitian(evaluate(g, g2))) >= -5e-5
 ````
 
-The smallest eigenvalue is `-1`, so the extracted model attains the SDP bound.
+The model is feasible and attains the bound -1 within the stated tolerance.
+This checks the optimizer, not just an eigenvalue of an unconstrained matrix.
 
-## Verify the moments
+## Check moments separately
 
-The GNS construction should reproduce the solved moments on all words up to the
-full Hankel degree.
-
-````julia
-basis_deg3 = get_ncbasis(registry, 3);
-errors = [
-    abs(moment_from_model(gns.matrices, gns.xi, mono) - moment_from_sdp(moment_result.monomap, mono))
-    for mono in basis_deg3
-];
-````
-
-`errors` stores the reconstruction error for every basis word up to degree `3`.
+The checked result reports errors against the solved moments. The full
+program check includes moments beyond the row words of the selected Hankel.
 
 ````julia
-moment_check = (
-    basis_size = length(basis_deg3),
-    max_error = maximum(errors),
+(
+    verdict = g.verdict,
+    hankel_moment_error = g.checks.hankel_moment_error,
+    program_moment_error = g.checks.program_moment_error,
+    objective_error = g.checks.objective_error,
 )
-moment_check
 ````
 
 ````
-(basis_size = 15, max_error = 3.0444507026494705e-8)
+(verdict = :optimizer_certified, hankel_moment_error = 0.14884636138021173, program_moment_error = 0.14884636138021173, objective_error = 7.135449120454496e-9)
 ````
 
-`moment_check` confirms that the reconstructed model reproduces the SDP
-moments up to the requested degree.
+As a direct comparison, check every word through degree 3 with the public
+polynomial interface. Start with the identity and append `X` or `Y`.
+
+````julia
+words = [one(X)];
+layer = [one(X)];
+for degree in 1:3
+    global layer = [w * x for w in layer for x in (X, Y)]
+    append!(words, layer)
+end
+errors = [abs(expectation(g, w) - expectation(result, w)) for w in words];
+(words_checked=length(words), max_error=maximum(errors))
+````
+
+````
+(words_checked = 15, max_error = 3.400235204509272e-9)
+````
+
+The 15 words pass the original degree-3 tolerance.
 
 ````julia
 @assert maximum(errors) < 5e-5
 ````
 
-## Next steps
+Here the verdict is `:optimizer_certified`: the ranks are 5 → 9 and the
+full program moment error is about 0.148846. The smaller degree-3 set agrees,
+but this does not establish reproduction of all program moments. See the
+[GNS Construction Guide](@ref gns-construction-guide) for the distinction.
 
-- `gns_reconstruct`: full GNS API, including `xi`, basis data, and
-  rank information.
-- [Newton Chip Method](@ref newton-chip-method): basis reduction for ordinary
-  and tracial relaxations.
-- [Polynomial Optimization](@ref polynomial-optimization): the higher-level
-  modeling entry point.
+**See also:**
+- [Newton Chip Method](@ref newton-chip-method): basis reduction.
+- [Polynomial Optimization](@ref polynomial-optimization): modeling entry point.
 
 ---
 

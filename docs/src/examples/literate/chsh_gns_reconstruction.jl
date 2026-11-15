@@ -41,14 +41,7 @@
 # GNS model**. In this example, the first clean dense reconstruction comes from an
 # **order-4** relaxation with a degree-3 Hankel and a degree-2 principal block.
 
-using NCTSSoS, MosekTools, LinearAlgebra, Logging
-
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(
-    Mosek.Optimizer,
-    MOI.Silent() => true,
-)
-nothing #hide
+using NCTSSoS.Next, Mosek, LinearAlgebra
 
 function blockdiag(A::AbstractMatrix, B::AbstractMatrix)
     T = promote_type(eltype(A), eltype(B))
@@ -74,82 +67,60 @@ nothing #hide
 # We use unipotent variables, so the relations `A_i^2 = I`, `B_j^2 = I`, and the
 # bipartite commutation rules are built into the algebra.
 #
-# We still optimize `-S`, because [`cs_nctssos`](@ref) minimizes.
+# We optimize `-S`, because `solve` minimizes.
 
-registry, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)]);
+registry, (A, B) = site_variables(Unipotent(), 2, 2);
 
 chsh = 1.0 * A[1] * B[1] +
        1.0 * A[1] * B[2] +
        1.0 * A[2] * B[1] -
        1.0 * A[2] * B[2];
 
-pop = polyopt(-chsh, registry);
-
-solver_config = SolverConfig(
-    optimizer = SILENT_MOSEK,
-    order = 4,
-    cs_algo = NoElimination(),
-    ts_algo = NoElimination(),
-);
-
-sparsity = compute_sparsity(pop, solver_config);
-moment_problem = NCTSSoS.moment_relax(
-    pop,
-    sparsity.corr_sparsity,
-    sparsity.cliques_term_sparsities,
-);
-moment_result = NCTSSoS.solve_moment_problem(moment_problem, SILENT_MOSEK);
+problem = Problem(-chsh);
+result = solve(problem, Relaxation(order=4); solver=MosekBackend());
 
 solve_summary = (
-    objective = moment_result.objective,
-    tsirelson = -moment_result.objective,
+    objective = result.bound,
+    tsirelson = -result.bound,
     expected = 2 * sqrt(2),
-    n_unique_moments = moment_result.n_unique_elements,
-    solved_moments = length(moment_result.monomap),
+    sizes = result.sizes,
 )
 solve_summary
 
 # The objective should match `-2√2` up to solver tolerance.
 
-@assert isapprox(moment_result.objective, -2 * sqrt(2); atol=1e-8)
+@assert isapprox(result.bound, -2 * sqrt(2); atol=1e-8)
 
 # ## Step 2 — Check the flat Hankel condition
 #
-# We reconstruct on a degree-3 Hankel matrix with a degree-2 principal block.
-# Flatness at this pair is what makes the final `4 × 4` model close exactly.
+# `gns` selects the degree pair and checks the reconstruction. Here it selects
+# a degree-3 full Hankel with a degree-2 principal block. Flatness at this pair
+# supports a closed `4 × 4` model, within the stated numerical tolerances.
 
-using NCTSSoS: get_ncbasis
+g = gns(result; atol=1e-8)
 
-full_basis = get_ncbasis(registry, 3);
-basis = get_ncbasis(registry, 2);
-hankel = NCTSSoS.hankel_matrix(moment_result.monomap, full_basis);
-flatness = test_flatness(hankel, full_basis, basis; atol=1e-8)
+# The verdict reports reproduced moments. The full and principal ranks agree.
+# This is a numerical check, not a rigorous certificate.
 
-# `flatness` should report equal numerical ranks for the full Hankel and the
-# principal block.
+@assert g.verdict == :moments_reproduced
+@assert g.flatness.is_flat
+@assert (g.principal_degree, g.full_degree) == (2, 3)
+@assert g.rank == g.full_rank == 4
 
-@assert flatness.is_flat
-@assert flatness.rank_principal == 4
-@assert flatness.rank_full == 4
-
-# ## Step 3 — Run the GNS reconstruction
+# ## Step 3 — Read the GNS operators
 #
-# The flatness check tells us the degree-2 quotient already closes, so GNS should
-# recover a genuine `4 × 4` representation.
+# Index the checked result with a variable to obtain its operator matrix.
+# `g.state` is the cyclic vector.
 
-gns = with_logger(Logging.SimpleLogger(devnull, Logging.Error)) do
-    gns_reconstruct(moment_result.monomap, registry, 3; hankel_deg=2, atol=1e-8)
-end;
-
-A1_raw = gns.matrices[registry[:A₁]];
-A2_raw = gns.matrices[registry[:A₂]];
-B1_raw = gns.matrices[registry[:B₁]];
-B2_raw = gns.matrices[registry[:B₂]];
+A1_raw = g[A[1]];
+A2_raw = g[A[2]];
+B1_raw = g[B[1]];
+B2_raw = g[B[2]];
 
 raw_summary = (
-    rank = gns.rank,
-    full_rank = gns.full_rank,
-    xi = round.(gns.xi, digits=6),
+    rank = g.rank,
+    full_rank = g.full_rank,
+    xi = round.(g.state, digits=6),
     A₁ = round.(A1_raw, digits=3),
     B₁ = round.(B1_raw, digits=3),
 )
@@ -176,21 +147,13 @@ raw_errors
 
 @assert all(err -> err < 5e-8, values(raw_errors))
 
-verification = verify_gns(
-    gns,
-    moment_result.monomap,
-    registry;
-    poly = -chsh,
-    f_star = moment_result.objective,
-    atol = 1e-5,
-)
-verification
+g.checks
 
-# The generic verification suite should agree with the hand-checked algebra facts above.
+# The built-in checks agree with the hand-checked algebra facts above.
 
-@assert verification.is_symmetric
-@assert verification.moment_max_error < 1e-8
-@assert verification.objective_error < 1e-8
+@assert g.checks.algebra_error < 5e-8
+@assert g.checks.program_moment_error < 1e-8
+@assert g.checks.objective_error < 1e-8
 
 # The CHSH operator should have spectrum `{-2√2, 0, 0, 2√2}`.
 
@@ -215,7 +178,7 @@ A1_split = U_a1' * A1_raw * U_a1
 A2_split = U_a1' * A2_raw * U_a1
 B1_split = U_a1' * B1_raw * U_a1
 B2_split = U_a1' * B2_raw * U_a1
-xi_split = U_a1' * gns.xi
+xi_split = U_a1' * g.state
 
 alice_block = A2_split[1:2, 3:4]
 U_a2 = blockdiag(Matrix{ComplexF64}(I, 2, 2), alice_block')
@@ -226,7 +189,7 @@ A1_alice = U_alice' * A1_raw * U_alice
 A2_alice = U_alice' * A2_raw * U_alice
 B1_alice = U_alice' * B1_raw * U_alice
 B2_alice = U_alice' * B2_raw * U_alice
-xi_alice = U_alice' * gns.xi
+xi_alice = U_alice' * g.state
 
 alice_summary = (
     A₁ = round.(A1_alice, digits=6),
@@ -281,7 +244,7 @@ A1_aligned = U_total' * A1_raw * U_total
 A2_aligned = U_total' * A2_raw * U_total
 B1_aligned = U_total' * B1_raw * U_total
 B2_aligned = U_total' * B2_raw * U_total
-xi_aligned = U_total' * gns.xi
+xi_aligned = U_total' * g.state
 
 σx = ComplexF64[0 1; 1 0]
 σz = ComplexF64[1 0; 0 -1]

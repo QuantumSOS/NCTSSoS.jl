@@ -33,9 +33,9 @@ function _sha256_files(root::AbstractString, relpaths::Vector{String})::String
 end
 
 function expected_stamp(root::AbstractString = repo_root())::Dict{String, Any}
-    # `src/next` is the work area of the redesign (`NCTSSoS.Next`). No example uses it,
-    # so its files are not part of the stamp. Remove this exclusion when the
-    # redesign replaces the current code.
+    # Keep `src/next` outside the stamp during the documentation migration so
+    # implementation PRs do not require full example regeneration. The architect
+    # removes this exclusion when the redesign is accepted.
     src_files = _git_ls_files(root, ["src", ":(exclude)src/next"])
     literate_files = _git_ls_files(root, ["docs/src/examples/literate"])
     generator_files = _git_ls_files(root, ["docs/generate_examples.jl"])

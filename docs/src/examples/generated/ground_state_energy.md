@@ -22,12 +22,12 @@ Firstly, let's consider the simplest case of 1D Heisenberg chain with nearest
 neighbor interaction and periodic boundary condition.
 
 !!! note "SDP Solver"
-    These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
-    Any SDP-capable solver works: replace `Mosek.Optimizer` with
-    `COSMO.Optimizer` or `Clarabel.Optimizer` for open-source alternatives.
+    These examples use [Mosek](https://www.mosek.com/) through `MosekBackend`.
+    For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
+import NCTSSoS.Next as Next
 N = 6
 ````
 
@@ -39,32 +39,29 @@ Create Pauli variables using the typed algebra system
 This automatically encodes all Pauli commutation relations
 
 ````julia
-registry, (σx, σy, σz) = create_pauli_variables(1:N)
+registry, (σx, σy, σz) = pauli_variables(1:N)
 
 ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σz] for i in 1:N)
 ````
 
 ````
-0.25 + 0.0im * σx₁σx₂ + 0.25 + 0.0im * σx₁σx₆ + 0.25 + 0.0im * σy₁σy₂ + 0.25 + 0.0im * σy₁σy₆ + 0.25 + 0.0im * σz₁σz₂ + 0.25 + 0.0im * σz₁σz₆ + 0.25 + 0.0im * σx₂σx₃ + 0.25 + 0.0im * σy₂σy₃ + 0.25 + 0.0im * σz₂σz₃ + 0.25 + 0.0im * σx₃σx₄ + 0.25 + 0.0im * σy₃σy₄ + 0.25 + 0.0im * σz₃σz₄ + 0.25 + 0.0im * σx₄σx₅ + 0.25 + 0.0im * σy₄σy₅ + 0.25 + 0.0im * σz₄σz₅ + 0.25 + 0.0im * σx₅σx₆ + 0.25 + 0.0im * σy₅σy₆ + 0.25 + 0.0im * σz₅σz₆
+(0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + (0.25) X2 X3 + (0.25) Y2 Y3 + (0.25) X3 X4 + (0.25) Y3 Y4 + (0.25) X4 X5 + (0.25) Y4 Y5 + (0.25) X1 X6 + (0.25) Y1 Y6 + (0.25) X5 X6 + (0.25) Y5 Y6
 ````
 
 No need to manually specify constraints - they're encoded in the algebra type!
 
 ````julia
-pop = polyopt(ham, registry)
+problem = Problem(ham)
 
-solver_config = SolverConfig(
-                    optimizer=Mosek.Optimizer,          # the solver backend
-                    order=3,                            # moment matrix order
-                    ts_algo=MMD(),                      # term sparsity algorithm
-                    )
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
+solver = MosekBackend()
 
-res = cs_nctssos(pop, solver_config)
-res.objective / N
+res = solve(problem, relaxation; solver)
+res.bound / N
 ````
 
 ````
--0.4671292739411148
+-0.4671292734104311
 ````
 
 For this small $N = 6$ instance, the sparse order-$3$ lower bound is already
@@ -78,25 +75,25 @@ required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
 frustration induced by next nearest neighbor interaction can be solved as:
 
 ````julia
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
 J2 = 0.2                            # Next Nearest Neighbor Interaction
 
-registry, (σx, σy, σz) = create_pauli_variables(1:N)
+registry, (σx, σy, σz) = pauli_variables(1:N)
 
 ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) * op[i] * op[mod1(i + 2, N)] for op in [σx, σy, σz] for i in 1:N)
 
-pop = polyopt(ham, registry)
+problem = Problem(ham)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, ts_algo=MMD())
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
 
-res = cs_nctssos(pop, solver_config)
-res.objective / N
+res = solve(problem, relaxation; solver)
+res.bound / N
 ````
 
 ````
--0.4270083243442653
+-0.4270083240792284
 ````
 
 Again, for this small $N = 6$ instance the sparse order-$3$ lower bound is
@@ -108,27 +105,31 @@ energy per site $-0.4270083225302217$ reported in [wang2024Certifying](@cite).
 Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
 ````julia
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
 Nx = 3
 Ny = 3
 N = Nx * Ny
 J1 = 1.0
 J2 = 0.0
 
-registry, (σx, σy, σz) = create_pauli_variables(1:N)
+registry, (σx, σy, σz) = pauli_variables(1:N)
 
 LI = LinearIndices((1:Nx, 1:Ny))
 
 ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(i, mod1(j + 1, Ny))]] + ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), j)]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j + 1, Ny))]] + ComplexF64(J2 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianIndex(mod1(i + 1, Nx), mod1(j - 1, Ny))]] for op in [σx, σy, σz] for i in 1:Nx for j in 1:Ny)
 
-pop = polyopt(ham, registry)
+problem = Problem(ham)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=3, cs_algo=MF(), ts_algo=MMD())
+relaxation = Relaxation(order=3, grouping=Correlative(algorithm=Next.MF()),
+    split=TermSplit(algorithm=Next.MMD()))
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, CliqueTrees.MF(), CliqueTrees.MMD(0), nothing)
+Relaxation(order=3, grouping=Correlative(), split=TermSplit(algorithm=MMD()))
 ````
+
+This last setup does not run a solve. `Correlative` groups Pauli variables
+by site, so each group contains all three axes at its sites.
 
 ## Next step
 

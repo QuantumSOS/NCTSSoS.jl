@@ -8,7 +8,7 @@
 # Along the way we meet a key practical issue: unlike fermions (at most one
 # per state), bosons can pile up without limit.  The bosonic CCR alone do
 # not choose a particle-number sector for the optimization problem.  Here we
-# impose $\hat{N} = 2$ with `moment_eq_constraints`, so the SDP solves the
+# impose $\hat{N} = 2$ with `Sector`, so the SDP solves the
 # same canonical-sector problem as the exact $3 \times 3$ reference.
 #
 # If you haven't seen bosonic operators before, the
@@ -72,8 +72,8 @@
 # !!! tip "State constraint, not operator identity"
 #     The constraint $\hat{N}|\psi\rangle = 2|\psi\rangle$ is a property
 #     of the **target state**, not an algebraic identity.  This is exactly
-#     the situation for `moment_eq_constraints` (one-sided localizing), not
-#     `eq_constraints` (bilinear localizing).  See the
+#     the situation for `Sector(total_number, 2)`, not
+#     `Zero(total_number - 2)` (an operator equality).  See the
 #     [Hubbard Model](@ref hubbard-model) example for a detailed
 #     explanation of the difference.
 
@@ -128,26 +128,23 @@ println("Analytic value 1 - √5:                           $(1 - sqrt(5))")
 #
 # ## Building the Hamiltonian with NCTSSoS.jl
 #
-# [`create_bosonic_variables`](@ref) returns creation and annihilation
+# `bosonic_variables` returns creation and annihilation
 # operators that obey the CCR automatically — every product is
 # normal-ordered by the library.
 
 # !!! note "SDP Solver"
-#     These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
-#     Any SDP-capable solver works: replace `Mosek.Optimizer` with
-#     `COSMO.Optimizer` or `Clarabel.Optimizer` for open-source alternatives.
+#     This example uses [Mosek](https://www.mosek.com/) through `MosekBackend`.
+#     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
-using NCTSSoS, MosekTools, JuMP
+using NCTSSoS.Next, Mosek
 
-SOLVER = optimizer_with_attributes(Mosek.Optimizer,
-    "MSK_IPAR_LOG" => 0,
-    "MSK_IPAR_NUM_THREADS" => 0)
+SOLVER = MosekBackend()
 
 # ### Step 1 — Create bosonic variables
 
 N_sites = 2
-registry, (b, b_dag) = create_bosonic_variables(1:N_sites)
-println("Created $(length(registry)) bosonic variables: b[1..$(N_sites)] and b†[1..$(N_sites)]")
+registry, (b, b_dag) = bosonic_variables(1:N_sites)
+println("Created $(length(b) + length(b_dag)) bosonic variables: b[1..$(N_sites)] and b†[1..$(N_sites)]")
 
 # ### Step 2 — Number operators and Hamiltonian
 #
@@ -172,22 +169,22 @@ ham = ham_hop + ham_int
 # state in the $N_{\mathrm{tot}} = 2$ sector.
 
 total_number = 1.0 * sum(n)
-canonical_sector = total_number - 2.0 * one(ham)
+canonical_sector = Sector(total_number, 2)
 
 # ### Step 4 — Solve the SDP relaxation
 #
 # An order-2 relaxation is sufficient for this small system.
 
-pop = polyopt(ham, registry; moment_eq_constraints = [canonical_sector])
-config = SolverConfig(optimizer = SOLVER, order = 2)
-result = cs_nctssos(pop, config)
+problem = Problem(ham)
+relaxation = Relaxation(order = 2, strengthen = canonical_sector)
+result = solve(problem, relaxation; solver = SOLVER)
 
 # ### Step 5 — Compare with the exact answer
 
-@assert abs(result.objective - exact_e0) < 1e-5   #src
-println("SDP objective (order 2):  $(round(result.objective; digits=8))")
+@assert abs(result.bound - exact_e0) < 1e-5   #src
+println("SDP objective (order 2):  $(round(result.bound; digits=8))")
 println("Exact ground-state energy: $(round(exact_e0; digits=8))")
-println("Gap:                       $(round(abs(result.objective - exact_e0); digits=10))")
+println("Gap:                       $(round(abs(result.bound - exact_e0); digits=10))")
 
 # The SDP lower bound matches the exact sector energy to high precision.
 
@@ -215,7 +212,7 @@ println("Gap:                       $(round(abs(result.objective - exact_e0); di
 # cold-atom experiments.  Unlike fermions, bosonic CCR do not fix the
 # particle-number sector, so you usually decide which canonical sector you
 # want to study.  Here we impose total particle number $\hat{N} = 2$ via
-# `moment_eq_constraints`, making the SDP solve the same $3 \times 3$
+# `Sector(total_number, 2)`, making the SDP solve the same $3 \times 3$
 # canonical-sector problem as the exact diagonalization.  For this minimal
 # 2-site, 2-particle case, the relaxation reproduces $E_0 = 1 - \sqrt{5}$.
 #
@@ -223,10 +220,10 @@ println("Gap:                       $(round(abs(result.objective - exact_e0); di
 #
 # | Step | What we did | API |
 # |:-----|:------------|:----|
-# | 1 | Create bosonic operators (CCR built in) | [`create_bosonic_variables`](@ref) |
+# | 1 | Create bosonic operators (CCR built in) | `bosonic_variables` |
 # | 2 | Build the Bose–Hubbard Hamiltonian (hopping + on-site repulsion) | Standard Julia arithmetic |
-# | 3 | Impose canonical particle number $\hat{N} = 2$ | `moment_eq_constraints` in [`polyopt`](@ref) |
-# | 4 | Solve the order-2 SDP relaxation | [`cs_nctssos`](@ref) |
+# | 3 | Impose canonical particle number $\hat{N} = 2$ | `Sector(total_number, 2)` in `Relaxation` |
+# | 4 | Solve the order-2 SDP relaxation | `solve` |
 # | 5 | Verify against exact 3×3 diagonalisation | `eigmin` from `LinearAlgebra` |
 #
 # ### Key concepts
@@ -236,14 +233,14 @@ println("Gap:                       $(round(abs(result.objective - exact_e0); di
 # | **Bose–Hubbard model** | Hopping $t$ vs. on-site repulsion $U$ — simplest model of interacting lattice bosons |
 # | **Bosonic CCR** | $[b_i, b_j^\dagger] = \delta_{ij}$ — commutation (not anticommutation), no exclusion principle |
 # | **Fixed particle number** | Without a sector constraint the SDP optimizes over all particle numbers; imposing $\hat{N} = 2$ makes it match the exact canonical reference |
-# | **`moment_eq_constraints`** | One-sided localizing: $\langle b_i^\dagger g \rangle = 0$ — for state constraints (``g|\psi\rangle = 0``) |
+# | **`Sector(Q, q)`** | State constraint: $Q|\psi\rangle = q|\psi\rangle$, not an operator identity |
 # | **Canonical sector** | Fix total $\hat{N} = \sum_i \hat{n}_i$ to restrict to a finite-dimensional Hilbert-space sector |
 # | **Superfluid–Mott transition** | Bosonic quantum phase transition driven by $U/t$ ratio |
 #
 # ### See also
 #
 # - [PBW Algebra Showcase](@ref pbw-algebras-showcase) — CCR and CAR normal ordering
-# - [Hubbard Model](@ref hubbard-model) — fermionic Hubbard model with canonical constraints and the `eq_constraints` vs. `moment_eq_constraints` distinction
+# - [Hubbard Model](@ref hubbard-model) — fermionic Hubbard model with canonical constraints and the operator vs. state constraint distinction
 # - [Fermionic Ground State (XY Model)](@ref fermionic-ground-state) — fermionic creation/annihilation operators from scratch
 #
 # ### References

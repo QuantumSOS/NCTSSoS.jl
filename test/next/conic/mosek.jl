@@ -112,6 +112,8 @@ else
     FunctionalModelChecks.check(N.MosekBackend())
     isdefined(@__MODULE__,:StagedSolveChecks) || include("../model/staged.jl")
     StagedSolveChecks.check(N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
+    isdefined(@__MODULE__,:ExpectationConstraintChecks) || include("../model/expectation_constraints.jl")
+    ExpectationConstraintChecks.check(N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
     @testset "One build, two native forms" begin
         _,(X,_,Z)=N.pauli_variables(1)
         problem=N.Problem(-X[1]-.3Z[1]); relaxation=N.Relaxation(order=1)

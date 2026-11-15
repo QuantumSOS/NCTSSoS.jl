@@ -76,12 +76,14 @@ function solve(problem::Problem,relaxation::AbstractRelaxation;solver=nothing)
     _check_solver(solver)
     return solve(build(problem,relaxation);solver)
 end
-"Add an operator constraint, retaining symmetry and solver settings. Complete matrices use the backend's append path (Mosek rebuilds its task); selected blocks rebuild because closure can change their coordinates."
-function solve(previous::SolveResult,constraint::OperatorConstraint)
+"Add an operator or scalar expectation constraint, retaining symmetry and solver settings. Complete matrices use the backend's append path (Mosek rebuilds its task); selected blocks rebuild because closure can change their coordinates."
+function solve(previous::SolveResult,constraint::Union{OperatorConstraint,ExpectationConstraint})
     problem = add_constraint(previous.problem,constraint)
     built = build(problem,previous.relaxation)
     plain = previous.relaxation isa Relaxation && !_uses_blocks(problem,previous.relaxation)
-    (!plain || previous.solver isa MosekBackend) && return solve(built;solver=previous.solver)
+    # A complex Hermitian constraint can invalidate averaging over real moments.
+    (!plain || previous.solver isa MosekBackend || _real_form(problem)!=_real_form(previous.problem)) &&
+        return solve(built;solver=previous.solver)
     isnothing(previous.build_cache) || delete!(previous.build_cache,previous.solver)
     solution = solve_standard(_standard_form!(built),previous.solution.handle)
     built.cache[previous.solver]=solution.handle

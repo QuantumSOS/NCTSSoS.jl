@@ -42,7 +42,7 @@
                 @test Base.isexported(NCTSSoS.Next,name)
                 @test Core.eval(Main,name) === getfield(NCTSSoS,name) === getfield(NCTSSoS.Next,name)
             end
-            for name in (:gns,:evaluate,:bosonic_variables,:Bosonic,:state_symbol,:trace_symbol)
+            for name in (:gns,:evaluate,:bosonic_variables,:Bosonic,:state_symbol,:trace_symbol,:ExpectationPositive,:ExpectationZero)
                 @test Base.isexported(NCTSSoS.Next,name)
                 @test Core.eval(Main,name) === getfield(NCTSSoS.Next,name)
             end
@@ -68,6 +68,8 @@ NewtonChipChecks.check(Nx.JuMPBackend(SOLVER))
 include("letter_permutation.jl")
 include("staged.jl")
 StagedSolveChecks.check(Nx.JuMPBackend(SOLVER))
+include("expectation_constraints.jl")
+ExpectationConstraintChecks.check(Nx.JuMPBackend(SOLVER))
 include("gns.jl")
 include("bosonic.jl")
 # Order-three bosonic Hankel matrices need tighter solver residuals to compare

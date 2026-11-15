@@ -116,3 +116,5 @@ isdefined(@__MODULE__,:FunctionalModelChecks) || include("../model/functional.jl
 FunctionalModelChecks.check(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8))
 isdefined(@__MODULE__,:StagedSolveChecks) || include("../model/staged.jl")
 StagedSolveChecks.check(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8))
+isdefined(@__MODULE__,:ExpectationConstraintChecks) || include("../model/expectation_constraints.jl")
+ExpectationConstraintChecks.check(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8))

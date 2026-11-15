@@ -4,7 +4,7 @@ EditURL = "../literate/monoid_algebras_showcase.jl"
 
 # [Monoid Algebra Showcase (NonCommutative / Projector / Unipotent)](@id monoid-algebras-showcase)
 
-This page showcases the three `MonoidAlgebra` variants supported by `NCTSSoS.jl`.
+This page showcases the three site rules supported by `NCTSSoS.Next`.
 These algebras provide the building blocks for modeling noncommutative polynomial
 optimization problems that arise in quantum information and many-body physics.
 
@@ -15,9 +15,9 @@ according to its defining relations:
 
 | Algebra Type | Simplification Rule | Typical Use Case |
 |:-------------|:--------------------|:-----------------|
-| `NonCommutativeAlgebra` | None (free words) | General NC polynomial optimization |
-| `ProjectorAlgebra` | `P² = P` (idempotent) | Projective measurements, NPA hierarchy |
-| `UnipotentAlgebra` | `U² = 𝟙` (involution) | Pauli observables, Bell inequalities |
+| `Free()` | None (free words) | General NC polynomial optimization |
+| `Projector()` | `P² = P` (idempotent) | Projective measurements, NPA hierarchy |
+| `Unipotent()` | `U² = 𝟙` (involution) | Pauli observables, Bell inequalities |
 
 All three algebras share a common feature: **site-based commutation**.
 Operators acting on different physical sites automatically commute during
@@ -25,31 +25,28 @@ canonicalization, while the order of operators on the same site is preserved.
 
 ## Key Public APIs
 
-Variable creation is done through these functions:
-- [`create_noncommutative_variables`](@ref): Create free noncommutative generators
-- [`create_projector_variables`](@ref): Create idempotent (P² = P) generators
-- [`create_unipotent_variables`](@ref): Create involutory (U² = 𝟙) generators
+Use `site_variables(rule, nsites, nletters)` with `Free()`, `Projector()`
+or `Unipotent()`. Each site has `nletters` self-adjoint generators.
 
-Each function returns a `(registry, variable_groups)` tuple, where the registry
-manages symbol ↔ index mappings and the variable groups provide convenient access
-to the created monomials.
+The result is a `(registry, variable_groups)` tuple. The registry stores
+names and sites; each variable group contains one site's polynomials.
 
 ## References and Applications
 
-- **`NonCommutativeAlgebra`** (free words): The standard modeling layer for
+- **`Free()`** (free words): The standard modeling layer for
   noncommutative polynomial optimization and SDP hierarchies.
   See Burgdorf--Klep--Povh [burgdorfOptimizationPolynomialsNonCommuting2016](@cite),
   Wang--Magron [wangExploitingTermSparsity2021](@cite), and the comprehensive
   treatment in [magronSparsePolynomialOptimization2023](@cite).
 
-- **`ProjectorAlgebra`** (`P² = P`): Projection operators and projective measurements.
+- **`Projector()`** (`P² = P`): Projection operators and projective measurements.
   In device-independent quantum information, projective measurements appear naturally
   in the Navascués--Pironio--Acín (NPA) SDP hierarchy for bounding quantum correlations
   [navascues2007Bounding](@cite), [navascues2008Convergent](@cite).
   In many-body physics, projectors enforce local constraints and define subspaces;
   see Sachdev [sachdev2011QuantumPhaseTransitions](@cite).
 
-- **`UnipotentAlgebra`** (`U² = 𝟙`): Involutory (±1-valued) observables model
+- **`Unipotent()`** (`U² = 𝟙`): Involutory (±1-valued) observables model
   self-adjoint unitaries like Pauli measurements. These are fundamental in quantum
   information [nielsenChuang2010](@cite) and appear in Bell inequality optimization
   [klep2024State](@cite).
@@ -57,21 +54,20 @@ to the created monomials.
 ## Setup
 
 ````julia
-using NCTSSoS
-using NCTSSoS: decode_site, decode_operator_id
+using NCTSSoS.Next
 ````
 
-Helper: extract the single monomial from a *single-term* polynomial.
+Helper: extract the word from a *single-term* polynomial.
 
 ````julia
-mono1(p) = monomials(p)[1]
+mono1(p) = last(only(Next.terms(p)))
 ````
 
 ````
 mono1 (generic function with 1 method)
 ````
 
-Pretty-print a `NormalMonomial` using the registry's symbols.
+Pretty-print a detached word using the registry's names.
 
 ````julia
 repr_with_registry(reg, m) = sprint(show, m; context=:registry => reg)
@@ -81,37 +77,37 @@ repr_with_registry(reg, m) = sprint(show, m; context=:registry => reg)
 repr_with_registry (generic function with 1 method)
 ````
 
-## 1) NonCommutativeAlgebra: Free Noncommutative Words
+## 1) Free noncommutative words
 
-The `NonCommutativeAlgebra` represents free words with no algebraic relations
+The `Free()` rule represents free words with no algebraic relations
 other than site-based commutation. This is the most general monoid algebra type.
 
 ### Creating Variables
 
-Use `create_noncommutative_variables` with a vector of `(prefix, subscripts)` tuples.
-Each prefix group is assigned to a distinct **site**, enabling automatic commutation
-between groups.
+Request two sites with two generators each. Different sites commute.
+The local aliases `x` and `y` do not rename the registry's operators.
 
 ````julia
-reg_nc, (x, y) = create_noncommutative_variables([("x", 1:2), ("y", 1:2)])
+reg_nc, (x, y) = site_variables(Free(), 2, 2)
 ````
 
 ````
-(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[x₁, x₂], NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}[y₁, y₂]))
+(Registry(Free, 2 sites, 4 variables), [[s1_1, s1_2], [s2_1, s2_2]])
 ````
 
 This creates:
 - Variables `x[1], x[2]` on **site 1**
 - Variables `y[1], y[2]` on **site 2**
 
-A single generator is a `NormalMonomial` (immutable canonical form):
+A single generator is a coefficient-one polynomial. Inspect its term:
 
 ````julia
-typeof(x[1])
+collect(Next.terms(x[1]))
 ````
 
 ````
-NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}
+1-element Vector{Tuple{ComplexF64, NCTSSoS.Next.SiteWord{NCTSSoS.Next.Free, UInt128, 4, 2}}}:
+ (1.0 + 0.0im, SiteWord(operator(site=1, label=1)))
 ````
 
 ### Site-Based Commutation
@@ -125,11 +121,11 @@ rhs = x[2] * x[1] * y[1] * y[2]  # same canonical form
 
 @assert lhs == rhs  # true: sites are sorted
 
-repr_with_registry(reg_nc, mono1(lhs))  # "x₂x₁y₁y₂"
+repr_with_registry(reg_nc, mono1(lhs))  # "s1_2 s1_1 s2_1 s2_2"
 ````
 
 ````
-"x₂x₁y₁y₂"
+"s1_2 s1_1 s2_1 s2_2"
 ````
 
 ### Intra-Site Non-Commutativity
@@ -143,53 +139,40 @@ Within a single site, operators do NOT commute (no relations are imposed):
 Show both representations to see they differ:
 
 ````julia
-(repr_with_registry(reg_nc, mono1(x[1] * x[2])),  # "x₁x₂"
- repr_with_registry(reg_nc, mono1(x[2] * x[1])))  # "x₂x₁"
+(repr_with_registry(reg_nc, mono1(x[1] * x[2])),
+ repr_with_registry(reg_nc, mono1(x[2] * x[1])))
 ````
 
 ````
-("x₁x₂", "x₂x₁")
+("s1_1 s1_2", "s1_2 s1_1")
 ````
 
 ### Inspecting the Canonical Word
 
-Each index encodes both operator identity and site. You can decode them:
+Inspect letters through public calls, without decoding packed storage:
 
 ````julia
-word = mono1(lhs).word
+word = mono1(lhs);
 ````
 
-````
-4-element Vector{UInt8}:
- 0x09
- 0x05
- 0x0e
- 0x12
-````
-
-word: the raw indices of the canonical monomial
-
-Decode each index as (operator_id, site):
-- operator_id: which variable (1=x₁, 2=x₂, 3=y₁, 4=y₂)
-- site: which physical site (1 or 2)
+Each pair below gives the registry name and physical site.
 
 ````julia
-[(decode_operator_id(i), decode_site(i)) for i in word]
+letter_sites = [(Next.operator_name(reg_nc, letter), only(Next.sites(letter)))
+                for letter in Next.word_letters(word)]
 ````
 
 ````
-4-element Vector{Tuple{Int64, Int64}}:
- (2, 1)
- (1, 1)
- (3, 2)
- (4, 2)
+4-element Vector{Tuple{Symbol, Int64}}:
+ (:s1_2, 1)
+ (:s1_1, 1)
+ (:s2_1, 2)
+ (:s2_2, 2)
 ````
 
-Output: [(2,1), (1,1), (3,2), (4,2)] means x₂x₁y₁y₂ with x's on site 1, y's on site 2
+## 2) Projector: Idempotent Operators (P² = P)
 
-## 2) ProjectorAlgebra: Idempotent Operators (P² = P)
-
-The `ProjectorAlgebra` models projection operators (idempotents). Any repeated
+The `Projector()` rule models projection operators (idempotents). Any repeated
 application of the same projector collapses to a single instance.
 
 **Quantum Information Applications:**
@@ -204,11 +187,11 @@ application of the same projector collapses to a single instance.
 ### Creating Projector Variables
 
 ````julia
-reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
+reg_proj, (P, Q) = site_variables(Projector(), 2, 2)
 ````
 
 ````
-(VariableRegistry with 4 variables: P₁, P₂, Q₁, Q₂, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[P₁, P₂], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[Q₁, Q₂]))
+(Registry(Projector, 2 sites, 4 variables), [[s1_1, s1_2], [s2_1, s2_2]])
 ````
 
 - `P[1], P[2]` on **site 1** (with P² = P)
@@ -219,8 +202,8 @@ reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
 Repeated projectors automatically collapse:
 
 ````julia
-@assert monomials(P[1] * P[1]) == [P[1]]        # P² = P
-@assert monomials(P[1] * P[1] * P[1]) == [P[1]] # P³ = P
+@assert P[1] * P[1] == P[1]        # P² = P
+@assert P[1] * P[1] * P[1] == P[1] # P³ = P
 ````
 
 ### Site Commutation with Idempotency
@@ -228,7 +211,7 @@ Repeated projectors automatically collapse:
 Cross-site operators commute, and idempotency is applied after canonicalization:
 
 ````julia
-@assert monomials(Q[2] * P[1]) == monomials(P[1] * Q[2])  # site commutation
+@assert Q[2] * P[1] == P[1] * Q[2]  # site commutation
 ````
 
 More complex example: commutation brings same-site operators together,
@@ -236,16 +219,16 @@ then idempotency collapses repeated factors:
 
 ````julia
 result = mono1(Q[1] * P[1] * Q[1] * P[1])
-repr_with_registry(reg_proj, result)  # "P₁Q₁" (both collapse)
+repr_with_registry(reg_proj, result)  # "s1_1 s2_1" (both collapse)
 ````
 
 ````
-"P₁Q₁"
+"s1_1 s2_1"
 ````
 
-## 3) UnipotentAlgebra: Involutory Operators (U² = 𝟙)
+## 3) Unipotent: Involutory Operators (U² = 𝟙)
 
-The `UnipotentAlgebra` models operators that square to the identity, such as
+The `Unipotent()` rule models operators that square to the identity, such as
 Pauli matrices σₓ, σᵧ, σᵤ. This is the natural algebra for ±1-valued observables.
 
 **Quantum Information Applications:**
@@ -260,12 +243,8 @@ Pauli matrices σₓ, σᵧ, σᵤ. This is the natural algebra for ±1-valued o
 ### Creating Unipotent Variables
 
 ````julia
-reg_unip, (U, V) = create_unipotent_variables([("U", 1:2), ("V", 1:2)])
-const ID_UNIP = one(NormalMonomial{UnipotentAlgebra, eltype(indices(reg_unip))})
-````
-
-````
-𝟙
+reg_unip, (U, V) = site_variables(Unipotent(), 2, 2)
+const ID_UNIP = one(U[1]);
 ````
 
 - `U[1], U[2]` on **site 1** (with U² = 𝟙)
@@ -276,8 +255,8 @@ const ID_UNIP = one(NormalMonomial{UnipotentAlgebra, eltype(indices(reg_unip))})
 Squared operators simplify to the identity:
 
 ````julia
-@assert monomials(U[1] * U[1]) == [ID_UNIP]     # U² = 𝟙
-@assert monomials(U[1] * U[1] * U[1]) == [U[1]] # U³ = U
+@assert U[1] * U[1] == ID_UNIP     # U² = 𝟙
+@assert U[1] * U[1] * U[1] == U[1] # U³ = U
 ````
 
 ### Site Commutation with Involution
@@ -285,7 +264,7 @@ Squared operators simplify to the identity:
 Cross-site commutation works as expected:
 
 ````julia
-@assert monomials(V[2] * U[1]) == monomials(U[1] * V[2])
+@assert V[2] * U[1] == U[1] * V[2]
 ````
 
 ### Cancellation After Canonicalization
@@ -295,32 +274,26 @@ Site-based canonicalization can bring paired operators together, enabling cancel
 V₁ U₁ V₁ U₁ → (after site sort) → V₁ V₁ U₁ U₁ = 𝟙
 
 ````julia
-@assert monomials(V[1] * U[1] * V[1] * U[1]) == [ID_UNIP]
+@assert V[1] * U[1] * V[1] * U[1] == ID_UNIP
 ````
 
 Simpler case: U₁² U₂ = U₂
 
 ````julia
-@assert monomials(U[1] * U[1] * U[2]) == monomials(U[2])
+@assert U[1] * U[1] * U[2] == U[2]
 ````
 
 ## 4) Generating Monomial Bases
 
-The function `get_ncbasis(registry, degree)` returns all distinct monomials up to
-the specified degree. This is useful for constructing moment matrices in SDP
-relaxations.
+`Next.basis(registry, degree)` iterates coefficient-one polynomials for all
+normal words through the specified degree. Collect it for custom moment rows.
 
 ````julia
-basis_d1 = get_ncbasis(reg_nc, 1)
+basis_d1 = collect(Next.basis(reg_nc, 1))
 ````
 
 ````
-5-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
- 𝟙
- x₁
- x₂
- y₁
- y₂
+[1.0, s1_1, s2_1, s1_2, s2_2]
 ````
 
 basis_d1: all monomials up to degree 1
@@ -333,36 +306,19 @@ Pretty-print the basis using the registry:
 
 ````
 5-element Vector{String}:
- "𝟙"
- "x₁"
- "x₂"
- "y₁"
- "y₂"
+ "1.0"
+ "s1_1"
+ "s2_1"
+ "s1_2"
+ "s2_2"
 ````
 
 ````julia
-basis_d2 = get_ncbasis(reg_nc, 2)
+basis_d2 = collect(Next.basis(reg_nc, 2))
 ````
 
 ````
-17-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
- 𝟙
- x₁
- x₂
- y₁
- y₂
- x₁²
- x₁x₂
- x₁y₁
- x₁y₂
- x₂x₁
- x₂²
- x₂y₁
- x₂y₂
- y₁²
- y₁y₂
- y₂y₁
- y₂²
+[1.0, s1_1, s2_1, s1_2, s2_2, s1_1 s1_1, s1_2 s1_1, s1_1 s2_1, … (17 entries)]
 ````
 
 basis_d2: all monomials up to degree 2
@@ -385,23 +341,23 @@ Pretty-print all degree-2 basis elements:
 
 ````
 17-element Vector{String}:
- "𝟙"
- "x₁"
- "x₂"
- "y₁"
- "y₂"
- "x₁²"
- "x₁x₂"
- "x₁y₁"
- "x₁y₂"
- "x₂x₁"
- "x₂²"
- "x₂y₁"
- "x₂y₂"
- "y₁²"
- "y₁y₂"
- "y₂y₁"
- "y₂²"
+ "1.0"
+ "s1_1"
+ "s2_1"
+ "s1_2"
+ "s2_2"
+ "s1_1 s1_1"
+ "s1_2 s1_1"
+ "s1_1 s2_1"
+ "s2_1 s2_1"
+ "s1_2 s2_1"
+ "s2_2 s2_1"
+ "s1_1 s1_2"
+ "s1_2 s1_2"
+ "s1_1 s2_2"
+ "s2_1 s2_2"
+ "s1_2 s2_2"
+ "s2_2 s2_2"
 ````
 
 ## 5) Practical Example: Building Polynomials
@@ -416,34 +372,34 @@ poly = 1.0 * x[1] * x[2] + 2.0 * y[1] - 3.0 * x[1] * y[1]
 ````
 
 ````
-2.0 * y₁ + x₁x₂ + -3.0 * x₁y₁
+(2.0) s2_1 + (-3.0) s1_1 s2_1 + s1_1 s1_2
 ````
 
 Site commutation is automatic in polynomial arithmetic:
 
 ````julia
 poly2 = 1.0 * y[1] * x[1] - 3.0 * x[1] * y[1]  # y₁ and x₁ commute!
-monomials(poly2)  # simplified: terms combine if they have the same canonical form
+collect(Next.terms(poly2))  # terms with the same canonical word combine
 ````
 
 ````
-1-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.NonCommutativeAlgebra, UInt8}}:
- x₁y₁
+1-element Vector{Tuple{ComplexF64, NCTSSoS.Next.SiteWord{NCTSSoS.Next.Free, UInt128, 4, 2}}}:
+ (-2.0 + 0.0im, SiteWord(operator(site=1, label=1) operator(site=2, label=1)))
 ````
 
 ## Summary: Choosing the Right Algebra
 
 | Your operators satisfy... | Use this algebra | Creation function |
 |:--------------------------|:-----------------|:------------------|
-| No relations (free) | `NonCommutativeAlgebra` | `create_noncommutative_variables` |
-| `P² = P` (projectors) | `ProjectorAlgebra` | `create_projector_variables` |
-| `U² = 𝟙` (involutions) | `UnipotentAlgebra` | `create_unipotent_variables` |
+| No relations (free) | `Free()` | `site_variables` |
+| `P² = P` (projectors) | `Projector()` | `site_variables` |
+| `U² = 𝟙` (involutions) | `Unipotent()` | `site_variables` |
 
 All three provide:
 - **Automatic site-based commutation** for operators on different sites
-- **Canonical forms** via `NormalMonomial` for efficient comparison and storage
+- **Canonical words** inspected through `Next.terms` and `Next.word_letters`
 - **Registry-based pretty printing** for human-readable output
-- **Seamless integration** with `polyopt` and `cs_nctssos` for optimization
+- **Optimization** through `Problem`, `Relaxation` and `solve`
 
 For more advanced use cases including Pauli algebra (with cyclic products) and
 fermionic/bosonic algebras, see the other examples in this documentation.

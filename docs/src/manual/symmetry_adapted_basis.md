@@ -1,385 +1,192 @@
 # [Symmetry-Adapted Basis](@id symmetry-adapted-basis)
 
-Many noncommutative polynomial optimization problems carry a structural
-symmetry: relabel the operators in some prescribed way, possibly with a sign
-flip, and the objective and constraints come back unchanged. The CHSH Bell
-inequality is the canonical example — it is invariant under swapping Alice's
-two measurements (with a sign flip), under swapping Bob's two measurements
-(with a sign flip), and under swapping the two parties.
+Many noncommutative polynomial problems have a symmetry: relabel the operators,
+possibly with signs, and the objective and constraints stay unchanged. CHSH is
+one example. Swapping Alice's measurements with a sign flip on Bob's second
+measurement preserves its objective.
 
-When such a symmetry exists, the moment matrix that the relaxation builds is
-not just positive semidefinite — it commutes with the corresponding group
-action. By the standard representation-theoretic argument (the *symmetry-adapted
-basis*), this large PSD constraint splits into several smaller, independent PSD
-blocks, one per isotypic component. NCTSSoS exploits this to shrink the SDP
-the user actually sends to the solver.
+| Input | Pipeline operation | Output |
+|:------|:-------------------|:-------|
+| `Problem(H; symmetry=...)` | Check invariance | Validated actions |
+| `Relaxation(...)` | Select and close the row-block family | Block orbits |
+| Closed family and actions | Project rows and identify invariant moments | Smaller conic program |
+| Program and solver | Solve and map represented moments back | Bound and expectations |
 
-This page covers the **exploit** half of the symmetry story: consuming a
-group that is already known. The complementary **find** half — discovering
-Clifford symmetry groups automatically from a Pauli Hamiltonian, including
-symmetries that fix no individual term and that inspection routinely misses —
-is covered in [Clifford Symmetry Detection](@ref clifford-symmetry-detection).
-The worked comparison of manual, detected, and combined groups is in
-[Pauli Symmetry Reduction](@ref pauli-clifford-symmetry). The dedicated
-order-2 XXX Heisenberg path that combines Pauli charge sectors, spatial site
-symmetries, and singlet moment constraints is covered in
-[Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry).
-
-This page describes how that support is wired in **today**, what is and isn't
-in scope, and how the pieces interact. It is intentionally aligned with the
-implemented MVP, not a broader future redesign.
+This page covers **using** a known symmetry to reduce an SDP. The complementary
+task, **finding** Clifford symmetries, is described in
+[Clifford Symmetry Detection](@ref clifford-symmetry-detection).
+See [CHSH with Symmetry Reduction](@ref chsh-symmetry) for a complete example.
 
 ## [What "symmetry-adapted basis" means here](@id sab-meaning)
 
-In the linear-algebra sense, a symmetry-adapted basis is a change of basis on
-the half-basis ``B`` (the monomials indexing the rows and columns of the moment
-matrix) that block-diagonalizes the action of the symmetry group ``G`` on
-``B``:
+Let ``B`` be the rows of a moment matrix and ``G`` a symmetry group that
+preserves them. Averaging a feasible state over ``G`` preserves the objective
+and feasibility of an invariant problem. Its moment matrix commutes with the
+group action. A change of basis ``U`` separates the independent symmetry
+components:
 
 ```math
-U^\top \, M_B \, U \;=\; \mathrm{blockdiag}\!\big(M^{(1)}, M^{(2)}, \ldots\big),
+U^\dagger M_B U = \operatorname{blockdiag}(M^{(1)}, M^{(2)}, \ldots).
 ```
 
-where each ``M^{(i)}`` corresponds to one isotypic component and the ``U`` is
-built from ``G``-equivariant projectors. Because the moment matrix is
-``G``-invariant, the off-diagonal coupling vanishes and the *single* large PSD
-constraint ``M_B \succeq 0`` is equivalent to *several* smaller PSD constraints
-``M^{(i)} \succeq 0``.
+Thus the invariant PSD constraint can be expressed with smaller PSD blocks.
+For real actions, the adjoint above is a transpose. This is an exact symmetry
+reduction of the invariant relaxation, not the removal of arbitrary matrix
+entries. Adding a physical sector restriction is a different operation: it
+changes which states are allowed.
 
-In NCTSSoS this idea is used **internally only**, to decide how to split one
-PSD block into several smaller PSD blocks for the solver. Externally, the
-relaxation continues to live in ordinary monomial coordinates: every PSD entry,
-every constraint, every moment variable is still a monomial (or a polynomial in
-monomials). The user does not have to think in terms of irreducible
-representations to use the feature.
+## [Key architectural decision: internal projected rows](@id sab-decision)
 
-## [Key architectural decision: thin internal adapter](@id sab-decision)
+The polynomial interface stays in the original operators. The pipeline uses
+linear combinations of row words internally to split cones, and shares moment
+coordinates across the resulting blocks. It does not replace the polynomial
+algebra with irreducible-representation coordinates.
 
-There are two reasonable ways to bolt symmetry adaptation onto a moment-SOS
-package:
-
-1. **Rewrite-the-package approach.** Replace the canonical monomial basis with
-   symmetry-adapted linear combinations everywhere — in the polynomial type,
-   the simplification rules, the term-sparsity graph, the registries. Every
-   moment variable becomes a coefficient on an irreducible component.
-
-2. **Thin-adapter approach.** Keep monomials and polynomials exactly as they
-   are. Build the moment problem normally. Use the symmetry-adapted basis only
-   as a tool to decide *how to slice* one PSD constraint into several smaller
-   ones, and emit those smaller blocks back in ordinary monomial coordinates
-   (after orbit-reducing moment variables to one representative per orbit).
-
-NCTSSoS deliberately takes approach **(2)**. The rest of the package — the
-algebra hierarchy, the registries, `Polynomial`, `NormalMonomial`, the
-correlative/term-sparsity machinery, the JuMP construction in
-`MomentProblem`/`SOSProblem` — is not touched. The symmetry path lives in a
-single file (`src/optimization/symmetry.jl`) and only takes over one job:
-constructing a *reduced* `MomentProblem` from the same inputs the dense path
-uses.
-
-The output of the symmetry path is therefore an ordinary
-[`MomentProblem`](@ref NCTSSoS.MomentProblem) just like the one produced by the
-non-symmetric path — just with fewer moment variables and several small PSD
-blocks instead of one big one.
+The same `Problem` and `Relaxation` declarations work for the direct conic
+writers and the optional JuMP backend. The solver does not need to know the
+group action. Use `expectation(result, observable)` to read an observable;
+do not interpret a reduced coordinate as an original monomial by its index.
 
 ## [Supported scope](@id sab-scope)
 
-For the supported algebras, actions, sector options, and sparsity combinations,
-see the `symmetry` keyword of [`SolverConfig`](@ref).
-
-In particular, [`cs_nctssos_higher`](@ref) does not yet accept a
-`SymmetrySpec`. The monomap-based GNS path is also not symmetry-aware today:
-a symmetry-reduced `result.monomap` does not contain the dense unreduced
-moments that `gns_reconstruct` needs, so it currently fails later with an
-explicit missing-moments error rather than at the symmetry API boundary.
+- Use `LetterPermutation` for named letters in free, unipotent and projector
+  site algebras. Negative targets are supported for free and unipotent letters;
+  the negative of a projector is not a projector and is rejected.
+- Use `SitePermutation` for site relabelling and `CliffordMap` for Pauli maps.
+  `detect_symmetry` finds verified Clifford generators for an unconstrained
+  Pauli objective. It can return a subgroup, not the full symmetry group.
+- Declare actions on `Problem`. A tuple of actions is sufficient for ordinary
+  block symmetry. `Next.Symmetry` also accepts `moment_only` and `continuous`
+  generators. Antiunitary actions constrain moments; they are not unitary
+  block generators.
+- Symmetry works with selected block families, not only a single dense block.
+  Automatically selected families are closed under block generators. A custom
+  family must already be closed; the pipeline does not silently replace it.
+- State and trace polynomials currently support the plain dense route only.
+  Their functional block pipeline is not available yet.
 
 ## [The pipeline](@id sab-pipeline)
 
-When the user passes a [`SymmetrySpec`](@ref) via
-`SolverConfig(; symmetry = ...)`, [`cs_nctssos`](@ref) routes the problem
-through `moment_relax_symmetric` instead of the regular `moment_relax`. That
-function performs the following steps in order:
+1. **Declare the invariant problem.** The pipeline checks the objective and
+   each operator constraint under the supplied actions. A failed check names
+   the polynomial and generator. There is no public flag to bypass it.
+2. **Select row blocks.** An order, custom rows, or a custom family determines
+   the starting blocks. Grouping and term splitting select smaller blocks when
+   requested. They are distinct from symmetry reduction.
+3. **Close the family.** Apply block generators until the family is closed.
+   Blocks that map to one another form an orbit. One representative per orbit
+   is enough when the shared moments obey the same symmetry.
+4. **Reduce each representative.** Its stabilizer is the subgroup that maps
+   that block to itself. The finite-group route builds shared group-algebra
+   projectors with `SymbolicWedderburn` and applies them to row orbits. Lattice
+   and continuous routes use their own structure where applicable.
+5. **Identify moment coordinates.** Block and moment-only actions induce
+   relations between moments, including sign-forced zeros. Projected entries
+   remain linear forms in these shared coordinates.
+6. **Apply requested strengthening and emit the conic program.** The result
+   records the state domain for which the bound is valid. The conic writer
+   receives the reduced blocks, objective and linear equations.
 
-1. **User supplies a `SymmetrySpec`.** A `SymmetrySpec` wraps a list of
-   [`SignedPermutation`](@ref) generators acting on registry indices. Each
-   generator records, per index ``i``, a target index ``j`` and a sign
-   ``\sigma \in \{-1, +1\}`` such that the operator with index ``i`` is sent
-   to ``\sigma \cdot x_j``. Indices not listed are fixed.
-
-2. **The repo enumerates the signed-permutation group locally.** Starting from
-   the supplied generators, NCTSSoS does its own breadth-first closure on
-   signed permutations restricted to the *active variable domain* (the union
-   of all registry indices that actually appear in the objective, the
-   constraints, the moment-matrix basis, and any term-sparsity block bases).
-   This produces the full finite group as a `Vector{SignedPermutation}`.
-
-3. **Invariance of objective and constraints is checked.** Each enumerated
-   group element is applied to the objective and to every equality, inequality,
-   and moment-equality constraint. If any of these polynomials changes, the
-   call errors out (this can be opted out of via
-   `SymmetrySpec(...; check_invariance = false)` in dense layouts, but the default is to
-   check). This is a hard prerequisite: if the *problem* is not invariant,
-   block-diagonalizing its moment matrix is meaningless.
-
-4. **Basis closure is checked against the selected block family.**
-
-5. **A local monomial action is built.** The function `_act_monomial` applies
-   a `SignedPermutation` to a `NormalMonomial` letter-by-letter, multiplying
-   the accumulated signs and re-running `simplify` for the relevant
-   `MonoidAlgebra`. This is NCTSSoS's NC-aware action; nothing in
-   `SymbolicWedderburn` knows about non-commutative words on its own.
-
-6. **A thin adapter exposes that action to `SymbolicWedderburn`.**
-   The `NCWordSignedPermutationAction <: SymbolicWedderburn.BySignedPermutations`
-   struct, together with a tiny `GroupsCore`-compatible wrapper around the
-   enumerated `SignedPermutation`s (`_SignedPermutationGroup` /
-   `_SignedPermutationGroupElement`, with explicit multiplication, inverse,
-   and order tables), is enough for `SymbolicWedderburn` to reason about the
-   action without ever needing to look inside a `NormalMonomial`.
-
-7. **`SymbolicWedderburn` computes the symmetry-adapted decomposition** of the
-   half-basis via `SymbolicWedderburn.symmetry_adapted_basis(...)`. The output
-   is a list of "blocks", one per isotypic component, each providing the
-   change-of-basis rows used to project the moment matrix into that component.
-
-8. **Pauli charge/singlet options are layered before emission when requested.**
-   If [`PauliChargeSectorSpec`](@ref) is present, the complete Pauli half-basis
-   through degree 2 is rewritten into the local ``\{Z,S^+,S^-\}`` charge basis
-   and split by total charge. If spatial [`CliffordSymmetry`](@ref) generators
-   are also present, NCTSSoS applies a finite Wedderburn split inside each
-   charge sector. If [`PauliSingletConstraintSpec`](@ref) is present, order-2
-   SU(2)-singlet moment equalities are appended as linear zero constraints.
-   Axis-mixing Cliffords are rejected on this branch; only site permutations
-   that preserve Pauli axes commute with the charge/singlet structure.
-
-9. **Moment variables are orbit-reduced and a smaller `MomentProblem` is
-   emitted.** For each monomial appearing in the relaxation, NCTSSoS computes
-   its orbit under the group, picks a canonical representative, and either
-   maps the monomial to ``\pm`` that representative or — when the orbit has
-   inconsistent signs and is therefore forced to zero by the symmetry — drops
-   it entirely. The objective, every constraint matrix, and every constraint
-   block is rewritten in terms of these representatives. The constraint
-   matrices, after the change of basis induced by the
-   `SymbolicWedderburn`-supplied projectors, are also checked to be
-   block-diagonal across isotypic components (off-block entries must vanish,
-   within `_SYMMETRY_ATOL = 1e-10`); this catches inconsistencies between
-   the declared symmetry and the actual algebraic structure. How that
-   off-block certificate is computed is controlled by the `offblock_check`
-   option of [`SymmetrySpec`](@ref):
-
-   - `:randomized` (default) evaluates every off-diagonal block at
-     deterministic pseudo-random values of the orbit-reduced moment
-     variables and bounds the result. Each transformed entry is a *linear*
-     form in those variables, so vanishing at independent generic points
-     certifies the symbolic property; two independent draws are used, and
-     the whole certificate runs as dense numeric linear algebra instead of
-     symbolic polynomial arithmetic — on large relaxations this is the
-     difference between seconds and minutes of construction time.
-   - `:full` expands each off-diagonal block symbolically and asserts every
-     polynomial entry vanishes. Slowest, but failures point at a specific
-     entry — use it to diagnose a failing `:randomized` certificate.
-   - `:off` skips the certificate. Only appropriate when re-running a spec
-     that has already passed verification on the same problem.
-
-The function returns both the reduced `MomentProblem` and a
-[`SymmetryReport`](@ref) summarizing what happened: group order, number of
-distinct invariant moment variables, list of PSD block sizes, and the original
-half-basis size. On the final [`PolyOptResult`](@ref),
-`moment_matrix_sizes` deliberately keeps its old meaning — the pre-symmetry
-term-sparsity layout — while the actual reduced solver PSD block sizes live in
-`result.symmetry.psd_block_sizes` and are printed separately.
+Finite block reduction is not limited to scalar or multiplicity-free blocks.
+Continuous generators, such as `spin_rotations(registry)`, express spin
+invariance without manually enumerating a large finite subgroup. They do not
+by themselves impose a fixed spin sector or a singlet state.
 
 ## [What stays local vs. what `SymbolicWedderburn` does](@id sab-boundary)
 
-Keeping the boundary explicit makes it easy to upgrade either side later.
+**NCTSSoS owns** the operator algebra, the action on words, invariance checks,
+block-family closure, block orbits and stabilizers, moment relations,
+strengthening, and conic assembly. These operations live in `src/next/core/`,
+`src/next/model/` and `src/next/pipeline/`.
 
-**NCTSSoS-local responsibilities** (in `src/optimization/symmetry.jl`):
+**`SymbolicWedderburn` supplies** character and group-algebra projection tools
+for the finite-group route. It does not implement noncommutative word
+multiplication or decide which physical states a strengthening condition allows.
+The local adapter applies its projectors to the algebra's row words.
 
-- The user-facing types `SignedPermutation`, `SymmetrySpec`, `SymmetryReport`.
-- The active-domain computation `_symmetry_domain`.
-- Group enumeration `_enumerate_symmetry_group` (BFS closure under composition,
-  restricted to the active domain).
-- The NC-word action `_act_monomial` / `_act_polynomial` — this is where
-  algebra-specific simplification happens, via `simplify(A, ...)`.
-- Invariance checks `_check_symmetry_invariance` and basis-closure checks
-  `_check_basis_closure`.
-- Orbit reduction `_build_orbit_reducer` and the rewriting helpers that map
-  every polynomial in the relaxation to orbit representatives, with sign
-  bookkeeping and zero-orbit handling.
-- The construction of the final smaller `MomentProblem` and the populated
-  `SymmetryReport`.
+## [Why the output keeps ordinary observables](@id sab-output)
 
-**`SymbolicWedderburn` responsibilities** (called via the thin adapter):
+The public staged path makes the boundary visible. Here `problem`,
+`relaxation` and `solver` are declarations such as those in the complete
+CHSH example below:
 
-- The actual symmetry-adapted decomposition of the half-basis: computing
-  characters, identifying isotypic components, building the change-of-basis
-  rows.
+```julia
+built = Next.build(problem, relaxation)
+built.sizes
+prepared = Next.prepare(built; solver)
+result = solve(built; solver)
+expectation(result, problem.objective)
+```
 
-The adapter layer exposing the NC action to `SymbolicWedderburn` is
-deliberately small: a `BySignedPermutations` action type, a `GroupsCore.Group`
-wrapper (with multiplication, inverse, and element-order tables), and an
-`action(::NCWordSignedPermutationAction, g, mono)` method that returns the
-permuted monomial together with its accumulated sign. Everything else stays
-in NCTSSoS.
+`Next.build` does not solve. `Next.prepare` prepares the selected backend;
+`solve(built; solver)` can also prepare it automatically. The result retains
+the original problem and a map for represented moments. Not every observable
+must be represented by a sparse relaxation. Reconstruction uses the checked
+entry `gns(result)`; a symmetry-reduced solution alone does not certify flatness
+or an optimizer.
 
-## [Why the output is still an ordinary `MomentProblem`](@id sab-output)
-
-After symmetry reduction, the JuMP/SDP layer downstream of
-`moment_relax_symmetric` is unchanged: `solve_sdp` consumes a regular
-`MomentProblem`, `sos_dualize` would consume a regular `SOSProblem`, the
-moment variables are still keyed by `NormalMonomial`s. Only the *contents* of
-the `MomentProblem` differ:
-
-- The objective and every constraint are expressed using a small set of
-  monomial **orbit representatives** rather than every monomial in the
-  original basis.
-- What used to be one large PSD block is now several small blocks. Plain
-  finite-group reductions may produce scalar blocks; the Pauli charge/spatial
-  path produces small charge-sector blocks.
-- Off-block constraint entries that, after the change of basis and orbit
-  reduction, must vanish are certified to do so (symbolically with
-  `offblock_check = :full`, or via the default `:randomized` evaluation
-  certificate); if the certificate fails, the call errors out instead of
-  silently emitting an unsound relaxation.
-
-This is the central pragmatic gain of the architecture: **no downstream code
-had to change**. `JuMP`, `Dualization`, `solve_sdp`, the result types, and the
-GNS-side machinery all still speak ordinary monomial moments. The catch is
-that monomap-based GNS reconstruction expects a *dense* unreduced moment table,
-so a symmetry-reduced `result.monomap` is not directly consumable today. The
-reduction is otherwise invisible past the boundary of `moment_relax_symmetric`.
+`result.sizes` gives flat counts: `rows`, `moments`, `real_variables`, `blocks`
+and `largest_block`. `moments` includes the identity; `real_variables` counts
+free real coordinates. `sizes.closure` is `nothing` on the plain dense route
+and reports family closure on the block route. To see individual cone sides,
+inspect `[block.side for block in built.program.blocks]`. The generic closure
+report does not provide the finite group order.
 
 ## [Current limitations and fail-fast behavior](@id sab-limits)
 
-The MVP errors out, rather than silently doing the wrong thing, on any of:
+The pipeline rejects incompatible action/algebra pairs, non-invariant
+objectives or operator constraints, and custom families that are not closed.
+An action that maps rows outside a block must be handled by family closure or
+used only for moment relations; it cannot be applied as a projection on an
+unclosed row set. The generic finite-group route has a limit of 65,535 elements.
+State and trace block routing remains unavailable.
 
-- algebra/spec combinations outside the supported families documented in
-  [`SolverConfig`](@ref);
-- state or trace polynomial problems;
-- group elements that send a basis monomial outside the basis (basis closure
-  fails);
-- constraint blocks whose off-isotypic coupling fails to vanish within
-  `_SYMMETRY_ATOL = 1e-10`;
-- use via [`cs_nctssos_higher`](@ref), or monomap-based GNS reconstruction
-  from a symmetry-reduced solve.
-
-These error messages name the violated assumption and the offending object
-(generator, basis monomial, block index) so that misuse is debuggable rather
-than mysterious.
+The former check-bypass and off-block-check options are not part of this API.
+Use the diagnostic and fix the declaration rather than disable its checks.
 
 ## [Reference acceptance case: CHSH](@id sab-chsh)
 
-The current acceptance case is the CHSH Bell inequality with the standard
-half-basis ``Q = \{1, x_1, x_2, y_1, y_2\}``. The full setup lives in
-`test/problems/bell_inequalities/chsh_simple.jl` and the corresponding
-expectation fixture in `test/data/expectations/chsh_simple.toml`
-(`Symmetry_d1`).
-
-The symmetry group is generated by:
-
-- an "Alice swap": ``x_1 \leftrightarrow x_2`` together with ``y_2 \to -y_2``;
-- a "Bob swap": ``x_2 \to -x_2`` together with ``y_1 \leftrightarrow y_2``;
-- a "party swap": ``x_i \leftrightrightarrows y_i`` for ``i = 1, 2``.
-
-These three signed permutations generate a group of order 16. The symmetry
-path produces the following acceptance values:
-
-| quantity                  | value                |
-|---------------------------|----------------------|
-| objective                 | ``\approx -2\sqrt{2}``, observed ``-2.82842712455161`` |
-| `group_order`             | 16                   |
-| `invariant_moment_count`  | 1                    |
-| `psd_block_sizes`         | `[1, 1, 1]`          |
-
-In other words: one PSD block of side 5 (the dense moment matrix on ``Q``)
-becomes three independent 1×1 PSD blocks, the eleven monomials in the dense
-relaxation are collapsed to one nontrivial invariant moment plus the identity,
-and the recovered Tsirelson bound matches ``-2\sqrt{2}`` to solver tolerance.
-A representative call:
+The rows are ``Q=\{1,A_1,A_2,B_1,B_2\}``. Alice swap, Bob swap and party swap
+generate a group of order 16. Both the dense and reduced solves recover
+``-2\sqrt{2}`` within `1e-6`. The reduced program has three scalar PSD blocks
+and one free real coordinate. Its two moments include the identity.
 
 ```julia
-using NCTSSoS, COSMO
+using NCTSSoS.Next, COSMO
+import NCTSSoS.Next as Next
 
-reg, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
-f = x[1]*y[1] + x[1]*y[2] + x[2]*y[1] - x[2]*y[2]
-pop = polyopt(-f, reg)
-
-alice_swap = SignedPermutation(
-    x[1].word[1] => x[2].word[1],
-    x[2].word[1] => x[1].word[1],
-    y[2].word[1] => (-1, y[2].word[1]),
-)
-bob_swap = SignedPermutation(
-    x[2].word[1] => (-1, x[2].word[1]),
-    y[1].word[1] => y[2].word[1],
-    y[2].word[1] => y[1].word[1],
-)
-party_swap = SignedPermutation(
-    x[1].word[1] => y[1].word[1],
-    x[2].word[1] => y[2].word[1],
-    y[1].word[1] => x[1].word[1],
-    y[2].word[1] => x[2].word[1],
-)
-
-config = SolverConfig(
-    optimizer  = COSMO.Optimizer,
-    moment_basis = [one(x[1]), x[1], x[2], y[1], y[2]],
-    cs_algo    = NoElimination(),
-    ts_algo    = NoElimination(),
-    symmetry   = SymmetrySpec(alice_swap, bob_swap, party_swap),
-)
-
-result = cs_nctssos(pop, config)
-result.objective              # ≈ -2sqrt(2)
-result.symmetry.group_order   # 16
-result.symmetry.psd_block_sizes  # [1, 1, 1]
+reg, (A, B) = site_variables(Unipotent(), 2, 2)
+S = A[1]*B[1] + A[1]*B[2] + A[2]*B[1] - A[2]*B[2]
+alice = LetterPermutation(A[1]=>A[2], A[2]=>A[1], B[2]=>-B[2])
+bob = LetterPermutation(A[2]=>-A[2], B[1]=>B[2], B[2]=>B[1])
+party = LetterPermutation(A[1]=>B[1], A[2]=>B[2], B[1]=>A[1], B[2]=>A[2])
+problem = Problem(-S; symmetry=(alice, bob, party))
+relaxation = Relaxation(rows=[one(A[1]), A[1], A[2], B[1], B[2]])
+solver = JuMPBackend(COSMO.Optimizer)
+built = Next.build(problem, relaxation)
+result = solve(built; solver)
+@assert abs(result.bound + 2sqrt(2)) < 1e-6
+@assert [block.side for block in built.program.blocks] == [1, 1, 1]
+@assert result.sizes.real_variables == 1
 ```
 
-Regression tests for failure modes (non-invariant objective and
-basis-closure violation) live in
-`test/relaxations/symmetry.jl`.
+The [runnable CHSH page](@ref chsh-symmetry) uses the direct Mosek writer and
+also checks the dense baseline and the expectation of the CHSH operator.
 
-## [Contrast with a full symmetry-adapted-coordinate redesign](@id sab-contrast)
+## [Contrast with symmetry-adapted polynomial coordinates](@id sab-contrast)
 
-It is worth saying explicitly what NCTSSoS is *not* doing, because the phrase
-"symmetry-adapted basis" is sometimes used to describe a much more invasive
-change.
-
-A hypothetical full redesign would push symmetry adaptation all the way down
-into the type system. Polynomials would be expressed natively as linear
-combinations of *isotypic basis elements* rather than monomials; multiplication
-would carry Clebsch–Gordan-like coefficients; simplification would be defined
-on irreducible-representation labels; the `VariableRegistry` itself would be
-indexed by ``(\text{irrep}, \text{multiplicity index}, \text{component})``;
-and term-sparsity, correlative-sparsity, GNS, and reconstruction would all
-have to be re-derived in those coordinates.
-
-NCTSSoS deliberately does **none** of that. It keeps every existing data
-structure and rewrite rule intact and uses the symmetry-adapted basis only as
-an *internal* tool, late in the pipeline, to slice one PSD block into several.
-The benefits of that conservative choice are:
-
-- The non-symmetry path is exactly as before — no risk of regression in the
-  much larger code surface that does not use symmetry.
-- All downstream code (JuMP construction, dualization, GNS, reconstruction,
-  result types) sees ordinary monomial moments and needs no changes.
-- The symmetry feature is concentrated in one file and one boundary.
+A different design could express every polynomial in irreducible-component
+coordinates. Multiplication, algebraic reduction, sparsity and observable
+queries would then all need that representation. Here only the internal row
+projection uses symmetry coordinates. The user still writes the Hamiltonian
+and observables in the original operators, and solver backends consume the
+same conic contract whether or not symmetry is present.
 
 ## See also
 
-- The runnable walk-throughs:
-  [CHSH with Symmetry Reduction](@ref chsh-symmetry) (signed permutations
-  on unipotent variables) and
-  [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry) (Clifford gates
-  and SympleQ automatic detection on Pauli Hamiltonians).
-- The Pauli order-2 XXX Heisenberg feature page:
-  [Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry).
-- [`SignedPermutation`](@ref), [`SymmetrySpec`](@ref),
-  [`SymmetryReport`](@ref), and the `symmetry` keyword of
-  [`SolverConfig`](@ref).
-- The reference acceptance case in
-  `test/problems/bell_inequalities/chsh_simple.jl` (case `Symmetry_d1`).
-- The MVP guard regression tests in `test/relaxations/symmetry.jl`.
-- Related size-reduction strategies covered elsewhere in the manual:
-  [Sparsities](@ref sparsities) and the
+- [CHSH with Symmetry Reduction](@ref chsh-symmetry).
+- [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry).
+- [Clifford Symmetry Detection](@ref clifford-symmetry-detection).
+- [Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry).
+- [Sparsities](@ref sparsities) and the
   [Moment Sum-of-Hermitian-Square Hierarchy](@ref moment-sohs-hierarchy).

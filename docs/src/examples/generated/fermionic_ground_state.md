@@ -276,7 +276,7 @@ end
 ````
 
 ````
-Main.var"##278".xy_exact_energy
+Main.var"##284".xy_exact_energy
 ````
 
 ### Method 2 — analytic Fourier formula
@@ -325,7 +325,7 @@ end
 ````
 
 ````
-Main.var"##278".xy_exact_energy_analytic
+Main.var"##284".xy_exact_energy_analytic
 ````
 
 Both methods agree:
@@ -372,7 +372,7 @@ SOLVER = MosekBackend()
 ````
 
 ````
-MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
+NCTSSoS.Next.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
 ````
 
 -------------------------------------------------------------------
@@ -398,7 +398,7 @@ registry₁, (a₁, a₁_dag) = fermionic_variables(1:N₁)
 ````
 
 ````
-(NCTSSoS.Next.Registry{Fermionic}(Fermionic(), 4, Dict(:a2 => (2, 1), :a3 => (3, 1), :ad2 => (2, -1), :a4 => (4, 1), :ad3 => (3, -1), :ad1 => (1, -1), :a1 => (1, 1), :ad4 => (4, -1))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{Fermionic}}[a1, a2, a3, a4], NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{Fermionic}}[ad1, ad2, ad3, ad4]))
+(NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}(NCTSSoS.Next.Fermionic(), 4, Dict(:a2 => (2, 1), :a3 => (3, 1), :ad2 => (2, -1), :a4 => (4, 1), :ad3 => (3, -1), :ad1 => (1, -1), :a1 => (1, 1), :ad4 => (4, -1))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[a1, a2, a3, a4], NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[ad1, ad2, ad3, ad4]))
 ````
 
 ### Step 2 — Build the even-parity Hamiltonian
@@ -526,7 +526,7 @@ end
 ````
 
 ````
-Main.var"##278".solve_xy
+Main.var"##284".solve_xy
 ````
 
 ### N = 6

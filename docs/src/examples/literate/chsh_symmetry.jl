@@ -7,254 +7,189 @@
 # ```
 #
 # with `A_i^2 = B_j^2 = I` and `[A_i, B_j] = 0`. The quantum maximum is
-# Tsirelson's bound `2\sqrt{2}`.
+# Tsirelson's bound ``2\sqrt{2}``.
 #
-# The [Bell inequalities](@ref bell-inequalities) page already certifies that
-# bound with a dense moment relaxation. Here we take the next step: **use the
-# symmetry of the CHSH operator to shrink the SDP** that the solver actually
-# sees, while still recovering the same `2\sqrt{2}`.
+# The [Bell inequalities](@ref bell-inequalities) page certifies that bound
+# with a dense moment relaxation. Here we use symmetry to shrink the SDP
+# while keeping the same bound, within a tolerance of `1e-6`.
 #
-# Concretely, this page shows how to:
+# This page shows how to:
 #
-# 1. solve a dense CHSH moment relaxation as a baseline,
-# 2. write down the three signed-permutation generators that leave the CHSH
-#    objective invariant,
-# 3. wrap them in a [`SymmetrySpec`](@ref) and re-solve via
-#    [`cs_nctssos`](@ref) using the `symmetry` keyword,
-# 4. read off the resulting [`SymmetryReport`](@ref) — the dense `5\times 5`
-#    moment matrix splits into three independent `1\times 1` PSD blocks, and
-#    the eleven distinct moments collapse to one nontrivial invariant moment.
+# 1. solve a dense CHSH relaxation as a baseline,
+# 2. write three signed letter maps that preserve the objective,
+# 3. declare them on `Problem` and solve with the same rows,
+# 4. inspect the reduced program: one block of side 5 becomes three blocks
+#    of side 1, and eleven moments become two, including the identity.
 #
-# **Prerequisites**: familiarity with the [Bell inequalities](@ref bell-inequalities)
-# example. For the architectural picture (what stays local, what
-# `SymbolicWedderburn` does, what is and isn't supported), see the manual page
+# For the architecture and supported combinations, see
 # [Symmetry-Adapted Basis](@ref symmetry-adapted-basis).
 
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
+import NCTSSoS.Next as Next
 
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(
-    Mosek.Optimizer,
-    MOI.Silent() => true,
-)
-nothing #hide
+solver = MosekBackend();
 
 # ## Step 1 — Build the CHSH problem
 #
-# We use unipotent variables, so `A_i^2 = I`, `B_j^2 = I`, and the bipartite
-# commutation relations are encoded directly in the algebra. As usual,
-# [`cs_nctssos`](@ref) minimizes, so to maximize `S` we minimize `-S`.
+# Unipotent variables satisfy `A_i^2 = I` and `B_j^2 = I`. Operators on
+# different sites commute. Each party is one site with two measurement
+# settings. `solve` minimizes, so we minimize `-S` to maximize `S`.
 
-registry, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)]);
+registry, (A, B) = site_variables(Unipotent(), 2, 2);
 
-S = 1.0 * A[1] * B[1] +
-    1.0 * A[1] * B[2] +
-    1.0 * A[2] * B[1] -
-    1.0 * A[2] * B[2]
+S = A[1] * B[1] + A[1] * B[2] + A[2] * B[1] - A[2] * B[2]
 
-pop = polyopt(-S, registry);
+problem = Problem(-S);
 
-# We will also fix an explicit half-basis so that the dense and the symmetric
-# runs use exactly the same monomials and we can compare like with like:
+# Fix explicit rows so both runs use the same five monomials:
 
 Q = [one(A[1]), A[1], A[2], B[1], B[2]];
+relaxation = Relaxation(rows=Q);
 length(Q)
 
-# ## Step 2 — Dense baseline: one `5\times 5` PSD block
+# ## Step 2 — Dense baseline: one block of side 5
 #
-# Without any sparsity or symmetry reduction, the order-1 CHSH relaxation
-# builds a single moment matrix indexed by `Q`.
+# The staged path separates construction from solving. `Next.build` creates
+# the program without a solver call; `solve` then uses the direct Mosek writer.
 
-dense_config = SolverConfig(
-    optimizer    = SILENT_MOSEK,
-    moment_basis = Q,
-    cs_algo      = NoElimination(),
-    ts_algo      = NoElimination(),
-)
+dense = Next.build(problem, relaxation);
+dense_result = solve(dense; solver);
+dense_bound = -dense_result.bound
 
-dense_result = cs_nctssos(pop, dense_config);
-
-# The objective recovers Tsirelson's bound:
-
-dense_bound = -dense_result.objective
-
-# Sanity check against the theoretical value:
+# Compare the bound with the theoretical maximum:
 
 abs(dense_bound - 2 * sqrt(2))
+@assert abs(dense_bound - 2 * sqrt(2)) < 1e-6 #src
 
-# The PSD block sizes confirm the dense layout — one block of side 5:
+# Inspect the block sides of this program:
 
-dense_result.moment_matrix_sizes
+[block.side for block in dense.program.blocks]
+@assert [block.side for block in dense.program.blocks] == [5] #src
 
-# and the relaxation distinguishes 11 moment variables:
+# `moments` includes the identity. `real_variables` does not include its
+# fixed coordinate. Here eleven moments need ten free real coordinates:
 
-dense_result.n_unique_moment_matrix_elements
+(dense_result.sizes.moments, dense_result.sizes.real_variables)
+@assert dense_result.sizes.moments == 11 #src
+@assert dense_result.sizes.real_variables == 10 #src
 
-# Note that the symmetry field is empty for a dense run:
+# There is no block-family closure report on the plain dense route:
 
-dense_result.symmetry === nothing
+dense_result.sizes.closure === nothing
 
 # ## Step 3 — The three signed-permutation generators
 #
-# CHSH has a 16-element symmetry group. It is generated by three signed
-# permutations of the four operators, each of which leaves
-# `S = A_1 B_1 + A_1 B_2 + A_2 B_1 - A_2 B_2` invariant.
+# CHSH has a 16-element symmetry group generated by these three maps.
+# `LetterPermutation` takes operators, not numeric registry indices.
+# A pair `source => -target` supplies a negative sign. Unlisted letters
+# are fixed. The maps must preserve the algebra's site partition.
 #
-# A [`SignedPermutation`](@ref) is a bijection on registry indices, with an
-# extra `\pm 1` sign per index. The constructor takes pairs
-# `src => dst` (sign defaults to `+1`) or `src => (sign, dst)`. Indices not
-# listed are fixed.
-#
-# The "raw" registry index of an operator is its underlying word index, e.g.
-# `A[1].word[1]`.
+# **Alice swap.** Swap ``A_1 \leftrightarrow A_2`` and send ``B_2 \to -B_2``.
+# The terms ``A_1B_1`` and ``A_2B_1`` exchange places; ``A_1B_2`` becomes
+# ``-A_2B_2``, and ``-A_2B_2`` becomes ``A_1B_2``. Their sum does not change.
 
-# **Alice swap.** Swap `A_1 \leftrightarrow A_2` together with `B_2 \to -B_2`.
-# Effect on the four CHSH terms:
-# `A_1 B_1 \leftrightarrow A_2 B_1`,
-# `A_1 B_2 \to -A_2 B_2`, and
-# `-A_2 B_2 \to A_1 B_2`. Sum unchanged.
-
-alice_swap = SignedPermutation(
-    A[1].word[1] => A[2].word[1],
-    A[2].word[1] => A[1].word[1],
-    B[2].word[1] => (-1, B[2].word[1]),
+alice_swap = LetterPermutation(
+    A[1] => A[2],
+    A[2] => A[1],
+    B[2] => -B[2],
 )
 
-# **Bob swap.** `A_2 \to -A_2` together with `B_1 \leftrightarrow B_2`.
+# **Bob swap.** Send ``A_2 \to -A_2`` and swap ``B_1 \leftrightarrow B_2``.
 
-bob_swap = SignedPermutation(
-    A[2].word[1] => (-1, A[2].word[1]),
-    B[1].word[1] => B[2].word[1],
-    B[2].word[1] => B[1].word[1],
+bob_swap = LetterPermutation(
+    A[2] => -A[2],
+    B[1] => B[2],
+    B[2] => B[1],
 )
 
-# **Party swap.** Exchange Alice and Bob: `A_i \leftrightarrow B_i`.
+# **Party swap.** Exchange Alice and Bob: ``A_i \leftrightarrow B_i``.
 
-party_swap = SignedPermutation(
-    A[1].word[1] => B[1].word[1],
-    A[2].word[1] => B[2].word[1],
-    B[1].word[1] => A[1].word[1],
-    B[2].word[1] => A[2].word[1],
+party_swap = LetterPermutation(
+    A[1] => B[1],
+    A[2] => B[2],
+    B[1] => A[1],
+    B[2] => A[2],
 )
 
-# A [`SymmetrySpec`](@ref) wraps the generators. By default, NCTSSoS will
-# enumerate the full group locally, then *check* that the objective and every
-# constraint really are invariant under it. If you trust the spec and want to
-# skip the check, pass `check_invariance = false`.
+# Declare the generators on the problem. Construction checks invariance of
+# the objective and any operator constraints. There is no opt-out flag.
 
-spec = SymmetrySpec(alice_swap, bob_swap, party_swap)
+symmetric_problem = Problem(-S; symmetry=(alice_swap, bob_swap, party_swap))
 
 # ## Step 4 — Solve with symmetry reduction
 #
-# The only change to the configuration is the `symmetry` keyword. The MVP
-# requires a single dense clique with no term sparsity, which we already use:
+# The relaxation and solver are unchanged:
 
-sym_config = SolverConfig(
-    optimizer    = SILENT_MOSEK,
-    moment_basis = Q,
-    cs_algo      = NoElimination(),
-    ts_algo      = NoElimination(),
-    symmetry     = spec,
-)
+reduced = Next.build(symmetric_problem, relaxation);
+sym_result = solve(reduced; solver);
+sym_bound = -sym_result.bound
 
-sym_result = cs_nctssos(pop, sym_config);
+# Compare with the theoretical value and the dense baseline:
 
-# The objective still recovers Tsirelson's bound:
+(abs(sym_bound - 2 * sqrt(2)), abs(sym_bound - dense_bound))
+@assert abs(sym_bound - 2 * sqrt(2)) < 1e-6 #src
+@assert abs(sym_bound - dense_bound) < 1e-6 #src
 
-sym_bound = -sym_result.objective
-
-# matched against the theoretical value:
-
-abs(sym_bound - 2 * sqrt(2))
-
-# and matched against the dense baseline:
-
-abs(sym_bound - dense_bound)
-
-# ## Step 5 — Read the [`SymmetryReport`](@ref)
+# ## Step 5 — Read the sizes and closure report
 #
-# The `symmetry` field of the result is no longer `nothing`; it is a small
-# struct summarizing what the symmetry path did.
+# `sizes` reports the program sent to the conic writer, not a pre-symmetry
+# layout. `closure` records the selected block family, its closure under
+# the generators, and its block orbits. This five-row family is already
+# closed, so it needs no added blocks:
 
-report = sym_result.symmetry
+sizes = sym_result.sizes;
+(sizes.rows, sizes.closure.initial_blocks, sizes.closure.closed_blocks)
+@assert sizes.rows == 5 #src
+@assert sizes.closure.initial_blocks == sizes.closure.closed_blocks == 1 #src
 
-# The full enumerated symmetry group has 16 elements:
+# Only one nontrivial invariant moment remains, plus the identity:
 
-report.group_order
+(sizes.moments, sizes.real_variables)
+@assert sizes.moments == 2 && sizes.real_variables == 1 #src
 
-# The original half-basis had 5 monomials; this matches what the dense run
-# used:
+# The one dense block is replaced by three independent scalar PSD blocks:
 
-(report.basis_half_size, report.basis_full_size)
+[block.side for block in reduced.program.blocks]
+@assert [block.side for block in reduced.program.blocks] == [1, 1, 1] #src
 
-# After orbit reduction, only **one** nontrivial invariant moment remains
-# (in addition to the identity moment, which is always 1):
-
-report.invariant_moment_count
-
-# And — the headline change — the single dense PSD block of side 5 has been
-# replaced by **three independent `1\times 1` PSD blocks**, one per isotypic
-# component of the symmetry-adapted decomposition:
-
-report.psd_block_sizes
-
-# The result type itself prints this summary alongside the rest of the
-# optimization output. Notice the split in reporting: `moment_matrix_sizes`
-# keeps its pre-symmetry meaning (`[5]` here), while the actual reduced solver
-# PSD blocks are printed separately from `report.psd_block_sizes`.
+# The result prints these aggregate counts:
 
 sym_result
 
+# The group order 16 above is a property of these three generators. The
+# result's closure report does not supply a group-order field. Do not
+# confuse the number of generators or block orbits with the group order.
+
 # ## Step 6 — What changed and what did not
 #
-# Two observations are worth making explicit, because they capture the
-# architectural decision behind this feature.
+# **Inside the SDP:** one PSD block of side 5 became three scalar blocks;
+# eleven moments became two, including the identity.
 #
-# **What changed (inside the SDP):**
+# **At the user interface:** the objective is still a polynomial in the
+# original operators. Read an observable with `expectation`, not by
+# interpreting reduced solver coordinates:
+
+expectation(sym_result, S)
+@assert abs(expectation(sym_result, S) - 2 * sqrt(2)) < 1e-6 #src
+
+# Symmetry reduction preserves the bound here; it is not a weaker sparse
+# relaxation. The pipeline uses projected rows internally, while the result
+# keeps the original problem and a map for the represented moments.
+# `gns(result)` is the checked reconstruction entry; symmetry reduction alone
+# is not a reconstruction or a flatness certificate.
 #
-# - One `5\times 5` PSD constraint became three independent `1\times 1` PSD
-#   constraints.
-# - Eleven distinct moment variables collapsed into one nontrivial invariant
-#   moment plus the identity.
-#
-# **What did *not* change (the user-facing surface):**
-#
-# - The objective is still expressed in ordinary monomial coordinates.
-# - The result is still a [`PolyOptResult`](@ref NCTSSoS.PolyOptResult) over
-#   an ordinary [`MomentProblem`](@ref NCTSSoS.MomentProblem); the JuMP model,
-#   the dualization path, and any downstream reconstruction tooling all see
-#   plain monomial moments, not isotypic-component coordinates.
-# - The objective value is unchanged (up to solver tolerance): the symmetry
-#   reduction is *exact*, not an additional relaxation.
-#
-# This is the central trade-off: NCTSSoS uses the symmetry-adapted basis only
-# **internally**, to decide how to slice one PSD block into several smaller
-# ones, and emits the result back in monomial coordinates. The downside is
-# that the current MVP only handles cases where every isotypic block is a
-# `1\times 1` scalar (multiplicity-free, scalar blocks); the upside is that
-# nothing else in the package — registries, polynomials, sparsity, GNS
-# reconstruction — has to change.
-#
-# See [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for the full
-# picture, including:
-#
-# - the supported MVP scope (dense, single clique, ordinary `PolyOpt` over
-#   `MonoidAlgebra`, real signed permutations, multiplicity-free / scalar
-#   blocks only),
-# - the fail-fast behavior on unsupported cases (term sparsity, multiple
-#   cliques, non-invariant objectives, basis closure failures, multiplicity
-#   `> 1`, non-scalar blocks, state/trace problems, [`cs_nctssos_higher`](@ref),
-#   and monomap-based GNS reconstruction from symmetry-reduced solves, which
-#   still needs dense unreduced moments), and
-# - the boundary between what NCTSSoS does locally and what
-#   [`SymbolicWedderburn`](https://github.com/kalmarek/SymbolicWedderburn.jl)
-#   computes for it.
+# The same pipeline also accepts selected block families and continuous
+# symmetry. It is not restricted to scalar symmetry blocks. State and trace
+# polynomials currently use the plain dense route only. See
+# [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for these boundaries
+# and the role of `SymbolicWedderburn`.
 #
 # ## Summary
 #
-# | run | PSD block sizes | distinct moment variables | objective |
-# |:----|:----------------|:--------------------------|:----------|
-# | dense                    | `[5]`       | 11 | `-2\sqrt{2}` |
-# | dense + symmetry (CHSH) | `[1, 1, 1]` | 1 (plus identity) | `-2\sqrt{2}` |
+# | Run | PSD block sides | Moments, including identity | Free real coordinates | Minimum |
+# |:----|:----------------|:----------------------------|:----------------------|:--------|
+# | Dense | `[5]` | 11 | 10 | ``-2\sqrt{2}`` |
+# | With symmetry | `[1, 1, 1]` | 2 | 1 | ``-2\sqrt{2}`` |
 #
-# Same answer, much smaller SDP — and the rest of the package is unchanged.
+# Same bound, smaller SDP. Both checks use the unchanged five-row basis and
+# a tolerance of `1e-6`.

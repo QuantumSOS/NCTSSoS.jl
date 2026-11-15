@@ -218,10 +218,10 @@ result = solve(problem, relaxation; solver = SOLVER)
 ````
 
 ````
-Bound: -1.2360679777779926 (numerical_optimum_not_certificate); status: OPTIMAL
+Bound: -1.236067986333059 (numerical_optimum_not_certificate); status: OPTIMAL
 Problem: minimize (-1.0) bd1 b2 + (-1.0) bd2 b1 + bd1 bd1 b1 b1 + bd2 bd2 b2 b2; 0 operator constraints
 Relaxation(order=2, strengthen=(Sector(bd1 b1 + bd2 b2, 2),))
-Sizes: 15 rows, 88 moments, 165 real variables, 2 blocks (largest 15); localizing rows: Int64[]; family 1 → 1 blocks, 1 orbits; block generators: Any[]; moment-only: []; 0 unused coordinates; strengthening: 0 blocks, 127 equalities; Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (bd1 b1 + bd2 b2) = 2
+Sizes: 15 rows, 6 moments, 8 real variables, 1 blocks (largest 15); localizing rows: Int64[]; family 1 → 1 blocks, 1 orbits; block generators: Any[]; moment-only: []; 0 unused coordinates; strengthening: 0 blocks, 0 equalities; Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (bd1 b1 + bd2 b2) = 2
 Valid for: Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (bd1 b1 + bd2 b2) = 2
 ````
 
@@ -234,9 +234,9 @@ println("Gap:                       $(round(abs(result.bound - exact_e0); digits
 ````
 
 ````
-SDP objective (order 2):  -1.23606798
+SDP objective (order 2):  -1.23606799
 Exact ground-state energy: -1.23606798
-Gap:                       3.0e-10
+Gap:                       8.8e-9
 
 ````
 

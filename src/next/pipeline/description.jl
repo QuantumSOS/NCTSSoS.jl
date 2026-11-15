@@ -148,7 +148,9 @@ function build(problem::Problem,description::BlockRelaxation)
         program,block_report=_continuous_blocks(program;family_blocks=family_block_count)
         continuous=merge(continuous,(blocks=block_report,))
         if !isnothing(extra)
-            extra=merge(extra,(first_block=1+sum(length(r.outputs) for r in block_report.blocks),))
+            first_extra=1+sum(length(r.outputs) for r in block_report.blocks if r.input<=family_block_count)
+            extra=merge(extra,(first_block=first_extra,
+                added_blocks=count(b->b.kind!=ZERO,program.blocks[first_extra:end]),))
         end
         moments=length(unique(label.word for label in table.labels))
     end

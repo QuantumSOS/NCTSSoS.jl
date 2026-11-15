@@ -28,12 +28,12 @@ Base.show(io::IO,::MIME"text/plain",r::SolveResult) = show(io,r)
 
 "One checked build and solve. The backend receives only standard data, not model or algebra objects."
 function solve(problem::Problem,relaxation::AbstractRelaxation;solver=nothing)
-    solver isa AbstractSolver || throw(ArgumentError("Missing or invalid solver description; load SCS with `using SCS` and pass solver=SCSBackend(), or pass solver=JuMPBackend(optimizer_factory), with attributes on the factory if needed."))
+    solver isa AbstractSolver || throw(ArgumentError("Missing or invalid solver description; load SCS with `using SCS` and pass solver=SCSBackend(), load Mosek with `using Mosek` and pass solver=MosekBackend(), or pass solver=JuMPBackend(optimizer_factory), with attributes on the factory if needed."))
     built = build(problem,relaxation)
     solution = solve_standard(moment_standard_form(built.program),solver)
     return SolveResult(solution.bound,solution.status,built.sizes,built.valid_for,problem,relaxation,solution,built.table,solver)
 end
-"Add an operator constraint, retaining symmetry and solver settings. Complete matrices reuse their open handle; selected blocks rebuild because closure can change their coordinates."
+"Add an operator constraint, retaining symmetry and solver settings. Complete matrices use the backend's append path (Mosek rebuilds its task); selected blocks rebuild because closure can change their coordinates."
 function solve(previous::SolveResult,constraint::OperatorConstraint)
     problem = add_constraint(previous.problem,constraint)
     built = build(problem,previous.relaxation)

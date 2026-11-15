@@ -1,0 +1,463 @@
+FORM (23653, 6156) NNZ 23652
+LOWER seconds=0.018835162 bytes=40238296
+LOWER seconds=0.021541092 bytes=40238296
+LOWER seconds=0.030291698 bytes=40238296
+ Count  Overhead File                    Line Function
+ =====  ======== ====                    ==== ========
+     5         0 @NCTSSoS/…ext/conic/standard.jl  100 _jump_cones!(model::JuMP.Model, c…
+     5         0 @JuMP/src/operators.jl  227 /
+     5         0 @OrderedCollections/src/ordered_dict.jl  304 _setindex!(h::OrderedCollections.…
+     5         4 @Base/boot.jl           588 GenericMemory
+     5         0 @OrderedCollections/src/ordered_dict.jl   24 OrderedDict
+     5         5 @Base/essentials.jl     920 getindex
+     9         0 @NCTSSoS/…ext/conic/standard.jl  129 to_jump(p::NCTSSoS.Next.MomentSta…
+     9         0 @JuMP/src/aff_expr.jl   401 _map_aff(f::JuMP.var"#166#167"{Fl…
+     9         0 @Base/array.jl         1289 push!
+     9         0 @Base/array.jl         1292 _push!
+     9         1 @Base/array.jl         1131 _growend!
+     9         5 @JuMP/src/aff_expr.jl    24 _add_or_set!
+    10         0 @Base/arraymath.jl        8 -(A::Vector{Float64}, B::Vector{J…
+    10         0 @Base/broadcast.jl      883 broadcast_preserving_zero_d
+    10         0 @Base/broadcast.jl      894 materialize
+    10         0 @Base/broadcast.jl      919 copy
+    10         0 @Base/broadcast.jl      947 copyto!
+    10         0 @Base/broadcast.jl      994 copyto!
+    10         0 @Base/simdloop.jl        77 macro expansion
+    10         0 @Base/broadcast.jl      995 macro expansion
+    10         0 @Base/broadcast.jl      616 getindex
+    10         0 @Base/broadcast.jl      620 _getindex
+    10         0 @Base/broadcast.jl      672 _broadcast_getindex
+    10         0 @Base/broadcast.jl      699 _broadcast_getindex_evalf
+    10         0 @JuMP/src/operators.jl   81 -
+    10         0 @JuMP/src/operators.jl  216 -
+    11         0 @OrderedCollections/src/ordered_dict.jl  337 setindex!
+    12         0 @MutableArithmetics/src/rewrite.jl  125 operate!!
+    12         0 @MutableArithmetics/src/interface.jl  679 operate_fallback!!
+    12         0 @JuMP/…utable_arithmetics.jl  242 operate!
+    12         0 @JuMP/src/aff_expr.jl   590 add_to_expression!
+    13         0 @MutableArithmetics/…ions/LinearAlgebra.jl  415 operate_to!
+    13         0 @MutableArithmetics/…tions/SparseArrays.jl  148 operate!(::typeof(MutableArithmet…
+    15         0 @JuMP/src/aff_expr.jl   395 map_coefficients
+    15         0 @MutableArithmetics/src/dispatch.jl  382 *
+    15         0 @MutableArithmetics/src/shortcuts.jl   58 mul
+    15         0 @MutableArithmetics/…ions/LinearAlgebra.jl  453 operate
+    25         0 @NCTSSoS/…ext/conic/standard.jl  128 to_jump(p::NCTSSoS.Next.MomentSta…
+    34         0 @Base/client.jl         550 _start()
+    34         0 @Base/client.jl         317 exec_options(opts::Base.JLOptions)
+    34         0 @Base/Base.jl           306 include(mod::Module, _path::Strin…
+    34         0 @Base/loading.jl       3012 _include(mapexpr::Function, mod::…
+    34         0 @Base/loading.jl       2952 include_string(mapexpr::typeof(id…
+    34         0 @Base/boot.jl           489 eval(m::Module, e::Any)
+    34         0 @NCTSSoS/…ext/mosek_lowering.jl   35 profile_lowering()
+    34         0 @Profile/src/Profile.jl   60 macro expansion
+    34         0 @NCTSSoS/…ext/mosek_lowering.jl   28 #profile_lowering##2
+Total snapshots: 34. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+LOWER_AND_ATTACH seconds=0.038219584 bytes=48388088
+LOWER_AND_ATTACH seconds=0.031954243 bytes=48388088
+LOWER_AND_ATTACH seconds=0.03337539 bytes=48388088
+ Count  Overhead File                    Line Function
+ =====  ======== ====                    ==== ========
+     5         0 @NCTSSoS/…ext/conic/standard.jl  129 to_jump(p::NCTSSoS.Next.MomentSta…
+     5         0 @OrderedCollections/src/ordered_dict.jl  479 iterate
+     6         0 @MathOptInterface/src/Utilities/copy.jl  393 default_copy_to(dest::MathOptInte…
+     6         0 @MathOptInterface/src/Utilities/copy.jl  251 _pass_constraints(dest::MathOptIn…
+     6         0 @MathOptInterface/…s/bridge_optimizer.jl  438 pass_nonvariable_constraints(dest…
+     6         0 @MathOptInterface/src/Utilities/copy.jl  203 pass_nonvariable_constraints_fall…
+     6         0 @MathOptInterface/src/Utilities/copy.jl  192 _copy_constraints(dest::MathOptIn…
+     6         0 @MathOptInterface/src/Utilities/copy.jl  180 _copy_constraints(dest::MathOptIn…
+     6         0 @Base/broadcast.jl      616 getindex
+     6         0 @Base/broadcast.jl      620 _getindex
+     6         0 @Base/broadcast.jl      672 _broadcast_getindex
+     6         0 @Base/broadcast.jl      699 _broadcast_getindex_evalf
+     6         0 @JuMP/src/operators.jl   81 -
+     6         0 @JuMP/src/operators.jl  216 -
+     7         0 @Base/arraymath.jl        8 -(A::Vector{Float64}, B::Vector{J…
+     7         0 @Base/broadcast.jl      883 broadcast_preserving_zero_d
+     7         0 @Base/broadcast.jl      894 materialize
+     7         0 @Base/broadcast.jl      919 copy
+     7         0 @Base/broadcast.jl      947 copyto!
+     7         0 @Base/broadcast.jl      994 copyto!
+     7         0 @Base/simdloop.jl        77 macro expansion
+     7         0 @Base/broadcast.jl      995 macro expansion
+     7         0 @MutableArithmetics/src/rewrite.jl  125 operate!!
+     7         0 @MutableArithmetics/src/interface.jl  679 operate_fallback!!
+     7         0 @JuMP/…utable_arithmetics.jl  242 operate!
+     7         0 @JuMP/src/aff_expr.jl   590 add_to_expression!
+     7         1 @JuMP/src/aff_expr.jl    24 _add_or_set!
+     8         0 @MutableArithmetics/…ions/LinearAlgebra.jl  415 operate_to!
+     8         0 @MutableArithmetics/…tions/SparseArrays.jl  148 operate!(::typeof(MutableArithmet…
+     9         0 @JuMP/src/aff_expr.jl   395 map_coefficients
+    10         0 @MutableArithmetics/src/dispatch.jl  382 *
+    10         0 @MutableArithmetics/src/shortcuts.jl   58 mul
+    10         0 @MutableArithmetics/…ions/LinearAlgebra.jl  453 operate
+    11         0 @NCTSSoS/…ext/mosek_lowering.jl   13 attached_model(f::NCTSSoS.Next.Mo…
+    11         0 @MathOptInterface/…s/cachingoptimizer.jl  268 attach_optimizer(model::MathOptIn…
+    11         0 @MathOptInterface/…s/bridge_optimizer.jl  448 copy_to
+    17         0 @NCTSSoS/…ext/conic/standard.jl  128 to_jump(p::NCTSSoS.Next.MomentSta…
+    22         0 @NCTSSoS/…ext/mosek_lowering.jl    8 attached_model(f::NCTSSoS.Next.Mo…
+    33         0 @Base/client.jl         550 _start()
+    33         0 @Base/client.jl         317 exec_options(opts::Base.JLOptions)
+    33         0 @Base/Base.jl           306 include(mod::Module, _path::Strin…
+    33         0 @Base/loading.jl       3012 _include(mapexpr::Function, mod::…
+    33         0 @Base/loading.jl       2952 include_string(mapexpr::typeof(id…
+    33         0 @Base/boot.jl           489 eval(m::Module, e::Any)
+    33         0 @NCTSSoS/…ext/mosek_lowering.jl   35 profile_lowering()
+    33         0 @Profile/src/Profile.jl   60 macro expansion
+    33         0 @NCTSSoS/…ext/mosek_lowering.jl   28 #profile_lowering##4
+Total snapshots: 33. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+ENTER_OPTIMIZE peak_rss=1251102720
+Problem
+  Name                   :
+  Objective sense        : minimize
+  Type                   : CONIC (conic optimization problem)
+  Constraints            : 0
+  Affine conic cons.     : 1 (23653 rows)
+  Disjunctive cons.      : 0
+  Cones                  : 0
+  Scalar variables       : 6156
+  Matrix variables       : 0
+  Integer variables      : 0
+
+Optimizer started.
+Presolve started.
+Linear dependency checker started.
+Linear dependency checker terminated.
+Eliminator started.
+Freed constraints in eliminator : 0
+Eliminator terminated.
+Eliminator started.
+Freed constraints in eliminator : 0
+Eliminator terminated.
+Eliminator - tries                  : 2                 time                   : 0.00
+Lin. dep.  - tries                  : 1                 time                   : 0.01
+Lin. dep.  - primal attempts        : 1                 successes              : 1
+Lin. dep.  - dual attempts          : 0                 successes              : 0
+Lin. dep.  - primal deps.           : 0                 dual deps.             : 0
+Presolve terminated. Time: 0.02
+Optimizer  - threads                : 1
+Optimizer  - solved problem         : the primal
+Optimizer  - Constraints            : 23653
+Optimizer  - Cones                  : 1
+Optimizer  - Scalar variables       : 6157              conic                  : 6157
+Optimizer  - Semi-definite variables: 1                 scalarized             : 23653
+Factor     - setup time             : 37.42
+Factor     - dense det. time        : 23.52             GP order time          : 0.01
+Factor     - nonzeros before factor : 2.80e+08          after factor           : 2.80e+08
+Factor     - dense dim.             : 0                 flops                  : 4.41e+12
+ITE PFEAS    DFEAS    GFEAS    PRSTATUS   POBJ              DOBJ              MU       TIME
+0   1.0e+00  1.0e+00  1.0e+00  0.00e+00   0.000000000e+00   0.000000000e+00   1.0e+00  37.47
+1   6.0e-01  6.0e-01  4.1e-01  2.50e-01   -1.595615017e-01  -2.803300633e-01  6.0e-01  124.16
+Maximum amount of time 120.00 is reached.
+Maximum amount of time 120.00 is reached.
+Optimizer terminated. Time: 124.17
+
+EXIT_OPTIMIZE status=TIME_LIMIT seconds=125.414945206 julia_bytes=59362392 peak_rss=12475506688
+ Count  Overhead File                    Line Function
+ =====  ======== ====                    ==== ========
+    10         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm23MemoryDependenceResults…
+    10         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm23MemoryDependenceResults…
+    10         2 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13PMDataManager8freePassE…
+    10         0 @Mosek/src/msk_functions.jl 1418 getskx(task::Mosek.Task, whichsol…
+    10         0 @Mosek/src/msk_functions.jl 1418 (::Mosek.var"#getskx##0#getskx##1…
+    10        10 @Mosek/…in/libmosek64.so.11.2    ? cblas_dsctr
+    10         1 @Mosek/…in/libmosek64.so.11.2    ? spchol_factorpanelsimpleboost
+    10         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_memman_malloc
+    10         0 @Mosek/…in/libmosek64.so.11.2    ? prslv_reduce
+    10         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm8SCCPPass3runERNS_8Functi…
+    10         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm17SLPVectorizerPass3runER…
+    10         0 @Compiler/src/ssair/inlining.jl   79 ssa_inlining_pass!
+    11         0 …1.0/bits/unique_ptr.h  289 ~unique_ptr
+    11         0 @Compiler/src/typeinfer.jl  205 finish_nocycle(::Compiler.NativeI…
+    11         0 @julialib/julia/sys.so    ? jfptr_finishNOT._79566.1
+    11        11 @julialib/julia/libz.so.1    ? longest_match
+    11         0 @juliasrc/gc-stock.c    739 jl_gc_small_alloc_inner
+    11        11 @juliasrc/gc-stock.h    332 gc_page_data
+    11         7 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm17PMTopLevelManager11setL…
+    11         0 @juliasrc/codegen.cpp  9412 emit_function
+    11         0 @juliasrc/codegen.cpp  6236 emit_stmtpos
+    11         2 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm15SmallVectorBaseIjE8grow…
+    11         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm9AAResults13getModRefInfo…
+    11         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemm_free_bufs
+    11         4 @Mosek/…in/libmosek64.so.11.2    ? mkl_serv_deallocate
+    11         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_moseklogr
+    11         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_loghead
+    11         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm11PassManagerINS_4LoopENS…
+    11         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm11PassManagerINS_4LoopENS…
+    11         0 @Compiler/src/ssair/inlining.jl 1369 compute_inlining_cases(info::Comp…
+    11         0 @Compiler/src/ssair/inlining.jl 1297 handle_any_const_result!
+    12         0 …1.0/bits/unique_ptr.h   81 operator()
+    12         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm9AAResults5aliasERKNS_14M…
+    12         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13PMDataManager16removeDe…
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? mi_segment_free
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _mi_arena_free
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _mi_os_free_ex
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _mi_prim_free
+    12        12 …4-linux-gnu/libc.so.6    ? __munmap
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_echotask
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_echotaskva
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _ZN3MSK2IO14AbstractWriter5writeE…
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _ZN3MSK2IO14AbstractWriter5writeE…
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _ZN3MSK2IO14BufferedWriter11write…
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _ZN3MSK2IO15BroadcastWriterILi3EE…
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _ZN3MSK2IO14AbstractWriter8writea…
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _ZN3MSK2IO6Writer6_writeEPKvm
+    12         0 @Mosek/…in/libmosek64.so.11.2    ? _ZN3MSK6streamL13writefuncwrapEPv…
+    12         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13LPPassManager13runOnFun…
+    12         0 @Compiler/src/typeinfer.jl  956 typeinf_edge(interp::Compiler.Nat…
+    12         0 @Compiler/src/optimize.jl 1306 slot2reg
+    13         6 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16SelectionDAGISel16Selec…
+    13         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16TargetPassConfig20addOp…
+    13         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm15RuntimeDyldImpl13finali…
+    13         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16TargetPassConfig13addIS…
+    13         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13FPPassManager14doFinali…
+    13         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm10AsmPrinter14doFinalizat…
+    13         0 @Compiler/…ractinterpretation.jl  735 abstract_call_method(interp::Comp…
+    14         0 @julialib/julia/libz.so.1    ? deflate
+    14         2 @julialib/julia/libz.so.1    ? deflate_slow
+    14         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm17ScheduleDAGMILive8sched…
+    14        14 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemm_ker0
+    14        14 @Mosek/…in/libmosek64.so.11.2    ? mi_segment_alloc
+    15         0 @juliasrc/debuginfo.cpp  340 registerJITObject
+    15         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm11compression4zlib8compre…
+    15         0 @julialib/julia/libz.so.1    ? compress2
+    15         0 @juliasrc/gf.c         4210 ijl_apply_generic
+    15         0 @Mosek/…in/libmosek64.so.11.2    ? mi_page_fresh_alloc
+    15         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm10AsmPrinter16emitFunctio…
+    15         0 @Compiler/…ractinterpretation.jl  167 (::Compiler.var"#infercalls#abstr…
+    16         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16SelectionDAGISel22DoIns…
+    16         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc24RTDyldObjectLinking…
+    16         0 @juliasrc/jitlayers.cpp 1260 registerRTDyldJITObject
+    16         0 @juliasrc/debuginfo.cpp  399 jl_register_jit_object
+    17         4 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm14FoldingSetBase19FindNod…
+    17         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16SelectionDAGISel16Selec…
+    17         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm19SelectionDAGBuilder5vis…
+    17         0 …/libsupc++/new_opa.cc   78 aligned_alloc
+    17         0 …4-linux-gnu/libc.so.6    ? posix_memalign
+    17         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13BasicAAResult5aliasERKN…
+    17         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13BasicAAResult10aliasChe…
+    17         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm25FunctionToLoopPassAdapt…
+    18         1 …/libsupc++/new_opa.cc  149 operator new
+    18         0 @juliasrc/…remove-addrspaces.cpp  450 run
+    18         0 @juliasrc/…remove-addrspaces.cpp  424 run
+    18         0 @Compiler/src/ssair/inlining.jl 1401 handle_call!
+    19         0 @juliasrc/jitlayers.cpp 2113 findSymbols
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc16ExecutionSession6lo…
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc16ExecutionSession6lo…
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc16ExecutionSession19O…
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc16ExecutionSession17O…
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc16ExecutionSession22d…
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc19MaterializationTask…
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc35BasicObjectLayerMat…
+    19         0 @juliasrc/jitlayers.h   424 emit
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc24RTDyldObjectLinking…
+    19         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13jitLinkForORCENS_6objec…
+    19         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN15LiveDebugValues16InstrRefBas…
+    19         0 @Compiler/src/ssair/inlining.jl 1652 assemble_inline_todo!(ir::Compile…
+    20         0 @juliasrc/jitlayers.cpp  677 jl_compile_codeinst_now
+    20         3 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm15AnalysisManagerINS_8Fun…
+    21         3 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13PMDataManager3addEPNS_4…
+    21         9 …4-linux-gnu/libc.so.6    ? __libc_free
+    24         0 @juliasrc/jitlayers.cpp  770 jl_emit_codeinst_to_jit_impl
+    24         0 @juliasrc/codegen.cpp  9863 jl_emit_codeinst
+    24         0 @juliasrc/codegen.cpp  9792 jl_emit_code
+    25         0 @Compiler/src/typeinfer.jl 1440 typeinf_ext_toplevel
+    25         0 @Compiler/src/typeinfer.jl 1433 add_codeinsts_to_jit!(interp::Com…
+    25         0 @juliasrc/gf.c         3376 jl_add_codeinst_to_jit
+    25         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm7DSEPass3runERNS_8Functio…
+    25         0 @Compiler/src/ssair/inlining.jl   76 ssa_inlining_pass!
+    26         0 @juliasrc/jitlayers.cpp  607 jl_compile_codeinst_now
+    26         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm7GVNPass18processInstruct…
+    27         0 @Mosek/src/msk_functions.jl13381 getskx(task::Mosek.Task, whichsol…
+    27         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm7GVNPass12processBlockEPN…
+    28         0 @Compiler/…ractinterpretation.jl  899 abstract_call_method_with_const_a…
+    28         0 @Compiler/…ractinterpretation.jl 1354 const_prop_call(interp::Compiler.…
+    29         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dsyrk_upper_ker0
+    29        29 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dsyrk_kernel_upper
+    30         2 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm17PMTopLevelManager17find…
+    31         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm12RegAllocBase16allocateP…
+    31         2 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_xdsyrk_fullacopyb…
+    32         0 @Compiler/…ractinterpretation.jl  252 (::Compiler.var"#infercalls#abstr…
+    33         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm7GVNPass7runImplERNS_8Fun…
+    34         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_GENERIC_CPU_mathenv_trsv
+    34         0 @Mosek/…in/libmosek64.so.11.2    ? cblas_dtrsv
+    34         0 @Mosek/…in/libmosek64.so.11.2    ? dtrsv_
+    34         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_dtrsv
+    34         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_xdtrsv
+    34        10 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm12SelectionDAG7CombineENS…
+    34         0 @Compiler/…ractinterpretation.jl  874 abstract_call_method_with_const_a…
+    34         0 @Compiler/…ractinterpretation.jl 1009 concrete_eval_call(interp::Compil…
+    34         0 @juliasrc/builtins.c    919 jl_f__call_in_world_total
+    35         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm7GVNPass3runERNS_8Functio…
+    38         0 …3/libsupc++/new_op.cc   50 operator new
+    42         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16TargetPassConfig16addMa…
+    42         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm15InstCombinePass3runERNS…
+    45         0 @juliasrc/builtins.c    868 jl_f__apply_iterate
+    48         0 @Compiler/…ractinterpretation.jl  338 abstract_call_gf_by_type(interp::…
+    49         0 @julialib/julia/sys.so    ? jfptr_handle1_77388.1
+    53         0 @Compiler/…ractinterpretation.jl 2797 abstract_call_known(interp::Compi…
+    54         0 @Compiler/src/inferencestate.jl 1205 doworkloop(interp::Compiler.Nativ…
+    55         0 @julialib/julia/sys.so    ? jfptr_doworkloop_83636.1
+    56         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16TargetPassConfig7addPas…
+    56         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm17PMTopLevelManager12sche…
+    56         1 @Compiler/…ractinterpretation.jl 4506 typeinf(interp::Compiler.NativeIn…
+    58         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm17LLVMTargetMachine17addP…
+    59        22 …4-linux-gnu/libc.so.6    ? malloc
+    60         0 @MosekTools/src/MosekTools.jl  366 optimize!(m::MosekTools.Optimizer)
+    64         0 @Compiler/…ractinterpretation.jl 2904 abstract_call(interp::Compiler.Na…
+    64         0 @Compiler/…ractinterpretation.jl  178 (::Compiler.var"#handle1#abstract…
+    64         0 @Compiler/…ractinterpretation.jl  868 abstract_call_method_with_const_a…
+    66         0 @Compiler/…ractinterpretation.jl 3057 abstract_call(interp::Compiler.Na…
+    66         0 @Compiler/…ractinterpretation.jl 2897 abstract_call
+    67         0 @Compiler/…ractinterpretation.jl 3075 abstract_eval_call
+    68        32 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_d_generic_fullaco…
+    69         0 @Compiler/…ractinterpretation.jl 3850 abstract_eval_basic_statement
+    69         0 @Compiler/…ractinterpretation.jl 3404 abstract_eval_statement_expr(inte…
+    71         0 @Compiler/…ractinterpretation.jl 4357 typeinf_local(interp::Compiler.Na…
+    71         0 @Compiler/…ractinterpretation.jl 3807 abstract_eval_basic_statement
+    78         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16SelectionDAGISel17CodeG…
+    78         0 @Compiler/…ractinterpretation.jl 4515 typeinf(interp::Compiler.NativeIn…
+    78         0 @julialib/julia/sys.so    ? jfptr_typeinf_local_80383.1
+    88         0 @Compiler/src/optimize.jl 1002 optimize(interp::Compiler.NativeI…
+    88         0 @Compiler/src/optimize.jl 1027 run_passes_ipo_safe
+    88         1 @Compiler/src/optimize.jl 1013 run_passes_ipo_safe(ci::Core.Code…
+    89         0 @Compiler/src/typeinfer.jl  202 finish_nocycle(::Compiler.NativeI…
+    92         0 @julialib/julia/sys.so    ? jfptr_optimize_82151.1
+    99         2 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm16SelectionDAGISel20Selec…
+   104         0 @Compiler/…ractinterpretation.jl 4522 typeinf(interp::Compiler.NativeIn…
+   104         1 @julialib/julia/sys.so    ? jfptr_finish_nocycle_83325.1
+   158       158 @Mosek/…in/libmosek64.so.11.2    ? MSK_sysenv_assertdbg
+   173       173 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemm_kernel_0_b0
+   181         0 …llvm/IR/PassManager.h  543 run
+   186         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm27ModuleToFunctionPassAda…
+   201         0 @Mosek/…in/libmosek64.so.11.2    ? spaat_computeaat
+   201         0 @Mosek/…in/libmosek64.so.11.2    ? spaat_mapsparsepull
+   201         0 @Mosek/…in/libmosek64.so.11.2    ? ipfac_hatschurspaatsparsepull
+   201       201 @Mosek/…in/libmosek64.so.11.2    ? spchol_sparsepullextern
+   214         0 @Compiler/src/typeinfer.jl 1439 typeinf_ext_toplevel
+   214         0 @Compiler/src/typeinfer.jl 1256 typeinf_ext(interp::Compiler.Nati…
+   215         0 …PassManagerInternal.h   89 run
+   220         0 @juliasrc/pipeline.cpp  741 run
+   220         1 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm11PassManagerINS_6ModuleE…
+   227         0 @juliasrc/jitlayers.cpp 2043 addModule
+   227         0 @juliasrc/jitlayers.cpp 1572 operator()
+   227         0 @juliasrc/jitlayers.cpp 1420 operator()
+   227         0 …rc/ThreadSafeModule.h  136 withModuleDo<(anonymous namespace…
+   227         0 @juliasrc/jitlayers.cpp 1459 operator()
+   237         0 @juliasrc/gf.c         3516 jl_compile_method_internal
+   238         0 @juliasrc/gf.c          466 jl_type_infer
+   238         0 @julialib/julia/sys.so    ? jfptr_typeinf_ext_toplevel_83556.1
+   238         0 @Compiler/src/typeinfer.jl 1448 typeinf_ext_toplevel(mi::Core.Met…
+   285       285 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemm_dcopy_right…
+   317         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13FPPassManager11runOnMod…
+   317         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm13FPPassManager13runOnFun…
+   335         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm6legacy15PassManagerImpl3…
+   386         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_xdsyrk
+   387         1 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas__dsyrk
+   388         1 @Mosek/…in/libmosek64.so.11.2    ? MSK_GENERIC_CPU_mathenv_psyrk
+   389         2 @Mosek/…in/libmosek64.so.11.2    ? cblas_dsyrk
+   403         0 @juliasrc/jitlayers.cpp 2056 addModule
+   403         0 @juliasrc/jitlayers.cpp 1561 operator()
+   403         0 @julialib/…lia/libLLVM.so.18.1jl    ? _ZN4llvm3orc14SimpleCompilerclERN…
+   447       447 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_xdaxpy
+   453       453 @Mosek/…in/libmosek64.so.11.2    ? symord_etree
+   555       216 @julialib/…lia/libLLVM.so.18.1jl    ? .plt
+   593       593 @Mosek/…in/libmosek64.so.11.2    ? __intel_avx_rep_memset
+   615         0 @juliasrc/jitlayers.cpp  626 jl_compile_codeinst_now
+   619         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_xdgemv
+   619       619 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemv_n_intrinsics
+   631       631 @Mosek/…in/libmosek64.so.11.2    ? graph_getneighbors
+   632         0 @Mosek/…in/libmosek64.so.11.2    ? spchol_solvelt
+   633         0 @Mosek/…in/libmosek64.so.11.2    ? intpnt_computesearch
+   645       645 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemv_t_intrinsics
+   657         0 @juliasrc/gf.c         3528 jl_compile_method_internal
+   659         0 @Mosek/…in/libmosek64.so.11.2    ? spchol_solvel
+   663         0 @juliasrc/jitlayers.cpp  824 jl_compile_codeinst_impl
+   730       730 @Mosek/…in/libmosek64.so.11.2    ? symord_colcounts
+   778       413 @Mosek/…in/libmosek64.so.11.2    ? symord_simulateextended
+   861         0 @juliasrc/gf.c         4214 ijl_apply_generic
+   861         0 @juliasrc/gf.c         4006 _jl_invoke
+   868       868 @Mosek/…in/libmosek64.so.11.2    ? spchol_setupsuper
+   892       736 @Mosek/…in/libmosek64.so.11.2    ? mosm_getaijinfo
+  1059       162 @Mosek/…in/libmosek64.so.11.2    ? ipfac_setupschur
+  1167      1167 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dtrsm_kernel_ll_0
+  1244         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_GENERIC_CPU_mathenv_gemv
+  1244         0 @Mosek/…in/libmosek64.so.11.2    ? cblas_dgemv
+  1244         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas__dgemv
+  1263         0 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_dgemv
+  1297         0 @Mosek/…in/libmosek64.so.11.2    ? intpnt_solve_skewsymm
+  1297         0 @Mosek/…in/libmosek64.so.11.2    ? intpnt_solve_augm
+  1297         0 @Mosek/…in/libmosek64.so.11.2    ? ipfac_solvenew
+  1731      1730 @Mosek/…in/libmosek64.so.11.2    ? ipfac_computebarschurupdate
+  2526      2526 @Mosek/…in/libmosek64.so.11.2    ? graph_compressedgraph
+  3308      1620 @Mosek/…in/libmosek64.so.11.2    ? spchol_analyze
+  3511       895 @Mosek/…in/libmosek64.so.11.2    ? ipfac_symboliccomputeschur
+  3705         0 @Mosek/…in/libmosek64.so.11.2    ? graph_init
+  4007         0 @Mosek/…in/libmosek64.so.11.2    ? ipfac_evaluateschurpermutation
+  4007      3225 @Mosek/…in/libmosek64.so.11.2    ? symord_simulatepermextended
+  4024         2 @Mosek/…in/libmosek64.so.11.2    ? ipfac_computeschurpermutation
+  6326         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_memman_calloc
+  6337         0 @Mosek/…in/libmosek64.so.11.2    ? _mi_malloc_generic
+  6589      6589 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemm_dcopy_right…
+  6600         1 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_dgemm
+  6600         3 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_xdgemm
+  6602         0 @Mosek/…in/libmosek64.so.11.2    ? cblas_dgemm
+  6602         1 @Mosek/…in/libmosek64.so.11.2    ? dgemm_
+  6604         2 @Mosek/…in/libmosek64.so.11.2    ? MSK_GENERIC_CPU_mathenv_pgemm
+  6992         1 @Mosek/…in/libmosek64.so.11.2    ? MSK_GENERIC_CPU_mathenv_ppartials…
+  7039      7039 @Mosek/…in/libmosek64.so.11.2    ? graph_putedge
+  7214       218 @Mosek/…in/libmosek64.so.11.2    ? spchol_partialsyrk
+  7225         1 @Mosek/…in/libmosek64.so.11.2    ? spchol_updatefromleafgroup_l
+  7226         0 @Mosek/…in/libmosek64.so.11.2    ? spchol_factor
+  7226         1 @Mosek/…in/libmosek64.so.11.2    ? spchol_factorswitch
+  7445         0 @Mosek/…in/libmosek64.so.11.2    ? cotton_for32
+  9753         0 @Mosek/…in/libmosek64.so.11.2    ? ipfac_factornew
+ 11065         0 @Mosek/…in/libmosek64.so.11.2    ? intpnt_conicoptimizer
+ 19355      4103 @Mosek/…in/libmosek64.so.11.2    ? ipfac_detectdense
+ 30633       712 @Mosek/…in/libmosek64.so.11.2    ? ipfac_setupfactor
+ 30634         0 @Mosek/…in/libmosek64.so.11.2    ? ipfac_symbolicsetup
+ 41704         1 @Mosek/…in/libmosek64.so.11.2    ? intpnt_optcone
+ 41719         0 @Mosek/…in/libmosek64.so.11.2    ? conic_optimizer
+ 41719         0 @Mosek/…in/libmosek64.so.11.2    ? conic_rawoptimizer
+ 41725         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_contoptimizer
+ 41725         0 @Mosek/…in/libmosek64.so.11.2    ? MSKP_optimizeconic
+ 41736         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_eorpgtpsj
+ 41737         0 @MosekTools/src/MosekTools.jl  360 optimize!(m::MosekTools.Optimizer)
+ 41737         0 @Mosek/src/msk_functions.jl 2399 optimize(task::Mosek.Task)
+ 41737         0 @Mosek/src/msk_functions.jl 2399 #optimize##0
+ 41737         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_optimizetrm
+ 41737         0 @Mosek/…in/libmosek64.so.11.2    ? MSK_optimize
+ 41747         0 @Base/c.jl              167 disable_sigint
+ 41797         0 @MathOptInterface/…s/cachingoptimizer.jl  379 optimize!(m::MathOptInterface.Uti…
+ 41797         0 @MathOptInterface/…s/bridge_optimizer.jl  367 optimize!
+ 42592         0 @JuMP/…ptimizer_interface.jl  633 optimize!(model::JuMP.Model; igno…
+ 42596         0 …ysdeps/x86_64/start.S  123 [unknown function]
+ 42596         0 …4-linux-gnu/libc.so.6    ? __libc_start_main
+ 42596      6385 …4-linux-gnu/libc.so.6    ? [unknown function]
+ 42596         0 …a-ci/cli/loader_exe.c   58 main
+ 42596         0 @juliasrc/jlapi.c      1153 jl_repl_entrypoint
+ 42596         0 @juliasrc/jlapi.c       985 true_main
+ 42596         0 @juliasrc/julia.h      2394 jl_apply
+ 42596         0 @julialib/julia/sys.so    ? jfptr__start_65616.1
+ 42596         0 @Base/client.jl         550 _start()
+ 42596         0 @Base/client.jl         317 exec_options(opts::Base.JLOptions)
+ 42596         0 @Base/Base.jl           306 include(mod::Module, _path::Strin…
+ 42596         0 @Base/loading.jl       3012 _include(mapexpr::Function, mod::…
+ 42596         0 @Base/loading.jl       2952 include_string(mapexpr::typeof(id…
+ 42596         0 @Base/boot.jl           489 eval(m::Module, e::Any)
+ 42596         0 @juliasrc/toplevel.c   1092 ijl_toplevel_eval_in
+ 42596         0 @juliasrc/toplevel.c   1047 ijl_toplevel_eval
+ 42596         0 @juliasrc/toplevel.c    975 jl_toplevel_eval_flex
+ 42596         0 @juliasrc/toplevel.c   1035 jl_toplevel_eval_flex
+ 42596         0 @juliasrc/interpreter.c  898 jl_interpret_toplevel_thunk
+ 42596         0 @juliasrc/interpreter.c  707 eval_body
+ 42596         0 @juliasrc/interpreter.c  194 eval_stmt_value
+ 42596         0 @juliasrc/interpreter.c  243 eval_value
+ 42596         0 @juliasrc/interpreter.c  123 do_call
+ 42596         0 [any unknown stackframes]
+ 42596         0 @NCTSSoS/…ext/mosek_lowering.jl   41 profile_lowering()
+ 42596         0 @Base/timing.jl         697 macro expansion
+ 42596         0 @Profile/src/Profile.jl   60 macro expansion
+ 42596         0 @JuMP/…ptimizer_interface.jl  569 optimize!
+ 53190     53190 @Mosek/…in/libmosek64.so.11.2    ? mkl_blas_avx512_dgemm_kernel_0
+Total snapshots: 97587. Utilization: 100% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+ELAPSED 154.93 RSS 12183112

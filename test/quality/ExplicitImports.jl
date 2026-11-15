@@ -28,6 +28,11 @@ using Test
         :IndirectSolver,
         :raw_status,
 
+        # Mosek's native task type and destructor are used by its documented
+        # task API, but Mosek.jl does not export or mark these names public.
+        :MSKtask,
+        :deletetask,
+
         # Our extension shares this private check with its owning package.
         :_check_append_only,
 

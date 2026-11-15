@@ -64,6 +64,7 @@ end
 
 function _real_finite_sectors(rows::AbstractVector{W},sectors,group,anti) where {W}
     result=[Vector{Tuple{ComplexF64,W}}[] for _ in sectors]
+    real_blocks=falses(length(sectors))
     index=Dict(w=>i for (i,w) in enumerate(rows))
     for (s,sector) in enumerate(sectors)
         isempty(sector) && continue
@@ -89,7 +90,8 @@ function _real_finite_sectors(rows::AbstractVector{W},sectors,group,anti) where 
             result[s]=[[(c,rows[i]) for (i,c) in enumerate(v) if abs(c)>1e-12] for v in fixed]
             found=true; break
         end
-        found || throw(ArgumentError("No same-side real basis was certified: no supplied antiunitary coset element preserves this projected sector as an involution. A degree-changing antiunitary needs a closed row family; exchanged or quaternionic sectors need a different decomposition. No doubled block was substituted."))
+        real_blocks[s]=found
+        found || (result[s]=sector)
     end
-    result
+    result,real_blocks
 end

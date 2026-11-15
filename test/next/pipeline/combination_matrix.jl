@@ -5,7 +5,7 @@ using LinearAlgebra, Random, Test
 const Nx=NCTSSoS.Next
 
 const PROBLEMS=(:heisenberg,:xxz,:ising,:fermions,:unipotent,:positive)
-const FINITE=(:none,:translation,:dihedral,:moment_only,:antiunitary,:clifford,:detected)
+const FINITE=(:none,:translation,:dihedral,:moment_only,:antiunitary,:clifford,:detected,:translation_antiunitary)
 const CONTINUOUS=(:none,:u1,:su2,:number)
 const FAMILIES=[(order=o,rows=r,group=g,split=s) for o in 1:2
     for r in (:complete,:contiguous) for g in (:none,:correlative,:physics)
@@ -25,7 +25,7 @@ combinations()=[[(;n=4,problem,family,finite,continuous,strengthening) for probl
     for family in FAMILIES for finite in FINITE for continuous in CONTINUOUS
     for strengthening in strengthening_choices(problem)];six_site_controls()]
 
-function fixture(name,n=4)
+function fixture(name,n=4;anisotropy=0.4)
     I2=Matrix{ComplexF64}(I,2,2)
     X=ComplexF64[0 1;1 0]; Y=ComplexF64[0 -im;im 0]; Z=ComplexF64[1 0;0 -1]
     embed(A,i)=foldl(kron,(j==i ? A : I2 for j in 1:n))
@@ -50,7 +50,7 @@ function fixture(name,n=4)
     else
         registry,(x,y,z)=Nx.pauli_variables(n)
         H=name==:ising ? -sum(z[i]*z[mod1(i+1,n)]+0.7x[i] for i in 1:n) :
-            sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+(name==:xxz ? 0.4 : 1)*z[i]*z[mod1(i+1,n)] for i in 1:n)
+            sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+(name==:xxz ? anisotropy : 1)*z[i]*z[mod1(i+1,n)] for i in 1:n)
         Q=sum(z); q=0; operators=[x;y;z]
         for (a,M) in enumerate((X,Y,Z)),i in 1:n
             matrices[3(i-1)+a]=embed(M,i)
@@ -101,8 +101,8 @@ function make_declaration(f,finite,continuous)
     _,(x,_,_)=Nx.pauli_variables(f.n)
     anti=Nx.AntiunitaryPauli(first(one(x[1]).data.words))
     flip=Nx.CliffordMap(Nx.PauliConjugation(first(prod(x).data.words),false))
-    gs=finite==:translation ? (t,) : finite==:dihedral ? (t,r) : finite==:clifford ? (flip,) : ()
-    ms=finite==:moment_only ? (t,) : finite==:antiunitary ? (anti,) : ()
+    gs=finite in (:translation,:translation_antiunitary) ? (t,) : finite==:dihedral ? (t,r) : finite==:clifford ? (flip,) : ()
+    ms=finite==:moment_only ? (t,) : finite in (:antiunitary,:translation_antiunitary) ? (anti,) : ()
     Nx.Symmetry(gs...;moment_only=ms,continuous=ds)
 end
 
@@ -339,15 +339,17 @@ function solved_cases()
         push!(selected,(;n=4,problem,family=(;order,rows,group,split),finite,continuous,strengthening))
     end
     append!(selected,six_site_controls())
+    append!(selected,[(;n=4,problem=:xxz,family=(order=o,rows=:complete,group=:none,split=:none),
+        finite=:translation_antiunitary,continuous=:none,strengthening=()) for o in 1:2])
     selected
 end
 
 function smoke_cases()
-    all=combinations()
+    all=filter(c->c.finite!=:translation_antiunitary,combinations())
     # Fixed, stratified indices across the complete product, plus each named
     # axis in a valid dense control. No RNG chooses the acceptance subset.
     selected=all[unique(round.(Int,range(1,length(all);length=80)))]
-    for problem in PROBLEMS,finite in FINITE
+    for problem in PROBLEMS,finite in filter(!=(:translation_antiunitary),FINITE)
         push!(selected,(;n=4,problem,family=first(FAMILIES),finite,continuous=:none,strengthening=()))
     end
     for problem in (:heisenberg,:fermions),continuous in CONTINUOUS,order in 1:2
@@ -358,6 +360,8 @@ function smoke_cases()
     push!(selected,(;n=4,problem=:heisenberg,family=first(FAMILIES),finite=:dihedral,continuous=:su2,strengthening=()))
     push!(selected,(;n=4,problem=:xxz,family=(order=2,rows=:contiguous,group=:none,split=:physics),
         finite=:detected,continuous=:none,strengthening=(:stationarity,)))
+    append!(selected,[(;n=4,problem,family=first(FAMILIES),finite=:translation_antiunitary,
+        continuous=:none,strengthening=()) for problem in PROBLEMS])
     unique(selected)
 end
 
@@ -375,12 +379,13 @@ function smoke_test()
     # rejection of a previously supported combination must fail this test.
     builds=Set([1,2,3,4,5,6,7,9,11,15,17,19,21,23,26,28,30,32,34,49,51,53,55,59,60,61,
         67,69,71,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,
-        104,108,109,110,111,115,116,117,118,119,120,122,123,124,125,126,129,134,135,136,137,138])
+        104,108,109,110,111,115,116,117,118,119,120,122,123,124,125,126,129,134,135,136,137,138,
+        139,140,141,144])
     cases=smoke_cases()
     fixtures=Dict((c.problem,c.n)=>fixture(c.problem,c.n) for c in unique(c->(c.problem,c.n),cases))
     @testset "Combination product: fixed acceptance slice" begin
-        @test length(combinations())==73_418
-        @test length(cases)==138
+        @test length(combinations())==83_906
+        @test length(cases)==144
         for (i,c) in enumerate(cases)
             @testset "$i: $c" begin
                 r=run(c;f=fixtures[(c.problem,c.n)])

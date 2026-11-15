@@ -120,15 +120,16 @@ function _projected_program(::Type{W}, sectors, objective, generators;real_block
     sink = OrbitFormSink(table, Dict{Int32,ComplexF64}())
     for (s, rows) in enumerate(sectors)
         isempty(rows) && continue
+        real_block = real_blocks isa Bool ? real_blocks : real_blocks[s]
         for j in eachindex(rows), i in j:length(rows)
             empty!(sink.terms)
             for (ca, a) in rows[i], (cb, b) in rows[j]
                 p, sa = star(a)
                 mul!(sink, sa, b, scale(p, conj(ca) * cb))
             end
-            _close_orbit_form!(program.forms, sink.terms; diagonal=real_blocks || i == j)
+            _close_orbit_form!(program.forms, sink.terms; diagonal=real_block || i == j)
         end
-        push_block!(program, real_blocks ? PSD : HPSD, length(rows), s)
+        push_block!(program, real_block ? PSD : HPSD, length(rows), s)
     end
     _orbit_objective!(program, table, objective)
 end
@@ -143,9 +144,11 @@ function finite_program(rows::AbstractVector{W}, objective, generators::Abstract
     projections, ranks = shared_projections(group)
     sectors = _project_orbits(rows, generators, group, projections)
     anti_index=findfirst(is_antiunitary,moment_generators)
+    real_blocks=false
     if !isnothing(anti_index)
-        sectors=_real_finite_sectors(rows,sectors,group,moment_generators[anti_index])
+        sectors,real_blocks=_real_finite_sectors(rows,sectors,group,moment_generators[anti_index])
     end
-    p, table = _projected_program(W, sectors, objective, all_generators;real_blocks=!isnothing(anti_index))
-    return _anti_real_program(p, all_generators), table, (; group_order=length(group), projection_ranks=ranks, sectors)
+    p, table = _projected_program(W, sectors, objective, all_generators;real_blocks)
+    p=all(b->b.kind==PSD,p.blocks) ? _anti_real_program(p,all_generators) : p
+    return p, table, (; group_order=length(group), projection_ranks=ranks, sectors)
 end

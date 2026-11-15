@@ -43,6 +43,7 @@ end
 
 function _real_character_sectors(sectors,orbits,index,k,anti,candidates)
     result = [Vector{Tuple{ComplexF64,Int}}[] for _ in sectors]
+    real_blocks = falses(length(sectors))
     n = length(orbits.words)
     for (s, rows) in enumerate(sectors)
         isempty(rows) && continue
@@ -64,9 +65,12 @@ function _real_character_sectors(sectors,orbits,index,k,anti,candidates)
             found = true
             break
         end
-        found || throw(ArgumentError("No involutive antiunitary preserves this reduced sector; a real block without doubling is not available from the supplied point group."))
+        # Moment relations remain valid even when the antiunitary exchanges
+        # sectors. Keep the original complex basis unless this one is certified.
+        real_blocks[s] = found
+        found || (result[s] = rows)
     end
-    result
+    result,real_blocks
 end
 
 function _orbit_pair_kernel!(cache, table, orbits, a, b)
@@ -106,6 +110,7 @@ function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_la
     fourier = Dict{Tuple{Int,Int},Dict{Int32,ComplexF64}}()
     for (s, reduced_rows) in enumerate(sectors)
         isempty(reduced_rows) && continue
+        real_block = real_blocks isa Bool ? real_blocks : real_blocks[s]
         for j in eachindex(reduced_rows), i in j:length(reduced_rows)
             empty!(sink.terms)
             for (ca,a) in reduced_rows[i], (cb,b) in reduced_rows[j]
@@ -115,9 +120,9 @@ function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_la
                     sink.terms[id] = get(sink.terms,id,0im) + c*(a < b ? conj(coefficient) : coefficient)
                 end
             end
-            _close_orbit_form!(program.forms, sink.terms; diagonal=real_blocks || i == j)
+            _close_orbit_form!(program.forms, sink.terms; diagonal=real_block || i == j)
         end
-        push_block!(program, real_blocks ? PSD : HPSD, length(reduced_rows), length(sector_labels) + 1)
+        push_block!(program, real_block ? PSD : HPSD, length(reduced_rows), length(sector_labels) + 1)
         push!(sector_labels, (k,s))
     end
 end
@@ -195,12 +200,14 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
             mod(4k * length(orbits.words[a]) - Int(orbits.stabilizers[a].k) * order, 4order) == 0]
         actions = [_momentum_action(orbits, index, h, k) for h in little.elements]
         sectors = _momentum_projectors(active, actions, projections)
+        real_blocks = false
         if !isnothing(anti_index)
-            sectors = _real_momentum_sectors(sectors, orbits, index, k,
+            sectors,real_blocks = _real_momentum_sectors(sectors, orbits, index, k,
                 moment_generators[anti_index], point, conjugations)
         end
-        _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, kernels; real_blocks=!isnothing(anti_index))
+        _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, kernels; real_blocks)
     end
     p, table = _orbit_objective!(program, table, objective)
-    return _anti_real_program(p, all_generators), table, (; sectors=sector_labels, little_orders, point_order=length(point))
+    p = all(b->b.kind==PSD,p.blocks) ? _anti_real_program(p,all_generators) : p
+    return p, table, (; sectors=sector_labels, little_orders, point_order=length(point))
 end

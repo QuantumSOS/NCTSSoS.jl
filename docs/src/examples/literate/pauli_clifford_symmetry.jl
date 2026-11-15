@@ -212,10 +212,11 @@ redundant_result4 = solve(redundant4; solver);
 # time, but detection and block construction cost time too. Measure the
 # stages separately before choosing a symmetry group.
 #
-# The three timers below measure build, backend preparation, and a solve of
-# the prepared task. The last is solver wall time measured here, not time
-# reported by Mosek. A single run is an illustration, not a speedup benchmark;
-# it can include first-use compilation and depends on the machine.
+# The first two timers measure wall time for build and backend preparation.
+# The third value is Mosek's optimizer time for that call, including presolve;
+# it excludes package build, preparation and result extraction. A single run
+# is an illustration, not a speedup benchmark. Package wall times can include
+# first-use compilation, and all measurements depend on the machine.
 
 registry10, ops10 = pauli_variables(10);
 H10 = sum(op[i] * op[mod1(i + 1, 10)] / 4 for op in ops10 for i in 1:10);
@@ -224,14 +225,15 @@ relaxation10 = Relaxation(order=2);
 function staged_run(problem, relaxation; solver)
     build_seconds = @elapsed built = Next.build(problem, relaxation)
     prepare_seconds = @elapsed Next.prepare(built; solver)
-    solve_seconds = @elapsed result = solve(built; solver)
+    result = solve(built; solver)
+    solve_seconds = result.solution.diagnostics.solve_seconds
     return (; built, result, build_seconds, prepare_seconds, solve_seconds)
 end
 
 dense10 = staged_run(Problem(H10), relaxation10; solver);
 (dense10.result.bound, Next.block_sides(dense10.built), dense10.result.sizes.real_variables)
 
-# Wall seconds, in order: build, prepare, solve.
+# Seconds, in order: build wall time, prepare wall time, Mosek optimizer time.
 
 (dense10.build_seconds, dense10.prepare_seconds, dense10.solve_seconds)
 
@@ -253,7 +255,7 @@ actions10 = ring_actions(ops10);
 reduced10 = staged_run(Problem(H10; symmetry=actions10), relaxation10; solver);
 (reduced10.result.bound, Next.block_sides(reduced10.built), reduced10.result.sizes.real_variables)
 
-# Wall seconds, in the same order:
+# Seconds, in the same order:
 
 (reduced10.build_seconds, reduced10.prepare_seconds, reduced10.solve_seconds)
 
@@ -295,5 +297,5 @@ abs(dense10.result.bound - reduced10.result.bound)
 #    Detection can miss maps that fix every Hamiltonian term.
 # 3. Row closure and Hamiltonian invariance are different requirements. Use
 #    block generators on rows and moment-only generators for moment relations.
-# 4. Compare build, prepare, and solve wall times separately. A larger group
+# 4. Compare build and prepare wall times with Mosek optimizer time separately. A larger group
 #    need not give a faster end-to-end run.

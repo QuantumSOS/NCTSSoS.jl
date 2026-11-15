@@ -30,7 +30,10 @@ function _checked_hermitian(p::Polynomial,name)
     return p
 end
 """
-Checked minimization problem with operator constraints and optional `Symmetry`.
+Checked minimization problem with operator constraints and optional symmetry.
+Pass a tuple or vector: derivations constrain continuous symmetry, antiunitary
+actions constrain moments only, and other actions close the block family.
+Use `Next.Symmetry` to explicitly place a unitary action in `moment_only`.
 Declare symmetry here, not on `Relaxation`. Empty symmetries mean none declared.
 For a legacy `BlockRelaxation`, use whichever declaration is nonempty; if both
 are nonempty, remove the legacy declaration and keep the one on the problem.
@@ -48,7 +51,7 @@ struct Problem{P<:Polynomial,C<:Tuple,S}
             c.polynomial.registry === objective.registry || throw(ArgumentError("Constraint $i uses a different registry from the objective; rebuild it with the objective's variables."))
             _checked_hermitian(c.polynomial,"Constraint $i")
         end
-        isnothing(symmetry) || _check_symmetry_domain(objective,symmetry)
+        isnothing(symmetry) || (symmetry=_check_symmetry_domain(objective,symmetry))
         new{typeof(objective),typeof(cs),typeof(symmetry)}(objective,cs,symmetry)
     end
 end
@@ -74,7 +77,7 @@ struct Relaxation{R,U,G,S,F,K} <: AbstractRelaxation
     strengthen::K
     function Relaxation(;order=nothing,rows=nothing,row_rule=nothing,grouping=nothing,
         split=nothing,family=nothing,strengthen=(),symmetry=nothing)
-        isnothing(symmetry) || throw(ArgumentError("Declare symmetry on Problem(H; symmetry=Symmetry(...)), not on Relaxation; remove the symmetry keyword here."))
+        isnothing(symmetry) || throw(ArgumentError("Declare symmetry on Problem(H; symmetry=(generators...,)), not on Relaxation; remove the symmetry keyword here."))
         count(!isnothing,(order,rows,family))==1 || throw(ArgumentError("Relaxation needs exactly one of order, rows, or family; remove the other options."))
         if !isnothing(rows) || !isnothing(family)
             all(isnothing,(row_rule,grouping,split)) || throw(ArgumentError("Custom rows or family cannot be combined with row_rule, grouping, or split; remove these options or use order instead of custom rows/family."))

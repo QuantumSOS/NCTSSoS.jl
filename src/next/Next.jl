@@ -6,10 +6,12 @@ Nothing in this module is exported from `NCTSSoS`, and no name here is stable.
 The current package does not use this module. At the end of the redesign this
 module replaces the current code and the name `Next` goes away.
 
-Load the declarative API with `using NCTSSoS.Next` alone. Do not combine it
-with `using NCTSSoS`: the old API exports different `Symmetry` and `variables`
-bindings. When you also need the old API, use `import NCTSSoS` and qualify
-its names as `NCTSSoS.name`.
+Load the declarative API with `using NCTSSoS.Next`. It can also be loaded with
+`using NCTSSoS`; their exports do not clash. `Next.Symmetry` and `Next.variables`
+are public, qualified APIs, not exports. For the common symmetry declaration,
+pass a tuple or vector of actions and derivations to `Problem(H; symmetry=...)`.
+Use `Next.Symmetry(...; moment_only=(...), continuous=(...))` when a unitary
+action should constrain moments without closing the block family.
 
 Layers and their directories:
 
@@ -33,9 +35,11 @@ include("pipeline/pipeline.jl")
 include("model/detection.jl")
 include("model/front.jl")
 
-export pauli_variables, fermionic_variables, site_variables, variables,
+public Symmetry, variables
+
+export pauli_variables, fermionic_variables, site_variables,
     Pauli, Fermionic, Free, Projector, Unipotent, SiteAlgebra,
-    Problem, Positive, Zero, Symmetry, SitePermutation, CliffordMap, AntiunitaryPauli,
+    Problem, Positive, Zero, SitePermutation, CliffordMap, AntiunitaryPauli,
     SpinRotation, spin_rotations, NumberRotation,
     detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,
     DensityMatrix, InvariantCone, Stationarity, StateOptimality, Sector, FermionicConditions,

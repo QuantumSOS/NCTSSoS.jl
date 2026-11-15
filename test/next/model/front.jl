@@ -20,22 +20,39 @@ function check(backend)
     @testset "One declarative front" begin
         registry,(x,y,z)=pauli_variables(4)
         h=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+0.7z[i]*z[mod1(i+1,4)] for i in 1:4)
-        symmetry=Symmetry(SitePermutation([2,3,4,1]))
+        symmetry=N.Symmetry(SitePermutation([2,3,4,1]))
         p=Problem(h)
         symmetric=Problem(h;symmetry)
-        same_program(p,Relaxation(order=1),Problem(h;symmetry=Symmetry()),Relaxation(order=1))
+        same_program(p,Relaxation(order=1),Problem(h;symmetry=()),Relaxation(order=1))
         for options in ((;order=1),(;order=2,grouping=Correlative(),split=TermSplit()),
             (;order=1,strengthen=(DensityMatrix(1:3),Stationarity())),
             (;order=2,row_rule=Contiguous(periodic=true)))
             same_program(p,N.BlockRelaxation(;options...,symmetry),symmetric,Relaxation(;options...))
         end
         rows=[one(x[1]);x;y;z]
-        same_program(p,Relaxation(rows=rows),Problem(h;symmetry=Symmetry()),Relaxation(rows=rows))
+        same_program(p,Relaxation(rows=rows),Problem(h;symmetry=[]),Relaxation(rows=rows))
         same_program(p,N.BlockRelaxation(family=[rows],symmetry=symmetry),symmetric,Relaxation(rows=rows))
         same_program(p,N.BlockRelaxation(family=[rows],symmetry=symmetry),symmetric,Relaxation(family=[rows]))
+        # Mixed declarations must retain antiunitaries and derivations in their legal roles.
+        translation=SitePermutation([2,3,4,1])
+        reflection=SitePermutation([4,3,2,1])
+        conjugation=N.PauliConjugation(one(eltype(h.data.words)),true)
+        rotation=SpinRotation(registry,:z)
+        explicit=N.Symmetry(translation,reflection;moment_only=(conjugation,),continuous=(rotation,))
+        for generators in ((conjugation,rotation,translation,reflection),[conjugation,rotation,translation,reflection])
+            mixed=Problem(h;symmetry=generators)
+            @test Tuple(mixed.symmetry.generators)==(translation,reflection)
+            @test Tuple(mixed.symmetry.moment_only)==(conjugation,)
+            @test Tuple(mixed.symmetry.continuous)==(rotation,)
+            same_program(Problem(h;symmetry=explicit),Relaxation(order=1),mixed,Relaxation(order=1))
+        end
+        moment_only=N.Symmetry(;moment_only=(translation,))
+        @test Problem(h;symmetry=moment_only).symmetry===moment_only
+        @test_throws r"Symmetry item 2 must be an action or derivation" Problem(h;symmetry=(translation,2))
+        @test_throws r"Use Problem.*symmetry" Problem(h;symmetry=translation)
         _,(a,b)=site_variables(Unipotent(),2,2)
         bell=Problem(-(a[1]*b[1]+a[1]*b[2]+a[2]*b[1]-a[2]*b[2]))
-        real_form=same_program(bell,Relaxation(order=1),Problem(bell.objective;symmetry=Symmetry()),Relaxation(order=1))
+        real_form=same_program(bell,Relaxation(order=1),Problem(bell.objective;symmetry=N.Symmetry()),Relaxation(order=1))
         @test eltype(real_form.program.forms.coefs)===Float64
         _,(c,cd)=fermionic_variables(2)
         fermion=Problem(-(cd[1]*c[2]+cd[2]*c[1]))
@@ -47,7 +64,7 @@ function check(backend)
             Relaxation(order=1,strengthen=conditions))
 
         # Empty declarations are neutral in either position, independent of provenance.
-        for empty in (Symmetry(),N.FamilySymmetry(;detected=true))
+        for empty in (N.Symmetry(),N.FamilySymmetry(;detected=true))
             same_program(p,N.BlockRelaxation(order=1,symmetry=symmetry),
                 Problem(h;symmetry=empty),N.BlockRelaxation(order=1,symmetry=symmetry))
             same_program(p,N.BlockRelaxation(order=1,symmetry=symmetry),
@@ -60,15 +77,15 @@ function check(backend)
         @test_throws r"exactly one.*rows.*family" Relaxation(rows=rows,family=[rows])
         foreign=N.PauliWord{2}
         wrong=CliffordMap([N.pauli_letter(foreign,1,2),N.pauli_letter(foreign,1,0)])
-        @test_throws r"generator 1.*word type.*construct" Problem(h;symmetry=Symmetry(wrong))
-        @test_throws r"generator 1.*algebra.*construct" Problem(fermion.objective;symmetry=Symmetry(wrong))
-        @test_throws r"generator 1.*outside sites.*rebuild" Problem(h;symmetry=Symmetry(SitePermutation([2,3,4,5,1])))
+        @test_throws r"generator 1.*word type.*construct" Problem(h;symmetry=(wrong,))
+        @test_throws r"generator 1.*algebra.*construct" Problem(fermion.objective;symmetry=N.Symmetry(wrong))
+        @test_throws r"generator 1.*outside sites.*rebuild" Problem(h;symmetry=[SitePermutation([2,3,4,5,1])])
         constrained=Problem(h;constraints=(Positive(z[1]),),symmetry)
         @test_throws r"generator 1.*constraint 1.*Z1.*remove" N.build(constrained,Relaxation(order=1))
         @test_throws r"generator 1.*constraint 1.*remove" N.build(constrained,N.BlockRelaxation(order=1))
         @test_throws r"generator 1.*objective.*remove" N.build(Problem(z[1];symmetry),Relaxation(order=1))
         @test_throws r"generator 2.*objective.*Z1.*remove" N.build(
-            Problem(z[1];symmetry=Symmetry(SitePermutation(1:4),SitePermutation([2,3,4,1]))),
+            Problem(z[1];symmetry=(SitePermutation(1:4),SitePermutation([2,3,4,1]))),
             Relaxation(order=1))
         @test N.add_constraint(symmetric,Positive(sum(z))).symmetry === symmetry
         @test detect_symmetry(zero(h)).detected
@@ -86,7 +103,7 @@ function check(backend)
         n=6
         _,(x,y,z)=pauli_variables(n)
         h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+0.7z[i]*z[mod1(i+1,n)] for i in 1:n)
-        symmetry=Symmetry(SitePermutation([2:n;1]),SitePermutation([mod1(2-i,n) for i in 1:n]))
+        symmetry=N.Symmetry(SitePermutation([2:n;1]),SitePermutation([mod1(2-i,n) for i in 1:n]))
         options=(;order=2,grouping=Correlative(),split=TermSplit(),strengthen=(DensityMatrix(1:3),Stationarity()))
         old=solve(Problem(h),N.BlockRelaxation(;options...,symmetry);solver=backend)
         result=solve(Problem(h;symmetry),Relaxation(;options...);solver=backend)
@@ -100,7 +117,7 @@ function check(backend)
         sparse=solve(Problem(h;symmetry),Relaxation(order=2,grouping=Correlative(),split=TermSplit());solver=backend)
         @test_throws r"Moment Z2.*selected blocks.*no split.*site group" expectation(sparse,z[2])
         _,(_,_,z)=pauli_variables(2)
-        p=Problem(sum(z);symmetry=Symmetry(SitePermutation([2,1])))
+        p=Problem(sum(z);symmetry=[SitePermutation([2,1])])
         initial=solve(p,Relaxation(order=1);solver=backend)
         appended=solve(initial,Positive(4+sum(z)))
         @test appended.problem.symmetry === p.symmetry

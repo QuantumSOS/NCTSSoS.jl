@@ -7,7 +7,19 @@ _uses_blocks(p::Problem,r::Relaxation) = _has_symmetry(p.symmetry) ||
     !all(isnothing,(r.row_rule,r.grouping,r.split,r.family)) || !isempty(r.strengthen)
 
 function _check_symmetry_domain(p::Polynomial,s)
-    s isa FamilySymmetry || throw(ArgumentError("Use Problem(H; symmetry=Symmetry(generators...; moment_only=()))."))
+    if s isa Union{Tuple,AbstractVector}
+        items=Tuple(s)
+        for (i,g) in enumerate(items)
+            g isa Union{AbstractAction,AbstractDerivation} || throw(ArgumentError(
+                "Symmetry item $i must be an action or derivation, such as SitePermutation(...) or SpinRotation(...)."))
+        end
+        block=filter(g->g isa AbstractAction && !is_antiunitary(g),items)
+        moments=filter(g->g isa AbstractAction && is_antiunitary(g),items)
+        continuous=filter(g->g isa AbstractDerivation,items)
+        s=Symmetry(block...;moment_only=moments,continuous)
+    end
+    s isa FamilySymmetry || throw(ArgumentError(
+        "Use Problem(H; symmetry=(generators...,)) or Next.Symmetry(...; moment_only=(...), continuous=(...))."))
     W=eltype(p.data.words)
     n=p.registry.nsites
     for (i,g) in enumerate(Iterators.flatten((s.generators,s.moment_only)))

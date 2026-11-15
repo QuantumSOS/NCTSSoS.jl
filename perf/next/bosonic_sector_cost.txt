@@ -1,0 +1,35 @@
+ENV Julia=1.12.7 CPU=icelake-server Julia_threads=1 BLAS_threads=1
+SAMPLE next_sector_model seconds=0.000283018 bytes=108480
+SAMPLE next_sector_model seconds=0.000205248 bytes=108480
+SAMPLE next_sector_model seconds=0.000225235 bytes=108480
+SAMPLE next_sector_model seconds=0.000195471 bytes=108480
+SAMPLE next_sector_model seconds=0.000191239 bytes=108480
+SAMPLE old_sector_model seconds=0.000416929 bytes=181312
+SAMPLE old_sector_model seconds=0.000360375 bytes=181312
+SAMPLE old_sector_model seconds=0.000343543 bytes=181312
+SAMPLE old_sector_model seconds=0.000360732 bytes=181312
+SAMPLE old_sector_model seconds=0.000317119 bytes=181312
+SAMPLE next_sector_assembly seconds=0.36215918 bytes=402752376
+SAMPLE next_sector_assembly seconds=0.378783714 bytes=402752168
+SAMPLE next_sector_assembly seconds=0.429151615 bytes=402752200
+SAMPLE next_sector_assembly seconds=0.36798965 bytes=402752104
+SAMPLE next_sector_assembly seconds=0.419909813 bytes=402752504
+SAMPLE old_sector_assembly seconds=0.468183921 bytes=299159336
+SAMPLE old_sector_assembly seconds=0.444398028 bytes=299159336
+SAMPLE old_sector_assembly seconds=0.458006495 bytes=299159336
+SAMPLE old_sector_assembly seconds=0.425008679 bytes=299159336
+SAMPLE old_sector_assembly seconds=0.471624492 bytes=299159336
+SAMPLE next_sector_standard seconds=0.00599787 bytes=10599832
+SAMPLE next_sector_standard seconds=0.004148836 bytes=10599832
+SAMPLE next_sector_standard seconds=0.003447195 bytes=10599832
+SAMPLE next_sector_standard seconds=0.003503328 bytes=10599832
+SAMPLE next_sector_standard seconds=0.003211918 bytes=10599832
+SAMPLE old_sector_jump_lowering seconds=0.093190652 bytes=116721800
+SAMPLE old_sector_jump_lowering seconds=0.090418656 bytes=116721800
+SAMPLE old_sector_jump_lowering seconds=0.091783014 bytes=116721800
+SAMPLE old_sector_jump_lowering seconds=0.088023372 bytes=116721800
+SAMPLE old_sector_jump_lowering seconds=0.093379459 bytes=116721800
+SECTOR equations_next=8330 equations_old=297 next_sizes=153 rows, 19173 moments, 38180 real variables, 2 blocks (largest 153); localizing rows: Int64[]; family 1 → 1 blocks, 1 orbits; block generators: Any[]; moment-only: Union{}[]; 0 unused coordinates; strengthening: 0 blocks, 8330 equalities; Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (bd1 b1 + bd2 b2 + bd3 b3 + bd4 b4 + bd5 b5 + bd6 b6 + bd7 b7 + bd8 b8) = 8 standard=(40069, 38180)
+real 70.62
+user 68.92
+sys 1.67

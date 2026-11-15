@@ -143,3 +143,75 @@ function check()
 end
 end
 LetterActionChecks.check()
+
+module SignedLetterChecks
+using Test, Random, LinearAlgebra, NCTSSoS
+import NCTSSoS: Next as N
+import ..LetterActionChecks: mixed, matrix_word, product
+
+function action(g,pw)
+    p,w=pw; q,v=N.act(g,w); (p*q,v)
+end
+function multiply(pu,qv)
+    p,u=pu; q,v=qv; r,w=N.mul(u,v); (p*q*r,w)
+end
+function adjoint_word(pw)
+    p,w=pw; q,v=N.star(w); (conj(p)*q,v)
+end
+function exercise!(out,sink,g,w)
+    for i in eachindex(out)
+        out[i]=N.act(g,w)
+        empty!(sink); N.act!(sink,g,w,2.0+0im)
+    end
+end
+function check()
+    rng=MersenneTwister(443)
+    @testset "Signed letter laws and matrix substitution" begin
+        for F in (nothing,N.RealState(),N.RealTrace()),A in (N.Free,N.Unipotent)
+            r,(a,b)=N.site_variables(A(),2,3;functional=F)
+            variables=vcat(a,b); images=[5,6,4,1,2,3]; signs=[-1,1,-1,1,-1,1]
+            pairs=[variables[i]=>signs[i]*variables[images[i]] for i in 1:6]
+            g=N.LetterPermutation(pairs); h=N.LetterPermutation(a[1]=>-a[2],a[2]=>a[1])
+            gh=N.compose(g,h); inverse=inv(g)
+            @test gh!=N.compose(h,g)
+            @test N.compose(g,inverse)==one(g)==N.compose(inverse,g)
+            @test inv(inverse)==g
+            @test hash(g)==hash(N.LetterPermutation(reverse(pairs)))
+            matrices=Matrix{Float64}[]
+            for i in 1:6
+                v=randn(rng,2); v/=norm(v)
+                op=A===N.Free ? [i/7 .2;.2 -i/9] : Matrix{Float64}(I,2,2)-2v*v'
+                push!(matrices,i<=3 ? kron(op,Matrix{Float64}(I,2,2)) : kron(Matrix{Float64}(I,2,2),op))
+            end
+            psi=randn(rng,4); psi/=norm(psi)
+            mapped=[signs[i]*matrices[images[i]] for i in 1:6]
+            ordinary(w,ops)=foldl((m,l)->m*ops[3*(N._letter_location(l)[1]-1)+N._letter_location(l)[2]],N.word_letters(w);init=Matrix{Float64}(I,4,4))
+            value(w,ops)=isnothing(F) ? ordinary(w,ops) : matrix_word(w,ops,psi)
+            widths=isnothing(F) ? (N.word_type(r,24),) : Tuple(N.FunctionalWord{typeof(F),A,4,2,K} for K in (1,2,4,8))
+            for W in widths
+                sample()=isnothing(F) ? foldl((w,_)->product(w,N.site_letter(W,rand(rng,1:2),rand(rng,1:3))),1:5;init=one(W)) : mixed(rng,W)
+                for _ in 1:30
+                    w,v=sample(),sample(); pw=(one(N.Phase),w); pv=(one(N.Phase),v)
+                    @test action(one(g),pw)==pw
+                    @test action(inverse,action(g,pw))==pw
+                    @test action(gh,pw)==action(g,action(h,pw))
+                    @test action(g,multiply(pw,pv))==multiply(action(g,pw),action(g,pv))
+                    @test action(g,adjoint_word(pw))==adjoint_word(action(g,pw))
+                    phase,image=N.act(g,w)
+                    @test N.scale(phase,1.)*value(image,matrices) ≈ value(w,mapped) atol=1e-10
+                    if !isnothing(F)
+                        @test N.act(g,first(N.moment_key(w)))==(phase,first(N.moment_key(image)))
+                    end
+                end
+                w=sample(); out=fill(N.act(g,w),4); sink=N.PolynomialBuffer{W,ComplexF64}(1)
+                exercise!(out,sink,g,w)
+                @test (@allocated exercise!(out,sink,g,w))==0
+                phase,image=N.act(g,w)
+                @test all(==((phase,image)),out)
+                @test sink.coefficients[1]==N.scale(phase,2.0+0im) && sink.words[1]==image
+            end
+        end
+    end
+end
+end
+SignedLetterChecks.check()

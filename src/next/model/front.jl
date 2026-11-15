@@ -35,6 +35,8 @@ function _check_symmetry_domain(p::Polynomial,s)
             algebra=p.registry.algebra isa FunctionalAlgebra ? p.registry.algebra.base : p.registry.algebra
             all(s->_label_count(g,s)<=algebra.nletters,1:n) || throw(ArgumentError(
                 "LetterPermutation generator $i uses settings outside this problem's registry; rebuild it from this problem's variables."))
+            (isempty(g.names) || g.names===p.registry.names) || throw(ArgumentError(
+                "LetterPermutation generator $i ($g) uses a different registry from the objective; rebuild it from this problem's variables."))
         end
     end
     return s

@@ -2,6 +2,8 @@
 
 [Measurements, limits and profile findings](results.md) are committed with the
 raw samples in `results.json` and eight build profiles in `profiles.txt`.
+[Precompile scope and first-call measurements](precompile.md) cover the separate
+common-path workload decision, with raw records in `precompile.json`.
 
 Run from the repository root with Python 3.11+ and Julia. Use a disposable Julia
 environment containing this checkout, JuMP, MosekTools and SCS. Do not change the
@@ -18,6 +20,7 @@ python3 perf/next/run.py chain next 16 4 contiguous --project=PATH_TO_ENV
 python3 perf/next/run.py chain legacy 16 4 contiguous --project=PATH_TO_ENV
 python3 perf/next/run.py torus next 6 3 ts --project=PATH_TO_ENV
 python3 perf/next/run.py hydrogen next 4 1 pqg --project=PATH_TO_ENV --checkout=PATH_TO_BENCHMARK
+python3 perf/next/run.py hydrogen next 8 1 t12_number --project=PATH_TO_ENV --checkout=PATH_TO_BENCHMARK
 python3 perf/next/run.py bell next 3 2 dense --mode=solve --project=PATH_TO_ENV
 ```
 
@@ -87,6 +90,9 @@ P/Q/G/T1/T2prime (`t12`), fixed total number and fixed N_up−N_down=0. Legacy u
 the structured v2RDM builder with spin blocking, spin-resolved traces, explicit
 one-D blocks, and no S² condition. Next's `Sector` equations and unsplit condition
 blocks are not identical to legacy's specialized spin-blocked representation.
+The additional `pqg_number` and `t12_number` variants add separate up/down
+`NumberRotation` generators to the same sectors and rows. Their measurements
+are appended to `results.md`; they do not replace the original baseline.
 The legacy build omits the constant nuclear offset; cone and moment counts do
 not depend on it. No legacy hydrogen solve is run here.
 The sole hydrogen solve is Next H4/PQG, native SCS, eps_abs=eps_rel=1e-5.

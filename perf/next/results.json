@@ -4330,6 +4330,417 @@
       },
       "case": "torus-next-9-3-ts",
       "checkpoint_peak_rss_bytes": 2460573696
+    },
+    {
+      "blas_threads": 1,
+      "blocks": 10,
+      "build_bytes": [
+        25747352,
+        25748968,
+        25748680
+      ],
+      "build_seconds": [
+        0.017931635,
+        0.01950953,
+        0.0162944
+      ],
+      "cold_bytes": 2020242208,
+      "cold_seconds": 13.818314456,
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+      "engine": "block_stabilizers",
+      "input_seconds": 0.445341225,
+      "julia": "1.12.7",
+      "lower_bytes": [
+        677768,
+        677768,
+        677768
+      ],
+      "lower_cols": 360,
+      "lower_rows": 6698,
+      "lower_seconds": [
+        0.00084939,
+        0.000374137,
+        0.000424433
+      ],
+      "moments": 199,
+      "n": 4,
+      "nonzeros": 4021,
+      "order": 1,
+      "peak_rss_bytes": 1857622016,
+      "route": "next",
+      "rows": 17,
+      "side": 65,
+      "stage": "complete",
+      "target": "hydrogen",
+      "threads": 1,
+      "variables": 360,
+      "variant": "pqg_number",
+      "exit_code": 0,
+      "stop_reason": "exit",
+      "wall_seconds": 107.70359764099703,
+      "sampled_peak_rss_bytes": 1857605632,
+      "command": [
+        "julia",
+        "--project=.amp/in/orb-backup/solverenv",
+        "--startup-file=no",
+        "/home/user/workspace/repo/perf/next/probe.jl",
+        "hydrogen",
+        "next",
+        "4",
+        "1",
+        "pqg_number",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/h4.toml",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/hydrogen-next-4-1-pqg_number.toml",
+        "build"
+      ],
+      "git_revision": "a50c45902aab81db2b5e5c9142161b4592f6e3b1",
+      "worker_sha256": {
+        "perf/next/probe.jl": "7d7abc187e892515c89e891e21c7c7eca64674e9476fef918eb0d999d80a5af4"
+      },
+      "case": "hydrogen-next-4-1-pqg_number"
+    },
+    {
+      "blas_threads": 1,
+      "blocks": 12,
+      "build_bytes": [
+        44966232,
+        44968808,
+        44968744
+      ],
+      "build_seconds": [
+        0.036458957,
+        0.036249366,
+        0.032268257
+      ],
+      "cold_bytes": 2049629976,
+      "cold_seconds": 14.543849786,
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+      "engine": "block_stabilizers",
+      "input_seconds": 0.532950455,
+      "julia": "1.12.7",
+      "lower_bytes": [
+        4132400,
+        4132400,
+        4132400
+      ],
+      "lower_cols": 360,
+      "lower_rows": 63658,
+      "lower_seconds": [
+        0.002678307,
+        0.002184999,
+        0.001845763
+      ],
+      "moments": 199,
+      "n": 4,
+      "nonzeros": 18373,
+      "order": 1,
+      "peak_rss_bytes": 2249469952,
+      "route": "next",
+      "rows": 17,
+      "side": 232,
+      "stage": "complete",
+      "target": "hydrogen",
+      "threads": 1,
+      "variables": 360,
+      "variant": "t12_number",
+      "exit_code": 0,
+      "stop_reason": "exit",
+      "wall_seconds": 51.32923200100049,
+      "sampled_peak_rss_bytes": 2249457664,
+      "command": [
+        "julia",
+        "--project=.amp/in/orb-backup/solverenv",
+        "--startup-file=no",
+        "/home/user/workspace/repo/perf/next/probe.jl",
+        "hydrogen",
+        "next",
+        "4",
+        "1",
+        "t12_number",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/h4.toml",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/hydrogen-next-4-1-t12_number.toml",
+        "build"
+      ],
+      "git_revision": "a50c45902aab81db2b5e5c9142161b4592f6e3b1",
+      "worker_sha256": {
+        "perf/next/probe.jl": "7d7abc187e892515c89e891e21c7c7eca64674e9476fef918eb0d999d80a5af4"
+      },
+      "case": "hydrogen-next-4-1-t12_number"
+    },
+    {
+      "blas_threads": 1,
+      "blocks": 10,
+      "build_bytes": [
+        97277744,
+        97279424,
+        97279648
+      ],
+      "build_seconds": [
+        0.092051622,
+        0.066647658,
+        0.074684033
+      ],
+      "cold_bytes": 2091822088,
+      "cold_seconds": 13.495192448,
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+      "engine": "block_stabilizers",
+      "input_seconds": 0.619938927,
+      "julia": "1.12.7",
+      "lower_bytes": [
+        3042712,
+        3042712,
+        3042712
+      ],
+      "lower_cols": 1818,
+      "lower_rows": 31714,
+      "lower_seconds": [
+        0.001711304,
+        0.001252671,
+        0.001294532
+      ],
+      "moments": 949,
+      "n": 6,
+      "nonzeros": 19102,
+      "order": 1,
+      "peak_rss_bytes": 2226118656,
+      "route": "next",
+      "rows": 25,
+      "side": 145,
+      "stage": "complete",
+      "target": "hydrogen",
+      "threads": 1,
+      "variables": 1818,
+      "variant": "pqg_number",
+      "exit_code": 0,
+      "stop_reason": "exit",
+      "wall_seconds": 51.23113203799585,
+      "sampled_peak_rss_bytes": 2226106368,
+      "command": [
+        "julia",
+        "--project=.amp/in/orb-backup/solverenv",
+        "--startup-file=no",
+        "/home/user/workspace/repo/perf/next/probe.jl",
+        "hydrogen",
+        "next",
+        "6",
+        "1",
+        "pqg_number",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/h6.toml",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/hydrogen-next-6-1-pqg_number.toml",
+        "build"
+      ],
+      "git_revision": "a50c45902aab81db2b5e5c9142161b4592f6e3b1",
+      "worker_sha256": {
+        "perf/next/probe.jl": "7d7abc187e892515c89e891e21c7c7eca64674e9476fef918eb0d999d80a5af4"
+      },
+      "case": "hydrogen-next-6-1-pqg_number"
+    },
+    {
+      "blas_threads": 1,
+      "blocks": 12,
+      "build_bytes": [
+        293675992,
+        293676984,
+        293676664
+      ],
+      "build_seconds": [
+        0.246055867,
+        0.236024718,
+        0.211189609
+      ],
+      "cold_bytes": 2298292808,
+      "cold_seconds": 16.015748232,
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+      "engine": "block_stabilizers",
+      "input_seconds": 0.725178737,
+      "julia": "1.12.7",
+      "lower_bytes": [
+        37389320,
+        37389320,
+        37389320
+      ],
+      "lower_cols": 1818,
+      "lower_rows": 726530,
+      "lower_seconds": [
+        0.016485623,
+        0.013977375,
+        0.01765754
+      ],
+      "moments": 949,
+      "n": 6,
+      "nonzeros": 138238,
+      "order": 1,
+      "peak_rss_bytes": 2221142016,
+      "route": "next",
+      "rows": 25,
+      "side": 804,
+      "stage": "complete",
+      "target": "hydrogen",
+      "threads": 1,
+      "variables": 1818,
+      "variant": "t12_number",
+      "exit_code": 0,
+      "stop_reason": "exit",
+      "wall_seconds": 52.89994866699999,
+      "sampled_peak_rss_bytes": 2221129728,
+      "command": [
+        "julia",
+        "--project=.amp/in/orb-backup/solverenv",
+        "--startup-file=no",
+        "/home/user/workspace/repo/perf/next/probe.jl",
+        "hydrogen",
+        "next",
+        "6",
+        "1",
+        "t12_number",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/h6.toml",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/hydrogen-next-6-1-t12_number.toml",
+        "build"
+      ],
+      "git_revision": "a50c45902aab81db2b5e5c9142161b4592f6e3b1",
+      "worker_sha256": {
+        "perf/next/probe.jl": "7d7abc187e892515c89e891e21c7c7eca64674e9476fef918eb0d999d80a5af4",
+        "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "case": "hydrogen-next-6-1-t12_number"
+    },
+    {
+      "blas_threads": 1,
+      "blocks": 10,
+      "build_bytes": [
+        257845864,
+        257848280,
+        257848024
+      ],
+      "build_seconds": [
+        0.275683282,
+        0.164369632,
+        0.164298895
+      ],
+      "cold_bytes": 2252302720,
+      "cold_seconds": 15.022688352,
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+      "engine": "block_stabilizers",
+      "input_seconds": 2.433942773,
+      "julia": "1.12.7",
+      "lower_bytes": [
+        9833584,
+        9833584,
+        9833584
+      ],
+      "lower_cols": 5792,
+      "lower_rows": 98314,
+      "lower_seconds": [
+        0.003672565,
+        0.003497459,
+        0.002975012
+      ],
+      "moments": 2965,
+      "n": 8,
+      "nonzeros": 58508,
+      "order": 1,
+      "peak_rss_bytes": 2241626112,
+      "route": "next",
+      "rows": 33,
+      "side": 257,
+      "stage": "complete",
+      "target": "hydrogen",
+      "threads": 1,
+      "variables": 5792,
+      "variant": "pqg_number",
+      "exit_code": 0,
+      "stop_reason": "exit",
+      "wall_seconds": 56.98348989000078,
+      "sampled_peak_rss_bytes": 2241531904,
+      "command": [
+        "julia",
+        "--project=.amp/in/orb-backup/solverenv",
+        "--startup-file=no",
+        "/home/user/workspace/repo/perf/next/probe.jl",
+        "hydrogen",
+        "next",
+        "8",
+        "1",
+        "pqg_number",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/h8.toml",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/hydrogen-next-8-1-pqg_number.toml",
+        "build"
+      ],
+      "git_revision": "a50c45902aab81db2b5e5c9142161b4592f6e3b1",
+      "worker_sha256": {
+        "perf/next/probe.jl": "7d7abc187e892515c89e891e21c7c7eca64674e9476fef918eb0d999d80a5af4",
+        "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "case": "hydrogen-next-8-1-pqg_number"
+    },
+    {
+      "blas_threads": 1,
+      "blocks": 12,
+      "build_bytes": [
+        1236837800,
+        1236836936,
+        1236837304
+      ],
+      "build_seconds": [
+        1.060509468,
+        1.033854243,
+        0.983500246
+      ],
+      "cold_bytes": 3241477840,
+      "cold_seconds": 16.488162196,
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+      "engine": "block_stabilizers",
+      "input_seconds": 2.266822169,
+      "julia": "1.12.7",
+      "lower_bytes": [
+        189375264,
+        189371368,
+        189371368
+      ],
+      "lower_cols": 5792,
+      "lower_rows": 4160010,
+      "lower_seconds": [
+        0.105385013,
+        0.104129486,
+        0.112305139
+      ],
+      "moments": 2965,
+      "n": 8,
+      "nonzeros": 582380,
+      "order": 1,
+      "peak_rss_bytes": 2340073472,
+      "route": "next",
+      "rows": 33,
+      "side": 1936,
+      "stage": "complete",
+      "target": "hydrogen",
+      "threads": 1,
+      "variables": 5792,
+      "variant": "t12_number",
+      "exit_code": 0,
+      "stop_reason": "exit",
+      "wall_seconds": 59.890503816001,
+      "sampled_peak_rss_bytes": 2340036608,
+      "command": [
+        "julia",
+        "--project=.amp/in/orb-backup/solverenv",
+        "--startup-file=no",
+        "/home/user/workspace/repo/perf/next/probe.jl",
+        "hydrogen",
+        "next",
+        "8",
+        "1",
+        "t12_number",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/h8.toml",
+        "/home/user/workspace/repo/.amp/in/orb-backup/scale/hydrogen-next-8-1-t12_number.toml",
+        "build"
+      ],
+      "git_revision": "a50c45902aab81db2b5e5c9142161b4592f6e3b1",
+      "worker_sha256": {
+        "perf/next/probe.jl": "7d7abc187e892515c89e891e21c7c7eca64674e9476fef918eb0d999d80a5af4",
+        "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b"
+      },
+      "case": "hydrogen-next-8-1-t12_number"
     }
   ]
 }

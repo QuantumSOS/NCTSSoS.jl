@@ -43,7 +43,7 @@ export pauli_variables, fermionic_variables, site_variables,
     SpinRotation, spin_rotations, NumberRotation,
     detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,
     DensityMatrix, InvariantCone, Stationarity, StateOptimality, Sector, FermionicConditions,
-    inspect, solve, expectation, SCSBackend, JuMPBackend
+    inspect, solve, expectation, SCSBackend, MosekBackend, JuMPBackend
 
 include("precompile.jl")
 

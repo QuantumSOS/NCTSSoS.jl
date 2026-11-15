@@ -50,6 +50,35 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  mosek-extension:
+    name: Native Mosek construction (no license)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: '1.12.3'
+      - name: Install standalone Mosek environment
+        shell: julia --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.activate(joinpath(ENV["RUNNER_TEMP"], "mosek-extension"))
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.add([PackageSpec(name="Mosek", version="11"), PackageSpec(name="JuMP", version="1.32.1")])
+      - name: Test native construction without a license
+        run: julia --project="$RUNNER_TEMP/mosek-extension" --startup-file=no --code-coverage=user test/next/conic/mosek.jl
+      - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: src,ext
+      - uses: codecov/codecov-action@v7
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
   docs:
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     name: Documentation

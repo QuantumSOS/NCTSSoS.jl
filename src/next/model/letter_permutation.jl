@@ -12,19 +12,25 @@ function LetterPermutation(pairs)
     n,m=r.nsites,base.nletters
     images=[(s,l) for s in 1:n,l in 1:m]
     sources=Set{Tuple{Int,Int}}()
+    negative=Set{Tuple{Int,Int}}()
     name(location)=_letter_name(r.names,location)
     pairname(location)="$(name(location)) => $(name(images[location...]))"
     for pair in entries
-        for endpoint in pair
+        for (i,endpoint) in enumerate(pair)
             endpoint isa Polynomial && endpoint.registry===r || throw(ArgumentError(
                 "LetterPermutation pair $pair must use operator letters from one registry."))
-            length(endpoint.data)==1 && endpoint.data.coefficients[1]==1 &&
+            length(endpoint.data)==1 && (endpoint.data.coefficients[1]==1 || (i==2 && endpoint.data.coefficients[1]==-1)) &&
                 degree(endpoint.data.words[1])==1 &&
                 (!(endpoint.data.words[1] isa FunctionalWord) || _ftail(endpoint.data.words[1])==1) ||
-                throw(ArgumentError("LetterPermutation pair $pair needs coefficient-one operator letters, not symbols, sums or signed/scaled letters."))
+                throw(ArgumentError("LetterPermutation pair $pair needs coefficient-one source operator letters and target coefficients +1 or -1, not symbols, sums or other scaled letters."))
         end
         source,target=_letter_location(pair.first.data.words[1]),_letter_location(pair.second.data.words[1])
         source in sources && throw(ArgumentError("LetterPermutation pair $pair repeats its source."))
+        if pair.second.data.coefficients[1]==-1
+            base isa SiteAlgebra{Projector} && throw(ArgumentError(
+                "LetterPermutation pair $pair has a negative Projector target: -P is not a projector; remove the sign or use Free or Unipotent variables."))
+            push!(negative,source)
+        end
         push!(sources,source); images[source...]=target
     end
     seen=Dict{Tuple{Int,Int},Tuple{Int,Int}}()
@@ -44,5 +50,5 @@ function LetterPermutation(pairs)
     end
     site_map=SitePermutation([images[s,1][1] for s in 1:n])
     labels=[SitePermutation([images[s,l][2] for l in 1:m]) for s in 1:n]
-    LetterPermutation{_letter_rule(eltype(first(entries).first.data.words))}(site_map,labels,r.names,Val(:normal))
+    LetterPermutation{_letter_rule(eltype(first(entries).first.data.words))}(site_map,labels,negative,r.names,Val(:normal))
 end

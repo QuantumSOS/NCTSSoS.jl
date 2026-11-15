@@ -1,0 +1,1511 @@
+{
+  "measurements": {
+    "before": [
+      {
+        "blas_threads": 1,
+        "blocks": 54,
+        "build_bytes": [
+          85376936,
+          85376936,
+          85376936
+        ],
+        "build_seconds": [
+          0.172231756,
+          0.164578484,
+          0.17275239
+        ],
+        "cold_bytes": 85459312,
+        "cold_seconds": 0.175995019,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.193591853,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          4452568,
+          4452568,
+          4452568
+        ],
+        "lower_cols": 1034,
+        "lower_rows": 2683,
+        "lower_seconds": [
+          0.001544096,
+          0.001712699,
+          0.001625778
+        ],
+        "moments": 1035,
+        "n": 16,
+        "nonzeros": 54971,
+        "order": 4,
+        "peak_rss_bytes": 1674178560,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-16-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 1921,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 1034,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 118.92348784899514,
+        "sampled_peak_rss_bytes": 1673990144,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo/.amp/in/orb-backup/chain-base",
+          "--startup-file=no",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-base/perf/next/probe.jl",
+          "chain",
+          "next",
+          "16",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-16-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 94,
+        "build_bytes": [
+          279812040,
+          279812040,
+          279808016
+        ],
+        "build_seconds": [
+          0.738894418,
+          0.693523104,
+          0.686547675
+        ],
+        "cold_bytes": 279941768,
+        "cold_seconds": 0.747920051,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.197034973,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          24383656,
+          24383656,
+          24383656
+        ],
+        "lower_cols": 2754,
+        "lower_rows": 5299,
+        "lower_seconds": [
+          0.008511578,
+          0.007371997,
+          0.007649195
+        ],
+        "moments": 2755,
+        "n": 32,
+        "nonzeros": 238463,
+        "order": 4,
+        "peak_rss_bytes": 2144862208,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-32-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 3841,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 2754,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 39.64401406599791,
+        "sampled_peak_rss_bytes": 2144862208,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo/.amp/in/orb-backup/chain-base",
+          "--startup-file=no",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-base/perf/next/probe.jl",
+          "chain",
+          "next",
+          "32",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-32-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 114,
+        "build_bytes": [
+          453982880,
+          453978856,
+          453978856
+        ],
+        "build_seconds": [
+          1.192094297,
+          1.087156376,
+          1.154262978
+        ],
+        "cold_bytes": 454100520,
+        "cold_seconds": 1.358237524,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.192024205,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          41712136,
+          41712136,
+          41712136
+        ],
+        "lower_cols": 3614,
+        "lower_rows": 6607,
+        "lower_seconds": [
+          0.013843851,
+          0.010970852,
+          0.011022081
+        ],
+        "moments": 3615,
+        "n": 40,
+        "nonzeros": 379439,
+        "order": 4,
+        "peak_rss_bytes": 2240131072,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-40-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 4801,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 3614,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 40.26860617598868,
+        "sampled_peak_rss_bytes": 2239905792,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo/.amp/in/orb-backup/chain-base",
+          "--startup-file=no",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-base/perf/next/probe.jl",
+          "chain",
+          "next",
+          "40",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-40-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 174,
+        "build_bytes": [
+          1030825832,
+          1030825832,
+          1030821808
+        ],
+        "build_seconds": [
+          2.993181046,
+          3.159219957,
+          3.756792667
+        ],
+        "cold_bytes": 1030935424,
+        "cold_seconds": 4.374519271,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.211369068,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          121669728,
+          121669728,
+          121669728
+        ],
+        "lower_cols": 6194,
+        "lower_rows": 10531,
+        "lower_seconds": [
+          0.035017331,
+          0.034763838,
+          0.037362108
+        ],
+        "moments": 6195,
+        "n": 64,
+        "nonzeros": 1005775,
+        "order": 4,
+        "peak_rss_bytes": 2679427072,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-64-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 7681,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 6194,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 51.43419583499781,
+        "sampled_peak_rss_bytes": 2632118272,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo/.amp/in/orb-backup/chain-base",
+          "--startup-file=no",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-base/perf/next/probe.jl",
+          "chain",
+          "next",
+          "64",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-64-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 264,
+        "build_bytes": [
+          2663744208,
+          2663740184,
+          2663736800
+        ],
+        "build_seconds": [
+          11.691861934,
+          10.906302923,
+          11.039551645
+        ],
+        "cold_bytes": 4096281560,
+        "cold_seconds": 24.593221047,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 1.091109853,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          335302896,
+          335302896,
+          335302896
+        ],
+        "lower_cols": 10064,
+        "lower_rows": 16417,
+        "lower_seconds": [
+          0.126749974,
+          0.125580388,
+          0.120667118
+        ],
+        "moments": 10065,
+        "n": 100,
+        "nonzeros": 2540536,
+        "order": 4,
+        "peak_rss_bytes": 3999981568,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-100-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 12001,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 10064,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 95.97965566700441,
+        "sampled_peak_rss_bytes": 3999981568,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo/.amp/in/orb-backup/chain-base",
+          "--startup-file=no",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-base/perf/next/probe.jl",
+          "chain",
+          "next",
+          "100",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/before/chain-next-100-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      }
+    ],
+    "legacy": [
+      {
+        "blas_threads": 1,
+        "blocks": 20,
+        "build_bytes": [
+          201842312,
+          201842312,
+          201842312
+        ],
+        "build_seconds": [
+          0.181073538,
+          0.185579975,
+          0.188601317
+        ],
+        "cold_bytes": 960378944,
+        "cold_seconds": 9.567354239,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "input_seconds": 1.03258011,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          34911232,
+          34911232,
+          34911232
+        ],
+        "lower_cols": 1035,
+        "lower_rows": 7983,
+        "lower_seconds": [
+          0.048761734,
+          0.04930285,
+          0.050029787
+        ],
+        "moments": 1035,
+        "n": 16,
+        "nonzeros": 85412,
+        "order": 4,
+        "peak_rss_bytes": 1785516032,
+        "route": "legacy",
+        "rows": 541,
+        "side": 30,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 1035,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 130.777367460003,
+        "sampled_peak_rss_bytes": 1785344000,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "legacy",
+          "16",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/legacy/chain-legacy-16-4-contiguous.toml",
+          "build"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 36,
+        "build_bytes": [
+          641147296,
+          641147296,
+          641147296
+        ],
+        "build_seconds": [
+          0.683699936,
+          0.701909424,
+          0.680626938
+        ],
+        "cold_bytes": 1399686784,
+        "cold_seconds": 11.266383194,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "input_seconds": 0.976227947,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          136421912,
+          136421912,
+          136421912
+        ],
+        "lower_cols": 2755,
+        "lower_rows": 15423,
+        "lower_seconds": [
+          0.232740228,
+          0.22500224,
+          0.226196861
+        ],
+        "moments": 2755,
+        "n": 32,
+        "nonzeros": 365204,
+        "order": 4,
+        "peak_rss_bytes": 2367258624,
+        "route": "legacy",
+        "rows": 1021,
+        "side": 30,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 2755,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 53.23527490199194,
+        "sampled_peak_rss_bytes": 2367057920,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "legacy",
+          "32",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/legacy/chain-legacy-32-4-contiguous.toml",
+          "build"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 44,
+        "build_bytes": [
+          925110880,
+          925110880,
+          925110880
+        ],
+        "build_seconds": [
+          1.308802359,
+          1.31742778,
+          1.029073935
+        ],
+        "cold_bytes": 1683647944,
+        "cold_seconds": 11.294951215,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "input_seconds": 1.103390417,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          203200808,
+          203200808,
+          203200808
+        ],
+        "lower_cols": 3615,
+        "lower_rows": 19143,
+        "lower_seconds": [
+          0.344754015,
+          0.358810453,
+          0.403390719
+        ],
+        "moments": 3615,
+        "n": 40,
+        "nonzeros": 576406,
+        "order": 4,
+        "peak_rss_bytes": 2324983808,
+        "route": "legacy",
+        "rows": 1261,
+        "side": 30,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 3615,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 59.694027022997034,
+        "sampled_peak_rss_bytes": 2324803584,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "legacy",
+          "40",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/legacy/chain-legacy-40-4-contiguous.toml",
+          "build"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 68,
+        "build_bytes": [
+          2041105888,
+          2041105888,
+          2041105888
+        ],
+        "build_seconds": [
+          2.791715833,
+          2.920240536,
+          2.853506579
+        ],
+        "cold_bytes": 2799805696,
+        "cold_seconds": 13.479150603,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "input_seconds": 1.150699823,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          437392552,
+          437392552,
+          437392552
+        ],
+        "lower_cols": 6195,
+        "lower_rows": 30303,
+        "lower_seconds": [
+          0.956441737,
+          1.038803992,
+          0.933256552
+        ],
+        "moments": 6195,
+        "n": 64,
+        "nonzeros": 1525244,
+        "order": 4,
+        "peak_rss_bytes": 2564521984,
+        "route": "legacy",
+        "rows": 1981,
+        "side": 30,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 6195,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 68.13545833699754,
+        "sampled_peak_rss_bytes": 2564337664,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "legacy",
+          "64",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/legacy/chain-legacy-64-4-contiguous.toml",
+          "build"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 104,
+        "build_bytes": [
+          4826579368,
+          4826579368,
+          4826579368
+        ],
+        "build_seconds": [
+          11.41323314,
+          10.102320715,
+          9.886543406
+        ],
+        "cold_bytes": 5612923016,
+        "cold_seconds": 20.294610263,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "input_seconds": 1.121958118,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          1356105320,
+          1356105320,
+          1356105320
+        ],
+        "lower_cols": 10065,
+        "lower_rows": 47043,
+        "lower_seconds": [
+          3.538079608,
+          3.258076492,
+          3.269340613
+        ],
+        "moments": 10065,
+        "n": 100,
+        "nonzeros": 3812230,
+        "order": 4,
+        "peak_rss_bytes": 3416752128,
+        "route": "legacy",
+        "rows": 3061,
+        "side": 30,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 10065,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 109.70266870300111,
+        "sampled_peak_rss_bytes": 3416752128,
+        "command": [
+          "julia",
+          "--project=/home/user/workspace/repo",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "legacy",
+          "100",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-sweep/legacy/chain-legacy-100-4-contiguous.toml",
+          "build"
+        ],
+        "git_revision": "91330d95217672e5ec24a5b12815d80715ad76cb",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb"
+        }
+      }
+    ],
+    "after": [
+      {
+        "blas_threads": 1,
+        "blocks": 54,
+        "build_bytes": [
+          85382840,
+          85382840,
+          85382840
+        ],
+        "build_seconds": [
+          0.124080717,
+          0.131236171,
+          0.122286923
+        ],
+        "cold_bytes": 85469432,
+        "cold_seconds": 0.151623709,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.180282767,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          4452568,
+          4452568,
+          4452568
+        ],
+        "lower_cols": 1034,
+        "lower_rows": 2683,
+        "lower_seconds": [
+          0.001840675,
+          0.00158329,
+          0.001544504
+        ],
+        "moments": 1035,
+        "n": 16,
+        "nonzeros": 54971,
+        "order": 4,
+        "peak_rss_bytes": 2023763968,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-16-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 1921,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 1034,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 35.370123998000054,
+        "sampled_peak_rss_bytes": 2023718912,
+        "command": [
+          "julia",
+          "--project=.",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "next",
+          "16",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-16-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "694a6faa34b3629f85252356e180e655bcc90d49",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb",
+          "perf/next/bosonic.jl": "7fae792d1f96ecc821ed1f3c8ba08a720521fc85d9060f0a5b567d3075975984"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 94,
+        "build_bytes": [
+          279817944,
+          279817944,
+          279813920
+        ],
+        "build_seconds": [
+          0.578278509,
+          0.483850144,
+          0.506056905
+        ],
+        "cold_bytes": 279943648,
+        "cold_seconds": 0.514470832,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.189383493,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          24383656,
+          24383656,
+          24383656
+        ],
+        "lower_cols": 2754,
+        "lower_rows": 5299,
+        "lower_seconds": [
+          0.007928128,
+          0.008954976,
+          0.007235675
+        ],
+        "moments": 2755,
+        "n": 32,
+        "nonzeros": 238463,
+        "order": 4,
+        "peak_rss_bytes": 2138734592,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-32-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 3841,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 2754,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 37.71057792499778,
+        "sampled_peak_rss_bytes": 2138734592,
+        "command": [
+          "julia",
+          "--project=.",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "next",
+          "32",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-32-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "694a6faa34b3629f85252356e180e655bcc90d49",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb",
+          "perf/next/bosonic.jl": "7fae792d1f96ecc821ed1f3c8ba08a720521fc85d9060f0a5b567d3075975984"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 114,
+        "build_bytes": [
+          453988784,
+          453984760,
+          453984760
+        ],
+        "build_seconds": [
+          0.816057228,
+          0.763821863,
+          0.730501324
+        ],
+        "cold_bytes": 454094352,
+        "cold_seconds": 1.036511525,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.184430445,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          41712136,
+          41712136,
+          41712136
+        ],
+        "lower_cols": 3614,
+        "lower_rows": 6607,
+        "lower_seconds": [
+          0.01081748,
+          0.010394816,
+          0.010595307
+        ],
+        "moments": 3615,
+        "n": 40,
+        "nonzeros": 379439,
+        "order": 4,
+        "peak_rss_bytes": 2219368448,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-40-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 4801,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 3614,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 38.48538746700797,
+        "sampled_peak_rss_bytes": 2219364352,
+        "command": [
+          "julia",
+          "--project=.",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "next",
+          "40",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-40-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "694a6faa34b3629f85252356e180e655bcc90d49",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb",
+          "perf/next/bosonic.jl": "7fae792d1f96ecc821ed1f3c8ba08a720521fc85d9060f0a5b567d3075975984"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 174,
+        "build_bytes": [
+          1030838656,
+          1030838656,
+          1030838656
+        ],
+        "build_seconds": [
+          1.999713412,
+          2.106528759,
+          2.772261907
+        ],
+        "cold_bytes": 1030956296,
+        "cold_seconds": 3.402146252,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 0.192702772,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          121669728,
+          121669728,
+          121669728
+        ],
+        "lower_cols": 6194,
+        "lower_rows": 10531,
+        "lower_seconds": [
+          0.034080345,
+          0.031302619,
+          0.031220986
+        ],
+        "moments": 6195,
+        "n": 64,
+        "nonzeros": 1005775,
+        "order": 4,
+        "peak_rss_bytes": 2658213888,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-64-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 7681,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 6194,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 46.019339611011674,
+        "sampled_peak_rss_bytes": 2644426752,
+        "command": [
+          "julia",
+          "--project=.",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "next",
+          "64",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-64-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "694a6faa34b3629f85252356e180e655bcc90d49",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb",
+          "perf/next/bosonic.jl": "7fae792d1f96ecc821ed1f3c8ba08a720521fc85d9060f0a5b567d3075975984"
+        }
+      },
+      {
+        "blas_threads": 1,
+        "blocks": 264,
+        "build_bytes": [
+          2663756904,
+          2663757544,
+          2663754736
+        ],
+        "build_seconds": [
+          7.771296292,
+          7.085695049,
+          7.117260192
+        ],
+        "cold_bytes": 4110365672,
+        "cold_seconds": 19.860274861,
+        "cpu": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+        "engine": "lattice",
+        "input_seconds": 1.05179796,
+        "julia": "1.12.7",
+        "lower_bytes": [
+          335299512,
+          335299512,
+          335299512
+        ],
+        "lower_cols": 10064,
+        "lower_rows": 16417,
+        "lower_seconds": [
+          0.0804241,
+          0.08170757,
+          0.083458568
+        ],
+        "moments": 10065,
+        "n": 100,
+        "nonzeros": 2540536,
+        "order": 4,
+        "peak_rss_bytes": 4066959360,
+        "program_path": "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-100-4-contiguous.toml.program.jls",
+        "route": "next",
+        "rows": 12001,
+        "side": 16,
+        "stage": "complete",
+        "target": "chain",
+        "threads": 1,
+        "variables": 10064,
+        "variant": "contiguous",
+        "exit_code": 0,
+        "stop_reason": "exit",
+        "wall_seconds": 78.78686287200253,
+        "sampled_peak_rss_bytes": 4052361216,
+        "command": [
+          "julia",
+          "--project=.",
+          "--startup-file=no",
+          "/home/user/workspace/repo/perf/next/probe.jl",
+          "chain",
+          "next",
+          "100",
+          "4",
+          "contiguous",
+          "-",
+          "/home/user/workspace/repo/.amp/in/orb-backup/chain-final/chain-next-100-4-contiguous.toml",
+          "build",
+          "save_program"
+        ],
+        "git_revision": "694a6faa34b3629f85252356e180e655bcc90d49",
+        "worker_sha256": {
+          "perf/next/probe.jl": "e7b98cd2908f649ca9f184653d1b068ebb51870e5e183d12703d686fa4beec18",
+          "perf/next/gns.jl": "152a25b8206a6bc5fb16209a93ec5f7bdefd9a052d0ab39924cdfafd44dc16ff",
+          "perf/next/first_call.jl": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+          "perf/next/mosek_lowering.jl": "09c9f4b2e538c7c3a0a48fbbc83a6fc8ac56e887a89cb92435206e75518271a9",
+          "perf/next/mosek_acceptance.jl": "0a84d77e7fa5362b92709c0170aa1587a09e068e223ac77b66d90a608eac2de2",
+          "perf/next/first_call_extra.jl": "9112c357ff4431bf516559211e67c0206ff9e8964cce3d09bb5b7f66ea24ad72",
+          "perf/next/mosek_writers.jl": "4076418717f49952c9d58737584f374e7eca8904f486343e04d99236b2aacadb",
+          "perf/next/bosonic.jl": "7fae792d1f96ecc821ed1f3c8ba08a720521fc85d9060f0a5b567d3075975984"
+        }
+      }
+    ]
+  },
+  "chain_fingerprints": [
+    {
+      "n": 16,
+      "before": "f055845db40f3163359e42452a56ebb0f1f88d1b36c8d3621a50c28c6735047f",
+      "after": "f055845db40f3163359e42452a56ebb0f1f88d1b36c8d3621a50c28c6735047f"
+    },
+    {
+      "n": 32,
+      "before": "b6440edcea250f8c03d3a991dc70ba854b8204f59464368e2ad6d6cf12bb7e69",
+      "after": "b6440edcea250f8c03d3a991dc70ba854b8204f59464368e2ad6d6cf12bb7e69"
+    },
+    {
+      "n": 40,
+      "before": "93bcf4420bf978e255e425b955e320175caa351f33f448558f9031dbabf3e040",
+      "after": "93bcf4420bf978e255e425b955e320175caa351f33f448558f9031dbabf3e040"
+    },
+    {
+      "n": 64,
+      "before": "b8b6c2f68ef5929abbf609fc8d4d9e5e1b7755e008610690b5520b403a0a2420",
+      "after": "b8b6c2f68ef5929abbf609fc8d4d9e5e1b7755e008610690b5520b403a0a2420"
+    },
+    {
+      "n": 100,
+      "before": "7e6b1cf58aff7a653e67219283346e993a462593beb965c882858f6cae3a0800",
+      "after": "7e6b1cf58aff7a653e67219283346e993a462593beb965c882858f6cae3a0800"
+    }
+  ],
+  "smoke_fingerprints": [
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :none, continuous = :none, strengthening = ())",
+      "sha256": "d6e5976b4b5a08da0d2abc5fe43b687ad9aa7425ee8c8b679ca0ac7dc0eddb30"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :physics), finite = :none, continuous = :su2, strengthening = (:density,))",
+      "sha256": "56069cb9c5e6c40a6be525a2e14ac959caa876d3904a5a3c4e1a5276955c03f7"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :correlative, split = :term), finite = :translation, continuous = :none, strengthening = (:stationarity,))",
+      "sha256": "c55b5a3b58a15dc62cc2ae2aebab4477f3d30bac56c97692f046a69703d47e55"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :physics, split = :none), finite = :translation, continuous = :su2, strengthening = (:optimality,))",
+      "sha256": "14674eb28fe0b5c08218c26cc62d304459af6f296d0d03d35500dfe86e1827cb"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :physics, split = :physics), finite = :dihedral, continuous = :none, strengthening = (:sector,))",
+      "sha256": "d123f8c44f03340a02086bf5c87ee6a625e6138be02ad24c02532de982848f0e"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :contiguous, group = :none, split = :term), finite = :dihedral, continuous = :su2, strengthening = (:density, :stationarity))",
+      "sha256": "3749b822f4a7dd80148c297c8711795575030721e354c8b7728e76b626e8dfce"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :contiguous, group = :correlative, split = :none), finite = :moment_only, continuous = :none, strengthening = (:density, :optimality))",
+      "sha256": "acaf010e77ceecd0dbbb0397776e872098d95c067ce80117999271acadf8e556"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :contiguous, group = :physics, split = :term), finite = :antiunitary, continuous = :none, strengthening = (:invariant, :optimality))",
+      "sha256": "e337c816e6eebff787a19f34b6b1b1d41ba97001ba0be5d61b2b8fb647704d07"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 2, rows = :complete, group = :none, split = :physics), finite = :clifford, continuous = :none, strengthening = (:stationarity, :optimality))",
+      "sha256": "b2d5f66e832bcc89578c4b1c5e444fea939a42d7b938f6b0212065cbb85e9202"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 2, rows = :contiguous, group = :none, split = :physics), finite = :none, continuous = :u1, strengthening = (:stationarity,))",
+      "sha256": "bfbe2dc0674bc9c144681d95dda40bad72d8d6b6b746feaa5dc1f62e44494ccb"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 2, rows = :contiguous, group = :physics, split = :none), finite = :translation, continuous = :u1, strengthening = (:sector,))",
+      "sha256": "e4e49a609dcf5537553c5a375f9c79e077b3eac3117d32b089825e8ae4144c26"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 2, rows = :custom, group = :none, split = :none), finite = :dihedral, continuous = :u1, strengthening = (:density, :optimality))",
+      "sha256": "25ad25ceb129aa55427988cfce2be26b36575486f9b0a3d9edef299eff94e846"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :correlative, split = :none), finite = :moment_only, continuous = :u1, strengthening = (:invariant, :optimality))",
+      "sha256": "2b8bac29cf99dea7bb74359c4ffdf6bd79255f9e166a41bf27c20e42cd4ae8df"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :physics, split = :term), finite = :antiunitary, continuous = :u1, strengthening = (:stationarity, :optimality))",
+      "sha256": "b2689829f3ea5f77391f8a211cb3f31ceae840d10a7f457ac29750fafdf7054c"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :contiguous, group = :correlative, split = :term), finite = :detected, continuous = :none, strengthening = (:density,))",
+      "sha256": "010f249be6be2c4ceda8e97871e60e3aee53cc5c79cda33953d3b74234f1f145"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 2, rows = :complete, group = :none, split = :none), finite = :none, continuous = :none, strengthening = (:optimality,))",
+      "sha256": "8dffa3b2cfb7bca9e6be0940d2d825164794fe04ed661a4ddb24c1ef3f802428"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 2, rows = :complete, group = :correlative, split = :term), finite = :translation, continuous = :none, strengthening = (:density, :stationarity))",
+      "sha256": "c4f5808fb569096e3caca498e2ead60a1140ca76fed8a319ebc7e348eff081d1"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 2, rows = :complete, group = :physics, split = :physics), finite = :dihedral, continuous = :none, strengthening = (:density, :sector))",
+      "sha256": "d39dc417901be9ca60abdbe65a294f465a363df54d0015e8340f90a02e4d6286"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 2, rows = :contiguous, group = :correlative, split = :none), finite = :moment_only, continuous = :none, strengthening = (:invariant, :sector))",
+      "sha256": "366580f91c07c5bf163a293ab0af004c0199c5e35a6541617e764115514bdb2d"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 2, rows = :complete, group = :correlative, split = :physics), finite = :antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "fd20e60e52264530a2752286d38278cab3d3773d927fca61671c8cabfccad9b6"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 2, rows = :contiguous, group = :none, split = :none), finite = :clifford, continuous = :none, strengthening = (:invariant,))",
+      "sha256": "727e00407ff71adb37a39214e0b5526ee047ddf65733d9747d247267b263e75b"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 2, rows = :contiguous, group = :correlative, split = :term), finite = :detected, continuous = :none, strengthening = (:sector,))",
+      "sha256": "48db7e4963a85d6f7030a86526a4f0060159871c333ec48f89deabdb15b4de34"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :custom, group = :none, split = :none), finite = :none, continuous = :none, strengthening = (:density, :optimality))",
+      "sha256": "6aad977ccee907f767ab83f96fac2a65d15ea90d06b0573ebf42d8d2a450ebb7"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 2, rows = :complete, group = :physics, split = :term), finite = :translation, continuous = :number, strengthening = (:sector,))",
+      "sha256": "62aa334e3ea3956efaf8fad2e93ea61d629a7de5fbe39e5a77c9ba1c5cbf9cc1"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 2, rows = :contiguous, group = :physics, split = :none), finite = :moment_only, continuous = :number, strengthening = (:fermionic,))",
+      "sha256": "1bfee7f522e821a4fa39b4c9d6f498732ebfd865483df4d6ff6fcd0f97f1a8de"
+    },
+    {
+      "case": "(n = 4, problem = :unipotent, family = (order = 1, rows = :contiguous, group = :physics, split = :none), finite = :moment_only, continuous = :none, strengthening = ())",
+      "sha256": "bad93cca09fac0bf72efa02330e4a26bbd81d0421b86fcf9dd88072e7b4bbd2e"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :contiguous, group = :none, split = :physics), finite = :none, continuous = :u1, strengthening = ())",
+      "sha256": "e86b3397f0741517a7c7b43e012d4ed064be5c5c4f16824ac0dc568fdb35a6ca"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :contiguous, group = :physics, split = :none), finite = :translation, continuous = :u1, strengthening = (:invariant,))",
+      "sha256": "45309c19a5872c742be1920f080a8a38b512d37b2caff239c795d509eaa1b4e4"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 2, rows = :complete, group = :none, split = :term), finite = :dihedral, continuous = :u1, strengthening = (:sector,))",
+      "sha256": "d2791c501181e18259ad466cc2b54c924d7a945d02891d729890cbf809fa716d"
+    },
+    {
+      "case": "(n = 6, problem = :fermions, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :number, strengthening = ())",
+      "sha256": "d9aedde465cdb42c6ff8e926c2175d586b630a545aad5003123f6846a6959cfe"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "b126e901fa739ebd763b2e556571008326280a18f0eb0b75e9f8857eb6d27f45"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :dihedral, continuous = :none, strengthening = ())",
+      "sha256": "aecb775b255ea7aadf87a9f7e9bdda91b97bc8be7a2e5b2b803ee9e7a7c4b104"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :moment_only, continuous = :none, strengthening = ())",
+      "sha256": "9f17a678ec0ab3fbe2066a885d8e68f875d2a8d4499b977d93f0164ae7898f62"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "46ea092aae089b27f18fc89ba52fc7f0966186207b89e4bcc90cf3c631d821ad"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :clifford, continuous = :none, strengthening = ())",
+      "sha256": "240fa1c8439258aa72737e9762de87c6c8a8be47933094f1bc2ac0fc47cfee36"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :detected, continuous = :none, strengthening = ())",
+      "sha256": "1c4abd32e00d7225fda2e5f99752aed169445a7e614591fc2d6867e7fbe58bf7"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :none, continuous = :none, strengthening = ())",
+      "sha256": "21db87e2ffd7adf75285591c4703e3892f7010bfae7da7599b501634461c9335"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "dd462bef623f308fcd7f260346538093ad2b1fb84181154ab8b6fdbca46fa955"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :dihedral, continuous = :none, strengthening = ())",
+      "sha256": "ef1ec40d60f8c777ea75e019286646c158a43b8402366480a7d8d8b9b3a881e2"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :moment_only, continuous = :none, strengthening = ())",
+      "sha256": "64e763e47fc25697dba08ec2f65fba797ee28d7450251ff20cc413457a781a07"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "485a92403e87d1b20da8941539ec8d9247131e6785d7f17fbeedadb69afd6b8f"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :clifford, continuous = :none, strengthening = ())",
+      "sha256": "6ceec0e57da317ef6fc655c9377b1e1e90d4a2b78e5d8c1659d9734fd5973618"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :detected, continuous = :none, strengthening = ())",
+      "sha256": "b155fd4a0dfb4030d0036c90d70a724bfae332e2d73e9c3c7ced3a230d432ea8"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :none, continuous = :none, strengthening = ())",
+      "sha256": "56707ad544cee693729e6d0f7b9a2073aa0ae7cc05012a745cd35750cb6a19eb"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "18bdbdb1093f39bfd679dbf2c147ec812278a09863b0c8e87f8f50e5003dbc39"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :dihedral, continuous = :none, strengthening = ())",
+      "sha256": "0ae8321985b11359e0a36e05be3df7c9c8df2a4d3fdf5e7d7e251b0c2aa5c47a"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :moment_only, continuous = :none, strengthening = ())",
+      "sha256": "fe900d5a74c4ae8be1b945ba5dc17e217bd78e077afa54616d326bf4855c8be2"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "f7c7b78fda744a0e92b6b96754c2b0494912859892928cd0df412c87bf61281b"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :clifford, continuous = :none, strengthening = ())",
+      "sha256": "050580118de87d13d99461e0761b8eb7bd54052dc47e2d7cee2fcef4d19cc8d6"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :detected, continuous = :none, strengthening = ())",
+      "sha256": "0e8e80ce133d614a9a70f477521f1a9d1ff96decfe74120df03e693d5dcf4905"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :none, continuous = :none, strengthening = ())",
+      "sha256": "e212c93e28068a54b87ca376bb77086be78b90f16dd9afbefd127b1f6e5d2887"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "abc99f607938946861b068c872da437914dabd2aad8ef67c43077b16ba04d6d6"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :moment_only, continuous = :none, strengthening = ())",
+      "sha256": "054b08a84ef7d6ae279c34248b8f329a1528c8dc8a7d35627ea640d59ac23147"
+    },
+    {
+      "case": "(n = 4, problem = :unipotent, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :none, continuous = :none, strengthening = ())",
+      "sha256": "15f7a0fc66ec5a7e59a9ace7524aebb3074e882f5632ea68d0360709ba27f6d3"
+    },
+    {
+      "case": "(n = 4, problem = :unipotent, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "fce05e29fb3f45a42c235b96a7389371fd20059bfa227a46fed2b655581b5591"
+    },
+    {
+      "case": "(n = 4, problem = :unipotent, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :dihedral, continuous = :none, strengthening = ())",
+      "sha256": "18ed40acda37a4b64c8404bacf71abc85f361c51f86a9e26a2d15ffedde94b59"
+    },
+    {
+      "case": "(n = 4, problem = :unipotent, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :moment_only, continuous = :none, strengthening = ())",
+      "sha256": "ab8eda8eb02280d55e34b318fa39dafebb91b8e64da5e8080d6cd88737229888"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :none, continuous = :none, strengthening = ())",
+      "sha256": "a969d1976d31604260fdc8f63c5ff0c01f0eb1ce23b2144b67f73680b3d0f11c"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "814a447848f885286f8681f5ce87090f7ddf980835c5177b10290b0e0b4e8349"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :dihedral, continuous = :none, strengthening = ())",
+      "sha256": "638a8f2272392b037d01e84c01eb148b71adc664ee2160380fc535ffad036922"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :moment_only, continuous = :none, strengthening = ())",
+      "sha256": "8ed7ea1ccd185a5ea6a252a675e5e1296869d2dc8f85c7c23bf6dcb9c6075216"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "799023ebf1953409c53f5107bd4bfe77215a26f61af0dd67cf34856ed796b577"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :clifford, continuous = :none, strengthening = ())",
+      "sha256": "deff77410afa569fb82737ff9005377aad28f4f6d20cf494dd94ec6414935fc5"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 2, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "0d299237294d67e9b4110ae1d54e31fb11e761b4bf8f4e086509ba5ae6235e34"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :u1, strengthening = ())",
+      "sha256": "23b644daa1a6642a82a64693383abe011bb65de95ccb2a533b9c6aa874ba21ab"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 2, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :u1, strengthening = ())",
+      "sha256": "eee177a3e71d6e38ca579dd2dbbf5264c59c538312dccef2d34cecfd6afa6d5e"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :su2, strengthening = ())",
+      "sha256": "2816af00a70c7dda759e9cd5b092d2d787c12cff24d251aa4095897ede2eccd6"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 2, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :su2, strengthening = ())",
+      "sha256": "42eecf1cd9ae07505a7d6a1d317b842649942f1a2a36bb855c6ae47d7b3f5083"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 2, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :none, strengthening = ())",
+      "sha256": "b7bbb854726a520873ad1667dae388c2a5554cc3979a8faeabec4e6d5eac7874"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :number, strengthening = ())",
+      "sha256": "ae14a3ad6bea9db352daa82971f49a27b9be215b8f510941f2417f5a11f0e9d3"
+    },
+    {
+      "case": "(n = 4, problem = :fermions, family = (order = 2, rows = :complete, group = :none, split = :none), finite = :translation, continuous = :number, strengthening = ())",
+      "sha256": "8934e075c64f9a7a7c3da0a835c4cc2222b4c45301ac84afd9dec94436697718"
+    },
+    {
+      "case": "(n = 6, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :dihedral, continuous = :su2, strengthening = ())",
+      "sha256": "4157b1059c360a3d10e3180cfe2c17e51db5d0a3ef8c474511d4617220132e00"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :dihedral, continuous = :su2, strengthening = ())",
+      "sha256": "03f9f608224526f63fb066cc34d10f1c86d7fc5258c24485bdfabba2649ff167"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 2, rows = :contiguous, group = :none, split = :physics), finite = :detected, continuous = :none, strengthening = (:stationarity,))",
+      "sha256": "5245f56fe696b7929222346955581ae284f797e1b1a9292d366bfdcae48ae9aa"
+    },
+    {
+      "case": "(n = 4, problem = :heisenberg, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation_antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "84d42ea4b5025f5b5426ed6ea284bfeb654e13bf0b2a068be645fc41d20c3c6f"
+    },
+    {
+      "case": "(n = 4, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation_antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "2dcbc968bc069824c67bbc9c1fc2b0f326189f101ab171070e8f1581e048aa03"
+    },
+    {
+      "case": "(n = 4, problem = :ising, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation_antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "379aeda5a7232d6118b956e727f04b131f5ddcabefd05f6b31bc18dbb5b82fc6"
+    },
+    {
+      "case": "(n = 4, problem = :positive, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :translation_antiunitary, continuous = :none, strengthening = ())",
+      "sha256": "aa42c84514097698301561ea32c112d049d6057b37e031852e55595b9a743da8"
+    },
+    {
+      "case": "(n = 5, problem = :xxz, family = (order = 1, rows = :complete, group = :none, split = :none), finite = :detected, continuous = :u1, strengthening = ())",
+      "sha256": "7f60659c01237a918370e6e3de7cdce4ba8899fe67058f8b0f0f0904f30ec18b"
+    }
+  ],
+  "cache_counts": [
+    {
+      "N": 64,
+      "seconds": 3.483560534,
+      "cached": 4132609,
+      "labels": 6195,
+      "word_bytes": 16,
+      "capacity": 8388608,
+      "dictionary_bytes": 243269744
+    },
+    {
+      "N": 100,
+      "seconds": 19.626049433,
+      "cached": 10518001,
+      "labels": 10065,
+      "word_bytes": 32,
+      "capacity": 16777216,
+      "dictionary_bytes": 754974832
+    }
+  ],
+  "validation": {
+    "closure_laws": 18332,
+    "combined_suite_assertions": 45132,
+    "combined_suite_seconds": 951.67,
+    "native_mosek_checks": 147,
+    "scs_writer_checks": 101,
+    "aqua": 11,
+    "explicit_imports": "clean"
+  },
+  "source_revision": "694a6faa34b3629f85252356e180e655bcc90d49",
+  "source_sha256": {
+    "src/next/pipeline/moments.jl": "6f6d22331ca8e3f90566d130f5c2011d8e65b66808c336d8a6c5a4ac43ea33d7",
+    "src/next/pipeline/lattice.jl": "5c829a621fa5482d484e8646925cc09a45ef169c8c4942b0a4b2f3832370b9e3"
+  },
+  "notes": [
+    "Shared orb; one Julia/BLAS/OpenMP thread; three fresh warm samples per row.",
+    "Before and legacy at 91330d9; after based on 79ac93d, whose bosonic additions do not change the Pauli chain or pipeline.",
+    "RSS includes loading, compilation, build repeats and lowering. Allocated bytes are not allocation counts.",
+    "Cache-count seconds are first-call diagnostic times, not benchmark samples.",
+    "Complete standard-form fingerprints include dimensions, CSC arrays, b, c, offset and cone descriptors."
+  ]
+}

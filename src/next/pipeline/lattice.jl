@@ -171,7 +171,8 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
     diagonal = filter([point.elements; collect(moment_generators)]) do h
         !isone(h) && all(w -> act(h,w)[2] == w, rows)
     end
-    table = OrbitMoments(W, all_generators; annihilators=diagonal)
+    cyclic=(generator=translation,normalizers=point_generators,remaining=moment_generators)
+    table = OrbitMoments(W, all_generators; annihilators=diagonal,cyclic)
     program = MomentProgram{ComplexF64}()
     sink = OrbitFormSink(table, Dict{Int32,ComplexF64}())
     # The little group changes only at k=0 and, for even order, k=order/2.

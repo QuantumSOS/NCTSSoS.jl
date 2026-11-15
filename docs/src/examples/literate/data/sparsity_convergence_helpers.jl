@@ -49,26 +49,26 @@ function compare_isapprox(label, actual, expected; kwargs...)
     return nothing
 end
 
-function edge_pairs(graph)
-    sort([
-        (
-            min(NCTSSoS.Graphs.src(edge), NCTSSoS.Graphs.dst(edge)),
-            max(NCTSSoS.Graphs.src(edge), NCTSSoS.Graphs.dst(edge)),
-        )
-        for edge in NCTSSoS.Graphs.edges(graph)
-    ])
+# Match row words by public operator names, independent of packed word width.
+word_key(registry, word) = Tuple(Next.operator_name(registry, l) for l in Next.word_letters(word))
+
+function completed_blocks(built, rows, registry)
+    indices = Dict(word_key(registry, last(only(Next.terms(p)))) => i for (i, p) in enumerate(rows))
+    [sort([indices[word_key(registry, w)] for w in block]) for block in Next.block_rows(built)]
 end
 
 function labeled_edges(edges, labels)
     [(labels[i], labels[j]) for (i, j) in edges]
 end
 
-function completed_term_graph(graph, ts_algo)
-    completed = deepcopy(graph)
-    for block in NCTSSoS.clique_decomp(graph, ts_algo)
-        NCTSSoS.add_clique!(completed, block)
+function completed_edges(built, rows, registry)
+    edges = Set{Tuple{Int,Int}}()
+    for block in completed_blocks(built, rows, registry)
+        for i in eachindex(block), j in (i+1):length(block)
+            push!(edges, (block[i], block[j]))
+        end
     end
-    return completed
+    return sort!(collect(edges))
 end
 
 function draw_term_graph(

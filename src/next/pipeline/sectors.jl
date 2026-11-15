@@ -105,7 +105,7 @@ function _sector_equalities!(program,table,closure,sectors)
     end
     ordered=sort!(collect(words))
     nterms,nforms,nblocks=length(program.forms.ids),length(program.forms.offsets),length(program.blocks)
-    try
+    equations=try
         _sector_equations!(program,table,ordered,sectors,Rational{Int})
     catch error
         error isa Union{OverflowError,InexactError} || rethrow()
@@ -116,12 +116,13 @@ function _sector_equalities!(program,table,closure,sectors)
         # copying the entire moment table on the ordinary machine path.
         _sector_equations!(program,table,ordered,sectors,Rational{BigInt})
     end
-    nothing
+    equations
 end
 
 function _sector_equations!(program,table,ordered,sectors,::Type{R}) where R
     sink=OrbitFormSink(table,Dict{Int32,Complex{R}}())
     seen=Set{Vector{Pair{Int32,R}}}()
+    equations=Vector{Pair{Int32,R}}[]
     key=Pair{Int32,R}[]
     # Moment and Hermitian localizer entries occur with their adjoints.
     # Every right equation <u(Q-q)>=0 is therefore already the conjugate
@@ -153,7 +154,9 @@ function _sector_equations!(program,table,ordered,sectors,::Type{R}) where R
                     id,c=key[i]; key[i]=id=>c/pivot
                 end
                 key in seen && continue
-                push!(seen,copy(key))
+                stored=copy(key)
+                push!(seen,stored)
+                push!(equations,stored)
                 # Keep the reference rounding at the conic boundary. The
                 # sink, normalization and duplicate checks remain exact.
                 for (id,c) in key; push_term!(program.forms,Rational{BigInt}(c),id); end
@@ -163,4 +166,5 @@ function _sector_equations!(program,table,ordered,sectors,::Type{R}) where R
         end
         count==0 || push_block!(program,ZERO,count,source)
     end
+    equations
 end

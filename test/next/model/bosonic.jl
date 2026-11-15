@@ -45,12 +45,16 @@ function check(backend,factory)
         end
         h=bh(b,bd;mu=0)
         for order in (2,3)
+            plain=N.build(N.Problem(h),N.Relaxation(;order))
+            rotated=N.build(N.Problem(h;symmetry=(N.NumberRotation(registry),)),N.Relaxation(;order))
+            @test rotated.sizes.real_variables < plain.sizes.real_variables
             relaxation=N.Relaxation(;order,strengthen=N.Sector(sum(bd.*b),2))
             sector=N.solve(N.Problem(h),relaxation;solver=backend)
             number=N.solve(N.Problem(h;symmetry=(N.NumberRotation(registry),)),relaxation;solver=backend)
             @test sector.bound ≈ 1-sqrt(5) atol=1e-6
             @test number.bound ≈ sector.bound atol=1e-6
-            @test number.sizes.program.real_variables < sector.sizes.program.real_variables
+            @test number.bound ≈ 1-sqrt(5) atol=1e-6
+            @test number.sizes.real_variables <= sector.sizes.real_variables
         end
     end
 end

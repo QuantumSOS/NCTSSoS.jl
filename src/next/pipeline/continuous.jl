@@ -1,10 +1,10 @@
 # Sparse exact elimination, with coordinate 1 reserved for the normalized identity.
 # A stored pivot is the least nonconstant coordinate in its row. Consequently
 # back substitution visits pivots in descending order, without a dense matrix.
-function _insert_generator_equation!(pivots,row;constant=true)
+function _insert_generator_equation!(pivots,row;constant=true,label="Continuous")
     while !isempty(row)
         pivot=minimum((id for id in keys(row) if !constant || id!=1);init=typemax(Int))
-        pivot==typemax(Int) && throw(ArgumentError("Continuous equations contradict the normalized identity."))
+        pivot==typemax(Int) && throw(ArgumentError("$label equations contradict the normalized identity."))
         coefficient=row[pivot]
         if haskey(pivots,pivot)
             for (id,c) in pivots[pivot]

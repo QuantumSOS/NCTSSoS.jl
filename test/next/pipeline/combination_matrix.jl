@@ -196,7 +196,20 @@ function coordinate_map(target,source)
             Nx.orbit_coordinates!(target,label.word)
         end
     end
-    M=zeros(Float64,length(source.labels),length(target.labels))
+    sampling=target
+    if target isa Nx.SectorMoments
+        # The comparison includes discarded free coordinates. They are not
+        # solver variables, but must stay arbitrary when checking every old
+        # equality and must take their physical values for the state oracle.
+        width=maximum((id for row in target.coordinates for (id,c) in row);init=length(target.labels))
+        labels=Vector{eltype(target.labels)}(undef,width)
+        for (label,row) in zip(target.base.labels,target.coordinates)
+            length(row)==1 && last(only(row))==1 || continue
+            labels[first(only(row))]=label
+        end
+        sampling=(;labels)
+    end
+    M=zeros(Float64,length(source.labels),length(sampling.labels))
     for (i,label) in enumerate(source.labels)
         pairs=Nx.moment_terms(target,label.word)
         isnothing(pairs) && error("Reference word is absent from reduced moment domain: $(label.word)")
@@ -204,7 +217,7 @@ function coordinate_map(target,source)
             M[i,j]+=label.part==2 ? imag(c) : real(c)
         end
     end
-    M,target
+    M,sampling
 end
 
 function cone_values(program,y)

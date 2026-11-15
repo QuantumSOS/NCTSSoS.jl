@@ -2,6 +2,36 @@ function sector_matrix(p,n)
     sum(c*physical_pauli(w,1:n) for (c,w) in Nx.terms(p))
 end
 
+# Check the same physical equations whether they remain explicit or have
+# become the affine moment map. Undetermined moments are not queried.
+function sector_state_residual(built,physical)
+    part(label,z)=label.part==2 ? imag(z) : real(z)
+    y=[part(label,physical(label.word)) for label in built.table.labels]
+    residual=maximum(abs,equality_values(built.program,y,1);init=0.0)
+    if built.table isa Nx.SectorMoments
+        for label in built.table.base.labels
+            coefficients=Dict{Int,ComplexF64}()
+            for (id,c) in Nx.moment_terms(built.table,label.word)
+                coefficients[id]=get(coefficients,id,0im)+c
+            end
+            all(iszero(c) || Nx.moment_covered(built.table,id) for (id,c) in coefficients) || continue
+            value=sum((c*y[id] for (id,c) in coefficients if !iszero(c));init=0im)
+            residual=max(residual,abs(part(label,value)-part(label,physical(label.word))))
+        end
+    end
+    residual
+end
+
+function sector_reference_map(table,labels)
+    pairs=[collect(Nx.moment_terms(table,label.word)) for label in labels]
+    width=maximum((id for row in pairs for (id,c) in row);init=length(table.labels))
+    M=zeros(Float64,length(labels),width)
+    for (i,(label,row)) in enumerate(zip(labels,pairs)),(id,c) in row
+        M[i,id]+=label.part==2 ? imag(c) : real(c)
+    end
+    M
+end
+
 @testset "Sector overflow preserves the exact program" begin
     _,(b,bd)=Nx.bosonic_variables(1)
     number=bd[1]*b[1]
@@ -15,6 +45,7 @@ end
     forms=map((1,2.0^-16,2.0^-40)) do factor
         built=Nx.build(Nx.Problem(zero(number)),Nx.BlockRelaxation(family=family,
             strengthen=(Nx.Sector(number,0),Nx.Sector(factor*Q,0))))
+        @test built.sizes.closure.sector_elimination.arithmetic==Rational{BigInt}
         Nx.moment_standard_form(built.program)
     end
     for form in forms[2:end]
@@ -24,6 +55,46 @@ end
         @test isequal(forms[1].offset,form.offset)
         @test isequal(forms[1].cones,form.cones)
     end
+end
+
+@testset "Sector elimination does not increase cone fill" begin
+    _,(x,y,z)=Nx.pauli_variables(4)
+    H=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+z[i]*z[mod1(i+1,4)] for i in 1:4)
+    plain=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,split=Nx.TermSplit()))
+    built=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,split=Nx.TermSplit(),
+        strengthen=(Nx.Sector(sum(z),0),)))
+    report=built.sizes.closure.sector_elimination
+    @test report.coefficients_after>report.coefficients_before
+    @test !report.accepted
+    # Keep the original cone entries and explicit sector equations, rather
+    # than accepting a denser substitution with the same bound.
+    count=length(plain.program.forms.ids)
+    @test built.program.forms.ids[1:count]==plain.program.forms.ids
+    @test built.program.forms.coefs[1:count]==plain.program.forms.coefs
+    @test any(b.kind==Nx.ZERO for b in built.program.blocks)
+end
+
+@testset "Eliminated sector moments retain coverage" begin
+    _,(b,bd)=Nx.bosonic_variables(2)
+    n1,n2=bd.*b
+    number=n1+n2
+    problem=Nx.Problem(n1)
+    relaxation=Nx.Relaxation(order=1,strengthen=Nx.Sector(number,1))
+    built=Nx.build(problem,relaxation)
+    result=Nx.solve(built;solver=Nx.JuMPBackend(SOLVER))
+    @test result.bound≈0 atol=1e-6
+    @test Nx.expectation(result,n2)≈1 atol=1e-6
+    @test Nx.expectation(result,number)≈1 atol=1e-6
+    # These degree-four moments have no PSD constraint at order one. The
+    # sector relation is readable only after their free parts cancel.
+    @test Nx.expectation(result,n1*(number-1))≈0 atol=1e-6
+    @test_throws r"not among the moments of the selected blocks" Nx.expectation(result,n1*n2)
+    pairs=collect(Nx.moment_terms(built.table,argmax(Nx.degree,(w for (c,w) in Nx.terms(n1*n2)))))
+    @test any(!Nx.moment_covered(built.table,id) for (id,c) in pairs if !iszero(c))
+    @test built.sizes.real_variables==built.program.nvars-1
+    @test built.sizes.blocks==length(built.program.blocks)
+    @test_throws r"Sector equations contradict the normalized identity" Nx.build(
+        Nx.Problem(n1),Nx.Relaxation(order=1,strengthen=Nx.Sector(one(n1),2)))
 end
 
 @testset "DensityMatrix uses the contained sector face" begin
@@ -45,13 +116,13 @@ end
         A=randn(MersenneTwister(seed),ComplexF64,2,2)
         rho=V*A*A'*V'; rho/=LinearAlgebra.tr(rho)
         coords=physical_coordinates(built.table,rho,2)
-        @test maximum(abs,equality_values(built.program,coords,report.first_block))<1e-12
+        @test sector_state_residual(built,w->LinearAlgebra.tr(rho*physical_pauli(w,1:2)))<1e-12
         @test minimum(extra_values(built.program,coords,report.first_block))>=-1e-10
     end
     # Removing off-face entries without equations would accept this matrix:
     # it has the same compressed density as the valid mixed-sector state.
     rho=V*V'/2+0.1(outside*V[:,1]'+V[:,1]*outside')
-    @test maximum(abs,equality_values(built.program,physical_coordinates(built.table,rho,2),report.first_block))>0.01
+    @test sector_state_residual(built,w->LinearAlgebra.tr(rho*physical_pauli(w,1:2)))>0.01
     local_density=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
         strengthen=(Nx.DensityMatrix([1]),Nx.Sector(z[1]+z[2],0))))
     @test isempty(local_density.sizes.closure.strengthening.density_faces)
@@ -86,10 +157,10 @@ end
             A=randn(MersenneTwister(seed),ComplexF64,size(V,2),size(V,2))
             rho=V*A*A'*V'; rho/=LinearAlgebra.tr(rho)
             coords=physical_coordinates(built.table,rho,2)
-            @test maximum(abs,equality_values(built.program,coords,start))<1e-12
+            @test sector_state_residual(built,w->LinearAlgebra.tr(rho*physical_pauli(w,1:2)))<1e-12
         end
         outside=ComplexF64[1,0,0,0]
-        @test maximum(abs,equality_values(built.program,physical_coordinates(built.table,outside*outside',2),start))>0.1
+        @test sector_state_residual(built,w->LinearAlgebra.tr(outside*outside'*physical_pauli(w,1:2)))>0.1
         @test strengthening_bound(built.program)≈minimum(eigvals(Hermitian(V'*sector_matrix(H,2)*V))) atol=1e-6
         @test occursin("eigenspace",sprint(show,built.valid_for))
     end
@@ -97,7 +168,7 @@ end
     b=Nx.build(Nx.Problem(zero(H)),Nx.BlockRelaxation(order=0,strengthen=(Nx.Sector(N,1),)))
     check_used_coordinates(b.program)
     rho=diagm(ComplexF64[0.5,0,0,0.5])
-    @test maximum(abs,equality_values(b.program,physical_coordinates(b.table,rho,2),b.sizes.closure.strengthening.first_block))>0.1
+    @test sector_state_residual(b,w->LinearAlgebra.tr(rho*physical_pauli(w,1:2)))>0.1
     @test_throws r"not Hermitian" Nx.Sector(im*x[1],0)
     @test_throws r"finite" Nx.Sector(N,Inf)
     _,(_,_,other)=Nx.pauli_variables(2)
@@ -118,7 +189,7 @@ end
         @test_throws r"remove the generator or choose an invariant sector" Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,symmetry=symmetry,strengthen=(Nx.Sector(N,1),)))
         built=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,symmetry=symmetry,strengthen=(Nx.Sector(N,2),)))
         check_used_coordinates(built.program)
-        @test built.sizes.closure.strengthening.added_equalities>0
+        @test built.sizes.closure.sector_elimination.rank>0
     end
 end
 
@@ -173,11 +244,10 @@ end
         reference=Nx.build(problem,Nx.BlockRelaxation(;order=1,symmetry,selection...))
         start=length(reference.program.blocks)+1
         independent_sector!(reference,N,1,4,1)
-        coordinates=[Nx.orbit_coordinates!(built.table,label.word) for label in reference.table.labels]
-        built.program.nvars=length(built.table.labels)
-        columns=[Float64[i==j for i in 1:length(built.table.labels)] for j in 1:length(built.table.labels)]
+        coordinates=sector_reference_map(built.table,reference.table.labels)
+        columns=[Float64[i==j for i in 1:size(coordinates,2)] for j in 1:size(coordinates,2)]
         A=hcat([equality_values(built.program,v,built.sizes.closure.strengthening.first_block) for v in columns]...)
-        B=hcat([equality_values(reference.program,real.([coordinate_value(c,v) for c in coordinates]),start) for v in columns]...)
+        B=hcat([equality_values(reference.program,coordinates*v,start) for v in columns]...)
         @test rank(A;atol=1e-9)==rank(B;atol=1e-9)==rank(vcat(A,B);atol=1e-9)
         @test strengthening_bound(built.program)≈strengthening_bound(reference.program) atol=1e-6
     end
@@ -195,11 +265,10 @@ end
     reference=Nx.build(problem,Nx.BlockRelaxation(family=family))
     start=length(reference.program.blocks)+1
     independent_sector!(reference,N,1,4,2)
-    coordinates=[Nx.orbit_coordinates!(built.table,label.word) for label in reference.table.labels]
-    built.program.nvars=length(built.table.labels)
-    columns=[Float64[i==j for i in 1:length(built.table.labels)] for j in 1:length(built.table.labels)]
+    coordinates=sector_reference_map(built.table,reference.table.labels)
+    columns=[Float64[i==j for i in 1:size(coordinates,2)] for j in 1:size(coordinates,2)]
     A=hcat([equality_values(built.program,v,built.sizes.closure.strengthening.first_block) for v in columns]...)
-    B=hcat([equality_values(reference.program,real.([coordinate_value(c,v) for c in coordinates]),start) for v in columns]...)
+    B=hcat([equality_values(reference.program,coordinates*v,start) for v in columns]...)
     @test rank(A;atol=1e-9)==rank(B;atol=1e-9)==rank(vcat(A,B);atol=1e-9)
 end
 
@@ -225,7 +294,7 @@ end
         A=randn(MersenneTwister(seed),ComplexF64,3,3)
         rho=V*A*A'*V'; rho/=LinearAlgebra.tr(rho)
         coords=[label.part==2 ? imag(LinearAlgebra.tr(rho*wordmatrix(label.word))) : real(LinearAlgebra.tr(rho*wordmatrix(label.word))) for label in built.table.labels]
-        @test maximum(abs,equality_values(built.program,coords,built.sizes.closure.strengthening.first_block))<1e-12
+        @test sector_state_residual(built,w->LinearAlgebra.tr(rho*wordmatrix(w)))<1e-12
     end
     @test strengthening_bound(built.program)≈-2 atol=1e-6
 end

@@ -2385,6 +2385,348 @@
       },
       "wall_seconds": 113.3613327109997,
       "configuration": "smallest"
+    },
+    {
+      "variant": "all",
+      "repetition": 1,
+      "source_hashes": {
+        "P": "d20356740acfc4ca6a97fd472f1397f6b116975e89ed2e59e3e0208fee6c1779",
+        "E": "a678de1a2255d587667c95f4e41e1a147b6fff920dc1f5b4bb8e6166fee8f9b7",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "f8b5cf6235132268320fca0ac9db9f0a76ab815779473e9ca7f8a706bee79bf8"
+      },
+      "precompile_seconds": {
+        "package": 67.7868,
+        "extension": 7.5469
+      },
+      "precompile_process_seconds": 77.69735494299675,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.734,
+          "inputs": 0.886,
+          "first_call": 0.972,
+          "second_call": 0.663,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.853536485003133
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.927,
+          "inputs": 0.957,
+          "first_call": 0.028,
+          "second_call": 0.0214,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 6.624463977001142
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.058,
+          "inputs": 0.793,
+          "first_call": 0.086,
+          "second_call": 0.0862,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 5.559281910005666
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.659,
+          "inputs": 0.791,
+          "first_call": 0.002,
+          "second_call": 0.0026,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 6.15922944599879
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 4.556,
+          "inputs": 0.758,
+          "first_call": 0.001,
+          "second_call": 0.0005,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 5.941705103999993
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.215,
+          "inputs": 0.746,
+          "detection": 0.0,
+          "first_call": 18.392,
+          "second_call": 4.8056,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 28.860379950994684
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.312,
+          "inputs": 1.006,
+          "detection": 0.0,
+          "first_call": 16.263,
+          "second_call": 0.0103,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 22.263406938000116
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.547,
+          "inputs": 3.721,
+          "detection": 7.85,
+          "first_call": 1.216,
+          "second_call": 0.0107,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 17.98408268899948
+        },
+        "xxz6density": {
+          "case": "xxz6density",
+          "load": 4.56,
+          "inputs": 0.172,
+          "detection": 0.0,
+          "first_call": 1.872,
+          "second_call": 0.0096,
+          "bound": -10.841281401965553,
+          "status": "OPTIMAL",
+          "process_seconds": 7.19894128600572
+        }
+      },
+      "wall_seconds": 186.14499213300587,
+      "configuration": "restored"
+    },
+    {
+      "variant": "all",
+      "repetition": 2,
+      "source_hashes": {
+        "P": "d20356740acfc4ca6a97fd472f1397f6b116975e89ed2e59e3e0208fee6c1779",
+        "E": "a678de1a2255d587667c95f4e41e1a147b6fff920dc1f5b4bb8e6166fee8f9b7",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "f8b5cf6235132268320fca0ac9db9f0a76ab815779473e9ca7f8a706bee79bf8"
+      },
+      "precompile_seconds": {
+        "package": 68.4545,
+        "extension": 10.290299999999998
+      },
+      "precompile_process_seconds": 81.19396275900363,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 4.426,
+          "inputs": 0.918,
+          "first_call": 0.87,
+          "second_call": 0.6551,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 7.507727696996881
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 4.236,
+          "inputs": 1.003,
+          "first_call": 0.026,
+          "second_call": 0.0201,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 5.910359421999601
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.866,
+          "inputs": 0.983,
+          "first_call": 0.089,
+          "second_call": 0.0859,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.651967041005264
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.715,
+          "inputs": 1.008,
+          "first_call": 0.003,
+          "second_call": 0.0018,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 6.4931449350042385
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 5.499,
+          "inputs": 1.121,
+          "first_call": 0.002,
+          "second_call": 0.0009,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 7.448968110998976
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.823,
+          "inputs": 0.96,
+          "detection": 0.0,
+          "first_call": 18.344,
+          "second_call": 5.9236,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 30.66827528399881
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 3.996,
+          "inputs": 0.965,
+          "detection": 0.0,
+          "first_call": 17.442,
+          "second_call": 0.01,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 23.074086005995923
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.758,
+          "inputs": 4.632,
+          "detection": 8.959,
+          "first_call": 1.291,
+          "second_call": 0.0108,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 20.27896527499979
+        },
+        "xxz6density": {
+          "case": "xxz6density",
+          "load": 4.741,
+          "inputs": 0.166,
+          "detection": 0.0,
+          "first_call": 1.947,
+          "second_call": 0.011,
+          "bound": -10.841281401965553,
+          "status": "OPTIMAL",
+          "process_seconds": 7.550698313003522
+        }
+      },
+      "wall_seconds": 196.78079967899976,
+      "configuration": "restored"
+    },
+    {
+      "variant": "all",
+      "repetition": 3,
+      "source_hashes": {
+        "P": "d20356740acfc4ca6a97fd472f1397f6b116975e89ed2e59e3e0208fee6c1779",
+        "E": "a678de1a2255d587667c95f4e41e1a147b6fff920dc1f5b4bb8e6166fee8f9b7",
+        "probe": "1afcb1c2138c6bf2593ad77bc74f063c6bc3d8e9ee8a881ba8d323442bfc177b",
+        "extra_probe": "f8b5cf6235132268320fca0ac9db9f0a76ab815779473e9ca7f8a706bee79bf8"
+      },
+      "precompile_seconds": {
+        "package": 67.51639999999999,
+        "extension": 9.4596
+      },
+      "precompile_process_seconds": 79.58566507599608,
+      "cases": {
+        "xxz6": {
+          "case": "xxz6",
+          "load": 5.578,
+          "inputs": 1.124,
+          "first_call": 1.049,
+          "second_call": 0.5774,
+          "bound": -10.841281370523458,
+          "status": "OPTIMAL",
+          "process_seconds": 9.002180796996981
+        },
+        "xxz12front": {
+          "case": "xxz12front",
+          "load": 5.72,
+          "inputs": 1.193,
+          "first_call": 0.042,
+          "second_call": 0.0324,
+          "bound": -21.68256252593265,
+          "status": "OPTIMAL",
+          "process_seconds": 7.798248060003971
+        },
+        "hubbard": {
+          "case": "hubbard",
+          "load": 4.974,
+          "inputs": 0.835,
+          "first_call": 0.125,
+          "second_call": 0.1282,
+          "bound": -1.2360679663714502,
+          "status": "OPTIMAL",
+          "process_seconds": 6.744639017997542
+        },
+        "ball": {
+          "case": "ball",
+          "load": 4.515,
+          "inputs": 0.81,
+          "first_call": 0.002,
+          "second_call": 0.0012,
+          "bound": -0.9999999771195256,
+          "status": "OPTIMAL",
+          "process_seconds": 5.943806149996817
+        },
+        "CHSH": {
+          "case": "CHSH",
+          "load": 5.421,
+          "inputs": 1.179,
+          "first_call": 0.002,
+          "second_call": 0.0009,
+          "bound": -2.82842712459816,
+          "status": "OPTIMAL",
+          "process_seconds": 7.349904183996841
+        },
+        "heisenberg8continuous": {
+          "case": "heisenberg8continuous",
+          "load": 4.888,
+          "inputs": 0.844,
+          "detection": 0.0,
+          "first_call": 20.837,
+          "second_call": 5.7725,
+          "bound": -14.60683422165745,
+          "status": "OPTIMAL",
+          "process_seconds": 33.07534094100265
+        },
+        "fermionic4number": {
+          "case": "fermionic4number",
+          "load": 4.9,
+          "inputs": 0.969,
+          "detection": 0.0,
+          "first_call": 18.067,
+          "second_call": 0.0132,
+          "bound": -1.9999999739663321,
+          "status": "OPTIMAL",
+          "process_seconds": 24.75400750600238
+        },
+        "heisenberg8detect": {
+          "case": "heisenberg8detect",
+          "load": 4.875,
+          "inputs": 4.909,
+          "detection": 10.728,
+          "first_call": 1.25,
+          "second_call": 0.0089,
+          "bound": -24.00000000077552,
+          "status": "OPTIMAL",
+          "process_seconds": 22.4309733639966
+        },
+        "xxz6density": {
+          "case": "xxz6density",
+          "load": 4.668,
+          "inputs": 0.184,
+          "detection": 0.0,
+          "first_call": 1.986,
+          "second_call": 0.0086,
+          "bound": -10.841281401965553,
+          "status": "OPTIMAL",
+          "process_seconds": 7.497271849999379
+        }
+      },
+      "wall_seconds": 204.18469452499994,
+      "configuration": "restored"
     }
-  ]
+  ],
+  "selected_configuration": "restored",
+  "selection_date": "2026-11-15",
+  "restored_measurement_base_revision": "aa062275e1082bda52b1dc48bfaadf2d604258d7"
 }

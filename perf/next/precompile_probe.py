@@ -20,6 +20,7 @@ import time
 ROOT = Path(__file__).resolve().parents[2]
 BLOCK = re.compile(r"^@compile_workload let\n.*?^end\n", re.M | re.S)
 CASES = ("xxz6", "xxz12front", "hubbard", "ball", "CHSH")
+EXTRA_CASES = ("heisenberg8continuous", "fermionic4number", "heisenberg8detect", "xxz6density")
 
 
 def execute(command, log, env):
@@ -46,8 +47,11 @@ def main(args):
         raise ValueError("Use a private benchmark depot under .amp/in/orb-backup")
     depot.mkdir(parents=True, exist_ok=True)
     probe = ROOT / "perf/next/first_call.jl"
+    extra_probe = ROOT / "perf/next/first_call_extra.jl"
     fingerprints = {key: hashlib.sha256(text.encode()).hexdigest() for key, text in originals.items()}
     fingerprints["probe"] = hashlib.sha256(probe.read_bytes()).hexdigest()
+    if any(case in EXTRA_CASES for case in args.cases):
+        fingerprints["extra_probe"] = hashlib.sha256(extra_probe.read_bytes()).hexdigest()
     records = []
     try:
         for variant in args.variants:
@@ -63,6 +67,7 @@ def main(args):
                 if result_path.exists():
                     result = json.loads(result_path.read_text())
                     assert result["source_hashes"] == fingerprints
+                    assert set(result["cases"]) == set(args.cases)
                     records.append(result)
                     continue
                 for module in ("NCTSSoS", "NCTSSoSSCSExt"):
@@ -72,7 +77,7 @@ def main(args):
                            JULIA_NUM_THREADS="1", JULIA_NUM_PRECOMPILE_TASKS="1",
                            JULIA_PKG_PRECOMPILE_AUTO="0", OPENBLAS_NUM_THREADS="1", OMP_NUM_THREADS="1")
                 julia = ["julia", f"--project={args.environment.resolve()}", "--startup-file=no"]
-                print(f"START {name}: estimate 1–3 min including five fresh-process probes", flush=True)
+                print(f"START {name}: estimate 1–5 min including {len(args.cases)} fresh-process probes", flush=True)
                 begin = time.monotonic()
                 log = output / (name + "-precompile.log")
                 compile_code = ('using Pkg; '
@@ -88,9 +93,10 @@ def main(args):
                     raise RuntimeError(f"Expected both compile timings in {log}; found {times}")
                 result = dict(variant=variant, repetition=rep, source_hashes=fingerprints,
                               precompile_seconds=times, precompile_process_seconds=elapsed, cases={})
-                for case in CASES:
+                for case in args.cases:
                     log = output / (name + "-" + case + ".log")
-                    wall = execute(julia + [str(probe), case], log, env)
+                    script = extra_probe if case in EXTRA_CASES else probe
+                    wall = execute(julia + [str(script), case], log, env)
                     if "Precompiling" in log.read_text():
                         raise RuntimeError(f"Unexpected precompilation in first-call probe {log}")
                     line = next(line for line in log.read_text().splitlines() if line.startswith("PROBE "))
@@ -107,12 +113,12 @@ def main(args):
     finally:
         for key, path in paths.items():
             path.write_text(originals[key])
-    print("| variant | repetition | package s | extension s | " + " | ".join(CASES) + " |")
-    print("|---|---:|---:|---:|" + "---:|" * len(CASES))
+    print("| variant | repetition | package s | extension s | " + " | ".join(args.cases) + " |")
+    print("|---|---:|---:|---:|" + "---:|" * len(args.cases))
     for result in records:
         times = result["precompile_seconds"]
         print(f"| {result['variant']} | {result['repetition']} | {times['package']:.3f} | {times['extension']:.3f} | "
-              + " | ".join(str(result['cases'][case]['first_call']) for case in CASES) + " |")
+              + " | ".join(str(result['cases'][case]['first_call']) for case in args.cases) + " |")
 
 
 if __name__ == "__main__":
@@ -123,4 +129,5 @@ if __name__ == "__main__":
     parser.add_argument("--depot", type=Path)
     parser.add_argument("--variants", nargs="+", default=["none", "P1", "P2", "P3", "E1", "E2", "E3", "all"])
     parser.add_argument("--replicates", type=int, default=3)
+    parser.add_argument("--cases", nargs="+", default=list(CASES))
     main(parser.parse_args())

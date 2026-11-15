@@ -10,11 +10,11 @@ _locations(w::BosonWord) = ((only(sites(l)),all(iszero,l.c) ? 1 : -1) for l in w
 _locations(w::SiteWord{A,U,B,S}) where {A,U,B,S} =
     ((_site(typeof(w),_letter(w,i)),Int(_letter(w,i)>>S)) for i in 1:degree(w))
 "Display a word in the names of its registry, without changing kernel word storage."
-function Base.show(io::IO,w::AbstractWord,r::Registry)
+function Base.show(io::IO,w::AbstractWord,r::Union{Registry,Nothing})
     isone(w) && return print(io,"1")
     for (i,location) in enumerate(_locations(w))
         i>1 && print(io," ")
-        name = findfirst(==(location),r.names)
+        name = isnothing(r) ? nothing : findfirst(==(location),r.names)
         if isnothing(name)
             print(io,"operator(site=",location[1],", label=",location[2],")")
         else
@@ -22,10 +22,18 @@ function Base.show(io::IO,w::AbstractWord,r::Registry)
         end
     end
 end
+function Base.show(io::IO,w::Union{PauliWord,FermiWord,BosonWord,SiteWord,FunctionalWord})
+    isone(w) && return print(io,"1")
+    registry=get(io,:registry,nothing)
+    isnothing(registry) && print(io,nameof(typeof(w)),"(")
+    show(io,w,registry)
+    isnothing(registry) && print(io,")")
+end
 _word_string(r::Registry,w::AbstractWord) = sprint(show,w,r)
 function Base.show(io::IO,p::Polynomial)
     isempty(p.data) && return print(io,"0")
     for (i,(c,w)) in enumerate(terms(p))
+        i>8 && get(io,:limit,true) && return print(io," + … (",length(p.data)," terms)")
         i>1 && print(io," + ")
         if isone(w)
             print(io,isreal(c) ? real(c) : c)
@@ -37,8 +45,9 @@ function Base.show(io::IO,p::Polynomial)
 end
 Base.show(io::IO,::MIME"text/plain",p::Polynomial) = show(io,p)
 
+"Borrowed, sized iterator of (coefficient, word) pairs. Read it without mutating the polynomial."
 terms(p::Polynomial) = ((p.data.coefficients[i],p.data.words[i]) for i in 1:length(p.data))
-degree(p::Polynomial) = maximum(degree,p.data.words[1:length(p.data)];init=0)
+degree(p::Polynomial) = maximum((degree(w) for (_,w) in terms(p));init=0)
 Base.iszero(p::Polynomial) = isempty(p.data)
 function _polynomial(r,data::PolynomialBuffer)
     all(isfinite,data.coefficients[1:length(data)]) || throw(ArgumentError("Polynomial coefficients must be finite; replace NaN or Inf with a finite coefficient."))

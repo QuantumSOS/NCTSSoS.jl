@@ -39,9 +39,11 @@ include("model/gns.jl")
 include("model/functional.jl")
 include("model/newton_chip.jl")
 include("model/letter_permutation.jl")
+include("model/inspection.jl")
 
 public Symmetry, variables, RealState, RealTrace, newton_chip_basis
 public build, BuiltRelaxation, prepare, prepare_standard, solve_standard
+public terms, word_letters, support_letters, sites, degree, operator_name, basis, block_rows, block_sides
 
 export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
     state_symbol, trace_symbol,

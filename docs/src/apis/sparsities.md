@@ -3,10 +3,7 @@
 ## Correlative Sparsity
 
 ```@docs
-NCTSSoS.CorrelativeSparsity
-NCTSSoS.get_correlative_graph
-NCTSSoS.assign_constraint
-NCTSSoS.correlative_sparsity
+NCTSSoS.Next.Correlative
 ```
 
 ## [Term Sparsity](@id term-sparsity-graph-def)
@@ -34,21 +31,40 @@ cliques, each defining an independent block in the SDP matrix. Iterating
 — computing the graph,
 completing it, and updating the activated support from **all completed-graph
 edges, including fill edges** — produces the
-term-sparsity hierarchy at sparse orders ``k = 1, 2, \ldots``. See
-[`NCTSSoS.get_term_sparsity_graph`](@ref) for the implementation and
-[Stabilization vs. Exactness](@ref sparsity-convergence) for the
-convergence semantics.
+term-sparsity hierarchy at sparse orders ``k = 1, 2, \ldots``. There is no
+public getter for the initial graph. Inspect the completed blocks with
+`Next.block_rows`; see [Stabilization vs. Exactness](@ref sparsity-convergence)
+for the convergence semantics.
 
 ```@docs
-NCTSSoS.TermSparsity
-NCTSSoS.term_sparsities
-NCTSSoS.get_term_sparsity_graph
-NCTSSoS.iterate_term_sparse_supp
-NCTSSoS.term_sparsity_graph_supp
+NCTSSoS.Next.TermSplit
 ```
 
-# Eliminations
+## Geometric selection
 
 ```@docs
-NCTSSoS.clique_decomp
+NCTSSoS.Next.PhysicsInformed
+NCTSSoS.Next.Contiguous
+```
+
+## Block inspection
+
+```@docs
+NCTSSoS.Next.block_rows
+NCTSSoS.Next.block_sides
+```
+
+## Elimination algorithms
+
+Select these algorithms through `Correlative(algorithm=...)` or
+`TermSplit(algorithm=...)`. `TermSplit` defaults to `MaximalElimination()`;
+name `MMD()` explicitly when reproducing an example that uses it.
+
+```@docs
+NCTSSoS.Next.MF
+NCTSSoS.Next.MMD
+NCTSSoS.Next.NoElimination
+NCTSSoS.Next.AsIsElimination
+NCTSSoS.Next.MaximalElimination
+NCTSSoS.Next.NaturalElimination
 ```

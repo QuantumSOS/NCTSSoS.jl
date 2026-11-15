@@ -2,6 +2,8 @@ using Documenter
 using NCTSSoS
 using DocumenterCitations
 
+include("check_api_reference.jl")
+
 bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style=:authoryear)
 
 makedocs(;
@@ -45,7 +47,7 @@ makedocs(;
             "GNS Construction for Pauli Operators"=>"examples/generated/pauli_gns_construction.md"
         ],
         "References"=>"reference.md",
-        "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "SDP Relaxation" => "apis/relaxations.md"]
+        "APIs"=>["User interface" => "apis/interface.md", "Polynomials" => "apis/polynomials.md", "Sparsities" => "apis/sparsities.md", "Solver preparation" => "apis/relaxations.md", "Extension contracts" => "apis/extension_contracts.md"]
     ],
     plugins=[bib],
     # modules=[NCTSSoS],

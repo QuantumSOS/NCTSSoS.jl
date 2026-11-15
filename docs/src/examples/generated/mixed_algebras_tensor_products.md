@@ -17,12 +17,6 @@ using NCTSSoS.Next, Mosek, LinearAlgebra
 import NCTSSoS.Next as Next
 ````
 
-Helper: pretty-print a word using its registry for symbolic names.
-
-````julia
-repr_with_registry(reg, word) = sprint(show, word; context=:registry => reg)
-````
-
 ## 1) Build factor-algebra monomials
 
 ````julia
@@ -39,7 +33,7 @@ spin_product = σx[1] * σy[1]
 ````
 
 ````
-(-0.0 + 1.0im) spin.Z1
+(0.0 + 1.0im) spin.Z1
 ````
 
 A fermionic number operator is already normal-ordered:
@@ -62,14 +56,16 @@ mixed_term = spin_product * number
 ````
 
 ````
-(-0.0 + 1.0im) spin.Z1 matter.ad1 matter.a1
+(0.0 + 1.0im) spin.Z1 matter.ad1 matter.a1
 ````
 
 The phase is carried by the coefficient. Inspect the term with the public API:
 
+Pass the registry to `sprint` to display the word with symbolic names.
+
 ````julia
 coefficient, word = only(Next.terms(mixed_term));
-(coefficient, repr_with_registry(registry, word))
+(coefficient, sprint(show, word; context=:registry => registry))
 ````
 
 ````
@@ -80,7 +76,7 @@ Both factors are already canonical. Removing the phase leaves one unit term:
 
 ````julia
 canonical = σz[1] * number;
-[(c, repr_with_registry(registry, w)) for (c, w) in Next.terms(canonical)]
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(canonical)]
 ````
 
 ````

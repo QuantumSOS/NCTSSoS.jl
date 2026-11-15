@@ -1,92 +1,74 @@
 # User Interface
 
-## Problem Definition
+Load the modeling API with `using NCTSSoS.Next`. Names prefixed with `Next`
+are public, qualified calls; use `import NCTSSoS.Next as Next` for that prefix.
+A wrong declaration gives an `ArgumentError` whose text names the fix.
+
+## Problem and constraints
 
 ```@docs
-NCTSSoS.PolyOpt
-NCTSSoS.polyopt
-NCTSSoS.particle_number_constraint
+NCTSSoS.Next.Problem
+NCTSSoS.Next.Positive
+NCTSSoS.Next.Zero
+NCTSSoS.Next.ExpectationPositive
+NCTSSoS.Next.ExpectationZero
 ```
 
-## Variable Creation
+## Relaxation and solution
 
 ```@docs
-NCTSSoS.create_pauli_variables
-NCTSSoS.create_fermionic_variables
-NCTSSoS.create_bosonic_variables
-NCTSSoS.create_projector_variables
-NCTSSoS.create_unipotent_variables
-NCTSSoS.create_noncommutative_variables
+NCTSSoS.Next.Relaxation
+NCTSSoS.Next.solve
+NCTSSoS.Next.inspect
+NCTSSoS.Next.expectation
+NCTSSoS.Next.gns
+NCTSSoS.Next.GNSResult
+NCTSSoS.Next.evaluate
 ```
 
-## Solver Interface
+## [Reading a result](@id next-result)
+
+See [`solve`](@ref NCTSSoS.Next.solve) for the result fields, program sizes and backend diagnostics.
+
+Use `expectation(result, observable)` to read represented moments. Use
+`gns(result)` for checked reconstruction; a numerical optimum alone does not
+prove flatness or produce an optimizer. Backend options, native task sizes and
+diagnostic conventions are described in [Solver preparation](@ref next-solver-preparation).
+
+## Symmetry
+
+Declare symmetry on `Problem`, not on `Relaxation`. See
+[Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for the pipeline and
+[Clifford Symmetry Detection](@ref clifford-symmetry-detection) for detection.
 
 ```@docs
-NCTSSoS.SolverConfig
-NCTSSoS.cs_nctssos
-NCTSSoS.cs_nctssos_higher
-NCTSSoS.PolyOptResult
+NCTSSoS.Next.SitePermutation
+NCTSSoS.Next.LetterPermutation
+NCTSSoS.Next.CliffordMap
+NCTSSoS.Next.SpinRotation
+NCTSSoS.Next.spin_rotations
+NCTSSoS.Next.NumberRotation
+NCTSSoS.Next.Symmetry
+NCTSSoS.Next.detect_symmetry
 ```
 
-## Symmetry Reduction
+## Strengthening
 
-See [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) for an overview of
-what is supported, the MVP scope, and reference cases including CHSH and the
-Pauli charge/spatial/singlet XXX path.
+See [Strengthening](@ref strengthening) for validity domains and numerical
+comparisons. Symmetry preserves an invariant problem; a sector restriction
+changes which states are allowed.
 
 ```@docs
-NCTSSoS.SignedPermutation
-NCTSSoS.FermionicModePermutation
-NCTSSoS.CliffordSymmetry
-NCTSSoS.CliffordSymmetryGroup
-NCTSSoS.pauli_site_permutation
-NCTSSoS.pauli_contiguous_chain_basis
-NCTSSoS.pauli_sign_symmetry
-NCTSSoS.PauliChargeSectorSpec
-NCTSSoS.PauliSingletConstraintSpec
-NCTSSoS.PauliChargeBlockLabel
-NCTSSoS.heisenberg_chain_hamiltonian
-NCTSSoS.pauli_chain_translation
-NCTSSoS.pauli_chain_reflection
-NCTSSoS.pauli_global_axis_rotation_generators
-NCTSSoS.heisenberg_chain_symmetry_spec
-NCTSSoS.TranslationInvariantReport
-NCTSSoS.TranslationInvariantResult
-NCTSSoS.pauli_translation_invariant_moment_relaxation
-NCTSSoS.pauli_translation_invariant_nctssos
-NCTSSoS.SymmetrySpec
-NCTSSoS.SymmetryReport
+NCTSSoS.Next.DensityMatrix
+NCTSSoS.Next.InvariantCone
+NCTSSoS.Next.Stationarity
+NCTSSoS.Next.StateOptimality
+NCTSSoS.Next.FermionicConditions
+NCTSSoS.Next.Sector
 ```
 
-### Unified Symmetry Front
-
-`Symmetry` describes finite and continuous generators in one object and selects
-one of the existing reductions; it adds no reduction of its own. The
-`SymmetryCheckReport` states which checks the selected reduction ran.
+## Module scope
 
 ```@docs
-NCTSSoS.Symmetry
-NCTSSoS.SymmetryCheckReport
-NCTSSoS.check_symmetry
-```
-
-## SympleQ Automatic Symmetry Detection
-
-The SympleQ pipeline recognizes Clifford symmetries of Pauli Hamiltonians
-automatically from the binary symplectic tableau. See
-[Pauli Symmetry Reduction](@ref pauli-clifford-symmetry) for a worked example.
-
-```@docs
-NCTSSoS.sympleq_symmetry_spec
-NCTSSoS.sympleq_clifford_symmetry
-NCTSSoS.SymplecticTableau
-NCTSSoS.SymplecticMatrix
-NCTSSoS.PhaseVector
-NCTSSoS.SympleQGenerator
-```
-
-## Basis Selection
-
-```@docs
-NCTSSoS.newton_chip_basis
+NCTSSoS.Next
 ```

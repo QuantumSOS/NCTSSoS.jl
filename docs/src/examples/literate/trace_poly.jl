@@ -46,7 +46,7 @@ nothing #hide
 # Each tuple `("x", 1:3)` declares a **label group**: the string is a name
 # prefix and the range gives the indices, producing variables `x[1], x[2], x[3]`.
 # The returned `registry` stores the symbol ↔ index mapping and algebra
-# constraints; it is passed to [`polyopt`](@ref) so the solver knows the
+# constraints; it is passed to `polyopt` so the solver knows the
 # variable structure.
 
 registry, (x,) = create_projector_variables([("x", 1:3)]);
@@ -54,8 +54,8 @@ nothing #hide
 
 # #### Step 2 — Build the tracial objective
 #
-# [`tr`](@ref) wraps a `Polynomial` into a `StatePolynomial` — a symbolic
-# expression over trace moments. To feed it to [`polyopt`](@ref), multiply
+# `tr` wraps a `Polynomial` into a `StatePolynomial` — a symbolic
+# expression over trace moments. To feed it to `polyopt`, multiply
 # by the identity monomial `𝟙` to obtain an `NCStatePolynomial`.
 
 𝟙 = one(NormalMonomial{ProjectorAlgebra, UInt8})
@@ -64,7 +64,7 @@ nothing #hide
 
 # #### Step 3 — Formulate and solve
 #
-# [`SolverConfig`](@ref) sets the SDP backend and hierarchy `order`.
+# `SolverConfig` sets the SDP backend and hierarchy `order`.
 # Higher orders yield tighter bounds at the cost of larger SDPs.
 
 spop = polyopt(p, registry);
@@ -102,7 +102,7 @@ result = cs_nctssos(spop, solver_config);
 # $\mathcal{B} \leq 2\sqrt{2} \approx 2.828$.
 #
 # We model the observables with `UnipotentAlgebra` ($U^2 = I$). Since
-# [`cs_nctssos`](@ref) *minimizes*, we negate the Bell expression and expect
+# `cs_nctssos` *minimizes*, we negate the Bell expression and expect
 # $\approx -2\sqrt{2}$.
 
 # #### Step 1 — Create unipotent variables (single group)
@@ -230,12 +230,12 @@ abs_error = abs(result.objective + 5.0)
 # | Covariance Bell | `UnipotentAlgebra` ($U^2 = I$) | 4.5 | 5 |
 #
 # **Key API**:
-# - [`create_projector_variables`](@ref) / [`create_unipotent_variables`](@ref):
+# - `create_projector_variables` / `create_unipotent_variables`:
 #   create operators with $P^2 = P$ or $U^2 = I$ constraints
-# - [`tr`](@ref): build trace moments (tracial state)
-# - [`polyopt`](@ref): formulate the optimization problem
-# - [`SolverConfig`](@ref): set solver backend, hierarchy order, and sparsity options
-# - [`cs_nctssos`](@ref): solve via the moment-SOS hierarchy
+# - `tr`: build trace moments (tracial state)
+# - `polyopt`: formulate the optimization problem
+# - `SolverConfig`: set solver backend, hierarchy order, and sparsity options
+# - `cs_nctssos`: solve via the moment-SOS hierarchy
 #
 # For linear (non-tracial) Bell inequalities, see the
 # [Bell inequalities example](@ref bell-inequalities).

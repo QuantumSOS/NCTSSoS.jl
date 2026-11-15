@@ -1,58 +1,58 @@
-# Fast Polynomials
+# Polynomials
 
-## Algebra Types
+The modeling API uses a registry to keep operators in one algebra. Build all
+polynomials of a problem with that registry. Different registries cannot be
+mixed in one problem.
 
-```@autodocs
-Modules = [NCTSSoS]
-Pages = ["types/algebra.jl"]
+## Algebras and variables
+
+`pauli_variables`, `fermionic_variables`, `bosonic_variables` and
+`site_variables` return a registry and operator arrays. Use `Next.mixed_variables`
+for commuting components with different algebras in one registry.
+
+```@docs
+NCTSSoS.Next.Pauli
+NCTSSoS.Next.AntiunitaryPauli
+NCTSSoS.Next.Bosonic
+NCTSSoS.Next.Fermionic
+NCTSSoS.Next.Free
+NCTSSoS.Next.Projector
+NCTSSoS.Next.Unipotent
+NCTSSoS.Next.SiteAlgebra
+NCTSSoS.Next.pauli_variables
+NCTSSoS.Next.fermionic_variables
+NCTSSoS.Next.bosonic_variables
+NCTSSoS.Next.site_variables
+NCTSSoS.Next.mixed_variables
 ```
 
-### Categories
+## State and trace symbols
 
-`NCTSSoS.jl` groups algebras by the **normal form of monomials** (i.e. what `simplify(m::Monomial)` returns):
-
-- `MonoidAlgebra`: normal form stays a single monomial (monoid ring viewpoint). [@monoidRing]
-- `TwistedGroupAlgebra`: normal form is a scalar/phase times a monomial (twisted group algebra). [@twistedGroupAlgebra]
-- `PBWAlgebra`: normal form can expand into a sum of monomials (PBW-type rewriting/normal ordering). [@pbwAlgebraOscar]
-
-## Variables
-
-```@autodocs
-Modules = [NCTSSoS]
-Pages = ["types/registry.jl"]
+```@docs
+NCTSSoS.Next.RealState
+NCTSSoS.Next.RealTrace
+NCTSSoS.Next.state_symbol
+NCTSSoS.Next.trace_symbol
 ```
 
-## Monomials
+## Construction and inspection
 
-```@autodocs
-Modules = [NCTSSoS]
-Pages = ["types/monomial.jl", "types/composed.jl"]
+Use these public calls rather than reading packed storage fields.
+
+```@docs
+NCTSSoS.Next.variables
+NCTSSoS.Next.polynomial
+NCTSSoS.Next.terms
+NCTSSoS.Next.word_letters
+NCTSSoS.Next.support_letters
+NCTSSoS.Next.sites
+NCTSSoS.Next.degree
+NCTSSoS.Next.operator_name
 ```
 
-## Polynomials
+## Basis selection
 
-```@autodocs
-Modules = [NCTSSoS]
-Pages = ["types/polynomial.jl"]
-```
-
-## State Polynomial
-
-```@autodocs
-Modules = [NCTSSoS]
-Pages = ["states/polynomial.jl", "states/word.jl"]
-```
-
-## Simplification Interface
-
-```@autodocs
-Modules = [NCTSSoS]
-Pages = ["simplification/pauli.jl", "simplification/fermionic.jl", "simplification/bosonic.jl", "simplification/projector.jl", "simplification/unipotent.jl", "simplification/noncommutative.jl"]
-```
-
-## Utilities
-
-```@autodocs
-Modules = [NCTSSoS]
-Pages = ["algorithms/basis.jl"]
+```@docs
+NCTSSoS.Next.basis
+NCTSSoS.Next.newton_chip_basis
 ```

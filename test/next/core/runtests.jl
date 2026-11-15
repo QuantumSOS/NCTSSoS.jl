@@ -46,6 +46,31 @@ function letter_allocations(words)
     @allocated inspect_letters_into!(out,words)
 end
 
+function check_packed_letters(words::Vector{W}) where {W}
+    @test letter_allocations(words)==0
+    for w in words
+        letters=collect(Nx.word_letters(w))
+        @test length(letters)==Nx.degree(w)
+        @test all(v->v isa W && Nx.degree(v)==1,letters)
+        @test reduce(vcat,Nx.legacy_letters.(letters);init=Int[])==Nx.legacy_letters(w)
+        if Nx.ProductStyle(W) isa Nx.SingleTerm
+            folded=foldl(letters;init=(one(Nx.Phase),one(W))) do (p,u),v
+                q,next=Nx.mul(u,v)
+                (p*q,next)
+            end
+            @test folded==(one(Nx.Phase),w)
+        else
+            # Fermions use mul!: multiplying general words can produce a sum.
+            folded=TermDict{W,ComplexF64}()
+            Nx.push_term!(folded,1.0+0im,one(W))
+            for letter in letters
+                folded=times(folded,letter)
+            end
+            @test clean(folded)==Dict(w=>1.0+0im)
+        end
+    end
+end
+
 function compare_words(A, T, words)
     # Write all results to caller storage so the compiler cannot discard inspection.
     @test inspection_allocations(words) == 0
@@ -83,6 +108,8 @@ end
     for K in (1,2,3)
         W = Nx.PauliWord{K}
         words = [one(W); [Nx.PauliWord(ntuple(_->rand(rng,UInt64),K),ntuple(_->rand(rng,UInt64),K)) for _ in 1:12]]
+        push!(words,Nx.word_from_legacy(W,[3(s-1)+mod(i,3)+1 for (i,s) in enumerate(unique([1,64,64K]))]))
+        check_packed_letters(words)
         check_word_contract(W,words)
         compare_words(PauliAlgebra,UInt16,words)
     end
@@ -196,6 +223,8 @@ end
         W = Nx.FermiWord{K}
         modes = K == 1 ? [1,2,3,4] : [1,64,65,64K]
         words = [one(W)]
+        boundary=unique([1,64,64K])
+        append!(words,[Nx.word_from_legacy(W,sort!(raw)) for raw in (-boundary,boundary,[-boundary;boundary])])
         for _ in 1:20
             creators = [-s for s in modes if rand(rng,Bool)]
             annihilators = [s for s in modes if rand(rng,Bool)]
@@ -203,6 +232,7 @@ end
         end
         check_word_contract(W,words; C=Float64)
         compare_words(FermionicAlgebra,Int,words)
+        check_packed_letters(words)
         a,ad = Nx.fermi_letter(W,1),Nx.fermi_letter(W,-1)
         @test isempty(clean(product_terms(a,a,Float64)))
         @test clean(product_terms(a,ad,Float64)) == Dict(one(W)=>1.0,Nx.FermiWord(ad.c,a.a)=>-1.0)

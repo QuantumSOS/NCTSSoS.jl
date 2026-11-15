@@ -4,8 +4,8 @@ struct Polynomial{W,C,R}
     data::PolynomialBuffer{W,C}
 end
 
-_locations(w::PauliWord) = ((div(l-1,3)+1,mod(l-1,3)) for l in legacy_letters(w))
-_locations(w::FermiWord) = ((abs(l),sign(l)) for l in legacy_letters(w))
+_locations(w::PauliWord) = ((only(sites(l)),all(iszero,l.x) ? 2 : all(iszero,l.z) ? 0 : 1) for l in word_letters(w))
+_locations(w::FermiWord) = ((only(sites(l)),all(iszero,l.c) ? 1 : -1) for l in word_letters(w))
 _locations(w::SiteWord{A,U,B,S}) where {A,U,B,S} =
     ((_site(typeof(w),_letter(w,i)),Int(_letter(w,i)>>S)) for i in 1:degree(w))
 "Display a word in the names of its registry, without changing kernel word storage."

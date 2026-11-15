@@ -200,6 +200,7 @@ function Next.solve_standard(h::MosekHandle)
     bound=optimal ? Mosek.getprimalobj(h.task,Mosek.MSK_SOL_ITR) : nothing
     values=optimal ? (sos ? -Mosek.gety(h.task,Mosek.MSK_SOL_ITR) : Mosek.getxx(h.task,Mosek.MSK_SOL_ITR)) : Float64[]
     diagnostics=(representation=h.representation,termination=sprint(show,termination),warm_started=false,
+        solve_seconds=Mosek.getdouinf(h.task,Mosek.MSK_DINF_OPTIMIZER_TIME),
         iterations=Int(Mosek.getintinf(h.task,Mosek.MSK_IINF_INTPNT_ITER)),
         primal_residual=Mosek.getdouinf(h.task,Mosek.MSK_DINF_INTPNT_PRIMAL_FEAS),
         dual_residual=Mosek.getdouinf(h.task,Mosek.MSK_DINF_INTPNT_DUAL_FEAS))

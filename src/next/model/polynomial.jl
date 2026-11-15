@@ -134,6 +134,7 @@ Construct a canonical polynomial from an iterator of polynomials belonging to
 registry, without mutating any summand. An empty iterator gives a registry-owned
 zero. Coefficient types are promoted as summands arrive; duplicate words are
 added in encounter order, with no tolerance or Hermitian projection.
+Equality is by value (`==`); signed zeros are not preserved.
 
 For fixed-width words and coefficients, accumulation uses expected O(N) work
 for N input terms and O(K) storage for K distinct words. Fermionic words use

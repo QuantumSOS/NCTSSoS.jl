@@ -39,6 +39,11 @@ values are retained when no interior-point measure is reported (for example,
 after presolve); do not interpret them as small residuals. These are solver
 reports, not certificates.
 
+`diagnostics.solve_seconds` is Mosek's `MSK_DINF_OPTIMIZER_TIME`: total seconds
+spent in the optimizer since its invocation, including presolve, not just
+interior-point iterations. It excludes package-side building, task preparation
+and solution extraction; it is not the wall time of `solve`.
+
 Keep `form=:auto` unless comparing formulations on a small problem; do not
 force `:moment` on large PSD blocks. In the architect's XXZ4/order-2 review
 (one Hermitian block of side 67, one thread), moment form hit a 20 s limit

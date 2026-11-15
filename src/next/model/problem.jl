@@ -8,7 +8,35 @@ struct Zero{P<:Polynomial} <: OperatorConstraint
     polynomial::P
 end
 
-"Normalized states satisfying the input operator constraints; the plain route adds no state restriction."
+abstract type ExpectationConstraint end
+"""
+    ExpectationPositive(p)
+
+The single scalar condition ⟨p⟩ ≥ 0 on a Hermitian polynomial, without a
+localizing matrix. For example, `Problem(A; constraints=(ExpectationPositive(E-H),))`
+bounds A subject to an energy expectation at most E. The selected rows must
+already cover p. Functional state/trace polynomials are not supported here.
+"""
+struct ExpectationPositive{P<:Polynomial} <: ExpectationConstraint
+    polynomial::P
+    ExpectationPositive(p::Polynomial) = new{typeof(p)}(_checked_expectation(p,"ExpectationPositive"))
+end
+"""
+    ExpectationZero(p)
+
+The single scalar condition ⟨p⟩ = 0 on a Hermitian polynomial. Write
+`ExpectationZero(p-c)` for ⟨p⟩ = c. Unlike Zero(p), it does not constrain
+all localized products. The selected rows must already cover p.
+"""
+struct ExpectationZero{P<:Polynomial} <: ExpectationConstraint
+    polynomial::P
+    ExpectationZero(p::Polynomial) = new{typeof(p)}(_checked_expectation(p,"ExpectationZero"))
+end
+Base.show(io::IO,c::ExpectationConstraint) =
+    print(io,"⟨",c.polynomial,c isa ExpectationPositive ? "⟩ ≥ 0 (scalar)" : "⟩ = 0 (scalar)")
+Base.show(io::IO,::MIME"text/plain",c::ExpectationConstraint) = show(io,c)
+
+"Normalized states satisfying the input operator and scalar expectation constraints."
 struct ValidStates{C}
     constraints::C
 end
@@ -19,7 +47,11 @@ function Base.show(io::IO,v::ValidStates)
     print(io," satisfying: ")
     for (i,c) in enumerate(v.constraints)
         i>1 && print(io,"; ")
-        print(io,c.polynomial,c isa Positive ? " ⪰ 0" : " = 0")
+        if c isa ExpectationConstraint
+            show(io,c)
+        else
+            print(io,c.polynomial,c isa Positive ? " ⪰ 0 (operator)" : " = 0 (operator)")
+        end
     end
 end
 Base.show(io::IO,::MIME"text/plain",v::ValidStates) = show(io,v)
@@ -29,15 +61,21 @@ function _checked_hermitian(p::Polynomial,name)
     LinearAlgebra.ishermitian(p) || throw(ArgumentError("$name ($p) is not Hermitian; supply a self-adjoint polynomial. If the Hermitian part is intended, explicitly use (p + p')/2 via 0.5*(p + p')."))
     return p
 end
+function _checked_expectation(p::Polynomial,name)
+    p.registry.algebra isa FunctionalAlgebra && throw(ArgumentError(
+        "$name is a single outer moment constraint for ordinary algebras. For state/trace variables, use Positive(state_symbol(p)) / Zero(state_symbol(p)) (or Positive(p) / Zero(p) if p is already scalar); outer averaged functional conditions are not supported."))
+    return _checked_hermitian(p,name)
+end
 """
-Checked minimization problem with operator constraints and optional symmetry.
+Checked minimization problem with operator or scalar expectation constraints and optional symmetry.
 Pass a tuple or vector: derivations constrain continuous symmetry, antiunitary
 actions constrain moments only, and other actions close the block family.
 Use `Next.Symmetry` to explicitly place a unitary action in `moment_only`.
 Declare symmetry here, not on `Relaxation`. Empty symmetries mean none declared.
 For a legacy `BlockRelaxation`, use whichever declaration is nonempty; if both
 are nonempty, remove the legacy declaration and keep the one on the problem.
-Constraints describe operator inequalities/equalities, not a state sector.
+Positive/Zero describe operator constraints; ExpectationPositive/ExpectationZero
+describe single scalar conditions. Neither is a state-sector restriction.
 """
 struct Problem{P<:Polynomial,C<:Tuple,S}
     objective::P
@@ -47,7 +85,7 @@ struct Problem{P<:Polynomial,C<:Tuple,S}
         _checked_hermitian(objective,"Objective")
         cs = Tuple(constraints)
         for (i,c) in enumerate(cs)
-            c isa OperatorConstraint || throw(ArgumentError("Constraint $i must be Positive(p) or Zero(p); do not pass a Boolean comparison."))
+            c isa Union{OperatorConstraint,ExpectationConstraint} || throw(ArgumentError("Constraint $i must be Positive(p), Zero(p), ExpectationPositive(p) or ExpectationZero(p); do not pass a Boolean comparison."))
             c.polynomial.registry === objective.registry || throw(ArgumentError("Constraint $i uses a different registry from the objective; rebuild it with the objective's variables."))
             _checked_hermitian(c.polynomial,"Constraint $i")
         end
@@ -55,7 +93,7 @@ struct Problem{P<:Polynomial,C<:Tuple,S}
         new{typeof(objective),typeof(cs),typeof(symmetry)}(objective,cs,symmetry)
     end
 end
-add_constraint(p::Problem,c::OperatorConstraint) = Problem(p.objective;constraints=(p.constraints...,c),symmetry=p.symmetry)
+add_constraint(p::Problem,c::Union{OperatorConstraint,ExpectationConstraint}) = Problem(p.objective;constraints=(p.constraints...,c),symmetry=p.symmetry)
 
 abstract type AbstractRelaxation end
 """
@@ -167,6 +205,31 @@ function _localize!(program::MomentProgram{C},table,c::OperatorConstraint,order,
     return n
 end
 
+function _expectation_constraint!(program,table,constraint::ExpectationConstraint,index)
+    p=constraint.polynomial
+    W=eltype(p.data.words)
+    coordinates=Dict{Int,Tuple{Number,W}}()
+    missing(w)=throw(ArgumentError("$(nameof(typeof(constraint))) constraint $index needs uncovered word $(_word_string(p.registry,w)); add rows covering this word or increase the order."))
+    for (c,w) in terms(p)
+        pairs=moment_terms(table,w)
+        isnothing(pairs) && missing(w)
+        for (id,factor) in pairs
+            coefficient=c*factor
+            coordinates[id]=(get(coordinates,id,(0,w))[1]+coefficient,w)
+        end
+    end
+    # Combine before coverage: adjoint terms can cancel an unused imaginary part.
+    for id in sort!(collect(keys(coordinates)))
+        coefficient,w=coordinates[id]
+        iszero(coefficient) && continue
+        moment_covered(table,id) || missing(w)
+        push_term!(program.forms,real(coefficient),id)
+    end
+    close_form!(program.forms)
+    push_block!(program,constraint isa ExpectationPositive ? NONNEGATIVE : ZERO,1,index)
+    return program
+end
+
 "Flat program counts on result.sizes; result.sizes.closure is nothing on the plain route."
 struct ProgramSizes
     rows::Int
@@ -234,7 +297,14 @@ function build(p::Problem,r::Relaxation)
     program,table = plain_program(rows,((c,_pack_word(W,w)) for (c,w) in terms(p.objective));
         C=_real_form(p) ? Float64 : ComplexF64,
         word_string=w->_word_string(p.objective.registry,w))
-    local_sizes = Int[_localize!(program,table,c,order,i) for (i,c) in enumerate(p.constraints)]
+    local_sizes = Int[]
+    for (i,c) in enumerate(p.constraints)
+        if c isa ExpectationConstraint
+            _expectation_constraint!(program,table,c,i)
+        else
+            push!(local_sizes,_localize!(program,table,c,order,i))
+        end
+    end
     program.nvars = nvars(table)
     validate(program)
     sizes = ProgramSizes(length(rows),length(table),nvars(program)-1,

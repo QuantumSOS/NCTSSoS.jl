@@ -320,8 +320,14 @@ function _gns_candidate(result,full_basis,basis,H,values,work,d,order;atol,rtol,
     constraint_min=Float64[]; equality_errors=Float64[]
     for c in result.problem.constraints
         M=_gns_evaluate(operators,c.polynomial,r,W)
-        push!(constraint_min,r==0 ? -Inf : LinearAlgebra.eigmin(LinearAlgebra.Hermitian((M+M')/2)))
-        push!(equality_errors,c isa Zero ? (r==0 ? Inf : LinearAlgebra.opnorm(M)) : 0.0)
+        if c isa ExpectationConstraint
+            value=real(LinearAlgebra.dot(state,M*state))
+            push!(constraint_min,r==0 ? -Inf : value)
+            push!(equality_errors,c isa ExpectationZero ? (r==0 ? Inf : abs(value)) : 0.0)
+        else
+            push!(constraint_min,r==0 ? -Inf : LinearAlgebra.eigmin(LinearAlgebra.Hermitian((M+M')/2)))
+            push!(equality_errors,c isa Zero ? (r==0 ? Inf : LinearAlgebra.opnorm(M)) : 0.0)
+        end
     end
     sector_errors=Float64[]
     for condition in result.relaxation.strengthen

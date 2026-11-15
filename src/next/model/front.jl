@@ -64,14 +64,14 @@ function _build_blocks(p::Problem,r::Relaxation)
     family=isnothing(r.rows) ? r.family : [r.rows]
     description=BlockRelaxation(;order=r.order,row_rule=r.row_rule,grouping=r.grouping,
         split=r.split,family,strengthen=r.strengthen)
-    return build(p,description)
+    return _build_declared(p,description;relaxation=r)
 end
 
 # The pipeline method remains unchanged. This more specific model method merges
 # declarations, checks named polynomials, then invokes that implementation.
 build(p::Problem{P,C,Nothing},r::BlockRelaxation) where {P<:Polynomial,C<:Tuple} = _build_declared(p,r)
 build(p::Problem{P,C,S},r::BlockRelaxation) where {P<:Polynomial,C<:Tuple,S<:FamilySymmetry} = _build_declared(p,r)
-function _build_declared(p::Problem,r::BlockRelaxation)
+function _build_declared(p::Problem,r::BlockRelaxation;relaxation=r)
     p.objective.registry.algebra isa FunctionalAlgebra && throw(ArgumentError("State/trace polynomials do not yet support the block pipeline; use Relaxation(order=...) without symmetry or strengthening."))
     a,b=p.symmetry,r.symmetry
     _has_symmetry(a) && _has_symmetry(b) && throw(ArgumentError(
@@ -88,7 +88,8 @@ function _build_declared(p::Problem,r::BlockRelaxation)
     description = symmetry === r.symmetry ? r : BlockRelaxation(;order=r.order,
         row_rule=r.row_rule,grouping=r.grouping,split=r.split,family=r.family,
         symmetry,strengthen=r.strengthen)
-    return invoke(build,Tuple{Problem,BlockRelaxation},p,description)
+    built=invoke(build,Tuple{Problem,BlockRelaxation},p,description)
+    return BuiltRelaxation(p,relaxation,built.program,built.table,built.sizes,built.valid_for)
 end
 
 function Base.show(io::IO,p::Problem)

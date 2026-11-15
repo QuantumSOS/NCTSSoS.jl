@@ -1,5 +1,3 @@
-public prepare_standard
-
 """
 Native SCS moment-form writer. Load SCS before solving. Set
 `linear_solver=SCS.IndirectSolver` for the indirect linear system solver;

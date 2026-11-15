@@ -10,10 +10,11 @@ import SCS
 import JuMP
 using SparseArrays: spzeros
 
-mutable struct SCSHandle{B}
+mutable struct SCSHandle{B,D}
     form::Next.MomentStandardForm
     backend::B
     permutation::Vector{Int}
+    data::D
     x::Vector{Float64}
     y::Vector{Float64}
     slack::Vector{Float64}
@@ -30,18 +31,25 @@ function Next.prepare_standard(form::Next.MomentStandardForm,backend::Next.SCSBa
     for kind in order,cone in form.cones
         cone.kind==kind && append!(permutation,cone.first:cone.first+cone.length-1)
     end
-    return SCSHandle(form,backend,permutation,zeros(length(form.c)),zeros(length(form.b)),zeros(length(form.b)),false)
+    countrows(kind) = sum(c.length for c in form.cones if c.kind==kind;init=0)
+    sides(kind) = [c.side for c in form.cones if c.kind==kind]
+    m,n=size(form.A)
+    data=(A=form.A[permutation,:],P=spzeros(n,n),b=form.b[permutation],
+        zero=countrows(:zero),nonnegative=countrows(:nonnegative),
+        soc=sides(:soc),psd=sides(:psd),hpsd=sides(:hpsd))
+    return SCSHandle(form,backend,permutation,data,zeros(n),zeros(m),zeros(m),false)
 end
 
-function Next.solve_standard(h::SCSHandle)
-    f,p = h.form,h.permutation
-    countrows(kind) = sum(c.length for c in f.cones if c.kind==kind;init=0)
-    sides(kind) = [c.side for c in f.cones if c.kind==kind]
+Next.solve_standard(h::SCSHandle) = _solve_standard(h,false)
+
+function _solve_standard(h::SCSHandle,warm_start::Bool)
+    f,d = h.form,h.data
     m,n = size(f.A)
     linear_solver = isnothing(h.backend.linear_solver) ? SCS.DirectSolver : h.backend.linear_solver
-    options = merge((warm_start=h.warm_start,),h.backend.options)
-    sol = SCS.scs_solve(linear_solver,m,n,f.A[p,:],spzeros(n,n),f.b[p],f.c,
-        countrows(:zero),countrows(:nonnegative),Float64[],Float64[],sides(:soc),sides(:psd),sides(:hpsd),
+    # Only the append path may reuse a solution; repeated solves stay cold.
+    options = merge(h.backend.options,(warm_start=warm_start && get(h.backend.options,:warm_start,true),))
+    sol = SCS.scs_solve(linear_solver,m,n,d.A,d.P,d.b,f.c,
+        d.zero,d.nonnegative,Float64[],Float64[],d.soc,d.psd,d.hpsd,
         0,0,Float64[],Int[],Int[],Int[],Int[],Int[],Int[],h.x,h.y,h.slack;options...)
     status = sol.ret_val==1 ? JuMP.MOI.OPTIMAL : sol.ret_val==2 ? JuMP.MOI.ALMOST_OPTIMAL :
         sol.ret_val==-2 ? JuMP.MOI.INFEASIBLE : sol.ret_val==-1 ? JuMP.MOI.DUAL_INFEASIBLE : JuMP.MOI.OTHER_ERROR
@@ -77,8 +85,8 @@ function Next.solve_standard(form::Next.MomentStandardForm,h::SCSHandle)
             next.slack[j] = h.slack[i]
         end
     end
-    h.form,h.permutation,h.x,h.y,h.slack = next.form,next.permutation,next.x,next.y,next.slack
-    return Next.solve_standard(h)
+    h.form,h.permutation,h.data,h.x,h.y,h.slack = next.form,next.permutation,next.data,next.x,next.y,next.slack
+    return _solve_standard(h,h.warm_start)
 end
 
 # This extension is loaded only with SCS. Keep native solves tiny and silent;

@@ -1,4 +1,5 @@
-public ConicSolution, solve_standard
+public ConicSolution
+using JuMP.MOI.Utilities: attach_optimizer
 
 "Solver descriptions dispatch at the standard-form boundary; package extensions can add new subtypes."
 abstract type AbstractSolver end
@@ -25,6 +26,15 @@ ConicSolution(bound,status,raw_status,values,handle) = ConicSolution(bound,statu
 
 "Solve standard data with a backend description, or re-solve an open backend handle."
 function solve_standard end
+
+"Data-only preparation for a backend that implements solve_standard but has no separate task API."
+struct PreparedStandard{F,S}
+    form::F
+    solver::S
+end
+prepare_standard(form,solver::AbstractSolver) = PreparedStandard(form,solver)
+solve_standard(p::PreparedStandard) = solve_standard(p.form,p.solver)
+
 function _optimize(handle::JuMPHandle)
     JuMP.optimize!(handle.model)
     status = JuMP.termination_status(handle.model)
@@ -34,11 +44,15 @@ function _optimize(handle::JuMPHandle)
     values = has_values ? JuMP.value.(handle.variables) : Float64[]
     return ConicSolution(bound,status,JuMP.raw_status(handle.model),values,handle)
 end
-function solve_standard(form::Union{MomentStandardForm,SOSStandardForm},solver::JuMPBackend)
+function prepare_standard(form::Union{MomentStandardForm,SOSStandardForm},solver::JuMPBackend)
     model,variables = to_jump(form)
     JuMP.set_optimizer(model,solver.optimizer)
-    return _optimize(JuMPHandle(model,variables,form))
+    attach_optimizer(model)
+    return JuMPHandle(model,variables,form)
 end
+solve_standard(handle::JuMPHandle) = _optimize(handle)
+solve_standard(form::Union{MomentStandardForm,SOSStandardForm},solver::JuMPBackend) =
+    solve_standard(prepare_standard(form,solver))
 function solve_standard(form::MomentStandardForm,handle::JuMPHandle{MomentStandardForm})
     old = handle.form
     m,k = length(old.b),length(old.cones)

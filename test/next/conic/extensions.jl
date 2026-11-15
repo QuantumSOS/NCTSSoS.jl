@@ -59,7 +59,7 @@ end
         @test fixed.solution.diagnostics.warm_started
         again = N.solve_standard(fixed.solution.handle)
         @test again.bound ≈ fixed.bound atol=2e-6
-        @test again.diagnostics.iterations==0
+        @test !again.diagnostics.warm_started
         failed = N.solve(fixed,N.Positive(x-0.8))
         @test failed.bound===nothing
         @test failed.status==JuMP.MOI.INFEASIBLE
@@ -114,3 +114,5 @@ check_gns_coverage(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8,max_iters=20
 
 isdefined(@__MODULE__,:FunctionalModelChecks) || include("../model/functional.jl")
 FunctionalModelChecks.check(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8))
+isdefined(@__MODULE__,:StagedSolveChecks) || include("../model/staged.jl")
+StagedSolveChecks.check(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8))

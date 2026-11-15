@@ -25,6 +25,7 @@ module Next
 
 using JuMP: JuMP, @constraint, @objective, @variable
 import LinearAlgebra
+import ..NCTSSoS: MMD, NoElimination, AsIsElimination, NaturalElimination
 
 include("contracts/words.jl")
 include("contracts/conic.jl")
@@ -40,6 +41,7 @@ include("model/newton_chip.jl")
 include("model/letter_permutation.jl")
 
 public Symmetry, variables, RealState, RealTrace, newton_chip_basis
+public build, BuiltRelaxation, prepare, prepare_standard, solve_standard
 
 export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
     state_symbol, trace_symbol,
@@ -47,6 +49,7 @@ export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
     Problem, Positive, Zero, SitePermutation, LetterPermutation, CliffordMap, AntiunitaryPauli,
     SpinRotation, spin_rotations, NumberRotation,
     detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,
+    MF, MMD, NoElimination, AsIsElimination, MaximalElimination, NaturalElimination,
     DensityMatrix, InvariantCone, Stationarity, StateOptimality, Sector, FermionicConditions,
     inspect, solve, expectation, gns, evaluate, SCSBackend, MosekBackend, JuMPBackend
 

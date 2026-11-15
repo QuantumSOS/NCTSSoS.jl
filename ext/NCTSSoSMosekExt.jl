@@ -2,6 +2,7 @@ module NCTSSoSMosekExt
 using NCTSSoS: Next
 # Internal construction helpers shared by this package's precompile workload.
 using NCTSSoS.Next: build, moment_standard_form
+import NCTSSoS.Next: _prepare
 import Mosek
 import JuMP
 using SparseArrays: sparse, findnz, nzrange, rowvals, nonzeros
@@ -135,6 +136,18 @@ end
 
 function Next.prepare_standard(form::Next.MomentStandardForm,backend::Next.MosekBackend)
     f=real_psd_form(form)
+    return prepare_native(f,backend,form)
+end
+
+function _prepare(built::Next.BuiltRelaxation,backend::Next.MosekBackend)
+    f=get!(built.cache,:mosek_real) do
+        form=haskey(built.cache,:moment) ? built.cache[:moment] : moment_standard_form(built.program)
+        real_psd_form(form)
+    end::Next.MomentStandardForm
+    return prepare_native(f,backend,f)
+end
+
+function prepare_native(f,backend,source)
     representation=backend.form==:auto ? (length(f.c)<=length(f.b) ? :sos : :moment) : backend.form
     task=Mosek.maketask()
     try
@@ -156,7 +169,7 @@ function Next.prepare_standard(form::Next.MomentStandardForm,backend::Next.Mosek
         Mosek.deletetask(task)
         rethrow()
     end
-    return MosekHandle(task,form,backend,representation)
+    return MosekHandle(task,source,backend,representation)
 end
 
 function Next.solve_standard(h::MosekHandle)
@@ -172,7 +185,8 @@ function Next.solve_standard(h::MosekHandle)
         termination==Mosek.MSK_RES_TRM_STALL ? JuMP.MOI.SLOW_PROGRESS : JuMP.MOI.OTHER_ERROR
     bound=optimal ? Mosek.getprimalobj(h.task,Mosek.MSK_SOL_ITR) : nothing
     values=optimal ? (sos ? -Mosek.gety(h.task,Mosek.MSK_SOL_ITR) : Mosek.getxx(h.task,Mosek.MSK_SOL_ITR)) : Float64[]
-    diagnostics=(representation=h.representation,termination=sprint(show,termination),warm_started=false)
+    diagnostics=(representation=h.representation,termination=sprint(show,termination),warm_started=false,
+        iterations=Int(Mosek.getintinf(h.task,Mosek.MSK_IINF_INTPNT_ITER)))
     return Next.ConicSolution(bound,status,sprint(show,raw),values,h,diagnostics)
 end
 

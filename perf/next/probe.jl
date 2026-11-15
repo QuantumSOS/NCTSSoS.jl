@@ -1,9 +1,9 @@
 # Standalone worker. See README.md; run through run.py for resource limits.
 import NCTSSoS as Old
 const N = Old.Next
-using LinearAlgebra, SparseArrays, Statistics, Profile, TOML
+using LinearAlgebra, SparseArrays, Statistics, Profile, TOML, Serialization
 import JuMP
-if !isempty(ARGS) && last(ARGS)=="solve"
+if length(ARGS)>=8 && ARGS[8]=="solve"
     if first(ARGS)=="hydrogen"
         import SCS
     else
@@ -200,7 +200,7 @@ function solve_probe(built,route,target,result,out)
     println("| $target | $route | $(result["n"]) | $(result["status"]) | $(result["bound"]) | $(timed.time) |")
 end
 function main()
-    target,route,ns,os,variant,data,out,mode=ARGS
+    target,route,ns,os,variant,data,out,mode=ARGS[1:8]
     result=Dict{String,Any}("target"=>target,"route"=>route,"n"=>parse(Int,ns),"order"=>parse(Int,os),
         "variant"=>variant,"julia"=>string(VERSION),"cpu"=>Sys.cpu_info()[1].model,
         "threads"=>Threads.nthreads(),"blas_threads"=>BLAS.get_num_threads(),"stage"=>"input")
@@ -210,6 +210,10 @@ function main()
     result["stage"]="cold_build"; checkpoint(result,out)
     cold=@timed build()
     result["cold_seconds"]=cold.time; result["cold_bytes"]=cold.bytes
+    if length(ARGS)==9 && ARGS[9]=="save_program"
+        result["program_path"]=out*".program.jls"
+        serialize(result["program_path"],cold.value.program)
+    end
     if mode=="solve"
         merge!(result,dimensions(cold.value,route))
         solve_probe(cold.value,route,target,result,out)

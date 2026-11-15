@@ -4,6 +4,8 @@
 raw samples in `results.json` and eight build profiles in `profiles.txt`.
 [Precompile scope and first-call measurements](precompile.md) cover the separate
 common-path workload decision, with raw records in `precompile.json`.
+[TermSplit construction cost](termsplit.md) records the finite-group optimization
+and exact before/after program comparisons, with raw records in `termsplit.json`.
 
 Run from the repository root with Python 3.11+ and Julia. Use a disposable Julia
 environment containing this checkout, JuMP, MosekTools and SCS. Do not change the
@@ -30,6 +32,11 @@ checkpoints require `--replace`. `--mode=profile` replaces lowering with a fresh
 build under Julia's sampling profiler, writing flat (inclusive-count sorted) and
 tree profiles. This also permits profiling a build whose lowering exceeds the
 budget. Run one process at a time.
+
+For `next`, `--save-program` serializes the first program beside the checkpoint
+as `*.toml.program.jls`, outside the build timer. This permits complete
+standard-form comparisons without repeating a slow build. The file requires a
+compatible Julia/package environment to deserialize; only load trusted files.
 
 The watchdog checks RSS every 100 ms and kills a worker at 600 wall seconds or
 20,000,000,000 bytes RSS. These limits include loading, compilation, input

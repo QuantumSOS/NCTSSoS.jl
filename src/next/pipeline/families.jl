@@ -105,7 +105,10 @@ function _append_family_sectors!(program,table,block,sectors;real_blocks=false,p
 end
 
 function _family_sectors(block,stabilizers,transport,index,moment_generators)
-    if isempty(stabilizers)
+    # The identity row carries only the trivial representation, whatever the
+    # size of its stabilizer. Its projector and normalized row are exactly one.
+    trivial=isempty(stabilizers) || (length(block.rows)==1 && isone(only(block.rows)))
+    if trivial
         sectors=[[[(1.0+0im,w)] for w in block.rows]]
     else
         group=OrbitGroup(stabilizers)
@@ -121,7 +124,7 @@ function _family_sectors(block,stabilizers,transport,index,moment_generators)
         if target!=root && !isnothing(transport) && haskey(transport,target)
             anti=compose(inv(transport[target]),anti)
         end
-        isempty(stabilizers) && (group=OrbitGroup([one(anti)]))
+        trivial && (group=OrbitGroup([one(anti)]))
         sectors,real_blocks=_real_finite_sectors(block.rows,sectors,group,anti)
     end
     sectors,real_blocks

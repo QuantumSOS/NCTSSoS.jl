@@ -36,8 +36,9 @@ include("model/detection.jl")
 include("model/front.jl")
 include("model/gns.jl")
 include("model/functional.jl")
+include("model/newton_chip.jl")
 
-public Symmetry, variables, RealState, RealTrace
+public Symmetry, variables, RealState, RealTrace, newton_chip_basis
 
 export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
     state_symbol, trace_symbol,

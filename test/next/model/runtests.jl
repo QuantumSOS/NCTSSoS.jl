@@ -22,7 +22,7 @@
         end
         import NCTSSoS
         @testset "Qualified legacy API" begin
-            for name in (:Symmetry,:variables)
+            for name in (:Symmetry,:variables,:newton_chip_basis)
                 @test Base.ispublic(Next,name)
                 @test !Base.isexported(Next,name)
                 @test getfield(NCTSSoS,name) !== getfield(Next,name)
@@ -59,6 +59,8 @@ include("front.jl")
 FrontDoorChecks.check(Nx.JuMPBackend(SOLVER))
 include("functional.jl")
 FunctionalModelChecks.check(Nx.JuMPBackend(SOLVER))
+include("newton_chip.jl")
+NewtonChipChecks.check(Nx.JuMPBackend(SOLVER))
 include("gns.jl")
 include("bosonic.jl")
 # Order-three bosonic Hankel matrices need tighter solver residuals to compare

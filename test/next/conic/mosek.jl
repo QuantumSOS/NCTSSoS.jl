@@ -141,7 +141,10 @@ else
         for form in (:moment,:sos)
             solver=N.MosekBackend(;form,MSK_IPAR_NUM_THREADS=1)
             prepared=N.prepare(built;solver)
-            result=N.solve(built;solver)
+            elapsed=@elapsed result=N.solve(built;solver)
+            @test 0<result.solution.diagnostics.solve_seconds<=elapsed
+            @test result.solution.diagnostics.solve_seconds==
+                Mosek.getdouinf(prepared.task,Mosek.MSK_DINF_OPTIMIZER_TIME)
             direct=N.solve(problem,relaxation;solver)
             @test result.bound==direct.bound
             again=N.solve(built;solver)

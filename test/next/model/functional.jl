@@ -42,7 +42,11 @@ function check(backend;factory=nothing,references=false)
         end
         @test occursin("⟨",sprint(show,symbol(a)))
         @test occursin("tr(",sprint(show,N.trace_symbol(y[1])))
+        mixed_text=sprint(show,symbol(a)*b)
+        @test occursin("⟨s1_1⟩",mixed_text) && occursin("s1_2",mixed_text)
         p=N.Problem(symbol(a)); relaxation=N.Relaxation(order=2)
+        @test occursin("normalized real states",sprint(show,p))
+        @test occursin("normalized real traces",sprint(show,N.Problem(N.trace_symbol(y[1]))))
         @test_throws r"plain dense route.*remove symmetry" N.Problem(symbol(a);symmetry=(N.SitePermutation([1]),))
         built=N.build(p,relaxation)
         # An ensemble of the scalar evaluations a=b=c=+1 and a=b=c=-1.

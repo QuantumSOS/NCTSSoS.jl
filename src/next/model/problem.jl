@@ -195,7 +195,31 @@ _real_form(p::Problem) = p.objective.registry.algebra isa Union{SiteAlgebra{<:Un
     all(isreal,p.objective.data.coefficients) &&
     all(c->all(isreal,c.polynomial.data.coefficients),p.constraints)
 
-"Build without a solver. The returned program and table are suitable for pipeline/conic inspection."
+"A built plain or block relaxation, with lazily cached solver data. Treat its program and inputs as read-only; rebuild after changing them."
+struct BuiltRelaxation{P,R,G,S,V}
+    program::G
+    table::Any
+    sizes::S
+    valid_for::V
+    problem::P
+    relaxation::R
+    cache::Dict{Any,Any}
+end
+BuiltRelaxation(p,r,program,table,sizes,valid_for) =
+    BuiltRelaxation(program,table,sizes,valid_for,p,r,Dict{Any,Any}())
+function Base.show(io::IO,b::BuiltRelaxation)
+    print(io,"Built relaxation\n",b.problem,"\n",b.relaxation,"\nSizes: ",b.sizes)
+end
+Base.show(io::IO,::MIME"text/plain",b::BuiltRelaxation) = show(io,b)
+
+"""
+    Next.build(problem, relaxation) -> Next.BuiltRelaxation
+
+Formulate the plain or block relaxation without lowering or loading a solver.
+Use `Next.prepare(built; solver)` to lower and prepare, then `solve(built; solver)`
+to optimize, or omit prepare to do both on the first solve. The program, table,
+sizes and valid_for fields remain available for inspection.
+"""
 function build(p::Problem,r::Relaxation)
     if p.objective.registry.algebra isa FunctionalAlgebra && _uses_blocks(p,r)
         throw(ArgumentError("State/trace polynomials currently support the plain dense route only; remove symmetry, grouping, split, row_rule, family and strengthening, and use Relaxation(order=...)."))
@@ -216,5 +240,5 @@ function build(p::Problem,r::Relaxation)
     sizes = ProgramSizes(length(rows),length(table),nvars(program)-1,
         length(program.blocks),maximum(b.side for b in program.blocks if b.kind in (PSD,HPSD)),
         local_sizes)
-    return (program=program,table=table,sizes=sizes,valid_for=ValidStates(p.constraints))
+    return BuiltRelaxation(p,r,program,table,sizes,ValidStates(p.constraints))
 end

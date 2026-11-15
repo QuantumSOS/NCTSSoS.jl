@@ -14,7 +14,7 @@ struct FamilySymmetry{G,M,D}
     end
 end
 
-"A row rule per site group, a split algorithm, or an unchanged custom family."
+"A row rule per group, a split algorithm, or an unchanged custom family."
 struct BlockRelaxation{R,G,S,F,Y,K} <: AbstractRelaxation
     order::Union{Int,Nothing}
     row_rule::R
@@ -104,7 +104,7 @@ function build(problem::Problem,description::BlockRelaxation)
         rows=_custom_family_rows(problem,description,W)
         groups=[sort!(unique!(reduce(vcat,collect.(sites.(block));init=Int[]))) for block in rows]
     else
-        groups=_site_groups(problem,description.grouping)
+        groups=_site_groups(problem,description.grouping,W)
         rows=[_group_rows(description.row_rule,W,registry,group,order) for group in groups]
     end
     family=[RowBlock(block,identity,HPSD,0) for block in rows]
@@ -116,9 +116,8 @@ function build(problem::Problem,description::BlockRelaxation)
         local_order=order-cld(degree(constraint.polynomial),2)
         local_order>=0 || throw(ArgumentError("Constraint $i exceeds the row order; increase order to at least $(cld(degree(constraint.polynomial),2))."))
         polynomial=[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(constraint.polynomial)]
-        support=sort!(unique!(reduce(vcat,[collect(sites(w)) for (_,w) in polynomial];init=Int[])))
-        assigned=findall(group->issubset(support,group),groups)
-        isempty(assigned) && throw(ArgumentError("No site group covers constraint $i; increase the grouping level or supply a group containing its complete support."))
+        assigned=findall(group->all(cw->_in_group(last(cw),group),polynomial),groups)
+        isempty(assigned) && throw(ArgumentError("No group covers constraint $i; increase the grouping level or supply a group containing its complete support."))
         for j in assigned
             local_rows=_group_rows(description.row_rule,W,registry,groups[j],local_order)
             push!(family,RowBlock(local_rows,polynomial,constraint isa Zero ? ZERO : HPSD,i))

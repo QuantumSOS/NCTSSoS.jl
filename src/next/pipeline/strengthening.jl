@@ -111,7 +111,7 @@ function _extra_orbits(initial,generators)
     extras,representatives
 end
 
-function _append_extra!(program,table,extra)
+function _append_extra!(program,table,extra;face=nothing)
     if extra.kind==SOC
         push_term!(program.forms,extra.radius,1); close_form!(program.forms)
         sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
@@ -134,6 +134,11 @@ function _append_extra!(program,table,extra)
     end
     ids=sort!(collect(keys(coefficients)))
     matrices=[coefficients[id] for id in ids]
+    if !isnothing(face) && size(face.basis,2)<side
+        _density_face_equations!(program,ids,matrices,face,extra.source)
+        B=ComplexF64.(face.basis)
+        matrices=[B'*A*B for A in matrices]
+    end
     rows,error=_coefficient_sectors(matrices)
     for U in rows
         parts=[U'*A*U for A in matrices]
@@ -155,7 +160,7 @@ function _strengthen!(program,table,problem,kinds,closure;sectors=())
     isempty(kinds) && return nothing
     site_kinds=filter(k->k isa Union{DensityMatrix,InvariantCone},kinds)
     isempty(site_kinds) || problem.objective.registry.algebra isa Pauli ||
-        throw(ArgumentError("These strengthening kinds require Pauli variables; use fermionic strengthening for a fermionic problem."))
+        throw(ArgumentError("DensityMatrix and InvariantCone require Pauli variables; for bosonic variables use Sector, and for fermionic variables use FermionicConditions or Sector."))
     all(k->maximum(k.sites)<=problem.objective.registry.nsites,site_kinds) ||
         throw(ArgumentError("A strengthening site is outside the registry; select existing sites."))
     W=eltype(table.representatives.keys)
@@ -163,7 +168,10 @@ function _strengthen!(program,table,problem,kinds,closure;sectors=())
         for (i,kind) in enumerate(kinds) if kind isa Union{DensityMatrix,InvariantCone}]
     extras,representatives=_extra_orbits(initial,closure.block_generators)
     start=length(program.blocks)
-    errors=[_append_extra!(program,table,extras[i]) for i in representatives]
+    faces=[_density_face(extras[i],sectors) for i in representatives]
+    errors=[_append_extra!(program,table,extras[i];face) for (i,face) in zip(representatives,faces)]
+    density_faces=[(;source=extras[i].source,before=size(face.basis,1),after=size(face.basis,2),sectors=face.sources)
+        for (i,face) in zip(representatives,faces) if !isnothing(face)]
     hamiltonian=_hamiltonian_strengthen!(program,table,problem,kinds,closure)
     fermionic=_fermionic_strengthen!(program,table,problem,kinds,closure)
     _sector_equalities!(program,table,closure,sectors)
@@ -176,5 +184,5 @@ function _strengthen!(program,table,problem,kinds,closure;sectors=())
         closed_cones=length(extras)+noptimal*closure.closed_blocks+(isnothing(fermionic) ? 0 : fermionic.closed_cones),representatives=cones,
         added_blocks=count(b->b.kind!=ZERO,program.blocks[start+1:end]),
         added_equalities=sum((b.side for b in program.blocks[start+1:end] if b.kind==ZERO);init=0),first_block=start+1,
-        reconstruction_error=maximum(errors;init=0.0),kinds=kinds,hamiltonian=hamiltonian,fermionic=fermionic)
+        reconstruction_error=maximum(errors;init=0.0),kinds=kinds,hamiltonian=hamiltonian,fermionic=fermionic,density_faces=density_faces)
 end

@@ -95,25 +95,56 @@ function _copy_cone!(out,program,block)
     push_block!(out,block.kind,block.side,block.label)
 end
 
+# An edge means that at least one stored coefficient couples the two rows.
+# Thus different components have exactly zero coupling for every assignment,
+# even if a form contains duplicate coordinates. No numerical threshold is used.
+function _coefficient_components(program,block)
+    graph=Graphs.SimpleGraph(block.side)
+    for j in 1:block.side,i in j+1:block.side
+        f=block.first_form+tri_offset(block.side,i,j)
+        any(t->!iszero(program.forms.coefs[t]),term_range(program.forms,f)) &&
+            Graphs.add_edge!(graph,i,j)
+    end
+    return Graphs.connected_components(graph)
+end
+
+function _copy_components!(out,program,block,components)
+    for rows in components
+        sort!(rows)
+        for j in eachindex(rows),i in j:length(rows)
+            f=block.first_form+tri_offset(block.side,rows[i],rows[j])
+            for t in term_range(program.forms,f)
+                push_term!(out.forms,program.forms.coefs[t],program.forms.ids[t])
+            end
+            close_form!(out.forms)
+        end
+        push_block!(out,block.kind,length(rows),block.label)
+    end
+    return out
+end
+
 """
-Split only family PSD/HPSD blocks, after finite reduction and exact continuous
-moment elimination. No strengthening cone is changed. Dense storage is bounded
+Split family and strengthening PSD/HPSD blocks after exact continuous moment
+elimination. Strengthening cones first use an exact sparse coefficient-support
+partition: copying principal submatrices and checking zero cross-component
+coefficients certifies it without dense storage. Otherwise use spectral discovery.
+For non-diagonal derivations, also run spectral discovery inside each exact
+component, with the same caps and certificate; failure keeps that component.
+Dense storage is bounded
 by both side and 16*K*n² bytes for the complex coefficient matrices; discovery
 and certification also need working matrices. Every unsuccessful proposal keeps
-the original sparse block. Tolerances use maximum-entry norms: absolute for
+the original block. Diagonal derivations need no discovery after an exact partition.
+Family blocks retain their existing discovery and resource-cap behavior.
+Tolerances use maximum-entry norms: absolute for
 U'U-I and relative to max(1, maxabs(A_k)) for coefficient reconstruction.
 """
-function _continuous_blocks(program;family_blocks=length(program.blocks),max_side=256,
+function _continuous_blocks(program;family_blocks=length(program.blocks),diagonal=false,max_side=256,
     max_bytes=128*1024^2,atol=1e-9)
     out=MomentProgram{ComplexF64}(program.nvars)
     append!(out.objective_ids,program.objective_ids)
     append!(out.objective_coefs,program.objective_coefs)
     records=NamedTuple[]
     for (input,block) in enumerate(program.blocks)
-        if input>family_blocks
-            _copy_cone!(out,program,block)
-            continue
-        end
         ids=sort!(unique([program.forms.ids[t] for f in form_range(block) for t in term_range(program.forms,f)]))
         bytes=16*length(ids)*Int128(block.side)^2
         reason=block.kind ∉ (PSD,HPSD) ? :not_psd : block.side>max_side ? :side_cap :
@@ -121,6 +152,26 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),max_sid
         first_output=length(out.blocks)+1
         reconstruction=orthogonality=0.0
         multiplicities=[1]
+        if block.kind in (PSD,HPSD) && input>family_blocks
+            components=_coefficient_components(program,block)
+            if length(components)>1
+                if diagonal
+                    _copy_components!(out,program,block,components)
+                    multiplicities=ones(Int,length(components))
+                else
+                    pieces=MomentProgram{ComplexF64}(program.nvars)
+                    _copy_components!(pieces,program,block,components)
+                    reduced,report=_continuous_blocks(pieces;max_side,max_bytes,atol)
+                    for piece in reduced.blocks
+                        _copy_cone!(out,reduced,piece)
+                    end
+                    multiplicities=reduce(vcat,(r.multiplicities for r in report.blocks))
+                    reconstruction=report.reconstruction_error
+                    orthogonality=report.orthogonality_error
+                end
+                reason=:support_split
+            end
+        end
         if reason==:candidate
             matrices=_block_coefficients(program,block,ids)
             copies=_spectral_copies(matrices)
@@ -151,15 +202,15 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),max_sid
                 end
             end
         end
-        reason==:split || _copy_cone!(out,program,block)
+        reason in (:split,:support_split) || _copy_cone!(out,program,block)
         outputs=collect(first_output:length(out.blocks))
         push!(records,(input=input,outputs=outputs,reason=reason,before=block.side,
             sides=[out.blocks[i].side for i in outputs],multiplicities=multiplicities,
             coefficient_bytes=bytes,reconstruction_error=reconstruction,orthogonality_error=orthogonality))
     end
     psd_records=filter(r->program.blocks[r.input].kind in (PSD,HPSD),records)
-    kept=Dict(reason=>count(r->r.reason==reason,records) for reason in unique(r.reason for r in records) if reason!=:split)
-    report=(method=:coefficient_spectral_transport,blocks=records,split=count(r->r.reason==:split,records),kept=kept,
+    kept=Dict(reason=>count(r->r.reason==reason,records) for reason in unique(r.reason for r in records) if reason ∉ (:split,:support_split))
+    report=(method=:coefficient_spectral_transport,blocks=records,split=count(r->r.reason in (:split,:support_split),records),kept=kept,
         largest_before=maximum((r.before for r in psd_records);init=0),
         largest_after=maximum((maximum(r.sides) for r in psd_records);init=0),
         reconstruction_error=maximum((r.reconstruction_error for r in records);init=0.0),

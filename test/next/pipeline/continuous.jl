@@ -86,7 +86,7 @@ end
         built=Nx.build(invariant,description)
         general,_,report=Nx._continuous_program(deepcopy(base.program),deepcopy(base.table),(d,);diagonal=false)
         family_blocks=base.sizes.closure.strengthening.first_block-1
-        general,_=Nx._continuous_blocks(general;family_blocks)
+        general,_=Nx._continuous_blocks(general;family_blocks,diagonal=true)
         @test built.sizes.closure.continuous.method==:diagonal
         @test report.method==:exact_elimination
         @test built.program.nvars<base.program.nvars

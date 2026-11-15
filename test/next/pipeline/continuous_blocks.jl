@@ -67,13 +67,21 @@ end
 
     # Force the deterministic seed to be degenerate although neither
     # coefficient is scalar. Discovery may fail; the output must remain valid.
-    a=ComplexF64[0.01 0;0 -0.01]
+    a=ComplexF64[0.01 0.02im;-0.02im -0.01]
     accidental=coefficient_program([a,-sin(sqrt(2.0))/sin(2sqrt(2.0))*a])
-    reduced,report=Nx._continuous_blocks(accidental)
-    @test report.kept[:certificate_failed]==1
-    @test reduced.forms.coefs==accidental.forms.coefs
-    @test reduced.forms.ids==accidental.forms.ids
-    check_split_spectra(accidental,reduced,report)
+    for family_blocks in (0,1)
+        reduced,report=Nx._continuous_blocks(accidental;family_blocks)
+        @test report.kept[:certificate_failed]==1
+        @test reduced.forms.coefs==accidental.forms.coefs
+        @test reduced.forms.ids==accidental.forms.ids
+        check_split_spectra(accidental,reduced,report)
+    end
+    nested=coefficient_program([cat(A,zeros(ComplexF64,1,1);dims=(1,2))
+        for A in (a,-sin(sqrt(2.0))/sin(2sqrt(2.0))*a)])
+    reduced,report=Nx._continuous_blocks(nested;family_blocks=0)
+    @test only(report.blocks).sides==[2,1]
+    @test report.reconstruction_error>1e-9 # The failed component proposal was retained.
+    check_split_spectra(nested,reduced,report)
 
     original=coefficient_program(matrices)
     reduced,report=Nx._continuous_blocks(original)
@@ -87,6 +95,21 @@ end
         @test kept.forms.ids==original.forms.ids
         @test kept.forms.coefs==original.forms.coefs
         @test only(values(reason.kept))==1
+        # Interleaved components test both row mapping and complex conjugation.
+        perm=[1,3,2,4]
+        disconnected=coefficient_program([A[perm,perm] for A in matrices])
+        split,report=Nx._continuous_blocks(disconnected;family_blocks=0,kwargs...)
+        @test only(report.blocks).reason==:support_split
+        @test only(report.blocks).sides==[2,2]
+        @test report.reconstruction_error==report.orthogonality_error==0
+        check_split_spectra(disconnected,split,report)
+        # Even a very small coupling must prevent an exact support split.
+        coupled=deepcopy(matrices)
+        coupled[1][1,3]=coupled[1][3,1]=1e-16
+        tiny=coefficient_program(coupled)
+        kept,report=Nx._continuous_blocks(tiny;family_blocks=0,kwargs...)
+        @test report.split==0
+        @test kept.forms.coefs==tiny.forms.coefs
     end
 end
 
@@ -117,27 +140,23 @@ end
     end
 
     registry,(a,ad)=Nx.fermionic_variables(3)
-    H=ad[1]*a[2]+ad[2]*a[1]+0.3ad[2]*a[3]+0.3ad[3]*a[2]
-    description=Nx.Relaxation(order=1,strengthen=Nx.FermionicConditions(1:3;conditions=(:P,:Q,:G)))
+    H=ad[1]*a[2]+ad[2]*a[1]+0.3ad[3]*a[3]
+    ds=(Nx.NumberRotation(registry;modes=1:2),Nx.NumberRotation(registry;modes=3:3))
+    description=Nx.Relaxation(order=1,strengthen=Nx.FermionicConditions(1:3;conditions=(:P,:Q,:G,:T1,:T2prime)))
     plain=Nx.build(Nx.Problem(H),description)
-    original,_,_=Nx._continuous_program(plain.program,plain.table,(Nx.NumberRotation(registry),))
-    built=Nx.build(Nx.Problem(H;symmetry=Nx.Symmetry(continuous=(Nx.NumberRotation(registry),))),description)
+    original,_,_=Nx._continuous_program(plain.program,plain.table,ds)
+    built=Nx.build(Nx.Problem(H;symmetry=Nx.Symmetry(continuous=ds)),description)
     report=built.sizes.closure.continuous.blocks
-    @test length(report.blocks)==1 # Strengthening cones are not split.
+    @test length(report.blocks)==length(original.blocks)
+    @test any(r->r.input>1 && length(r.outputs)>1,report.blocks)
     # The +1 and -1 charge blocks remain distinct in the absence of a pairing map.
-    @test sort(only(report.blocks).sides)==[1,3,3]
-    @test only(report.blocks).multiplicities==ones(Int,3)
-    start=length(only(report.blocks).outputs)
+    @test sort(first(report.blocks).sides)==[1,1,1,2,2]
+    @test first(report.blocks).multiplicities==ones(Int,5)
+    start=length(first(report.blocks).outputs)
     @test built.sizes.closure.strengthening.first_block==start+1
-    for (old,new) in zip(original.blocks[2:end],built.program.blocks[start+1:end])
-        @test old.kind==new.kind && old.side==new.side
-        for (f,g) in zip(Nx.form_range(old),Nx.form_range(new))
-            r=Nx.term_range(original.forms,f); s=Nx.term_range(built.program.forms,g)
-            @test original.forms.ids[r]==built.program.forms.ids[s]
-            @test original.forms.coefs[r]==built.program.forms.coefs[s]
-        end
-    end
+    @test built.sizes.closure.strengthening.added_blocks==length(built.program.blocks)-start
     check_split_spectra(original,built.program,report)
+    @test continuous_bound(original)≈continuous_bound(built.program) atol=1e-6
 end
 
 @testset "Continuous split with a moment-only antiunitary" begin
@@ -152,6 +171,32 @@ end
     @test built.sizes.closure.closed_blocks==plain.sizes.closure.closed_blocks
     @test all(b->b.kind==Nx.PSD,built.program.blocks)
     check_split_spectra(original,built.program,built.sizes.closure.continuous.blocks)
+    @test continuous_bound(original)≈continuous_bound(built.program) atol=1e-6
+end
+
+@testset "Non-diagonal strengthening refines exact components" begin
+    n=6
+    registry,(x,y,z)=Nx.pauli_variables(n)
+    H=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    translation=Nx.SitePermutation([2:n;1])
+    ds=Nx.spin_rotations(registry)
+    description=Nx.Relaxation(order=1,strengthen=(Nx.DensityMatrix(1:3),Nx.InvariantCone(1:3,"YYY")))
+    plain=Nx.build(Nx.Problem(H;symmetry=(translation,)),description)
+    original,_,_=Nx._continuous_program(plain.program,plain.table,ds)
+    family_blocks=plain.sizes.closure.strengthening.first_block-1
+    # A side-one cap prevents any nontrivial spectral split in this control.
+    exact,exact_report=Nx._continuous_blocks(original;family_blocks,diagonal=true,max_side=1)
+    built=Nx.build(Nx.Problem(H;symmetry=Nx.Symmetry(translation;continuous=ds)),description)
+    report=built.sizes.closure.continuous.blocks
+    @test built.sizes.closure.continuous.method==:exact_elimination
+    @test any(r.input>family_blocks && maximum(r.sides)<maximum(s.sides)
+        for (r,s) in zip(report.blocks,exact_report.blocks))
+    for (r,s) in zip(report.blocks,exact_report.blocks)
+        r.input>family_blocks || continue
+        @info "Strengthening cone sides" label=original.blocks[r.input].label unsplit=r.before exact=string(s.sides) spectral=string(r.sides)
+    end
+    check_split_spectra(original,exact,exact_report)
+    check_split_spectra(original,built.program,report)
     @test continuous_bound(original)≈continuous_bound(built.program) atol=1e-6
 end
 

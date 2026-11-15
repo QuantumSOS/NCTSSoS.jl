@@ -6,22 +6,19 @@ EditURL = "../literate/pauli_algebra_interface.jl"
 
 `NCTSSoS.jl` provides a convenient interface for working with common quantum algebras,
 eliminating the need to manually specify commutation relations and constraints.
-This tutorial demonstrates the [`create_pauli_variables`](@ref) function for quantum spin systems,
+This tutorial demonstrates the `pauli_variables` function for quantum spin systems,
 which significantly simplifies the problem setup for [polynomial optimization](@ref polynomials)
 problems in quantum many-body physics [wang2024Certifying](@cite).
 
-## The Problem: Manual Constraint Specification (Legacy API - Deprecated)
+## The Problem: Manual Constraint Specification
 
-!!! warning "Deprecated API"
-    The following example demonstrates the **legacy API** using `@ncpolyvar` and manual
-    constraint specification. This API is deprecated and will be removed in a future version.
-    Please use the new typed algebra API demonstrated in the next section.
+If we used free variables for quantum spins, we would have to specify
+every Pauli relation. This is error-prone and obscures the physics.
+At each site, the six ordered products of distinct axes must have the
+correct signs, and each axis must square to the identity. Operators on
+different sites must commute.
 
-When working with quantum spin systems, the old approach required manually
-defining all Pauli operator commutation relations. This was tedious, error-prone,
-and obscured the physics of the problem. Let's see this with a concrete example.
-
-### Traditional Approach: Heisenberg XXX Model (Deprecated)
+### Heisenberg XXX Model
 
 The Heisenberg XXX Hamiltonian for a 1D chain with periodic boundary conditions is:
 
@@ -29,67 +26,44 @@ The Heisenberg XXX Hamiltonian for a 1D chain with periodic boundary conditions 
 H = \frac{1}{4} \sum_{i=1}^{N} \left( \sigma_i^x \sigma_{i+1}^x + \sigma_i^y \sigma_{i+1}^y + \sigma_i^z \sigma_{i+1}^z \right)
 ```
 
-where $\sigma_i^{x,y,z}$ are the Pauli operators at site $i$. In the legacy API,
-solving for the [ground state energy](@ref ground-state-energy) using polynomial
-optimization required:
-
-```julia
-# DEPRECATED - Do not use in new code
-using NCTSSoS, MosekTools
-N = 6  # Number of spins in the chain
-
-# Step 1: Declare non-commutative variables for Pauli operators
-@ncpolyvar x[1:N] y[1:N] z[1:N]  # Requires DynamicPolynomials
-
-# Step 2: Construct the Hamiltonian
-ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)] for op in [x, y, z] for i in 1:N)
-
-# Step 3: Manually specify all 36 Pauli commutation relations (!)
-eq_cons = reduce(vcat, [
-    [x[i] * y[i] - im * z[i],   # sigma_x * sigma_y = i*sigma_z
-     y[i] * x[i] + im * z[i],   # sigma_y * sigma_x = -i*sigma_z
-     ...  # and so on for all 6 relations at each site
-    ]
-    for i in 1:N
-])
-
-# Step 4: Create the optimization problem with all constraints
-pop_old = cpolyopt(ham;
-    eq_constraints=eq_cons,                     # Pauli commutation relations
-    comm_gps=[[x[i], y[i], z[i]] for i in 1:N], # Operators on different sites commute
-    is_unipotent=true                           # Pauli operators square to identity
-)
-```
-
-This approach required **36 constraint equations** for just 6 spins! As the system
-size grew, this became increasingly cumbersome and error-prone.
+where $\sigma_i^{x,y,z}$ are the Pauli operators at site $i$.
+Six ordered-product relations at each of six sites would require
+**36 equations**, before the square and cross-site relations. For example,
+$\sigma_i^x\sigma_i^y=i\sigma_i^z$ but
+$\sigma_i^y\sigma_i^x=-i\sigma_i^z$. A wrong sign changes the problem.
 
 ## The Solution: Typed Algebra Variables (Recommended API)
 
-The [`create_pauli_variables`](@ref) function encapsulates all these constraints
+The `pauli_variables` function encapsulates all these constraints
 automatically through Julia's type system, allowing you to focus on the physics
 rather than the algebra.
 
-### Simplified Approach with `create_pauli_variables`
+### Simplified Approach with `pauli_variables`
 
 The same problem can be solved much more concisely:
 
 !!! note "SDP Solver"
-    These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
-    If you don't have a Mosek license, replace `Mosek.Optimizer` with any
-    SDP-capable solver, for example:
-    - **COSMO** (open-source): `using COSMO; SolverConfig(optimizer=COSMO.Optimizer, ...)`
-    - **Clarabel** (open-source): `using Clarabel; SolverConfig(optimizer=Clarabel.Optimizer, ...)`
+    This example uses [Mosek](https://www.mosek.com/) through `MosekBackend`.
+    For open-source alternatives, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS, MosekTools
+using NCTSSoS.Next, Mosek
 N = 6  # Number of spins in the chain
 
-registry, (σx, σy, σz) = create_pauli_variables(1:N)
+registry, (σx, σy, σz) = pauli_variables(1:N)
 ````
 
 ````
-(VariableRegistry with 18 variables: σx₁, σy₁, σz₁, σx₂, σy₂, ..., σx₆, σy₆, σz₆, (NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[σx₁, σx₂, σx₃, σx₄, σx₅, σx₆], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[σy₁, σy₂, σy₃, σy₄, σy₅, σy₆], NCTSSoS.NormalMonomial{NCTSSoS.PauliAlgebra, UInt8}[σz₁, σz₂, σz₃, σz₄, σz₅, σz₆]))
+(NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}(NCTSSoS.Next.Pauli(), 6, Dict(:Z4 => (4, 2), :Y4 => (4, 1), :Y5 => (5, 1), :Z3 => (3, 2), :X2 => (2, 0), :X5 => (5, 0), :X6 => (6, 0), :Y2 => (2, 1), :Z6 => (6, 2), :Y6 => (6, 1), :Z2 => (2, 2), :Y1 => (1, 1), :Z1 => (1, 2), :X1 => (1, 0), :X4 => (4, 0), :Y3 => (3, 1), :X3 => (3, 0), :Z5 => (5, 2))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.PauliWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}}[X1, X2, X3, X4, X5, X6], NCTSSoS.Next.Polynomial{NCTSSoS.Next.PauliWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}}[Y1, Y2, Y3, Y4, Y5, Y6], NCTSSoS.Next.Polynomial{NCTSSoS.Next.PauliWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Pauli}}[Z1, Z2, Z3, Z4, Z5, Z6]))
+````
+
+Check the relations directly; there is no constraint list to maintain.
+
+````julia
+@assert σx[1] * σy[1] == im * σz[1]
+@assert σy[1] * σx[1] == -im * σz[1]
+@assert σx[1]^2 == one(σx[1])
+@assert σx[1] * σy[2] == σy[2] * σx[1]
 ````
 
 Construct the Hamiltonian (same formula, cleaner variables)
@@ -100,56 +74,37 @@ ham = sum(ComplexF64(1/4) * op[i] * op[mod1(i+1, N)]
 ````
 
 ````
-0.25 + 0.0im * σx₁σx₂ + 0.25 + 0.0im * σx₁σx₆ + 0.25 + 0.0im * σy₁σy₂ + 0.25 + 0.0im * σy₁σy₆ + 0.25 + 0.0im * σz₁σz₂ + 0.25 + 0.0im * σz₁σz₆ + 0.25 + 0.0im * σx₂σx₃ + 0.25 + 0.0im * σy₂σy₃ + 0.25 + 0.0im * σz₂σz₃ + 0.25 + 0.0im * σx₃σx₄ + 0.25 + 0.0im * σy₃σy₄ + 0.25 + 0.0im * σz₃σz₄ + 0.25 + 0.0im * σx₄σx₅ + 0.25 + 0.0im * σy₄σy₅ + 0.25 + 0.0im * σz₄σz₅ + 0.25 + 0.0im * σx₅σx₆ + 0.25 + 0.0im * σy₅σy₆ + 0.25 + 0.0im * σz₅σz₆
+(0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + (0.25) X2 X3 + (0.25) Y2 Y3 + (0.25) X3 X4 + (0.25) Y3 Y4 + (0.25) X4 X5 + (0.25) Y4 Y5 + (0.25) X1 X6 + (0.25) Y1 Y6 + (0.25) X5 X6 + (0.25) Y5 Y6
 ````
 
 Create the optimization problem - constraints are handled automatically by the algebra type!
 
 ````julia
-pop = polyopt(ham, registry)
+problem = Problem(ham)
 ````
 
 ````
-Optimization Problem (PauliAlgebra)
-────────────────────────────────────
-Objective:
-    0.25 + 0.0im * σx₁σx₂ + 0.25 + 0.0im * σx₁σx₆ + 0.25 + 0.0im * σy₁σy₂ + 0.25 + 0.0im * σy₁σy₆ + 0.25 + 0.0im * σz₁σz₂ + 0.25 + 0.0im * σz₁σz₆ + 0.25 + 0.0im * σx₂σx₃ + 0.25 + 0.0im * σy₂σy₃ + 0.25 + 0.0im * σz₂σz₃ + 0.25 + 0.0im * σx₃σx₄ + 0.25 + 0.0im * σy₃σy₄ + 0.25 + 0.0im * σz₃σz₄ + 0.25 + 0.0im * σx₄σx₅ + 0.25 + 0.0im * σy₄σy₅ + 0.25 + 0.0im * σz₄σz₅ + 0.25 + 0.0im * σx₅σx₆ + 0.25 + 0.0im * σy₅σy₆ + 0.25 + 0.0im * σz₅σz₆
-
-Equality constraints (0):
-    (none)
-
-Inequality constraints (0):
-    (none)
-
-Moment equality constraints (0):
-    (none)
-
-Variables (18):
-    σx₁, σy₁, σz₁, σx₂, σy₂, ..., σx₆, σy₆, σz₆
-
+Problem: minimize (0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + (0.25) X2 X3 + (0.25) Y2 Y3 + (0.25) X3 X4 + (0.25) Y3 Y4 + (0.25) X4 X5 + (0.25) Y4 Y5 + (0.25) X1 X6 + (0.25) Y1 Y6 + (0.25) X5 X6 + (0.25) Y5 Y6; 0 operator constraints
 ````
 
-The new interface is much cleaner: just 4 lines instead of 40+, and eliminates
-the possibility of typos in constraint equations.
+The algebra supplies the relations, so no manual constraint equations are needed.
 
 ## Computing Ground State Energy
 
 Now we can solve for the ground state energy lower bound using the
-[`cs_nctssos`](@ref) solver. We configure it to use a second-order
+`solve` function. We configure it to use a second-order
 [moment relaxation](@ref moment-sohs-hierarchy) [wang2024Certifying](@cite).
 
 ````julia
-solver_config = SolverConfig(
-    optimizer=Mosek.Optimizer,  # SDP solver backend
-    order=2                     # Relaxation order (higher = tighter bound)
-)
+relaxation = Relaxation(order=2)
+solver = MosekBackend()
 
-res = cs_nctssos(pop, solver_config)
-energy_per_site = res.objective / N
+res = solve(problem, relaxation; solver)
+energy_per_site = res.bound / N
 ````
 
 ````
--0.46712927568291723
+-0.4671292756829241
 ````
 
 The result provides a certified lower bound on the ground state energy per site.
@@ -158,10 +113,10 @@ which matches the exact value to high precision [wang2024Certifying](@cite).
 
 ## Advantages of Typed Algebra Variables
 
-The [`create_pauli_variables`](@ref) interface provides several key benefits:
+The `pauli_variables` interface provides several key benefits:
 
 1. **Automatic constraint generation**: All Pauli commutation relations are
-   encoded correctly through the `PauliAlgebra` type without manual specification.
+   encoded by the `Pauli` algebra without manual specification.
 
 2. **Error prevention**: Eliminates typos and sign errors in constraint equations.
 
@@ -178,11 +133,11 @@ The [`create_pauli_variables`](@ref) interface provides several key benefits:
 
 Similar functions exist for other quantum algebras:
 
-- [`create_fermionic_variables`](@ref): Fermionic operators with anticommutation relations
-- [`create_bosonic_variables`](@ref): Bosonic operators with commutation relations
-- [`create_projector_variables`](@ref): Projector operators (P² = P)
-- [`create_unipotent_variables`](@ref): Unipotent operators (U² = I)
-- [`create_noncommutative_variables`](@ref): Generic non-commutative variables
+- `fermionic_variables`: Fermionic operators with anticommutation relations
+- `bosonic_variables`: Bosonic operators with commutation relations
+- `site_variables(Projector(), nsites, nletters)`: Projectors (P² = P)
+- `site_variables(Unipotent(), nsites, nletters)`: Self-adjoint operators with U² = I
+- `site_variables(Free(), nsites, nletters)`: Free self-adjoint operators within each site
 
 ## Next Steps
 

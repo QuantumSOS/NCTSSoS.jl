@@ -2,6 +2,8 @@ using Documenter
 using NCTSSoS
 using DocumenterCitations
 
+include("check_api_reference.jl")
+
 bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style=:authoryear)
 
 makedocs(;

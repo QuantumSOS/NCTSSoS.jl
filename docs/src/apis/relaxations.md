@@ -33,7 +33,8 @@ The standard form is chosen by the backend option, not by a keyword on `solve`.
 `MosekBackend(form=:auto)` selects a form automatically; `:moment` and `:sos`
 override that choice. Both forms support `expectation`. `SCSBackend` is a
 moment-form writer. `JuMPBackend` accepts an optimizer factory or an
-`optimizer_with_attributes` value and loads no solver itself.
+`optimizer_with_attributes` value and loads no solver itself; it writes moment
+form and has no `form` option.
 
 ```@docs
 NCTSSoS.Next.MosekBackend
@@ -51,13 +52,4 @@ the built relaxation.
 NCTSSoS.Next.task_sizes
 ```
 
-Mosek's `result.solution.diagnostics.solve_seconds` measures time inside the
-optimizer, including presolve. It excludes package build, preparation and
-extraction. Its primal and dual residual reports refer to the native form
-named by `diagnostics.representation`; in SOS form they are not residuals of
-the original moment problem. See the backend docstring above for sentinel
-values and status handling.
-
-Native SCS reports setup time separately as
-`result.solution.diagnostics.setup_seconds`. Diagnostic fields are
-backend-specific; do not assume the Mosek fields exist for another backend.
+See [`solve`](@ref NCTSSoS.Next.solve) for the result fields, program sizes and backend diagnostics.

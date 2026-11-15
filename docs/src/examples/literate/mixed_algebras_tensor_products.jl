@@ -11,11 +11,6 @@
 using NCTSSoS.Next, Mosek, LinearAlgebra
 import NCTSSoS.Next as Next
 
-# Helper: pretty-print a word using its registry for symbolic names.
-
-repr_with_registry(reg, word) = sprint(show, word; context=:registry => reg)
-nothing #hide
-
 # ## 1) Build factor-algebra monomials
 
 registry, parts = Next.mixed_variables(spin=(Pauli(), 1), matter=(Fermionic(), 1));
@@ -44,14 +39,16 @@ mixed_term = spin_product * number
 
 # The phase is carried by the coefficient. Inspect the term with the public API:
 
+# Pass the registry to `sprint` to display the word with symbolic names.
+
 coefficient, word = only(Next.terms(mixed_term));
-(coefficient, repr_with_registry(registry, word))
+(coefficient, sprint(show, word; context=:registry => registry))
 @assert coefficient == im #src
 
 # Both factors are already canonical. Removing the phase leaves one unit term:
 
 canonical = σz[1] * number;
-[(c, repr_with_registry(registry, w)) for (c, w) in Next.terms(canonical)]
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(canonical)]
 @assert first(only(Next.terms(canonical))) == 1 #src
 @assert last(only(Next.terms(canonical))) == word #src
 

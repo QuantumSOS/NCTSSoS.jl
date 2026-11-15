@@ -12,7 +12,15 @@ for commuting components with different algebras in one registry.
 
 ```@docs
 NCTSSoS.Next.Pauli
+NCTSSoS.Next.AntiunitaryPauli
+NCTSSoS.Next.Bosonic
+NCTSSoS.Next.Fermionic
+NCTSSoS.Next.Free
+NCTSSoS.Next.Projector
+NCTSSoS.Next.Unipotent
 NCTSSoS.Next.SiteAlgebra
+NCTSSoS.Next.pauli_variables
+NCTSSoS.Next.fermionic_variables
 NCTSSoS.Next.bosonic_variables
 NCTSSoS.Next.site_variables
 NCTSSoS.Next.mixed_variables

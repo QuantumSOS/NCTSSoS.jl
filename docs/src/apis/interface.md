@@ -19,6 +19,7 @@ NCTSSoS.Next.ExpectationZero
 ```@docs
 NCTSSoS.Next.Relaxation
 NCTSSoS.Next.solve
+NCTSSoS.Next.inspect
 NCTSSoS.Next.expectation
 NCTSSoS.Next.gns
 NCTSSoS.Next.GNSResult
@@ -27,16 +28,7 @@ NCTSSoS.Next.evaluate
 
 ## [Reading a result](@id next-result)
 
-`solve` returns a numerical relaxation result. Its public observations are:
-
-| Field | Meaning |
-|:--|:--|
-| `bound` | Numerical relaxation optimum, or `nothing` when the solver supplies no accepted solution. It is not an interval-certified bound. |
-| `bound_kind` | `:numerical_optimum_not_certificate` when a bound is available; `:unavailable` otherwise. |
-| `valid_for` | State conditions under which the relaxation applies. Read this when using constraints or strengthening, especially a fixed sector. |
-| `status` | Solver termination status. Check it before using the bound or moments. |
-| `sizes` | Counts for the built relaxation: `rows`, `moments`, `real_variables`, `blocks`, `largest_block`, and any closure report. Moments include the identity; real variables count free real coordinates. These are not the loaded solver-task dimensions. |
-| `solution.diagnostics` | Backend-specific numerical reports, when supplied. Their fields and meanings depend on the backend; they are not certificates. |
+See [`solve`](@ref NCTSSoS.Next.solve) for the result fields, program sizes and backend diagnostics.
 
 Use `expectation(result, observable)` to read represented moments. Use
 `gns(result)` for checked reconstruction; a numerical optimum alone does not

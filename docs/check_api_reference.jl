@@ -2,8 +2,7 @@ using NCTSSoS
 import NCTSSoS.Next as Next
 
 # Run with: julia --project=docs docs/check_api_reference.jl
-# Public names without docstrings are reported, not silently rendered with
-# Julia's fallback documentation. Every other public name needs one home.
+# Every public name needs a docstring and exactly one reference home.
 reference = joinpath(@__DIR__, "src", "apis")
 rendered = Symbol[]
 for file in sort(readdir(reference; join=true))
@@ -23,11 +22,12 @@ for file in sort(readdir(reference; join=true))
 end
 public_names = sort(filter(name -> Base.ispublic(Next, name), names(Next)))
 no_docstring = filter(name -> !isdefined(Next, name) || !Base.Docs.hasdoc(Next, name), public_names)
-missing = setdiff(public_names, rendered, no_docstring)
+missing = setdiff(public_names, rendered)
 @assert allunique(rendered) "A public name has more than one reference home"
 println("Public names: ", length(public_names))
 println("Rendered: ", length(rendered))
 println("No docstring (", length(no_docstring), "): ", join(no_docstring, ", "))
 println("Missing documented names: ", missing)
+@assert isempty(no_docstring) "Add docstrings for the public names listed above"
 @assert isempty(missing) "Add the missing public docstrings to the reference"
-println("PASS: every public name is rendered or reported without a docstring")
+println("PASS: every public name has a docstring and one reference home")

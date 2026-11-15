@@ -287,7 +287,7 @@ canonical-sector problem as the exact diagonalization.  For this minimal
 | **Bose–Hubbard model** | Hopping $t$ vs. on-site repulsion $U$ — simplest model of interacting lattice bosons |
 | **Bosonic CCR** | $[b_i, b_j^\dagger] = \delta_{ij}$ — commutation (not anticommutation), no exclusion principle |
 | **Fixed particle number** | Without a sector constraint the SDP optimizes over all particle numbers; imposing $\hat{N} = 2$ makes it match the exact canonical reference |
-| **`Sector(Q, q)`** | State constraint: $Q|\psi\rangle = q|\psi\rangle$, not an operator identity |
+| **`Sector(Q, q)`** | State constraint: ``Q\lvert\psi\rangle = q\lvert\psi\rangle``, not an operator identity |
 | **Canonical sector** | Fix total $\hat{N} = \sum_i \hat{n}_i$ to restrict to a finite-dimensional Hilbert-space sector |
 | **Superfluid–Mott transition** | Bosonic quantum phase transition driven by $U/t$ ratio |
 

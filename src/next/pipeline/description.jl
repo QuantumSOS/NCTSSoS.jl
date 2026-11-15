@@ -139,7 +139,7 @@ function build(problem::Problem,description::BlockRelaxation)
         moment_generators=description.symmetry.moment_only,custom,site_letters=letters,real_form=_real_form(problem),
         check_coverage=!defer_coverage)
     family_block_count=length(program.blocks)
-    extra=_strengthen!(program,table,problem,description.strengthen,closure;sectors)
+    extra,sector_equations,sector_blocks=_strengthen!(program,table,problem,description.strengthen,closure;sectors)
     if defer_coverage
         covered=Set(program.forms.ids)
         all(id==1 || id in covered for id in program.objective_ids) || throw(ArgumentError(
@@ -161,8 +161,17 @@ function build(problem::Problem,description::BlockRelaxation)
         end
         moments=length(unique(label.word for label in table.labels))
     end
+    if isempty(description.symmetry.continuous)
+        program,table,elimination=_eliminate_sectors(program,table,sector_equations,sector_blocks)
+    else
+        elimination=isnothing(sector_equations) ? nothing : (accepted=false,reason=:continuous_symmetry)
+    end
+    if !isnothing(elimination) && elimination.accepted
+        moments=length(unique(label.word for label in table.labels))
+        extra=merge(extra,(added_equalities=sum((b.side for b in program.blocks[extra.first_block:end] if b.kind==ZERO);init=0),))
+    end
     refresh_coverage!(table,program)
-    closure=merge(closure,(strengthening=extra,continuous=continuous,valid_for=valid_for,unused_coordinates=program.nvars-length(table.covered)))
+    closure=merge(closure,(strengthening=extra,continuous=continuous,sector_elimination=elimination,valid_for=valid_for,unused_coordinates=program.nvars-length(table.covered)))
     sizes=ProgramSizes(sum(length(b.rows) for b in closure.family),moments,program.nvars-1,
         length(program.blocks),maximum((b.side for b in program.blocks if b.kind in (PSD,HPSD));init=0),local_sizes)
     return (program=program,table=table,sizes=FamilySizes(sizes,closure),valid_for=valid_for)

@@ -129,6 +129,7 @@ end
 _gns_domain(t::MomentTable)=[t.keys[i] for i in eachindex(t.ids) if t.ids[i]!=(0,0)]
 _gns_domain(t::OrbitMoments)=collect(keys(t.cache))
 _gns_domain(t::ContinuousMoments)=_gns_domain(t.base)
+_gns_domain(t::SectorMoments)=_gns_domain(t.base)
 
 function _gns_coordinates(table,words,coefficients)
     coordinates=Dict{Int,Number}()

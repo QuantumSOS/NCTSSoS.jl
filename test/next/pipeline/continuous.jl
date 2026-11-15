@@ -17,7 +17,21 @@ function continuous_true_result(built,problem,description,rho,matrix)
         for label in built.table.labels]
     solution=Nx.ConicSolution(0.0,MOI.OPTIMAL,"invariant true-state fixture",values[2:end],nothing)
     result=Nx.SolveResult(0.0,MOI.OPTIMAL,built.sizes,built.valid_for,problem,description,solution,built.table,nothing)
-    # Verify every old orbit coordinate, not just the objective's coordinates.
+    if built.table isa Nx.SectorMoments
+        # Free coordinates omitted from the solver still have physical values
+        # in this state. Include them when checking the full substitution.
+        live=length(values)
+        width=maximum((id for row in built.table.coordinates for (id,c) in row);init=live)
+        append!(values,fill(NaN,width-live))
+        for (label,row) in zip(built.table.base.labels,built.table.coordinates)
+            length(row)==1 && last(only(row))==1 || continue
+            id=first(only(row))
+            id>live || continue
+            value=LinearAlgebra.tr(rho*matrix(label.word))
+            values[id]=label.part==2 ? imag(value) : real(value)
+        end
+    end
+    # Verify every coordinate before the final reduction, not only the objective.
     for (id,label) in enumerate(built.table.base.labels)
         expected=label.part==2 ? imag(LinearAlgebra.tr(rho*matrix(label.word))) : real(LinearAlgebra.tr(rho*matrix(label.word)))
         @test sum((c*values[j] for (j,c) in built.table.coordinates[id]);init=0.0)≈expected atol=1e-11
@@ -84,12 +98,22 @@ end
         invariant=Nx.Problem(H;symmetry=Nx.Symmetry(generators...;continuous=(d,)))
         base=Nx.build(plain,description)
         built=Nx.build(invariant,description)
-        general,_,report=Nx._continuous_program(deepcopy(base.program),deepcopy(base.table),(d,);diagonal=false)
-        family_blocks=base.sizes.closure.strengthening.first_block-1
+        # Compare the two continuous algorithms with the explicit sector
+        # equations. Sector elimination is skipped for continuous symmetry.
+        without_sector=Nx.Relaxation(order=1,strengthen=description.strengthen[1:1])
+        raw=Nx.build(plain,without_sector)
+        rotated=Nx.build(invariant,without_sector)
+        @test rotated.sizes.real_variables<raw.sizes.real_variables
+        W=eltype(first(raw.sizes.closure.family).rows)
+        sectors=Nx._checked_sectors(plain,description.strengthen,plain.symmetry,W)
+        Nx._sector_equalities!(raw.program,raw.table,raw.sizes.closure,sectors)
+        raw.program.nvars=length(raw.table.labels)
+        general,_,report=Nx._continuous_program(raw.program,raw.table,(d,);diagonal=false)
+        family_blocks=raw.sizes.closure.strengthening.first_block-1
         general,_=Nx._continuous_blocks(general;family_blocks,diagonal=true)
         @test built.sizes.closure.continuous.method==:diagonal
         @test report.method==:exact_elimination
-        @test built.program.nvars<base.program.nvars
+        @test built.sizes.closure.sector_elimination==(accepted=false,reason=:continuous_symmetry)
         @test built.program.nvars==general.nvars
         @test built.program.forms.ids==general.forms.ids
         @test built.program.forms.offsets==general.forms.offsets

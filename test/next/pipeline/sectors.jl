@@ -12,6 +12,7 @@ end
     report=built.sizes.closure.strengthening
     @test only(report.density_faces).before==4
     @test only(report.density_faces).after==2
+    @test occursin("density sector face 4 → 2",sprint(show,built.sizes))
     @test strengthening_bound(built.program)≈-1 atol=1e-6
     e=eigen(Hermitian(sector_matrix(Q,2)))
     V=e.vectors[:,findall(v->abs(v-5)<1e-10,e.values)]

@@ -35,10 +35,11 @@ function Base.show(io::IO,p::Polynomial)
     for (i,(c,w)) in enumerate(terms(p))
         i>8 && get(io,:limit,true) && return print(io," + … (",length(p.data)," terms)")
         i>1 && print(io," + ")
+        shown=isreal(c) ? real(c) : complex(iszero(real(c)) ? zero(real(c)) : real(c),imag(c))
         if isone(w)
-            print(io,isreal(c) ? real(c) : c)
+            print(io,shown)
         else
-            c==1 || print(io,"(",isreal(c) ? real(c) : c,") ")
+            c==1 || print(io,"(",shown,") ")
             show(io,w,p.registry)
         end
     end
@@ -49,6 +50,8 @@ Base.show(io::IO,::MIME"text/plain",p::Polynomial) = show(io,p)
 Borrowed, sized iterator of (coefficient, word) pairs. Read it without mutating the polynomial.
 A display shows at most eight terms, including print and string; iterate Next.terms(p)
 for all terms, or show with IOContext(io, :limit => false).
+To print a returned word with its operator names, use
+`sprint(show, w; context=:registry => registry)` with the polynomial's registry.
 """
 terms(p::Polynomial) = ((p.data.coefficients[i],p.data.words[i]) for i in 1:length(p.data))
 degree(p::Polynomial) = maximum((degree(w) for (_,w) in terms(p));init=0)

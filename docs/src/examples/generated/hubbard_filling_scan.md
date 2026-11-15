@@ -5,7 +5,7 @@ EditURL = "../literate/hubbard_filling_scan.jl"
 # [Hubbard Model (Filling-Sector Scan)](@id hubbard-filling-scan)
 
 This companion example answers one very specific question:
-**what happens if you remove `moment_eq_constraints` from the canonical
+**what happens if you remove `Sector` from the canonical
 Hubbard example?**
 
 You no longer solve the half-filled problem.  You solve the
@@ -20,7 +20,7 @@ For the same $N = 4$ periodic Hubbard ring used in
 3. explain the sector reached by the **unconstrained SDP lower bound**
    in the main Hubbard example, rather than the half-filled $(2,2)$ sector.
 
-The punchline is simple: if you omit `moment_eq_constraints`, the lower
+The punchline is simple: if you omit `Sector`, the lower
 bound drops from the half-filled energy $\approx -2.103$ to the global
 minimum $\approx -3.419$.
 
@@ -167,14 +167,14 @@ grand-canonical SDP solve that reaches this sector after one refinement step.
 | Unconstrained SDP (order 3 TS + higher) | $\approx -3.419$ |
 | Shift from half-filling when constraints are omitted | $1.316$ |
 
-The lower bound you get **without** `moment_eq_constraints` is therefore
+The lower bound you get **without** `Sector` is therefore
 the **grand-canonical** value, not the half-filled canonical one.
 
 ---
 
 ## Summary
 
-If you remove `moment_eq_constraints`, you are solving the wrong problem.
+If you remove `Sector`, you are solving the wrong problem.
 The solver is then free to pick the lowest filling sector in the entire
 Fock space, and for this $N = 4$, $U/t = 4$ ring that sector is
 $(N_\uparrow, N_\downarrow) = (1,1)$ with energy
@@ -188,7 +188,7 @@ correctly solving a different optimisation problem.
 ### See also
 
 - [Hubbard Model](@ref hubbard-model) — canonical half-filling with
-  `moment_eq_constraints`
+  `Sector` in `Relaxation(strengthen=...)`
 - [Fermionic Ground State (XY Model)](@ref fermionic-ground-state) —
   fermionic creation/annihilation operators and CAR
 

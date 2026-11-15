@@ -90,7 +90,7 @@ H_{\text{sweet}} = \sum_{j=1}^{N-1} X_j X_{j+1},
 ```
 
 We'll verify this Majorana↔Pauli connection explicitly in the
-[bonus section](#Bonus:-Sweet-spot-via-PauliAlgebra) below.
+[bonus section](#Bonus:-Sweet-spot-via-Pauli-operators) below.
 
 ---
 
@@ -178,20 +178,17 @@ lowest expectation value of $H$ consistent with the fermionic algebra
 (CAR).  The result is a **certified lower bound** on the true $E_0$.
 
 !!! note "SDP Solver"
-    These examples use [Mosek](https://www.mosek.com/) via `MosekTools`.
-    Any SDP-capable solver works: replace `Mosek.Optimizer` with
-    `COSMO.Optimizer` or `Clarabel.Optimizer` for open-source alternatives.
+    These examples use [Mosek](https://www.mosek.com/) through `MosekBackend`.
+    For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS, MosekTools, JuMP
+using NCTSSoS.Next, Mosek
 
-SOLVER = optimizer_with_attributes(Mosek.Optimizer,
-    "MSK_IPAR_LOG" => 0,
-    "MSK_IPAR_NUM_THREADS" => 0)
+SOLVER = MosekBackend()
 ````
 
 ````
-MathOptInterface.OptimizerWithAttributes(Mosek.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.RawOptimizerAttribute("MSK_IPAR_LOG") => 0, MathOptInterface.RawOptimizerAttribute("MSK_IPAR_NUM_THREADS") => 0])
+NCTSSoS.Next.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
 ````
 
 ---
@@ -203,11 +200,11 @@ ground-state energy is $E_0 = -(N-1)$.  This is the deep topological phase.
 
 ````julia
 N₁ = 4
-registry₁, (a₁, a₁_dag) = create_fermionic_variables(1:N₁)
+registry₁, (a₁, a₁_dag) = fermionic_variables(1:N₁)
 ````
 
 ````
-(VariableRegistry with 8 variables: a⁺₄, a⁺₃, a⁺₂, a⁺₁, a₁, a₂, a₃, a₄, (NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a₁, a₂, a₃, a₄], NCTSSoS.NormalMonomial{NCTSSoS.FermionicAlgebra, Int8}[a⁺₁, a⁺₂, a⁺₃, a⁺₄]))
+(NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}(NCTSSoS.Next.Fermionic(), 4, Dict(:a2 => (2, 1), :a3 => (3, 1), :ad2 => (2, -1), :a4 => (4, 1), :ad3 => (3, -1), :ad1 => (1, -1), :a1 => (1, 1), :ad4 => (4, -1))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[a1, a2, a3, a4], NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[ad1, ad2, ad3, ad4]))
 ````
 
 Build the Hamiltonian term by term.  With $\mu = 0$ and $t = \Delta = 1$:
@@ -218,16 +215,16 @@ hopping₁ = sum(a₁_dag[i] * a₁[i+1] + a₁_dag[i+1] * a₁[i] for i in 1:(N
 pairing₁ = sum(a₁[i] * a₁[i+1] + a₁_dag[i+1] * a₁_dag[i] for i in 1:(N₁ - 1))
 ham₁ = pairing₁ - hopping₁
 
-pop₁ = polyopt(ham₁, registry₁)
-config₁ = SolverConfig(optimizer = SOLVER, order = 1)
-result₁ = cs_nctssos(pop₁, config₁)
+problem₁ = Problem(ham₁)
+relaxation₁ = Relaxation(order = 1)
+result₁ = solve(problem₁, relaxation₁; solver = SOLVER)
 
 exact₁ = kitaev_chain_exact(N₁; μ = 0.0, t = 1.0, Δ = 1.0)
-println("Case 1 (sweet spot):  SDP = $(result₁.objective),  exact = $exact₁,  gap = $(abs(result₁.objective - exact₁))")
+println("Case 1 (sweet spot):  SDP = $(result₁.bound),  exact = $exact₁,  gap = $(abs(result₁.bound - exact₁))")
 ````
 
 ````
-Case 1 (sweet spot):  SDP = -3.000000000073395,  exact = -3.0000000000000004,  gap = 7.339462371191985e-11
+Case 1 (sweet spot):  SDP = -3.0000000000734,  exact = -3.0000000000000004,  gap = 7.33995086932282e-11
 
 ````
 
@@ -245,23 +242,23 @@ The gap doesn't close; the chain is a boring band insulator.
 ````julia
 N₂ = 4
 μ₂, t₂, Δ₂ = 3.0, 1.0, 1.0
-registry₂, (a₂, a₂_dag) = create_fermionic_variables(1:N₂)
+registry₂, (a₂, a₂_dag) = fermionic_variables(1:N₂)
 
 chemical₂ = -μ₂ * sum(a₂_dag[i] * a₂[i] for i in 1:N₂)
 hopping₂  = -t₂ * sum(a₂_dag[i] * a₂[i+1] + a₂_dag[i+1] * a₂[i] for i in 1:(N₂ - 1))
 pairing₂  =  Δ₂ * sum(a₂[i] * a₂[i+1] + a₂_dag[i+1] * a₂_dag[i] for i in 1:(N₂ - 1))
 ham₂ = chemical₂ + hopping₂ + pairing₂
 
-pop₂ = polyopt(ham₂, registry₂)
-config₂ = SolverConfig(optimizer = SOLVER, order = 1)
-result₂ = cs_nctssos(pop₂, config₂)
+problem₂ = Problem(ham₂)
+relaxation₂ = Relaxation(order = 1)
+result₂ = solve(problem₂, relaxation₂; solver = SOLVER)
 
 exact₂ = kitaev_chain_exact(N₂; μ = μ₂, t = t₂, Δ = Δ₂)
-println("Case 2 (trivial):    SDP = $(result₂.objective),  exact = $(round(exact₂; digits=6)),  gap = $(abs(result₂.objective - exact₂))")
+println("Case 2 (trivial):    SDP = $(result₂.bound),  exact = $(round(exact₂; digits=6)),  gap = $(abs(result₂.bound - exact₂))")
 ````
 
 ````
-Case 2 (trivial):    SDP = -12.503891585577952,  exact = -12.503892,  gap = 2.8451541567164895e-8
+Case 2 (trivial):    SDP = -12.503891585577948,  exact = -12.503892,  gap = 2.8451538014451216e-8
 
 ````
 
@@ -277,22 +274,22 @@ limit ($\Delta = 0$, no superconductivity).
 ````julia
 N₃ = 4
 μ₃, t₃, Δ₃ = 0.0, 1.0, 0.5
-registry₃, (a₃, a₃_dag) = create_fermionic_variables(1:N₃)
+registry₃, (a₃, a₃_dag) = fermionic_variables(1:N₃)
 
 hopping₃ = -t₃ * sum(a₃_dag[i] * a₃[i+1] + a₃_dag[i+1] * a₃[i] for i in 1:(N₃ - 1))
 pairing₃ =  Δ₃ * sum(a₃[i] * a₃[i+1] + a₃_dag[i+1] * a₃_dag[i] for i in 1:(N₃ - 1))
 ham₃ = hopping₃ + pairing₃
 
-pop₃ = polyopt(ham₃, registry₃)
-config₃ = SolverConfig(optimizer = SOLVER, order = 1)
-result₃ = cs_nctssos(pop₃, config₃)
+problem₃ = Problem(ham₃)
+relaxation₃ = Relaxation(order = 1)
+result₃ = solve(problem₃, relaxation₃; solver = SOLVER)
 
 exact₃ = kitaev_chain_exact(N₃; μ = μ₃, t = t₃, Δ = Δ₃)
-println("Case 3 (asymmetric): SDP = $(result₃.objective),  exact = $(round(exact₃; digits=6)),  gap = $(abs(result₃.objective - exact₃))")
+println("Case 3 (asymmetric): SDP = $(result₃.bound),  exact = $(round(exact₃; digits=6)),  gap = $(abs(result₃.bound - exact₃))")
 ````
 
 ````
-Case 3 (asymmetric): SDP = -2.422078451443318,  exact = -2.422078,  gap = 2.76489942052649e-12
+Case 3 (asymmetric): SDP = -2.4220784514433173,  exact = -2.422078,  gap = 2.7644553313166398e-12
 
 ````
 
@@ -307,16 +304,16 @@ this is the trivial metal limit.
 
 ````julia
 N₄ = 4
-registry₄, (a₄, a₄_dag) = create_fermionic_variables(1:N₄)
+registry₄, (a₄, a₄_dag) = fermionic_variables(1:N₄)
 
 hopping₄ = -sum(a₄_dag[i] * a₄[i+1] + a₄_dag[i+1] * a₄[i] for i in 1:(N₄ - 1))
 
-pop₄ = polyopt(hopping₄, registry₄)
-config₄ = SolverConfig(optimizer = SOLVER, order = 1)
-result₄ = cs_nctssos(pop₄, config₄)
+problem₄ = Problem(hopping₄)
+relaxation₄ = Relaxation(order = 1)
+result₄ = solve(problem₄, relaxation₄; solver = SOLVER)
 
 exact₄ = kitaev_chain_exact(N₄; μ = 0.0, t = 1.0, Δ = 0.0)
-println("Case 4 (hopping):   SDP = $(result₄.objective),  exact = $(round(exact₄; digits=6)),  gap = $(abs(result₄.objective - exact₄))")
+println("Case 4 (hopping):   SDP = $(result₄.bound),  exact = $(round(exact₄; digits=6)),  gap = $(abs(result₄.bound - exact₄))")
 ````
 
 ````
@@ -367,28 +364,28 @@ so no superconductivity and no topology.
 
 ---
 
-## Bonus: Sweet-spot via PauliAlgebra
+## Bonus: Sweet-spot via Pauli operators
 
 We showed above that at $\mu = 0$, $t = \Delta$, the Majorana form of
 the Kitaev chain maps under Jordan–Wigner to the open XX chain:
 $H = \sum_{j=1}^{N-1} X_j X_{j+1}$.  Let's verify this directly using
-the [`create_pauli_variables`](@ref) interface.
+the `pauli_variables` interface.
 
 ````julia
 N₅ = 4
-registry₅, (x₅, _, _) = create_pauli_variables(1:N₅)
+registry₅, (x₅, _, _) = pauli_variables(1:N₅)
 
 ham₅ = sum(1.0 * x₅[i] * x₅[i+1] for i in 1:(N₅ - 1))
 
-pop₅ = polyopt(ham₅, registry₅)
-config₅ = SolverConfig(optimizer = SOLVER, order = 1)
-result₅ = cs_nctssos(pop₅, config₅)
+problem₅ = Problem(ham₅)
+relaxation₅ = Relaxation(order = 1)
+result₅ = solve(problem₅, relaxation₅; solver = SOLVER)
 
-println("Pauli XX chain:  SDP = $(result₅.objective),  fermionic sweet spot = $exact₁")
+println("Pauli XX chain:  SDP = $(result₅.bound),  fermionic sweet spot = $exact₁")
 ````
 
 ````
-Pauli XX chain:  SDP = -3.0000000040682764,  fermionic sweet spot = -3.0000000000000004
+Pauli XX chain:  SDP = -3.0000000052771427,  fermionic sweet spot = -3.0000000000000004
 
 ````
 
@@ -416,11 +413,11 @@ ground-state energy across all four parameter regimes.
 
 | Step | What we did | API |
 |:-----|:------------|:----|
-| 1 | Create fermionic operators (CAR built in) | [`create_fermionic_variables`](@ref) |
+| 1 | Create fermionic operators (CAR built in) | `fermionic_variables` |
 | 2 | Write the Kitaev chain Hamiltonian (hopping + pairing + chemical potential) | standard Julia arithmetic |
-| 3 | Solve the SDP relaxation (no parity constraint — open BCs) | [`polyopt`](@ref), [`cs_nctssos`](@ref) |
+| 3 | Solve the SDP relaxation (no parity constraint — open BCs) | `Problem`, `Relaxation`, `solve` |
 | 4 | Verify against exact diagonalisation | `kitaev_chain_exact` (above) |
-| 5 | Cross-check sweet spot via Pauli XX chain | [`create_pauli_variables`](@ref) |
+| 5 | Cross-check sweet spot via Pauli XX chain | `pauli_variables` |
 
 ### Key concepts
 
@@ -438,8 +435,8 @@ ground-state energy across all four parameter regimes.
 
 | Use case | Interface |
 |:---------|:----------|
-| Model written in $a$, $a^\dagger$ (Kitaev chain, Hubbard, BCS) | [`create_fermionic_variables`](@ref) |
-| Model written in Pauli $X$, $Y$, $Z$ (Heisenberg, Ising, XX) | [`create_pauli_variables`](@ref) |
+| Model written in $a$, $a^\dagger$ (Kitaev chain, Hubbard, BCS) | `fermionic_variables` |
+| Model written in Pauli $X$, $Y$, $Z$ (Heisenberg, Ising, XX) | `pauli_variables` |
 | Sweet-spot check / Jordan–Wigner cross-validation | Both — compare results |
 
 ### See also

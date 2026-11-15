@@ -111,3 +111,6 @@ for tolerance in (1e-8,1e-6)
     check_gns_backend(N.SCSBackend(verbose=0,eps_abs=tolerance,eps_rel=tolerance,max_iters=200000))
 end
 check_gns_coverage(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8,max_iters=200000))
+
+isdefined(@__MODULE__,:FunctionalModelChecks) || include("../model/functional.jl")
+FunctionalModelChecks.check(N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8))

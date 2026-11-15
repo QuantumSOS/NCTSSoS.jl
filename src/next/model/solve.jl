@@ -48,6 +48,9 @@ end
 Evaluate ⟨p⟩ in the numerical relaxation solution, not a reconstructed state or
 certificate. `p` must use the problem's registry and only represented moments.
 Return a real number for Hermitian `p`, and a complex number otherwise.
+For state/trace polynomials this reads the outer moment of the whole expression.
+In particular, `expectation(result, state_symbol(A)*state_symbol(B))` need not
+equal `expectation(result,state_symbol(A))*expectation(result,state_symbol(B))`.
 """
 function expectation(result::SolveResult,p::Polynomial)
     isnothing(result.bound) && throw(ArgumentError("Cannot read expectations: solve status $(result.status) has no accepted solution."))

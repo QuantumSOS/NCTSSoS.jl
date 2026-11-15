@@ -27,6 +27,10 @@
                 @test !Base.isexported(Next,name)
                 @test getfield(NCTSSoS,name) !== getfield(Next,name)
             end
+            for name in (:RealState,:RealTrace)
+                @test Base.ispublic(Next,name)
+                @test !Base.isexported(Next,name)
+            end
         end
         """
     combined=raw"""
@@ -34,7 +38,7 @@
         using NCTSSoS
         using NCTSSoS.Next
         @testset "No clashing exports" begin
-            for name in (:gns,:evaluate,:bosonic_variables,:Bosonic)
+            for name in (:gns,:evaluate,:bosonic_variables,:Bosonic,:state_symbol,:trace_symbol)
                 @test Base.isexported(NCTSSoS.Next,name)
                 @test Core.eval(Main,name) === getfield(NCTSSoS.Next,name)
             end
@@ -53,6 +57,8 @@ end
 
 include("front.jl")
 FrontDoorChecks.check(Nx.JuMPBackend(SOLVER))
+include("functional.jl")
+FunctionalModelChecks.check(Nx.JuMPBackend(SOLVER))
 include("gns.jl")
 include("bosonic.jl")
 # Order-three bosonic Hankel matrices need tighter solver residuals to compare

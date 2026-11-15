@@ -93,4 +93,6 @@ else
     end
     isdefined(@__MODULE__,:check_gns_backend) || include("../model/gns.jl")
     check_gns_backend(N.MosekBackend())
+    isdefined(@__MODULE__,:FunctionalModelChecks) || include("../model/functional.jl")
+    FunctionalModelChecks.check(N.MosekBackend())
 end

@@ -81,6 +81,17 @@ function check_word_contract(::Type{W}, samples::Vector{W}; C::Type=ComplexF64, 
                 @test Nx.degree(a) >= 0
                 s = collect(Nx.sites(a))
                 @test eltype(s) == Int && issorted(s) && allunique(s)
+                if applicable(Nx.word_letters,a)
+                    support=collect(Nx.support_letters(a))
+                    @test length(support)==Nx.degree(a)
+                    @test all(l->Nx.degree(l)==1,support)
+                    @test sort!(unique!(reduce(vcat,collect.(Nx.sites.(support));init=Int[])))==s
+                    if a isa Nx.FunctionalWord && Nx._ftail(a)!=Nx.degree(a)
+                        @test_throws r"support_letters" Nx.word_letters(a)
+                    else
+                        @test support==collect(Nx.word_letters(a))
+                    end
+                end
                 p, b = Nx.star(a)
                 q, back = Nx.star(b)
                 @test back == a && isone(conj(p) * q)

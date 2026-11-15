@@ -122,6 +122,12 @@ function build(problem::Problem,description::BlockRelaxation)
         rows=starting ? _custom_family_rows(problem,supplied,W) :
             [_group_rows(description.row_rule,W,registry,group,order) for group in groups]
     end
+    if starting
+        rows[1]=_close_starting_rows(only(rows),description.symmetry)
+        # Clifford images can raise the degree. Use the same localizer order
+        # as if the user had supplied the closed rows.
+        order=maximum(degree,only(rows))
+    end
     family=[RowBlock(block,identity,HPSD,0) for block in rows]
     custom && length(unique(_block_key,family))!=length(family) &&
         throw(ArgumentError("The custom family has duplicate blocks; remove duplicates explicitly."))

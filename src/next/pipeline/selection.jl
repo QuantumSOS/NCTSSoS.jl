@@ -111,6 +111,28 @@ function push_term!(sink::WordSupportSink,c::Number,w)
     sink
 end
 
+function _close_starting_rows(rows::Vector{W},symmetry) where {W}
+    isempty(symmetry.generators) && isempty(symmetry.continuous) && return rows
+    generators=map(g->_group_action(W,g),symmetry.generators)
+    seen=Set(rows)
+    queue=copy(rows)
+    cursor=1
+    while cursor<=length(queue)
+        w=queue[cursor]
+        for g in generators
+            image=act(g,w)[2]
+            image in seen && continue
+            push!(seen,image); push!(queue,image)
+        end
+        for d in symmetry.continuous,image in keys(_derivative(d,w))
+            image in seen && continue
+            push!(seen,image); push!(queue,image)
+        end
+        cursor+=1
+    end
+    sort!(queue)
+end
+
 struct MissingSupportSink{W}
     words::Set{W}
 end

@@ -40,3 +40,46 @@
     plain=Nx.build(chip_problem,Nx.Relaxation(rows=chips))
     @test solve_reference(split.program)[1]≈solve_reference(plain.program)[1] atol=1e-6
 end
+
+@testset "Close starting rows before term splitting" begin
+    registry,(x,y,z)=Nx.pauli_variables(4)
+    h=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+0.6z[i]*z[mod1(i+1,4)] for i in 1:4)
+    base=[one(h);x;y;z]
+    short=[base;x[1]*x[2];y[1]*y[2];z[1]*z[2]]
+    complete=[base;[a[i]*a[mod1(i+1,4)] for a in (x,y,z) for i in 1:4]]
+    problem=Nx.Problem(h;symmetry=(Nx.SitePermutation([2,3,4,1]),))
+    for level in 1:2
+        split=Nx.TermSplit(;algorithm=MMD(),level)
+        automatic=Nx.build(problem,Nx.Relaxation(rows=short,split=split))
+        manual=Nx.build(problem,Nx.Relaxation(rows=complete,split=split))
+        @test collect(Nx.block_rows(automatic))==collect(Nx.block_rows(manual))
+        @test solve_reference(automatic.program)[1]≈solve_reference(manual.program)[1] atol=1e-6
+    end
+    # Closure may supply objective support; moment-only maps must not add rows.
+    problem=Nx.Problem(x[1]+x[2]+x[3]+x[4];symmetry=(Nx.SitePermutation([2,3,4,1]),))
+    automatic=Nx.build(problem,Nx.Relaxation(rows=[one(h),x[1]],split=Nx.TermSplit()))
+    manual=Nx.build(problem,Nx.Relaxation(rows=[one(h);x],split=Nx.TermSplit()))
+    @test collect(Nx.block_rows(automatic))==collect(Nx.block_rows(manual))
+    moment_only=Nx.Problem(problem.objective;
+        symmetry=Nx.Symmetry(;moment_only=(Nx.SitePermutation([2,3,4,1]),)))
+    @test_throws r"not covered by the starting rows" Nx.build(moment_only,
+        Nx.Relaxation(rows=[one(h),x[1]],split=Nx.TermSplit()))
+    problem=Nx.Problem(z[1];symmetry=(Nx.SpinRotation(registry,:z),))
+    automatic=Nx.build(problem,Nx.Relaxation(rows=[one(h),x[1]],split=Nx.TermSplit()))
+    manual=Nx.build(problem,Nx.Relaxation(rows=[one(h),x[1],y[1]],split=Nx.TermSplit()))
+    @test collect(Nx.block_rows(automatic))==collect(Nx.block_rows(manual))
+    @test solve_reference(automatic.program)[1]≈-1 atol=1e-6
+
+    # Degree-changing closure must also determine the localizer row order.
+    r,(a,b,c)=Nx.pauli_variables(2)
+    W=Nx.word_type(r,4)
+    h=a[1]+a[1]*a[2]+c[2]+c[1]*c[2]
+    problem=Nx.Problem(h;constraints=[Nx.Positive(1+c[1])],
+        symmetry=(Nx.clifford_cnot(W,2,1,2),))
+    short=[one(h),a[1],c[1],a[2],c[2]]
+    complete=[short;a[1]*a[2];c[1]*c[2]]
+    automatic=Nx.build(problem,Nx.Relaxation(rows=short,split=Nx.TermSplit()))
+    manual=Nx.build(problem,Nx.Relaxation(rows=complete,split=Nx.TermSplit()))
+    @test collect(Nx.block_rows(automatic))==collect(Nx.block_rows(manual))
+    @test solve_reference(automatic.program)[1]≈solve_reference(manual.program)[1] atol=1e-6
+end

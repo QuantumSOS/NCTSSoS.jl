@@ -248,6 +248,7 @@ end
 Base.getproperty(s::ProgramSizes,name::Symbol) = name===:closure ? nothing : getfield(s,name)
 Base.propertynames(::ProgramSizes,private::Bool=false) = (fieldnames(ProgramSizes)...,:closure)
 Base.:(==)(a::ProgramSizes,b::ProgramSizes) = all(getfield(a,k)==getfield(b,k) for k in fieldnames(ProgramSizes))
+Base.hash(s::ProgramSizes,h::UInt) = hash((s.rows,s.moments,s.real_variables,s.blocks,s.largest_block,s.localizing_rows),h)
 function Base.show(io::IO,s::ProgramSizes)
     print(io,s.rows," rows, ",s.moments," moments, ",s.real_variables,
         " real variables, ",s.blocks," blocks (largest ",s.largest_block,

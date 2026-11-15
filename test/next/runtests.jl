@@ -1,6 +1,7 @@
 # Tests of the redesign work area `NCTSSoS.Next`.
 using Test, NCTSSoS, LinearAlgebra, JuMP, Random
 
+include("public_docs.jl")
 isdefined(Main, :SOLVER) || include("../TestUtils.jl")
 include("contract_checks.jl")
 include("reference.jl")

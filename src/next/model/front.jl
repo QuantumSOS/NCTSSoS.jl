@@ -129,6 +129,18 @@ struct Inspection{P,R,S}
     relaxation::R
     sizes::S
 end
+"""
+    report = inspect(problem, relaxation)
+
+Build the relaxation and return a report without calling a solver.
+The report has `problem`, `relaxation` and `sizes` fields.
+Print `report` to see the selected options and program sizes.
+See [`solve`](@ref) for the fields of `sizes`.
+The build uses the algebra relations of the problem's variables.
+It does not choose a solver or compute a bound.
+
+Example: `using NCTSSoS.Next; registry, (x, y, z) = pauli_variables(1); report = inspect(Problem(z[1]), Relaxation(order=1))`.
+"""
 inspect(p::Problem,r::AbstractRelaxation) = Inspection(p,r,build(p,r).sizes)
 function Base.show(io::IO,r::Inspection)
     print(io,r.problem,"\n",r.relaxation,"\nSizes: ",r.sizes)

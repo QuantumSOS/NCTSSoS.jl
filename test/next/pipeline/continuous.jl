@@ -98,27 +98,22 @@ end
         invariant=Nx.Problem(H;symmetry=Nx.Symmetry(generators...;continuous=(d,)))
         base=Nx.build(plain,description)
         built=Nx.build(invariant,description)
-        # Compare the two continuous algorithms before sector elimination,
-        # then apply the same final sector substitution to the general route.
+        # Compare the two continuous algorithms with the explicit sector
+        # equations. Sector elimination is skipped for continuous symmetry.
         without_sector=Nx.Relaxation(order=1,strengthen=description.strengthen[1:1])
         raw=Nx.build(plain,without_sector)
         rotated=Nx.build(invariant,without_sector)
         @test rotated.sizes.real_variables<raw.sizes.real_variables
         W=eltype(first(raw.sizes.closure.family).rows)
         sectors=Nx._checked_sectors(plain,description.strengthen,plain.symmetry,W)
-        sector_start=length(raw.program.blocks)+1
-        equations=Nx._sector_equalities!(raw.program,raw.table,raw.sizes.closure,sectors)
-        sector_blocks=sector_start:length(raw.program.blocks)
+        Nx._sector_equalities!(raw.program,raw.table,raw.sizes.closure,sectors)
         raw.program.nvars=length(raw.table.labels)
-        general,table,report=Nx._continuous_program(raw.program,raw.table,(d,);diagonal=false)
+        general,_,report=Nx._continuous_program(raw.program,raw.table,(d,);diagonal=false)
         family_blocks=raw.sizes.closure.strengthening.first_block-1
-        general,blocks=Nx._continuous_blocks(general;family_blocks,diagonal=true)
-        sector_blocks=reduce(vcat,(r.outputs for r in blocks.blocks if r.input in sector_blocks);init=Int[])
-        general,_,_=Nx._eliminate_sectors(general,table,equations,sector_blocks)
+        general,_=Nx._continuous_blocks(general;family_blocks,diagonal=true)
         @test built.sizes.closure.continuous.method==:diagonal
         @test report.method==:exact_elimination
-        # Sector elimination can make number rotation redundant.
-        @test built.sizes.real_variables<=base.sizes.real_variables
+        @test built.sizes.closure.sector_elimination==(accepted=false,reason=:continuous_symmetry)
         @test built.program.nvars==general.nvars
         @test built.program.forms.ids==general.forms.ids
         @test built.program.forms.offsets==general.forms.offsets

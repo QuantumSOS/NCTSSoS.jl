@@ -153,7 +153,6 @@ function build(problem::Problem,description::BlockRelaxation)
         program,table,continuous=_continuous_program(program,table,description.symmetry.continuous;algebra=registry.algebra)
         program,block_report=_continuous_blocks(program;family_blocks=family_block_count,
             diagonal=continuous.method==:diagonal)
-        sector_blocks=reduce(vcat,(r.outputs for r in block_report.blocks if r.input in sector_blocks);init=Int[])
         continuous=merge(continuous,(blocks=block_report,))
         if !isnothing(extra)
             first_extra=1+sum(length(r.outputs) for r in block_report.blocks if r.input<=family_block_count)
@@ -162,7 +161,11 @@ function build(problem::Problem,description::BlockRelaxation)
         end
         moments=length(unique(label.word for label in table.labels))
     end
-    program,table,elimination=_eliminate_sectors(program,table,sector_equations,sector_blocks)
+    if isempty(description.symmetry.continuous)
+        program,table,elimination=_eliminate_sectors(program,table,sector_equations,sector_blocks)
+    else
+        elimination=isnothing(sector_equations) ? nothing : (accepted=false,reason=:continuous_symmetry)
+    end
     if !isnothing(elimination) && elimination.accepted
         moments=length(unique(label.word for label in table.labels))
         extra=merge(extra,(added_equalities=sum((b.side for b in program.blocks[extra.first_block:end] if b.kind==ZERO);init=0),))

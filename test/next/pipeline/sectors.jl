@@ -2,6 +2,23 @@ function sector_matrix(p,n)
     sum(c*physical_pauli(w,1:n) for (c,w) in Nx.terms(p))
 end
 
+@testset "Continuous sector keeps the base standard form" begin
+    registry,(a,ad)=Nx.fermionic_variables(1)
+    number=ad[1]*a[1]
+    built=Nx.build(Nx.Problem(number;symmetry=(Nx.NumberRotation(registry),)),
+        Nx.Relaxation(order=1,strengthen=Nx.Sector(number,1)))
+    form=Nx.moment_standard_form(built.program)
+    # Frozen from redesign 5a794cb: occupation, vacancy, normalization, and
+    # the explicit number-sector equation, in the base program's order.
+    @test Matrix(form.A)==reshape([-1.0,1.0,0.0,1.0],4,1)
+    @test form.b==[0.0,1.0,1.0,1.0]
+    @test form.c==[1.0]
+    @test form.offset==0.0
+    @test [(c.kind,c.side,c.first,c.length,c.label) for c in form.cones]==
+        [(:hpsd,1,1,1,0),(:hpsd,1,2,1,0),(:hpsd,1,3,1,0),(:zero,3,4,1,1)]
+    @test built.sizes.closure.sector_elimination==(accepted=false,reason=:continuous_symmetry)
+end
+
 # Check the same physical equations whether they remain explicit or have
 # become the affine moment map. Undetermined moments are not queried.
 function sector_state_residual(built,physical)

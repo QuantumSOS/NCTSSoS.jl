@@ -24,16 +24,45 @@ six_site_controls()=[(;n=6,problem,family=first(FAMILIES),finite,continuous,stre
 detected_continuous_control()=(;n=5,problem=:xxz,family=first(FAMILIES),finite=:detected,
     continuous=:u1,strengthening=())
 
+bosonic_cases()=[(;n=2,problem=:bosons,family,finite,continuous,strengthening)
+    for family in FAMILIES for finite in (:none,:translation,:dihedral,:moment_only)
+    for continuous in (:none,:number) for strengthening in ((),(:sector,))]
+
 combinations()=[[(;n=4,problem,family,finite,continuous,strengthening) for problem in PROBLEMS
     for family in FAMILIES for finite in FINITE for continuous in CONTINUOUS
-    for strengthening in strengthening_choices(problem)];six_site_controls();detected_continuous_control()]
+    for strengthening in strengthening_choices(problem)];six_site_controls();detected_continuous_control();bosonic_cases()]
+
+# Total-particle cutoff, not a per-mode truncation. N+6 covers every word
+# in these order-two families, including the sector's extra degree-two factor.
+function boson_matrices(n,cutoff)
+    occupations=filter(v->sum(v)<=cutoff,vec(collect(Iterators.product(ntuple(_->0:cutoff,n)...))))
+    index=Dict(v=>i for (i,v) in enumerate(occupations))
+    [begin
+        a=zeros(ComplexF64,length(occupations),length(occupations))
+        for (j,v) in enumerate(occupations)
+            v[mode]==0 && continue
+            u=ntuple(i->v[i]-(i==mode),n)
+            a[index[u],j]=sqrt(v[mode])
+        end
+        a
+    end for mode in 1:n]
+end
 
 function fixture(name,n=4;anisotropy=0.4)
     I2=Matrix{ComplexF64}(I,2,2)
     X=ComplexF64[0 1;1 0]; Y=ComplexF64[0 -im;im 0]; Z=ComplexF64[1 0;0 -1]
     embed(A,i)=foldl(kron,(j==i ? A : I2 for j in 1:n))
     matrices=Dict{Int,Matrix{ComplexF64}}()
-    if name==:fermions
+    if name==:bosons
+        registry,(a,ad)=Nx.bosonic_variables(n)
+        edges=n==2 ? [(1,2)] : [(i,mod1(i+1,n)) for i in 1:n]
+        H=-sum(ad[i]*a[j]+ad[j]*a[i] for (i,j) in edges)+
+            sum(ad[i]^2*a[i]^2-0.5ad[i]*a[i] for i in 1:n)
+        Q=sum(ad.*a); q=n; operators=[a;ad]
+        for (i,A) in enumerate(boson_matrices(n,n+6))
+            matrices[i]=A; matrices[-i]=A'
+        end
+    elseif name==:fermions
         registry,(a,ad)=Nx.fermionic_variables(n)
         H=sum((1+0.3im)*ad[i]*a[mod1(i+1,n)]+(1-0.3im)*ad[mod1(i+1,n)]*a[i] for i in 1:n)
         Q=sum(ad[i]*a[i] for i in 1:n); q=n÷2
@@ -59,9 +88,11 @@ function fixture(name,n=4;anisotropy=0.4)
             matrices[3(i-1)+a]=embed(M,i)
         end
     end
-    identity=Matrix{ComplexF64}(I,2^n,2^n)
+    dimension=size(first(values(matrices)),1)
+    identity=Matrix{ComplexF64}(I,dimension,dimension)
     cache=Dict{Any,Matrix{ComplexF64}}()
     word(w)=get!(cache,w) do
+        @assert name!=:bosons || Nx.degree(w)<=6 "Increase the Fock cutoff for this word degree"
         foldl(*,(matrices[Int(l)] for l in Nx.legacy_letters(w));init=identity)
     end
     polynomial(p)=sum((c*word(w) for (c,w) in Nx.terms(p));init=zeros(ComplexF64,size(identity)))
@@ -72,7 +103,7 @@ function fixture(name,n=4;anisotropy=0.4)
     states=Dict{Bool,Matrix{ComplexF64}}()
     function state(sector)
         get!(states,sector) do
-            U=if sector
+            U=if sector || name==:bosons
                 E=eigen(Hermitian(polynomial(Q)))
                 E.vectors[:,findall(v->abs(v-q)<1e-9,E.values)]
             else
@@ -349,7 +380,7 @@ function solved_cases()
 end
 
 function smoke_cases()
-    all=filter(c->c.finite!=:translation_antiunitary && c!=detected_continuous_control(),combinations())
+    all=filter(c->c.problem!=:bosons && c.finite!=:translation_antiunitary && c!=detected_continuous_control(),combinations())
     # Fixed, stratified indices across the complete product, plus each named
     # axis in a valid dense control. No RNG chooses the acceptance subset.
     selected=all[unique(round.(Int,range(1,length(all);length=80)))]
@@ -367,6 +398,7 @@ function smoke_cases()
     append!(selected,[(;n=4,problem,family=first(FAMILIES),finite=:translation_antiunitary,
         continuous=:none,strengthening=()) for problem in PROBLEMS])
     push!(selected,detected_continuous_control())
+    append!(selected,filter(c->c.family==(order=2,rows=:complete,group=:none,split=:none),bosonic_cases()))
     unique(selected)
 end
 
@@ -389,12 +421,12 @@ function smoke_test()
     cases=smoke_cases()
     fixtures=Dict((c.problem,c.n)=>fixture(c.problem,c.n) for c in unique(c->(c.problem,c.n),cases))
     @testset "Combination product: fixed acceptance slice" begin
-        @test length(combinations())==83_907
-        @test length(cases)==145
+        @test length(combinations())==84_515
+        @test length(cases)==161
         for (i,c) in enumerate(cases)
             @testset "$i: $c" begin
                 r=run(c;f=fixtures[(c.problem,c.n)])
-                expected=i in builds ? "program" : "ArgumentError"
+                expected=i in builds || c.problem==:bosons ? "program" : "ArgumentError"
                 r.outcome==expected || @info "Combination mismatch" case=c expected result=r
                 @test r.outcome==expected
             end

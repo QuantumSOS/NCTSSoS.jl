@@ -1,12 +1,12 @@
 # No solver or license needed. Run with the package environment:
-# julia --project perf/next/bosonic.jl [cost|narrow|fixed]
+# julia --project perf/next/bosonic.jl [cost|sector|narrow|fixed]
 # `fixed` replaces only word_type in this disposable process for the width A/B.
 using NCTSSoS, LinearAlgebra, Test
 const N=NCTSSoS.Next
 
-function samples(label,call)
+function samples(label,call;count=3)
     value=call()
-    for _ in 1:3
+    for _ in 1:count
         GC.gc()
         t=@timed call()
         println("SAMPLE ",label," seconds=",t.time," bytes=",t.bytes)
@@ -30,6 +30,24 @@ function old_build(p)
     config=SolverConfig(optimizer=nothing,order=2,cs_algo=NoElimination(),ts_algo=NoElimination())
     s=NCTSSoS.compute_sparsity(p,config)
     return NCTSSoS.moment_relax(p,s.corr_sparsity,s.cliques_term_sparsities)
+end
+function sector_cost()
+    n=8; edges=[(i,mod1(i+1,n)) for i in 1:n]
+    model=samples("next_sector_model",()->begin
+        _,(b,bd)=N.bosonic_variables(n)
+        (N.Problem(hamiltonian(b,bd,edges)),N.Relaxation(order=2,strengthen=N.Sector(sum(bd.*b),n)))
+    end;count=5)
+    old=samples("old_sector_model",()->begin
+        registry,(b,bd)=create_bosonic_variables(1:n)
+        polyopt(hamiltonian(b,bd,edges),registry;moment_eq_constraints=[sum(bd.*b)-n])
+    end;count=5)
+    built=samples("next_sector_assembly",()->N.build(model...);count=5)
+    legacy=samples("old_sector_assembly",()->old_build(old);count=5)
+    form=samples("next_sector_standard",()->N.moment_standard_form(built.program);count=5)
+    samples("old_sector_jump_lowering",()->NCTSSoS.build_jump_model(legacy);count=5)
+    println("SECTOR equations_next=",sum(b.side for b in built.program.blocks if b.kind==N.ZERO),
+        " equations_old=",sum(length(m) for (kind,m) in legacy.constraints if kind==:Zero),
+        " next_sizes=",built.sizes," standard=",size(form.A))
 end
 function kernel(s,a,b,repeats)
     total=0
@@ -88,4 +106,4 @@ if mode=="fixed"
         return BosonWord{8,max(1,cld(n,8))}
     end
 end
-mode=="cost" ? cost() : width(mode)
+mode=="cost" ? cost() : mode=="sector" ? sector_cost() : width(mode)

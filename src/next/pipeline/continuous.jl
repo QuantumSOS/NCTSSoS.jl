@@ -44,8 +44,8 @@ end
 function _check_continuous(problem,symmetry,W)
     ds=symmetry.continuous
     isempty(ds) && return
-    problem.objective.registry.algebra isa Union{Pauli,Fermionic} || throw(ArgumentError(
-        "Continuous reduction currently requires Pauli or fermionic variables."))
+    problem.objective.registry.algebra isa Union{Pauli,Fermionic,Bosonic} || throw(ArgumentError(
+        "Continuous reduction currently requires Pauli, fermionic or bosonic variables."))
     _check_derivation_polynomial(problem.objective,W,ds,"objective")
     for (i,c) in enumerate(problem.constraints)
         _check_derivation_polynomial(c.polynomial,W,ds,"constraint $i")
@@ -164,22 +164,23 @@ function push_term!(s::SectorTerms{W,Complex{Rational{Int}}},c::Union{AbstractFl
     throw(InexactError(:continuous_coefficient,Complex{Rational{Int}},c))
 end
 
-function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},derivations;diagonal=true) where {C,W}
+function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},derivations;
+    diagonal=true,algebra=W<:PauliWord ? Pauli() : W<:FermiWord ? Fermionic() : Bosonic()) where {C,W}
     # Closing the word domain may extend the table. A failed machine attempt
     # must not change the BigInt retry's coordinate or equation order.
     trial=deepcopy(table)
     try
-        return _continuous_program_rational(program,trial,derivations,Rational{Int};diagonal)
+        return _continuous_program_rational(program,trial,derivations,Rational{Int};diagonal,algebra)
     catch error
         error isa Union{OverflowError,InexactError} || rethrow()
-        return _continuous_program_rational(program,table,derivations,Rational{BigInt};diagonal)
+        return _continuous_program_rational(program,table,derivations,Rational{BigInt};diagonal,algebra)
     end
 end
 
-function _continuous_program_rational(program::MomentProgram{C},table::OrbitMoments{W},derivations,::Type{R};diagonal=true) where {C,W,R}
+function _continuous_program_rational(program::MomentProgram{C},table::OrbitMoments{W},derivations,::Type{R};diagonal=true,algebra) where {C,W,R}
     initial=program.nvars
     support=sort!(unique!([site for label in table.labels for site in sites(label.word)]))
-    letters=basis_rows(W,W<:PauliWord ? Pauli() : Fermionic(),support,1)
+    letters=basis_rows(W,algebra,support,1)
     diagonal &= all(d->all(w->all(==(w),keys(_derivative(d,w))),letters),derivations)
     pivots=Dict{Int,Dict{Int,R}}()
     derivative=SectorTerms(Dict{W,Complex{R}}())

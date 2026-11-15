@@ -1,7 +1,7 @@
 """
     Sector(operator, eigenvalue)
 
-Restrict states to an eigenspace of a Hermitian Pauli or fermionic operator.
+Restrict states to an eigenspace of a Hermitian Pauli, fermionic or bosonic operator.
 For particle number use `Sector(N, n)`; for singlets use `Sector(S², 0)`.
 The operator must use the problem's registry. This is a state restriction,
 not the operator identity `Zero(operator - eigenvalue)`.
@@ -48,8 +48,8 @@ function _checked_sectors(problem,kinds,symmetry,W)
     result=Tuple{Int,SectorTerms{W,Complex{Rational{BigInt}}}}[]
     for (source,k) in enumerate(kinds)
         k isa Sector || continue
-        problem.objective.registry.algebra isa Union{Pauli,Fermionic} ||
-            throw(ArgumentError("Sector currently requires Pauli or fermionic variables."))
+        problem.objective.registry.algebra isa Union{Pauli,Fermionic,Bosonic} ||
+            throw(ArgumentError("Sector currently requires Pauli, fermionic or bosonic variables."))
         k.operator.registry===problem.objective.registry ||
             throw(ArgumentError("The sector operator must use the problem registry."))
         _check_derivation_polynomial(k.operator,W,symmetry.continuous,"Sector operator")

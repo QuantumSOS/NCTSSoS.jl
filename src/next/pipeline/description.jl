@@ -144,7 +144,7 @@ function build(problem::Problem,description::BlockRelaxation)
     moments=length(table.representatives)
     continuous=nothing
     if !isempty(description.symmetry.continuous)
-        program,table,continuous=_continuous_program(program,table,description.symmetry.continuous)
+        program,table,continuous=_continuous_program(program,table,description.symmetry.continuous;algebra=registry.algebra)
         program,block_report=_continuous_blocks(program;family_blocks=family_block_count,
             diagonal=continuous.method==:diagonal)
         continuous=merge(continuous,(blocks=block_report,))

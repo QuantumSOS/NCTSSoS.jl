@@ -43,9 +43,15 @@ function check(backend,factory)
         for kind in (N.Stationarity(),N.StateOptimality(),N.DensityMatrix(1:2),N.FermionicConditions(1:2))
             @test_throws ArgumentError N.build(N.Problem(h),N.Relaxation(order=2,strengthen=kind))
         end
-        # These remain pipeline-owned gates until the following work package.
-        @test_throws r"Sector currently requires" N.build(N.Problem(h),N.Relaxation(order=2,strengthen=N.Sector(sum(bd.*b),2)))
-        @test_throws r"Continuous reduction currently requires" N.build(N.Problem(h;symmetry=(N.NumberRotation(registry),)),N.Relaxation(order=2))
+        h=bh(b,bd;mu=0)
+        for order in (2,3)
+            relaxation=N.Relaxation(;order,strengthen=N.Sector(sum(bd.*b),2))
+            sector=N.solve(N.Problem(h),relaxation;solver=backend)
+            number=N.solve(N.Problem(h;symmetry=(N.NumberRotation(registry),)),relaxation;solver=backend)
+            @test sector.bound ≈ 1-sqrt(5) atol=1e-6
+            @test number.bound ≈ sector.bound atol=1e-6
+            @test number.sizes.program.real_variables < sector.sizes.program.real_variables
+        end
     end
 end
 end

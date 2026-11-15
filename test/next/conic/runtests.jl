@@ -95,3 +95,20 @@ end
     check_forms(p;expected=old)
     @test old ≈ -2sqrt(2) atol=2e-5
 end
+
+# An extension can implement the one-shot solve interface without a task API.
+struct OneShotTestBackend{S} <: Nx.AbstractSolver
+    solver::S
+end
+Nx.solve_standard(form::Nx.MomentStandardForm,backend::OneShotTestBackend) =
+    Nx.solve_standard(form,backend.solver)
+
+@testset "Staged preparation for a one-shot backend" begin
+    _,(_,_,z)=Nx.pauli_variables(1)
+    built=Nx.build(Nx.Problem(-z[1]),Nx.Relaxation(order=1))
+    backend=OneShotTestBackend(Nx.JuMPBackend(SOLVER))
+    prepared=Nx.prepare(built;solver=backend)
+    @test Nx.prepare(built;solver=backend)===prepared
+    @test Nx.solve_standard(prepared).bound ≈ -1 atol=1e-6
+    @test Nx.solve(built;solver=backend).bound ≈ -1 atol=1e-6
+end

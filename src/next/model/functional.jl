@@ -30,11 +30,11 @@ function _show_functional_segment(io,w::FunctionalWord{F,A,B,S},r,i,j) where {F,
     for k in i:j
         k>i && print(io," ")
         token=_ftoken(w,k); location=(_fsite(token,S),Int(token>>S))
-        name=findfirst(==(location),r.names)
+        name=isnothing(r) ? nothing : findfirst(==(location),r.names)
         isnothing(name) ? print(io,"operator(site=",location[1],", label=",location[2],")") : print(io,name)
     end
 end
-function Base.show(io::IO,w::FunctionalWord{F},r::Registry) where {F}
+function Base.show(io::IO,w::FunctionalWord{F},r::Union{Registry,Nothing}) where {F}
     isone(w) && return print(io,"1")
     i=_ftail(w)+1; printed=false
     while i<=degree(w)

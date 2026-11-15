@@ -27,7 +27,8 @@
                 @test !Base.isexported(Next,name)
                 @test getfield(NCTSSoS,name) !== getfield(Next,name)
             end
-            for name in (:RealState,:RealTrace,:build,:BuiltRelaxation,:prepare,:prepare_standard,:solve_standard)
+            for name in (:RealState,:RealTrace,:build,:BuiltRelaxation,:prepare,:prepare_standard,:solve_standard,
+                    :terms,:word_letters,:support_letters,:sites,:degree,:operator_name,:basis,:block_rows,:block_sides)
                 @test Base.ispublic(Next,name)
                 @test !Base.isexported(Next,name)
             end
@@ -66,6 +67,8 @@ FunctionalModelChecks.check(Nx.JuMPBackend(SOLVER))
 include("newton_chip.jl")
 NewtonChipChecks.check(Nx.JuMPBackend(SOLVER))
 include("letter_permutation.jl")
+include("inspection.jl")
+InspectionChecks.check_cache(Nx.JuMPBackend(SOLVER))
 include("staged.jl")
 StagedSolveChecks.check(Nx.JuMPBackend(SOLVER))
 include("expectation_constraints.jl")

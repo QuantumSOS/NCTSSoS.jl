@@ -347,8 +347,11 @@ combined_config = SolverConfig(
 combined_result = cs_nctssos(pop, combined_config);
 combined_result.objective
 
-# The union recovers the full order-48 group and the three-scalar SDP of
+# The union recovers the order-48 global-axis-and-SWAP subgroup and the three-scalar SDP of
 # Step 4 — without anyone having to invent the axis rotations by hand:
+# this is not the full Clifford stabilizer, whose order is 192. For example,
+# ``V=\exp(-i\pi X_1X_2/4)`` fixes each Hamiltonian term but maps
+# ``Y_1`` to ``Z_1X_2``, outside this order-one moment basis.
 
 combined_report = combined_result.symmetry
 (combined_report.group_order, combined_report.psd_block_sizes)

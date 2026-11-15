@@ -15,6 +15,7 @@ makedocs(;
             "Polynomial Optimization"=>"manual/polynomial_optimization.md",
             "Sparsities"=>"manual/sparsities.md",
             "Symmetry-Adapted Basis"=>"manual/symmetry_adapted_basis.md",
+            "Strengthening"=>"examples/generated/strengthening.md",
             "Pauli Charge/Singlet Symmetry"=>"manual/pauli_charge_singlet_symmetry.md",
             "Clifford Symmetry Detection"=>"manual/clifford_symmetry_detection.md",
             "SDP Relaxation"=>"manual/sdp_relaxation.md",

@@ -287,10 +287,11 @@ The dense relaxation has 436 rows. Small blocks can reduce optimization
 time, but detection and block construction cost time too. Measure the
 stages separately before choosing a symmetry group.
 
-The three timers below measure build, backend preparation, and a solve of
-the prepared task. The last is solver wall time measured here, not time
-reported by Mosek. A single run is an illustration, not a speedup benchmark;
-it can include first-use compilation and depends on the machine.
+The first two timers measure wall time for build and backend preparation.
+The third value is Mosek's optimizer time for that call, including presolve;
+it excludes package build, preparation and result extraction. A single run
+is an illustration, not a speedup benchmark. Package wall times can include
+first-use compilation, and all measurements depend on the machine.
 
 ````julia
 registry10, ops10 = pauli_variables(10);
@@ -300,7 +301,8 @@ relaxation10 = Relaxation(order=2);
 function staged_run(problem, relaxation; solver)
     build_seconds = @elapsed built = Next.build(problem, relaxation)
     prepare_seconds = @elapsed Next.prepare(built; solver)
-    solve_seconds = @elapsed result = solve(built; solver)
+    result = solve(built; solver)
+    solve_seconds = result.solution.diagnostics.solve_seconds
     return (; built, result, build_seconds, prepare_seconds, solve_seconds)
 end
 
@@ -312,14 +314,14 @@ dense10 = staged_run(Problem(H10), relaxation10; solver);
 (-4.518159324352876, [436], 20685)
 ````
 
-Wall seconds, in order: build, prepare, solve.
+Seconds, in order: build wall time, prepare wall time, Mosek optimizer time.
 
 ````julia
 (dense10.build_seconds, dense10.prepare_seconds, dense10.solve_seconds)
 ````
 
 ````
-(0.00675523, 0.210566354, 168.770454994)
+(0.006680615, 0.187218127, 176.232218404999)
 ````
 
 Detection depends on the 30 Hamiltonian terms, not on the relaxation order.
@@ -332,7 +334,7 @@ detect_seconds = @elapsed detected10 = detect_symmetry(H10);
 ````
 
 ````
-(1.21638866, 6, 1)
+(1.14157153, 6, 1)
 ````
 
 Inspect the detected family's final block sides without solving it:
@@ -387,14 +389,14 @@ reduced10 = staged_run(Problem(H10; symmetry=actions10), relaxation10; solver);
 (-4.518159328030607, [6, 5, 5, 1, 4, 4, 4, 4, 6, 5, 5, 5, 5, 4, 4, 4, 6, 5, 5, 5, 5, 2, 2, 2, 2, 2, 4, 2, 2], 71)
 ````
 
-Wall seconds, in the same order:
+Seconds, in the same order:
 
 ````julia
 (reduced10.build_seconds, reduced10.prepare_seconds, reduced10.solve_seconds)
 ````
 
 ````
-(0.014003748, 0.010686405, 0.038218768)
+(0.015183752, 0.011395091, 0.05072146899692598)
 ````
 
 Compare bounds with tolerance `1e-6`. This checks numerical agreement,
@@ -440,7 +442,7 @@ at 10, 12, 14, and 16 sites. They approach the infinite-chain value
    Detection can miss maps that fix every Hamiltonian term.
 3. Row closure and Hamiltonian invariance are different requirements. Use
    block generators on rows and moment-only generators for moment relations.
-4. Compare build, prepare, and solve wall times separately. A larger group
+4. Compare build and prepare wall times with Mosek optimizer time separately. A larger group
    need not give a faster end-to-end run.
 
 ---

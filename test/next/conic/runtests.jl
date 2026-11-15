@@ -55,6 +55,49 @@ end
     check_forms(constant;expected=2.5)
 end
 
+@testset "Only tautological ZERO components are removed" begin
+    p=Nx.MomentProgram{ComplexF64}(3)
+    add_form!(p,[])
+    Nx.push_block!(p,Nx.ZERO,1)
+    for terms in ([(2,1),(2,-1)],[(2,1),(1,-2)],[(3,2im),(1,-6im)])
+        add_form!(p,terms)
+    end
+    Nx.push_block!(p,Nx.ZERO,3,21)
+    add_form!(p,[])
+    Nx.push_block!(p,Nx.PSD,1,23)
+    add_form!(p,[(1,1),(1,-1)])
+    Nx.push_block!(p,Nx.ZERO,1)
+    add_form!(p,[(2,1)])
+    add_form!(p,[])
+    Nx.push_block!(p,Nx.NONNEGATIVE,2,25)
+    append!(p.objective_ids,Int32[2,3]); append!(p.objective_coefs,[1.,2.])
+    f=Nx.moment_standard_form(p)
+    @test f.A==[-1 0;0 -2;0 0;-1 0;0 0]
+    @test f.b==[-2.,-6,0,0,0]
+    @test [(c.kind,c.first,c.length,c.label) for c in f.cones]==
+        [(:zero,1,2,21),(:psd,3,1,23),(:nonnegative,4,2,25)]
+    check_forms(p;expected=8)
+
+    # Cancellation in A is insufficient: both 0=3 and 0=4 must remain.
+    add_form!(p,[(2,1),(1,3+4im),(2,-1)])
+    Nx.push_block!(p,Nx.ZERO,1)
+    contradictory=Nx.moment_standard_form(p)
+    @test size(contradictory.A)==(7,2)
+    @test all(iszero,contradictory.A[end-1:end,:])
+    @test contradictory.b[end-1:end]==[3.,4.]
+    @test last(contradictory.cones).kind==:zero
+    @test last(contradictory.cones).length==2
+
+    # Adding a tautology must preserve existing cone metadata for warm starts.
+    both=Nx.MomentProgram{ComplexF64}(3)
+    add_form!(both,[(2,1),(3,im)])
+    Nx.push_block!(both,Nx.ZERO,1)
+    original=Nx.moment_standard_form(both)
+    add_form!(both,[])
+    Nx.push_block!(both,Nx.ZERO,1)
+    @test Nx.moment_standard_form(both).cones==original.cones
+end
+
 @testset "Plain route and both forms equal cs_nctssos" begin
     reg,(x,y,z) = create_pauli_variables(1:4)
     ham = sum(x[i]*x[i+1]+y[i]*y[i+1]+z[i]*z[i+1] for i in 1:3)

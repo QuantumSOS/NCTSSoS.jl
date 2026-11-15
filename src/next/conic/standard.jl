@@ -71,7 +71,33 @@ function moment_standard_form(p::MomentProgram{C}) where {C}
     for (id,coef) in zip(p.objective_ids,p.objective_coefs)
         id==1 ? (offset+=coef) : (c[id-1]+=coef)
     end
-    return MomentStandardForm(sparse(I,J,V,length(b),length(c)),b,c,offset,cones)
+    A = sparse(I,J,V,length(b),length(c))
+    if any(cone->cone.kind==:zero,cones)
+        # Inspect assembled coefficients so repeated ids that cancel also
+        # disappear. A constant contradiction must remain a constraint.
+        keep = trues(length(b))
+        for cone in cones
+            cone.kind==:zero || continue
+            for row in cone.first:cone.first+cone.length-1
+                keep[row] = !iszero(b[row])
+            end
+        end
+        for (row,value) in zip(A.rowval,A.nzval)
+            iszero(value) || (keep[row]=true)
+        end
+        if !all(keep)
+            reduced = DataCone[]
+            first = 1
+            for cone in cones
+                n = count(@view keep[cone.first:cone.first+cone.length-1])
+                iszero(n) && continue
+                push!(reduced,DataCone(cone.kind,cone.side,first,n,cone.label))
+                first += n
+            end
+            return MomentStandardForm(A[keep,:],b[keep],c,offset,reduced)
+        end
+    end
+    return MomentStandardForm(A,b,c,offset,cones)
 end
 
 function sos_standard_form(p::MomentStandardForm)

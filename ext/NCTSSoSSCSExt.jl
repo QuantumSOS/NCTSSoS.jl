@@ -3,7 +3,8 @@ using NCTSSoS: Next
 using NCTSSoS.Next: pauli_variables, site_variables, Unipotent, Problem, Relaxation,
     Correlative, SitePermutation, solve,
     TermSplit, fermionic_variables, Free, Positive, word_type, AntiunitaryPauli,
-    pauli_letter, DensityMatrix, InvariantCone
+    pauli_letter, DensityMatrix, InvariantCone, spin_rotations, NumberRotation,
+    FermionicConditions, Sector, detect_symmetry
 using PrecompileTools: @compile_workload
 import SCS
 import JuMP
@@ -115,5 +116,33 @@ end
     for kind in (DensityMatrix(1:3),InvariantCone(1:3,"YII"))
         solve(Problem(h;symmetry),Relaxation(order=1,strengthen=(kind,));solver=backend)
     end
+end
+
+@compile_workload let
+    n=4
+    registry,(x,y,z)=pauli_variables(n)
+    h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    symmetry=(SitePermutation([2:n;1]),SitePermutation(collect(n:-1:1)),spin_rotations(registry)...)
+    solve(Problem(h;symmetry),Relaxation(order=2);
+        solver=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
+end
+
+@compile_workload let
+    n=4
+    registry,(a,ad)=fermionic_variables(n)
+    h=-sum(ad[i]*a[mod1(i+1,n)]+ad[mod1(i+1,n)]*a[i] for i in 1:n)
+    number=sum(ad[i]*a[i] for i in 1:n)
+    problem=Problem(h;symmetry=(NumberRotation(registry),))
+    relaxation=Relaxation(order=1,strengthen=(FermionicConditions(1:n;conditions=(:P,:Q,:G)),Sector(number,2)))
+    solve(problem,relaxation;solver=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
+end
+
+@compile_workload let
+    n=8
+    _,(x,y,z)=pauli_variables(n)
+    h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    symmetry=detect_symmetry(h)
+    solve(Problem(h;symmetry),Relaxation(order=1);
+        solver=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
 end
 end

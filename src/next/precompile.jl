@@ -44,3 +44,29 @@ end
         moment_standard_form(built.program)
     end
 end
+
+@compile_workload let
+    n=4
+    registry,(x,y,z)=pauli_variables(n)
+    h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    symmetry=(SitePermutation([2:n;1]),SitePermutation(collect(n:-1:1)),spin_rotations(registry)...)
+    moment_standard_form(build(Problem(h;symmetry),Relaxation(order=2)).program)
+end
+
+@compile_workload let
+    n=4
+    registry,(a,ad)=fermionic_variables(n)
+    h=-sum(ad[i]*a[mod1(i+1,n)]+ad[mod1(i+1,n)]*a[i] for i in 1:n)
+    number=sum(ad[i]*a[i] for i in 1:n)
+    problem=Problem(h;symmetry=(NumberRotation(registry),))
+    relaxation=Relaxation(order=1,strengthen=(FermionicConditions(1:n;conditions=(:P,:Q,:G)),Sector(number,2)))
+    moment_standard_form(build(problem,relaxation).program)
+end
+
+@compile_workload let
+    n=8
+    _,(x,y,z)=pauli_variables(n)
+    h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    symmetry=detect_symmetry(h)
+    moment_standard_form(build(Problem(h;symmetry),Relaxation(order=1)).program)
+end

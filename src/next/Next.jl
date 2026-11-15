@@ -37,13 +37,14 @@ include("model/front.jl")
 include("model/gns.jl")
 include("model/functional.jl")
 include("model/newton_chip.jl")
+include("model/letter_permutation.jl")
 
 public Symmetry, variables, RealState, RealTrace, newton_chip_basis
 
 export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
     state_symbol, trace_symbol,
     Pauli, Fermionic, Bosonic, Free, Projector, Unipotent, SiteAlgebra,
-    Problem, Positive, Zero, SitePermutation, CliffordMap, AntiunitaryPauli,
+    Problem, Positive, Zero, SitePermutation, LetterPermutation, CliffordMap, AntiunitaryPauli,
     SpinRotation, spin_rotations, NumberRotation,
     detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,
     DensityMatrix, InvariantCone, Stationarity, StateOptimality, Sector, FermionicConditions,

@@ -27,9 +27,15 @@ function _check_symmetry_domain(p::Polynomial,s)
     for (i,g) in enumerate(Iterators.flatten((s.generators,s.moment_only)))
         applicable(act,g,one(W)) || throw(ArgumentError("Symmetry generator $i has an incompatible algebra or word type; construct its images with this problem's variables and word type $W."))
         lastsite = g isa SitePermutation ? length(g.images) :
+            g isa LetterPermutation ? _action_sites(g) :
             g isa CliffordMap ? length(g.columns)÷2 :
             g isa PauliConjugation ? maximum(sites(g.word);init=0) : 0
         lastsite<=n || throw(ArgumentError("Symmetry generator $i acts outside sites 1:$n; rebuild it for this problem's sites."))
+        if g isa LetterPermutation
+            algebra=p.registry.algebra isa FunctionalAlgebra ? p.registry.algebra.base : p.registry.algebra
+            all(s->_label_count(g,s)<=algebra.nletters,1:n) || throw(ArgumentError(
+                "LetterPermutation generator $i uses settings outside this problem's registry; rebuild it from this problem's variables."))
+        end
     end
     return s
 end

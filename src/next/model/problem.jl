@@ -167,6 +167,7 @@ function _localize!(program::MomentProgram{C},table,c::OperatorConstraint,order,
     return n
 end
 
+"Flat program counts on result.sizes; result.sizes.closure is nothing on the plain route."
 struct ProgramSizes
     rows::Int
     moments::Int
@@ -175,6 +176,8 @@ struct ProgramSizes
     largest_block::Int
     localizing_rows::Vector{Int}
 end
+Base.getproperty(s::ProgramSizes,name::Symbol) = name===:closure ? nothing : getfield(s,name)
+Base.propertynames(::ProgramSizes,private::Bool=false) = (fieldnames(ProgramSizes)...,:closure)
 Base.:(==)(a::ProgramSizes,b::ProgramSizes) = all(getfield(a,k)==getfield(b,k) for k in fieldnames(ProgramSizes))
 function Base.show(io::IO,s::ProgramSizes)
     print(io,s.rows," rows, ",s.moments," moments, ",s.real_variables,

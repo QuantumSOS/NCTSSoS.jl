@@ -145,7 +145,8 @@ function build(problem::Problem,description::BlockRelaxation)
     continuous=nothing
     if !isempty(description.symmetry.continuous)
         program,table,continuous=_continuous_program(program,table,description.symmetry.continuous)
-        program,block_report=_continuous_blocks(program;family_blocks=family_block_count)
+        program,block_report=_continuous_blocks(program;family_blocks=family_block_count,
+            diagonal=continuous.method==:diagonal)
         continuous=merge(continuous,(blocks=block_report,))
         if !isnothing(extra)
             first_extra=1+sum(length(r.outputs) for r in block_report.blocks if r.input<=family_block_count)

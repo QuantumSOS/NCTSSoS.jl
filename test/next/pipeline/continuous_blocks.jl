@@ -76,6 +76,12 @@ end
         @test reduced.forms.ids==accidental.forms.ids
         check_split_spectra(accidental,reduced,report)
     end
+    nested=coefficient_program([cat(A,zeros(ComplexF64,1,1);dims=(1,2))
+        for A in (a,-sin(sqrt(2.0))/sin(2sqrt(2.0))*a)])
+    reduced,report=Nx._continuous_blocks(nested;family_blocks=0)
+    @test only(report.blocks).sides==[2,1]
+    @test report.reconstruction_error>1e-9 # The failed component proposal was retained.
+    check_split_spectra(nested,reduced,report)
 
     original=coefficient_program(matrices)
     reduced,report=Nx._continuous_blocks(original)
@@ -165,6 +171,32 @@ end
     @test built.sizes.closure.closed_blocks==plain.sizes.closure.closed_blocks
     @test all(b->b.kind==Nx.PSD,built.program.blocks)
     check_split_spectra(original,built.program,built.sizes.closure.continuous.blocks)
+    @test continuous_bound(original)≈continuous_bound(built.program) atol=1e-6
+end
+
+@testset "Non-diagonal strengthening refines exact components" begin
+    n=6
+    registry,(x,y,z)=Nx.pauli_variables(n)
+    H=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
+    translation=Nx.SitePermutation([2:n;1])
+    ds=Nx.spin_rotations(registry)
+    description=Nx.Relaxation(order=1,strengthen=(Nx.DensityMatrix(1:3),Nx.InvariantCone(1:3,"YYY")))
+    plain=Nx.build(Nx.Problem(H;symmetry=(translation,)),description)
+    original,_,_=Nx._continuous_program(plain.program,plain.table,ds)
+    family_blocks=plain.sizes.closure.strengthening.first_block-1
+    # A side-one cap prevents any nontrivial spectral split in this control.
+    exact,exact_report=Nx._continuous_blocks(original;family_blocks,diagonal=true,max_side=1)
+    built=Nx.build(Nx.Problem(H;symmetry=Nx.Symmetry(translation;continuous=ds)),description)
+    report=built.sizes.closure.continuous.blocks
+    @test built.sizes.closure.continuous.method==:exact_elimination
+    @test any(r.input>family_blocks && maximum(r.sides)<maximum(s.sides)
+        for (r,s) in zip(report.blocks,exact_report.blocks))
+    for (r,s) in zip(report.blocks,exact_report.blocks)
+        r.input>family_blocks || continue
+        @info "Strengthening cone sides" label=original.blocks[r.input].label unsplit=r.before exact=string(s.sides) spectral=string(r.sides)
+    end
+    check_split_spectra(original,exact,exact_report)
+    check_split_spectra(original,built.program,report)
     @test continuous_bound(original)≈continuous_bound(built.program) atol=1e-6
 end
 

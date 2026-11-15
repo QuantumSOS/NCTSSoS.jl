@@ -128,15 +128,17 @@ Split family and strengthening PSD/HPSD blocks after exact continuous moment
 elimination. Strengthening cones first use an exact sparse coefficient-support
 partition: copying principal submatrices and checking zero cross-component
 coefficients certifies it without dense storage. Otherwise use spectral discovery.
+For non-diagonal derivations, also run spectral discovery inside each exact
+component, with the same caps and certificate; failure keeps that component.
 Dense storage is bounded
 by both side and 16*K*n² bytes for the complex coefficient matrices; discovery
 and certification also need working matrices. Every unsuccessful proposal keeps
-the original block. No numerical discovery runs after a successful exact partition.
+the original block. Diagonal derivations need no discovery after an exact partition.
 Family blocks retain their existing discovery and resource-cap behavior.
 Tolerances use maximum-entry norms: absolute for
 U'U-I and relative to max(1, maxabs(A_k)) for coefficient reconstruction.
 """
-function _continuous_blocks(program;family_blocks=length(program.blocks),max_side=256,
+function _continuous_blocks(program;family_blocks=length(program.blocks),diagonal=false,max_side=256,
     max_bytes=128*1024^2,atol=1e-9)
     out=MomentProgram{ComplexF64}(program.nvars)
     append!(out.objective_ids,program.objective_ids)
@@ -153,8 +155,20 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),max_sid
         if block.kind in (PSD,HPSD) && input>family_blocks
             components=_coefficient_components(program,block)
             if length(components)>1
-                _copy_components!(out,program,block,components)
-                multiplicities=ones(Int,length(components))
+                if diagonal
+                    _copy_components!(out,program,block,components)
+                    multiplicities=ones(Int,length(components))
+                else
+                    pieces=MomentProgram{ComplexF64}(program.nvars)
+                    _copy_components!(pieces,program,block,components)
+                    reduced,report=_continuous_blocks(pieces;max_side,max_bytes,atol)
+                    for piece in reduced.blocks
+                        _copy_cone!(out,reduced,piece)
+                    end
+                    multiplicities=reduce(vcat,(r.multiplicities for r in report.blocks))
+                    reconstruction=report.reconstruction_error
+                    orthogonality=report.orthogonality_error
+                end
                 reason=:support_split
             end
         end

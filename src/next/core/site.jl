@@ -74,6 +74,17 @@ end
 Base.length(s::WordSites) = count(_ -> true, s)
 sites(w::SiteWord) = WordSites(w)
 
+struct WordLetters{W<:SiteWord}
+    word::W
+end
+Base.eltype(::Type{WordLetters{W}}) where {W} = W
+Base.length(letters::WordLetters) = degree(letters.word)
+function Base.iterate(letters::WordLetters{W}, i::Int=1) where {W}
+    i > degree(letters.word) && return nothing
+    W(_letter(letters.word,i),Val(:normal)),i+1
+end
+word_letters(w::SiteWord) = WordLetters(w)
+
 function site_letter(::Type{W}, site::Integer, label::Integer) where {A,U,B,S,W<:SiteWord{A,U,B,S}}
     1 <= site <= (one(U) << S) - 1 || throw(ArgumentError("Site does not fit $S bits."))
     1 <= label <= (one(U) << (B - S)) - 1 || throw(ArgumentError("Operator label does not fit $(B-S) bits."))

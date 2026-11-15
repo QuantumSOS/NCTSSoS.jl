@@ -80,6 +80,16 @@ ascending order and without repeats. It must not allocate.
 """
 function sites end
 
+"""
+    word_letters(w::AbstractWord)
+
+An iterator of the letters of `w` as words of degree one with the type of `w`,
+in the order of the normal form. A letter that occurs more than once is returned
+each time. The ordered product of the letters is `w` with phase one. `length`
+is `degree(w)`. It must not allocate.
+"""
+function word_letters end
+
 # -----------------------------------------------------------------------------
 # Adjoint and product
 # -----------------------------------------------------------------------------

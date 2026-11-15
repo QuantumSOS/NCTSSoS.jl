@@ -30,6 +30,22 @@ function inspection_allocations(words)
     return @allocated inspect_into!(out,words)
 end
 
+function inspect_letters_into!(out,words)
+    for (i,w) in enumerate(words)
+        h=UInt(length(Nx.word_letters(w)))
+        for letter in Nx.word_letters(w)
+            h=hash(letter,h)
+        end
+        out[i]=h
+    end
+    out
+end
+function letter_allocations(words)
+    out=zeros(UInt,length(words))
+    inspect_letters_into!(out,words)
+    @allocated inspect_letters_into!(out,words)
+end
+
 function compare_words(A, T, words)
     # Write all results to caller storage so the compiler cannot discard inspection.
     @test inspection_allocations(words) == 0
@@ -90,6 +106,28 @@ end
         end
         check_word_contract(W,words; C=Float64)
         compare_words(A,UInt32,words)
+        @test letter_allocations(words)==0
+        for w in words
+            letters=collect(Nx.word_letters(w))
+            @test length(letters)==Nx.degree(w)
+            @test all(v->v isa W && Nx.degree(v)==1,letters)
+            folded=foldl(letters;init=(one(Nx.Phase),one(W))) do (p,u),v
+                q,next=Nx.mul(u,v)
+                (p*q,next)
+            end
+            @test folded==(one(Nx.Phase),w)
+        end
+        algebra=Nx.SiteAlgebra(rule,3)
+        atoms=filter(!isone,Nx.basis_rows(W,algebra,1:3,1))
+        for letters in (W[],atoms,atoms[[7,2,4,1]],atoms[[1,4,7]]),order in 0:4
+            group=sort!(unique(only(Nx.sites(v)) for v in letters))
+            reference=filter(w->all(in(letters),Nx.word_letters(w)),Nx.basis_rows(W,algebra,group,order))
+            @test Nx.basis_rows(W,algebra,letters,order)==reference
+        end
+        @test_throws r"remove duplicates" Nx.basis_rows(W,algebra,[atoms[1],atoms[1]],2)
+        @test_throws r"individual letters" Nx.basis_rows(W,algebra,[one(W)],2)
+        @test_throws r"individual letters" Nx.basis_rows(W,algebra,[Nx.mul(atoms[1],atoms[2])[2]],2)
+        @test_throws r"order >= 0" Nx.basis_rows(W,algebra,atoms,-1)
         # Adjacent cancellation can expose another matching pair.
         a,b = Nx.site_letter(W,1,1),Nx.site_letter(W,1,2)
         ab,ba = Nx.mul(a,b)[2],Nx.mul(b,a)[2]

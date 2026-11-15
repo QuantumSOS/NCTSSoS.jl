@@ -203,6 +203,28 @@ function _extend_rows!(rows::Vector{W},a::SiteAlgebra{A},group,w::W,start,remain
     return rows
 end
 
+"All normal-form rows on the specified distinct degree-one site-word letters."
+function basis_rows(::Type{W},algebra::SiteAlgebra{A},letters::AbstractVector{W},order::Integer) where {A,W<:SiteWord{A}}
+    order >= 0 || throw(ArgumentError("Row order must be nonnegative; use order >= 0."))
+    all(w->degree(w)==1,letters) && allunique(letters) || throw(ArgumentError(
+        "Row letters must be distinct words of degree one; remove duplicates and supply individual letters."))
+    rows=W[one(W)]
+    _extend_letter_rows!(rows,algebra,letters,one(W),1,Int(order))
+    sort!(rows)
+end
+function _extend_letter_rows!(rows::Vector{W},algebra::SiteAlgebra{A},letters,w::W,start,remaining) where {A,W<:SiteWord{A}}
+    remaining==0 && return rows
+    for v in letters
+        site=only(sites(v))
+        site < start && continue
+        A !== Free && !isone(w) && _letter(w,degree(w))==v.bits && continue
+        next=mul(w,v)[2]
+        push!(rows,next)
+        _extend_letter_rows!(rows,algebra,letters,next,site,remaining-1)
+    end
+    rows
+end
+
 "Plain moment relaxation from rows and (coefficient,word) objective terms."
 function plain_program(rows::Vector{W},objective; C::Type{<:Number}=ComplexF64,capacity::Integer=length(rows), word_string=string) where {W<:AbstractWord}
     !isempty(rows) && allunique(rows) || throw(ArgumentError("Rows must be nonempty and distinct."))

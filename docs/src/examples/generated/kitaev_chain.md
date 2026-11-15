@@ -204,7 +204,7 @@ registry₁, (a₁, a₁_dag) = fermionic_variables(1:N₁)
 ````
 
 ````
-(NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}(NCTSSoS.Next.Fermionic(), 4, Dict(:a2 => (2, 1), :a3 => (3, 1), :ad2 => (2, -1), :a4 => (4, 1), :ad3 => (3, -1), :ad1 => (1, -1), :a1 => (1, 1), :ad4 => (4, -1))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[a1, a2, a3, a4], NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[ad1, ad2, ad3, ad4]))
+(Registry(Fermionic, 4 sites, 8 variables), ([a1, a2, a3, a4], [ad1, ad2, ad3, ad4]))
 ````
 
 Build the Hamiltonian term by term.  With $\mu = 0$ and $t = \Delta = 1$:

@@ -129,8 +129,9 @@ or an optimizer.
 and `largest_block`. `moments` includes the identity; `real_variables` counts
 free real coordinates. `sizes.closure` is `nothing` on the plain dense route
 and reports family closure on the block route. To see individual cone sides,
-inspect `[block.side for block in built.program.blocks]`. The generic closure
-report does not provide the finite group order.
+use `Next.block_sides(built)`. It returns the final PSD/HPSD sides, with
+Hermitian sides before realification. The generic closure report does not
+provide the finite group order.
 
 ## [Current limitations and fail-fast behavior](@id sab-limits)
 
@@ -166,7 +167,7 @@ solver = JuMPBackend(COSMO.Optimizer)
 built = Next.build(problem, relaxation)
 result = solve(built; solver)
 @assert abs(result.bound + 2sqrt(2)) < 1e-6
-@assert [block.side for block in built.program.blocks] == [1, 1, 1]
+@assert Next.block_sides(built) == [1, 1, 1]
 @assert result.sizes.real_variables == 1
 ```
 

@@ -398,7 +398,7 @@ registry₁, (a₁, a₁_dag) = fermionic_variables(1:N₁)
 ````
 
 ````
-(NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}(NCTSSoS.Next.Fermionic(), 4, Dict(:a2 => (2, 1), :a3 => (3, 1), :ad2 => (2, -1), :a4 => (4, 1), :ad3 => (3, -1), :ad1 => (1, -1), :a1 => (1, 1), :ad4 => (4, -1))), (NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[a1, a2, a3, a4], NCTSSoS.Next.Polynomial{NCTSSoS.Next.FermiWord{1}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.Fermionic}}[ad1, ad2, ad3, ad4]))
+(Registry(Fermionic, 4 sites, 8 variables), ([a1, a2, a3, a4], [ad1, ad2, ad3, ad4]))
 ````
 
 ### Step 2 — Build the even-parity Hamiltonian
@@ -432,7 +432,7 @@ parity₁ = prod(one(ham₁) - 2.0 * a₁_dag[i] * a₁[i] for i in 1:N₁)
 ````
 
 ````
-1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4
+1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + … (16 terms)
 ````
 
 ### Step 4 — Solve the SDP relaxation
@@ -452,9 +452,9 @@ result₁ = solve(problem₁, relaxation₁; solver=SOLVER)
 ````
 Bound: -1.4142135808363274 (numerical_optimum_not_certificate); status: OPTIMAL
 Problem: minimize (-0.5) ad1 a2 + (0.5) ad1 a4 + (-0.5) ad2 a1 + (-0.5) ad2 a3 + (-0.5) ad3 a2 + (-0.5) ad3 a4 + (0.5) ad4 a1 + (-0.5) ad4 a3; 0 operator constraints
-Relaxation(order=4, split=TermSplit(algorithm=MMD()), strengthen=(Sector(1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4, 1),))
-Sizes: 342 rows, 42 moments, 67 real variables, 96 blocks (largest 11); localizing rows: Int64[]; family 95 → 95 blocks, 95 orbits; block generators: Any[]; moment-only: Union{}[]; 0 unused coordinates; strengthening: 0 blocks, 39 equalities; Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4) = 1
-Valid for: Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + (4.0) ad4 ad1 a1 a4 + (4.0) ad4 ad2 a2 a4 + (4.0) ad4 ad3 a3 a4 + (-8.0) ad3 ad2 ad1 a1 a2 a3 + (-8.0) ad4 ad2 ad1 a1 a2 a4 + (-8.0) ad4 ad3 ad1 a1 a3 a4 + (-8.0) ad4 ad3 ad2 a2 a3 a4 + (16.0) ad4 ad3 ad2 ad1 a1 a2 a3 a4) = 1
+Relaxation(order=4, split=TermSplit(algorithm=MMD()), strengthen=(Sector(1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + … (16 terms), 1),))
+Sizes: 342 rows, 42 moments, 67 real variables, 96 blocks (largest 11); localizing rows: Int64[]; family 95 → 95 blocks, 95 orbits; block generators: Any[]; moment-only: []; 0 unused coordinates; strengthening: 0 blocks, 39 equalities; Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + … (16 terms)) = 1
+Valid for: Normalized states; no additional state conditions; Sector: valid for states supported on the eigenspace (1.0 + (-2.0) ad1 a1 + (-2.0) ad2 a2 + (-2.0) ad3 a3 + (-2.0) ad4 a4 + (4.0) ad2 ad1 a1 a2 + (4.0) ad3 ad1 a1 a3 + (4.0) ad3 ad2 a2 a3 + … (16 terms)) = 1
 ````
 
 ### Step 5 — Verify against the exact answer

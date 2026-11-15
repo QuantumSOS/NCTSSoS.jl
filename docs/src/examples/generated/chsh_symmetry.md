@@ -86,10 +86,11 @@ abs(dense_bound - 2 * sqrt(2))
 1.8451373762218282e-10
 ````
 
-Inspect the block sides of this program:
+Inspect the final PSD/HPSD block sides. Hermitian sides are reported
+before realification:
 
 ````julia
-[block.side for block in dense.program.blocks]
+Next.block_sides(dense)
 ````
 
 ````
@@ -235,7 +236,7 @@ Only one nontrivial invariant moment remains, plus the identity:
 The one dense block is replaced by three independent scalar PSD blocks:
 
 ````julia
-[block.side for block in reduced.program.blocks]
+Next.block_sides(reduced)
 ````
 
 ````
@@ -254,8 +255,8 @@ sym_result
 ````
 Bound: -2.8284271101248066 (numerical_optimum_not_certificate); status: OPTIMAL
 Problem: minimize (-1.0) s1_1 s2_1 + (-1.0) s1_2 s2_1 + (-1.0) s1_1 s2_2 + s1_2 s2_2; 0 operator constraints; Symmetry: 3 block generators, 0 moment-only generators, 0 continuous generators; LetterPermutation(s1_1 => s1_2, s1_2 => s1_1, s2_2 => -s2_2); LetterPermutation(s1_2 => -s1_2, s2_1 => s2_2, s2_2 => s2_1); LetterPermutation(s1_1 => s2_1, s1_2 => s2_2, s2_1 => s1_1, s2_2 => s1_2)
-Relaxation(rows=NCTSSoS.Next.Polynomial{NCTSSoS.Next.SiteWord{NCTSSoS.Next.Unipotent, UInt128, 4, 2}, ComplexF64, NCTSSoS.Next.Registry{NCTSSoS.Next.SiteAlgebra{NCTSSoS.Next.Unipotent}}}[1.0, s1_1, s1_2, s2_1, s2_2])
-Sizes: 5 rows, 2 moments, 1 real variables, 3 blocks (largest 1); localizing rows: Int64[]; family 1 → 1 blocks, 1 orbits; block generators: [:LetterPermutation, :LetterPermutation, :LetterPermutation]; moment-only: Union{}[]; 0 unused coordinates
+Relaxation(rows=[1.0, s1_1, s1_2, s2_1, s2_2])
+Sizes: 5 rows, 2 moments, 1 real variables, 3 blocks (largest 1); localizing rows: Int64[]; family 1 → 1 blocks, 1 orbits; block generators: [:LetterPermutation, :LetterPermutation, :LetterPermutation]; moment-only: []; 0 unused coordinates
 Valid for: Normalized states; no additional state conditions
 ````
 

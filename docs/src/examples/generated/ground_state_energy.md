@@ -45,7 +45,7 @@ ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σ
 ````
 
 ````
-(0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + (0.25) X2 X3 + (0.25) Y2 Y3 + (0.25) X3 X4 + (0.25) Y3 Y4 + (0.25) X4 X5 + (0.25) Y4 Y5 + (0.25) X1 X6 + (0.25) Y1 Y6 + (0.25) X5 X6 + (0.25) Y5 Y6
+(0.25) Z1 Z2 + (0.25) Z2 Z3 + (0.25) Z3 Z4 + (0.25) Z4 Z5 + (0.25) Z1 Z6 + (0.25) Z5 Z6 + (0.25) X1 X2 + (0.25) Y1 Y2 + … (18 terms)
 ````
 
 No need to manually specify constraints - they're encoded in the algebra type!

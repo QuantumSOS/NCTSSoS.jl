@@ -7,6 +7,7 @@ include("simplify.jl")
 include("monomials.jl")
 include("basis.jl")
 include("composed_monomial.jl")
+include("arithmetic.jl")
 
 function check()
     @testset "Public polynomial oracles" begin
@@ -16,6 +17,7 @@ function check()
         monomial_powers()
         basis_contracts()
         mixed_contracts()
+        arithmetic_contracts()
     end
 end
 end

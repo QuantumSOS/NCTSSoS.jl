@@ -31,6 +31,22 @@ julia --project -e 'using Pkg; Pkg.test()'
 
 The curated `Pkg.test()` / CI suite uses COSMO (open-source).
 
+The Next functional tests keep the S6 survey witness and program sizes in the
+routine runner. Its bound check requires Mosek: COSMO reaches its iteration
+limit with the original case settings. S7 still solves with COSMO. After
+checking the Mosek licence with a trivial solve, run the licensed check in an
+environment with the test dependencies installed:
+
+```julia
+using Mosek, NCTSSoS.Next
+include("test/next/trace_poly/runtests.jl")
+PublicFunctionalChecks.check(;sos_solver=MosekBackend(form=:sos))
+```
+
+This uses the same explicit `sos_solver=nothing` skip convention as the Next
+problem pilot. It does not run the failed COSMO S6 solve or assert its raw
+objective as a bound.
+
 ## Standalone Local-Only Benchmark Scripts
 
 Some heavier literature reproductions live under `test/problems/` but are not

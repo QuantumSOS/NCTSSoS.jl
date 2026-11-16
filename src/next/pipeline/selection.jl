@@ -1,5 +1,4 @@
 import Graphs
-import ..NCTSSoS: clique_decomp, MF, MaximalElimination
 
 "Correlative graph on Pauli sites, fermionic modes, or individual site-word letters; constraints form cliques."
 struct Correlative{A}

@@ -118,3 +118,6 @@ function SymplecticTableau(poly::Polynomial{PauliAlgebra,T,C}) where {T<:Integer
 
     return SymplecticTableau{T,C}(coeffs, paulis, eta, monos, nqubits)
 end
+
+sympleq_generators(H::Polynomial{PauliAlgebra}; kwargs...) =
+    sympleq_generators(SymplecticTableau(H); kwargs...)

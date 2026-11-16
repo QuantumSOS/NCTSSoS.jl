@@ -50,8 +50,7 @@ using SparseArrays, LinearAlgebra, JuMP
 using CliqueTrees, ChordalGraph, Graphs
 import Clarabel
 import PermutationGroups
-using CliqueTrees: EliminationAlgorithm, SupernodeType
-import CliqueTrees.cliquetree
+using CliqueTrees: EliminationAlgorithm
 import JuMP: simplify    # extend JuMP.simplify to avoid export collision
 
 # ============================================================================
@@ -123,7 +122,9 @@ include("util/helpers.jl")
 
 include("optimization/particle_number.jl")
 include("optimization/problem.jl")
-include("optimization/elimination.jl")
+include("next/Next.jl")
+using .Next: NoElimination, AsIsElimination, MaximalElimination, NaturalElimination
+import .Next: clique_decomp
 include("optimization/sparsity.jl")
 include("optimization/moment_linear.jl")
 include("optimization/v2rdm_structured.jl")
@@ -149,12 +150,6 @@ include("optimization/gns.jl")
 include("optimization/flat_extension.jl")
 include("optimization/gns_cholesky.jl")
 include("optimization/gns_diagnostics.jl")
-
-# ============================================================================
-# Redesign work area. The code above does not use it. See src/next/Next.jl.
-# ============================================================================
-
-include("next/Next.jl")
 
 # ============================================================================
 # Exports - User-Facing API Only

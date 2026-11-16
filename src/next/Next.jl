@@ -25,7 +25,14 @@ module Next
 
 using JuMP: JuMP, @constraint, @objective, @variable
 import LinearAlgebra
-import ..NCTSSoS: MMD, NoElimination, AsIsElimination, NaturalElimination
+using CliqueTrees: MMD, MF, BFS, EliminationAlgorithm, SupernodeType
+import CliqueTrees: cliquetree
+using ChordalGraph: CheckChordal, add_clique!
+using Graphs: AbstractGraph, SimpleGraph, complete_graph, nv, ne, vertices,
+    neighbors, connected_components, maximal_cliques, add_edge!
+import PermutationGroups
+
+include("pipeline/elimination.jl")
 
 include("contracts/words.jl")
 include("contracts/conic.jl")
@@ -33,6 +40,13 @@ include("core/core.jl")
 include("conic/conic.jl")
 include("model/model.jl")
 include("pipeline/pipeline.jl")
+include("sympleq/tableau.jl")
+include("sympleq/graph.jl")
+include("sympleq/cycles.jl")
+include("sympleq/automorphism.jl")
+include("sympleq/symplectic.jl")
+include("sympleq/phase.jl")
+include("sympleq/bridge.jl")
 include("model/detection.jl")
 include("model/front.jl")
 include("model/gns.jl")

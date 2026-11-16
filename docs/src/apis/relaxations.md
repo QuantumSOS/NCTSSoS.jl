@@ -3,28 +3,28 @@
 The staged path separates formulation, backend preparation and optimization:
 
 ```julia
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 
 _, (_, _, z) = pauli_variables(1)
 problem = Problem(z[1])
 relaxation = Relaxation(order=1)
 solver = MosekBackend(form=:auto)
-built = Next.build(problem, relaxation)
-prepared = Next.prepare(built; solver)
-Next.task_sizes(prepared)
+built = NCTSSoS.build(problem, relaxation)
+prepared = NCTSSoS.prepare(built; solver)
+NCTSSoS.task_sizes(prepared)
 result = solve(built; solver)
 @assert isapprox(result.bound, -1; atol=1e-6)
 ```
 
-`Next.build` does not solve. `Next.prepare` prepares and caches the backend
+`NCTSSoS.build` does not solve. `NCTSSoS.prepare` prepares and caches the backend
 task. `solve(built; solver)` uses that prepared task. See
 [Reading a result](@ref next-result) for result fields.
 
 ```@docs
-NCTSSoS.Next.build
-NCTSSoS.Next.BuiltRelaxation
-NCTSSoS.Next.prepare
+NCTSSoS.build
+NCTSSoS.BuiltRelaxation
+NCTSSoS.prepare
 ```
 
 ## Backends and forms
@@ -37,19 +37,19 @@ moment-form writer. `JuMPBackend` accepts an optimizer factory or an
 form and has no `form` option.
 
 ```@docs
-NCTSSoS.Next.MosekBackend
-NCTSSoS.Next.SCSBackend
-NCTSSoS.Next.JuMPBackend
+NCTSSoS.MosekBackend
+NCTSSoS.SCSBackend
+NCTSSoS.JuMPBackend
 ```
 
 ## Native task sizes and diagnostics
 
-`Next.task_sizes` reports the native Mosek task before presolve. It includes
+`NCTSSoS.task_sizes` reports the native Mosek task before presolve. It includes
 Hermitian realification, unlike the polynomial-row and cone-side counts on
 the built relaxation.
 
 ```@docs
-NCTSSoS.Next.task_sizes
+NCTSSoS.task_sizes
 ```
 
-See [`solve`](@ref NCTSSoS.Next.solve) for the result fields, program sizes and backend diagnostics.
+See [`solve`](@ref NCTSSoS.solve) for the result fields, program sizes and backend diagnostics.

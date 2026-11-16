@@ -162,7 +162,7 @@ end
 #     These examples use [Mosek](https://www.mosek.com/) through `MosekBackend`.
 #     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 
 SOLVER = MosekBackend()
 

@@ -2,7 +2,7 @@
 # Requires MosekTools and a working license. Construction and package loading
 # are outside the timer; the first build includes JIT. No solves are timed.
 using NCTSSoS, JuMP, MosekTools, LinearAlgebra, Statistics
-const Nx=NCTSSoS.Next
+const Nx=NCTSSoS
 
 function strengthening_measurement(name)
     name in ("density","soc","stationarity","optimality") || error("Choose density, soc, stationarity or optimality.")

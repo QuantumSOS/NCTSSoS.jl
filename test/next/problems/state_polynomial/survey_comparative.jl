@@ -20,17 +20,17 @@ end
 function survey_comparative(solver,sos_solver)
     data = TOML.parsefile(joinpath(@__DIR__,"../../../data/expectations/state_survey_comparative.toml"))
     @testset "Survey dense state and trace bounds" begin
-        for (functional,symbol,id) in ((Next.RealState(),state_symbol,"S6_state_dense_order3"),
-                (Next.RealTrace(),trace_symbol,"S7_trace_dense_order3"))
+        for (functional,symbol,id) in ((NCTSSoS.RealState(),state_symbol,"S6_state_dense_order3"),
+                (NCTSSoS.RealTrace(),trace_symbol,"S7_trace_dense_order3"))
             _,(p,) = site_variables(Projector(),1,2;functional)
             x,y = p
             @test x*y != y*x
             h = 0.5symbol(x*y*x*y)+0.5symbol(y*x*y*x)-symbol(x*y*x)*symbol(y)
             oracle = only(filter(c->c["id"]==id,data["cases"]))["expected"]
-            built = Next.build(Problem(h),Relaxation(order=3))
-            @test Next.block_sides(built) == oracle["sides"]
+            built = NCTSSoS.build(Problem(h),Relaxation(order=3))
+            @test NCTSSoS.block_sides(built) == oracle["sides"]
             @test built.sizes.moments == oracle["nuniq"]
-            if functional isa Next.RealState
+            if functional isa NCTSSoS.RealState
                 # COSMO reaches its iteration limit with the old S6 options.
                 # A raw objective is not a bound. Keep the witness and build
                 # checks in CI; run the bound only with the licensed backend.

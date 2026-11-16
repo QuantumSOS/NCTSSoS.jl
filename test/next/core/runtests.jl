@@ -1,4 +1,4 @@
-# Tests of the core layer of NCTSSoS.Next. Include the test files of this layer here.
+# Tests of the core layer of NCTSSoS. Include the test files of this layer here.
 using Test, Random, NCTSSoS
 isdefined(@__MODULE__, :check_word_contract) || include("../contract_checks.jl")
 isdefined(@__MODULE__, :dense_program) || include("../reference.jl")

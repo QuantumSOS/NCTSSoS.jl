@@ -1,6 +1,6 @@
 module MixedModelChecks
 using Test, NCTSSoS, LinearAlgebra
-import NCTSSoS: Next as N
+import NCTSSoS as N
 
 function check(solver)
     @testset "Mixed modeling and joint moments" begin

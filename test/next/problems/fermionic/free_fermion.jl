@@ -12,12 +12,12 @@ function free_fermion(solver)
                 end
                 _, (a, ad) = fermionic_variables(n)
                 H = -sum(ad[i]*a[i+1]+ad[i+1]*a[i] for i in 1:n-1)
-                built = Next.build(Problem(H), Relaxation(order=order))
+                built = NCTSSoS.build(Problem(H), Relaxation(order=order))
                 result = solve(built; solver)
                 @test result.bound ≈ exact atol=1e-6
                 @test result.bound ≈ fixture("free_fermion", id)["objective"] atol=1e-6
                 structure = fixture("next_problem_pilot", "free_fermion/$id")
-                @test sort(Next.block_sides(built)) == structure["sides"]
+                @test sort(NCTSSoS.block_sides(built)) == structure["sides"]
                 @test result.sizes.moments == structure["moments"]
             end
         end

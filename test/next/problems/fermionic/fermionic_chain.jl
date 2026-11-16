@@ -8,7 +8,7 @@ function xx_field(solver)
         exact = eigmin(Hermitian(matrix))
         _,(x,_,z) = pauli_variables(n)
         h = -sum(x[i]*x[i+1] for i in 1:n-1)-sum(z)
-        built = Next.build(Problem(h),Relaxation(order=1))
+        built = NCTSSoS.build(Problem(h),Relaxation(order=1))
         result = solve(built;solver)
         oracle = fixture("next_manybody","xx_field_n4_order1")
         # The old -7 is the trivial coefficient bound, not the new program's
@@ -16,7 +16,7 @@ function xx_field(solver)
         @test result.bound <= exact+1e-6
         @test result.bound >= -7-1e-6
         @test result.bound ≈ oracle["objective"] atol=1e-6
-        @test Next.block_sides(built) == oracle["sides"]
+        @test NCTSSoS.block_sides(built) == oracle["sides"]
         @test result.sizes.moments == oracle["moments"]
     end
 end
@@ -39,12 +39,12 @@ function kitaev_chain(solver)
                 (0,0.5,"asymmetric_pairing_delta0p5_n4_order1"),(0,0,"pure_hopping_n4_order1"))
             oracle = fixture("kitaev_chain",id)
             exact = eigmin(Hermitian(energy(matrices,adjoint.(matrices),mu,delta)))
-            built = Next.build(Problem(energy(a,ad,mu,delta)),Relaxation(order=1))
+            built = NCTSSoS.build(Problem(energy(a,ad,mu,delta)),Relaxation(order=1))
             result = solve(built;solver)
             @test result.bound ≈ exact atol=1e-6
             @test result.bound ≈ oracle["objective"] atol=1e-6
             structure = fixture("next_manybody","fermionic_n4_order1")
-            @test Next.block_sides(built) == structure["sides"]
+            @test NCTSSoS.block_sides(built) == structure["sides"]
             @test built.sizes.moments == structure["moments"]
         end
         # Independently retain the Majorana-to-Pauli sweet-spot identity.
@@ -56,11 +56,11 @@ function kitaev_chain(solver)
         @test isapprox(majorana,sum(xs[i]*xs[i+1] for i in 1:3);atol=1e-12,rtol=0)
         @test eigmin(Hermitian(majorana)) ≈ -3 atol=1e-12
         _,(x,_,_) = pauli_variables(4)
-        built = Next.build(Problem(sum(x[i]*x[i+1] for i in 1:3)),Relaxation(order=1))
+        built = NCTSSoS.build(Problem(sum(x[i]*x[i+1] for i in 1:3)),Relaxation(order=1))
         result = solve(built;solver)
         @test result.bound ≈ fixture("fermionic_chain","kitaev_majorana_n4_order1")["objective"] atol=1e-6
         structure = fixture("next_manybody","majorana_pauli_n4_order1")
-        @test Next.block_sides(built) == structure["sides"]
+        @test NCTSSoS.block_sides(built) == structure["sides"]
         @test built.sizes.moments == structure["moments"]
     end
 end

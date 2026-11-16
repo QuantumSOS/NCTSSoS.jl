@@ -1,17 +1,17 @@
 module PipelineLegacyChecks
 using Test, LinearAlgebra, TOML
-using NCTSSoS.Next
+using NCTSSoS
 import JuMP, COSMO
 
-word(p)=last(only(Next.terms(p)))
+word(p)=last(only(NCTSSoS.terms(p)))
 backends(solver,sos_solver)=isnothing(sos_solver) ? (solver,) : (solver,sos_solver)
 
 function sizes(id,built)
     data=TOML.parsefile(joinpath(@__DIR__,"../../data/expectations/next_pipeline_relaxations.toml"))
     expected=only(filter(c->c["id"]==id,data["cases"]))["expected"]
-    @test sum(length,Next.block_rows(built))==expected["rows"]
+    @test sum(length,NCTSSoS.block_rows(built))==expected["rows"]
     @test built.program.nvars==expected["real_variables"]
-    @test sort(Next.block_sides(built))==expected["sides"]
+    @test sort(NCTSSoS.block_sides(built))==expected["sides"]
 end
 
 function antiunitary(solver,sos_solver)
@@ -20,7 +20,7 @@ function antiunitary(solver,sos_solver)
         h=x[1]+2z[1]+y[1]*y[2]
         rows=[one(h),x[1],y[1],z[1],y[2]]
         conjugation=AntiunitaryPauli(word(one(h)))
-        built=Next.build(Problem(h;symmetry=(conjugation,)),Relaxation(rows=rows))
+        built=NCTSSoS.build(Problem(h;symmetry=(conjugation,)),Relaxation(rows=rows))
         sizes("antiunitary_custom",built)
         for backend in backends(solver,sos_solver)
             plain=solve(Problem(h),Relaxation(rows=rows);solver=backend)
@@ -84,7 +84,7 @@ function interface(solver,sos_solver)
         for backend in backends(solver,sos_solver)
             result=solve(Problem((x[1]+y[1]+z[1])/2),Relaxation(order=1);solver=backend)
             @test result.bound ≈ -sqrt(3)/2 atol=1e-6
-            # Next requires the two Hermitian parts explicitly.
+            # NCTSSoS requires the two Hermitian parts explicitly.
             result=solve(Problem(x[1];constraints=(Zero(x[1]),Zero(y[1]))),Relaxation(order=1);solver=backend)
             @test result.bound ≈ 0 atol=1e-6
             _,(a,)=site_variables(Free(),1,2)
@@ -137,7 +137,7 @@ function finite(solver,sos_solver)
     end
     @testset "Signed localizers and the site-algebra sector limit" begin
         _,(x,)=site_variables(Unipotent(),1,3)
-        @test_throws ArgumentError Next.build(Problem(x[1]),Relaxation(order=1,
+        @test_throws ArgumentError NCTSSoS.build(Problem(x[1]),Relaxation(order=1,
             grouping=Correlative(),strengthen=Sector(x[2],-1)))
         _,(x,)=site_variables(Free(),1,2)
         h=x[1]^4+x[2]^4-x[1]^2-2x[2]^2
@@ -156,14 +156,14 @@ function custom_rows(solver)
         r,(x,)=site_variables(Free(),1,2)
         h=x[1]^2+x[2]^2+1
         problems=Any[(r,Problem(h;constraints=(Positive(1-x[1]*x[2]-x[2]*x[1]),)),2)]
-        r,(x,)=site_variables(Unipotent(),1,3;functional=Next.RealState())
+        r,(x,)=site_variables(Unipotent(),1,3;functional=NCTSSoS.RealState())
         push!(problems,(r,Problem(state_symbol(x[1])*state_symbol(x[3])+state_symbol(x[2])),1))
-        r,(x,)=site_variables(Free(),1,2;functional=Next.RealTrace())
+        r,(x,)=site_variables(Free(),1,2;functional=NCTSSoS.RealTrace())
         push!(problems,(r,Problem(trace_symbol(x[1]^2+x[2]*x[1]^2*x[2]+1)),2))
         for (registry,problem,order) in problems
-            regular=Next.build(problem,Relaxation(;order))
-            custom=Next.build(problem,Relaxation(rows=collect(Next.basis(registry,order))))
-            @test Set.(Next.block_rows(custom))==Set.(Next.block_rows(regular))
+            regular=NCTSSoS.build(problem,Relaxation(;order))
+            custom=NCTSSoS.build(problem,Relaxation(rows=collect(NCTSSoS.basis(registry,order))))
+            @test Set.(NCTSSoS.block_rows(custom))==Set.(NCTSSoS.block_rows(regular))
             @test solve(custom;solver).bound ≈ solve(regular;solver).bound atol=1e-6
         end
     end
@@ -184,7 +184,7 @@ function bosonic_sector(solver)
         # Independent occupation matrix on |20>, |11>, |02>.
         expected=eigmin(Symmetric([1+s 0 s/2;0 2+s 0;s/2 0 3+3s/4]))
         for (name,split) in (("bosonic_sector",nothing),("bosonic_sector_split",TermSplit()))
-            built=Next.build(Problem(h),Relaxation(;rows,split,strengthen=Sector(number,2)))
+            built=NCTSSoS.build(Problem(h),Relaxation(;rows,split,strengthen=Sector(number,2)))
             sizes(name,built)
             result=solve(built;solver)
             @test result.bound ≈ expected atol=1e-6
@@ -196,14 +196,14 @@ function selected_rows(solver)
     @testset "Contiguous row selection and density controls" begin
         _,(x,y,z)=pauli_variables(4)
         for (degree,count) in ((0,1),(1,13),(2,49),(3,157),(4,238))
-            built=Next.build(Problem(zero(x[1])),Relaxation(order=degree,row_rule=Contiguous(periodic=true)))
-            rows=only(collect(Next.block_rows(built)))
+            built=NCTSSoS.build(Problem(zero(x[1])),Relaxation(order=degree,row_rule=Contiguous(periodic=true)))
+            rows=only(collect(NCTSSoS.block_rows(built)))
             @test length(rows)==count
             @test any(isone,rows)
-            @test all(w->Next.degree(w)<=degree,rows)
+            @test all(w->NCTSSoS.degree(w)<=degree,rows)
         end
-        built=Next.build(Problem(zero(x[1])),Relaxation(order=2,row_rule=Contiguous()))
-        @test length(only(collect(Next.block_rows(built))))==40
+        built=NCTSSoS.build(Problem(zero(x[1])),Relaxation(order=2,row_rule=Contiguous()))
+        @test length(only(collect(NCTSSoS.block_rows(built))))==40
         translation=SitePermutation([2,3,4,1])
         for h in (sum(x),sum(y),sum(x[i]*z[mod1(i+1,4)] for i in 1:4))
             plain=solve(Problem(h),Relaxation(order=1);solver)
@@ -283,23 +283,23 @@ function short_orbits()
         identity=Matrix{ComplexF64}(I,16,16)
         operators=Dict(word(axis[i])=>reduce(kron,[j==i ? p : Matrix{ComplexF64}(I,2,2) for j in 1:4])
             for (axis,p) in zip(ops,paulis) for i in 1:4)
-        matrix(w)=foldl(*,(operators[l] for l in Next.word_letters(w));init=identity)
+        matrix(w)=foldl(*,(operators[l] for l in NCTSSoS.word_letters(w));init=identity)
         thermal=sum(weight*operators[word(axis[i])]*operators[word(axis[mod1(i+1,4)])]
             for (axis,weight) in zip(ops,(0.7,1.3,0.2)) for i in 1:4)
         rho=exp(-thermal); rho/=tr(rho)
         h=sum(axis[i]*axis[mod1(i+1,4)] for axis in ops for i in 1:4)/4
-        rows=collect(Next.basis(r,2)) # includes antipodal pairs, with orbit length two
-        built=Next.build(Problem(h;symmetry=(SitePermutation([2,3,4,1]),)),Relaxation(;rows))
+        rows=collect(NCTSSoS.basis(r,2)) # includes antipodal pairs, with orbit length two
+        built=NCTSSoS.build(Problem(h;symmetry=(SitePermutation([2,3,4,1]),)),Relaxation(;rows))
         values=[real(tr(rho*matrix(label.word))) for label in built.table.labels]
         spectrum=Float64[]
         # Read contract-2 affine blocks, not an implementation's row transform.
         for block in built.program.blocks
-            block.kind in (Next.PSD,Next.HPSD) || continue
+            block.kind in (NCTSSoS.PSD,NCTSSoS.HPSD) || continue
             m=zeros(ComplexF64,block.side,block.side)
             for j in 1:block.side,i in j:block.side
-                f=block.first_form+Next.tri_offset(block.side,i,j)
+                f=block.first_form+NCTSSoS.tri_offset(block.side,i,j)
                 m[i,j]=sum((built.program.forms.coefs[t]*values[built.program.forms.ids[t]]
-                    for t in Next.term_range(built.program.forms,f));init=0im)
+                    for t in NCTSSoS.term_range(built.program.forms,f));init=0im)
                 m[j,i]=conj(m[i,j])
             end
             append!(spectrum,eigvals(Hermitian(m)))
@@ -315,21 +315,21 @@ function guards()
         r,(x,y,z)=pauli_variables(2)
         @test_throws ArgumentError CliffordMap(word.([one(x[1]),x[2],z[1],z[2]]))
         @test_throws ArgumentError CliffordMap(word.([x[1],z[1]]),[false])
-        @test_throws ArgumentError Next.build(Problem(z[1];symmetry=(
+        @test_throws ArgumentError NCTSSoS.build(Problem(z[1];symmetry=(
             CliffordMap(word.([z[1],x[2],x[1],z[2]])),SpinRotation(r,:z))),Relaxation(order=1))
         @test_throws ArgumentError DensityMatrix([1,1])
         @test_throws ArgumentError DensityMatrix(Int[])
-        @test_throws ArgumentError Next.build(Problem(z[1]),Relaxation(order=1,strengthen=DensityMatrix(1:3)))
+        @test_throws ArgumentError NCTSSoS.build(Problem(z[1]),Relaxation(order=1,strengthen=DensityMatrix(1:3)))
         @test_throws ArgumentError Problem(z[1];symmetry=(:reflection,))
         @test_throws ArgumentError Relaxation(rows=[one(x[1]),(1,2)])
         free,_=site_variables(Free(),1,2)
         @test_throws ArgumentError SpinRotation(free,:z)
-        for functional in (Next.RealState(),Next.RealTrace())
+        for functional in (NCTSSoS.RealState(),NCTSSoS.RealTrace())
             _,(x,)=site_variables(Unipotent(),1,1;functional)
-            symbol=functional isa Next.RealState ? state_symbol : trace_symbol
+            symbol=functional isa NCTSSoS.RealState ? state_symbol : trace_symbol
             @test_throws ArgumentError Relaxation(rows=[one(x[1]),2symbol(x[1])])
             @test_throws ArgumentError Relaxation(rows=[one(x[1]),symbol(x[1])+one(x[1])])
-            @test_throws ArgumentError Next.build(Problem(symbol(x[1])),Relaxation(rows=[one(x[1])]))
+            @test_throws ArgumentError NCTSSoS.build(Problem(symbol(x[1])),Relaxation(rows=[one(x[1])]))
         end
     end
 end
@@ -370,8 +370,8 @@ function chain_references(solver)
         h=sum(a[i]*a[mod1(i+1,n)] for a in ops for i in 1:n)/4
         patches=[sort(mod1.(i:i+3,n)) for i in 1:n]
         triples=[Set(mod1.(i:i+2,n)) for i in 1:n]
-        rows=filter(collect(Next.basis(r,3))) do p
-            support=Set(Next.sites(word(p)))
+        rows=filter(collect(NCTSSoS.basis(r,3))) do p
+            support=Set(NCTSSoS.sites(word(p)))
             any(t->issubset(support,t),triples)
         end
         paulis=([0 1;1 0],[0 -im;im 0],[1 0;0 -1])

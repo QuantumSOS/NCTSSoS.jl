@@ -42,7 +42,7 @@
 #     This example uses [Mosek](https://www.mosek.com/) through `MosekBackend`.
 #     For open-source alternatives, see [Optimizers](@ref overview-of-optimizers).
 
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 N = 6  # Number of spins in the chain
 
 registry, (σx, σy, σz) = pauli_variables(1:N)
@@ -109,7 +109,7 @@ energy_per_site = res.bound / N
 # - `site_variables(Unipotent(), nsites, nletters)`: Self-adjoint operators with U² = I
 # - `site_variables(Free(), nsites, nletters)`: Free self-adjoint operators within each site
 
-# ## Next Steps
+# ## NCTSSoS Steps
 
 # This interface extends naturally to other quantum systems:
 #

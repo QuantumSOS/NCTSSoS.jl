@@ -1,9 +1,9 @@
 # Full order-two Heisenberg rows, translation and reflection. No solver in the
-# Next timed region. Three fresh warm builds; each phase owns its input and
+# NCTSSoS timed region. Three fresh warm builds; each phase owns its input and
 # exact elimination may extend its table. First-call compilation is separate.
 # OPENBLAS_NUM_THREADS=1 julia --project test/next/pipeline/benchmark_continuous.jl 8 16
 using NCTSSoS, LinearAlgebra, Statistics, Profile
-const Nx=NCTSSoS.Next
+const Nx=NCTSSoS
 
 function continuous_case(n)
     registry,(x,y,z)=Nx.pauli_variables(n)

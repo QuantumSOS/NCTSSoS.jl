@@ -1,6 +1,6 @@
 # Standalone worker. See README.md; run through run.py for resource limits.
 import NCTSSoS
-const N = NCTSSoS.Next
+const N = NCTSSoS
 using LinearAlgebra, SparseArrays, Statistics, Profile, TOML, Serialization
 import JuMP
 if length(ARGS)>=8 && ARGS[8]=="solve"
@@ -124,7 +124,7 @@ function checkpoint(result,path)
 end
 function solve_probe(built,route,target,result,out)
     if target=="hydrogen"
-        route=="next" && result["n"]==4 && result["variant"]=="pqg" || error("Only H4 Next PQG solve is authorized")
+        route=="next" && result["n"]==4 && result["variant"]=="pqg" || error("Only H4 NCTSSoS PQG solve is authorized")
         form=N.moment_standard_form(built.program)
         result["stage"]="solve"; checkpoint(result,out)
         timed=@timed Base.invokelatest(N.solve_standard,form,N.SCSBackend(verbose=1,eps_abs=1e-5,eps_rel=1e-5,time_limit_secs=600))

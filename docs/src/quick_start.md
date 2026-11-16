@@ -33,8 +33,8 @@ All variables belong to one site, so no commutation between them is imposed.
 Then use `Problem` with `Positive` to define the operator inequalities.
 
 ```julia
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 
 function broyden_banded(n::Int)
     # Create non-commutative variables
@@ -87,7 +87,7 @@ If you want full control over the relaxation basis, you can provide
 `rows` directly instead of `order`:
 
 ```julia
-rows = collect(Next.basis(registry, 3))
+rows = collect(NCTSSoS.basis(registry, 3))
 custom_relaxation = Relaxation(rows=rows)
 ```
 

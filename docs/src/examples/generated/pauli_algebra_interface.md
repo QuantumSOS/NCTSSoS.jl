@@ -47,7 +47,7 @@ The same problem can be solved much more concisely:
     For open-source alternatives, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 N = 6  # Number of spins in the chain
 
 registry, (σx, σy, σz) = pauli_variables(1:N)
@@ -139,7 +139,7 @@ Similar functions exist for other quantum algebras:
 - `site_variables(Unipotent(), nsites, nletters)`: Self-adjoint operators with U² = I
 - `site_variables(Free(), nsites, nletters)`: Free self-adjoint operators within each site
 
-## Next Steps
+## NCTSSoS Steps
 
 This interface extends naturally to other quantum systems:
 

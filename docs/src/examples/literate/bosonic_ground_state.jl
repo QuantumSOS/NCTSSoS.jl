@@ -136,7 +136,7 @@ println("Analytic value 1 - √5:                           $(1 - sqrt(5))")
 #     This example uses [Mosek](https://www.mosek.com/) through `MosekBackend`.
 #     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 
 SOLVER = MosekBackend()
 

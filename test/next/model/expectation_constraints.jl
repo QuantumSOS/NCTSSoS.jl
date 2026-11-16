@@ -1,6 +1,6 @@
 module ExpectationConstraintChecks
 using Test, LinearAlgebra, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 
 function check(solver)
     @testset "Scalar expectation constraints" begin

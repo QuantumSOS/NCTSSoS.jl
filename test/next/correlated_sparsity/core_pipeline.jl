@@ -32,10 +32,10 @@ end
 
 function block_letter_positions(built,count)
     registry=built.problem.objective.registry
-    letters=collect(Next.basis(registry,1))[2:end]
-    position=Dict(Next.operator_name(registry,last(only(Next.terms(p))))=>i for (i,p) in enumerate(letters))
-    return sort!([sort!(unique!([position[Next.operator_name(registry,l)] for w in block for l in Next.word_letters(w)]))
-        for block in collect(Next.block_rows(built))[1:count]])
+    letters=collect(NCTSSoS.basis(registry,1))[2:end]
+    position=Dict(NCTSSoS.operator_name(registry,last(only(NCTSSoS.terms(p))))=>i for (i,p) in enumerate(letters))
+    return sort!([sort!(unique!([position[NCTSSoS.operator_name(registry,l)] for w in block for l in NCTSSoS.word_letters(w)]))
+        for block in collect(NCTSSoS.block_rows(built))[1:count]])
 end
 
 function correlated_polydisc(n)
@@ -59,8 +59,8 @@ function correlated_structure()
         @test_throws ArgumentError Problem(f)
         problem=Problem((f+f')/2)
         for (key,algorithm) in (("mf",MF()),("as_is_elimination",AsIsElimination()))
-            built=Next.build(problem,Relaxation(order=3,grouping=Correlative(;algorithm)))
-            counts=[length(unique([l for w in block for l in Next.word_letters(w)])) for block in Next.block_rows(built)]
+            built=NCTSSoS.build(problem,Relaxation(order=3,grouping=Correlative(;algorithm)))
+            counts=[length(unique([l for w in block for l in NCTSSoS.word_letters(w)])) for block in NCTSSoS.block_rows(built)]
             @test maximum(counts)==fixture("correlated_structure","correlative_sparsity_example2_order3")["max_clique_by_algo"][key]
         end
     end
@@ -69,9 +69,9 @@ function correlated_structure()
         problem=Problem(2-x[1]^2+x[1]*x[2]^2*x[1]-x[2]^2;
             constraints=(Positive(4-x[1]^2-x[2]^2),Zero(x[1]*x[2]+x[2]*x[1]-2)))
         for algorithm in (NoElimination(),MF(),AsIsElimination())
-            built=Next.build(problem,Relaxation(order=2,grouping=Correlative(;algorithm)))
-            @test length.(collect(Next.block_rows(built)))==[7,3,3]
-            polyball=Next.build(correlated_polyball(),Relaxation(order=2,grouping=Correlative(;algorithm)))
+            built=NCTSSoS.build(problem,Relaxation(order=2,grouping=Correlative(;algorithm)))
+            @test length.(collect(NCTSSoS.block_rows(built)))==[7,3,3]
+            polyball=NCTSSoS.build(correlated_polyball(),Relaxation(order=2,grouping=Correlative(;algorithm)))
             groups=algorithm isa NoElimination ? [[1,2,3,4]] : [[1,2,3],[2,3,4]]
             @test block_letter_positions(polyball,length(groups))==groups
         end
@@ -82,17 +82,17 @@ function correlated_numeric(solver,sos_solver)
     @testset "Correlative and term-sparse chain" begin
         _,(x,)=site_variables(Free(),1,3)
         problem=Problem(correlated_chain(x);constraints=Positive.([1 .- x.^2;x .- 1/3]))
-        cs=Next.build(problem,Relaxation(order=3,grouping=Correlative(algorithm=MF())))
-        @test Next.block_sides(cs)==[15,15,fill(7,8)...]
+        cs=NCTSSoS.build(problem,Relaxation(order=3,grouping=Correlative(algorithm=MF())))
+        @test NCTSSoS.block_sides(cs)==[15,15,fill(7,8)...]
         @test cs.sizes.moments==149
         @test solve(cs;solver).bound ≈ fixture("correlated_pipeline","CS_d3")["objective"] atol=1e-5
         @test solve(cs;solver=sos_solver).bound ≈ fixture("correlated_pipeline","CS_d3")["objective"] atol=1e-5 skip=isnothing(sos_solver)
-        higher=Next.build(problem,Relaxation(order=3,split=TermSplit(algorithm=MMD(),level=2)))
+        higher=NCTSSoS.build(problem,Relaxation(order=3,split=TermSplit(algorithm=MMD(),level=2)))
         # The old counter excludes localizer-only moments (123); both full
         # programs contain 288 scalar moment variables.
         @test higher.sizes.moments==288
         @test solve(higher;solver).bound ≈ fixture("correlated_pipeline","TS_d3")["objective"] atol=1e-5
-        first=Next.build(problem,Relaxation(order=3,split=TermSplit(algorithm=MMD())))
+        first=NCTSSoS.build(problem,Relaxation(order=3,split=TermSplit(algorithm=MMD())))
         @test solve(first;solver=sos_solver).bound ≈ fixture("correlated_pipeline","TS_d3")["objective"] atol=1e-4 skip=isnothing(sos_solver)
     end
     @testset "Chordal fill reaches the exact minimum" begin
@@ -101,8 +101,8 @@ function correlated_numeric(solver,sos_solver)
         problem=Problem(correlated_chain(x))
         rows=[one(X),X,Y,Z,Y*X,Y*Z]
         for (level,sides) in ((1,[3,3,3,3]),(2,[4,4,4]))
-            built=Next.build(problem,Relaxation(;rows,split=TermSplit(algorithm=MMD(),level=level)))
-            @test sort(Next.block_sides(built))==sides
+            built=NCTSSoS.build(problem,Relaxation(;rows,split=TermSplit(algorithm=MMD(),level=level)))
+            @test sort(NCTSSoS.block_sides(built))==sides
             bound=solve(built;solver).bound
             if level==1
                 @test bound < -0.003
@@ -138,10 +138,10 @@ function correlated_sos(sos_solver)
         for (n,sparse) in ((4,false),(4,true),(8,true),(12,true))
             problem=correlated_polydisc(n)
             relaxation=Relaxation(order=2,grouping=sparse ? Correlative(algorithm=MF()) : nothing)
-            built=Next.build(problem,relaxation)
+            built=NCTSSoS.build(problem,relaxation)
             id="E9_$(sparse ? "sparse" : "dense")_n$(n)_d2"
             oracle=fixture("correlated_pipeline",id)
-            @test Next.block_sides(built)==[oracle["sides"];fill(sparse ? 4 : 5,sparse ? 6(n-2) : 2n)]
+            @test NCTSSoS.block_sides(built)==[oracle["sides"];fill(sparse ? 4 : 5,sparse ? 6(n-2) : 2n)]
             @test built.sizes.moments==oracle["n_unique_moment_matrix_elements"]
             expected=fixture("correlated_structure","correlative_sparsity_e9_polydisc_n$(n)_order2")
             @test block_letter_positions(built,length(oracle["sides"]))==expected[sparse ? "mf" : "no_elimination"]["cliques"]

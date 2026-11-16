@@ -18,48 +18,52 @@ julia --project -e 'using Pkg; Pkg.test()'
 - Entry point: `test/runtests.jl` (fixed curated suite, no flags)
 - Shared infra: `test/TestUtils.jl` defines `SOLVER` (COSMO) and `flatten_sizes`
 - Groups:
-  - `test/polynomials/` — polynomial algebra (no solver, no JuMP)
+  - `test/next/core/` — packed words and polynomial algebra
+  - `test/next/model/` — public modeling API and symmetry detectors
+  - `test/next/pipeline/` — relaxation construction and sparsity
+  - `test/next/conic/` — standard forms and solver backends
+  - `test/next/state_poly/` and `test/next/trace_poly/` — functional polynomials
+  - `test/next/problems/` — reviewed problems and opt-in reference solves
+  - `test/next/reference_data/` — frozen standard forms and detector signatures
+  - `test/next/v2rdm_structured/` — ported V2RDM reference checks
   - `test/quality/` — Aqua, ExplicitImports, doctests
-  - `test/relaxations/` — relaxation components (needs `SOLVER`)
-  - `test/state_poly/` — state polynomial suite (needs `SOLVER`)
-  - `test/correlated_sparsity/` — correlated/term sparsity suite (needs `SOLVER`)
-  - `test/trace_poly/` — trace polynomial suite (needs `SOLVER`)
-  - `test/v2rdm_structured/` — structured V2RDM benchmark (needs `SOLVER`)
-  - `test/problems/` — curated problem tests (needs `SOLVER`)
+
+The `test/next` path is retained; these tests use the promoted `NCTSSoS` API.
+`test/data` and `test/oracles` retain numeric fixtures and historical oracles.
 
 ## Solver
 
 The curated `Pkg.test()` / CI suite uses COSMO (open-source).
 
-The Next functional tests keep the S6 survey witness and program sizes in the
+The NCTSSoS functional tests keep the S6 survey witness and program sizes in the
 routine runner. Its bound check requires Mosek: COSMO reaches its iteration
 limit with the original case settings. S7 still solves with COSMO. After
 checking the Mosek licence with a trivial solve, run the licensed check in an
 environment with the test dependencies installed:
 
 ```julia
-using Mosek, NCTSSoS.Next
+using Mosek, NCTSSoS
 include("test/next/trace_poly/runtests.jl")
 PublicFunctionalChecks.check(;sos_solver=MosekBackend(form=:sos))
 ```
 
-This uses the same explicit `sos_solver=nothing` skip convention as the Next
+This uses the same explicit `sos_solver=nothing` skip convention as the NCTSSoS
 problem pilot. It does not run the failed COSMO S6 solve or assert its raw
 objective as a bound.
 
-The Next E1–E5 Newton-chip benchmarks retain their old solver exception:
+The NCTSSoS E1–E5 Newton-chip benchmarks retain their old solver exception:
 E2–E5 use Clarabel with `verbose=false`. E1 keeps its SOS bound check behind
 the same licensed gate; its row and block-size checks run without a licence.
 E5 at n=60 uses the reviewed interval `-1e-5 ≤ bound ≤ 1e-6`; all other
 benchmark tolerances are unchanged. Run the licensed problem checks with:
 
 ```julia
-using Mosek, NCTSSoS.Next
+using Mosek, NCTSSoS
 include("test/next/problems/runtests.jl")
 NextProblemChecks.check(;sos_solver=MosekBackend(form=:sos))
 ```
 
-The Next Heisenberg star checks (8-site dense, 10-site dense and MF grouping)
+The NCTSSoS Heisenberg star checks (8-site dense, 10-site dense and MF grouping)
 take more than 20 seconds per case. The routine runner reports explicit skips;
 run them with the original COSMO settings through `references=true`:
 
@@ -72,43 +76,23 @@ After checking the Mosek licence, add `sos_solver=MosekBackend(form=:sos)`
 to include the 8-site SOS check. The Majumdar–Ghosh bound, small spin and
 singlet checks, and 16-site structure checks remain in the routine runner.
 
-## Standalone Local-Only Benchmark Scripts
+## Optional local reference checks
 
-Some heavier literature reproductions live under `test/problems/` but are not
-included from `test/runtests.jl`.
+The old standalone files and their `test-local` / `test-local-one` Make targets
+were removed. Their retained reference checks live in
+`test/next/problems/local_references.jl`; the literal Bell table remains beside
+them. Routine tests check Bell equations and builds, but skip the licensed solves.
 
-- Run all registered local-only scripts:
+After verifying the Mosek licence with a trivial solve, run the optional checks
+in an environment with the test dependencies installed:
 
-```bash
-make test-local
+```julia
+using Mosek
+include("test/next/problems/local_references.jl")
+LocalReferenceChecks.check(;references=true,mosek=true)
 ```
 
-- Run one local-only script directly:
-
-```bash
-make test-local-one SCRIPT=path/to/script.jl
-```
-
-- To add another local-only script later, register its path in
-  `LOCAL_ONLY_TEST_SCRIPTS` in the `Makefile`.
-
-Currently registered:
-
-- `test/problems/trace_polynomial/t1_broyden_banded_trace.jl`
-  - local-only Mosek benchmark
-  - runs the heavier T1 trace family at `n = 20, 40`
-  - requires a local Mosek license
-  - equivalent direct command:
-
-```bash
-julia --project test/problems/trace_polynomial/t1_broyden_banded_trace.jl
-```
-
-- `test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl`
-  - local-only Mosek benchmark for the NC Motzkin polynomial (T4)
-  - requires a local Mosek license
-  - equivalent direct command:
-
-```bash
-julia --project test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl
-```
+Both flags are required. This runs the retained Motzkin, NC polynomial,
+Heisenberg, constrained Broyden and selected Bell reference solves. It is not
+part of the routine CI budget. Sparse state/trace routes remain deferred;
+the deleted Broyden trace script is not a runnable substitute.

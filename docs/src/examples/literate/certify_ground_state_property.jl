@@ -23,7 +23,7 @@
 # rigorous rounding-error bounds.
 
 using Yao, LinearAlgebra
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 
 N = 3;
 J = 1.0;

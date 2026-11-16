@@ -1,11 +1,11 @@
 # Fresh process: julia --project=<solver env> backend_first_call.jl <state|pauli> <scs|both>
-using NCTSSoS, NCTSSoS.Next, SCS, LinearAlgebra
+using NCTSSoS, SCS, LinearAlgebra
 length(ARGS)==2 && ARGS[2] in ("scs","both") || error("Use <state|pauli> <scs|both>")
 ARGS[2]=="both" && (@eval using Mosek)
 BLAS.set_num_threads(1)
 function input(domain)
     if domain=="state"
-        _,(a,b)=site_variables(Unipotent(),2,3;functional=Next.RealState())
+        _,(a,b)=site_variables(Unipotent(),2,3;functional=NCTSSoS.RealState())
         signs=[1 1 1;1 1 -1;1 -1 0]
         h=-sum(signs[i,j]*(state_symbol(a[i]*b[j])-state_symbol(a[i])*state_symbol(b[j]))
             for i in 1:3,j in 1:3 if signs[i,j]!=0)

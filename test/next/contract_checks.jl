@@ -1,9 +1,9 @@
-# Conformance checks for contract 1 (`src/next/contracts/words.jl`).
+# Conformance checks for contract 1 (`src/contracts/words.jl`).
 # The tests of each word type call `check_word_contract(W, samples)`.
 using Test
 using NCTSSoS
 
-const Nx = NCTSSoS.Next
+const Nx = NCTSSoS
 
 "A test sink: a dictionary from word to coefficient."
 struct TermDict{W,C}

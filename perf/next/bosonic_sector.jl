@@ -1,5 +1,5 @@
 using NCTSSoS, Mosek, MosekTools, JuMP, LinearAlgebra, Test
-const N=NCTSSoS.Next
+const N=NCTSSoS
 const backend=N.MosekBackend(MSK_IPAR_NUM_THREADS=1,MSK_DPAR_INTPNT_CO_TOL_REL_GAP=1e-10,
     MSK_DPAR_INTPNT_CO_TOL_PFEAS=1e-10,MSK_DPAR_INTPNT_CO_TOL_DFEAS=1e-10)
 function exact_sector(L,edges)

@@ -56,7 +56,7 @@ replace their extension block to force equal ranks.
 and the [SDP relaxation workflow](@ref moment-sohs-hierarchy).
 
 ````julia
-using NCTSSoS.Next, Mosek, LinearAlgebra
+using NCTSSoS, Mosek, LinearAlgebra
 ````
 
 ## Step 1 — Solve the noncommutative unit-ball problem

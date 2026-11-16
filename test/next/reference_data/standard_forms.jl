@@ -1,6 +1,6 @@
 module StandardFormReference
 using Test, SparseArrays, SHA, TOML, JuMP, COSMO
-import NCTSSoS: Next as N
+import NCTSSoS as N
 include("combination_inputs.jl")
 const C = CombinationMatrix
 

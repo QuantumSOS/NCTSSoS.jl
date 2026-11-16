@@ -21,7 +21,7 @@ Pkg.add("NCTSSoS")
 ```
 
 !!! note "Redesign documentation"
-    These pages describe `NCTSSoS.Next` on the `redesign` branch. Until the
+    These pages describe `NCTSSoS` on the `redesign` branch. Until the
     release, install that branch to run the examples:
 
     ```julia

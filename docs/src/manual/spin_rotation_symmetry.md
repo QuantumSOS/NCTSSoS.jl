@@ -31,8 +31,8 @@ charge or total-spin eigenvalue. Translation and reflection are
 ## [API pattern](@id pauli-charge-api-pattern)
 
 ```julia
-using NCTSSoS.Next, Mosek, LinearAlgebra
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek, LinearAlgebra
+import NCTSSoS
 
 BLAS.set_num_threads(1)
 solver = MosekBackend(MSK_IPAR_NUM_THREADS=1)
@@ -48,18 +48,18 @@ end
 registry, H, S², spatial = chain(4)
 problem = Problem(H; symmetry=(spatial..., spin_rotations(registry)...))
 relaxation = Relaxation(order=2)
-built = Next.build(problem, relaxation)
+built = NCTSSoS.build(problem, relaxation)
 result = solve(built; solver)
 @assert isapprox(result.bound, -2; atol=1e-6)
 println(result.bound_kind)
 println(result.valid_for)
-Next.block_sides(built)
+NCTSSoS.block_sides(built)
 ```
 
-`Next.build` constructs the reduced program without solving it. Inspect
-`built.sizes` for moment and variable counts, and `Next.block_sides(built)` for
+`NCTSSoS.build` constructs the reduced program without solving it. Inspect
+`built.sizes` for moment and variable counts, and `NCTSSoS.block_sides(built)` for
 final PSD/HPSD sides before Hermitian realification. These counts are not the
-native solver-task dimensions; use `Next.task_sizes(Next.prepare(built; solver))`
+native solver-task dimensions; use `NCTSSoS.task_sizes(NCTSSoS.prepare(built; solver))`
 for those.
 
 ## [What each option does](@id pauli-charge-options)
@@ -218,14 +218,14 @@ function validate_chain16()
     @assert reference.dimension == binomial(16, 8)
     registry, H, _, spatial = chain(16)
     problem = Problem(H; symmetry=(spatial..., spin_rotations(registry)...))
-    build_seconds = @elapsed built = Next.build(problem, Relaxation(order=2))
-    prepare_seconds = @elapsed prepared = Next.prepare(built; solver)
+    build_seconds = @elapsed built = NCTSSoS.build(problem, Relaxation(order=2))
+    prepare_seconds = @elapsed prepared = NCTSSoS.prepare(built; solver)
     solve_seconds = @elapsed result = solve(built; solver)
     @assert !isnothing(result.bound)
     @assert isapprox(result.bound, -7.15349290; atol=1e-6)
     @assert result.bound <= reference.energy + 1e-6
-    return (sizes=built.sizes, sides=Next.block_sides(built),
-            task=Next.task_sizes(prepared), bound=result.bound,
+    return (sizes=built.sizes, sides=NCTSSoS.block_sides(built),
+            task=NCTSSoS.task_sizes(prepared), bound=result.bound,
             reference=reference, valid_for=result.valid_for,
             build_seconds=build_seconds, prepare_seconds=prepare_seconds,
             solve_seconds=solve_seconds,

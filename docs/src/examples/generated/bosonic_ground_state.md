@@ -148,13 +148,13 @@ normal-ordered by the library.
     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 
 SOLVER = MosekBackend()
 ````
 
 ````
-NCTSSoS.Next.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
+NCTSSoS.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
 ````
 
 ### Step 1 — Create bosonic variables

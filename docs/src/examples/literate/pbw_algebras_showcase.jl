@@ -1,14 +1,14 @@
 # # [PBW Algebra Showcase (Fermionic / Bosonic)](@id pbw-algebras-showcase)
 #
-# This page demonstrates two PBW algebras supported by `NCTSSoS.Next`:
+# This page demonstrates two PBW algebras supported by `NCTSSoS`:
 # - `Fermionic()` (CAR / anticommutation)
 # - `Bosonic()` (CCR / commutation)
 #
 # In PBW algebras, multiplying monomials can expand into a **sum of monomials**.
 # Variables are polynomials. Their product can contain multiple normal words;
-# `Next.terms` iterates the `(coefficient, word)` pairs.
+# `NCTSSoS.terms` iterates the `(coefficient, word)` pairs.
 
-using NCTSSoS.Next
+using NCTSSoS
 
 repr_with_registry(reg, x) = sprint(show, x; context=:registry => reg)
 
@@ -29,8 +29,8 @@ p_car = a[1] * a⁺[1]
 repr_with_registry(reg_f, p_car)
 
 # Two terms: identity + normal-ordered number operator:
-length(Next.terms(p_car))
-@assert length(Next.terms(p_car)) == 2 #src
+length(NCTSSoS.terms(p_car))
+@assert length(NCTSSoS.terms(p_car)) == 2 #src
 @assert p_car == 1 - a⁺[1] * a[1] #src
 
 # ### Parity helper
@@ -38,9 +38,9 @@ length(Next.terms(p_car))
 # A normal word has even fermionic parity when its degree is even.
 # Extract the word from this single-term polynomial:
 
-m_num = last(only(Next.terms(a⁺[1] * a[1])));
-iseven(Next.degree(m_num))
-@assert iseven(Next.degree(m_num)) #src
+m_num = last(only(NCTSSoS.terms(a⁺[1] * a[1])));
+iseven(NCTSSoS.degree(m_num))
+@assert iseven(NCTSSoS.degree(m_num)) #src
 
 # ### Nilpotency shows up as the zero polynomial
 #
@@ -66,8 +66,8 @@ p_ccr = c[1] * c⁺[1]
 repr_with_registry(reg_b, p_ccr)
 
 # Again, two terms:
-length(Next.terms(p_ccr))
-@assert length(Next.terms(p_ccr)) == 2 #src
+length(NCTSSoS.terms(p_ccr))
+@assert length(NCTSSoS.terms(p_ccr)) == 2 #src
 @assert p_ccr == c⁺[1] * c[1] + 1 #src
 
 # Bosonic operators are not nilpotent:

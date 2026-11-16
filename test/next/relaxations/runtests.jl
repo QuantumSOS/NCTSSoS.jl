@@ -2,7 +2,7 @@ isdefined(@__MODULE__, :SOLVER) || include("../../TestUtils.jl")
 
 module PublicRelaxationChecks
 using Test, TOML
-using NCTSSoS.Next
+using NCTSSoS
 import ..SOLVER
 
 include("particle_number.jl")

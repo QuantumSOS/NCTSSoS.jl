@@ -1,7 +1,7 @@
 # Run in an environment containing NCTSSoS, SCS and Mosek, with a valid Mosek
 # license. Solver accuracy sweep plus warmed reconstruction on identical moments.
 using NCTSSoS, SCS, Mosek, LinearAlgebra, Test
-const N=NCTSSoS.Next
+const N=NCTSSoS
 include(joinpath(@__DIR__,"../../test/next/model/gns.jl"))
 
 fill_bytes(H,rows,sink)=@allocated N._gns_fill!(H,rows,sink)

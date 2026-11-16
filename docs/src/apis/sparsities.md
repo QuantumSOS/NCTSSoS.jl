@@ -3,7 +3,7 @@
 ## Correlative Sparsity
 
 ```@docs
-NCTSSoS.Next.Correlative
+NCTSSoS.Correlative
 ```
 
 ## [Term Sparsity](@id term-sparsity-graph-def)
@@ -33,25 +33,25 @@ completing it, and updating the activated support from **all completed-graph
 edges, including fill edges** — produces the
 term-sparsity hierarchy at sparse orders ``k = 1, 2, \ldots``. There is no
 public getter for the initial graph. Inspect the completed blocks with
-`Next.block_rows`; see [Stabilization vs. Exactness](@ref sparsity-convergence)
+`NCTSSoS.block_rows`; see [Stabilization vs. Exactness](@ref sparsity-convergence)
 for the convergence semantics.
 
 ```@docs
-NCTSSoS.Next.TermSplit
+NCTSSoS.TermSplit
 ```
 
 ## Geometric selection
 
 ```@docs
-NCTSSoS.Next.PhysicsInformed
-NCTSSoS.Next.Contiguous
+NCTSSoS.PhysicsInformed
+NCTSSoS.Contiguous
 ```
 
 ## Block inspection
 
 ```@docs
-NCTSSoS.Next.block_rows
-NCTSSoS.Next.block_sides
+NCTSSoS.block_rows
+NCTSSoS.block_sides
 ```
 
 ## Elimination algorithms
@@ -61,10 +61,10 @@ Select these algorithms through `Correlative(algorithm=...)` or
 name `MMD()` explicitly when reproducing an example that uses it.
 
 ```@docs
-NCTSSoS.Next.MF
-NCTSSoS.Next.MMD
-NCTSSoS.Next.NoElimination
-NCTSSoS.Next.AsIsElimination
-NCTSSoS.Next.MaximalElimination
-NCTSSoS.Next.NaturalElimination
+NCTSSoS.MF
+NCTSSoS.MMD
+NCTSSoS.NoElimination
+NCTSSoS.AsIsElimination
+NCTSSoS.MaximalElimination
+NCTSSoS.NaturalElimination
 ```

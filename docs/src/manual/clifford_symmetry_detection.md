@@ -188,7 +188,7 @@ Hermitian Pauli images) are rejected with an explicit error.
 
 ## [From SympleQ generators to the SAB pipeline](@id sympleq-bridge)
 
-The model adapter (`src/next/model/detection.jl`) converts the detector's
+The model adapter (`src/model/detection.jl`) converts the detector's
 verified candidates into `CliffordMap` actions by reading off how
 ``\underline{S}`` and ``\vec{\phi}_S``
 transform the ``3n`` single-site Pauli generators (``X_i``, ``Y_i``, ``Z_i``
@@ -268,19 +268,19 @@ The practical recipe is to **union the detected generators with known
 structural generators**, checking moment-basis closure separately:
 
 ```julia
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 
 reg, (X, Y, Z) = pauli_variables(2)
 H = X[1]*X[2] + Y[1]*Y[2] + Z[1]*Z[2]
 auto = detect_symmetry(H)
-combined = Next.Symmetry(auto.generators..., SitePermutation([2, 1]);
+combined = NCTSSoS.Symmetry(auto.generators..., SitePermutation([2, 1]);
     moment_only=auto.moment_only)
 problem = Problem(H; symmetry=combined)
-built = Next.build(problem, Relaxation(order=1))
+built = NCTSSoS.build(problem, Relaxation(order=1))
 result = solve(built; solver=MosekBackend())
 @assert abs(result.bound + 3) < 1e-6
-@assert Next.block_sides(built) == [1, 1, 1]
+@assert NCTSSoS.block_sides(built) == [1, 1, 1]
 @assert result.sizes.real_variables == 1
 ```
 
@@ -339,4 +339,4 @@ warning.
   [Symmetry-Adapted Basis](@ref symmetry-adapted-basis) — how NCTSSoS uses
   the detected symmetries to shrink the SDP.
 - **API:** `detect_symmetry`, `CliffordMap`, `SitePermutation`,
-  `Problem(H; symmetry=...)`, `Next.Symmetry`, and `result.sizes`.
+  `Problem(H; symmetry=...)`, `NCTSSoS.Symmetry`, and `result.sizes`.

@@ -1,4 +1,4 @@
-# Next scale probe (builds, not an optimization campaign)
+# NCTSSoS scale probe (builds, not an optimization campaign)
 
 ## Historical comparisons
 
@@ -90,14 +90,14 @@ The current runner accepts only `next`; replay old routes at the pinned checkout
 - Model input construction is measured separately, outside the build timer.
 - Warm the exact build once, then measure three fresh builds, collecting garbage
   outside each timer. Report median and range; preserve all samples in JSON.
-- Warm lowering separately, then take three lowering samples. Next lowers to
+- Warm lowering separately, then take three lowering samples. NCTSSoS lowers to
   `moment_standard_form`; legacy lowers to its native `build_jump_model`, without
   an optimizer. **These representations differ**, so compare their time as
   native lowering costs, not identical matrix construction.
-- Next lowering sizes are `size(A)` and `nnz(A)`. Legacy sizes count scalar JuMP
+- NCTSSoS lowering sizes are `size(A)` and `nnz(A)`. Legacy sizes count scalar JuMP
   constraint dimensions, variables and affine coefficients (including explicit
-  normalization). Next substitutes the identity and omits that variable.
-- `rows` means the sum of selected row-family sizes (Next, before cone reduction)
+  normalization). NCTSSoS substitutes the identity and omits that variable.
+- `rows` means the sum of selected row-family sizes (NCTSSoS, before cone reduction)
   or the sum of emitted PSD block sides (legacy). Those counts are not generally
   equal after symmetry reduction. Blocks and largest side describe the emitted
   symbolic cones; legacy real embedding can double a complex cone at lowering.
@@ -106,16 +106,16 @@ The current runner accepts only `next`; replay old routes at the pinned checkout
 ## Roster and mathematical differences
 
 **Chain:** N=16,32,40,64,100, periodic XX+YY+ZZ, contiguous order-4 rows.
-The Next front door uses translation, reflection, two global axis maps and
+The NCTSSoS front door uses translation, reflection, two global axis maps and
 moment-only complex conjugation, matching `model_chain_case` in
 `test/next/pipeline/benchmark_family.jl`. The comparator is the legacy specialized
 translation-invariant route with axis permutation symmetry.
 
 **Recorded roster:** 3×2 (`n=6`) and 3×3 (`n=9`) tori, order 3, `dense` and `ts`.
-Next includes both translations, coordinate reflections, coordinate exchange for
+NCTSSoS includes both translations, coordinate reflections, coordinate exchange for
 square tori, global axis maps and moment-only conjugation. Legacy uses dense or
 term-sparse construction without those symmetry reductions. Legacy `ts` uses
-the roster adapter's MMD; Next uses the default `TermSplit()` with
+the roster adapter's MMD; NCTSSoS uses the default `TermSplit()` with
 `MaximalElimination()`. Both measure one sparsity step, not the adapter's solve-driven refinement.
 These are not asserted to be identical SDPs. Bonds are unique
 undirected nearest-neighbor bonds, each with XX+YY+ZZ and no factor 1/4.
@@ -131,22 +131,22 @@ or relaxation is specified in either checkout.
 **Hydrogen:** H4/H6/H8 STO3G at the committed R=1 Å geometry. Convert only numeric
 JSON integral data to TOML using Python's standard library. Use spin-blocked
 orbitals (all up, then all down), the benchmark's integral convention and
-1e-14 coefficient cutoff. Next uses order-1 rows, P/Q/G (`pqg`) or
+1e-14 coefficient cutoff. NCTSSoS uses order-1 rows, P/Q/G (`pqg`) or
 P/Q/G/T1/T2prime (`t12`), fixed total number and fixed N_up−N_down=0. Legacy uses
 the structured v2RDM builder with spin blocking, spin-resolved traces, explicit
-one-D blocks, and no S² condition. Next's `Sector` equations and unsplit condition
+one-D blocks, and no S² condition. NCTSSoS's `Sector` equations and unsplit condition
 blocks are not identical to legacy's specialized spin-blocked representation.
 The additional `pqg_number` and `t12_number` variants add separate up/down
 `NumberRotation` generators to the same sectors and rows. Their measurements
 are appended to `results.md`; they do not replace the original baseline.
 The legacy build omits the constant nuclear offset; cone and moment counts do
 not depend on it. No legacy hydrogen solve is run here.
-The sole hydrogen solve is Next H4/PQG, native SCS, eps_abs=eps_rel=1e-5.
+The sole hydrogen solve is NCTSSoS H4/PQG, native SCS, eps_abs=eps_rel=1e-5.
 Its total energy includes nuclear repulsion. Compare to the committed FCI value
 as a lower bound, not as an assertion that the PQG relaxation is exact.
 
 **Bell:** inn22 n=5,6/order3 dense; n=5/order5 `cs_ts`. Both implementations use
-the benchmark file's coefficients (its special I3322 matrix for n=3). Next
+the benchmark file's coefficients (its special I3322 matrix for n=3). NCTSSoS
 projectors have two commuting sites, one per party, with n noncommuting letters
 per site. Its correlative graph therefore has two vertices and cannot separate
 measurement settings inside a party. Legacy's correlative graph is on generators.

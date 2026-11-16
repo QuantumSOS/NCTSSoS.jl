@@ -1,7 +1,7 @@
 module InspectionChecks
 using Test
-using NCTSSoS.Next
-import NCTSSoS: Next as N
+using NCTSSoS
+import NCTSSoS as N
 
 word(p)=last(only(N.terms(p)))
 names(r,w)=Tuple(N.operator_name(r,l) for l in N.word_letters(w))

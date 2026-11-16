@@ -7,32 +7,32 @@ mixed in one problem.
 ## Algebras and variables
 
 `pauli_variables`, `fermionic_variables`, `bosonic_variables` and
-`site_variables` return a registry and operator arrays. Use `Next.mixed_variables`
+`site_variables` return a registry and operator arrays. Use `NCTSSoS.mixed_variables`
 for commuting components with different algebras in one registry.
 
 ```@docs
-NCTSSoS.Next.Pauli
-NCTSSoS.Next.AntiunitaryPauli
-NCTSSoS.Next.Bosonic
-NCTSSoS.Next.Fermionic
-NCTSSoS.Next.Free
-NCTSSoS.Next.Projector
-NCTSSoS.Next.Unipotent
-NCTSSoS.Next.SiteAlgebra
-NCTSSoS.Next.pauli_variables
-NCTSSoS.Next.fermionic_variables
-NCTSSoS.Next.bosonic_variables
-NCTSSoS.Next.site_variables
-NCTSSoS.Next.mixed_variables
+NCTSSoS.Pauli
+NCTSSoS.AntiunitaryPauli
+NCTSSoS.Bosonic
+NCTSSoS.Fermionic
+NCTSSoS.Free
+NCTSSoS.Projector
+NCTSSoS.Unipotent
+NCTSSoS.SiteAlgebra
+NCTSSoS.pauli_variables
+NCTSSoS.fermionic_variables
+NCTSSoS.bosonic_variables
+NCTSSoS.site_variables
+NCTSSoS.mixed_variables
 ```
 
 ## State and trace symbols
 
 ```@docs
-NCTSSoS.Next.RealState
-NCTSSoS.Next.RealTrace
-NCTSSoS.Next.state_symbol
-NCTSSoS.Next.trace_symbol
+NCTSSoS.RealState
+NCTSSoS.RealTrace
+NCTSSoS.state_symbol
+NCTSSoS.trace_symbol
 ```
 
 ## Construction and inspection
@@ -40,19 +40,19 @@ NCTSSoS.Next.trace_symbol
 Use these public calls rather than reading packed storage fields.
 
 ```@docs
-NCTSSoS.Next.variables
-NCTSSoS.Next.polynomial
-NCTSSoS.Next.terms
-NCTSSoS.Next.word_letters
-NCTSSoS.Next.support_letters
-NCTSSoS.Next.sites
-NCTSSoS.Next.degree
-NCTSSoS.Next.operator_name
+NCTSSoS.variables
+NCTSSoS.polynomial
+NCTSSoS.terms
+NCTSSoS.word_letters
+NCTSSoS.support_letters
+NCTSSoS.sites
+NCTSSoS.degree
+NCTSSoS.operator_name
 ```
 
 ## Basis selection
 
 ```@docs
-NCTSSoS.Next.basis
-NCTSSoS.Next.newton_chip_basis
+NCTSSoS.basis
+NCTSSoS.newton_chip_basis
 ```

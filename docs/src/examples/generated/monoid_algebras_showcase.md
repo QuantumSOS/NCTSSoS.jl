@@ -4,7 +4,7 @@ EditURL = "../literate/monoid_algebras_showcase.jl"
 
 # [Monoid Algebra Showcase (NonCommutative / Projector / Unipotent)](@id monoid-algebras-showcase)
 
-This page showcases the three site rules supported by `NCTSSoS.Next`.
+This page showcases the three site rules supported by `NCTSSoS`.
 These algebras provide the building blocks for modeling noncommutative polynomial
 optimization problems that arise in quantum information and many-body physics.
 
@@ -54,13 +54,13 @@ names and sites; each variable group contains one site's polynomials.
 ## Setup
 
 ````julia
-using NCTSSoS.Next
+using NCTSSoS
 ````
 
 Helper: extract the word from a *single-term* polynomial.
 
 ````julia
-mono1(p) = last(only(Next.terms(p)))
+mono1(p) = last(only(NCTSSoS.terms(p)))
 ````
 
 ````
@@ -102,11 +102,11 @@ This creates:
 A single generator is a coefficient-one polynomial. Inspect its term:
 
 ````julia
-collect(Next.terms(x[1]))
+collect(NCTSSoS.terms(x[1]))
 ````
 
 ````
-1-element Vector{Tuple{ComplexF64, NCTSSoS.Next.SiteWord{NCTSSoS.Next.Free, UInt128, 4, 2}}}:
+1-element Vector{Tuple{ComplexF64, NCTSSoS.SiteWord{NCTSSoS.Free, UInt128, 4, 2}}}:
  (1.0 + 0.0im, SiteWord(operator(site=1, label=1)))
 ````
 
@@ -158,8 +158,8 @@ word = mono1(lhs);
 Each pair below gives the registry name and physical site.
 
 ````julia
-letter_sites = [(Next.operator_name(reg_nc, letter), only(Next.sites(letter)))
-                for letter in Next.word_letters(word)]
+letter_sites = [(NCTSSoS.operator_name(reg_nc, letter), only(NCTSSoS.sites(letter)))
+                for letter in NCTSSoS.word_letters(word)]
 ````
 
 ````
@@ -285,11 +285,11 @@ Simpler case: U₁² U₂ = U₂
 
 ## 4) Generating Monomial Bases
 
-`Next.basis(registry, degree)` iterates coefficient-one polynomials for all
+`NCTSSoS.basis(registry, degree)` iterates coefficient-one polynomials for all
 normal words through the specified degree. Collect it for custom moment rows.
 
 ````julia
-basis_d1 = collect(Next.basis(reg_nc, 1))
+basis_d1 = collect(NCTSSoS.basis(reg_nc, 1))
 ````
 
 ````
@@ -314,7 +314,7 @@ Pretty-print the basis using the registry:
 ````
 
 ````julia
-basis_d2 = collect(Next.basis(reg_nc, 2))
+basis_d2 = collect(NCTSSoS.basis(reg_nc, 2))
 ````
 
 ````
@@ -379,11 +379,11 @@ Site commutation is automatic in polynomial arithmetic:
 
 ````julia
 poly2 = 1.0 * y[1] * x[1] - 3.0 * x[1] * y[1]  # y₁ and x₁ commute!
-collect(Next.terms(poly2))  # terms with the same canonical word combine
+collect(NCTSSoS.terms(poly2))  # terms with the same canonical word combine
 ````
 
 ````
-1-element Vector{Tuple{ComplexF64, NCTSSoS.Next.SiteWord{NCTSSoS.Next.Free, UInt128, 4, 2}}}:
+1-element Vector{Tuple{ComplexF64, NCTSSoS.SiteWord{NCTSSoS.Free, UInt128, 4, 2}}}:
  (-2.0 + 0.0im, SiteWord(operator(site=1, label=1) operator(site=2, label=1)))
 ````
 
@@ -397,7 +397,7 @@ collect(Next.terms(poly2))  # terms with the same canonical word combine
 
 All three provide:
 - **Automatic site-based commutation** for operators on different sites
-- **Canonical words** inspected through `Next.terms` and `Next.word_letters`
+- **Canonical words** inspected through `NCTSSoS.terms` and `NCTSSoS.word_letters`
 - **Registry-based pretty printing** for human-readable output
 - **Optimization** through `Problem`, `Relaxation` and `solve`
 

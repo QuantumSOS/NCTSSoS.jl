@@ -50,11 +50,11 @@ function compare_isapprox(label, actual, expected; kwargs...)
 end
 
 # Match row words by public operator names, independent of packed word width.
-word_key(registry, word) = Tuple(Next.operator_name(registry, l) for l in Next.word_letters(word))
+word_key(registry, word) = Tuple(NCTSSoS.operator_name(registry, l) for l in NCTSSoS.word_letters(word))
 
 function completed_blocks(built, rows, registry)
-    indices = Dict(word_key(registry, last(only(Next.terms(p)))) => i for (i, p) in enumerate(rows))
-    [sort([indices[word_key(registry, w)] for w in block]) for block in Next.block_rows(built)]
+    indices = Dict(word_key(registry, last(only(NCTSSoS.terms(p)))) => i for (i, p) in enumerate(rows))
+    [sort([indices[word_key(registry, w)] for w in block]) for block in NCTSSoS.block_rows(built)]
 end
 
 function labeled_edges(edges, labels)

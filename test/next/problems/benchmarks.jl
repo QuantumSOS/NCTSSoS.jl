@@ -58,11 +58,11 @@ function benchmark_contracts(solver, sos_solver)
             @testset "$name n=$n" begin
                 oracle = fixture(name, "newton_chip_n$n")
                 problem = benchmark_problem(kind, n)
-                rows = Next.newton_chip_basis(problem, kind == 1 ? 3 : 2)
-                built = Next.build(problem,
+                rows = NCTSSoS.newton_chip_basis(problem, kind == 1 ? 3 : 2)
+                built = NCTSSoS.build(problem,
                     Relaxation(rows=rows, split=TermSplit(algorithm=MMD(), level=1)))
                 @test length(rows) == oracle["dense_mb"]
-                @test maximum(Next.block_sides(built)) == oracle["sparse_mb"]
+                @test maximum(NCTSSoS.block_sides(built)) == oracle["sparse_mb"]
                 if kind == 1
                     # The old E1 check uses SOS. JuMPBackend has no form selector;
                     # retain this bound check under the pilot's licensed SOS gate.

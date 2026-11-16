@@ -27,7 +27,7 @@
 # The two free variables share one site. `Relaxation(order=3)` requests
 # the dense moment relaxation. The direct Mosek backend is silent by default.
 
-using NCTSSoS.Next, Mosek, LinearAlgebra
+using NCTSSoS, Mosek, LinearAlgebra
 
 registry, (vars,) = site_variables(Free(), 1, 2);
 X, Y = vars;

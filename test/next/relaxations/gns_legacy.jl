@@ -1,6 +1,6 @@
 module GNSLegacyChecks
 using Test, LinearAlgebra
-using NCTSSoS.Next
+using NCTSSoS
 import JuMP, COSMO
 
 function check(solver)
@@ -18,7 +18,7 @@ function check(solver)
                 result=solve(Problem(f;constraints),Relaxation(;order);solver)
                 @test result.bound ≈ bound atol=(name==:motzkin ? 1e-3 : 1e-5)
                 g=gns(result)
-                @test g isa Next.GNSResult
+                @test g isa NCTSSoS.GNSResult
                 @test g.flatness.is_flat==flat
                 @test g.verdict==(flat ? :moments_reproduced : :optimizer_certified)
                 @test norm(g.state) ≈ 1 atol=1e-8
@@ -26,7 +26,7 @@ function check(solver)
                 @test norm(g[y]-g[y]')<=1e-8
                 # Old verify_gns loops over full_basis: degree <= order,
                 # not all the moments of degree <= 2order in the program.
-                for row in Next.basis(registry,order)
+                for row in NCTSSoS.basis(registry,order)
                     @test expectation(g,row) ≈ expectation(result,row) atol=5e-5
                 end
                 @test expectation(g,f) ≈ result.bound atol=1e-5
@@ -76,11 +76,11 @@ function vacuum()
         _,(a,ad)=fermionic_variables(1)
         problem=Problem(ad[1]*a[1])
         relaxation=Relaxation(order=2)
-        built=Next.build(problem,relaxation)
+        built=NCTSSoS.build(problem,relaxation)
         # Normal-ordered vacuum moments vanish except for the identity.
-        solution=Next.ConicSolution(0.0,:OPTIMAL,"exact vacuum fixture",
+        solution=NCTSSoS.ConicSolution(0.0,:OPTIMAL,"exact vacuum fixture",
             zeros(length(built.table.labels)-1),nothing)
-        result=Next.SolveResult(0.0,:OPTIMAL,built.sizes,built.valid_for,
+        result=NCTSSoS.SolveResult(0.0,:OPTIMAL,built.sizes,built.valid_for,
             problem,relaxation,solution,built.table,nothing)
         g=gns(result;atol=1e-10)
         A,D=g[a[1]],g[ad[1]]

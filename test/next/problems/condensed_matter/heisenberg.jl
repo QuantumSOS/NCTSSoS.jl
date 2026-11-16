@@ -60,11 +60,11 @@ function heisenberg_spin(solver)
                 (:rotation,(SpinRotation(registry,:z),),()),
                 (:singlet,(),(Sector(s2,0),)),
                 (:combined,(spatial...,SpinRotation(registry,:z)),(Sector(s2,0),)))
-                built=Next.build(Problem(h;symmetry),Relaxation(order=1;strengthen))
+                built=NCTSSoS.build(Problem(h;symmetry),Relaxation(order=1;strengthen))
                 result=solve(built;solver)
                 @test result.bound ≈ plain.bound atol=1e-6
                 expected=fixture("next_heisenberg","n$(n)_$(label)")
-                @test Next.block_sides(built)==expected["sides"]
+                @test NCTSSoS.block_sides(built)==expected["sides"]
                 @test built.sizes.moments==expected["moments"]
             end
         end
@@ -78,15 +78,15 @@ function heisenberg_structure()
         h=sum(op[i]*op[mod1(i+1,n)] for op in (x,y,z) for i in 1:n)/4
         spatial=(SitePermutation([2:n;1]),SitePermutation(reverse(1:n)))
         # Conjugation by the product of Z: X and Y change sign, Z does not.
-        sign=CliffordMap([last(only(Next.terms(p))) for p in [x;z]],[trues(n);falses(n)])
+        sign=CliffordMap([last(only(NCTSSoS.terms(p))) for p in [x;z]],[trues(n);falses(n)])
         for (id,order,row_rule,generators,rows) in (
             ("n16_order2",2,nothing,spatial,1129),
             ("n16_contiguous4",4,Contiguous(periodic=true),(spatial...,sign),1921))
             problem=Problem(h;symmetry=(generators...,SpinRotation(registry,:z)))
-            built=Next.build(problem,Relaxation(;order,row_rule))
+            built=NCTSSoS.build(problem,Relaxation(;order,row_rule))
             expected=fixture("next_heisenberg",id)
             @test built.sizes.rows==rows
-            @test Next.block_sides(built)==expected["sides"]
+            @test NCTSSoS.block_sides(built)==expected["sides"]
             @test built.sizes.moments==expected["moments"]
         end
     end

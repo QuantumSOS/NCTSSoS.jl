@@ -21,8 +21,8 @@
 #     These examples use [Mosek](https://www.mosek.com/) through `MosekBackend`.
 #     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 N = 6
 
 # Create Pauli variables using the typed algebra system
@@ -34,7 +34,7 @@ ham = sum(ComplexF64(1 / 4) * op[i] * op[mod1(i + 1, N)] for op in [σx, σy, σ
 # No need to manually specify constraints - they're encoded in the algebra type!
 problem = Problem(ham)
 
-relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=NCTSSoS.MMD()))
 solver = MosekBackend()
 
 res = solve(problem, relaxation; solver)
@@ -50,10 +50,10 @@ res.bound / N
 # required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
 # frustration induced by next nearest neighbor interaction can be solved as:
 
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
-J2 = 0.2                            # Next Nearest Neighbor Interaction
+J2 = 0.2                            # NCTSSoS Nearest Neighbor Interaction
 
 registry, (σx, σy, σz) = pauli_variables(1:N)
 
@@ -61,7 +61,7 @@ ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) *
 
 problem = Problem(ham)
 
-relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=NCTSSoS.MMD()))
 
 res = solve(problem, relaxation; solver)
 res.bound / N
@@ -74,7 +74,7 @@ res.bound / N
 
 # Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 Nx = 3
 Ny = 3
 N = Nx * Ny
@@ -89,14 +89,14 @@ ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianInd
 
 problem = Problem(ham)
 
-relaxation = Relaxation(order=3, grouping=Correlative(algorithm=Next.MF()),
-    split=TermSplit(algorithm=Next.MMD()))
+relaxation = Relaxation(order=3, grouping=Correlative(algorithm=NCTSSoS.MF()),
+    split=TermSplit(algorithm=NCTSSoS.MMD()))
 
 # This last setup does not run a solve. `Correlative` groups Pauli variables
 # by site, so each group contains all three axes at its sites.
 
 
-# ## Next step
+# ## NCTSSoS step
 #
 # With such lower bounds, estimates of properties of the ground
 # state, correlations functions, structure factors and order parameters, can also

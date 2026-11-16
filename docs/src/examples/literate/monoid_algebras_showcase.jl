@@ -1,6 +1,6 @@
 # # [Monoid Algebra Showcase (NonCommutative / Projector / Unipotent)](@id monoid-algebras-showcase)
 
-# This page showcases the three site rules supported by `NCTSSoS.Next`.
+# This page showcases the three site rules supported by `NCTSSoS`.
 # These algebras provide the building blocks for modeling noncommutative polynomial
 # optimization problems that arise in quantum information and many-body physics.
 #
@@ -49,10 +49,10 @@
 
 # ## Setup
 
-using NCTSSoS.Next
+using NCTSSoS
 
 # Helper: extract the word from a *single-term* polynomial.
-mono1(p) = last(only(Next.terms(p)))
+mono1(p) = last(only(NCTSSoS.terms(p)))
 
 # Pretty-print a detached word using the registry's names.
 repr_with_registry(reg, m) = sprint(show, m; context=:registry => reg)
@@ -74,7 +74,7 @@ reg_nc, (x, y) = site_variables(Free(), 2, 2)
 # - Variables `y[1], y[2]` on **site 2**
 
 # A single generator is a coefficient-one polynomial. Inspect its term:
-collect(Next.terms(x[1]))
+collect(NCTSSoS.terms(x[1]))
 
 # ### Site-Based Commutation
 #
@@ -105,10 +105,10 @@ repr_with_registry(reg_nc, mono1(lhs))  # "s1_2 s1_1 s2_1 s2_2"
 word = mono1(lhs);
 
 # Each pair below gives the registry name and physical site.
-letter_sites = [(Next.operator_name(reg_nc, letter), only(Next.sites(letter)))
-                for letter in Next.word_letters(word)]
+letter_sites = [(NCTSSoS.operator_name(reg_nc, letter), only(NCTSSoS.sites(letter)))
+                for letter in NCTSSoS.word_letters(word)]
 @assert letter_sites == [(:s1_2, 1), (:s1_1, 1), (:s2_1, 2), (:s2_2, 2)] #src
-@assert Next.degree(word) == 4 #src
+@assert NCTSSoS.degree(word) == 4 #src
 
 # ## 2) Projector: Idempotent Operators (P² = P)
 #
@@ -198,10 +198,10 @@ const ID_UNIP = one(U[1]);
 
 # ## 4) Generating Monomial Bases
 #
-# `Next.basis(registry, degree)` iterates coefficient-one polynomials for all
+# `NCTSSoS.basis(registry, degree)` iterates coefficient-one polynomials for all
 # normal words through the specified degree. Collect it for custom moment rows.
 
-basis_d1 = collect(Next.basis(reg_nc, 1))
+basis_d1 = collect(NCTSSoS.basis(reg_nc, 1))
 # basis_d1: all monomials up to degree 1
 
 # Pretty-print the basis using the registry:
@@ -209,7 +209,7 @@ basis_d1 = collect(Next.basis(reg_nc, 1))
 
 #-
 
-basis_d2 = collect(Next.basis(reg_nc, 2))
+basis_d2 = collect(NCTSSoS.basis(reg_nc, 2))
 # basis_d2: all monomials up to degree 2
 
 # Show count and a few examples:
@@ -232,7 +232,7 @@ poly = 1.0 * x[1] * x[2] + 2.0 * y[1] - 3.0 * x[1] * y[1]
 
 # Site commutation is automatic in polynomial arithmetic:
 poly2 = 1.0 * y[1] * x[1] - 3.0 * x[1] * y[1]  # y₁ and x₁ commute!
-collect(Next.terms(poly2))  # terms with the same canonical word combine
+collect(NCTSSoS.terms(poly2))  # terms with the same canonical word combine
 @assert poly2 == -2 * x[1] * y[1] #src
 
 # ## Summary: Choosing the Right Algebra
@@ -245,7 +245,7 @@ collect(Next.terms(poly2))  # terms with the same canonical word combine
 #
 # All three provide:
 # - **Automatic site-based commutation** for operators on different sites
-# - **Canonical words** inspected through `Next.terms` and `Next.word_letters`
+# - **Canonical words** inspected through `NCTSSoS.terms` and `NCTSSoS.word_letters`
 # - **Registry-based pretty printing** for human-readable output
 # - **Optimization** through `Problem`, `Relaxation` and `solve`
 #

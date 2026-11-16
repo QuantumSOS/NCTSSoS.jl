@@ -185,8 +185,8 @@ println("Half-filled (2,2) GS:  E₀ = $(round(E_half; digits=6))")
 # operators that already obey all CAR — including cross-species
 # anticommutation.
 
-using NCTSSoS.Next
-import NCTSSoS.Next as Next
+using NCTSSoS
+import NCTSSoS
 
 registry, (c, c_dag) = fermionic_variables(1:2N);
 c_up, c_up_dag = c[1:N], c_dag[1:N];
@@ -236,8 +236,8 @@ SOLVER = MosekBackend();
 # tight at order 3. With support propagated from the completed graphs, the
 # canonical half-filled case also reaches the exact energy at order 3.
 
-relaxation_gc_first = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD(), level=1))
-relaxation_gc = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD(), level=2))
+relaxation_gc_first = Relaxation(order=3, split=TermSplit(algorithm=NCTSSoS.MMD(), level=1))
+relaxation_gc = Relaxation(order=3, split=TermSplit(algorithm=NCTSSoS.MMD(), level=2))
 
 # ---
 #
@@ -320,9 +320,9 @@ number_dn = sum(c_dn_dag[i] * c_dn[i] for i in 1:N)
 canonical_constraints = (Sector(number_up, 2), Sector(number_dn, 2))
 
 relaxation_can_first = Relaxation(order=3,
-    split=TermSplit(algorithm=Next.MMD(), level=1), strengthen=canonical_constraints)
+    split=TermSplit(algorithm=NCTSSoS.MMD(), level=1), strengthen=canonical_constraints)
 relaxation_can = Relaxation(order=3,
-    split=TermSplit(algorithm=Next.MMD(), level=2), strengthen=canonical_constraints)
+    split=TermSplit(algorithm=NCTSSoS.MMD(), level=2), strengthen=canonical_constraints)
 result_can_first = solve(problem, relaxation_can_first; solver=SOLVER)
 result_can = solve(problem, relaxation_can; solver=SOLVER)
 
@@ -382,7 +382,7 @@ println("Gap after refinement:                     $(abs(result_can.bound - E_ha
 # |:-----|:------------|:----|
 # | 1 | Create spin-up and spin-down operators on disjoint mode ranges | `fermionic_variables(1:2N)`, then split the returned vectors |
 # | 2 | Build the Hubbard Hamiltonian (hopping + on-site repulsion) | Standard Julia arithmetic |
-# | 3 | Grand-canonical solve with order-3 term sparsity refinement | `Problem`, `Relaxation`, `solve`; `TermSplit(level=1)` then `level=2`, both with `Next.MMD()` |
+# | 3 | Grand-canonical solve with order-3 term sparsity refinement | `Problem`, `Relaxation`, `solve`; `TermSplit(level=1)` then `level=2`, both with `NCTSSoS.MMD()` |
 # | 4 | Canonical solve with fixed particle number, order 3, and one refinement | Two `Sector` conditions in `Relaxation(strengthen=...)` |
 # | 5 | Verify against exact diagonalisation | `hubbard_exact_matrix` + `sector_ground_state_energy` |
 #

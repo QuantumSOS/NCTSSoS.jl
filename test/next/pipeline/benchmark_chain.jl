@@ -1,10 +1,10 @@
-# Standalone build benchmark; run the Next correctness suite first.
+# Standalone build benchmark; run the NCTSSoS correctness suite first.
 # OPENBLAS_NUM_THREADS=1 julia --project test/next/pipeline/benchmark_chain.jl
 # Contiguous degree-4 rows, periodic Pauli Heisenberg objective. Inputs and
 # solves are outside timing. Seven warm samples build fresh programs.
 # No cross-build cache is used.
 using NCTSSoS, LinearAlgebra, Statistics
-const Nx=NCTSSoS.Next
+const Nx=NCTSSoS
 function chain_case(n,d=4)
     W=Nx.word_type(Nx.Pauli(),n,2d)
     words=Set([one(W)])

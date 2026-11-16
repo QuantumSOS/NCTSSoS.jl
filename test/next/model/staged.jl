@@ -1,6 +1,6 @@
 module StagedSolveChecks
 using Test, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 
 function preparation_bytes(built,solver)
     N.prepare(built;solver)

@@ -1,7 +1,7 @@
 # Direct tests of retained elimination code, not the retired graph builder.
 function elimination_contracts()
-    # #492 moves the unchanged helper into Next; support both merge orders.
-    decompose=isdefined(Next,:clique_decomp) ? Next.clique_decomp : NCTSSoS.clique_decomp
+    # #492 moves the unchanged helper into NCTSSoS; support both merge orders.
+    decompose=isdefined(NCTSSoS,:clique_decomp) ? NCTSSoS.clique_decomp : NCTSSoS.clique_decomp
     @testset "Reviewed elimination graphs" begin
         # Edges are the adjacency fixtures from graph_and_cliques.jl. Keeping
         # the graph input explicit separates decomposition from graph creation.

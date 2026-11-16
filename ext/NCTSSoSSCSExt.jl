@@ -1,6 +1,6 @@
 module NCTSSoSSCSExt
-using NCTSSoS: Next
-using NCTSSoS.Next: pauli_variables, site_variables, Unipotent, Problem, Relaxation,
+import NCTSSoS
+using NCTSSoS: pauli_variables, site_variables, Unipotent, Problem, Relaxation,
     Correlative, SitePermutation, solve,
     TermSplit, fermionic_variables, Free, Positive, word_type, AntiunitaryPauli,
     pauli_letter, DensityMatrix, InvariantCone, spin_rotations, NumberRotation,
@@ -11,7 +11,7 @@ import JuMP
 using SparseArrays: spzeros
 
 mutable struct SCSHandle{B,D}
-    form::Next.MomentStandardForm
+    form::NCTSSoS.MomentStandardForm
     backend::B
     permutation::Vector{Int}
     data::D
@@ -21,7 +21,7 @@ mutable struct SCSHandle{B,D}
     warm_start::Bool
 end
 
-function Next.prepare_standard(form::Next.MomentStandardForm,backend::Next.SCSBackend)
+function NCTSSoS.prepare_standard(form::NCTSSoS.MomentStandardForm,backend::NCTSSoS.SCSBackend)
     linear_solver = backend.linear_solver
     isnothing(linear_solver) || linear_solver in (SCS.DirectSolver,SCS.IndirectSolver) ||
         throw(ArgumentError("linear_solver must be SCS.DirectSolver or SCS.IndirectSolver; pass the type, not an instance."))
@@ -40,7 +40,7 @@ function Next.prepare_standard(form::Next.MomentStandardForm,backend::Next.SCSBa
     return SCSHandle(form,backend,permutation,data,zeros(n),zeros(m),zeros(m),false)
 end
 
-Next.solve_standard(h::SCSHandle) = _solve_standard(h,false)
+NCTSSoS.solve_standard(h::SCSHandle) = _solve_standard(h,false)
 
 function _solve_standard(h::SCSHandle,warm_start::Bool)
     f,d = h.form,h.data
@@ -67,13 +67,13 @@ function _solve_standard(h::SCSHandle,warm_start::Bool)
     diagnostics = (primal_residual=sol.info.res_pri,dual_residual=sol.info.res_dual,gap=sol.info.gap,
         iterations=Int(sol.info.iter),setup_seconds=sol.info.setup_time/1000,solve_seconds=sol.info.solve_time/1000,
         warm_started=options.warm_start)
-    return Next.ConicSolution(bound,status,raw_status,copy(sol.x),h,diagnostics)
+    return NCTSSoS.ConicSolution(bound,status,raw_status,copy(sol.x),h,diagnostics)
 end
 
-function Next.solve_standard(form::Next.MomentStandardForm,h::SCSHandle)
-    Next._check_append_only(h.form,form)
+function NCTSSoS.solve_standard(form::NCTSSoS.MomentStandardForm,h::SCSHandle)
+    NCTSSoS._check_append_only(h.form,form)
     # SCS.jl's public one-shot API closes the native workspace after each solve.
-    next = Next.prepare_standard(form,h.backend)
+    next = NCTSSoS.prepare_standard(form,h.backend)
     if h.warm_start
         next.x .= h.x
         next.slack .= (form.b-form.A*h.x)[next.permutation]
@@ -95,10 +95,10 @@ end
     n=4
     _,(x,y,z)=pauli_variables(n)
     h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+0.7z[i]*z[mod1(i+1,n)] for i in 1:n)
-    backend=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
-    solve(Problem(h;symmetry=Next.Symmetry(SitePermutation([2:n;1]))),
+    backend=NCTSSoS.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
+    solve(Problem(h;symmetry=NCTSSoS.Symmetry(SitePermutation([2:n;1]))),
         Relaxation(order=2,grouping=Correlative());solver=backend)
-    solve(Problem(h;symmetry=Next.Symmetry(SitePermutation([2:n;1]),SitePermutation([mod1(2-i,n) for i in 1:n]))),
+    solve(Problem(h;symmetry=NCTSSoS.Symmetry(SitePermutation([2:n;1]),SitePermutation([mod1(2-i,n) for i in 1:n]))),
         Relaxation(order=2,grouping=Correlative(),split=TermSplit());solver=backend)
     _,(a,b)=site_variables(Unipotent(),2,2)
     bell=Problem(-(a[1]*b[1]+a[1]*b[2]+a[2]*b[1]-a[2]*b[2]))
@@ -106,7 +106,7 @@ end
 end
 
 @compile_workload let
-    backend=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
+    backend=NCTSSoS.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
     _,(a,ad)=fermionic_variables(4)
     h=-(ad[1]*a[3]+ad[3]*a[1]+ad[2]*a[4]+ad[4]*a[2])+2*(ad[1]*a[1]*ad[2]*a[2]+ad[3]*a[3]*ad[4]*a[4])
     solve(Problem(h),Relaxation(order=2);solver=backend)
@@ -116,11 +116,11 @@ end
 end
 
 @compile_workload let
-    backend=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
+    backend=NCTSSoS.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
     registry,(x,y,z)=pauli_variables(3)
     h=-(x[1]*y[2]+x[1]*y[3]+x[2]*x[3]+y[2]*y[3]+z[2]*z[3])
     W=word_type(registry,4)
-    symmetry=Next.Symmetry(SitePermutation([1,3,2]);moment_only=(AntiunitaryPauli(pauli_letter(W,1,1)),))
+    symmetry=NCTSSoS.Symmetry(SitePermutation([1,3,2]);moment_only=(AntiunitaryPauli(pauli_letter(W,1,1)),))
     for kind in (DensityMatrix(1:3),InvariantCone(1:3,"YII"))
         solve(Problem(h;symmetry),Relaxation(order=1,strengthen=(kind,));solver=backend)
     end
@@ -132,7 +132,7 @@ end
     h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
     symmetry=(SitePermutation([2:n;1]),SitePermutation(collect(n:-1:1)),spin_rotations(registry)...)
     solve(Problem(h;symmetry),Relaxation(order=2);
-        solver=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
+        solver=NCTSSoS.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
 end
 
 @compile_workload let
@@ -142,7 +142,7 @@ end
     number=sum(ad[i]*a[i] for i in 1:n)
     problem=Problem(h;symmetry=(NumberRotation(registry),))
     relaxation=Relaxation(order=1,strengthen=(FermionicConditions(1:n;conditions=(:P,:Q,:G)),Sector(number,2)))
-    solve(problem,relaxation;solver=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
+    solve(problem,relaxation;solver=NCTSSoS.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
 end
 
 @compile_workload let
@@ -151,16 +151,16 @@ end
     h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
     symmetry=detect_symmetry(h)
     solve(Problem(h;symmetry),Relaxation(order=1);
-        solver=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
+        solver=NCTSSoS.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7))
 end
 
 @compile_workload let
-    backend=Next.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
-    _,(a,b)=site_variables(Unipotent(),2,2;functional=Next.RealState())
-    h=Next.state_symbol(a[1]*b[1])-Next.state_symbol(a[1])*Next.state_symbol(b[1])
+    backend=NCTSSoS.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)
+    _,(a,b)=site_variables(Unipotent(),2,2;functional=NCTSSoS.RealState())
+    h=NCTSSoS.state_symbol(a[1]*b[1])-NCTSSoS.state_symbol(a[1])*NCTSSoS.state_symbol(b[1])
     solve(Problem(h),Relaxation(order=2);solver=backend)
-    _,(x,)=site_variables(Unipotent(),1,4;functional=Next.RealTrace())
-    h=Next.trace_symbol(x[1]*x[3])-Next.trace_symbol(x[1])*Next.trace_symbol(x[3])
+    _,(x,)=site_variables(Unipotent(),1,4;functional=NCTSSoS.RealTrace())
+    h=NCTSSoS.trace_symbol(x[1]*x[3])-NCTSSoS.trace_symbol(x[1])*NCTSSoS.trace_symbol(x[3])
     solve(Problem(h),Relaxation(order=2);solver=backend)
 end
 end

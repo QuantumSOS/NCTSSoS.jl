@@ -182,13 +182,13 @@ lowest expectation value of $H$ consistent with the fermionic algebra
     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 
 SOLVER = MosekBackend()
 ````
 
 ````
-NCTSSoS.Next.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
+NCTSSoS.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
 ````
 
 ---

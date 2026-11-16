@@ -1,6 +1,6 @@
 module LocalReferenceChecks
 using Test, LinearAlgebra, TOML
-using NCTSSoS.Next
+using NCTSSoS
 import JuMP
 
 # Local-only legacy cases. Bell equations/builds are routine; every solve
@@ -22,7 +22,7 @@ end
 
 function motzkin(sos_solver)
     @testset "T4 operator-only trace SOHS failure" begin
-        registry,(v,)=site_variables(Free(),1,2;functional=Next.RealTrace())
+        registry,(v,)=site_variables(Free(),1,2;functional=NCTSSoS.RealTrace())
         x,y=v
         f=x*y^4*x+y*x^4*y-3x*y^2*x+1
         problem=Problem(trace_symbol(f))
@@ -125,7 +125,7 @@ function benchmarks(solver,sos_solver,chained_solver)
         singular=(-6.428097254420157e-8,-1.2251940085171628e-7,-2.4177846987055753e-7),
         wood=(0.9999998013387236,0.9999998300594172,0.9999998815901131))
     # (side => multiplicity, moments). Dense/CS records match the old file.
-    # TS records use Next's row order for chordal fill and remove duplicate
+    # TS records use NCTSSoS's row order for chordal fill and remove duplicate
     # blocks across groups; the old moment counts remain unchanged.
     shapes=(rosenbrock=(([43=>1],820),([7=>5],90),([1=>5,2=>14,3=>5],33)),
         banded=(([85=>1],2815),([85=>1],2815),([1=>37,2=>1,3=>17,4=>17,5=>1,7=>1,9=>2],134)),
@@ -138,9 +138,9 @@ function benchmarks(solver,sos_solver,chained_solver)
             relaxation=Relaxation(order=kind==:banded ? 3 : 2,
                 grouping=route==1 ? nothing : Correlative(algorithm=MF()),
                 split=route==3 ? TermSplit(algorithm=MMD(),level=1) : nothing)
-            built=Next.build(problem,relaxation)
+            built=NCTSSoS.build(problem,relaxation)
             sides,moments=shapes[kind][route]
-            @test sort(Next.block_sides(built))==reduce(vcat,[fill(side,count) for (side,count) in sides])
+            @test sort(NCTSSoS.block_sides(built))==reduce(vcat,[fill(side,count) for (side,count) in sides])
             @test built.sizes.moments==moments
             # Old tests use SOS except Chained Singular CS+TS, which uses
             # moments and one-decade looser interior-point tolerances.
@@ -148,7 +148,7 @@ function benchmarks(solver,sos_solver,chained_solver)
             result=timed_solve("$kind-route$route",problem,relaxation,backend)
             if kind==:singular && route==3
                 # Same original 1e-7 Mosek settings: old -9.9092722e-7,
-                # native Next -4.2915344e-6 (difference < 1e-5).
+                # native NCTSSoS -4.2915344e-6 (difference < 1e-5).
                 # Exact minimum is zero. Keep the validity-side tolerance.
                 @test -1e-5<=result.bound<=1e-6
             else
@@ -180,7 +180,7 @@ function large_scale(solver,sos_solver)
         relaxation=Relaxation(order=3,grouping=Correlative(algorithm=MF()),split=TermSplit(algorithm=MMD(),level=1))
         moment=timed_solve("large10-moment",problem,relaxation,solver)
         @test moment.bound ≈ 3.011288353315061 atol=1e-4
-        # Old 1544 counts moment blocks only. Next counts the full program,
+        # Old 1544 counts moment blocks only. NCTSSoS counts the full program,
         # including localizers, with its row-order-dependent chordal fill.
         @test moment.sizes.blocks==2268
         @test moment.sizes.moments==5748
@@ -208,10 +208,10 @@ function bell_build(case)
     # from rows to preserve the original (m,n) scenario.
     excluded=Set([Symbol(:s1_,i) for i in m+1:max(m,n)])
     union!(excluded,[Symbol(:s2_,i) for i in n+1:max(m,n)])
-    rows=[p for p in Next.basis(registry,case["order"]) if
-        all(l->Next.operator_name(registry,l) ∉ excluded,
-            Next.support_letters(last(only(Next.terms(p)))))]
-    Next.build(Problem(h),Relaxation(rows=rows))
+    rows=[p for p in NCTSSoS.basis(registry,case["order"]) if
+        all(l->NCTSSoS.operator_name(registry,l) ∉ excluded,
+            NCTSSoS.support_letters(last(only(NCTSSoS.terms(p)))))]
+    NCTSSoS.build(Problem(h),Relaxation(rows=rows))
 end
 
 function bell(solver=nothing;references=false)
@@ -221,7 +221,7 @@ function bell(solver=nothing;references=false)
             id=case["id"]
             @testset "$id" begin
                 built=bell_build(case)
-                @test built isa Next.BuiltRelaxation
+                @test built isa NCTSSoS.BuiltRelaxation
                 # The old file's skip_instances is empty, despite its A17
                 # investigation comment. Keep every equation and order.
                 selected=case["order"]<=2 || max(case["m"],case["n"])<=4 || id in ("A9","A32")
@@ -235,7 +235,7 @@ function bell(solver=nothing;references=false)
                 flush(stderr)
                 @test result.bound!==nothing && isfinite(result.bound)
                 if id=="A17"
-                    # Old expected -0.3754473; Next -0.37544733205129416.
+                    # Old expected -0.3754473; NCTSSoS -0.37544733205129416.
                     # The old comment's -1.115 result is stale.
                     @test result.bound ≈ case["reference"] atol=1e-6
                 end

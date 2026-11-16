@@ -6,21 +6,21 @@ EditURL = "../literate/mixed_algebras_tensor_products.jl"
 
 `NCTSSoS.jl` supports multiple algebra types (Pauli, fermionic, bosonic, …).
 For **mixed systems**, declare named tensor components in one registry with
-`Next.mixed_variables`. Products between components commute. Their
+`NCTSSoS.mixed_variables`. Products between components commute. Their
 expectations are joint moments; they do not factor into separate expectations.
 
-A mixed-system term has a coefficient and a word. `Next.terms` gives these
+A mixed-system term has a coefficient and a word. `NCTSSoS.terms` gives these
 pairs without requiring access to the polynomial's storage.
 
 ````julia
-using NCTSSoS.Next, Mosek, LinearAlgebra
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek, LinearAlgebra
+import NCTSSoS
 ````
 
 ## 1) Build factor-algebra monomials
 
 ````julia
-registry, parts = Next.mixed_variables(spin=(Pauli(), 1), matter=(Fermionic(), 1));
+registry, parts = NCTSSoS.mixed_variables(spin=(Pauli(), 1), matter=(Fermionic(), 1));
 σx, σy, σz = parts.spin;
 a, ad = parts.matter;
 ````
@@ -64,7 +64,7 @@ The phase is carried by the coefficient. Inspect the term with the public API:
 Pass the registry to `sprint` to display the word with symbolic names.
 
 ````julia
-coefficient, word = only(Next.terms(mixed_term));
+coefficient, word = only(NCTSSoS.terms(mixed_term));
 (coefficient, sprint(show, word; context=:registry => registry))
 ````
 
@@ -76,7 +76,7 @@ Both factors are already canonical. Removing the phase leaves one unit term:
 
 ````julia
 canonical = σz[1] * number;
-[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(canonical)]
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in NCTSSoS.terms(canonical)]
 ````
 
 ````

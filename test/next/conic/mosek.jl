@@ -1,6 +1,6 @@
 # Standalone native-writer checks. Construction never requests a license.
 using Test, NCTSSoS, Mosek, JuMP, SparseArrays, LinearAlgebra
-const N=NCTSSoS.Next
+const N=NCTSSoS
 
 function mosek_forms()
     hermitian=N.MomentStandardForm(sparse([2,3],[1,2],[-sqrt(2),-sqrt(2)],4,2),

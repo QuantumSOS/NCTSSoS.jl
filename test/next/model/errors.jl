@@ -1,6 +1,6 @@
 # A short, executable transcript of five invalid user inputs.
 using NCTSSoS
-const Nx = NCTSSoS.Next
+const Nx = NCTSSoS
 _,(X,Y,Z) = Nx.pauli_variables(3)
 _,(other,_,_) = Nx.pauli_variables(3)
 for (input,call) in (

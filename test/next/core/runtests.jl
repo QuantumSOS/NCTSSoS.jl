@@ -1,7 +1,8 @@
 # Tests of the core layer of NCTSSoS.Next. Include the test files of this layer here.
 using Test, Random, NCTSSoS
 isdefined(@__MODULE__, :check_word_contract) || include("../contract_checks.jl")
-isdefined(@__MODULE__, :legacy_product_terms) || include("../reference.jl")
+isdefined(@__MODULE__, :dense_program) || include("../reference.jl")
+include("operator_oracles.jl")
 
 function bridge_terms(s::TermDict)
     out = Dict{Vector{Int},ComplexF64}()
@@ -71,30 +72,19 @@ function check_packed_letters(words::Vector{W}) where {W}
     end
 end
 
-function compare_words(A, T, words)
+function compare_words(algebra, words)
     # Write all results to caller storage so the compiler cannot discard inspection.
     @test inspection_allocations(words) == 0
+    oracle = OperatorOracle(algebra,Nx.legacy_letters.(words))
     for a in words, b in words
-        expected = Dict{Vector{Int},ComplexF64}()
-        for (ca, la) in Nx.legacy_terms(a), (cb, lb) in Nx.legacy_terms(b)
-            for (l,c) in legacy_product_terms(A,T,la,lb)
-                expected[l] = get(expected,l,0.0+0im) + ca*cb*c
-            end
-        end
-        @test bridge_terms(product_terms(a,b,ComplexF64)) == filter(kv->!iszero(kv.second),expected)
+        expected = [(ca*cb,[la;lb]) for (ca,la) in Nx.legacy_terms(a) for (cb,lb) in Nx.legacy_terms(b)]
+        @test operator_equal(oracle,oracle_terms(product_terms(a,b,ComplexF64)),expected)
     end
     for a in words
         p,b = Nx.star(a)
-        expected = Dict{Vector{Int},ComplexF64}()
-        for (c,l) in Nx.legacy_terms(a)
-            old = adjoint(1.0 * NormalMonomial{A,T}(T.(l)))
-            for (d,m) in terms(old)
-                key = Int.(m.word)
-                expected[key] = get(expected,key,0.0+0im) + conj(c)*d
-            end
-        end
+        expected = [(conj(c),raw_adjoint(algebra,l)) for (c,l) in Nx.legacy_terms(a)]
         got = Nx.mul!(TermDict{typeof(a),ComplexF64}(),one(typeof(a)),b,Nx.scale(p,1.0+0im))
-        @test bridge_terms(got) == expected
+        @test operator_equal(oracle,oracle_terms(got),expected)
         sink = TermDict{typeof(a),ComplexF64}()
         for (c,l) in Nx.legacy_terms(a)
             Nx.terms_from_legacy!(sink,typeof(a),l,c)
@@ -111,7 +101,7 @@ end
         push!(words,Nx.word_from_legacy(W,[3(s-1)+mod(i,3)+1 for (i,s) in enumerate(unique([1,64,64K]))]))
         check_packed_letters(words)
         check_word_contract(W,words)
-        compare_words(PauliAlgebra,UInt16,words)
+        compare_words(Nx.Pauli(),words)
     end
     @test Nx.word_type(Nx.Pauli(),64,1000) === Nx.PauliWord{1}
     @test Nx.word_type(Nx.Pauli(),65,0) === Nx.PauliWord{2}
@@ -121,18 +111,19 @@ end
 
 @testset "Packed site words" begin
     rng = MersenneTwister(71)
-    for (rule,A) in ((Nx.Free(),NonCommutativeAlgebra),(Nx.Projector(),ProjectorAlgebra),(Nx.Unipotent(),UnipotentAlgebra))
+    for rule in (Nx.Free(),Nx.Projector(),Nx.Unipotent())
         W = Nx.word_type(Nx.SiteAlgebra(rule,3),3,12)
         words = [one(W)]
         for _ in 1:20
             raw = [Nx.site_letter(W,rand(rng,1:3),rand(rng,1:3)) for _ in 1:rand(rng,1:4)]
             word = foldl((a,b)->Nx.mul(a,b)[2], raw; init=one(W))
-            oldraw = UInt32[only(Nx.legacy_letters(w)) for w in raw]
-            @test Nx.legacy_letters(word) == Int.(NCTSSoS.simplify(A,oldraw))
+            rawletters = Int[only(Nx.legacy_letters(w)) for w in raw]
+            oracle = OperatorOracle(Nx.SiteAlgebra(rule,3),[rawletters])
+            @test operator_equal(oracle,[(1,Nx.legacy_letters(word))],[(1,rawletters)])
             push!(words,word)
         end
         check_word_contract(W,words; C=Float64)
-        compare_words(A,UInt32,words)
+        compare_words(Nx.SiteAlgebra(rule,3),words)
         @test letter_allocations(words)==0
         for w in words
             letters=collect(Nx.word_letters(w))
@@ -244,7 +235,7 @@ end
             push!(words,Nx.word_from_legacy(W,sort!([creators;annihilators])))
         end
         check_word_contract(W,words; C=Float64)
-        compare_words(FermionicAlgebra,Int,words)
+        compare_words(Nx.Fermionic(),words)
         check_packed_letters(words)
         a,ad = Nx.fermi_letter(W,1),Nx.fermi_letter(W,-1)
         @test isempty(clean(product_terms(a,a,Float64)))
@@ -256,12 +247,10 @@ end
         for _ in 1:100
             raw = rand(rng,[-modes; modes],rand(rng,0:7))
             new = TermDict{W,ComplexF64}(); Nx.push_term!(new,1.0+0im,one(W))
-            old = 1.0 * one(NormalMonomial{FermionicAlgebra,Int})
             for l in raw
                 new = times(new,Nx.fermi_letter(W,l))
-                old *= NormalMonomial{FermionicAlgebra,Int}([l])
             end
-            @test bridge_terms(new) == Dict(Int.(m.word)=>ComplexF64(c) for (c,m) in terms(old) if !iszero(c))
+            @test operator_equal(OperatorOracle(Nx.Fermionic(),[raw]),oracle_terms(new),[(1,raw)])
         end
         p,q,out,scratch = (Nx.PolynomialBuffer{W,Float64}(128) for _ in 1:4)
         Nx.push_term!(p,2.0,a); Nx.push_term!(p,3.0,ad); Nx.canonicalize!(p)

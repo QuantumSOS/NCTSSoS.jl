@@ -1,6 +1,6 @@
 using Test, Random, NCTSSoS
 isdefined(@__MODULE__,:check_word_contract) || include("../contract_checks.jl")
-isdefined(@__MODULE__,:legacy_product_terms) || include("../reference.jl")
+isdefined(@__MODULE__,:OperatorOracle) || include("operator_oracles.jl")
 
 function boson_product_bytes(s,a,b,c)
     empty!(s); Nx.mul!(s,a,b,c)
@@ -14,30 +14,25 @@ end
         W=Nx.word_type(Nx.Bosonic(),n,18)
         words=[Nx.word_from_legacy(W,sort!(rand(rng,[-n,-1,1,n],rand(rng,0:3)))) for _ in 1:12]
         check_word_contract(W,unique([one(W);words]);triples=50)
-        registry,_=create_bosonic_variables(1:n)
-        T=eltype(indices(registry))
+        oracle=OperatorOracle(Nx.Bosonic(),[[1,n]])
         for _ in 1:100
             a=Nx.word_from_legacy(W,sort!(rand(rng,[-n,-1,1,n],rand(rng,0:6))))
             b=Nx.word_from_legacy(W,sort!(rand(rng,[-n,-1,1,n],rand(rng,0:6))))
-            new=Dict(Nx.legacy_letters(w)=>c for (w,c) in clean(product_terms(a,b,ComplexF64)))
-            @test new==legacy_product_terms(BosonicAlgebra,T,Nx.legacy_letters(a),Nx.legacy_letters(b))
+            new=[(c,Nx.legacy_letters(w)) for (w,c) in clean(product_terms(a,b,ComplexF64))]
+            @test operator_equal(oracle,new,[(1,[Nx.legacy_letters(a);Nx.legacy_letters(b)])])
             letters=collect(Nx.word_letters(a))
             @test length(letters)==Nx.degree(a)
             @test all(l->Nx.degree(l)==1,letters)
             @test reduce(vcat,Nx.legacy_letters.(letters);init=Int[])==Nx.legacy_letters(a)
             _,adj=Nx.star(a)
-            oldadj=NCTSSoS._moment_linear_adjoint_monomial(NormalMonomial{BosonicAlgebra,T}(T.(Nx.legacy_letters(a))))
-            @test Nx.legacy_letters(adj)==Int.(oldadj.word)
+            @test operator_equal(oracle,[(1,Nx.legacy_letters(adj))],[(1,-reverse(Nx.legacy_letters(a)))])
             folded=TermDict{W,ComplexF64}(); Nx.push_term!(folded,1.0+0im,one(W))
             for l in letters; folded=times(folded,l); end
             @test clean(folded)==Dict(a=>1.0+0im)
             raw=shuffle(rng,Nx.legacy_letters(a))
             ordered=TermDict{W,ComplexF64}(); Nx.push_term!(ordered,1.0+0im,one(W))
             for i in raw; ordered=times(ordered,Nx.boson_letter(W,i)); end
-            old=foldl(*,(NormalMonomial{BosonicAlgebra,T}(T[i]) for i in raw);
-                init=1.0*NormalMonomial{BosonicAlgebra,T}(T[]))
-            @test Dict(Nx.legacy_letters(w)=>c for (w,c) in clean(ordered))==
-                Dict(Int.(m.word)=>c for (c,m) in terms(old))
+            @test operator_equal(oracle,[(c,Nx.legacy_letters(w)) for (w,c) in clean(ordered)],[(1,raw)])
         end
         a=Nx.word_from_legacy(W,[1,1,n])
         b=Nx.word_from_legacy(W,[-n,-1,-1])

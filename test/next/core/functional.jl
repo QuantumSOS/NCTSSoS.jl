@@ -2,22 +2,25 @@ module FunctionalCoreChecks
 using Test, Random, LinearAlgebra, NCTSSoS
 import NCTSSoS: Next as N
 include("../contract_checks.jl")
+include("operator_oracles.jl")
 
-legacy_rule(::Type{N.Free})=NonCommutativeAlgebra
-legacy_rule(::Type{N.Projector})=ProjectorAlgebra
-legacy_rule(::Type{N.Unipotent})=UnipotentAlgebra
-function legacy(w::N.FunctionalWord{F,A,B,S}) where {F,A,B,S}
-    LA=legacy_rule(A); ST=F===N.RealState ? Arbitrary : MaxEntangled
-    letters(i,j)=UInt32[(UInt32(N._ftoken(w,k)>>S)<<8)|UInt32(N._fsite(N._ftoken(w,k),S)) for k in i:j]
-    tail=NormalMonomial{LA,UInt32}(letters(1,N._ftail(w)))
-    syms=NCTSSoS.StateSymbol{ST,LA,UInt32}[]
+# Evaluate scalar symbols in a real vector state or normalized matrix trace.
+# The tail is a matrix. In particular a product of symbols is not discarded.
+function functional_value(w::N.FunctionalWord{F,A,B,S},oracle) where {F,A,B,S}
+    letters(i,j)=Int[(Int(N._ftoken(w,k)>>S)<<8)|Int(N._fsite(N._ftoken(w,k),S)) for k in i:j]
+    value=operator_matrix(oracle,letters(1,N._ftail(w)))
     i=N._ftail(w)+1
     while i<=N.degree(w)
         j=N._fstop(w,i)
-        push!(syms,NCTSSoS.StateSymbol{ST}(NormalMonomial{LA,UInt32}(letters(i,j))))
+        value *= functional_average(F,operator_matrix(oracle,letters(i,j)))
         i=j+1
     end
-    NCTSSoS.NCStateWord(StateWord{ST,LA,UInt32}(syms),tail)
+    value
+end
+functional_average(::Type{N.RealTrace},matrix)=LinearAlgebra.tr(matrix)/size(matrix,1)
+function functional_average(::Type{N.RealState},matrix)
+    v=Float64.(1:size(matrix,1))
+    dot(v,matrix*v)/dot(v,v)
 end
 
 function sample(rng,::Type{W},nsites) where {W}
@@ -73,16 +76,19 @@ end
     rng=MersenneTwister(8263)
     for F in (N.RealState,N.RealTrace), A in (N.Free,N.Projector,N.Unipotent)
         algebra=N.FunctionalAlgebra(F(),N.SiteAlgebra(A(),3))
-        # Trace legacy comparison has one group: its multi-group oracle is wrong.
+        # Keep the original sample domains and RNG stream; the independent
+        # two-group trace checks below cover the additional cyclic relations.
         nsites=F===N.RealTrace ? 1 : 2
         W=N.word_type(algebra,nsites,30)
         samples=[sample(rng,W,nsites) for _ in 1:50]
+        oracle=OperatorOracle(N.SiteAlgebra(A(),3),[[l<<8|s for s in 1:nsites for l in 1:3]])
         check_word_contract(W,samples[1:8])
         for w in samples
             @test W(w.bits)==w
             @test isbitstype(W)
-            @test legacy(N.star(w)[2])==adjoint(legacy(w))
-            @test legacy(first(N.moment_key(w))).sw==NCTSSoS.expval(legacy(w))
+            value=functional_value(w,oracle)
+            @test functional_value(N.star(w)[2],oracle) ≈ value' atol=1e-10
+            @test functional_value(first(N.moment_key(w)),oracle) ≈ functional_average(F,value)*I atol=1e-10
             support=collect(N.support_letters(w))
             @test length(support)==N.degree(w)
             @test all(l->N.degree(l)==1,support)
@@ -96,7 +102,7 @@ end
         end
         for _ in 1:150
             a,b,c=rand(rng,samples,3)
-            @test legacy(N.mul(a,b)[2])==legacy(a)*legacy(b)
+            @test functional_value(N.mul(a,b)[2],oracle) ≈ functional_value(a,oracle)*functional_value(b,oracle) atol=1e-10
             @test N.mul(N.mul(a,b)[2],c)[2]==N.mul(a,N.mul(b,c)[2])[2]
             @test N.star(N.mul(a,b)[2])[2]==N.mul(N.star(b)[2],N.star(a)[2])[2]
         end
@@ -191,9 +197,11 @@ end
         N.push_term!(p,2.0,a); N.push_term!(p,-3.0,sb); N.canonicalize!(p)
         N.push_term!(q,5.0,sa); N.push_term!(q,7.0,b); N.canonicalize!(q)
         N.mul!(out,p,q,scratch)
-        expected=Dict(legacy(a)*legacy(sa)=>10.0,legacy(a)*legacy(b)=>14.0,
-                      legacy(sb)*legacy(sa)=>-15.0,legacy(sb)*legacy(b)=>-21.0)
-        @test Dict(legacy(out.words[i])=>out.coefficients[i] for i in 1:length(out))==expected
+        oracle=OperatorOracle(N.SiteAlgebra(N.Free(),3),[[257,514]])
+        value(w)=functional_value(w,oracle)
+        expected=(2value(a)-3value(sb))*(5value(sa)+7value(b))
+        @test sum(out.coefficients[i]*value(out.words[i]) for i in 1:length(out)) ≈ expected atol=1e-10
+        @test length(out)==4
         @test (@allocated N.mul!(out,p,q,scratch))==0
     end
 end

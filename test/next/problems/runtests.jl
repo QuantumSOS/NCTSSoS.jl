@@ -26,6 +26,7 @@ include("fermionic/xy_model.jl")
 include("condensed_matter/bose_hubbard.jl")
 include("benchmarks.jl")
 include("condensed_matter/heisenberg.jl")
+include("fermionic_legacy.jl")
 
 # SOS checks are opt-in: call check(; sos_solver=MosekBackend(form=:sos))
 # after loading Mosek and checking its licence. The CI baseline needs no licence.
@@ -48,6 +49,7 @@ function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing,
         heisenberg_star(solver,sos_solver;references)
         heisenberg_spin(solver)
         heisenberg_structure()
+        FermionicLegacyChecks.check(;solver,sos_solver,references)
     end
 end
 end

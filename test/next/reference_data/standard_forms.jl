@@ -1,13 +1,14 @@
 module StandardFormReference
-using Test, SparseArrays, SHA, TOML
+using Test, SparseArrays, SHA, TOML, JuMP, COSMO
 import NCTSSoS: Next as N
 include("combination_inputs.jl")
 const C = CombinationMatrix
 
 # Preserve the reviewer's byte encoding, including removal of tautological
 # zero-cone rows. The input snapshot is fixed independently of the live matrix.
-function fingerprint(p,r)
-    f = N.moment_standard_form(N.build(p,r).program)
+fingerprint(p,r) = fingerprint(N.moment_standard_form(N.build(p,r).program))
+
+function fingerprint(f; comparison="exact")
     A = f.A
     rownz = zeros(Int,size(A,1))
     for (row,v) in zip(A.rowval,A.nzval)
@@ -25,7 +26,27 @@ function fingerprint(p,r)
         n = count(@view keep[rows])
         n > 0 && push!(cones,(c.kind,n))
     end
-    B = A[keep,:]; io = IOBuffer(); rows,cols,vals = findnz(B)
+    B = A[keep,:]
+    if comparison == "invariant"
+        sides = sort!([(c.kind,c.side) for c in f.cones])
+        return string("rows ",size(B,1)," tautologies ",dropped,
+            " variables ",size(B,2)," cones ",sides)
+    end
+    io = IOBuffer(); rows,cols,vals = findnz(B)
+    if comparison == "rounded"
+        # Numerical support and values, not the BLAS-specific low bits.
+        roundvalue(v) = abs(v) <= 1e-11 ? 0.0 : round(v;digits=9) + 0.0
+        support = abs.(vals) .> 1e-11
+        write(io,Int64.(rows[support])); write(io,Int64.(cols[support]))
+        write(io,roundvalue.(vals[support]))
+        write(io,roundvalue.(f.b[keep])); write(io,roundvalue.(f.c)); write(io,roundvalue(f.offset))
+        for c in cones
+            print(io,c)
+        end
+        return string(bytes2hex(sha256(take!(io)))[1:16]," rows ",size(B,1),
+            " cols ",size(B,2)," tautologies ",dropped)
+    end
+    comparison == "exact" || error("Unknown comparison: $comparison")
     write(io,Int64.(rows)); write(io,Int64.(cols)); write(io,vals)
     write(io,f.b[keep]); write(io,f.c); write(io,f.offset)
     for c in cones
@@ -36,14 +57,14 @@ end
 
 attempt(f) = try f() catch e; "ERROR " * first(sprint(showerror,e),60) end
 
-function records()
+function records(record_case=(i,p,r)->fingerprint(p,r))
     fixtures = Dict{Any,Any}()
     fx(problem,n) = get!(() -> C.fixture(problem,n),fixtures,(problem,n))
     out = String[]
     for (i,c) in enumerate(C.smoke_cases())
         f = fx(c.problem,c.n)
         value = attempt() do
-            fingerprint(N.Problem(f.H;constraints=f.constraints,
+            record_case(length(out)+1,N.Problem(f.H;constraints=f.constraints,
                 symmetry=C.declaration(f,c.finite,c.continuous)),
                 C.relaxation(f,c.family,C.strengthening(f,c.strengthening)))
         end
@@ -60,7 +81,7 @@ function records()
                 ("o2 grouped split",N.Relaxation(order=2,grouping=N.Correlative(),split=N.TermSplit())),
                 ("o1 density",N.Relaxation(order=1,strengthen=(N.DensityMatrix(1:3),))))
             problem == :ising && occursin("flip",label) && continue
-            value = attempt(() -> fingerprint(N.Problem(f.H;symmetry=N.Symmetry(gens...;moment_only=(K,))),relax))
+            value = attempt(() -> record_case(length(out)+1,N.Problem(f.H;symmetry=N.Symmetry(gens...;moment_only=(K,))),relax))
             push!(out,"anti $problem n$n $label $rl $value")
         end
     end
@@ -69,8 +90,23 @@ end
 
 function check(path=joinpath(@__DIR__,"../../data/expectations/next_standard_forms.toml"))
     expected = TOML.parsefile(path)["cases"]
+    # The full suite has already compiled this writer. All twenty small solves
+    # together take under a second warm; no licensed-solver gate is needed.
+    backend = N.JuMPBackend(optimizer_with_attributes(COSMO.Optimizer,
+        "verbose"=>false,"decompose"=>false,"eps_abs"=>1e-8,
+        "eps_rel"=>1e-8,"max_iter"=>50_000))
     @testset "Frozen standard forms and rejected combinations" begin
-        actual = records()
+        actual = records() do i,p,r
+            want = expected[i]
+            comparison = get(want,"comparison","exact")
+            f = N.moment_standard_form(N.build(p,r).program)
+            if comparison == "invariant"
+                solution = N.solve_standard(f,backend)
+                @test solution.status == MOI.OPTIMAL
+                @test solution.bound ≈ want["expected"]["objective"] atol=1e-6 rtol=0
+            end
+            fingerprint(f;comparison)
+        end
         @test length(actual) == length(expected) == 242
         for (got,want) in zip(actual,expected)
             @test got == want["expected"]["record"]

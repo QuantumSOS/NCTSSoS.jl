@@ -6,6 +6,8 @@ isdefined(Main, :SOLVER) || include("../TestUtils.jl")
 include("contract_checks.jl")
 include("reference.jl")
 include("fixtures.jl")
+include("core/operator_oracles.jl")
+include("reference_data/legacy_expected.jl")
 
 function solve_reference(program)
     model, y = Nx.to_jump(program)
@@ -31,9 +33,7 @@ end
         @test !Nx.is_antiunitary(ToyShift(4))
     end
 
-    @testset "toy products equal the current package" begin
-        reg, _ = create_pauli_variables(1:6)
-        T = eltype(indices(reg))
+    @testset "toy products equal independent Pauli matrices" begin
         words = toy_words(6, 2)
         rng = MersenneTwister(2)
         for _ in 1:500
@@ -42,7 +42,8 @@ end
             @test Nx.legacy_terms(a) == [(1.0 + 0im, Nx.legacy_letters(a))]
             @test Nx.terms_from_legacy!(TermDict{ToyPauli,ComplexF64}(), ToyPauli, Nx.legacy_letters(a), 2.0 + 0im).terms == Dict(a => 2.0 + 0im)
             new = Dict(Nx.legacy_letters(w) => c for (w, c) in product_terms(a, b, ComplexF64).terms)
-            @test new == legacy_product_terms(PauliAlgebra, T, Nx.legacy_letters(a), Nx.legacy_letters(b))
+            coefficient,letters = pauli_normal([Nx.legacy_letters(a);Nx.legacy_letters(b)])
+            @test new == Dict(letters=>coefficient)
         end
     end
 
@@ -98,19 +99,25 @@ end
         @test solve_reference(h)[1] ≈ -sqrt(2) atol = 1e-5
     end
 
-    @testset "dense reference equals the current package" begin
+    @testset "dense reference has complete Pauli coordinates" begin
         for (n, order) in ((4, 1), (3, 2))
-            reg, (x, y, z) = create_pauli_variables(1:n)
-            pop = polyopt(sum(x[i] * x[i + 1] + y[i] * y[i + 1] + z[i] * z[i + 1] for i in 1:(n - 1)), reg)
-            config = SolverConfig(optimizer=SOLVER, order=order)
-            sparsity = compute_sparsity(pop, config)
-            old = NCTSSoS.moment_relax(pop, sparsity.corr_sparsity, sparsity.cliques_term_sparsities)
             objective = [(1.0, Nx.mul(toy_letter(i, a), toy_letter(i + 1, a))[2]) for i in 1:(n - 1) for a in 0:2]
             program, table = dense_program(toy_words(n, order), objective)
-            @test Nx.nvars(program) == old.n_unique_moment_matrix_elements
-            @test Set(Nx.legacy_letters(l.word) for l in table.labels) == Set(Int.(m.word) for m in values(old.linear.key_to_monomial))
+            expected = Set(Tuple(3(i-1)+axis for (i,axis) in enumerate(axes) if axis!=0)
+                for axes in Iterators.product(ntuple(_->0:3,n)...) if count(!iszero,axes)<=2order)
+            @test Nx.nvars(program) == sum(binomial(n,k)*3^k for k in 0:min(n,2order))
+            @test Set(Tuple(Nx.legacy_letters(l.word)) for l in table.labels) == expected
             @test all(l.part == 0x01 for l in table.labels[2:end])       # each Pauli moment is real
-            @test solve_reference(program)[1] ≈ cs_nctssos(pop, config; dualize=false).objective atol = 1e-5
+            if n==4
+                bound = LEGACY_EXPECTED["heisenberg-open4-order1"]["objective"]
+            else
+                # The three-site order-two relaxation reaches the exact
+                # eight-dimensional Hamiltonian ground energy.
+                embed(i,a) = reduce(kron,(ORACLE_PAULI[j==i ? a+1 : 1] for j in 1:n))
+                H = sum(embed(i,a)*embed(i+1,a) for i in 1:n-1 for a in 1:3)
+                bound = eigmin(Hermitian(complex(float(H))))
+            end
+            @test solve_reference(program)[1] ≈ bound atol = 1e-5
         end
     end
 end
@@ -123,3 +130,7 @@ include("problems/runtests.jl")
 include("polynomials/runtests.jl")
 include("relaxations/runtests.jl")
 include("trace_poly/runtests.jl")
+include("model/detector_reference.jl")
+DetectorReference.check()
+include("reference_data/standard_forms.jl")
+StandardFormReference.check()

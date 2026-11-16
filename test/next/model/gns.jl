@@ -144,19 +144,19 @@ end
     @test g.flatness.minimum_eigenvalue>=-g.flatness.psd_tolerance
     @test !occursin("; reproduced;",sprint(show,g))
     @test occursin("max error $(round(g.checks.program_moment_error;sigdigits=3));",sprint(show,g))
-    old_registry,_=NCTSSoS.create_pauli_variables(1:4)
-    old_words=NCTSSoS._gns_extract_monomials_from_basis(NCTSSoS.get_ncbasis(old_registry,4))
-    old_moment(m)=dot(psi,foldl((A,i)->A*physical[i],m.word;init=Matrix{ComplexF64}(I,16,16))*psi)
-    old_map=Dict(NCTSSoS._gns_moment_key(m)=>old_moment(m) for m in old_words)
-    old=NCTSSoS.gns_reconstruct(old_map,old_registry,3;hankel_deg=2,atol=1e-6)
-    @test (old.rank,old.full_rank)==(g.rank,g.full_rank)
-    @test old.singular_values ≈ g.singular_values atol=1e-6
+    # Enumerate the tensor-product Pauli basis without a package word builder.
+    words=[Int[3(i-1)+a for (i,a) in enumerate(axes) if a!=0]
+        for axes in Iterators.product(ntuple(_->0:3,4)...)]
+    represented(word)=foldl((A,i)->A*physical[i],word;init=Matrix{ComplexF64}(I,16,16))
+    principal=hcat([represented(word)*psi for word in words if length(word)<=2]...)
+    full=hcat([represented(word)*psi for word in words if length(word)<=3]...)
+    @test (rank(principal;atol=1e-6),rank(full;atol=1e-6))==(g.rank,g.full_rank)
+    @test svdvals(principal'*principal) ≈ g.singular_values atol=1e-6
+    @test svdvals(full'*full) ≈ g.full_singular_values atol=1e-6
     variables=[v for i in 1:4 for v in (x[i],y[i],z[i])]
-    for m in old_words
-        p=foldl(*,(variables[i] for i in m.word);init=one(x[1]))
-        old_value=dot(old.xi,foldl((A,i)->A*old.matrices[i],m.word;init=Matrix{ComplexF64}(I,old.rank,old.rank))*old.xi)
-        @test N.expectation(g,p) ≈ old_value atol=1e-6
-        @test old_value ≈ old_moment(m) atol=1e-6
+    for word in words
+        p=foldl(*,(variables[i] for i in word);init=one(x[1]))
+        @test N.expectation(g,p) ≈ dot(psi,represented(word)*psi) atol=1e-6
     end
     _,(other,_,_)=N.pauli_variables(4)
     @test_throws r"different registry" g[other[1]]

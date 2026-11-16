@@ -3,6 +3,7 @@ using Test, NCTSSoS, JuMP, LinearAlgebra
 isdefined(@__MODULE__,:Nx) || include("../contract_checks.jl")
 isdefined(@__MODULE__,:dense_program) || include("../reference.jl")
 isdefined(@__MODULE__,:SOLVER) || include("../../TestUtils.jl")
+isdefined(@__MODULE__,:LEGACY_EXPECTED) || include("../reference_data/legacy_expected.jl")
 
 function conic_bound(p)
     model,x = Nx.to_jump(p)
@@ -98,10 +99,8 @@ end
     @test Nx.moment_standard_form(both).cones==original.cones
 end
 
-@testset "Plain route and both forms equal cs_nctssos" begin
-    reg,(x,y,z) = create_pauli_variables(1:4)
-    ham = sum(x[i]*x[i+1]+y[i]*y[i+1]+z[i]*z[i+1] for i in 1:3)
-    old = cs_nctssos(polyopt(ham,reg),SolverConfig(optimizer=SOLVER,order=1);dualize=false).objective
+@testset "Plain route and both forms equal frozen legacy bounds" begin
+    old = LEGACY_EXPECTED["heisenberg-open4-order1"]["objective"]
     W = Nx.PauliWord{2}
     rows = Nx.basis_rows(W,Nx.Pauli(),63:66,1)
     objective = [(1.,Nx.mul(Nx.pauli_letter(W,i,a),Nx.pauli_letter(W,i+1,a))[2]) for i in 63:65 for a in 0:2]
@@ -110,21 +109,19 @@ end
     @test conic_bound(ref) ≈ old atol=2e-5
     check_forms(p;expected=old)
 
-    reg,(a,ad) = create_fermionic_variables(1:3)
+    reg,(a,ad) = Nx.fermionic_variables(3)
     ham = -(ad[1]*a[2]+ad[2]*a[1])-.7*(ad[2]*a[3]+ad[3]*a[2])+1.3*ad[1]*a[1]*ad[2]*a[2]+.4*ad[3]*a[3]
-    old = cs_nctssos(polyopt(ham,reg),SolverConfig(optimizer=SOLVER,order=2);dualize=false).objective
+    old = LEGACY_EXPECTED["fermion3-order2"]["objective"]
     W = Nx.FermiWord{1}
     rows = Nx.basis_rows(W,Nx.Fermionic(),1:3,2)
     @test length(rows)==22 # 1 + 6 letters + choose(6,2) normal words
-    objective = [(c,Nx.word_from_legacy(W,m.word)) for (c,m) in terms(ham)]
+    objective = [(c,Nx.word_from_legacy(W,Nx.legacy_letters(m))) for (c,m) in Nx.terms(ham)]
     p,_ = Nx.plain_program(rows,objective)
     ref,_ = dense_program(rows,objective)
     @test conic_bound(ref) ≈ old atol=2e-4
     check_forms(p;expected=old,tolerance=2e-4)
 
-    reg,(x,y) = create_unipotent_variables([("x",1:2),("y",1:2)])
-    ham = -(x[1]*y[1]+x[1]*y[2]+x[2]*y[1]-x[2]*y[2])
-    old = cs_nctssos(polyopt(ham,reg),SolverConfig(optimizer=SOLVER,order=1);dualize=false).objective
+    old = LEGACY_EXPECTED["chsh-order1"]["objective"]
     algebra = Nx.SiteAlgebra(Nx.Unipotent(),2)
     W = Nx.word_type(algebra,2,2)
     rows = Nx.basis_rows(W,algebra,1:2,1)

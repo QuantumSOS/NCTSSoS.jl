@@ -146,25 +146,18 @@ end
     registry,(x,y,z)=Nx.pauli_variables(4)
     H=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+z[i]*z[mod1(i+1,4)] for i in 1:4)
     problem=Nx.Problem(H)
-    old_registry,old_ops=create_pauli_variables(1:4)
-    old_H=heisenberg_chain_hamiltonian(old_ops;periodic=true,coupling=1)
-    old_problem=polyopt(old_H,old_registry)
     for algorithm in (MF(),MMD())
-        old=NCTSSoS.correlative_sparsity(old_problem,1,algorithm)
         # The old graph has letter vertices; the new graph has site
         # vertices. Their tie-dependent triangulations agree after closure.
-        groups=[sort!(unique([(Int(i)-1)÷3+1 for i in clique])) for clique in old.cliques]
+        groups=LEGACY_EXPECTED["pauli-ring4-groups-$(nameof(typeof(algorithm)))"]["groups"]
         expected=Set(Tuple(sort!([mod1(i+shift,4) for i in group])) for group in groups for shift in 0:3)
         built=Nx.build(problem,Nx.BlockRelaxation(order=1,grouping=Nx.Correlative(;algorithm),
             symmetry=Nx.FamilySymmetry([Nx.SitePermutation([2,3,4,1])])))
         actual=Set(Tuple(sort!(unique!(reduce(vcat,[collect(Nx.sites(w)) for w in b.rows];init=Int[])))) for b in built.sizes.closure.family)
         @test actual==expected
     end
-    old_basis=get_ncbasis(old_registry,1)
-    active=NCTSSoS.init_activated_supp(old_H,typeof(old_H)[],old_basis)
-    old_split=NCTSSoS.term_sparsities(active,typeof(old_H)[],old_basis,typeof(old_basis)[],MaximalElimination())
     built=Nx.build(problem,Nx.BlockRelaxation(order=1,split=Nx.TermSplit()))
-    expected=Set(Set(Tuple(w.word) for w in block) for block in first(old_split).block_bases)
+    expected=Set(Set(Tuple(w) for w in block) for block in LEGACY_EXPECTED["pauli-ring4-term-rows"]["blocks"])
     actual=Set(Set(Tuple(Nx.legacy_letters(w)) for w in b.rows) for b in built.sizes.closure.family)
     @test actual==expected
 

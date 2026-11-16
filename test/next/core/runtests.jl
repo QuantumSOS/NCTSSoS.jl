@@ -2,7 +2,7 @@
 using Test, Random, NCTSSoS
 isdefined(@__MODULE__, :check_word_contract) || include("../contract_checks.jl")
 isdefined(@__MODULE__, :dense_program) || include("../reference.jl")
-include("operator_oracles.jl")
+isdefined(@__MODULE__, :OperatorOracle) || include("operator_oracles.jl")
 
 function bridge_terms(s::TermDict)
     out = Dict{Vector{Int},ComplexF64}()
@@ -250,6 +250,7 @@ end
             for l in raw
                 new = times(new,Nx.fermi_letter(W,l))
             end
+            @test all(issorted(Nx.legacy_letters(w)) && allunique(Nx.legacy_letters(w)) for w in keys(clean(new)))
             @test operator_equal(OperatorOracle(Nx.Fermionic(),[raw]),oracle_terms(new),[(1,raw)])
         end
         p,q,out,scratch = (Nx.PolynomialBuffer{W,Float64}(128) for _ in 1:4)

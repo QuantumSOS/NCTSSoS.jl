@@ -19,6 +19,7 @@ end
             a=Nx.word_from_legacy(W,sort!(rand(rng,[-n,-1,1,n],rand(rng,0:6))))
             b=Nx.word_from_legacy(W,sort!(rand(rng,[-n,-1,1,n],rand(rng,0:6))))
             new=[(c,Nx.legacy_letters(w)) for (w,c) in clean(product_terms(a,b,ComplexF64))]
+            @test all(issorted(letters) for (_,letters) in new)
             @test operator_equal(oracle,new,[(1,[Nx.legacy_letters(a);Nx.legacy_letters(b)])])
             letters=collect(Nx.word_letters(a))
             @test length(letters)==Nx.degree(a)
@@ -32,6 +33,7 @@ end
             raw=shuffle(rng,Nx.legacy_letters(a))
             ordered=TermDict{W,ComplexF64}(); Nx.push_term!(ordered,1.0+0im,one(W))
             for i in raw; ordered=times(ordered,Nx.boson_letter(W,i)); end
+            @test all(issorted(Nx.legacy_letters(w)) for w in keys(clean(ordered)))
             @test operator_equal(oracle,[(c,Nx.legacy_letters(w)) for (w,c) in clean(ordered)],[(1,raw)])
         end
         a=Nx.word_from_legacy(W,[1,1,n])

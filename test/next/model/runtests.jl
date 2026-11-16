@@ -170,11 +170,9 @@ end
     end
 end
 
-@testset "One-call model solve equals current package" begin
+@testset "One-call model solve equals frozen legacy bounds" begin
     backend = Nx.JuMPBackend(SOLVER)
-    reg,(x,y,z) = create_pauli_variables(1:4)
-    oldH = sum(x[i]*x[i+1]+y[i]*y[i+1]+z[i]*z[i+1] for i in 1:3)
-    old = cs_nctssos(polyopt(oldH,reg),SolverConfig(optimizer=SOLVER,order=1);dualize=false).objective
+    old = LEGACY_EXPECTED["heisenberg-open4-order1"]["objective"]
     r,(X,Y,Z) = Nx.pauli_variables(4)
     H = sum(X[i]*X[i+1]+Y[i]*Y[i+1]+Z[i]*Z[i+1] for i in 1:3)
     result = Nx.solve(Nx.Problem(H),Nx.Relaxation(order=1);solver=backend)
@@ -188,9 +186,7 @@ end
     @info "One call: Heisenberg4" old new=result.bound sizes=result.sizes
 
     # Two spatial sites, two spin orbitals each: an actual two-site Hubbard model.
-    reg,(a,ad) = create_fermionic_variables(1:4)
-    oldH = -(ad[1]*a[3]+ad[3]*a[1]+ad[2]*a[4]+ad[4]*a[2])+2*(ad[1]*a[1]*ad[2]*a[2]+ad[3]*a[3]*ad[4]*a[4])
-    old = cs_nctssos(polyopt(oldH,reg),SolverConfig(optimizer=SOLVER,order=2);dualize=false).objective
+    old = LEGACY_EXPECTED["hubbard2-order2"]["objective"]
     r,(a,ad) = Nx.fermionic_variables(4)
     H = -(ad[1]*a[3]+ad[3]*a[1]+ad[2]*a[4]+ad[4]*a[2])+2*(ad[1]*a[1]*ad[2]*a[2]+ad[3]*a[3]*ad[4]*a[4])
     result = Nx.solve(Nx.Problem(H),Nx.Relaxation(order=2);solver=backend)
@@ -198,9 +194,7 @@ end
     @test result.bound ≈ 1-sqrt(5) atol=2e-5
     @info "One call: Hubbard2" old new=result.bound sizes=result.sizes
 
-    reg,(x,y) = create_unipotent_variables([("x",1:2),("y",1:2)])
-    oldH = -(x[1]*y[1]+x[1]*y[2]+x[2]*y[1]-x[2]*y[2])
-    old = cs_nctssos(polyopt(oldH,reg),SolverConfig(optimizer=SOLVER,order=1);dualize=false).objective
+    old = LEGACY_EXPECTED["chsh-order1"]["objective"]
     r,(x,y) = Nx.site_variables(Nx.Unipotent(),2,2)
     H = -(x[1]*y[1]+x[1]*y[2]+x[2]*y[1]-x[2]*y[2])
     built = Nx.build(Nx.Problem(H),Nx.Relaxation(order=1))

@@ -67,6 +67,15 @@ end
             Nx.push_term!(folded,1.0+0im,one(W))
             for letter in Nx.word_letters(w); folded=times(folded,letter); end
             @test clean(folded)==Dict(w=>1.0+0im)
+            # Reverse tensor-factor order without changing order within a
+            # factor. Equal operators must be the same stored word and hash.
+            reordered=TermDict{W,ComplexF64}()
+            Nx.push_term!(reordered,1.0+0im,one(W))
+            for i in reverse(eachindex(w.components)), letter in Nx.word_letters(w)
+                isone(letter.components[i]) || (reordered=times(reordered,letter))
+            end
+            @test clean(reordered)==Dict(w=>1.0+0im)
+            @test hash(only(keys(clean(reordered))))==hash(w)
             expected=map(raw_adjoint,algebras,mixed_raw(w))
             phase,s=Nx.star(w)
             @test mixed_equal(oracles,[(Nx.scale(phase,1.0+0im),mixed_raw(s))],[(1,expected)])

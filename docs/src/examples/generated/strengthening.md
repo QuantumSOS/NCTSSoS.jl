@@ -375,7 +375,26 @@ valid_for: Normalized states satisfying: ⟨-0.25 + s1_1⟩ = 0 (scalar)
 
 ````
 
-## Six rejected combinations and how to correct them
+**Scalar constraint with strengthening.** A scalar expectation constraint
+adds one scalar row to the program and combines with symmetry, grouping,
+split and strengthening.
+
+````julia
+scalar_density = Next.build(Problem(z[1]; constraints=(ExpectationZero(z[1]),)),
+    Relaxation(order=1, strengthen=DensityMatrix(1:1)));
+scalar_density_result = solve(scalar_density; solver);
+report_bound("Scalar equality with density matrix", scalar_density_result)
+````
+
+````
+Scalar equality with density matrix: -1.1292437644944657e-17
+bound_kind: numerical_optimum_not_certificate
+valid_for: Normalized states satisfying: ⟨Z1⟩ = 0 (scalar);
+  DensityMatrix: valid for each state
+
+````
+
+## Five rejected combinations and how to correct them
 
 These messages are produced by executed calls. Each block expects an
 `ArgumentError`; any other failure is rethrown. They describe the current
@@ -459,27 +478,6 @@ end
 ArgumentError:
 A supplied symmetry moves the selected sector;
 remove the generator or choose an invariant sector.
-
-````
-
-**Scalar constraint with strengthening.** This is a temporary restriction:
-scalar-constraint integration into the block pipeline is queued. Use a
-plain order-based or custom-row relaxation for now.
-
-````julia
-show_rejection() do
-    Next.build(Problem(z[1]; constraints=(ExpectationZero(z[1]),)),
-        Relaxation(order=1, strengthen=DensityMatrix(1:1)))
-end
-````
-
-````
-ArgumentError:
-Scalar expectation constraints do not yet support the block pipeline;
-use a plain Relaxation(order=...) or rows=...
-without symmetry,
-grouping,
-split or strengthening until scalar graph seeding and block integration are available.
 
 ````
 

@@ -236,7 +236,17 @@ report_bound("Scalar equality", equal)
 @assert isapprox(equal.bound, 0.25; atol=1e-6) #src
 @assert isempty(equal.sizes.localizing_rows) #src
 
-# ## Six rejected combinations and how to correct them
+# **Scalar constraint with strengthening.** A scalar expectation constraint
+# adds one scalar row to the program and combines with symmetry, grouping,
+# split and strengthening.
+
+scalar_density = Next.build(Problem(z[1]; constraints=(ExpectationZero(z[1]),)),
+    Relaxation(order=1, strengthen=DensityMatrix(1:1)));
+scalar_density_result = solve(scalar_density; solver);
+report_bound("Scalar equality with density matrix", scalar_density_result)
+@assert isapprox(scalar_density_result.bound, 0; atol=1e-6) #src
+
+# ## Five rejected combinations and how to correct them
 #
 # These messages are produced by executed calls. Each block expects an
 # `ArgumentError`; any other failure is rethrown. They describe the current
@@ -281,15 +291,6 @@ end
 show_rejection() do
     Next.build(Problem(z[1]+z[2]; symmetry=(SitePermutation([2,1,3]),)),
         Relaxation(order=1, strengthen=Sector(z[1], 1)))
-end
-
-# **Scalar constraint with strengthening.** This is a temporary restriction:
-# scalar-constraint integration into the block pipeline is queued. Use a
-# plain order-based or custom-row relaxation for now.
-
-show_rejection() do
-    Next.build(Problem(z[1]; constraints=(ExpectationZero(z[1]),)),
-        Relaxation(order=1, strengthen=DensityMatrix(1:1)))
 end
 
 # **Non-Hermitian sector operator.** Supply the intended self-adjoint

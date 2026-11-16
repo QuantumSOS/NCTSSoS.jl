@@ -160,7 +160,7 @@ with the sparse matrix reference within `1e-6`.
 
 | N | Matrix minimum | Dense | U(1) + spatial | SU(2) + spatial |
 |--:|--:|--:|--:|--:|
-| 4 | −2.0000000000 | −2.0000000003 | −2.0000000008 | −2.0000000038 |
+| 4 | −2.0000000000 | −2.0000000003 | −2.0000000007 | −2.0000000038 |
 | 6 | −2.8027756377 | −2.8027756541 | −2.8027756397 | −2.8027756408 |
 
 ## Singlet restriction changes the problem
@@ -188,7 +188,7 @@ end
 | N | Unrestricted matrix minimum | Unrestricted bound | Singlet matrix minimum | Singlet bound |
 |--:|--:|--:|--:|--:|
 | 4 | −1.0000000000 | −1.0000000047 | 0.0000000000 | −0.0000000001 |
-| 6 | −1.5000000000 | −1.5000000043 | −0.8027756377 | −0.8027756410 |
+| 6 | −1.5000000000 | −1.5000000043 | −0.8027756377 | −0.8027756409 |
 
 These singlet bounds are **not** lower bounds of the unrestricted minimum.
 Read `valid_for`: it states support on the eigenspace S² = 0.
@@ -235,6 +235,10 @@ end
 validation = validate_chain16()
 ```
 
+The dense column retains the earlier resource-limit run. The reduced column
+was checked again at [6ec1e38](https://github.com/QuantumSOS/NCTSSoS.jl/commit/6ec1e38).
+Its row, moment and cone counts are unchanged.
+
 | Quantity | Dense | SU(2) + spatial |
 |:--|--:|--:|
 | Starting rows | 1129 | 1129 |
@@ -244,11 +248,11 @@ validation = validate_chain16()
 | Largest PSD/HPSD side | 1129 | 9 |
 | Native affine rows | 163668 | 234 |
 | Largest native real PSD side | 2258 | 18 |
-| Build time | 0.421 s | 3.680 s |
-| Preparation time | 1.980 s | 0.748 s |
-| Solve wall time (prepared task cached) | Not completed | 1.168 s |
-| Mosek optimizer time | Not completed | 1.088 s |
-| Bound | Not available | −7.153492902451447 |
+| Build time | 0.421 s | 2.396 s |
+| Preparation time | 1.980 s | 0.638 s |
+| Solve wall time (prepared task cached) | Not completed | 1.011 s |
+| Mosek optimizer time | Not completed | 1.011 s |
+| Bound | Not available | −7.15349290243866 |
 | Independent Sz = 0 minimum | −7.1422963606 | −7.1422963606 |
 
 The sparse reference has dimension 12870 and eigenpair residual below `1e-10`.
@@ -257,13 +261,13 @@ normalized states, not just singlets. It lies about 0.01120 below the independen
 minimum; order 2 is not exact here. Both numbers are numerical, not interval
 certificates.
 
-Each row had a 600-second process limit. The dense run was stopped by the
-system's memory limit after about 42 seconds, with no bound (signal 9, exit 137).
+The earlier dense run had a 600-second process limit. The system's memory
+limit stopped it after about 42 seconds, with no bound (signal 9, exit 137).
 The kernel recorded about 29.4 GiB resident memory at the kill; peak memory
-was not recorded. This is not a solver infeasibility result. The reduced
-process completed in 16.47 seconds including startup and
-compilation. The runs used Julia 1.12.7 on an Intel Xeon at 2.60 GHz, with one
-Julia, BLAS and Mosek thread.
+was not recorded. This is not a solver infeasibility result. The reduced case
+and the four- and six-site checks completed together in 32.02 seconds including
+startup and compilation. The runs used Julia 1.12.7 on an Intel Xeon at
+2.60 GHz, with one Julia, BLAS and Mosek thread.
 
 ## [Reading the timings](@id pauli-charge-bottleneck)
 

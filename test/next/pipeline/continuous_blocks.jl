@@ -88,7 +88,17 @@ end
     @test report.split==1
     @test report.largest_after==2
     @test all(b->b.kind==Nx.HPSD,reduced.blocks)
+    @test only(report.blocks).multiplicities==[2]
     check_split_spectra(original,reduced,report)
+    # Equal individual spectra do not imply simultaneous unitary equivalence:
+    # transposition flips Y but leaves X and Z unchanged.
+    paulis=[ComplexF64[1 0;0 1],ComplexF64[0 1;1 0],
+        ComplexF64[0 -im;im 0],ComplexF64[1 0;0 -1]]
+    chiral=coefficient_program([cat(A,transpose(A);dims=(1,2)) for A in paulis])
+    kept,chiral_report=Nx._continuous_blocks(chiral)
+    @test only(chiral_report.blocks).sides==[2,2]
+    @test only(chiral_report.blocks).multiplicities==[1,1]
+    check_split_spectra(chiral,kept,chiral_report)
     for kwargs in ((max_side=1,),(max_bytes=1,))
         kept,reason=Nx._continuous_blocks(original;kwargs...)
         # Exact family components precede the spectral resource caps too.

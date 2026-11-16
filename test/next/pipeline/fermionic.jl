@@ -178,25 +178,16 @@ end
     end
 end
 
-@testset "Fermionic T2prime agrees with the legacy structured route" begin
-    h=ComplexF64[-0.4 -0.7+0.2im;-0.7-0.2im 0.2]
-    eri=zeros(ComplexF64,2,2,2,2); eri[1,1,1,1]=4; eri[2,2,2,2]=3.5
-    linear=build_pqg_moment_data(Dict(0=>h),Dict((0,0,0,0)=>eri);
-        nk=1,norb=2,nelec_per_cell=2,blocking=:none,spin_resolved_trace=false,
-        singlet_s2=false,include_one_d=true,three_index=:T1T2prime)
-    M=typeof(first(values(linear.key_to_monomial))); T=eltype(linear.identity)
-    P=Polynomial{FermionicAlgebra,T,ComplexF64}
-    mp=NCTSSoS._moment_problem_with_linear(FermionicAlgebra,T,M,P,zero(P),Tuple{Symbol,Matrix{P}}[],M[],0,linear)
-    old=NCTSSoS.sos_dualize(mp)
-    set_optimizer(old.model,SOLVER); optimize!(old.model)
-    @test termination_status(old.model)==MOI.OPTIMAL
+@testset "Fermionic T2prime agrees with the frozen structured route" begin
+    old=LEGACY_EXPECTED["fermionic-t2prime"]
     _,(a,ad)=Nx.fermionic_variables(4)
-    H=sum(c*foldl(*,(l<0 ? ad[-l] : a[l] for l in word);init=one(a[1])) for (word,c) in linear.objective_lin)
+    H=sum(complex(term["real"],term["imag"])*foldl(*,
+        (l<0 ? ad[-l] : a[l] for l in term["word"]);init=one(a[1])) for term in old["terms"])
     N=sum(ad[i]*a[i] for i in 1:4)
     built=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,
         strengthen=(Nx.FermionicConditions(1:4;conditions=(:P,:Q,:G,:T1,:T2prime)),Nx.Sector(N,2))))
     value=strengthening_bound(built.program)
-    @test value≈objective_value(old.model) atol=1e-6
+    @test value≈old["objective"] atol=1e-6
     matrices=fermi_matrices(4)
     sector=findall(v->abs(v-2)<1e-12,diag(matrices.polynomial(N)))
     @test value≈eigmin(Hermitian(matrices.polynomial(H)[sector,sector])) atol=1e-6

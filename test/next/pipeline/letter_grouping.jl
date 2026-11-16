@@ -1,4 +1,5 @@
 # The same I_nn22 coefficients as perf/next/probe.jl, including its I3322 case.
+using SHA
 function letter_bell(a,b)
     n=length(a)
     c=if n==3
@@ -51,35 +52,33 @@ end
     end
     n=5
     registry,(a,b)=Nx.site_variables(Nx.Projector(),2,n)
-    old_registry,(old_a,old_b)=NCTSSoS.create_projector_variables([("A",1:n),("B",1:n)])
-    old_pop=NCTSSoS.polyopt(-letter_bell(old_a,old_b),old_registry)
-    old=NCTSSoS.correlative_sparsity(old_pop,5,NCTSSoS.MMD())
+    old=LEGACY_EXPECTED["inn22-n5-order5-mmd"]
     W=Nx.word_type(registry,10)
-    cliques=Nx.build(Nx.Problem(-letter_bell(a,b)),Nx.Relaxation(order=1,grouping=Nx.Correlative(algorithm=NCTSSoS.MMD())))
+    cliques=Nx.build(Nx.Problem(-letter_bell(a,b)),Nx.Relaxation(order=1,grouping=Nx.Correlative(algorithm=Nx.MMD())))
     groups=[[Nx.word_from_legacy(W,Nx.legacy_letters(w)) for w in block.rows if !isone(w)]
         for block in cliques.sizes.closure.family]
     # Registry letters need not use the UInt32 encoding of legacy_letters.
-    old_ids=Dict(Nx._pack_word(W,only(p.data.words))=>Int(only(q.word))
-        for (p,q) in zip([a;b],[old_a;old_b]))
+    old_ids=Dict(Nx._pack_word(W,only(p.data.words))=>id
+        for (p,id) in zip([a;b],old["letters"]))
     key(group)=sort!([old_ids[w] for w in group])
-    @test sort(key.(groups))==sort([Int.(clique) for clique in old.cliques])
+    @test sort(key.(groups))==sort(old["cliques"])
     # Test row generation at the acceptance order without constructing its SDP.
     bases=[Nx.basis_rows(W,registry.algebra,group,5) for group in groups]
-    by_clique=Dict(Tuple(Int.(clique))=>basis for (clique,basis) in zip(old.cliques,old.clq_mom_mtx_bases))
+    by_clique=Dict(Tuple(clique)=>(count,digest) for (clique,count,digest) in
+        zip(old["cliques"],old["row_counts"],old["row_sha256"]))
     for (group,basis) in zip(groups,bases)
-        @test Set(Tuple(old_ids[v] for v in Nx.word_letters(w)) for w in basis)==
-            Set(Tuple(Int.(w.word)) for w in by_clique[Tuple(key(group))])
+        count,digest=by_clique[Tuple(key(group))]
+        rows=sort!([join((old_ids[v] for v in Nx.word_letters(w)),",") for w in basis])
+        @test length(rows)==count
+        @test bytes2hex(sha256(join(rows,";")))==digest
     end
 end
 
-@testset "I3322 correlative and term-sparse bound equals current package" begin
+@testset "I3322 correlative and term-sparse bound equals frozen legacy" begin
     registry,(a,b)=Nx.site_variables(Nx.Projector(),2,3)
     problem=Nx.Problem(-letter_bell(a,b))
-    description=Nx.Relaxation(order=3,grouping=Nx.Correlative(algorithm=NCTSSoS.MMD()),split=Nx.TermSplit())
+    description=Nx.Relaxation(order=3,grouping=Nx.Correlative(algorithm=Nx.MMD()),split=Nx.TermSplit())
     result=Nx.solve(problem,description;solver=Nx.JuMPBackend(SOLVER))
-    old_registry,(a,b)=NCTSSoS.create_projector_variables([("A",1:3),("B",1:3)])
-    old=NCTSSoS.cs_nctssos(NCTSSoS.polyopt(-letter_bell(a,b),old_registry),
-        NCTSSoS.SolverConfig(optimizer=SOLVER,order=3,cs_algo=NCTSSoS.MMD(),ts_algo=NCTSSoS.MaximalElimination());dualize=false)
     @test result.status==MOI.OPTIMAL
-    @test result.bound≈old.objective atol=1e-6
+    @test result.bound≈LEGACY_EXPECTED["i3322-order3-mmd-term"]["objective"] atol=1e-6
 end

@@ -1,0 +1,1216 @@
+command = "julia --startup-file=no --project -e 'include(\"test/next/reference_data/standard_forms.jl\"); StandardFormReference.check()'"
+notes = "242 architect-reviewed standard-form records after support split, including 64 expected errors. Frozen inputs: test/next/reference_data/combination_inputs.jl. Source fingerprints_477.txt SHA256 7b68f79721d4f83e15acb30dc57af21927fb069c18cc7a368307f5a884f3fb10. No solver; rows and digests reflect 4d29c6e."
+old_commit = "4d29c6eeb4426b65f7e981cd4f431d6f493ad5a5"
+schema_version = 1
+solver_version = "none; builds only"
+
+[[cases]]
+id = "combination-1"
+
+    [cases.expected]
+    record = "smoke 1 fd95e2f77fb9c40c rows 169 tautologies 0"
+[[cases]]
+id = "combination-2"
+
+    [cases.expected]
+    record = "smoke 2 f4773528a7541536 rows 31 tautologies 0"
+[[cases]]
+id = "combination-3"
+
+    [cases.expected]
+    record = "smoke 3 36f7d8336d398c9f rows 34 tautologies 0"
+[[cases]]
+id = "combination-4"
+
+    [cases.expected]
+    record = "smoke 4 5e2ae5f515aad826 rows 11 tautologies 0"
+[[cases]]
+id = "combination-5"
+
+    [cases.expected]
+    record = "smoke 5 23b2f69670b5015a rows 23 tautologies 0"
+[[cases]]
+id = "combination-6"
+
+    [cases.expected]
+    record = "smoke 6 15c47f330a11aea4 rows 10 tautologies 0"
+[[cases]]
+id = "combination-7"
+
+    [cases.expected]
+    record = "smoke 7 1bd584c4b3c51228 rows 470 tautologies 0"
+[[cases]]
+id = "combination-8"
+
+    [cases.expected]
+    record = "smoke 8 ERROR ArgumentError: Continuous derivation 1 does not annihilate S"
+[[cases]]
+id = "combination-9"
+
+    [cases.expected]
+    record = "smoke 9 706e53268956675e rows 218 tautologies 0"
+[[cases]]
+id = "combination-10"
+
+    [cases.expected]
+    record = "smoke 10 ERROR ArgumentError: Continuous derivation 1 does not annihilate S"
+[[cases]]
+id = "combination-11"
+
+    [cases.expected]
+    record = "smoke 11 97e93aa56f421e7c rows 1493 tautologies 0"
+[[cases]]
+id = "combination-12"
+
+    [cases.expected]
+    record = "smoke 12 ERROR ArgumentError: Continuous derivation 1 does not annihilate S"
+[[cases]]
+id = "combination-13"
+
+    [cases.expected]
+    record = "smoke 13 ERROR ArgumentError: Finite generator 1 does not preserve the cont"
+[[cases]]
+id = "combination-14"
+
+    [cases.expected]
+    record = "smoke 14 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-15"
+
+    [cases.expected]
+    record = "smoke 15 4fa18dd691ca3929 rows 753 tautologies 0"
+[[cases]]
+id = "combination-16"
+
+    [cases.expected]
+    record = "smoke 16 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-17"
+
+    [cases.expected]
+    record = "smoke 17 54356de83898f87a rows 15 tautologies 0"
+[[cases]]
+id = "combination-18"
+
+    [cases.expected]
+    record = "smoke 18 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-19"
+
+    [cases.expected]
+    record = "smoke 19 ce7096b5c9b79e06 rows 395 tautologies 0"
+[[cases]]
+id = "combination-20"
+
+    [cases.expected]
+    record = "smoke 20 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-21"
+
+    [cases.expected]
+    record = "smoke 21 6e1089305a25ce76 rows 232 tautologies 0"
+[[cases]]
+id = "combination-22"
+
+    [cases.expected]
+    record = "smoke 22 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-23"
+
+    [cases.expected]
+    record = "smoke 23 6eec24a713e077eb rows 82 tautologies 0"
+[[cases]]
+id = "combination-24"
+
+    [cases.expected]
+    record = "smoke 24 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-25"
+
+    [cases.expected]
+    record = "smoke 25 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-26"
+
+    [cases.expected]
+    record = "smoke 26 92497d62fbd69527 rows 29 tautologies 0"
+[[cases]]
+id = "combination-27"
+
+    [cases.expected]
+    record = "smoke 27 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-28"
+
+    [cases.expected]
+    record = "smoke 28 81d30f4a8e3aaaa3 rows 8978 tautologies 0"
+[[cases]]
+id = "combination-29"
+
+    [cases.expected]
+    record = "smoke 29 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-30"
+
+    [cases.expected]
+    record = "smoke 30 67fdca8d2a96a54f rows 425 tautologies 0"
+[[cases]]
+id = "combination-31"
+
+    [cases.expected]
+    record = "smoke 31 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-32"
+
+    [cases.expected]
+    record = "smoke 32 0ae2859c15725cbb rows 148 tautologies 0"
+[[cases]]
+id = "combination-33"
+
+    [cases.expected]
+    record = "smoke 33 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-34"
+
+    [cases.expected]
+    record = "smoke 34 134e947ba538080a rows 2858 tautologies 0"
+[[cases]]
+id = "combination-35"
+
+    [cases.expected]
+    record = "smoke 35 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-36"
+
+    [cases.expected]
+    record = "smoke 36 ERROR ArgumentError: StateOptimality with a sector is not supporte"
+[[cases]]
+id = "combination-37"
+
+    [cases.expected]
+    record = "smoke 37 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-38"
+
+    [cases.expected]
+    record = "smoke 38 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-39"
+
+    [cases.expected]
+    record = "smoke 39 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-40"
+
+    [cases.expected]
+    record = "smoke 40 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-41"
+
+    [cases.expected]
+    record = "smoke 41 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-42"
+
+    [cases.expected]
+    record = "smoke 42 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-43"
+
+    [cases.expected]
+    record = "smoke 43 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-44"
+
+    [cases.expected]
+    record = "smoke 44 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-45"
+
+    [cases.expected]
+    record = "smoke 45 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-46"
+
+    [cases.expected]
+    record = "smoke 46 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-47"
+
+    [cases.expected]
+    record = "smoke 47 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-48"
+
+    [cases.expected]
+    record = "smoke 48 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-49"
+
+    [cases.expected]
+    record = "smoke 49 f48a317c5d8b2fd1 rows 419 tautologies 0"
+[[cases]]
+id = "combination-50"
+
+    [cases.expected]
+    record = "smoke 50 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-51"
+
+    [cases.expected]
+    record = "smoke 51 05af1f764dfed1b7 rows 1321 tautologies 0"
+[[cases]]
+id = "combination-52"
+
+    [cases.expected]
+    record = "smoke 52 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-53"
+
+    [cases.expected]
+    record = "smoke 53 ef1472ec35bc7db9 rows 358 tautologies 0"
+[[cases]]
+id = "combination-54"
+
+    [cases.expected]
+    record = "smoke 54 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
+[[cases]]
+id = "combination-55"
+
+    [cases.expected]
+    record = "smoke 55 3a78f0df2d7adaa4 rows 594 tautologies 0"
+[[cases]]
+id = "combination-56"
+
+    [cases.expected]
+    record = "smoke 56 ERROR ArgumentError: SpinRotation needs a Pauli registry; use Numb"
+[[cases]]
+id = "combination-57"
+
+    [cases.expected]
+    record = "smoke 57 ERROR ArgumentError: SpinRotation needs a Pauli registry; use Numb"
+[[cases]]
+id = "combination-58"
+
+    [cases.expected]
+    record = "smoke 58 ERROR ArgumentError: detect_symmetry supports Pauli problems only;"
+[[cases]]
+id = "combination-59"
+
+    [cases.expected]
+    record = "smoke 59 944b69d5f598516e rows 47 tautologies 0"
+[[cases]]
+id = "combination-60"
+
+    [cases.expected]
+    record = "smoke 60 5d6d1983821d170b rows 1901 tautologies 0"
+[[cases]]
+id = "combination-61"
+
+    [cases.expected]
+    record = "smoke 61 7d7b490269633cb5 rows 84 tautologies 0"
+[[cases]]
+id = "combination-62"
+
+    [cases.expected]
+    record = "smoke 62 ERROR ArgumentError: Continuous derivation 1 does not annihilate S"
+[[cases]]
+id = "combination-63"
+
+    [cases.expected]
+    record = "smoke 63 ERROR ArgumentError: Stationarity and StateOptimality require an u"
+[[cases]]
+id = "combination-64"
+
+    [cases.expected]
+    record = "smoke 64 ERROR ArgumentError: Continuous derivation 1 does not annihilate S"
+[[cases]]
+id = "combination-65"
+
+    [cases.expected]
+    record = "smoke 65 ERROR ArgumentError: detect_symmetry does not support problems wit"
+[[cases]]
+id = "combination-66"
+
+    [cases.expected]
+    record = "smoke 66 ERROR ArgumentError: detect_symmetry does not support problems wit"
+[[cases]]
+id = "combination-67"
+
+    [cases.expected]
+    record = "smoke 67 8a5b4438f7055e5b rows 44 tautologies 0"
+[[cases]]
+id = "combination-68"
+
+    [cases.expected]
+    record = "smoke 68 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-69"
+
+    [cases.expected]
+    record = "smoke 69 d59d1afa14d3def4 rows 150 tautologies 0"
+[[cases]]
+id = "combination-70"
+
+    [cases.expected]
+    record = "smoke 70 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-71"
+
+    [cases.expected]
+    record = "smoke 71 4fe378f83e738e8f rows 191 tautologies 0"
+[[cases]]
+id = "combination-72"
+
+    [cases.expected]
+    record = "smoke 72 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-73"
+
+    [cases.expected]
+    record = "smoke 73 ERROR ArgumentError: Stationarity and StateOptimality require an u"
+[[cases]]
+id = "combination-74"
+
+    [cases.expected]
+    record = "smoke 74 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-75"
+
+    [cases.expected]
+    record = "smoke 75 ERROR ArgumentError: Stationarity and StateOptimality require an u"
+[[cases]]
+id = "combination-76"
+
+    [cases.expected]
+    record = "smoke 76 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-77"
+
+    [cases.expected]
+    record = "smoke 77 ERROR ArgumentError: Stationarity and StateOptimality require an u"
+[[cases]]
+id = "combination-78"
+
+    [cases.expected]
+    record = "smoke 78 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-79"
+
+    [cases.expected]
+    record = "smoke 79 ERROR ArgumentError: detect_symmetry does not support problems wit"
+[[cases]]
+id = "combination-80"
+
+    [cases.expected]
+    record = "smoke 80 62299b5b8de2baec rows 13 tautologies 0"
+[[cases]]
+id = "combination-81"
+
+    [cases.expected]
+    record = "smoke 81 4ad3197b0f08ac1e rows 43 tautologies 0"
+[[cases]]
+id = "combination-82"
+
+    [cases.expected]
+    record = "smoke 82 95bb29c19827bf03 rows 34 tautologies 0"
+[[cases]]
+id = "combination-83"
+
+    [cases.expected]
+    record = "smoke 83 be69c1ba538d744e rows 169 tautologies 0"
+[[cases]]
+id = "combination-84"
+
+    [cases.expected]
+    record = "smoke 84 06a334f21376c080 rows 91 tautologies 0"
+[[cases]]
+id = "combination-85"
+
+    [cases.expected]
+    record = "smoke 85 7b8639f4db25d676 rows 89 tautologies 0"
+[[cases]]
+id = "combination-86"
+
+    [cases.expected]
+    record = "smoke 86 756ed69ed0d0dec2 rows 4 tautologies 0"
+[[cases]]
+id = "combination-87"
+
+    [cases.expected]
+    record = "smoke 87 f23e0504c7d5cac3 rows 169 tautologies 0"
+[[cases]]
+id = "combination-88"
+
+    [cases.expected]
+    record = "smoke 88 cabee111703a084c rows 43 tautologies 0"
+[[cases]]
+id = "combination-89"
+
+    [cases.expected]
+    record = "smoke 89 37d2408e5e88c95e rows 34 tautologies 0"
+[[cases]]
+id = "combination-90"
+
+    [cases.expected]
+    record = "smoke 90 e905e285a0270b26 rows 169 tautologies 0"
+[[cases]]
+id = "combination-91"
+
+    [cases.expected]
+    record = "smoke 91 39651e05a0ffeab7 rows 91 tautologies 0"
+[[cases]]
+id = "combination-92"
+
+    [cases.expected]
+    record = "smoke 92 f12c82194d2cee2c rows 89 tautologies 0"
+[[cases]]
+id = "combination-93"
+
+    [cases.expected]
+    record = "smoke 93 16bc44f7e874a8d5 rows 7 tautologies 0"
+[[cases]]
+id = "combination-94"
+
+    [cases.expected]
+    record = "smoke 94 1d28c8c6c9b71207 rows 169 tautologies 0"
+[[cases]]
+id = "combination-95"
+
+    [cases.expected]
+    record = "smoke 95 e78d353a0a0edadb rows 43 tautologies 0"
+[[cases]]
+id = "combination-96"
+
+    [cases.expected]
+    record = "smoke 96 aa881c2e36963a95 rows 34 tautologies 0"
+[[cases]]
+id = "combination-97"
+
+    [cases.expected]
+    record = "smoke 97 a406b09e5ca78c75 rows 169 tautologies 0"
+[[cases]]
+id = "combination-98"
+
+    [cases.expected]
+    record = "smoke 98 fb44018161ecfb7d rows 91 tautologies 0"
+[[cases]]
+id = "combination-99"
+
+    [cases.expected]
+    record = "smoke 99 b3a608d2c64292a2 rows 89 tautologies 0"
+[[cases]]
+id = "combination-100"
+
+    [cases.expected]
+    record = "smoke 100 2f95b0ced35e3b02 rows 18 tautologies 0"
+[[cases]]
+id = "combination-101"
+
+    [cases.expected]
+    record = "smoke 101 a576e87cbe5404e0 rows 81 tautologies 0"
+[[cases]]
+id = "combination-102"
+
+    [cases.expected]
+    record = "smoke 102 c4d063ee51cc9d35 rows 21 tautologies 0"
+[[cases]]
+id = "combination-103"
+
+    [cases.expected]
+    record = "smoke 103 ERROR ArgumentError: Symmetry generator 2 does not preserve object"
+[[cases]]
+id = "combination-104"
+
+    [cases.expected]
+    record = "smoke 104 f770c85bc0655519 rows 81 tautologies 0"
+[[cases]]
+id = "combination-105"
+
+    [cases.expected]
+    record = "smoke 105 ERROR ArgumentError: Symmetry generator 1 has an incompatible alge"
+[[cases]]
+id = "combination-106"
+
+    [cases.expected]
+    record = "smoke 106 ERROR ArgumentError: Symmetry generator 1 has an incompatible alge"
+[[cases]]
+id = "combination-107"
+
+    [cases.expected]
+    record = "smoke 107 ERROR ArgumentError: detect_symmetry supports Pauli problems only;"
+[[cases]]
+id = "combination-108"
+
+    [cases.expected]
+    record = "smoke 108 6db899d653644ae5 rows 45 tautologies 0"
+[[cases]]
+id = "combination-109"
+
+    [cases.expected]
+    record = "smoke 109 8306a42ead143ebf rows 19 tautologies 0"
+[[cases]]
+id = "combination-110"
+
+    [cases.expected]
+    record = "smoke 110 add4de703e4e6c68 rows 12 tautologies 0"
+[[cases]]
+id = "combination-111"
+
+    [cases.expected]
+    record = "smoke 111 668e262aa87e8f56 rows 45 tautologies 0"
+[[cases]]
+id = "combination-112"
+
+    [cases.expected]
+    record = "smoke 112 ERROR ArgumentError: Symmetry generator 1 has an incompatible alge"
+[[cases]]
+id = "combination-113"
+
+    [cases.expected]
+    record = "smoke 113 ERROR ArgumentError: Symmetry generator 1 has an incompatible alge"
+[[cases]]
+id = "combination-114"
+
+    [cases.expected]
+    record = "smoke 114 ERROR ArgumentError: detect_symmetry supports Pauli problems only;"
+[[cases]]
+id = "combination-115"
+
+    [cases.expected]
+    record = "smoke 115 8d06d084d77072f7 rows 170 tautologies 0"
+[[cases]]
+id = "combination-116"
+
+    [cases.expected]
+    record = "smoke 116 750bdaac2f25f314 rows 62 tautologies 0"
+[[cases]]
+id = "combination-117"
+
+    [cases.expected]
+    record = "smoke 117 2df2c37cd3d6cf2b rows 35 tautologies 0"
+[[cases]]
+id = "combination-118"
+
+    [cases.expected]
+    record = "smoke 118 5556ec3f811a2520 rows 170 tautologies 0"
+[[cases]]
+id = "combination-119"
+
+    [cases.expected]
+    record = "smoke 119 56bcd171709c3a2e rows 92 tautologies 0"
+[[cases]]
+id = "combination-120"
+
+    [cases.expected]
+    record = "smoke 120 dd1c8eb8060ff8d8 rows 90 tautologies 0"
+[[cases]]
+id = "combination-121"
+
+    [cases.expected]
+    record = "smoke 121 ERROR ArgumentError: detect_symmetry does not support problems wit"
+[[cases]]
+id = "combination-122"
+
+    [cases.expected]
+    record = "smoke 122 6001bee4eb8ae5aa rows 1135 tautologies 0"
+[[cases]]
+id = "combination-123"
+
+    [cases.expected]
+    record = "smoke 123 a9131784b4a58785 rows 15 tautologies 0"
+[[cases]]
+id = "combination-124"
+
+    [cases.expected]
+    record = "smoke 124 3d49d9f3b712b8c9 rows 283 tautologies 0"
+[[cases]]
+id = "combination-125"
+
+    [cases.expected]
+    record = "smoke 125 d67fcd1336dae08f rows 5 tautologies 0"
+[[cases]]
+id = "combination-126"
+
+    [cases.expected]
+    record = "smoke 126 ccf32c0ab64dfe63 rows 51 tautologies 0"
+[[cases]]
+id = "combination-127"
+
+    [cases.expected]
+    record = "smoke 127 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-128"
+
+    [cases.expected]
+    record = "smoke 128 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
+[[cases]]
+id = "combination-129"
+
+    [cases.expected]
+    record = "smoke 129 06a05b48fcca574b rows 345 tautologies 0"
+[[cases]]
+id = "combination-130"
+
+    [cases.expected]
+    record = "smoke 130 ERROR ArgumentError: SpinRotation needs a Pauli registry; use Numb"
+[[cases]]
+id = "combination-131"
+
+    [cases.expected]
+    record = "smoke 131 ERROR ArgumentError: SpinRotation needs a Pauli registry; use Numb"
+[[cases]]
+id = "combination-132"
+
+    [cases.expected]
+    record = "smoke 132 ERROR ArgumentError: SpinRotation needs a Pauli registry; use Numb"
+[[cases]]
+id = "combination-133"
+
+    [cases.expected]
+    record = "smoke 133 ERROR ArgumentError: SpinRotation needs a Pauli registry; use Numb"
+[[cases]]
+id = "combination-134"
+
+    [cases.expected]
+    record = "smoke 134 07f7f742f76b6ac3 rows 9 tautologies 0"
+[[cases]]
+id = "combination-135"
+
+    [cases.expected]
+    record = "smoke 135 2bc16470fbb698c2 rows 101 tautologies 0"
+[[cases]]
+id = "combination-136"
+
+    [cases.expected]
+    record = "smoke 136 bf61071632fda129 rows 5 tautologies 0"
+[[cases]]
+id = "combination-137"
+
+    [cases.expected]
+    record = "smoke 137 756ed69ed0d0dec2 rows 4 tautologies 0"
+[[cases]]
+id = "combination-138"
+
+    [cases.expected]
+    record = "smoke 138 3c83bd776062a8f8 rows 59 tautologies 0"
+[[cases]]
+id = "combination-139"
+
+    [cases.expected]
+    record = "anti heisenberg n4 K o1 06a334f21376c080 rows 91 tautologies 0"
+[[cases]]
+id = "combination-140"
+
+    [cases.expected]
+    record = "anti heisenberg n4 K o2 def8257c96f4973c rows 2278 tautologies 0"
+[[cases]]
+id = "combination-141"
+
+    [cases.expected]
+    record = "anti heisenberg n4 K o2 grouped split 928dff9113bdcaf7 rows 380 tautologies 0"
+[[cases]]
+id = "combination-142"
+
+    [cases.expected]
+    record = "anti heisenberg n4 K o1 density d054de8f00697bb9 rows 127 tautologies 0"
+[[cases]]
+id = "combination-143"
+
+    [cases.expected]
+    record = "anti heisenberg n4 r+K o1 bc25ea81f1945149 rows 61 tautologies 0"
+[[cases]]
+id = "combination-144"
+
+    [cases.expected]
+    record = "anti heisenberg n4 r+K o2 4ac08c895c401ae4 rows 1246 tautologies 0"
+[[cases]]
+id = "combination-145"
+
+    [cases.expected]
+    record = "anti heisenberg n4 r+K o2 grouped split 74f139545bd18167 rows 218 tautologies 0"
+[[cases]]
+id = "combination-146"
+
+    [cases.expected]
+    record = "anti heisenberg n4 r+K o1 density 1328d66d165b0bb6 rows 97 tautologies 0"
+[[cases]]
+id = "combination-147"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+K o1 9a03d4a5111d6edf rows 22 tautologies 0"
+[[cases]]
+id = "combination-148"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+K o2 a0e089d782d244ea rows 361 tautologies 0"
+[[cases]]
+id = "combination-149"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+K o2 grouped split 08d25ca054151874 rows 109 tautologies 0"
+[[cases]]
+id = "combination-150"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+K o1 density eb9886919cfc8977 rows 46 tautologies 0"
+[[cases]]
+id = "combination-151"
+
+    [cases.expected]
+    record = "anti heisenberg n4 flip+K o1 3ab681d36112ee5c rows 51 tautologies 0"
+[[cases]]
+id = "combination-152"
+
+    [cases.expected]
+    record = "anti heisenberg n4 flip+K o2 b5c5ec424a5a0667 rows 1158 tautologies 0"
+[[cases]]
+id = "combination-153"
+
+    [cases.expected]
+    record = "anti heisenberg n4 flip+K o2 grouped split 928dff9113bdcaf7 rows 380 tautologies 0"
+[[cases]]
+id = "combination-154"
+
+    [cases.expected]
+    record = "anti heisenberg n4 flip+K o1 density 5004c611e1addc54 rows 71 tautologies 0"
+[[cases]]
+id = "combination-155"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+flip+K o1 308ff38fded38f01 rows 14 tautologies 0"
+[[cases]]
+id = "combination-156"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+flip+K o2 1b1830f3302a3207 rows 199 tautologies 0"
+[[cases]]
+id = "combination-157"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+flip+K o2 grouped split 08d25ca054151874 rows 109 tautologies 0"
+[[cases]]
+id = "combination-158"
+
+    [cases.expected]
+    record = "anti heisenberg n4 t+r+flip+K o1 density d04808101632f42c rows 28 tautologies 0"
+[[cases]]
+id = "combination-159"
+
+    [cases.expected]
+    record = "anti heisenberg n6 K o1 474e85888a910224 rows 190 tautologies 0"
+[[cases]]
+id = "combination-160"
+
+    [cases.expected]
+    record = "anti heisenberg n6 K o2 ef581c9f72b121c3 rows 11935 tautologies 0"
+[[cases]]
+id = "combination-161"
+
+    [cases.expected]
+    record = "anti heisenberg n6 K o2 grouped split a4319ad84f850730 rows 517 tautologies 0"
+[[cases]]
+id = "combination-162"
+
+    [cases.expected]
+    record = "anti heisenberg n6 K o1 density fda9e19dce5f7281 rows 226 tautologies 0"
+[[cases]]
+id = "combination-163"
+
+    [cases.expected]
+    record = "anti heisenberg n6 r+K o1 68b29b8753b2f9f4 rows 112 tautologies 0"
+[[cases]]
+id = "combination-164"
+
+    [cases.expected]
+    record = "anti heisenberg n6 r+K o2 a0522e4f9a0ff911 rows 6127 tautologies 0"
+[[cases]]
+id = "combination-165"
+
+    [cases.expected]
+    record = "anti heisenberg n6 r+K o2 grouped split 5e353c3213a4f97d rows 436 tautologies 0"
+[[cases]]
+id = "combination-166"
+
+    [cases.expected]
+    record = "anti heisenberg n6 r+K o1 density f186eaa7b54f28e7 rows 148 tautologies 0"
+[[cases]]
+id = "combination-167"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+K o1 1a77130867a7cc1e rows 28 tautologies 0"
+[[cases]]
+id = "combination-168"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+K o2 4c66125d4e9b5d65 rows 1117 tautologies 0"
+[[cases]]
+id = "combination-169"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+K o2 grouped split d1bb17cc18678f70 rows 167 tautologies 0"
+[[cases]]
+id = "combination-170"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+K o1 density 3b4012f915cfa48a rows 52 tautologies 0"
+[[cases]]
+id = "combination-171"
+
+    [cases.expected]
+    record = "anti heisenberg n6 flip+K o1 ccdde87e41a4f372 rows 106 tautologies 0"
+[[cases]]
+id = "combination-172"
+
+    [cases.expected]
+    record = "anti heisenberg n6 flip+K o2 b5bf12d72aa40810 rows 6031 tautologies 0"
+[[cases]]
+id = "combination-173"
+
+    [cases.expected]
+    record = "anti heisenberg n6 flip+K o2 grouped split a4319ad84f850730 rows 517 tautologies 0"
+[[cases]]
+id = "combination-174"
+
+    [cases.expected]
+    record = "anti heisenberg n6 flip+K o1 density 0923a69756a6e9e0 rows 126 tautologies 0"
+[[cases]]
+id = "combination-175"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+flip+K o1 1333aed47f4ca405 rows 18 tautologies 0"
+[[cases]]
+id = "combination-176"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+flip+K o2 55da449129fd5ac5 rows 597 tautologies 0"
+[[cases]]
+id = "combination-177"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+flip+K o2 grouped split d1bb17cc18678f70 rows 167 tautologies 0"
+[[cases]]
+id = "combination-178"
+
+    [cases.expected]
+    record = "anti heisenberg n6 t+r+flip+K o1 density 86b184ad942e5432 rows 32 tautologies 0"
+[[cases]]
+id = "combination-179"
+
+    [cases.expected]
+    record = "anti xxz n4 K o1 39651e05a0ffeab7 rows 91 tautologies 0"
+[[cases]]
+id = "combination-180"
+
+    [cases.expected]
+    record = "anti xxz n4 K o2 ffd5ccc7d2f19a5e rows 2278 tautologies 0"
+[[cases]]
+id = "combination-181"
+
+    [cases.expected]
+    record = "anti xxz n4 K o2 grouped split d28e04f34d26a378 rows 380 tautologies 0"
+[[cases]]
+id = "combination-182"
+
+    [cases.expected]
+    record = "anti xxz n4 K o1 density c794adfc00ee7269 rows 127 tautologies 0"
+[[cases]]
+id = "combination-183"
+
+    [cases.expected]
+    record = "anti xxz n4 r+K o1 e06f4360313a133b rows 61 tautologies 0"
+[[cases]]
+id = "combination-184"
+
+    [cases.expected]
+    record = "anti xxz n4 r+K o2 445250fdf220f992 rows 1246 tautologies 0"
+[[cases]]
+id = "combination-185"
+
+    [cases.expected]
+    record = "anti xxz n4 r+K o2 grouped split 06889ecc81a4e315 rows 218 tautologies 0"
+[[cases]]
+id = "combination-186"
+
+    [cases.expected]
+    record = "anti xxz n4 r+K o1 density 145afc98af2365eb rows 97 tautologies 0"
+[[cases]]
+id = "combination-187"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+K o1 0117d57f3dd762b0 rows 22 tautologies 0"
+[[cases]]
+id = "combination-188"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+K o2 1fe001eb103a2d70 rows 361 tautologies 0"
+[[cases]]
+id = "combination-189"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+K o2 grouped split c101ddbf165c8aab rows 109 tautologies 0"
+[[cases]]
+id = "combination-190"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+K o1 density c1e067d30ad5d968 rows 46 tautologies 0"
+[[cases]]
+id = "combination-191"
+
+    [cases.expected]
+    record = "anti xxz n4 flip+K o1 76f0419717b73288 rows 51 tautologies 0"
+[[cases]]
+id = "combination-192"
+
+    [cases.expected]
+    record = "anti xxz n4 flip+K o2 b2a9882d6de7db9a rows 1158 tautologies 0"
+[[cases]]
+id = "combination-193"
+
+    [cases.expected]
+    record = "anti xxz n4 flip+K o2 grouped split d28e04f34d26a378 rows 380 tautologies 0"
+[[cases]]
+id = "combination-194"
+
+    [cases.expected]
+    record = "anti xxz n4 flip+K o1 density f0d0c97d27c85d2b rows 71 tautologies 0"
+[[cases]]
+id = "combination-195"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+flip+K o1 c1ce724f407ca4bf rows 14 tautologies 0"
+[[cases]]
+id = "combination-196"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+flip+K o2 cf0050831ce31707 rows 199 tautologies 0"
+[[cases]]
+id = "combination-197"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+flip+K o2 grouped split c101ddbf165c8aab rows 109 tautologies 0"
+[[cases]]
+id = "combination-198"
+
+    [cases.expected]
+    record = "anti xxz n4 t+r+flip+K o1 density 22baf662c76ee519 rows 28 tautologies 0"
+[[cases]]
+id = "combination-199"
+
+    [cases.expected]
+    record = "anti xxz n6 K o1 09466683c02eb970 rows 190 tautologies 0"
+[[cases]]
+id = "combination-200"
+
+    [cases.expected]
+    record = "anti xxz n6 K o2 f1f9819b4571b8d3 rows 11935 tautologies 0"
+[[cases]]
+id = "combination-201"
+
+    [cases.expected]
+    record = "anti xxz n6 K o2 grouped split 6da29aed6fda51ba rows 517 tautologies 0"
+[[cases]]
+id = "combination-202"
+
+    [cases.expected]
+    record = "anti xxz n6 K o1 density 0459336c0244f12e rows 226 tautologies 0"
+[[cases]]
+id = "combination-203"
+
+    [cases.expected]
+    record = "anti xxz n6 r+K o1 3f69499e59080a91 rows 112 tautologies 0"
+[[cases]]
+id = "combination-204"
+
+    [cases.expected]
+    record = "anti xxz n6 r+K o2 fd2dec78e6214749 rows 6127 tautologies 0"
+[[cases]]
+id = "combination-205"
+
+    [cases.expected]
+    record = "anti xxz n6 r+K o2 grouped split 5128ffe06412ab86 rows 436 tautologies 0"
+[[cases]]
+id = "combination-206"
+
+    [cases.expected]
+    record = "anti xxz n6 r+K o1 density 239f45447030b826 rows 148 tautologies 0"
+[[cases]]
+id = "combination-207"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+K o1 f2854e880a7d97ef rows 28 tautologies 0"
+[[cases]]
+id = "combination-208"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+K o2 e642db38f55b0df2 rows 1117 tautologies 0"
+[[cases]]
+id = "combination-209"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+K o2 grouped split 374ee989fcb3ae4b rows 167 tautologies 0"
+[[cases]]
+id = "combination-210"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+K o1 density 3427b659f9494f5e rows 52 tautologies 0"
+[[cases]]
+id = "combination-211"
+
+    [cases.expected]
+    record = "anti xxz n6 flip+K o1 f8339bb759069c74 rows 106 tautologies 0"
+[[cases]]
+id = "combination-212"
+
+    [cases.expected]
+    record = "anti xxz n6 flip+K o2 853c6040d4ea85bb rows 6031 tautologies 0"
+[[cases]]
+id = "combination-213"
+
+    [cases.expected]
+    record = "anti xxz n6 flip+K o2 grouped split 6da29aed6fda51ba rows 517 tautologies 0"
+[[cases]]
+id = "combination-214"
+
+    [cases.expected]
+    record = "anti xxz n6 flip+K o1 density 31bb2ebb43c25902 rows 126 tautologies 0"
+[[cases]]
+id = "combination-215"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+flip+K o1 2828e74cfa152476 rows 18 tautologies 0"
+[[cases]]
+id = "combination-216"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+flip+K o2 e8c43edcea242f45 rows 597 tautologies 0"
+[[cases]]
+id = "combination-217"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+flip+K o2 grouped split 374ee989fcb3ae4b rows 167 tautologies 0"
+[[cases]]
+id = "combination-218"
+
+    [cases.expected]
+    record = "anti xxz n6 t+r+flip+K o1 density 60568e8589941a74 rows 32 tautologies 0"
+[[cases]]
+id = "combination-219"
+
+    [cases.expected]
+    record = "anti ising n4 K o1 fb44018161ecfb7d rows 91 tautologies 0"
+[[cases]]
+id = "combination-220"
+
+    [cases.expected]
+    record = "anti ising n4 K o2 bc28e2b736d584fa rows 2278 tautologies 0"
+[[cases]]
+id = "combination-221"
+
+    [cases.expected]
+    record = "anti ising n4 K o2 grouped split 384f19d16bf70527 rows 722 tautologies 0"
+[[cases]]
+id = "combination-222"
+
+    [cases.expected]
+    record = "anti ising n4 K o1 density f508bbe356f466a0 rows 127 tautologies 0"
+[[cases]]
+id = "combination-223"
+
+    [cases.expected]
+    record = "anti ising n4 r+K o1 1addb9a9364e8b5e rows 61 tautologies 0"
+[[cases]]
+id = "combination-224"
+
+    [cases.expected]
+    record = "anti ising n4 r+K o2 937610d36c3cdc01 rows 1246 tautologies 0"
+[[cases]]
+id = "combination-225"
+
+    [cases.expected]
+    record = "anti ising n4 r+K o2 grouped split c531666f1b7c0c48 rows 394 tautologies 0"
+[[cases]]
+id = "combination-226"
+
+    [cases.expected]
+    record = "anti ising n4 r+K o1 density 8f8e32b2c733b11a rows 97 tautologies 0"
+[[cases]]
+id = "combination-227"
+
+    [cases.expected]
+    record = "anti ising n4 t+r+K o1 c50079f5ad32c287 rows 22 tautologies 0"
+[[cases]]
+id = "combination-228"
+
+    [cases.expected]
+    record = "anti ising n4 t+r+K o2 f054f3351d823ac5 rows 361 tautologies 0"
+[[cases]]
+id = "combination-229"
+
+    [cases.expected]
+    record = "anti ising n4 t+r+K o2 grouped split d36dc2c3b1c3c1f7 rows 197 tautologies 0"
+[[cases]]
+id = "combination-230"
+
+    [cases.expected]
+    record = "anti ising n4 t+r+K o1 density 8cdfb064a56b10fa rows 46 tautologies 0"
+[[cases]]
+id = "combination-231"
+
+    [cases.expected]
+    record = "anti ising n6 K o1 e3dd05d3b3092bcc rows 190 tautologies 0"
+[[cases]]
+id = "combination-232"
+
+    [cases.expected]
+    record = "anti ising n6 K o2 30ffcbb415bc3737 rows 11935 tautologies 0"
+[[cases]]
+id = "combination-233"
+
+    [cases.expected]
+    record = "anti ising n6 K o2 grouped split 881d17c5d3debf44 rows 1124 tautologies 0"
+[[cases]]
+id = "combination-234"
+
+    [cases.expected]
+    record = "anti ising n6 K o1 density f278edfb2bd6e456 rows 226 tautologies 0"
+[[cases]]
+id = "combination-235"
+
+    [cases.expected]
+    record = "anti ising n6 r+K o1 561f694b90c6eb16 rows 112 tautologies 0"
+[[cases]]
+id = "combination-236"
+
+    [cases.expected]
+    record = "anti ising n6 r+K o2 d14c5b861705c2c4 rows 6127 tautologies 0"
+[[cases]]
+id = "combination-237"
+
+    [cases.expected]
+    record = "anti ising n6 r+K o2 grouped split c4116c5ee50a7399 rows 960 tautologies 0"
+[[cases]]
+id = "combination-238"
+
+    [cases.expected]
+    record = "anti ising n6 r+K o1 density 454e78061bca1f42 rows 148 tautologies 0"
+[[cases]]
+id = "combination-239"
+
+    [cases.expected]
+    record = "anti ising n6 t+r+K o1 cdfa6c3975420620 rows 28 tautologies 0"
+[[cases]]
+id = "combination-240"
+
+    [cases.expected]
+    record = "anti ising n6 t+r+K o2 432a5b3641125363 rows 1117 tautologies 0"
+[[cases]]
+id = "combination-241"
+
+    [cases.expected]
+    record = "anti ising n6 t+r+K o2 grouped split 83c87f207b01d40a rows 398 tautologies 0"
+[[cases]]
+id = "combination-242"
+
+    [cases.expected]
+    record = "anti ising n6 t+r+K o1 density 4b51ac22388195ba rows 52 tautologies 0"

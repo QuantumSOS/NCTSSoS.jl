@@ -225,16 +225,11 @@ end
     _,(a,ad)=Nx.fermionic_variables(2)
     N=sum(ad[i]*a[i] for i in 1:2)
     H=ad[1]*a[2]+ad[2]*a[1]+0.3*N
-    registry,(old_a,old_ad)=create_fermionic_variables(1:2)
-    old_H=old_ad[1]*old_a[2]+old_ad[2]*old_a[1]+0.3sum(old_ad[i]*old_a[i] for i in 1:2)
     for number in (0,1,2)
         built=Nx.build(Nx.Problem(H),Nx.BlockRelaxation(order=1,strengthen=(Nx.Sector(N,number),)))
         # Exact Fock-space energies: vacuum, one-particle hopping, full.
         bound=strengthening_bound(built.program)
         @test bound≈(0.0,-0.7,0.6)[number+1] atol=1e-6
-        old=cs_nctssos(polyopt(old_H,registry;moment_eq_constraints=particle_number_constraint(registry,number)),
-            SolverConfig(optimizer=SOLVER,order=1);dualize=false)
-        @test bound≈old.objective atol=1e-6
     end
 end
 

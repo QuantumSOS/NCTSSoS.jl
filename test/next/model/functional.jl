@@ -1,6 +1,7 @@
 module FunctionalModelChecks
 using Test, LinearAlgebra, NCTSSoS
 import NCTSSoS: Next as N
+include("../reference_data/legacy_expected.jl")
 
 const DOC_SIGNS=[1 1 1; 1 1 -1; 1 -1 0]
 const BENCH_SIGNS=[1 1 -1; 1 1 1; -1 1 0]
@@ -12,16 +13,6 @@ function covariance_model(trace=false;signs=DOC_SIGNS)
     end
     r,(A,B)=N.site_variables(N.Unipotent(),2,3;functional=N.RealState())
     r,covariance(A,B,N.state_symbol,signs)
-end
-function old_covariance(trace=false;signs=DOC_SIGNS)
-    if trace
-        r,(x,)=create_unipotent_variables([("x",1:6)])
-        A,B=x[1:3],x[4:6]; symbol=NCTSSoS.tr
-    else
-        r,(A,B)=create_unipotent_variables([("A",1:3),("B",1:3)])
-        symbol=ς
-    end
-    polyopt(covariance(A,B,symbol,signs)*one(A[1]),r)
 end
 
 function check(backend;factory=nothing,references=false)
@@ -93,10 +84,10 @@ function check(backend;factory=nothing,references=false)
                 _,h=covariance_model(trace;signs)
                 result=N.solve(N.Problem(h),N.Relaxation(order=2);solver=backend)
                 @test result.bound ≈ -5 atol=1e-3
-                old=cs_nctssos(old_covariance(trace;signs),SolverConfig(optimizer=factory,order=2,
-                    cs_algo=NoElimination(),ts_algo=NoElimination());dualize=false)
-                @test result.bound ≈ old.objective atol=1e-6
-                @info "Functional covariance" trace signs result.bound legacy=old.objective difference=result.bound-old.objective
+                id="covariance-$(trace ? "trace" : "state")-$(signs==DOC_SIGNS ? "docs" : "bench")"
+                old=LEGACY_EXPECTED[id]["objective"]
+                @test result.bound ≈ old atol=1e-6
+                @info "Functional covariance" trace signs result.bound legacy=old difference=result.bound-old
                 if trace
                     @test result.sizes.rows==115
                     @test result.sizes.moments==1010

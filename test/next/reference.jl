@@ -76,15 +76,3 @@ function dense_program(rows::Vector{W}, objective; C::Type=ComplexF64) where {W<
     program.nvars = length(table.labels)
     return Nx.validate(program), table
 end
-
-"""
-    legacy_product_terms(A, T, a, b) -> Dict{Vector{Int},ComplexF64}
-
-The product of two words in the current package, as legacy letters to
-coefficient. `A` is the algebra type and `T` the index type of the registry.
-"""
-function legacy_product_terms(::Type{A}, ::Type{T}, a::AbstractVector{<:Integer}, b::AbstractVector{<:Integer}) where {A,T}
-    M = NormalMonomial{A,T}
-    product = M(T.(a)) * M(T.(b))
-    return Dict{Vector{Int},ComplexF64}(Int.(m.word) => ComplexF64(c) for (c, m) in terms(product))
-end

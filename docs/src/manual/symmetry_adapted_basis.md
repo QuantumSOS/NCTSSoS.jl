@@ -188,6 +188,6 @@ same conic contract whether or not symmetry is present.
 - [CHSH with Symmetry Reduction](@ref chsh-symmetry).
 - [Pauli Symmetry Reduction](@ref pauli-clifford-symmetry).
 - [Clifford Symmetry Detection](@ref clifford-symmetry-detection).
-- [Pauli Charge/Singlet Symmetry](@ref pauli-charge-singlet-symmetry).
+- [Spin-Rotation and Spatial Symmetry](@ref pauli-charge-singlet-symmetry).
 - [Sparsities](@ref sparsities) and the
   [Moment Sum-of-Hermitian-Square Hierarchy](@ref moment-sohs-hierarchy).

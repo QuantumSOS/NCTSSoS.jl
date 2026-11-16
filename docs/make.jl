@@ -18,7 +18,7 @@ makedocs(;
             "Sparsities"=>"manual/sparsities.md",
             "Symmetry-Adapted Basis"=>"manual/symmetry_adapted_basis.md",
             "Strengthening"=>"examples/generated/strengthening.md",
-            "Pauli Charge/Singlet Symmetry"=>"manual/pauli_charge_singlet_symmetry.md",
+            "Spin-Rotation and Spatial Symmetry"=>"manual/spin_rotation_symmetry.md",
             "Clifford Symmetry Detection"=>"manual/clifford_symmetry_detection.md",
             "SDP Relaxation"=>"manual/sdp_relaxation.md",
             "Optimizers"=>"manual/optimizers.md"

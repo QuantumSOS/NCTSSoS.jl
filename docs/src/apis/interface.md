@@ -14,6 +14,11 @@ NCTSSoS.Next.ExpectationPositive
 NCTSSoS.Next.ExpectationZero
 ```
 
+`ExpectationZero` and `ExpectationPositive` each add one scalar row, not an
+operator localizing matrix. They combine with symmetry, grouping, term split
+and strengthening. The selected rows must cover the constrained polynomial,
+and any declared symmetry must preserve the constraints.
+
 ## Relaxation and solution
 
 ```@docs

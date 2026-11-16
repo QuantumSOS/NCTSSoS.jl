@@ -19,7 +19,7 @@ function write_case(p,r,route)
 end
 
 function measure_writers(name;samples=5)
-    _,_,h,order,expected=inputs(name)
+    h,order,expected=inputs(name)
     p,r=N.Problem(h),N.Relaxation(;order)
     for route in (:native,:jump)
         handle=write_case(p,r,route)

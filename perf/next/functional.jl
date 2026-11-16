@@ -13,21 +13,6 @@ function model(trace)
     _,(a,b)=N.site_variables(N.Unipotent(),2,3;functional=N.RealState())
     N.Problem(cov(a,b,N.state_symbol))
 end
-function old_model(trace)
-    if trace
-        r,(x,)=create_unipotent_variables([("x",1:6)])
-        a,b=x[1:3],x[4:6]; s=NCTSSoS.tr
-    else
-        r,(a,b)=create_unipotent_variables([("a",1:3),("b",1:3)])
-        s=ς
-    end
-    polyopt(cov(a,b,s)*one(a[1]),r)
-end
-function old_build(p)
-    config=SolverConfig(optimizer=nothing,order=2,cs_algo=NoElimination(),ts_algo=NoElimination())
-    s=NCTSSoS.compute_sparsity(p,config)
-    NCTSSoS.moment_relax(p,s.corr_sparsity,s.cliques_term_sparsities)
-end
 function samples(label,f)
     value=f()
     for _ in 1:3
@@ -69,15 +54,9 @@ function cost()
     for trace in (false,true)
         label=trace ? "trace" : "state"
         p=samples(label*"_new_model",()->model(trace))
-        old=samples(label*"_old_model",()->old_model(trace))
         built=samples(label*"_new_assembly",()->N.build(p,N.Relaxation(order=2)))
-        legacy=samples(label*"_old_assembly",()->old_build(old))
         form=samples(label*"_new_standard",()->N.moment_standard_form(built.program))
         samples(label*"_new_sos_standard",()->N.sos_standard_form(built.program))
-        # StateMomentProblem has no build_jump_model method. Its solver-free
-        # numeric lowering is the SOS JuMP model; report that boundary explicitly.
-        samples(label*"_old_sos_jump",()->NCTSSoS.sos_dualize(legacy))
-        @test built.sizes.moments==legacy.n_unique_moment_matrix_elements
         println("DIMENSIONS ",label," ",built.sizes," standard=",size(form.A))
     end
     for F in (N.RealState,N.RealTrace),k in (1,2,4,8)
@@ -92,18 +71,16 @@ function cost()
         samples(label*"_closure",()->closure_kernel!(out,words,1000))
     end
 end
-function first_calls(backend;legacy=false)
+function first_calls(backend)
     for trace in (false,true)
         # Keep inference/code generation inside each timed call, rather than
         # allowing compilation of this driver to compile its callees first.
-        input=@timed Base.invokelatest(legacy ? old_model : model,trace)
+        input=@timed Base.invokelatest(model,trace)
         p=input.value
         println("INPUT trace=",trace," seconds=",input.time)
-        config=legacy ? SolverConfig(optimizer=backend,order=2,cs_algo=NoElimination(),ts_algo=NoElimination()) : nothing
         for i in 1:2
-            t=@timed (legacy ? Base.invokelatest(cs_nctssos,p,config;dualize=false) :
-                Base.invokelatest(N.solve,p,N.Relaxation(order=2);solver=backend))
-            bound=legacy ? t.value.objective : t.value.bound
+            t=@timed Base.invokelatest(N.solve,p,N.Relaxation(order=2);solver=backend)
+            bound=t.value.bound
             @test bound ≈ -5 atol=1e-3
             println("SOLVE trace=",trace," call=",i," seconds=",t.time," bytes=",t.bytes," bound=",bound)
         end
@@ -121,9 +98,6 @@ elseif mode=="first-scs"
 elseif mode=="first-mosek"
     using Mosek
     first_calls(N.MosekBackend())
-elseif mode=="first-old-mosek"
-    using MosekTools, JuMP
-    first_calls(optimizer_with_attributes(MosekTools.Optimizer,"QUIET"=>true);legacy=true)
 else
-    error("Use cost, first-scs, first-mosek or first-old-mosek")
+    error("Use cost, first-scs or first-mosek")
 end

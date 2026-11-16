@@ -3,7 +3,7 @@
 # contains compiler bookkeeping, not only LLVM code generation.
 # Run each case in a separate process, three times, with one Julia/BLAS thread:
 # julia --project=<SCS environment> --startup-file=no test/next/benchmark_first_call.jl <case>
-# Cases: chain, legacy, xxz, split, hubbard, ball, density, soc, chsh.
+# Cases: chain, xxz, split, hubbard, ball, density, soc, chsh.
 const inferred = Any[]
 function measure(label,f)
     empty!(inferred)
@@ -27,19 +27,16 @@ end
 measure("load",()->Core.eval(Main,:(using NCTSSoS)))
 const N = NCTSSoS.Next
 mode = only(ARGS)
-mode in ("chain","legacy","xxz","split","hubbard","ball","density","soc","chsh") || error("Unknown case")
-if mode ∉ ("chain","legacy")
+mode in ("chain","xxz","split","hubbard","ball","density","soc","chsh") || error("Unknown case")
+if mode != "chain"
     measure("solver_load",()->Core.eval(Main,:(using SCS)))
 end
-if mode in ("chain","legacy")
+if mode == "chain"
     include(joinpath(@__DIR__,"pipeline","benchmark_family.jl"))
 end
 function input(mode)
     if mode=="chain"
         return model_chain_case(16)
-    elseif mode=="legacy"
-        registry,ops=NCTSSoS.create_pauli_variables(1:16)
-        return NCTSSoS.polyopt(NCTSSoS.heisenberg_chain_hamiltonian(ops;periodic=true,coupling=1),registry),ops
     elseif mode=="xxz"
         n=6
         _,(x,y,z)=N.pauli_variables(n)
@@ -72,17 +69,14 @@ function input(mode)
     end
 end
 args=measure("inputs",()->input(mode))
-result=measure("call",()->mode=="legacy" ? NCTSSoS.pauli_translation_invariant_moment_relaxation(args...,4;axis_permutation_symmetry=true) :
-    mode=="chain" ? N.build(args...) : N.solve(args...;solver=N.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)))
-if mode ∉ ("chain","legacy")
+result=measure("call",()->mode=="chain" ? N.build(args...) : N.solve(args...;solver=N.SCSBackend(verbose=0,eps_abs=1e-7,eps_rel=1e-7)))
+if mode != "chain"
     @assert result.bound!==nothing
     expected=mode=="chsh" ? -2sqrt(2) : mode=="hubbard" ? 1-sqrt(5) :
         mode=="ball" ? -1.0 : mode=="density" ? -3.0 : mode=="soc" ? -sqrt(15) : nothing
     isnothing(expected) || @assert isapprox(result.bound,expected;atol=2e-6)
     println("RESULT bound=",result.bound," sizes=",result.sizes," residuals=",result.solution.diagnostics)
-elseif mode=="chain"
-    println("RESULT sizes=",result.sizes)
 else
-    println("RESULT type=",typeof(result))
+    println("RESULT sizes=",result.sizes)
 end
 println("ENV Julia=",VERSION," CPU=",Sys.cpu_info()[1].model," threads=",Threads.nthreads())

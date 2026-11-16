@@ -22,31 +22,15 @@ function next_model(n,edges)
     _,(b,bd)=N.bosonic_variables(n)
     return N.Problem(hamiltonian(b,bd,edges))
 end
-function old_model(n,edges)
-    r,(b,bd)=create_bosonic_variables(1:n)
-    return polyopt(hamiltonian(b,bd,edges),r)
-end
-function old_build(p)
-    config=SolverConfig(optimizer=nothing,order=2,cs_algo=NoElimination(),ts_algo=NoElimination())
-    s=NCTSSoS.compute_sparsity(p,config)
-    return NCTSSoS.moment_relax(p,s.corr_sparsity,s.cliques_term_sparsities)
-end
 function sector_cost()
     n=8; edges=[(i,mod1(i+1,n)) for i in 1:n]
     model=samples("next_sector_model",()->begin
         _,(b,bd)=N.bosonic_variables(n)
         (N.Problem(hamiltonian(b,bd,edges)),N.Relaxation(order=2,strengthen=N.Sector(sum(bd.*b),n)))
     end;count=5)
-    old=samples("old_sector_model",()->begin
-        registry,(b,bd)=create_bosonic_variables(1:n)
-        polyopt(hamiltonian(b,bd,edges),registry;moment_eq_constraints=[sum(bd.*b)-n])
-    end;count=5)
     built=samples("next_sector_assembly",()->N.build(model...);count=5)
-    legacy=samples("old_sector_assembly",()->old_build(old);count=5)
     form=samples("next_sector_standard",()->N.moment_standard_form(built.program);count=5)
-    samples("old_sector_jump_lowering",()->NCTSSoS.build_jump_model(legacy);count=5)
     println("SECTOR equations_next=",sum(b.side for b in built.program.blocks if b.kind==N.ZERO),
-        " equations_old=",sum(length(m) for (kind,m) in legacy.constraints if kind==:Zero),
         " next_sizes=",built.sizes," standard=",size(form.A))
 end
 function kernel(s,a,b,repeats)
@@ -57,36 +41,19 @@ function kernel(s,a,b,repeats)
     end
     return total
 end
-function old_kernel(a,b,repeats)
-    total=0
-    for _ in 1:repeats
-        total+=length(a*b)
-    end
-    return total
-end
 function cost()
     edges=[(i,mod1(i+1,8)) for i in 1:8]
     p=samples("next_model",()->next_model(8,edges))
-    old=samples("old_model",()->old_model(8,edges))
     built=samples("next_assembly",()->N.build(p,N.Relaxation(order=2)))
-    legacy=samples("old_assembly",()->old_build(old))
     form=samples("next_standard",()->N.moment_standard_form(built.program))
-    # Legacy exposes a JuMP model, not the redesigned CSC standard form.
-    samples("old_jump_lowering",()->NCTSSoS.build_jump_model(legacy))
     println("DIMENSIONS ",built.sizes," standard=",size(form.A))
     W=N.word_type(N.Bosonic(),8,8)
     a=N.word_from_legacy(W,[1,1,8]); b=N.word_from_legacy(W,[-8,-1,-1])
     sink=N.PolynomialBuffer{W,Float64}(6)
-    r,_=create_bosonic_variables(1:8); T=eltype(indices(r))
-    oa=NormalMonomial{BosonicAlgebra,T}(T[1,1,8])
-    ob=NormalMonomial{BosonicAlgebra,T}(T[-8,-1,-1])
     N.mul!(sink,a,b,1.0)
-    @test Dict(N.legacy_letters(sink.words[i])=>sink.coefficients[i] for i in 1:length(sink))==
-        Dict(Int.(m.word)=>c for (c,m) in terms(oa*ob))
-    @test kernel(sink,a,b,1)==old_kernel(oa,ob,1)==6
+    @test kernel(sink,a,b,1)==6
     @test (@allocated kernel(sink,a,b,1))==0
     samples("next_product_10000",()->kernel(sink,a,b,10000))
-    samples("old_product_10000",()->old_kernel(oa,ob,10000))
 end
 function width(label)
     edges=[(4y+x,4y+x+1) for y in 0:3 for x in 1:3]

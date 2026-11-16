@@ -1,8 +1,8 @@
 # Standalone build benchmark; run the Next correctness suite first.
 # OPENBLAS_NUM_THREADS=1 julia --project test/next/pipeline/benchmark_chain.jl
 # Contiguous degree-4 rows, periodic Pauli Heisenberg objective. Inputs and
-# solves are outside timing. Each sample builds a fresh program; seven warm
-# pairs alternate route order to limit drift. No cross-build cache is used.
+# solves are outside timing. Seven warm samples build fresh programs.
+# No cross-build cache is used.
 using NCTSSoS, LinearAlgebra, Statistics
 const Nx=NCTSSoS.Next
 function chain_case(n,d=4)
@@ -35,7 +35,7 @@ function comparison(n,builds)
         flush(stdout)
     end
     samples=[NamedTuple{(:seconds,:bytes,:allocations),Tuple{Float64,Int,Int}}[] for _ in builds]
-    for i in 1:7,j in (isodd(i) ? (1,2) : (2,1))
+    for i in 1:7,j in (isodd(i) ? eachindex(builds) : reverse(eachindex(builds)))
         GC.gc(); m=@timed builds[j][2]()
         push!(samples[j],(;seconds=m.time,bytes=m.bytes,allocations=Base.gc_alloc_count(m.gcstats)))
     end
@@ -51,9 +51,6 @@ if abspath(PROGRAM_FILE)==@__FILE__
     for n in (16,32)
         rows,h,t,point,anti=chain_case(n)
         println("ROWS n=",n," count=",length(rows)); flush(stdout)
-        reg,ops=create_pauli_variables(1:n)
-        pop=polyopt(heisenberg_chain_hamiltonian(ops;periodic=true,coupling=1),reg)
-        comparison(n,(("lattice",()->Nx.lattice_program(rows,h,t,n,point;moment_generators=(anti,))),
-            ("legacy",()->pauli_translation_invariant_moment_relaxation(pop,ops,4;axis_permutation_symmetry=true))))
+        comparison(n,(("lattice",()->Nx.lattice_program(rows,h,t,n,point;moment_generators=(anti,))),))
     end
 end

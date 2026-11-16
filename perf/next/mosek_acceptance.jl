@@ -1,4 +1,4 @@
-# Licensed acceptance cases. Arguments: bell|xxz|tfi|heisenberg, auto|moment|sos|legacy_sos|jump.
+# Licensed acceptance cases. Arguments: bell|xxz|tfi|heisenberg, auto|moment|sos|jump.
 # Bell uses the dense I_nn22 n=5, order-3 relaxation on both routes.
 # Set MOSEK_THREADS, MOSEK_TOLERANCE and MOSEK_MAX_TIME for a bounded run.
 include(joinpath(@__DIR__,"probe.jl"))
@@ -45,20 +45,6 @@ function run_acceptance(name,route)
         MSK_DPAR_INTPNT_CO_TOL_REL_GAP=tolerance,MSK_DPAR_INTPNT_CO_TOL_PFEAS=tolerance,
         MSK_DPAR_INTPNT_CO_TOL_DFEAS=tolerance)
     factory=JuMP.optimizer_with_attributes(MosekTools.Optimizer,(String(k)=>v for (k,v) in pairs(options))...)
-    if route=="legacy_sos"
-        name=="bell" || error("The legacy SOS reference here is Bell only")
-        t=@timed input_case("bell","legacy",5,3,"dense","")()
-        println("BUILD ",t.time," ",t.bytes); flush(stdout)
-        w=@timed Old.sos_dualize(t.value).model
-        model=w.value
-        JuMP.set_optimizer(model,factory)
-        println("WRITE ",w.time," ",w.bytes); flush(stdout)
-        s=@timed JuMP.optimize!(model)
-        println("RESULT ",JuMP.termination_status(model)," ",JuMP.has_values(model) ? JuMP.objective_value(model) : nothing,
-            " SECONDS ",s.time," RSS ",Sys.maxrss())
-        print_solver_metrics(JuMP.unsafe_backend(model).task)
-        return
-    end
     p,r=acceptance_input(name)
     backend=route=="jump" ? N.JuMPBackend(factory) : N.MosekBackend(;options...,form=Symbol(route))
     t=@timed N.build(p,r)

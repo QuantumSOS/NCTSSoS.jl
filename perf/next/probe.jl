@@ -1,6 +1,6 @@
 # Standalone worker. See README.md; run through run.py for resource limits.
-import NCTSSoS as Old
-const N = Old.Next
+import NCTSSoS
+const N = NCTSSoS.Next
 using LinearAlgebra, SparseArrays, Statistics, Profile, TOML, Serialization
 import JuMP
 if length(ARGS)>=8 && ARGS[8]=="solve"
@@ -47,24 +47,15 @@ function geometry(nx,ny)
     nx==ny && push!(maps,[site(y,x) for y in 0:ny-1 for x in 0:nx-1])
     sort!(collect(bonds)),maps
 end
-function old_build(pop,order,variant)
-    cs=variant=="cs_ts" ? Old.MMD() : Old.NoElimination()
-    ts=variant=="ts" ? Old.MMD() : variant=="cs_ts" ? Old.MaximalElimination() : Old.NoElimination()
-    config=Old.SolverConfig(;optimizer=nothing,order,cs_algo=cs,ts_algo=ts)
-    sparsity=Old.compute_sparsity(pop,config)
-    Old.moment_relax(pop,sparsity.corr_sparsity,sparsity.cliques_term_sparsities)
-end
 function input_case(target,route,n,order,variant,data)
+    route=="next" || error("Historical routes require the pinned checkout; see README.md")
     if target=="bell"
         if route=="next"
             _,(a,b)=N.site_variables(N.Projector(),2,n)
             p=N.Problem(-bell(a,b))
-            r=variant=="cs_ts" ? N.Relaxation(;order,grouping=N.Correlative(algorithm=Old.MMD()),split=N.TermSplit()) : N.Relaxation(;order)
+            r=variant=="cs_ts" ? N.Relaxation(;order,grouping=N.Correlative(algorithm=N.MMD()),split=N.TermSplit()) : N.Relaxation(;order)
             return ()->N.build(p,r)
         end
-        reg,(a,b)=Old.create_projector_variables([("A",1:n),("B",1:n)])
-        pop=Old.polyopt(-bell(a,b),reg)
-        return ()->old_build(pop,order,variant)
     elseif target in ("chain","torus")
         if target=="chain"
             bonds=[(i,mod1(i+1,n)) for i in 1:n]
@@ -82,11 +73,6 @@ function input_case(target,route,n,order,variant,data)
                 split=endswith(variant,"ts") ? N.TermSplit() : nothing)
             return ()->N.build(p,r)
         end
-        reg,ops=Old.create_pauli_variables(1:n)
-        h=target=="chain" ? Old.heisenberg_chain_hamiltonian(ops;periodic=true,coupling=1) :
-            sum(ops[a][i]*ops[a][j] for (i,j) in bonds for a in 1:3)
-        pop=Old.polyopt(h,reg)
-        return target=="chain" ? ()->first(Old.pauli_translation_invariant_moment_relaxation(pop,ops,4;axis_permutation_symmetry=true)) : ()->old_build(pop,order,variant)
     elseif target=="hydrogen"
         d=TOML.parsefile(data); m=d["n_spatial_orbitals"]
         h=[Float64(d["h_ij"][i][j]) for i in 1:m,j in 1:m]
@@ -112,15 +98,6 @@ function input_case(target,route,n,order,variant,data)
                 N.Sector(number,d["n_electrons"]),N.Sector(spin,d["n_alpha"]-d["n_beta"])))
             return ()->N.build(p,r)
         end
-        return ()->begin
-            linear=Old.build_pqg_moment_data(Dict(0=>h),Dict((0,0,0,0)=>eri);nk=1,norb=m,
-                nelec_per_cell=d["n_electrons"],blocking=:spin,spin_resolved_trace=true,
-                singlet_s2=false,include_one_d=true,three_index=variant=="pqg" ? :none : :T1T2prime)
-            T=eltype(linear.identity); M=typeof(first(values(linear.key_to_monomial)))
-            P=Old.Polynomial{Old.FermionicAlgebra,T,ComplexF64}
-            Old._moment_problem_with_linear(Old.FermionicAlgebra,T,M,P,zero(P),Tuple{Symbol,Matrix{P}}[],M[],
-                sum(b.size*(b.size+1)÷2 for b in linear.psd_blocks_lin),linear)
-        end
     end
     error("unknown target $target")
 end
@@ -132,30 +109,11 @@ function dimensions(built,route)
             "blocks"=>s.blocks,"side"=>s.largest_block,
             "engine"=>(isnothing(built.sizes.closure) ? "plain" : string(built.sizes.closure.route)))
     end
-    L=built.linear; b=L.psd_blocks_lin
-    # The native writer declares two variables per complex moment, or one per
-    # adjoint pair on the real slice. Count before a potentially oversized lowering.
-    A=typeof(built).parameters[1]
-    variables=Old._is_real_moment_problem(built) || !Old._is_complex_problem(A) ?
-        length(Set(Old.key_lt(L.adjoint_key[k],k) ? L.adjoint_key[k] : k for k in L.moments)) : 2length(L.moments)
-    Dict("rows"=>sum(x.size for x in b),"moments"=>length(L.moments),"variables"=>variables,
-        "blocks"=>length(b),"side"=>maximum(x.size for x in b;init=0))
 end
 function lower_dimensions(lowered,route)
     if route=="next"
         return Dict("lower_rows"=>size(lowered.A,1),"lower_cols"=>size(lowered.A,2),"nonzeros"=>nnz(lowered.A))
     end
-    model=lowered[1]; rows=0; nonzeros=0
-    for (F,S) in JuMP.list_of_constraint_types(model), ref in JuMP.all_constraints(model,F,S)
-        obj=JuMP.constraint_object(ref)
-        rows+=JuMP.MOI.dimension(obj.set)
-        f=obj.func
-        for scalar in (f isa AbstractArray ? f : (f,))
-            nonzeros+=scalar isa JuMP.GenericAffExpr ? length(scalar.terms) : scalar isa JuMP.VariableRef ? 1 : 0
-        end
-    end
-    Dict("lower_rows"=>rows,"lower_cols"=>JuMP.num_variables(model),"nonzeros"=>nonzeros,
-        "variables"=>JuMP.num_variables(model))
 end
 function checkpoint(result,path)
     result["peak_rss_bytes"]=Sys.maxrss()
@@ -183,13 +141,6 @@ function solve_probe(built,route,target,result,out)
             sol=timed.value
             result["status"]=string(sol.status)
             result["bound"]=isnothing(sol.bound) ? "unavailable" : -sol.bound
-        else
-            model,_=Old.build_jump_model(built)
-            JuMP.set_optimizer(model,factory)
-            result["stage"]="solve"; checkpoint(result,out)
-            timed=@timed JuMP.optimize!(model)
-            result["status"]=string(JuMP.termination_status(model))
-            result["bound"]=JuMP.termination_status(model)==JuMP.MOI.OPTIMAL ? -JuMP.objective_value(model) : "unavailable"
         end
     else
         error("No solves for spin scale targets")
@@ -220,7 +171,7 @@ function main()
         return
     end
     merge!(result,dimensions(cold.value,route)); cold=nothing; GC.gc()
-    lower=route=="next" ? b->N.moment_standard_form(b.program) : b->Old.build_jump_model(b)
+    lower=b->N.moment_standard_form(b.program)
     times=Float64[]; bytes=Int[]; built=nothing
     for i in 1:3
         built=nothing; GC.gc(); result["stage"]="warm_build_$i"; checkpoint(result,out)

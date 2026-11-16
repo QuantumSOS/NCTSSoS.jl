@@ -1,4 +1,4 @@
-# Same seven-pair protocol as benchmark_chain.jl, including the model entry
+# Same seven-sample protocol as benchmark_chain.jl, including the model entry
 # and row generation. Record cold cost as well as warm cost; no solves.
 include("benchmark_chain.jl")
 
@@ -15,11 +15,9 @@ if abspath(PROGRAM_FILE)==@__FILE__
     println("ENV Julia=",VERSION," threads=",Threads.nthreads()," BLAS=",BLAS.get_num_threads()," CPU=",Sys.cpu_info()[1].model)
     for n in (16,32)
         problem,description=model_chain_case(n)
-        registry,ops=create_pauli_variables(1:n)
-        pop=polyopt(heisenberg_chain_hamiltonian(ops;periodic=true,coupling=1),registry)
         comparison(n,(("family",()->begin
             built=Nx.build(problem,description)
             (built.program,built.table,built.sizes)
-        end),("legacy",()->pauli_translation_invariant_moment_relaxation(pop,ops,4;axis_permutation_symmetry=true))))
+        end),))
     end
 end

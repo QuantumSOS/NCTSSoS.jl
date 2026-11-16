@@ -53,7 +53,7 @@ res.bound / N
 using NCTSSoS, Mosek
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
-J2 = 0.2                            # NCTSSoS Nearest Neighbor Interaction
+J2 = 0.2                            # Next Nearest Neighbor Interaction
 
 registry, (σx, σy, σz) = pauli_variables(1:N)
 
@@ -96,7 +96,7 @@ relaxation = Relaxation(order=3, grouping=Correlative(algorithm=NCTSSoS.MF()),
 # by site, so each group contains all three axes at its sites.
 
 
-# ## NCTSSoS step
+# ## Next step
 #
 # With such lower bounds, estimates of properties of the ground
 # state, correlations functions, structure factors and order parameters, can also

@@ -130,7 +130,7 @@ chip_trace_result = solve(chip_trace; solver);
 # For general trace polynomials, or trace problems with relations or
 # constraints, use the dense `Relaxation(order=...)` route instead.
 
-# ## NCTSSoS steps
+# ## Next steps
 #
 # - [Trace Polynomial](@ref tracial-polynomial-optimization): larger tracial examples.
 # - [Polynomial Optimization](@ref polynomial-optimization): modeling entry point.

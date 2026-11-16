@@ -18,6 +18,18 @@ qualified; they are not added to the exports.
 | Other `create_*_variables` for free, projector and unipotent algebras | `site_variables(Free(), ...)`, `site_variables(Projector(), ...)`, `site_variables(Unipotent(), ...)` |
 | `moment_eq_constraints` for a fixed sector | `Sector(Q, q)` in the relaxation |
 | `cs_nctssos_higher` | `TermSplit(level=...)`; set the algorithm explicitly to reproduce its choice |
+| `gns_reconstruct`, `verify_gns`, `reconstruct`, `test_flatness`, `flat_extend`, `robustness_report` | `gns(result)` returns reconstruction and diagnostics; raw-Hankel, clique and Cholesky forms removed (D4) |
+| `particle_number_constraint` | `Sector(N, q)` in `Relaxation(strengthen=(...,))` |
+| `newton_chip_basis`; `get_ncbasis`, `get_state_basis` | `NCTSSoS.newton_chip_basis(problem)`; `NCTSSoS.basis(registry, degree)` |
+| `ς` / `varsigma`, `tr` | `state_symbol`, `trace_symbol` on `site_variables(...; functional=NCTSSoS.RealState())` or `NCTSSoS.RealTrace()`; Pauli/fermionic state symbols removed (D12) |
+| `sympleq_symmetry_spec`, `sympleq_clifford_symmetry` | `detect_symmetry`; declare with `Problem(...; symmetry=...)` |
+| `SignedPermutation`, `FermionicModePermutation`, `CliffordSymmetry`, `CliffordSymmetryGroup`, `Symmetry`, `SymmetrySpec`, `check_symmetry`, `pauli_*` generator helpers | Declare `SitePermutation`, `LetterPermutation`, `CliffordMap`, or `spin_rotations` with `Problem(...; symmetry=...)`; combine with `NCTSSoS.Symmetry`; validation occurs during construction/build |
+| `PauliChargeSectorSpec`, `PauliSingletConstraintSpec` | Fixed sectors: `Sector(Q, q)` (singlets: `Sector(S², 0)`); continuous spin invariance: `spin_rotations(registry)`. Spin invariance alone does not impose a singlet sector |
+| `heisenberg_chain_hamiltonian`, `heisenberg_chain_symmetry_spec`, `pauli_translation_invariant_*` model helpers | No dedicated model helpers; construct the Hamiltonian with `pauli_variables`, then declare symmetry or use `detect_symmetry` |
+| `compute_sparsity`, `moment_relax`, `sos_dualize`, `solve_sdp` | `NCTSSoS.build`, `inspect`, `NCTSSoS.prepare`, `solve`; choose the conic form through the backend |
+| `monomials`, `coefficients`, `terms` | `NCTSSoS.terms(p)` iterates `(coefficient, word)` pairs |
+| `ComposedMonomial`, old algebra/registry/polynomial types | `NCTSSoS.mixed_variables` for tensor products; use the variable constructors above rather than old concrete types (custom names/subregistries removed, D11) |
+| Old graph and sparsity helpers | Not public; select `Correlative` / `TermSplit` in `Relaxation` and use `inspect` for supported diagnostics |
 
 `Positive` and `Zero` are operator constraints. `ExpectationPositive` and
 `ExpectationZero` constrain one scalar expectation. `Sector(Q, q)` imposes a

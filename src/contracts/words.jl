@@ -66,14 +66,14 @@ end
 # -----------------------------------------------------------------------------
 
 """
-    degree(w::AbstractWord) -> Int
+    NCTSSoS.degree(w::AbstractWord) -> Int
 
 The number of letters of `w`, with the letters inside scalar factors. `degree(one(W)) == 0`.
 """
 function degree end
 
 """
-    sites(w::AbstractWord)
+    NCTSSoS.sites(w::AbstractWord)
 
 An iterator of the site (or mode) numbers that `w` depends on: where it acts,
 and for a word with scalar factors also the sites inside the factors. As `Int`,
@@ -82,7 +82,7 @@ in ascending order and without repeats. It must not allocate.
 function sites end
 
 """
-    word_letters(w::AbstractWord)
+    NCTSSoS.word_letters(w::AbstractWord)
 
 An iterator of the letters of `w` as words of degree one with the type of `w`,
 in the order of the normal form. A letter that occurs more than once is returned
@@ -94,7 +94,7 @@ an `ArgumentError` that names `support_letters`.
 function word_letters end
 
 """
-    support_letters(w::AbstractWord)
+    NCTSSoS.support_letters(w::AbstractWord)
 
 An iterator of the operator letters that `w` depends on, as words of degree one
 with the type of `w`, each occurrence returned. For a word that is a product

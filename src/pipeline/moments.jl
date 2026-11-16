@@ -174,7 +174,7 @@ moment_covered(t::OrbitMoments,id::Integer) = id in t.covered
 
 public refresh_coverage!
 """
-    refresh_coverage!(table::OrbitMoments, program::MomentProgram)
+    NCTSSoS.refresh_coverage!(table::OrbitMoments, program::MomentProgram)
 
 Replace the coverage snapshot with coordinates in the final forms or objective.
 Builders call this after assembly and strengthening. After manually extending or

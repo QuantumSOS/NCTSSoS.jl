@@ -109,7 +109,7 @@ energy_per_site = res.bound / N
 # - `site_variables(Unipotent(), nsites, nletters)`: Self-adjoint operators with U² = I
 # - `site_variables(Free(), nsites, nletters)`: Free self-adjoint operators within each site
 
-# ## NCTSSoS Steps
+# ## Next Steps
 
 # This interface extends naturally to other quantum systems:
 #

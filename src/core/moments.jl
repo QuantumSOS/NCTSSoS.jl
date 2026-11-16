@@ -53,7 +53,7 @@ _pack_word(::Type{SiteWord{A,V,B,S}},w::SiteWord{A,U,B,S}) where {A,U,V,B,S} =
 
 public moment_value, moment_terms, moment_covered
 """
-    moment_terms(table, word)
+    NCTSSoS.moment_terms(table, word)
 
 Return coordinate pairs `(id, coefficient)` reconstructing the word's moment.
 ID 1 is the constant 1; ID k ≥ 2 is solution `values[k-1]`. Return `nothing`
@@ -65,7 +65,7 @@ legacy `moment_value` path.
 function moment_terms end
 
 """
-    moment_covered(table, id) -> Bool
+    NCTSSoS.moment_covered(table, id) -> Bool
 
 Whether a coordinate occurs in a solved form or the objective. ID 1 is covered.
 For `MomentTable` returned by `plain_program`, all allocated coordinates are
@@ -79,7 +79,7 @@ function moment_covered end
 moment_covered(t::MomentTable,id::Integer) = 1<=id<=nvars(t)
 
 """
-    moment_value(table, word, values)
+    NCTSSoS.moment_value(table, word, values)
 
 Read a word's complex moment from standard-form solution coordinates: moment
 ID 1 is the constant 1, and ID k ≥ 2 is `values[k-1]`. Return `nothing`

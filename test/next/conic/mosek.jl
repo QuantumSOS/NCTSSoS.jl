@@ -136,6 +136,8 @@ else
     ExpectationConstraintChecks.check(N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
     isdefined(@__MODULE__,:MixedModelChecks) || include("../model/mixed.jl")
     MixedModelChecks.check(N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
+    isdefined(@__MODULE__,:StandardFormReference) || include("../reference_data/standard_forms.jl")
+    StandardFormReference.check(;reference_solver=N.MosekBackend(MSK_IPAR_NUM_THREADS=1))
     @testset "One build, two native forms" begin
         _,(X,_,Z)=N.pauli_variables(1)
         problem=N.Problem(-X[1]-.3Z[1]); relaxation=N.Relaxation(order=1)

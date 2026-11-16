@@ -136,6 +136,7 @@ function build(problem::Problem,description::BlockRelaxation)
     starting && _check_starting_coverage(only(family),objective,registry)
     local_sizes=Int[]
     for (i,constraint) in enumerate(problem.constraints)
+        constraint isa ExpectationConstraint && continue
         local_order=order-cld(degree(constraint.polynomial),2)
         local_order>=0 || throw(ArgumentError("Constraint $i exceeds the row order; increase order to at least $(cld(degree(constraint.polynomial),2))."))
         polynomial=[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(constraint.polynomial)]
@@ -147,7 +148,12 @@ function build(problem::Problem,description::BlockRelaxation)
             push!(local_sizes,length(local_rows))
         end
     end
-    family=unique(_block_key,custom ? family : _split_family(family,objective,description.split))
+    split_support=copy(objective)
+    for constraint in problem.constraints
+        constraint isa ExpectationConstraint || continue
+        append!(split_support,[(ComplexF64(c),_pack_word(W,w)) for (c,w) in terms(constraint.polynomial)])
+    end
+    family=unique(_block_key,custom ? family : _split_family(family,split_support,description.split))
     family=_continuous_family(family,description.symmetry.continuous;custom)
     letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
     # The 2RDM conditions can supply a quartic objective with order-one rows.
@@ -190,6 +196,11 @@ function build(problem::Problem,description::BlockRelaxation)
         extra=merge(extra,(added_equalities=sum((b.side for b in program.blocks[extra.first_block:end] if b.kind==ZERO);init=0),))
     end
     refresh_coverage!(table,program)
+    # Scalar conditions use final coordinates but cannot supply their own coverage.
+    for (i,constraint) in enumerate(problem.constraints)
+        constraint isa ExpectationConstraint || continue
+        _expectation_constraint!(program,table,constraint,i)
+    end
     closure=merge(closure,(strengthening=extra,continuous=continuous,sector_elimination=elimination,valid_for=valid_for,unused_coordinates=program.nvars-length(table.covered)))
     sizes=ProgramSizes(sum(length(b.rows) for b in closure.family),moments,program.nvars-1,
         length(program.blocks),maximum((b.side for b in program.blocks if b.kind in (PSD,HPSD));init=0),local_sizes)

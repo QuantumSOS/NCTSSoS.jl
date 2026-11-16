@@ -44,8 +44,13 @@ Contiguous(;periodic=false) = Contiguous(periodic)
 function _interaction_graph(problem,n=problem.objective.registry.nsites,support_of=w->collect(sites(w)))
     graph=Graphs.SimpleGraph(n)
     supports=[sort!(unique!(support_of(w))) for (_,w) in terms(problem.objective)]
-    append!(supports,[sort!(unique!(reduce(vcat,[support_of(w) for (_,w) in terms(c.polynomial)];init=Int[])))
-        for c in problem.constraints])
+    for c in problem.constraints
+        if c isa ExpectationConstraint
+            append!(supports,[sort!(unique!(support_of(w))) for (_,w) in terms(c.polynomial)])
+        else
+            push!(supports,sort!(unique!(reduce(vcat,[support_of(w) for (_,w) in terms(c.polynomial)];init=Int[]))))
+        end
+    end
     for support in supports,i in eachindex(support),j in (i+1):length(support)
         Graphs.add_edge!(graph,support[i],support[j])
     end

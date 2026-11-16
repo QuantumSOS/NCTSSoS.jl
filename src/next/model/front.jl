@@ -88,8 +88,6 @@ function _build_declared(p::Problem,r::BlockRelaxation;relaxation=r)
             _check_named_invariance(c.polynomial,generators,"constraint $i")
         end
     end
-    any(c->c isa ExpectationConstraint,p.constraints) && throw(ArgumentError(
-        "Scalar expectation constraints do not yet support the block pipeline; use a plain Relaxation(order=...) or rows=... without symmetry, grouping, split or strengthening until scalar graph seeding and block integration are available."))
     description = symmetry === r.symmetry ? r : BlockRelaxation(;order=r.order,
         row_rule=r.row_rule,grouping=r.grouping,split=r.split,rows=r.rows,family=r.family,
         symmetry,strengthen=r.strengthen)

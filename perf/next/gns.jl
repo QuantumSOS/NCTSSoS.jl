@@ -17,20 +17,9 @@ function timed_samples(call;samples=5)
     return rows
 end
 
-function legacy_gns_comparison(result)
+function gns_measurements(result)
     g=N.gns(result)
-    registry,_=create_pauli_variables(1:4)
-    TI=eltype(indices(registry))
-    W=eltype(g.basis)
     packed_values=Dict(w=>ComplexF64(N._gns_value(result,N._gns_coordinates(result.table,(w,),(1,)))) for w in N._gns_domain(result.table))
-    monomap=Dict(NCTSSoS._gns_moment_key(NormalMonomial{PauliAlgebra,TI}(TI.(N.legacy_letters(w))))=>v for (w,v) in packed_values)
-    old=gns_reconstruct(monomap,registry,g.full_degree;hankel_deg=g.principal_degree,atol=1e-6)
-    @test old.rank==g.rank && old.full_rank==g.full_rank
-    @test old.singular_values ≈ g.singular_values atol=1e-6
-    old_error=maximum(abs(dot(old.xi,gns_matrix_word(w,old.matrices)*old.xi)-v) for (w,v) in packed_values)
-    @test old_error<=1e-6
-    println("LEGACY ranks=",(old.rank,old.full_rank)," all_moment_error=",old_error,
-        " singular_value_error=",maximum(abs.(old.singular_values-g.singular_values)))
     H=zeros(ComplexF64,length(g.full_basis),length(g.full_basis))
     sink=N.GNSProductValue(packed_values,0.0im)
     N._gns_fill!(H,g.full_basis,sink)
@@ -39,9 +28,7 @@ function legacy_gns_comparison(result)
     @test real(LinearAlgebra.tr(H)) ≈ length(g.full_basis) atol=1e-6
     println("FILL side=",size(H,1)," bytes=",bytes)
     for (name,call) in (("next_total",()->N.gns(result)),
-        ("legacy_total",()->gns_reconstruct(monomap,registry,g.full_degree;hankel_deg=g.principal_degree,atol=1e-6)),
-        ("next_fill",()->N._gns_fill!(H,g.full_basis,sink)),
-        ("legacy_fill",()->NCTSSoS.hankel_matrix(monomap,registry,g.full_degree)))
+        ("next_fill",()->N._gns_fill!(H,g.full_basis,sink)))
         println("SAMPLES ",name," ",timed_samples(call))
     end
 end
@@ -70,7 +57,7 @@ function main()
         name===:xxz && tag===:scs8 && (comparison=r)
         flush(stdout)
     end
-    legacy_gns_comparison(comparison)
+    gns_measurements(comparison)
     _,(a,ad)=N.fermionic_variables(2)
     result=N.solve(N.Problem(-(ad[1]*a[2]+ad[2]*a[1])),N.Relaxation(order=2);
         solver=N.SCSBackend(verbose=0,eps_abs=1e-8,eps_rel=1e-8))

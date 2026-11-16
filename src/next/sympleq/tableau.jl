@@ -7,6 +7,11 @@ struct SymplecticTableau{W<:PauliWord,C<:Number}
     nqubits::Int
 end
 Base.length(tab::SymplecticTableau) = length(tab.monomials)
+Base.size(tab::SymplecticTableau) = size(tab.paulis)
+
+function Base.show(io::IO, tab::SymplecticTableau)
+    print(io, "SymplecticTableau($(length(tab)) terms, $(tab.nqubits) qubits)")
+end
 
 @inline _gf2(x::Integer) = UInt8(isodd(x))
 

@@ -2,9 +2,6 @@ using NCTSSoS, Mosek, MosekTools, JuMP, LinearAlgebra, Test
 const N=NCTSSoS.Next
 const backend=N.MosekBackend(MSK_IPAR_NUM_THREADS=1,MSK_DPAR_INTPNT_CO_TOL_REL_GAP=1e-10,
     MSK_DPAR_INTPNT_CO_TOL_PFEAS=1e-10,MSK_DPAR_INTPNT_CO_TOL_DFEAS=1e-10)
-const factory=optimizer_with_attributes(MosekTools.Optimizer,"QUIET"=>true,"MSK_IPAR_NUM_THREADS"=>1,
-    "MSK_DPAR_INTPNT_CO_TOL_REL_GAP"=>1e-8,"MSK_DPAR_INTPNT_CO_TOL_PFEAS"=>1e-8,
-    "MSK_DPAR_INTPNT_CO_TOL_DFEAS"=>1e-8)
 function exact_sector(L,edges)
     occupations=filter(v->sum(v)==L,vec(collect(Iterators.product(ntuple(_->0:L,L)...))))
     index=Dict(v=>i for (i,v) in enumerate(occupations))
@@ -25,16 +22,12 @@ function main()
     _,(_,_,z)=N.pauli_variables(1)
     @test N.solve(N.Problem(z[1]),N.Relaxation(order=1);solver=backend).bound≈-1 atol=1e-7
     open(isempty(ARGS) ? joinpath(@__DIR__,"bosonic_sector.tsv") : only(ARGS),"w") do io
-        println(io,"sites\tperiodic\torder\tsymmetry\texact\tlegacy\tbound\tdifference\tvariables\telapsed")
+        println(io,"sites\tperiodic\torder\tsymmetry\texact\tbound\tvariables\telapsed")
         for (L,periodic,order) in ((2,false,2),(2,false,3),(3,false,2),(3,true,2),(4,false,2),(4,true,2))
             edges=[(i,i+1) for i in 1:L-1]
             periodic && push!(edges,(L,1))
             exact=exact_sector(L,edges)
             reg,(b,bd)=N.bosonic_variables(L)
-            oldreg,(oldb,oldbd)=create_bosonic_variables(1:L)
-            old=cs_nctssos(polyopt(ham(oldb,oldbd,edges),oldreg;moment_eq_constraints=[sum(oldbd.*oldb)-L]),
-                SolverConfig(optimizer=factory,order=order,cs_algo=NoElimination(),ts_algo=NoElimination());dualize=false)
-            @test isfinite(old.objective)
             h=ham(b,bd,edges); relax=N.Relaxation(;order,strengthen=N.Sector(sum(bd.*b),L))
             rotation=N.NumberRotation(reg)
             t=N.SitePermutation([2:L;1]); reflection=N.SitePermutation([1;L:-1:2])
@@ -50,15 +43,16 @@ function main()
                     base=result.bound; basevars=vars
                 else
                     @test result.bound≈base atol=1e-6
+                    # Known limit, scope log: "a continuous symmetry skips the sector elimination"
+                    # (after main). Keep this assertion: number symmetry currently fails it
+                    # at L=2/order=2 with 27 variables versus 8 without symmetry.
                     @test vars<basevars
                 end
                 @test result.bound<=exact+1e-6
-                @test result.bound>=old.objective-1e-6
                 if L==2
                     @test result.bound≈1-sqrt(5) atol=1e-6
-                    @test result.bound≈old.objective atol=1e-6
                 end
-                row=join((L,periodic,order,mode,exact,old.objective,result.bound,result.bound-old.objective,vars,sample.time),'\t')
+                row=join((L,periodic,order,mode,exact,result.bound,vars,sample.time),'\t')
                 println(io,row); flush(io); println(row); flush(stdout)
             end
         end

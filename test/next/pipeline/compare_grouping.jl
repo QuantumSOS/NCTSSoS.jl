@@ -8,12 +8,11 @@ check=Model(optimizer)
 optimize!(check)
 @assert termination_status(check)==JuMP.MOI.OPTIMAL && abs(objective_value(check)-1)<1e-8
 
-registry,ops=create_pauli_variables(1:4)
-H=heisenberg_chain_hamiltonian(ops;periodic=true,coupling=1)
-dense=cs_nctssos(polyopt(H,registry),SolverConfig(optimizer=optimizer,order=2);dualize=false)
-println("DENSE current package bound=",dense.objective)
 registry,(x,y,z)=Nx.pauli_variables(4)
 problem=Nx.Problem(sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+z[i]*z[mod1(i+1,4)] for i in 1:4))
+dense=Nx.solve(problem,Nx.Relaxation(order=2);solver=Nx.JuMPBackend(optimizer))
+@assert isapprox(dense.bound,-8;atol=1e-6)
+println("DENSE bound=",dense.bound)
 for (name,symmetry) in (("SITE MF",Nx.FamilySymmetry()),
     ("SITE MF + TRANSLATION",Nx.FamilySymmetry([Nx.SitePermutation([2,3,4,1])])))
     description=Nx.BlockRelaxation(order=2,grouping=Nx.Correlative(),symmetry=symmetry)

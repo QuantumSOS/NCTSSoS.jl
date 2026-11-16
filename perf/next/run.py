@@ -87,7 +87,7 @@ def run(args, row):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", choices=("chain", "torus", "hydrogen", "bell"))
-    parser.add_argument("route", choices=("next", "legacy"))
+    parser.add_argument("route", choices=("next",))
     parser.add_argument("n", type=int)
     parser.add_argument("order", type=int)
     parser.add_argument("variant")

@@ -1,5 +1,42 @@
 # Next scale probe (builds, not an optimization campaign)
 
+## Historical comparisons
+
+The old-package legs of `perf/next/*.jl`, `test/next/**/benchmark*.jl` and
+`test/next/pipeline/compare_grouping.jl` are preserved at commit
+`3dea6effefb1aff9bda470d1a891d59a24b24af7`. The current scripts measure only
+the retained implementation; they do not print old/new speedup ratios.
+To replay the historical paired scripts, use a separate checkout and a Julia
+environment developed against that checkout:
+
+```sh
+git worktree add --detach ../NCTSSoS-history 3dea6effefb1aff9bda470d1a891d59a24b24af7
+julia --project=/tmp/nctssos-history-env -e 'using Pkg; Pkg.develop(path="../NCTSSoS-history"); Pkg.add(["COSMO", "JuMP", "MosekTools", "SCS"])'
+OPENBLAS_NUM_THREADS=1 julia --startup-file=no --project=/tmp/nctssos-history-env ../NCTSSoS-history/test/next/core/benchmark.jl
+```
+
+Choose another script at the same pinned checkout for builds, writers,
+strengthening or grouping. Solver-backed scripts require their solver and, for
+Mosek, a verified license. Recorded times in this directory are **historical
+measurements**, not fresh comparisons against the current head. A fresh
+comparison must record both checkouts, environments and the same input/program;
+do not divide a fresh time by a recorded time and call it a speedup.
+
+The 16 old-only top-level `perf/*.jl` drivers and
+`perf/results/dev382_scale/capture_inputs.jl` are retired from the active tree.
+They have no retained route after the old API is removed. Replay them at the
+same pinned checkout above, using their recorded environment and commands.
+Their result files, input data, environment manifests, Python budget wrapper,
+summary tools and historical notes remain unchanged. Commands in those notes
+refer to that historical checkout, not the current package.
+
+`bosonic_sector.jl` retains the known failing size assertion for the scope-log
+item "a continuous symmetry skips the sector elimination" (deferred until after
+main): L=2/order=2 gives 27 variables with number symmetry versus 8 without it.
+This diagnostic is not a passing acceptance test; its bound checks are retained.
+
+## Scale-probe records
+
 [Measurements, limits and profile findings](results.md) are committed with the
 raw samples in `results.json` and eight build profiles in `profiles.txt`.
 [Precompile scope and first-call measurements](precompile.md) cover the separate
@@ -19,7 +56,6 @@ Mosek solve checks require a working license. Builds need no license.
 
 ```sh
 python3 perf/next/run.py chain next 16 4 contiguous --project=PATH_TO_ENV
-python3 perf/next/run.py chain legacy 16 4 contiguous --project=PATH_TO_ENV
 python3 perf/next/run.py torus next 6 3 ts --project=PATH_TO_ENV
 python3 perf/next/run.py hydrogen next 4 1 pqg --project=PATH_TO_ENV --checkout=PATH_TO_BENCHMARK
 python3 perf/next/run.py hydrogen next 8 1 t12_number --project=PATH_TO_ENV --checkout=PATH_TO_BENCHMARK
@@ -46,6 +82,9 @@ whole worker's high-water mark, not retained program size or allocated bytes.
 The sampler can overshoot the memory limit between observations.
 
 ## Measurement contract
+
+The legacy descriptions below document the historical paired measurements.
+The current runner accepts only `next`; replay old routes at the pinned checkout.
 
 - Julia, BLAS, OpenMP and Mosek use one thread. No concurrent numerical runs.
 - Model input construction is measured separately, outside the build timer.

@@ -45,28 +45,6 @@ function strengthening_measurement(name)
         'Y'=>ComplexF64[0 -im;im 0],'Z'=>ComplexF64[1 0;0 -1])
     exact=eigmin(Hermitian(-sum(foldl(kron,(paulis[c] for c in label)) for label in ("XYI","XIY","IXX","IYY","IZZ"))))
     println("EXACT value=",exact)
-
-    registry,(x,y,z)=create_pauli_variables(1:3)
-    h=-(x[1]*y[2]+x[1]*y[3]+x[2]*x[3]+y[2]*y[3]+z[2]*z[3])
-    pop=polyopt(h,registry)
-    config=SolverConfig(order=1,optimizer=optimizer)
-    if name=="density"
-        old=pauli_strengthened_relaxation(pop,config;subsystems=[[1,2,3]],stationarity=false,moment_domain=:extend)
-        model,_=build_jump_model(old.moment_problem)
-        set_optimizer(model,optimizer)
-    elseif name=="soc"
-        old=pauli_invariant_soc_nctssos(pop,config;max_rounds=0)
-        model=old.model
-        add_pauli_invariant_soc!(model,old.moment_problem,[1,2,3],"YII")
-    else
-        old=pauli_strengthened_relaxation(pop,config;moment_domain=:extend,
-            stationarity=name=="stationarity",stationarity_operators=get_ncbasis(registry,2),
-            perturbations=name=="optimality" ? get_ncbasis(registry,1) : typeof(x[1])[])
-        model,_=build_jump_model(old.moment_problem)
-        set_optimizer(model,optimizer)
-    end
-    optimize!(model)
-    println("LEGACY ",name," value=",objective_value(model)," status=",termination_status(model))
 end
 
 if abspath(PROGRAM_FILE)==@__FILE__

@@ -38,9 +38,12 @@ FunctionalAlgebra(f::Union{RealState,RealTrace},a::SiteAlgebra{A}) where {A} =
     FunctionalAlgebra{typeof(f),A}(a)
 FunctionalAlgebra(f,a) = throw(ArgumentError("RealState and RealTrace require Free, Projector or Unipotent site variables; Pauli, fermionic and bosonic registries are unsupported."))
 
+# Binary header width, including one bit for a zero-capacity layout. Unlike
+# generic ndigits, this folds with the type-fixed capacity in word kernels.
+@inline _fheader(d) = max(1,8sizeof(d)-leading_zeros(d))
 @inline function _functional_capacity(b,k)
     d=64k÷(b+1)
-    while d*(b+1)+2ndigits(d;base=2)>64k
+    while d*(b+1)+2*_fheader(d)>64k
         d-=1
     end
     d
@@ -81,14 +84,14 @@ end
 @inline _ftoken(w::FunctionalWord{F,A,B},i) where {F,A,B} = _ftoken(w.bits,i,B)
 @inline function degree(w::W) where {F,A,B,S,K,W<:FunctionalWord{F,A,B,S,K}}
     d=_fcap(W)
-    Int(_fget(w.bits,d*(B+1),ndigits(d;base=2)))
+    Int(_fget(w.bits,d*(B+1),_fheader(d)))
 end
 @inline function _ftail(w::W) where {F,A,B,S,K,W<:FunctionalWord{F,A,B,S,K}}
-    d=_fcap(W); h=ndigits(d;base=2)
+    d=_fcap(W); h=_fheader(d)
     Int(_fget(w.bits,d*(B+1)+h,h))
 end
 @inline function _flengths(w::W,n,t) where {F,A,B,S,K,W<:FunctionalWord{F,A,B,S,K}}
-    d=_fcap(W); h=ndigits(d;base=2)
+    d=_fcap(W); h=_fheader(d)
     bits=_fput(w.bits,d*(B+1),h,UInt64(n))
     W(_fput(bits,d*(B+1)+h,h,UInt64(t)),Val(:normal))
 end

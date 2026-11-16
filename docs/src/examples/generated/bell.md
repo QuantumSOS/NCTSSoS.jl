@@ -20,11 +20,11 @@ and $C$ is the classical bound. Quantum mechanics can exceed this bound.
 ## Setup
 
 We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver backend.
-Any SDP solver works — replace `Mosek.Optimizer` with `COSMO.Optimizer` or
-`Clarabel.Optimizer` for open-source alternatives.
+Use `JuMPBackend(COSMO.Optimizer)` for an open-source alternative.
 
 ````julia
-using NCTSSoS, MosekTools
+using NCTSSoS.Next
+import Mosek
 ````
 
 ## Key Concepts: Unipotent and Projector Variables
@@ -41,11 +41,11 @@ Let's demonstrate both:
 Create operators that square to identity:
 
 ````julia
-reg_unip, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)])
+reg_unip, (A, B) = site_variables(Unipotent(), 2, 2)
 ````
 
 ````
-(VariableRegistry with 4 variables: A₁, A₂, B₁, B₂, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[A₁, A₂], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[B₁, B₂]))
+(Registry(Unipotent, 2 sites, 4 variables), [[s1_1, s1_2], [s2_1, s2_2]])
 ````
 
 reg_unip: registry storing variable names and algebra type
@@ -59,7 +59,7 @@ A[1] * A[1]  # should simplify to identity
 ````
 
 ````
-1
+1.0
 ````
 
 Check that operators on different sites commute:
@@ -77,11 +77,11 @@ true
 Create operators that are idempotent:
 
 ````julia
-reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
+reg_proj, (P, Q) = site_variables(Projector(), 2, 2)
 ````
 
 ````
-(VariableRegistry with 4 variables: P₁, P₂, Q₁, Q₂, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[P₁, P₂], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[Q₁, Q₂]))
+(Registry(Projector, 2 sites, 4 variables), [[s1_1, s1_2], [s2_1, s2_2]])
 ````
 
 reg_proj: registry for projector algebra
@@ -91,12 +91,11 @@ Q: Bob's projectors [Q₁, Q₂] on site 2
 Verify the idempotent property (P² = P):
 
 ````julia
-monomials(P[1] * P[1])  # should be [P[1]]
+P[1] * P[1] == P[1]  # true
 ````
 
 ````
-1-element Vector{NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}}:
- P₁
+true
 ````
 
 ---
@@ -117,11 +116,11 @@ Classical bound: $f \leq 2$. Quantum bound (Tsirelson): $f \leq 2\sqrt{2} \appro
 #### Step 1: Create unipotent variables for CHSH
 
 ````julia
-registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+registry, (x, y) = site_variables(Unipotent(), 2, 2)
 ````
 
 ````
-(VariableRegistry with 4 variables: x₁, x₂, y₁, y₂, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[x₁, x₂], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[y₁, y₂]))
+(Registry(Unipotent, 2 sites, 4 variables), [[s1_1, s1_2], [s2_1, s2_2]])
 ````
 
 registry: variable registry encoding U² = I constraint
@@ -138,7 +137,7 @@ f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
 ````
 
 ````
-x₁y₁ + x₁y₂ + x₂y₁ + -x₂y₂
+s1_1 s2_1 + s1_2 s2_1 + s1_1 s2_2 + (-1.0) s1_2 s2_2
 ````
 
 f: polynomial representing the CHSH Bell operator
@@ -146,41 +145,30 @@ f: polynomial representing the CHSH Bell operator
 Inspect the polynomial structure:
 
 ````julia
-(monomials(f),      # list of monomials in f
- coefficients(f))   # corresponding coefficients
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(f)]
 ````
 
 ````
-(NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[x₁y₁, x₁y₂, x₂y₁, x₂y₂], [1.0, 1.0, 1.0, -1.0])
+4-element Vector{Tuple{ComplexF64, String}}:
+ (1.0 + 0.0im, "s1_1 s2_1")
+ (1.0 + 0.0im, "s1_2 s2_1")
+ (1.0 + 0.0im, "s1_1 s2_2")
+ (-1.0 - 0.0im, "s1_2 s2_2")
 ````
+
+Each tuple contains a coefficient and its word, printed with operator names.
 
 #### Step 3: Create the optimization problem
 
-`polyopt` creates a **minimization** problem. To find the maximum quantum
+`Problem` creates a **minimization** problem. To find the maximum quantum
 violation we minimize `-f` and negate the result (same pattern as I₃₃₂₂ below).
 
 ````julia
-pop = polyopt(-f, registry)
+pop = Problem(-f)
 ````
 
 ````
-Optimization Problem (UnipotentAlgebra)
-────────────────────────────────────
-Objective:
-    -x₁y₁ + -x₁y₂ + -x₂y₁ + x₂y₂
-
-Equality constraints (0):
-    (none)
-
-Inequality constraints (0):
-    (none)
-
-Moment equality constraints (0):
-    (none)
-
-Variables (4):
-    x₁, x₂, y₁, y₂
-
+Problem: minimize (-1.0) s1_1 s2_1 + (-1.0) s1_2 s2_1 + (-1.0) s1_1 s2_2 + s1_2 s2_2; 0 operator constraints
 ````
 
 pop: minimize -f ≡ maximize f, subject to algebraic constraints (U² = I)
@@ -188,43 +176,25 @@ pop: minimize -f ≡ maximize f, subject to algebraic constraints (U² = I)
 #### Step 4: Configure and run the SDP solver
 
 ````julia
-solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,  # SDP solver backend
-    order = 1                      # relaxation order (hierarchy level)
-)
+relaxation = Relaxation(order=1)
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 1, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination(), nothing)
+Relaxation(order=1)
 ````
 
-solver_config: specifies solver and relaxation parameters
+relaxation: specifies the hierarchy level
 
 ````julia
-result = cs_nctssos(pop, solver_config)
+result = solve(pop, relaxation; solver=MosekBackend())
 ````
 
 ````
-Objective: -2.828427124561677
-Correlative Sparsity (UnipotentAlgebra): 
-
-   maximum clique size: 4
-   number of cliques: 1
-   Clique 1: 
-       Variables: [:x₁, :x₂, :y₁, :y₂]
-       Bases length: 5
-       Constraints: 
-   Global Constraints: 
-Term Sparsity:
-Clique 1:
-   Moment Matrix Block Sizes: [5]
-   Moment Matrix:
-Number of Activated supp:   5
-Number of Bases Activated in each sub-block[5]
-
-   Localizing Matrix:
-Unique Moment Matrix Elements: 11
-
+Bound: -2.8284271245616774 (numerical_optimum_not_certificate); status: OPTIMAL
+Problem: minimize (-1.0) s1_1 s2_1 + (-1.0) s1_2 s2_1 + (-1.0) s1_1 s2_2 + s1_2 s2_2; 0 operator constraints
+Relaxation(order=1)
+Sizes: 5 rows, 11 moments, 10 real variables, 1 blocks (largest 5); localizing rows: Int64[]
+Valid for: Normalized states; no additional state conditions
 ````
 
 result: optimization result containing objective value and solver info
@@ -232,11 +202,11 @@ result: optimization result containing objective value and solver info
 #### Step 5: Extract the upper bound
 
 ````julia
-chsh_bound = -result.objective
+chsh_bound = -result.bound
 ````
 
 ````
-2.828427124561677
+2.8284271245616774
 ````
 
 chsh_bound: upper bound on maximal quantum violation (negate since we minimized -f)
@@ -255,10 +225,6 @@ tsirelson_bound: theoretical maximum = 2√2 ≈ 2.828
 
 ````julia
 abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
-````
-
-````
-1.8451329353297297e-10
 ````
 
 !!! tip "Going further: shrink this SDP with symmetry"
@@ -284,11 +250,11 @@ Classical bound: $f \leq 0$. Quantum bound: $f \leq 0.25$.
 #### Step 1: Create projector variables
 
 ````julia
-registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
+registry, (x, y) = site_variables(Projector(), 2, 3)
 ````
 
 ````
-(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[x₁, x₂, x₃], NCTSSoS.NormalMonomial{NCTSSoS.ProjectorAlgebra, UInt8}[y₁, y₂, y₃]))
+(Registry(Projector, 2 sites, 6 variables), [[s1_1, s1_2, s1_3], [s2_1, s2_2, s2_3]])
 ````
 
 registry: variable registry encoding P² = P constraint
@@ -307,7 +273,7 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) +  # A₁(B₁+B₂+B₃)
 ````
 
 ````
--x₁ + -2.0 * y₁ + -y₂ + x₁y₁ + x₁y₂ + x₁y₃ + x₂y₁ + x₂y₂ + -x₂y₃ + x₃y₁ + -x₃y₂
+(-1.0) s1_1 + (-2.0) s2_1 + (-1.0) s2_2 + s1_1 s2_1 + s1_2 s2_1 + s1_3 s2_1 + s1_1 s2_2 + s1_2 s2_2 + … (11 terms)
 ````
 
 f: I₃₃₂₂ Bell polynomial
@@ -315,7 +281,7 @@ f: I₃₃₂₂ Bell polynomial
 Check the number of terms:
 
 ````julia
-length(monomials(f))  # number of monomials
+length(Next.terms(f))  # number of monomials
 ````
 
 ````
@@ -325,48 +291,32 @@ length(monomials(f))  # number of monomials
 #### Step 3: Solve (minimizing -f to find maximum of f)
 
 ````julia
-pop = polyopt(-f, registry)
+pop = Problem(-f)
 ````
 
 ````
-Optimization Problem (ProjectorAlgebra)
-────────────────────────────────────
-Objective:
-    x₁ + 2.0 * y₁ + y₂ + -x₁y₁ + -x₁y₂ + -x₁y₃ + -x₂y₁ + -x₂y₂ + x₂y₃ + -x₃y₁ + x₃y₂
-
-Equality constraints (0):
-    (none)
-
-Inequality constraints (0):
-    (none)
-
-Moment equality constraints (0):
-    (none)
-
-Variables (6):
-    x₁, x₂, x₃, y₁, y₂, y₃
-
+Problem: minimize s1_1 + (2.0) s2_1 + s2_2 + (-1.0) s1_1 s2_1 + (-1.0) s1_2 s2_1 + (-1.0) s1_3 s2_1 + (-1.0) s1_1 s2_2 + (-1.0) s1_2 s2_2 + … (11 terms); 0 operator constraints
 ````
 
 pop: minimize -f (equivalent to maximize f)
 
 ````julia
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
+relaxation = Relaxation(order=2)
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 2, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination(), nothing)
+Relaxation(order=2)
 ````
 
 order=2: second level of the moment hierarchy
 
 ````julia
-result = cs_nctssos(pop, solver_config)
-i3322_bound = -result.objective
+result = solve(pop, relaxation; solver=MosekBackend())
+i3322_bound = -result.bound
 ````
 
 ````
-0.25093972394553915
+0.25093972390199176
 ````
 
 i3322_bound: upper bound on I₃₃₂₂ violation (negate since we minimized -f)
@@ -376,7 +326,7 @@ i3322_bound  # should be close to 0.25
 ````
 
 ````
-0.25093972394553915
+0.25093972390199176
 ````
 
 ---
@@ -393,27 +343,27 @@ Let's solve I₃₃₂₂ at order=6 using correlative sparsity:
 #### Without sparsity (for comparison, order=3)
 
 ````julia
-registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
+registry, (x, y) = site_variables(Projector(), 2, 3)
 f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
     x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
-pop = polyopt(-f, registry)
+pop = Problem(-f)
 
-solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
+relaxation_dense = Relaxation(order=3)
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), NCTSSoS.NoElimination(), nothing)
+Relaxation(order=3)
 ````
 
-solver_config_dense: no sparsity exploitation
+relaxation_dense: no sparsity exploitation
 
 ````julia
-@time result_dense = cs_nctssos(pop, solver_config_dense)
-bound_dense = -result_dense.objective
+@time result_dense = solve(pop, relaxation_dense; solver=MosekBackend())
+bound_dense = -result_dense.bound
 ````
 
 ````
-0.25087564371572246
+0.25087567048301385
 ````
 
 bound_dense: bound without sparsity
@@ -423,32 +373,31 @@ bound_dense
 ````
 
 ````
-0.25087564371572246
+0.25087567048301385
 ````
 
 #### With correlative sparsity (order=6)
 
 ````julia
-solver_config_sparse = SolverConfig(
-    optimizer = Mosek.Optimizer,
+relaxation_sparse = Relaxation(
     order = 6,             # higher order for better bound
-    cs_algo = MF()         # use MaxFlow algorithm for correlative sparsity
+    grouping = Correlative(MF())  # minimum-fill chordal completion
 )
 ````
 
 ````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 6, nothing, CliqueTrees.MF(), NCTSSoS.NoElimination(), nothing)
+Relaxation(order=6, grouping=Correlative())
 ````
 
-cs_algo=MF(): enables correlative sparsity via chordal graph decomposition
+Correlative(MF()): enables correlative sparsity via chordal graph decomposition
 
 ````julia
-@time result_sparse = cs_nctssos(pop, solver_config_sparse)
-bound_sparse = -result_sparse.objective
+@time result_sparse = solve(pop, relaxation_sparse; solver=MosekBackend())
+bound_sparse = -result_sparse.bound
 ````
 
 ````
-0.2508754128599583
+0.2508754129202198
 ````
 
 bound_sparse: improved bound using sparsity
@@ -458,7 +407,7 @@ bound_sparse  # closer to theoretical 0.25
 ````
 
 ````
-0.2508754128599583
+0.2508754129202198
 ````
 
 Improvement in bound:
@@ -468,7 +417,7 @@ bound_dense - bound_sparse  # positive = improvement
 ````
 
 ````
-2.3085576417170017e-7
+2.575627940371028e-7
 ````
 
 ---
@@ -498,29 +447,27 @@ with signs $s_{ij} \in \{+1, -1\}$. Classical bound: $f \leq 4.5$. Quantum bound
 #### Step 1: Create unipotent variables
 
 ````julia
-registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+registry, (x, y) = site_variables(Unipotent(), 2, 3; functional=Next.RealState())
 ````
 
 ````
-(VariableRegistry with 6 variables: x₁, x₂, x₃, y₁, y₂, y₃, (NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[x₁, x₂, x₃], NCTSSoS.NormalMonomial{NCTSSoS.UnipotentAlgebra, UInt8}[y₁, y₂, y₃]))
+(Registry(RealState(Unipotent), 2 sites, 6 variables), [[s1_1, s1_2, s1_3], [s2_1, s2_2, s2_3]])
 ````
 
 x: Alice's observables [A₁, A₂, A₃]
 y: Bob's observables [B₁, B₂, B₃]
 
-#### Step 2: Define the identity monomial
+#### Step 2: Inspect the identity
 
-The identity monomial `ID` serves a dual purpose: it anchors the algebra type
-and promotes `StatePolynomial` → `NCStatePolynomial` (what `polyopt` expects).
-Multiplying by `ID` is mathematically a no-op (×𝟙 = identity) but tells the
-type system which algebra the non-commutative layer belongs to.
+The polynomial carries its algebra and functional type. Its identity belongs
+to the same registry. No identity factor is needed to build state polynomials.
 
 ````julia
-ID = one(typeof(x[1]))
+ID = one(x[1])
 ````
 
 ````
-𝟙
+1.0
 ````
 
 ID: identity monomial (𝟙) inferred from the variable type
@@ -530,20 +477,17 @@ ID  # display the identity
 ````
 
 ````
-𝟙
+1.0
 ````
 
 #### Step 3: Define the covariance function using state polynomials
 
-State polynomials use `ς(·)` (type `\varsigma` + Tab, or use the ASCII alias
-`varsigma`) to denote expectation values ⟨·⟩.
-
-`ς` applied to a `Polynomial` returns a `StatePolynomial`; applied to a
-single `NormalMonomial` it returns a `StateWord` (a single expectation factor).
+`state_symbol` denotes a symbolic expectation value ⟨·⟩. It returns a
+polynomial in the same registry, with functional words for its terms.
 
 ````julia
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID -  # ⟨AᵢBⱼ⟩
-            1.0 * ς(x[a]) * ς(y[b]) * ID  # -⟨Aᵢ⟩⟨Bⱼ⟩
+cov(a, b) = state_symbol(x[a] * y[b]) -  # ⟨AᵢBⱼ⟩
+            state_symbol(x[a]) * state_symbol(y[b])  # -⟨Aᵢ⟩⟨Bⱼ⟩
 ````
 
 ````
@@ -551,7 +495,6 @@ cov (generic function with 1 method)
 ````
 
 cov(a,b): covariance Cov(Aₐ, Bᵦ) as a state polynomial
-ς (varsigma): expectation value operator, type \varsigma + Tab
 
 Example: Cov(A₁, B₁)
 
@@ -560,7 +503,7 @@ cov(1, 1)
 ````
 
 ````
--⟨x₁⟩⟨y₁⟩ + ⟨x₁y₁⟩
+⟨s1_1 s2_1⟩ + (-1.0) ⟨s1_1⟩ ⟨s2_1⟩
 ````
 
 #### Step 4: Build the objective function
@@ -572,51 +515,35 @@ sp = cov(1,1) + cov(1,2) + cov(1,3) +  # Cov(A₁, B₁) + Cov(A₁, B₂) + Cov
 ````
 
 ````
--⟨x₁⟩⟨y₁⟩ - ⟨x₁⟩⟨y₂⟩ - ⟨x₁⟩⟨y₃⟩ - ⟨x₂⟩⟨y₁⟩ - ⟨x₂⟩⟨y₂⟩ + ⟨x₂⟩⟨y₃⟩ - ⟨x₃⟩⟨y₁⟩ + ⟨x₃⟩⟨y₂⟩ + ⟨x₁y₁⟩ + ⟨x₁y₂⟩ + ⟨x₁y₃⟩ + ⟨x₂y₁⟩ + ⟨x₂y₂⟩ - ⟨x₂y₃⟩ + ⟨x₃y₁⟩ - ⟨x₃y₂⟩
+⟨s1_1 s2_1⟩ + (-1.0) ⟨s1_1⟩ ⟨s2_1⟩ + ⟨s1_2 s2_1⟩ + ⟨s1_3 s2_1⟩ + (-1.0) ⟨s2_1⟩ ⟨s1_2⟩ + ⟨s1_1 s2_2⟩ + (-1.0) ⟨s1_1⟩ ⟨s2_2⟩ + ⟨s1_2 s2_2⟩ + … (16 terms)
 ````
 
 sp: state polynomial for covariance Bell inequality
 
 #### Step 5: Create optimization problem and solve
 
+Flipping all of Alice's observables changes `sp` to `-sp` and preserves the
+constraints. Thus minus the minimum of `sp` also bounds its maximum.
+
 ````julia
-spop = polyopt(sp, registry)
+spop = Problem(sp)
 ````
 
 ````
-Optimization Problem (UnipotentAlgebra)
-────────────────────────────────────
-Objective:
-    -⟨x₁⟩⟨y₁⟩ - ⟨x₁⟩⟨y₂⟩ - ⟨x₁⟩⟨y₃⟩ - ⟨x₂⟩⟨y₁⟩ - ⟨x₂⟩⟨y₂⟩ + ⟨x₂⟩⟨y₃⟩ - ⟨x₃⟩⟨y₁⟩ + ⟨x₃⟩⟨y₂⟩ + ⟨x₁y₁⟩ + ⟨x₁y₂⟩ + ⟨x₁y₃⟩ + ⟨x₂y₁⟩ + ⟨x₂y₂⟩ - ⟨x₂y₃⟩ + ⟨x₃y₁⟩ - ⟨x₃y₂⟩
-
-Equality constraints (0):
-    (none)
-
-Inequality constraints (0):
-    (none)
-
-Moment equality constraints (0):
-    (none)
-
-Variables (6):
-    x₁, x₂, x₃, y₁, y₂, y₃
-
+Problem: minimize ⟨s1_1 s2_1⟩ + (-1.0) ⟨s1_1⟩ ⟨s2_1⟩ + ⟨s1_2 s2_1⟩ + ⟨s1_3 s2_1⟩ + (-1.0) ⟨s2_1⟩ ⟨s1_2⟩ + ⟨s1_1 s2_2⟩ + (-1.0) ⟨s1_1⟩ ⟨s2_2⟩ + ⟨s1_2 s2_2⟩ + … (16 terms); 0 operator constraints; domain: normalized real states
 ````
 
 spop: state polynomial optimization problem
 
 ````julia
-solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,
-    order = 2
-)
+relaxation = Relaxation(order=2)
 
-result = cs_nctssos(spop, solver_config)
-cov_bound = -result.objective
+result = solve(spop, relaxation; solver=MosekBackend())
+cov_bound = -result.bound
 ````
 
 ````
-5.000000000004504
+4.99999999998718
 ````
 
 cov_bound: upper bound on covariance Bell violation
@@ -626,7 +553,7 @@ cov_bound  # should be close to 5.0
 ````
 
 ````
-5.000000000004504
+4.99999999998718
 ````
 
 Compare with known quantum value:
@@ -636,120 +563,26 @@ abs(cov_bound - 5.0)  # difference from theoretical value
 ````
 
 ````
-4.503952766299335e-12
+1.2819967309951608e-11
 ````
 
-#### Step 6: Improve bound using term sparsity and higher-order iteration
-
-````julia
-solver_config_ts = SolverConfig(
-    optimizer = Mosek.Optimizer,
-    order = 3,
-    ts_algo = MF()  # term sparsity
-)
-````
-
-````
-NCTSSoS.SolverConfig(Mosek.Optimizer, 3, nothing, NCTSSoS.NoElimination(), CliqueTrees.MF(), nothing)
-````
-
-ts_algo=MF(): enables term sparsity exploitation
-
-````julia
-result_ts = cs_nctssos(spop, solver_config_ts)
-````
-
-````
-State Optimization Result
-Objective: -5.0000000215597895
-Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
-
-   maximum clique size: 6
-   number of cliques: 1
-   Clique 1: 
-       Variables: [:x₁, :x₂, :x₃, :y₁, :y₂, :y₃]
-       Bases length: 690
-       Constraints: 
-   Global Constraints: 
-Term Sparsity:
-Clique 1:
-   Moment Matrix Block Sizes: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 9, 6, 5, 5, 5, 8, 7, 6, 5, 5, 8, 5, 7, 7, 5, 5, 8, 5, 7, 7, 5, 5, 5, 8, 7, 6, 5, 7, 7, 7, 7, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 5, 9, 6, 7, 5, 9, 9, 5, 5, 9, 8, 5, 5, 5, 8, 7, 8, 11, 5, 5, 5, 9, 8, 7, 5, 9, 9, 5, 5, 9, 8, 5, 5, 5, 8, 7, 8, 11, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 9, 5, 5, 9, 6, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 9, 13, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 9, 8, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 9, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 5, 5, 9, 8, 5, 5, 9, 8, 8, 11, 14, 14, 17, 15, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-   Moment Matrix:
-Number of Activated supp:   447
-Number of Bases Activated in each sub-block[2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 9, 6, 5, 5, 5, 8, 7, 6, 5, 5, 8, 5, 7, 7, 5, 5, 8, 5, 7, 7, 5, 5, 5, 8, 7, 6, 5, 7, 7, 7, 7, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 5, 9, 6, 7, 5, 9, 9, 5, 5, 9, 8, 5, 5, 5, 8, 7, 8, 11, 5, 5, 5, 9, 8, 7, 5, 9, 9, 5, 5, 9, 8, 5, 5, 5, 8, 7, 8, 11, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 9, 5, 5, 9, 6, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 9, 13, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 5, 5, 9, 8, 5, 5, 5, 8, 7, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 9, 5, 5, 5, 8, 7, 5, 5, 9, 8, 8, 5, 5, 9, 8, 5, 5, 9, 8, 8, 11, 14, 14, 17, 15, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-
-   Localizing Matrix:
-Unique Moment Matrix Elements: 375
-
-````
-
-result_ts: first iteration with term sparsity
-
-````julia
-result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
-````
-
-````
-State Optimization Result
-Objective: -5.000000001011075
-Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
-
-   maximum clique size: 6
-   number of cliques: 1
-   Clique 1: 
-       Variables: [:x₁, :x₂, :x₃, :y₁, :y₂, :y₃]
-       Bases length: 690
-       Constraints: 
-   Global Constraints: 
-Term Sparsity:
-Clique 1:
-   Moment Matrix Block Sizes: [3, 3, 3, 3, 3, 3, 3, 4, 3, 11, 18, 4, 4, 4, 11, 4, 11, 13, 14, 13, 15, 22, 28, 4, 4, 3, 3, 4, 4, 4, 11, 4, 11, 13, 13, 4, 4, 11, 4, 4, 11, 22, 24, 4, 4, 4, 4, 11, 4, 11, 13, 15, 26, 30, 32, 29, 28, 3, 2, 3, 3, 3, 3, 2, 2, 3, 3, 7, 2, 2, 3, 4, 3, 4, 3, 3, 3, 3, 3, 3, 3, 7, 3, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 7, 4, 6, 3, 3, 4, 2, 3, 4, 2, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 30, 4, 6, 3, 4, 4, 5, 6, 7, 15, 22, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 6, 7, 8, 15, 23, 32, 45, 49, 49, 55, 3, 4, 6, 3, 4, 6, 4, 6, 4, 6, 8, 10, 4, 6, 4, 6, 7, 8, 16, 4, 6, 4, 6, 7, 8, 4, 6, 4, 6, 7, 8, 18, 22, 28, 29, 34, 41, 51, 76, 73, 73, 73, 76, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 9, 10, 10, 10, 10, 23, 22, 20, 27, 2, 7, 3, 4, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 6, 7, 8, 15, 23, 32, 3, 4, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 5, 5, 7, 15, 22, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 30, 41, 52, 50, 57, 64, 72, 2, 2, 3, 4, 2, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 9, 10, 10, 10, 10, 23, 22, 20, 27, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 30, 4, 6, 3, 4, 4, 5, 6, 7, 15, 22, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 6, 7, 8, 15, 23, 32, 45, 49, 49, 61, 64, 2, 3, 3, 4, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 5, 6, 7, 15, 22, 28, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 29, 36, 44, 45, 3, 4, 6, 3, 4, 6, 4, 6, 4, 6, 8, 10, 19, 4, 6, 4, 6, 7, 8, 16, 4, 6, 4, 6, 7, 8, 4, 6, 4, 6, 7, 8, 18, 22, 28, 35, 44, 59, 75, 72, 72, 72, 93, 93, 4]
-   Moment Matrix:
-Number of Activated supp:   4977
-Number of Bases Activated in each sub-block[3, 3, 3, 3, 3, 3, 3, 4, 3, 11, 18, 4, 4, 4, 11, 4, 11, 13, 14, 13, 15, 22, 28, 4, 4, 3, 3, 4, 4, 4, 11, 4, 11, 13, 13, 4, 4, 11, 4, 4, 11, 22, 24, 4, 4, 4, 4, 11, 4, 11, 13, 15, 26, 30, 32, 29, 28, 3, 2, 3, 3, 3, 3, 2, 2, 3, 3, 7, 2, 2, 3, 4, 3, 4, 3, 3, 3, 3, 3, 3, 3, 7, 3, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 7, 4, 6, 3, 3, 4, 2, 3, 4, 2, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 30, 4, 6, 3, 4, 4, 5, 6, 7, 15, 22, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 6, 7, 8, 15, 23, 32, 45, 49, 49, 55, 3, 4, 6, 3, 4, 6, 4, 6, 4, 6, 8, 10, 4, 6, 4, 6, 7, 8, 16, 4, 6, 4, 6, 7, 8, 4, 6, 4, 6, 7, 8, 18, 22, 28, 29, 34, 41, 51, 76, 73, 73, 73, 76, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 9, 10, 10, 10, 10, 23, 22, 20, 27, 2, 7, 3, 4, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 6, 7, 8, 15, 23, 32, 3, 4, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 5, 5, 7, 15, 22, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 30, 41, 52, 50, 57, 64, 72, 2, 2, 3, 4, 2, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 9, 10, 10, 10, 10, 23, 22, 20, 27, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 30, 4, 6, 3, 4, 4, 5, 6, 7, 15, 22, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 6, 7, 8, 15, 23, 32, 45, 49, 49, 61, 64, 2, 3, 3, 4, 4, 6, 3, 4, 4, 6, 7, 8, 15, 4, 6, 3, 4, 4, 5, 6, 7, 15, 22, 28, 3, 10, 3, 10, 3, 10, 4, 12, 4, 12, 10, 10, 10, 10, 10, 24, 22, 23, 29, 36, 44, 45, 3, 4, 6, 3, 4, 6, 4, 6, 4, 6, 8, 10, 19, 4, 6, 4, 6, 7, 8, 16, 4, 6, 4, 6, 7, 8, 4, 6, 4, 6, 7, 8, 18, 22, 28, 35, 44, 59, 75, 72, 72, 72, 93, 93, 4]
-
-   Localizing Matrix:
-Unique Moment Matrix Elements: 3184
-
-````
-
-result_higher: higher-order iteration refining the bound
-
-````julia
-improved_bound = -result_higher.objective
-````
-
-````
-5.000000001011075
-````
-
-improved_bound: refined upper bound
-
-````julia
-(improved_bound,               # closer to 5.0
- abs(improved_bound - 5.0))    # very small difference from theoretical value
-````
-
-````
-(5.000000001011075, 1.0110747794556119e-9)
-````
+Term sparsity for state and trace polynomials is not available in this release.
 
 ---
 ## Summary
 
 | Inequality | Operator Type | Classical Bound | Quantum Bound | API |
 |:-----------|:--------------|:----------------|:--------------|:----|
-| CHSH | Unipotent (U²=I) | 2 | 2√2 ≈ 2.828 | `create_unipotent_variables` |
-| I₃₃₂₂ | Projector (P²=P) | 0 | 0.25 | `create_projector_variables` |
-| Covariance | Unipotent + State | 4.5 | 5 | `ς(·)` state polynomials |
+| CHSH | Unipotent (U²=I) | 2 | 2√2 ≈ 2.828 | `site_variables(Unipotent(), 2, 2)` |
+| I₃₃₂₂ | Projector (P²=P) | 0 | 0.25 | `site_variables(Projector(), 2, 3)` |
+| Covariance | Unipotent + State | 4.5 | 5 | `state_symbol` |
 
 Key functions:
-- `create_unipotent_variables`: Create U² = I operators
-- `create_projector_variables`: Create P² = P operators
-- `polyopt`: Create optimization problem
-- `SolverConfig`: Configure solver and sparsity options
-- `cs_nctssos`: Solve using moment-SOS hierarchy
-- `ς(·)`: Expectation value for state polynomials
+- `site_variables`: Create operators with the selected algebra
+- `Problem`: Create optimization problem
+- `Relaxation`: Configure hierarchy order and sparsity options
+- `solve`: Solve using moment-SOS hierarchy
+- `state_symbol`: Symbolic expectation value for state polynomials
 
 ---
 

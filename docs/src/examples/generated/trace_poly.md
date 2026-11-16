@@ -22,17 +22,16 @@ This example covers three problems of increasing complexity:
 
 ## Setup
 
-We use Mosek as the SDP solver. The `MOI.Silent()` attribute suppresses
-solver output.
+We use the native Mosek backend as the SDP solver.
 
 ````julia
-using NCTSSoS, MosekTools
+using NCTSSoS.Next
+import NCTSSoS, Mosek
 using JSON3
 
 const TRACE_POLY_REFS = JSON3.read(read(joinpath(pkgdir(NCTSSoS), "docs", "src", "examples", "literate", "data", "trace_poly_refs.json"), String))
 
-const MOI = NCTSSoS.MOI
-const SILENT_MOSEK = MOI.OptimizerWithAttributes(Mosek.Optimizer, MOI.Silent() => true);
+const SOLVER = MosekBackend();
 ````
 
 ---
@@ -48,59 +47,53 @@ f = \operatorname{tr}(P_1 P_2 P_3)
 
 #### Step 1 — Create projector variables
 
-Each tuple `("x", 1:3)` declares a **label group**: the string is a name
-prefix and the range gives the indices, producing variables `x[1], x[2], x[3]`.
-The returned `registry` stores the symbol ↔ index mapping and algebra
-constraints; it is passed to `polyopt` so the solver knows the
-variable structure.
+One site contains three noncommuting projectors. The registry stores their
+algebra and names. Each polynomial carries that registry into `Problem`.
+`Next.RealTrace()` selects normalized real traces.
 
 ````julia
-registry, (x,) = create_projector_variables([("x", 1:3)]);
+registry, (x,) = site_variables(Projector(), 1, 3; functional=Next.RealTrace());
 ````
 
 #### Step 2 — Build the tracial objective
 
-`tr` wraps a `Polynomial` into a `StatePolynomial` — a symbolic
-expression over trace moments. To feed it to `polyopt`, multiply
-by the identity monomial `𝟙` to obtain an `NCStatePolynomial`.
+`trace_symbol` builds a symbolic trace. Products of these symbols describe
+products of trace moments. No identity factor is needed.
 
 ````julia
-𝟙 = one(NormalMonomial{ProjectorAlgebra, UInt8})
-p = (tr(x[1] * x[2] * x[3]) + tr(x[1] * x[2]) * tr(x[3])) * 𝟙;
+p = trace_symbol(x[1] * x[2] * x[3]) + trace_symbol(x[1] * x[2]) * trace_symbol(x[3]);
 ````
 
 #### Step 3 — Formulate and solve
 
-`SolverConfig` sets the SDP backend and hierarchy `order`.
+`Relaxation` sets the hierarchy `order`; `solve` selects the backend.
 Higher orders yield tighter bounds at the cost of larger SDPs.
 
 ````julia
-spop = polyopt(p, registry);
+spop = Problem(p);
 
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2);
-result = cs_nctssos(spop, solver_config);
+result = solve(spop, Relaxation(order=2); solver=SOLVER);
 
-@show result.objective
-@assert isapprox(result.objective, TRACE_POLY_REFS["toy_projector_order2_objective"], atol=1e-6)
+@show result.bound
+@assert isapprox(result.bound, TRACE_POLY_REFS["toy_projector_order2_objective"], atol=1e-6)
 ````
 
 ````
-result.objective = -0.046717376274378074
+result.bound = -0.04671737627039185
 
 ````
 
 #### Step 4 — Tighten the bound at order 3
 
 ````julia
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=3);
-result = cs_nctssos(spop, solver_config);
+result = solve(spop, Relaxation(order=3); solver=SOLVER);
 
-@show result.objective
-@assert isapprox(result.objective, TRACE_POLY_REFS["toy_projector_order3_objective"], atol=1e-6)
+@show result.bound
+@assert isapprox(result.bound, TRACE_POLY_REFS["toy_projector_order3_objective"], atol=1e-6)
 ````
 
 ````
-result.objective = -0.031249993432210674
+result.bound = -0.0312499934321917
 
 ````
 
@@ -122,31 +115,31 @@ observables are $A_1, A_2$ (Alice) and $B_1, B_2$ (Bob):
 Classical bound: $\mathcal{B} \leq 2$. Quantum bound (Tsirelson):
 $\mathcal{B} \leq 2\sqrt{2} \approx 2.828$.
 
-We model the observables with `UnipotentAlgebra` ($U^2 = I$). Since
-`cs_nctssos` *minimizes*, we negate the Bell expression and expect
+We model the observables with `Unipotent()` ($U^2 = I$). Since
+`solve` *minimizes*, we negate the Bell expression and expect
 $\approx -2\sqrt{2}$.
 
-#### Step 1 — Create unipotent variables (single group)
+#### Step 1 — Create unipotent variables (single site)
 
-Variables in the same label group do **not** commute. We place all four
-observables in one group, then split into Alice/Bob symbols.
+Variables at the same site do **not** commute. We place all four
+observables at one site, then split into Alice/Bob symbols.
 
 !!! note "Why non-commuting? The transpose trick"
     In the tracial formulation, bipartite expectations over a maximally
     entangled state are rewritten via the identity
     ``\langle\phi^+|A\otimes B|\phi^+\rangle = \tfrac{1}{k}\operatorname{Tr}(A\,B^{\mathsf T})``
     [klep2022Optimization](@cite).
-    When we write `tr(xᵢ * yⱼ)`, the variable `yⱼ` represents the
+    When we write `trace_symbol(xᵢ * yⱼ)`, the variable `yⱼ` represents the
     **transposed** Bob operator ``B_j^{\mathsf T}``. Placing Alice and Bob
-    in separate label groups would impose ``[A_i, B_j^{\mathsf T}] = 0``,
+    at separate sites would impose ``[A_i, B_j^{\mathsf T}] = 0``,
     which is **stronger** than the physical tensor-product commutation
-    ``[A_i \otimes I,\, I \otimes B_j] = 0``. Using a single group leaves
+    ``[A_i \otimes I,\, I \otimes B_j] = 0``. Using a single site leaves
     the variables non-commuting, matching the correct constraint set.
     See the [Bell inequalities example](@ref bell-inequalities) for the
-    state-polynomial formulation, where separate groups *are* appropriate.
+    state-polynomial formulation, where separate sites *are* appropriate.
 
 ````julia
-registry, (vars,) = create_unipotent_variables([("v", 1:4)]);
+registry, (vars,) = site_variables(Unipotent(), 1, 4; functional=Next.RealTrace());
 x = vars[1:2];  # Alice: A₁, A₂
 y = vars[3:4];  # Bob:   B₁, B₂
 ````
@@ -154,36 +147,27 @@ y = vars[3:4];  # Bob:   B₁, B₂
 #### Step 2 — Define the negated CHSH expression
 
 ````julia
-𝟙 = one(NormalMonomial{UnipotentAlgebra, UInt8})
-
-p = -1.0 * tr(x[1] * y[1]) +  ## −tr(A₁B₁)
-    -1.0 * tr(x[1] * y[2]) +  ## −tr(A₁B₂)
-    -1.0 * tr(x[2] * y[1]) +  ## −tr(A₂B₁)
-     1.0 * tr(x[2] * y[2]);   ## +tr(A₂B₂)
+p = -1.0 * trace_symbol(x[1] * y[1]) +  ## −tr(A₁B₁)
+    -1.0 * trace_symbol(x[1] * y[2]) +  ## −tr(A₁B₂)
+    -1.0 * trace_symbol(x[2] * y[1]) +  ## −tr(A₂B₁)
+     1.0 * trace_symbol(x[2] * y[2]);   ## +tr(A₂B₂)
 ````
 
-#### Step 3 — Solve with term-sparsity exploitation
-
-Setting `ts_algo = MaximalElimination()` decomposes the SDP into smaller
-blocks via connected components of the variable interaction graph.
+#### Step 3 — Solve the dense relaxation
 
 ````julia
-tpop = polyopt(p * 𝟙, registry);
+result = solve(Problem(p), Relaxation(order=1); solver=SOLVER);
 
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=1, ts_algo=MaximalElimination());
-result = cs_nctssos(tpop, solver_config);
-
-@show result.objective
-@assert isapprox(result.objective, -2 * sqrt(2), atol=1e-5)
+@show result.bound
+@assert isapprox(result.bound, -2 * sqrt(2), atol=1e-5)
 ````
 
 ````
-result.objective = -2.828427122678642
+result.bound = -2.8284271247528463
 
 ````
 
-The result recovers the Tsirelson bound $-2\sqrt{2} \approx -2.828$
-[klep2022Optimization](@cite).
+Term sparsity for state and trace polynomials is not available in this release.
 
 ---
 ## Covariance Bell Inequality
@@ -209,24 +193,22 @@ where $S^+ = \{(1,1),(1,2),(1,3),(2,1),(2,2),(3,1)\}$ and
 $S^- = \{(2,3),(3,2)\}$.
 Classical bound: $f \leq 4.5$.  Quantum bound: $f = 5$.
 
-#### Step 1 — Create unipotent variables (single group)
+#### Step 1 — Create unipotent variables (single site)
 
 As with CHSH above, the tracial formulation requires non-commuting
 variables (see the note on the transpose trick). We place all six
-observables in one group and split afterward.
+observables at one site and split afterward.
 
 ````julia
-registry, (vars,) = create_unipotent_variables([("v", 1:6)]);
+registry, (vars,) = site_variables(Unipotent(), 1, 6; functional=Next.RealTrace());
 x = vars[1:3];  # Alice: A₁, A₂, A₃
 y = vars[4:6];  # Bob:   B₁, B₂, B₃
-
-𝟙 = one(typeof(x[1]));
 ````
 
 #### Step 2 — Define the covariance helper
 
 ````julia
-cov(a, b) = 1.0 * tr(x[a] * y[b]) - 1.0 * tr(x[a]) * tr(y[b]);
+cov(a, b) = trace_symbol(x[a] * y[b]) - trace_symbol(x[a]) * trace_symbol(y[b]);
 ````
 
 #### Step 3 — Build and solve the negated objective
@@ -238,20 +220,19 @@ p = -1.0 * (
     cov(3, 1) - cov(3, 2)                  ## S⁻ term: −Cov(A₃,B₂)
 );
 
-tpop = polyopt(p * 𝟙, registry);
+tpop = Problem(p);
 
-solver_config = SolverConfig(; optimizer=SILENT_MOSEK, order=2);
-result = cs_nctssos(tpop, solver_config);
+result = solve(tpop, Relaxation(order=2); solver=SOLVER);
 
-@show result.objective
-abs_error = abs(result.objective + 5.0)
+@show result.bound
+abs_error = abs(result.bound + 5.0)
 @show abs_error
 @assert abs_error < 1e-3
 ````
 
 ````
-result.objective = -4.999999999629674
-abs_error = 3.703259920939672e-10
+result.bound = -4.9999999996301785
+abs_error = 3.6982150675157754e-10
 
 ````
 
@@ -263,17 +244,17 @@ The quantum value $-5$ is recovered within $10^{-3}$
 
 | Problem | Algebra | Classical | Quantum |
 |:--------|:--------|:----------|:--------|
-| Toy trace polynomial | `ProjectorAlgebra` ($P^2 = P$) | — | −0.0312 (order 3) |
-| CHSH (tracial) | `UnipotentAlgebra` ($U^2 = I$) | 2 | $2\sqrt{2} \approx 2.828$ |
-| Covariance Bell | `UnipotentAlgebra` ($U^2 = I$) | 4.5 | 5 |
+| Toy trace polynomial | `Projector()` ($P^2 = P$) | — | −0.0312 (order 3) |
+| CHSH (tracial) | `Unipotent()` ($U^2 = I$) | 2 | $2\sqrt{2} \approx 2.828$ |
+| Covariance Bell | `Unipotent()` ($U^2 = I$) | 4.5 | 5 |
 
 **Key API**:
-- `create_projector_variables` / `create_unipotent_variables`:
+- `site_variables` with `Projector()` or `Unipotent()`:
   create operators with $P^2 = P$ or $U^2 = I$ constraints
-- `tr`: build trace moments (tracial state)
-- `polyopt`: formulate the optimization problem
-- `SolverConfig`: set solver backend, hierarchy order, and sparsity options
-- `cs_nctssos`: solve via the moment-SOS hierarchy
+- `trace_symbol`: build trace moments (tracial state)
+- `Problem`: formulate the optimization problem
+- `Relaxation`: set the hierarchy order
+- `solve`: solve via the moment-SOS hierarchy
 
 For linear (non-tracial) Bell inequalities, see the
 [Bell inequalities example](@ref bell-inequalities).

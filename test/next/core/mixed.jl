@@ -1,21 +1,21 @@
-# Products are compared to legacy component arithmetic, not mixed kernels.
-mixed_legacy_type(::Nx.Pauli) = (PauliAlgebra,UInt16)
-mixed_legacy_type(::Nx.Fermionic) = (FermionicAlgebra,Int)
-mixed_legacy_type(::Nx.Bosonic) = (BosonicAlgebra,Int)
-mixed_legacy_type(::Nx.SiteAlgebra{Nx.Free}) = (NonCommutativeAlgebra,UInt32)
-mixed_legacy_type(::Nx.SiteAlgebra{Nx.Projector}) = (ProjectorAlgebra,UInt32)
-mixed_legacy_type(::Nx.SiteAlgebra{Nx.Unipotent}) = (UnipotentAlgebra,UInt32)
-function mixed_legacy_word(a,w)
-    A,T=mixed_legacy_type(a)
-    NormalMonomial{A,T}(T.(Nx.legacy_letters(w)))
+# Compare tensor matrices by their Frobenius norm without materializing a large
+# Kronecker product: <tensor(A),tensor(B)> = product(<A_i,B_i>).
+mixed_raw(w)=map(Nx.legacy_letters,w.components)
+function mixed_equal(oracles,left,right)
+    terms=[left;[(-c,w) for (c,w) in right]]
+    values=[map(operator_matrix,oracles,raw) for (_,raw) in terms]
+    inner(a,b)=prod(dot(x,y) for (x,y) in zip(a,b))
+    error=sum(conj(terms[i][1])*terms[j][1]*inner(values[i],values[j])
+        for i in eachindex(terms),j in eachindex(terms))
+    scale=sum(abs(c)*sqrt(real(inner(v,v))) for ((c,_),v) in zip(terms,values))
+    return abs(error)<=1e-11*max(1,scale^2)
 end
-function mixed_legacy_product(algebras,a,b)
-    parts=map(algebras,a.components,b.components) do algebra,u,v
-        collect(terms(mixed_legacy_word(algebra,u)*mixed_legacy_word(algebra,v)))
+
+function mixed_oracles(algebras,rows)
+    map(eachindex(algebras)) do i
+        OperatorOracle(algebras[i],[Nx.legacy_letters(w.components[i]) for w in rows])
     end
-    Dict(ComposedMonomial(map(last,ps))=>prod(map(first,ps)) for ps in Iterators.product(parts...))
 end
-mixed_legacy(algebras,w) = ComposedMonomial(map(mixed_legacy_word,algebras,w.components))
 
 function mixed_inspect!(out,words)
     for (i,w) in enumerate(words)
@@ -57,6 +57,7 @@ end
         registry,_=Nx.mixed_variables(;specs...)
         W=Nx.word_type(registry,6)
         rows=Nx.basis_rows(W,registry.algebra,1:registry.nsites,2)
+        oracles=mixed_oracles(algebras,rows)
         samples=unique!([one(W);rand(rng,rows,18)])
         check_word_contract(W,samples;triples=100)
         @test mixed_inspection_bytes(samples)==0
@@ -66,15 +67,15 @@ end
             Nx.push_term!(folded,1.0+0im,one(W))
             for letter in Nx.word_letters(w); folded=times(folded,letter); end
             @test clean(folded)==Dict(w=>1.0+0im)
-            parts=map((a,v)->collect(terms(adjoint(1.0*mixed_legacy_word(a,v)))),algebras,w.components)
-            expected=Dict(ComposedMonomial(map(last,ps))=>prod(map(first,ps)) for ps in Iterators.product(parts...))
+            expected=map(raw_adjoint,algebras,mixed_raw(w))
             phase,s=Nx.star(w)
-            @test expected==Dict(mixed_legacy(algebras,s)=>Nx.scale(phase,1.0+0im))
+            @test mixed_equal(oracles,[(Nx.scale(phase,1.0+0im),mixed_raw(s))],[(1,expected)])
         end
         for _ in 1:60
             a,b=rand(rng,rows,2)
-            got=Dict(mixed_legacy(algebras,w)=>c for (w,c) in clean(product_terms(a,b,ComplexF64)))
-            @test got==mixed_legacy_product(algebras,a,b)
+            got=[(c,mixed_raw(w)) for (w,c) in clean(product_terms(a,b,ComplexF64))]
+            expected=map(vcat,mixed_raw(a),mixed_raw(b))
+            @test mixed_equal(oracles,got,[(1,expected)])
         end
         # Enumerating each component then filtering is an independent basis oracle.
         parts=map((a,n,t)->Nx.basis_rows(t,a,1:n,2),algebras,ntuple(_->2,length(algebras)),fieldtypes(W.parameters[1]))

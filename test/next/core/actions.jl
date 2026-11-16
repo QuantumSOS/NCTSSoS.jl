@@ -103,7 +103,7 @@ end
     @test_throws ArgumentError Nx.CliffordMap(W,1,Nx.SitePermutation([2,1]))
 end
 
-@testset "Clifford matrix and legacy oracles" begin
+@testset "Clifford matrix oracles" begin
     W = Nx.PauliWord{1}
     for n in 1:4
         rows = Nx.basis_rows(W,Nx.Pauli(),1:n,n)
@@ -111,7 +111,6 @@ end
         n>1 && append!(gates,[(:CNOT,Nx.clifford_cnot(W,n,n,1),n,1),(:SWAP,Nx.clifford_swap(W,n,1,n),1,n)])
         for (name,g,a,b) in gates
             U = gate_matrix(name,n,a,b)
-            oldg = b==0 ? CliffordSymmetry(name,a;nqubits=n,integer_type=UInt16) : CliffordSymmetry(name,a,b;nqubits=n,integer_type=UInt16)
             @test isone(Nx.compose(g,inv(g)))
             @test isone(Nx.compose(inv(g),g))
             @test Nx.compose(g,one(g))==g
@@ -119,8 +118,6 @@ end
             for w in rows
                 phase,image = Nx.act(g,w)
                 @test Nx.scale(phase,1.0+0im)*pauli_matrix(image,n) ≈ U*pauli_matrix(w,n)*U' atol=1e-13
-                sign,oldimage = NCTSSoS._act_monomial(oldg,NormalMonomial{PauliAlgebra,UInt16}(UInt16.(Nx.legacy_letters(w))))
-                @test Nx.scale(phase,1.0)==sign && Nx.legacy_letters(image)==Int.(oldimage.word)
             end
             @test action_allocations(g,rows[end])==0
         end
@@ -151,9 +148,10 @@ end
             p,v = Nx.act(g,w); q,back = Nx.act(inv(g),v)
             @test p*q==one(Nx.Phase) && back==w
             if W <: Nx.FermiWord
-                oldg = FermionicModePermutation(Dict(i=>g.images[i] for i in eachindex(g.images)))
-                s,m = NCTSSoS._act_monomial(oldg,NormalMonomial{FermionicAlgebra,Int}(Nx.legacy_letters(w)))
-                @test Nx.scale(p,1.0)==s && Nx.legacy_letters(v)==m.word
+                # Substitute raw ladders, retaining their order. Jordan-Wigner
+                # matrices supply the sign, not a second normal-ordering routine.
+                raw = [sign(l)*g.images[abs(l)] for l in Nx.legacy_letters(w)]
+                @test Nx.scale(p,1.0)*fermi_matrix(Nx.legacy_letters(v),1:4)==fermi_matrix(raw,1:4)
             end
         end
         @test action_allocations(g,rows[end])==0
@@ -179,20 +177,18 @@ end
         @test Nx.scale(p,1.0+0im)*pauli_matrix(v,3) ≈ U*conj(pauli_matrix(w,3))*U'
     end
     @test action_allocations(g,rows[end])==0
-    reg,(x,y,z) = create_pauli_variables(1:3)
-    letters = vcat(x,y,z)
-    images = (vcat(zero.(Polynomial.(x)),Polynomial.(z),-Polynomial.(y)),
-        vcat(-Polynomial.(z),zero.(Polynomial.(y)),Polynomial.(x)),
-        vcat(Polynomial.(y),-Polynomial.(x),zero.(Polynomial.(z))))
     for axis in 0:2
         d = Nx.SpinRotation(axis,(UInt64(7),))
-        oldd = SuppliedDerivation(reg,Dict(v.word[1]=>image for (v,image) in zip(letters,images[axis+1])))
+        # d(O) = -i[J_axis,O], J_axis = sum(sigma_axis)/2.
+        # Construct the generator as matrices, not through polynomial products.
+        generator = sum(pauli_matrix(Nx.pauli_letter(W,site,axis),3) for site in 1:3)/2
         @test d==Nx.SpinRotation(axis,(UInt64(7),))
         @test hash(d)==hash(Nx.SpinRotation(axis,(UInt64(7),)))
         for w in rows
             sink = Nx.derive!(TermDict{W,ComplexF64}(),d,w,1.0+0im)
-            old = differentiate(oldd,NormalMonomial{PauliAlgebra,eltype(indices(reg))}(eltype(indices(reg)).(Nx.legacy_letters(w))))
-            @test bridge_terms(sink)==Dict(Int.(m.word)=>ComplexF64(c) for (c,m) in terms(old) if !iszero(c))
+            matrix = pauli_matrix(w,3)
+            actual = sum((c*pauli_matrix(v,3) for (v,c) in sink.terms);init=zeros(ComplexF64,8,8))
+            @test actual ≈ -im*(generator*matrix-matrix*generator) atol=1e-13
         end
         @test derivation_allocations(d,rows[end])==0
     end

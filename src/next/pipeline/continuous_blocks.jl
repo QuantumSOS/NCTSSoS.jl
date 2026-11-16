@@ -35,7 +35,10 @@ function _spectral_copies(matrices)
         end
         push!(components,nodes)
     end
-    return [[hcat([(Q[:,groups[i]]*transport[i])[:,a] for i in nodes]...)
+    # Reuse each transported eigenspace across its copies; recomputing it for
+    # every column makes a degenerate eigenspace allocate cubically in its side.
+    transported=[Q[:,groups[i]]*transport[i] for i in eachindex(groups)]
+    return [[hcat([view(transported[i],:,a) for i in nodes]...)
         for a in 1:length(groups[first(nodes)])] for nodes in components]
 end
 
@@ -125,16 +128,17 @@ end
 
 """
 Split family and strengthening PSD/HPSD blocks after exact continuous moment
-elimination. Strengthening cones first use an exact sparse coefficient-support
+elimination. All cones first use an exact sparse coefficient-support
 partition: copying principal submatrices and checking zero cross-component
-coefficients certifies it without dense storage. Otherwise use spectral discovery.
+coefficients certifies it without dense storage.
 For non-diagonal derivations, also run spectral discovery inside each exact
 component, with the same caps and certificate; failure keeps that component.
-Dense storage is bounded
-by both side and 16*K*n² bytes for the complex coefficient matrices; discovery
-and certification also need working matrices. Every unsuccessful proposal keeps
-the original block. Diagonal derivations need no discovery after an exact partition.
-Family blocks retain their existing discovery and resource-cap behavior.
+Spectral work is capped per component by side and an allocation estimate:
+32 times the 16*K*n² coefficient storage plus 1 MiB for small-block workspaces.
+This allowance includes transformed matrices, edge trials and certification,
+not just the retained matrices; it is not a hard process-memory limit.
+Every unsuccessful proposal keeps
+the original block. Diagonal derivations never need spectral discovery.
 Tolerances use maximum-entry norms: absolute for
 U'U-I and relative to max(1, maxabs(A_k)) for coefficient reconstruction.
 """
@@ -147,14 +151,17 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),diagona
     for (input,block) in enumerate(program.blocks)
         ids=sort!(unique([program.forms.ids[t] for f in form_range(block) for t in term_range(program.forms,f)]))
         bytes=16*length(ids)*Int128(block.side)^2
+        # Warm discovery/certification allocates up to 19 times the coefficient
+        # storage in the spin controls; budget intermediates, not only inputs.
+        allocation_bytes=32bytes+1024^2
         reason=block.kind ∉ (PSD,HPSD) ? :not_psd : block.side>max_side ? :side_cap :
-            bytes>max_bytes ? :memory_cap : isempty(ids) ? :zero_block : :candidate
+            allocation_bytes>max_bytes ? :memory_cap : isempty(ids) ? :zero_block : :candidate
         first_output=length(out.blocks)+1
         reconstruction=orthogonality=0.0
         multiplicities=[1]
-        if block.kind in (PSD,HPSD) && input>family_blocks
+        if block.kind in (PSD,HPSD)
             components=_coefficient_components(program,block)
-            if length(components)>1
+            if diagonal || length(components)>1
                 if diagonal
                     _copy_components!(out,program,block,components)
                     multiplicities=ones(Int,length(components))
@@ -169,7 +176,7 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),diagona
                     reconstruction=report.reconstruction_error
                     orthogonality=report.orthogonality_error
                 end
-                reason=:support_split
+                reason=length(components)>1 ? :support_split : :diagonal
             end
         end
         if reason==:candidate
@@ -202,11 +209,11 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),diagona
                 end
             end
         end
-        reason in (:split,:support_split) || _copy_cone!(out,program,block)
+        reason in (:split,:support_split,:diagonal) || _copy_cone!(out,program,block)
         outputs=collect(first_output:length(out.blocks))
         push!(records,(input=input,outputs=outputs,reason=reason,before=block.side,
             sides=[out.blocks[i].side for i in outputs],multiplicities=multiplicities,
-            coefficient_bytes=bytes,reconstruction_error=reconstruction,orthogonality_error=orthogonality))
+            coefficient_bytes=bytes,allocation_bytes,reconstruction_error=reconstruction,orthogonality_error=orthogonality))
     end
     psd_records=filter(r->program.blocks[r.input].kind in (PSD,HPSD),records)
     kept=Dict(reason=>count(r->r.reason==reason,records) for reason in unique(r.reason for r in records) if reason ∉ (:split,:support_split))

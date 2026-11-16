@@ -148,7 +148,7 @@ function build(problem::Problem,description::BlockRelaxation)
     end
     family=unique(_block_key,custom ? family : _split_family(family,objective,description.split))
     family=_continuous_family(family,description.symmetry.continuous;custom)
-    letters=[filter(w->!isone(w),basis_rows(W,registry.algebra,[site],1)) for site in 1:registry.nsites]
+    letters=[_site_letters(W,registry,site) for site in 1:registry.nsites]
     # The 2RDM conditions can supply a quartic objective with order-one rows.
     defer_coverage=any(k->k isa FermionicConditions,description.strengthen)
     program,table,closure=family_program(family,objective;generators=description.symmetry.generators,

@@ -1,0 +1,44 @@
+(trace = false, name = "plain", bound = -2.828427124752844, sides = [9], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD], vars = 20)
+(trace = false, name = "block", bound = -2.828427124752844, sides = [9], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD], vars = 20)
+(trace = false, name = "CS", bound = -2.8284271362587017, sides = [7, 7], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD, NCTSSoS.Next.PSD], vars = 18)
+(trace = false, name = "TS", bound = -2.8284271271661083, sides = [2, 2, 2, 3, 3, 2, 1], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD], vars = 9)
+(trace = false, name = "CSTS", bound = -4.000000021620474, sides = [2, 2, 2, 2, 2, 1, 2, 2, 2], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD], vars = 8)
+(trace = true, name = "plain", bound = -2.8284271247528463, sides = [9], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD], vars = 20)
+(trace = true, name = "block", bound = -2.8284271247528463, sides = [9], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD], vars = 20)
+(trace = true, name = "CS", bound = -2.828427130872365, sides = [7, 7], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD, NCTSSoS.Next.PSD], vars = 18)
+(trace = true, name = "TS", bound = -2.828427127166108, sides = [2, 2, 2, 3, 3, 2, 1], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD], vars = 9)
+(trace = true, name = "CSTS", bound = -4.000000021620474, sides = [2, 2, 2, 2, 2, 1, 2, 2, 2], kinds = NCTSSoS.Next.ConeKind[NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD, NCTSSoS.Next.PSD], vars = 8)
+ERROR: LoadError: Some tests did not pass: 20 passed, 0 failed, 1 errored, 0 broken.
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/functional-sparse-pilot.jl:24
+Functional modeling and outer moments: Error During Test at /home/user/workspace/repo/test/next/model/functional.jl:28
+  Got exception outside of a @test
+  MethodError: no method matching NCTSSoS.Next.InvariantCone(::UnitRange{Int64}, ::Int64)
+  The type `NCTSSoS.Next.InvariantCone` exists, but no method is defined for this combination of argument types when trying to construct it.
+  
+  Closest candidates are:
+    NCTSSoS.Next.InvariantCone(::Any, !Matched::AbstractString)
+     @ NCTSSoS ~/workspace/repo/src/next/pipeline/strengthening.jl:17
+  
+  Stacktrace:
+   [1] macro expansion
+     @ ~/workspace/repo/test/next/model/functional.jl:60 [inlined]
+   [2] macro expansion
+     @ ~/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [3] check(backend::NCTSSoS.Next.MosekBackend{@NamedTuple{MSK_IPAR_NUM_THREADS::Int64}}; factory::Nothing, references::Bool)
+     @ Main.FunctionalModelChecks ~/workspace/repo/test/next/model/functional.jl:29
+   [4] check(backend::NCTSSoS.Next.MosekBackend{@NamedTuple{MSK_IPAR_NUM_THREADS::Int64}})
+     @ Main.FunctionalModelChecks ~/workspace/repo/test/next/model/functional.jl:27
+   [5] top-level scope
+     @ ~/workspace/repo/.amp/in/orb-backup/functional-sparse-pilot.jl:24
+   [6] include(mod::Module, _path::String)
+     @ Base ./Base.jl:306
+   [7] exec_options(opts::Base.JLOptions)
+     @ Base ./client.jl:317
+   [8] _start()
+     @ Base ./client.jl:550
+Test Summary:                         | Pass  Error  Total  Time
+Functional modeling and outer moments |   20      1     21  9.0s
+RNG of the outermost testset: Random.Xoshiro(0x5faf62257b5e1cd4, 0xa2539275254e0a62, 0x8077b66c87250d84, 0xe5bd91e0bd19a83b, 0x112fa6c8bab5192b)
+real 113.65
+user 112.38
+sys 1.97

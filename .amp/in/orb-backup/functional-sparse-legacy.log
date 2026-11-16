@@ -1,0 +1,37 @@
+(trace = false, name = "dense", bound = -2.8284271244962476, sides = [9], moments = 21)
+(trace = false, name = "CS", bound = -2.828427113225971, sides = [7, 7], moments = 19)
+(trace = false, name = "TS", bound = -2.828427124745501, sides = [3, 3, 1, 1, 1, 1, 1], moments = 10)
+SparsityResult{UnipotentAlgebra, UInt8, NCTSSoS.NCStatePolynomial{Float64, Arbitrary, UnipotentAlgebra, UInt8}, NCStateWord{Arbitrary, UnipotentAlgebra, UInt8}, Arbitrary}(Correlative Sparsity (UnipotentAlgebra, Arbitrary): 
+
+   maximum clique size: 4
+   number of cliques: 1
+   Clique 1: 
+       Variables: [:a₁, :a₂, :b₁, :b₂]
+       Bases length: 9
+       Constraints: 
+   Global Constraints: 
+, Vector{NCStateWord{Arbitrary, UnipotentAlgebra, UInt8}}[[⟨a₁b₁⟩, ⟨a₁b₂⟩, ⟨a₂b₁⟩, ⟨a₂b₂⟩]], Vector{NCTSSoS.TermSparsity{NCStateWord{Arbitrary, UnipotentAlgebra, UInt8}}}[[Number of Activated supp:   10
+Number of Bases Activated in each sub-block[3, 3, 1, 1, 1, 1, 1]
+]])
+TS properties (:term_sparse_graph_supp, :block_bases)
+(trace = false, name = "CSTS", bound = -3.9999999930588963, sides = [2, 2, 1, 1, 1, 1, 2, 2, 1, 1, 1, 1], moments = 9)
+(trace = true, name = "dense", bound = -2.8284271244962476, sides = [9], moments = 21)
+(trace = true, name = "CS", bound = -2.8284271247426696, sides = [4, 4], moments = 10)
+(trace = true, name = "TS", bound = -2.828427124743911, sides = [3, 3, 1], moments = 6)
+SparsityResult{UnipotentAlgebra, UInt8, NCTSSoS.NCStatePolynomial{Float64, MaxEntangled, UnipotentAlgebra, UInt8}, NCStateWord{MaxEntangled, UnipotentAlgebra, UInt8}, MaxEntangled}(Correlative Sparsity (UnipotentAlgebra, MaxEntangled): 
+
+   maximum clique size: 4
+   number of cliques: 1
+   Clique 1: 
+       Variables: [:v₁, :v₂, :v₃, :v₄]
+       Bases length: 5
+       Constraints: 
+   Global Constraints: 
+, Vector{NCStateWord{MaxEntangled, UnipotentAlgebra, UInt8}}[[tr(𝟙), tr(v₁v₃), tr(v₁v₄), tr(v₂v₃), tr(v₂v₄)]], Vector{NCTSSoS.TermSparsity{NCStateWord{MaxEntangled, UnipotentAlgebra, UInt8}}}[[Number of Activated supp:   6
+Number of Bases Activated in each sub-block[3, 3, 1]
+]])
+TS properties (:term_sparse_graph_supp, :block_bases)
+(trace = true, name = "CSTS", bound = -3.9999999819344727, sides = [2, 2, 1, 2, 2, 1], moments = 5)
+real 51.23
+user 50.98
+sys 1.00

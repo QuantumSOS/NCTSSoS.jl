@@ -22,8 +22,10 @@ function _check_symmetry_domain(p::Polynomial,s)
         "Use Problem(H; symmetry=(generators...,)) or Next.Symmetry(...; moment_only=(...), continuous=(...))."))
     p.registry.algebra isa MixedAlgebra && _has_symmetry(s) && throw(ArgumentError(
         "Mixed symmetry needs component-aware actions; remove symmetry and use the plain relaxation."))
+    p.registry.algebra isa FunctionalAlgebra && !isempty(s.continuous) && throw(ArgumentError(
+        "State/trace polynomials do not support continuous symmetry; remove continuous generators and use grouping or split without symmetry."))
     p.registry.algebra isa FunctionalAlgebra && _has_symmetry(s) && throw(ArgumentError(
-        "State/trace polynomials currently support the plain dense route only; remove symmetry until functional block routing is available."))
+        "State/trace polynomials do not yet support declared symmetry; remove symmetry and use grouping or split without symmetry."))
     W=eltype(p.data.words)
     n=p.registry.nsites
     for (i,g) in enumerate(Iterators.flatten((s.generators,s.moment_only)))
@@ -75,7 +77,7 @@ end
 build(p::Problem{P,C,Nothing},r::BlockRelaxation) where {P<:Polynomial,C<:Tuple} = _build_declared(p,r)
 build(p::Problem{P,C,S},r::BlockRelaxation) where {P<:Polynomial,C<:Tuple,S<:FamilySymmetry} = _build_declared(p,r)
 function _build_declared(p::Problem,r::BlockRelaxation;relaxation=r)
-    p.objective.registry.algebra isa FunctionalAlgebra && throw(ArgumentError("State/trace polynomials do not yet support the block pipeline; use Relaxation(order=...) without symmetry or strengthening."))
+    p.objective.registry.algebra isa FunctionalAlgebra && !isempty(r.strengthen) && throw(ArgumentError("State/trace polynomials do not support strengthening; remove strengthen and use Zero/Positive polynomial constraints with grouping or split."))
     a,b=p.symmetry,r.symmetry
     _has_symmetry(a) && _has_symmetry(b) && throw(ArgumentError(
         "Symmetry is declared on both Problem and BlockRelaxation; keep it on Problem and remove the BlockRelaxation symmetry."))

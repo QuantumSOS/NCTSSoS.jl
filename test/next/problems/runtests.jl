@@ -5,6 +5,7 @@ isdefined(@__MODULE__, :SOLVER) || include("../../TestUtils.jl")
 module NextProblemChecks
 using Test, LinearAlgebra, TOML
 using NCTSSoS.Next
+import Clarabel, JuMP
 import ..SOLVER
 
 function fixture(file, id)
@@ -23,10 +24,12 @@ include("fermionic/fermionic.jl")
 include("fermionic/fermionic_chain.jl")
 include("fermionic/xy_model.jl")
 include("condensed_matter/bose_hubbard.jl")
+include("benchmarks.jl")
 
 # SOS checks are opt-in: call check(; sos_solver=MosekBackend(form=:sos))
 # after loading Mosek and checking its licence. The CI baseline needs no licence.
-function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing)
+function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing,
+    benchmark_solver=BENCHMARK_SOLVER)
     @testset "Next: reviewed problem fixtures" begin
         nc_example1(solver, sos_solver)
         nc_example2(solver, sos_solver)
@@ -40,6 +43,7 @@ function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing)
         xx_field(solver)
         xy_model(solver)
         bose_hubbard(solver)
+        benchmark_contracts(benchmark_solver, sos_solver)
     end
 end
 end

@@ -1,0 +1,7 @@
+schema_version = 1
+
+[[cases]]
+id = "e5_n60"
+notes = "E5 n=60, Free Newton-chip order 2 with MMD term splitting at level 1. Captured on redesign 37e12b7 and reviewed by the architect on 2026-11-16: 121 rows, two cones of side 4 and 58 of side 5, 476 moment coordinates. The moment count is an implementation record, not a literature value. Original e5_broyden_tridiagonal.toml remains unchanged."
+[cases.expected]
+moments = 476

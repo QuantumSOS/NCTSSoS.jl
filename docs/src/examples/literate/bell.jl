@@ -16,10 +16,10 @@
 # ## Setup
 #
 # We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver backend.
-# Any SDP solver works — replace `Mosek.Optimizer` with `COSMO.Optimizer` or
-# `Clarabel.Optimizer` for open-source alternatives.
+# Use `JuMPBackend(COSMO.Optimizer)` for an open-source alternative.
 
-using NCTSSoS, MosekTools
+using NCTSSoS.Next
+import Mosek
 
 # ## Key Concepts: Unipotent and Projector Variables
 #
@@ -34,7 +34,7 @@ using NCTSSoS, MosekTools
 #
 # Create operators that square to identity:
 
-reg_unip, (A, B) = create_unipotent_variables([("A", 1:2), ("B", 1:2)])
+reg_unip, (A, B) = site_variables(Unipotent(), 2, 2)
 # reg_unip: registry storing variable names and algebra type
 # A: Alice's measurement operators [A₁, A₂] on site 1
 # B: Bob's measurement operators [B₁, B₂] on site 2
@@ -49,13 +49,13 @@ A[1] * B[1] == B[1] * A[1]  # true: different sites commute
 #
 # Create operators that are idempotent:
 
-reg_proj, (P, Q) = create_projector_variables([("P", 1:2), ("Q", 1:2)])
+reg_proj, (P, Q) = site_variables(Projector(), 2, 2)
 # reg_proj: registry for projector algebra
 # P: Alice's projectors [P₁, P₂] on site 1
 # Q: Bob's projectors [Q₁, Q₂] on site 2
 
 # Verify the idempotent property (P² = P):
-monomials(P[1] * P[1])  # should be [P[1]]
+P[1] * P[1] == P[1]  # true
 
 # ---
 # ## Linear Bell Inequalities
@@ -74,7 +74,7 @@ monomials(P[1] * P[1])  # should be [P[1]]
 
 # #### Step 1: Create unipotent variables for CHSH
 
-registry, (x, y) = create_unipotent_variables([("x", 1:2), ("y", 1:2)])
+registry, (x, y) = site_variables(Unipotent(), 2, 2)
 # registry: variable registry encoding U² = I constraint
 # x: Alice's observables [x₁, x₂] = [A₁, A₂]
 # y: Bob's observables [y₁, y₂] = [B₁, B₂]
@@ -88,31 +88,28 @@ f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
 # f: polynomial representing the CHSH Bell operator
 
 # Inspect the polynomial structure:
-(monomials(f),      # list of monomials in f
- coefficients(f))   # corresponding coefficients
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(f)]
+# Each tuple contains a coefficient and its word, printed with operator names.
 
 # #### Step 3: Create the optimization problem
 #
-# `polyopt` creates a **minimization** problem. To find the maximum quantum
+# `Problem` creates a **minimization** problem. To find the maximum quantum
 # violation we minimize `-f` and negate the result (same pattern as I₃₃₂₂ below).
 
-pop = polyopt(-f, registry)
+pop = Problem(-f)
 # pop: minimize -f ≡ maximize f, subject to algebraic constraints (U² = I)
 
 # #### Step 4: Configure and run the SDP solver
 
-solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,  # SDP solver backend
-    order = 1                      # relaxation order (hierarchy level)
-)
-# solver_config: specifies solver and relaxation parameters
+relaxation = Relaxation(order=1)
+# relaxation: specifies the hierarchy level
 
-result = cs_nctssos(pop, solver_config)
+result = solve(pop, relaxation; solver=MosekBackend())
 # result: optimization result containing objective value and solver info
 
 # #### Step 5: Extract the upper bound
 
-chsh_bound = -result.objective
+chsh_bound = -result.bound
 # chsh_bound: upper bound on maximal quantum violation (negate since we minimized -f)
 
 # Compare with Tsirelson's bound:
@@ -120,6 +117,7 @@ tsirelson_bound = 2 * sqrt(2)
 # tsirelson_bound: theoretical maximum = 2√2 ≈ 2.828
 
 abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
+@assert isapprox(chsh_bound, tsirelson_bound; atol=1e-7) #hide
 
 # !!! tip "Going further: shrink this SDP with symmetry"
 #     The CHSH operator is invariant under a 16-element symmetry group. The
@@ -143,7 +141,7 @@ abs(chsh_bound - tsirelson_bound)  # difference (should be ~1e-7)
 
 # #### Step 1: Create projector variables
 
-registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
+registry, (x, y) = site_variables(Projector(), 2, 3)
 # registry: variable registry encoding P² = P constraint
 # x: Alice's projectors [x₁, x₂, x₃] = [A₁, A₂, A₃]
 # y: Bob's projectors [y₁, y₂, y₃] = [B₁, B₂, B₃]
@@ -159,18 +157,18 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) +  # A₁(B₁+B₂+B₃)
 # f: I₃₃₂₂ Bell polynomial
 
 # Check the number of terms:
-length(monomials(f))  # number of monomials
+length(Next.terms(f))  # number of monomials
 
 # #### Step 3: Solve (minimizing -f to find maximum of f)
 
-pop = polyopt(-f, registry)
+pop = Problem(-f)
 # pop: minimize -f (equivalent to maximize f)
 
-solver_config = SolverConfig(optimizer=Mosek.Optimizer, order=2)
+relaxation = Relaxation(order=2)
 # order=2: second level of the moment hierarchy
 
-result = cs_nctssos(pop, solver_config)
-i3322_bound = -result.objective
+result = solve(pop, relaxation; solver=MosekBackend())
+i3322_bound = -result.bound
 # i3322_bound: upper bound on I₃₃₂₂ violation (negate since we minimized -f)
 
 i3322_bound  # should be close to 0.25
@@ -188,31 +186,30 @@ i3322_bound  # should be close to 0.25
 
 # #### Without sparsity (for comparison, order=3)
 
-registry, (x, y) = create_projector_variables([("x", 1:3), ("y", 1:3)])
+registry, (x, y) = site_variables(Projector(), 2, 3)
 f = 1.0 * x[1] * (y[1] + y[2] + y[3]) + x[2] * (y[1] + y[2] - y[3]) +
     x[3] * (y[1] - y[2]) - x[1] - 2 * y[1] - y[2]
-pop = polyopt(-f, registry)
+pop = Problem(-f)
 
-solver_config_dense = SolverConfig(optimizer=Mosek.Optimizer, order=3)
-# solver_config_dense: no sparsity exploitation
+relaxation_dense = Relaxation(order=3)
+# relaxation_dense: no sparsity exploitation
 
-@time result_dense = cs_nctssos(pop, solver_config_dense)
-bound_dense = -result_dense.objective
+@time result_dense = solve(pop, relaxation_dense; solver=MosekBackend())
+bound_dense = -result_dense.bound
 # bound_dense: bound without sparsity
 
 bound_dense
 
 # #### With correlative sparsity (order=6)
 
-solver_config_sparse = SolverConfig(
-    optimizer = Mosek.Optimizer,
+relaxation_sparse = Relaxation(
     order = 6,             # higher order for better bound
-    cs_algo = MF()         # use MaxFlow algorithm for correlative sparsity
+    grouping = Correlative(MF())  # minimum-fill chordal completion
 )
-# cs_algo=MF(): enables correlative sparsity via chordal graph decomposition
+# Correlative(MF()): enables correlative sparsity via chordal graph decomposition
 
-@time result_sparse = cs_nctssos(pop, solver_config_sparse)
-bound_sparse = -result_sparse.objective
+@time result_sparse = solve(pop, relaxation_sparse; solver=MosekBackend())
+bound_sparse = -result_sparse.bound
 # bound_sparse: improved bound using sparsity
 
 bound_sparse  # closer to theoretical 0.25
@@ -246,34 +243,28 @@ bound_dense - bound_sparse  # positive = improvement
 
 # #### Step 1: Create unipotent variables
 
-registry, (x, y) = create_unipotent_variables([("x", 1:3), ("y", 1:3)])
+registry, (x, y) = site_variables(Unipotent(), 2, 3; functional=Next.RealState())
 # x: Alice's observables [A₁, A₂, A₃]
 # y: Bob's observables [B₁, B₂, B₃]
 
-# #### Step 2: Define the identity monomial
+# #### Step 2: Inspect the identity
 #
-# The identity monomial `ID` serves a dual purpose: it anchors the algebra type
-# and promotes `StatePolynomial` → `NCStatePolynomial` (what `polyopt` expects).
-# Multiplying by `ID` is mathematically a no-op (×𝟙 = identity) but tells the
-# type system which algebra the non-commutative layer belongs to.
+# The polynomial carries its algebra and functional type. Its identity belongs
+# to the same registry. No identity factor is needed to build state polynomials.
 
-ID = one(typeof(x[1]))
+ID = one(x[1])
 # ID: identity monomial (𝟙) inferred from the variable type
 
 ID  # display the identity
 
 # #### Step 3: Define the covariance function using state polynomials
 #
-# State polynomials use `ς(·)` (type `\varsigma` + Tab, or use the ASCII alias
-# `varsigma`) to denote expectation values ⟨·⟩.
-#
-# `ς` applied to a `Polynomial` returns a `StatePolynomial`; applied to a
-# single `NormalMonomial` it returns a `StateWord` (a single expectation factor).
+# `state_symbol` denotes a symbolic expectation value ⟨·⟩. It returns a
+# polynomial in the same registry, with functional words for its terms.
 
-cov(a, b) = 1.0 * ς(x[a] * y[b]) * ID -  # ⟨AᵢBⱼ⟩
-            1.0 * ς(x[a]) * ς(y[b]) * ID  # -⟨Aᵢ⟩⟨Bⱼ⟩
+cov(a, b) = state_symbol(x[a] * y[b]) -  # ⟨AᵢBⱼ⟩
+            state_symbol(x[a]) * state_symbol(y[b])  # -⟨Aᵢ⟩⟨Bⱼ⟩
 # cov(a,b): covariance Cov(Aₐ, Bᵦ) as a state polynomial
-# ς (varsigma): expectation value operator, type \varsigma + Tab
 
 # Example: Cov(A₁, B₁)
 cov(1, 1)
@@ -287,16 +278,15 @@ sp = cov(1,1) + cov(1,2) + cov(1,3) +  # Cov(A₁, B₁) + Cov(A₁, B₂) + Cov
 
 # #### Step 5: Create optimization problem and solve
 
-spop = polyopt(sp, registry)
+# Flipping all of Alice's observables changes `sp` to `-sp` and preserves the
+# constraints. Thus minus the minimum of `sp` also bounds its maximum.
+spop = Problem(sp)
 # spop: state polynomial optimization problem
 
-solver_config = SolverConfig(
-    optimizer = Mosek.Optimizer,
-    order = 2
-)
+relaxation = Relaxation(order=2)
 
-result = cs_nctssos(spop, solver_config)
-cov_bound = -result.objective
+result = solve(spop, relaxation; solver=MosekBackend())
+cov_bound = -result.bound
 # cov_bound: upper bound on covariance Bell violation
 
 cov_bound  # should be close to 5.0
@@ -304,40 +294,20 @@ cov_bound  # should be close to 5.0
 # Compare with known quantum value:
 abs(cov_bound - 5.0)  # difference from theoretical value
 
-# #### Step 6: Improve bound using term sparsity and higher-order iteration
-
-solver_config_ts = SolverConfig(
-    optimizer = Mosek.Optimizer,
-    order = 3,
-    ts_algo = MF()  # term sparsity
-)
-# ts_algo=MF(): enables term sparsity exploitation
-
-result_ts = cs_nctssos(spop, solver_config_ts)
-# result_ts: first iteration with term sparsity
-
-result_higher = cs_nctssos_higher(spop, result_ts, solver_config_ts)
-# result_higher: higher-order iteration refining the bound
-
-improved_bound = -result_higher.objective
-# improved_bound: refined upper bound
-
-(improved_bound,               # closer to 5.0
- abs(improved_bound - 5.0))    # very small difference from theoretical value
+# Term sparsity for state and trace polynomials is not available in this release.
 
 # ---
 # ## Summary
 #
 # | Inequality | Operator Type | Classical Bound | Quantum Bound | API |
 # |:-----------|:--------------|:----------------|:--------------|:----|
-# | CHSH | Unipotent (U²=I) | 2 | 2√2 ≈ 2.828 | `create_unipotent_variables` |
-# | I₃₃₂₂ | Projector (P²=P) | 0 | 0.25 | `create_projector_variables` |
-# | Covariance | Unipotent + State | 4.5 | 5 | `ς(·)` state polynomials |
+# | CHSH | Unipotent (U²=I) | 2 | 2√2 ≈ 2.828 | `site_variables(Unipotent(), 2, 2)` |
+# | I₃₃₂₂ | Projector (P²=P) | 0 | 0.25 | `site_variables(Projector(), 2, 3)` |
+# | Covariance | Unipotent + State | 4.5 | 5 | `state_symbol` |
 #
 # Key functions:
-# - `create_unipotent_variables`: Create U² = I operators
-# - `create_projector_variables`: Create P² = P operators
-# - `polyopt`: Create optimization problem
-# - `SolverConfig`: Configure solver and sparsity options
-# - `cs_nctssos`: Solve using moment-SOS hierarchy
-# - `ς(·)`: Expectation value for state polynomials
+# - `site_variables`: Create operators with the selected algebra
+# - `Problem`: Create optimization problem
+# - `Relaxation`: Configure hierarchy order and sparsity options
+# - `solve`: Solve using moment-SOS hierarchy
+# - `state_symbol`: Symbolic expectation value for state polynomials

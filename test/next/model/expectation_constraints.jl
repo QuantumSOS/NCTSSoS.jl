@@ -57,9 +57,14 @@ function check(solver)
             constraints=(N.ExpectationZero(pz[1]),),symmetry=(swap,)),N.Relaxation(order=1))
         invariant=N.Problem(-px[1]-px[2];constraints=(N.ExpectationZero(pz[1]+pz[2]),))
         for r in (N.Relaxation(order=1,grouping=N.Correlative()),
-                  N.Relaxation(order=1,split=N.TermSplit()),N.Relaxation(family=[[one(px[1]),px[1],px[2]]]))
-            @test_throws r"Scalar expectation.*block pipeline.*plain Relaxation" N.build(invariant,r)
+                  N.Relaxation(order=1,split=N.TermSplit()),
+                  N.Relaxation(family=[[one(px[1]),px[1],px[2],pz[1],pz[2]]]))
+            built=N.build(invariant,r)
+            @test isempty(built.sizes.localizing_rows)
+            @test last(built.program.blocks).kind==N.ZERO
         end
+        @test_throws r"uncovered word Z1.*add rows.*increase the order" N.build(invariant,
+            N.Relaxation(family=[[one(px[1]),px[1],px[2]]]))
 
         _,(px,_,pz)=N.pauli_variables(1)
         for constructor in (N.ExpectationPositive,N.ExpectationZero)
@@ -90,6 +95,85 @@ function check(solver)
         symmetrized=N.solve(complex,N.ExpectationZero(x*y+y*x))
         @test symmetrized.bound ≈ 0 atol=1e-6
         @test N.expectation(symmetrized,x*y+y*x) ≈ 0 atol=1e-6
+    end
+    check_blocks(solver)
+end
+
+function check_blocks(solver)
+    @testset "Scalar constraints on closed block families" begin
+        reg,(x,y,z)=N.pauli_variables(2)
+        total=sum(z); h=-total
+        rows=[one(h);x;y;z]
+        full=N.Relaxation(family=[rows])
+        swap=N.SitePermutation([2,1])
+        rotation=N.SpinRotation(reg,:z)
+        for (constraint,kind) in ((N.ExpectationZero(total-.5),N.ZERO),
+                                  (N.ExpectationPositive(.5-total),N.NONNEGATIVE))
+            plain=N.solve(N.Problem(h;constraints=(constraint,)),N.Relaxation(order=1);solver)
+            @test plain.bound≈-.5 atol=1e-6
+            for symmetry in ((),(swap,),(rotation,),(swap,rotation))
+                built=N.build(N.Problem(h;constraints=(constraint,),symmetry),full)
+                @test built.sizes.rows==length(rows)
+                @test isempty(built.sizes.localizing_rows)
+                @test count(b->b.kind==kind,built.program.blocks)==1
+                @test last(built.program.blocks).side==1
+                @test N.solve(built;solver).bound≈plain.bound atol=1e-6
+            end
+            # Different program: separate site groups, with one global scalar sum.
+            sparse=N.build(N.Problem(h;constraints=(constraint,)),
+                N.Relaxation(order=1,grouping=N.Correlative()))
+            @test length(sparse.sizes.closure.family)==2
+            @test sparse.sizes.largest_block==4
+            @test N.solve(sparse;solver).bound<=plain.bound+1e-6
+        end
+        # Each scalar restriction must be invariant, not just the constraint set.
+        @test_throws r"does not preserve constraint 1" N.build(N.Problem(h;
+            constraints=(N.ExpectationZero(z[1]),N.ExpectationZero(z[2])),symmetry=(swap,)),full)
+        @test_throws r"constraint 1" N.build(N.Problem(h;
+            constraints=(N.ExpectationZero(x[1]),),symmetry=(rotation,)),full)
+        # Existing rows must cover every scalar term, even without a localizer.
+        @test_throws r"uncovered word Z1 Z2.*add rows.*increase the order" N.build(N.Problem(-z[1];
+            constraints=(N.ExpectationZero(z[1]*z[2]-.25),)),
+            N.Relaxation(family=[[one(h),z[1]]]))
+        for level in (1,2)
+            p=N.Problem(-z[1];constraints=(N.ExpectationZero(x[1]*x[2]-.25),))
+            built=N.build(p,N.Relaxation(order=1,split=N.TermSplit(;level)))
+            @test N.solve(built;solver).bound<=N.solve(p,N.Relaxation(order=1);solver).bound+1e-6
+        end
+        # Sector elimination precedes insertion; the scalar row uses its final map.
+        sector=N.Sector(z[1]*z[2],1)
+        sector_bounds=Float64[]
+        for symmetry in ((),(swap,rotation))
+            p=N.Problem(h;constraints=(N.ExpectationZero(total-.5),),symmetry)
+            built=N.build(p,N.Relaxation(order=1,strengthen=sector))
+            @test last(built.program.blocks).kind==N.ZERO
+            @test last(built.program.blocks).side==1
+            push!(sector_bounds,N.solve(built;solver).bound)
+        end
+        @test all(b->isapprox(b,-.5;atol=1e-6),sector_bounds)
+        # Appending to a solved block problem rebuilds without mutating the input.
+        initial=N.solve(N.Problem(h;symmetry=(swap,rotation)),full;solver)
+        updated=N.solve(initial,N.ExpectationZero(total-.25))
+        @test updated.bound≈-.25 atol=1e-6
+        @test initial.bound≈-2 atol=1e-6
+
+        reg,(a,ad)=N.fermionic_variables(2)
+        n=ad.*a; number=sum(n); pair=n[1]*n[2]
+        constraint=N.ExpectationZero(pair-.25)
+        @test_throws r"uncovered word.*add rows.*increase the order" N.build(
+            N.Problem(number;constraints=(constraint,)),N.BlockRelaxation(order=1))
+        # P/Q/G supplies the quartic moment absent from the order-one family.
+        for symmetry in ((),(N.NumberRotation(reg),))
+            built=N.build(N.Problem(number;constraints=(constraint,),symmetry),
+                N.Relaxation(order=1,strengthen=N.FermionicConditions(1:2)))
+            @test isempty(built.sizes.localizing_rows)
+            @test last(built.program.blocks).kind==N.ZERO
+            @test last(built.program.blocks).side==1
+            result=N.solve(built;solver)
+            # A mixture with probability 1/4 in |11> and 3/4 in |00> attains 1/2.
+            @test result.bound≈.5 atol=1e-6
+            @test N.expectation(result,pair)≈.25 atol=1e-6
+        end
     end
 end
 end

@@ -1,0 +1,105 @@
+schema_version = 1
+
+# Proposed Next implementation fixtures for review with the pilot PR.
+# Source: public build/solve inspection on redesign bf7759f, Julia 1.12.7.
+# sides: sorted final PSD/HPSD sides, including positive localizers, before
+# backend realification. moments: canonical moment keys including identity,
+# not the legacy nuniq field. Mathematical objectives stay in the old files.
+
+[[cases]]
+id = "nc_example1/Dense_d2"
+notes = "Free degree-two rows: 1 + 3 + 9 = 13. Degree <=4 words modulo adjoint give 73 real moment keys. Same sizes as the old program."
+[cases.expected]
+sides = [13]
+moments = 73
+
+[[cases]]
+id = "nc_example1/TS_d2"
+notes = "MMD level 1, no grouping. Captured Next structure has the same sorted sides and 21 moments as the reviewed old case; retain its sparse objective and tolerance unchanged."
+[cases.expected]
+sides = [1, 1, 2, 2, 2, 2, 3, 3, 3, 4]
+moments = 21
+
+[[cases]]
+id = "chsh_simple/Dense_d1"
+notes = "Identity plus four settings gives side 5. The real involution quotient has 11 moment keys including identity."
+[cases.expected]
+sides = [5]
+moments = 11
+
+[[cases]]
+id = "chsh_simple/CS_d1"
+notes = "MF grouping; captured Next output matches the old sides and moment count."
+[cases.expected]
+sides = [4, 4]
+moments = 10
+
+[[cases]]
+id = "chsh_simple/TS_d1"
+notes = "MMD level 1; captured Next output matches the old sides up to order and the moment count."
+[cases.expected]
+sides = [1, 3, 3]
+moments = 6
+
+[[cases]]
+id = "chsh_simple/Symmetry_d1"
+notes = "Three signed letter actions. One free invariant coordinate plus identity; final scalar PSD cones agree with the old symmetry fixture. real_variables excludes identity."
+[cases.expected]
+sides = [1, 1, 1]
+real_variables = 1
+
+[[cases]]
+id = "pironio_toy/Dense_d2"
+notes = "Free degree-two moment rows give side 7. Next.block_sides also includes the positive degree-two constraint's side-3 localizer, unlike the old moment-only sides field; the equality cone is excluded. Degree <=4 adjoint classes give 22 moments. Both solver forms use this same built program."
+[cases.expected]
+sides = [3, 7]
+moments = 22
+
+[[cases]]
+id = "ising/open_pauli_n3_order2"
+notes = "Full Pauli rows: 1 + 3*3 + 9*binomial(3,2) = 37, rather than the old objective-support selection. Their products cover all 4^3 = 64 Pauli moments."
+[cases.expected]
+sides = [37]
+moments = 64
+
+[[cases]]
+id = "ising/periodic_pauli_n3_order2"
+notes = "Same full Pauli degree-two basis and 64 moments as the open chain; the Hamiltonian has the periodic edge."
+[cases.expected]
+sides = [37]
+moments = 64
+
+[[cases]]
+id = "ising/open_fermionic_n3_order1"
+notes = "Identity plus six letters gives side 7. CAR words through degree two modulo adjoint have 13 keys: identity, three single letters, three occupations, three hopping representatives and three pairing representatives. Legacy nuniq counts real and imaginary coordinates instead."
+[cases.expected]
+sides = [7]
+moments = 13
+
+[[cases]]
+id = "free_fermion/two_site_hopping_order1"
+notes = "Side 5, seven adjoint-class moment keys including identity; legacy nuniq was 11 real coordinates including identity."
+[cases.expected]
+sides = [5]
+moments = 7
+
+[[cases]]
+id = "free_fermion/two_site_hopping_order2"
+notes = "Side 11, ten adjoint-class keys; legacy nuniq was 16 real coordinates including identity."
+[cases.expected]
+sides = [11]
+moments = 10
+
+[[cases]]
+id = "free_fermion/pure_hopping_chain_n4_order1"
+notes = "Side 9, 21 adjoint-class keys; legacy nuniq was 37 real coordinates including identity."
+[cases.expected]
+sides = [9]
+moments = 21
+
+[[cases]]
+id = "harmonic_oscillator/single_mode_order2"
+notes = "Six normal-ordered rows through degree two. Nine adjoint-class keys through degree four; legacy nuniq was 15 real coordinates including identity."
+[cases.expected]
+sides = [6]
+moments = 9

@@ -9,7 +9,7 @@ t_load=@elapsed begin
         using SCS
     end
 end
-const N=NCTSSoS.Next
+const N=NCTSSoS
 const detection_seconds=Ref(0.0)
 
 function heisenberg_ring(n)

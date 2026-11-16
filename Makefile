@@ -36,23 +36,6 @@ update-docs:
 test:
 	$(call pkg_test)
 
-# Standalone local-only scripts that are intentionally excluded from
-# `test/runtests.jl` (for example, heavier Mosek-only reproductions).
-LOCAL_ONLY_TEST_SCRIPTS = \
-	test/problems/trace_polynomial/t1_broyden_banded_trace.jl \
-	test/problems/trace_polynomial/t4_nc_motzkin_polynomial.jl
-
-test-local:
-	@set -e; \
-	for script in $(LOCAL_ONLY_TEST_SCRIPTS); do \
-		echo "==> $$script"; \
-		$(JL) $$script; \
-	done
-
-test-local-one:
-	@test -n "$(SCRIPT)" || (echo "Usage: make test-local-one SCRIPT=path/to/script.jl"; exit 1)
-	$(JL) $(SCRIPT)
-
 # CI-style coverage (lcov.info), matching julia-actions/julia-runtest + julia-processcoverage.
 coverage-ci:
 	CI=true $(JULIA) --color=yes -e 'using Pkg; Pkg.activate(; temp=true); Pkg.develop(path="."); Pkg.instantiate(); Pkg.test("NCTSSoS"; coverage=true)'
@@ -80,7 +63,7 @@ oracle-%:
 # =============================================================================
 
 servedocs:
-	$(JL) -e 'using Pkg; Pkg.activate("docs"); Pkg.develop(path="."); Pkg.instantiate(); using LiveServer; servedocs(;skip_dirs=["docs/src/assets","docs/src/generated"])'
+	$(JL) -e 'using Pkg; Pkg.activate("docs"); Pkg.develop(path="."); Pkg.instantiate(); using LiveServer; servedocs(;skip_dirs=["docs/src/assets","docs/src/examples/generated"])'
 
 examples:
 	$(JL) docs/generate_examples.jl
@@ -94,5 +77,5 @@ clean:
 	find . -name "*.cov" -delete
 
 .PHONY: init init-docs update update-docs \
-        test test-local test-local-one coverage-ci \
+        test coverage-ci \
         servedocs examples clean

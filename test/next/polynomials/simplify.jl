@@ -21,7 +21,7 @@ function simplify_oracles()
             ((1,[1,-1],((0,),(1,),(4,)),6), (2,[1,-1,2,-2],((0,2),(3,1)),4))
             registry,(b,bd) = bosonic_variables(modes)
             ops = Dict([i=>b[i] for i in 1:modes]...,[-i=>bd[i] for i in 1:modes]...)
-            labels = Dict(Next.operator_name(registry,last(only(Next.terms(p))))=>i for (i,p) in ops)
+            labels = Dict(NCTSSoS.operator_name(registry,last(only(NCTSSoS.terms(p))))=>i for (i,p) in ops)
             for len in 0:max_length, letters in Iterators.product(ntuple(_->alphabet,len)...)
                 word = collect(letters)
                 p = foldl(*,(ops[i] for i in word);init=one(b[1]))
@@ -29,8 +29,8 @@ function simplify_oracles()
                     state,amplitude = ladder_action(word,occupation)
                     expected = amplitude==0 ? Dict{typeof(state),ComplexF64}() : Dict(state=>ComplexF64(amplitude))
                     actual = Dict{typeof(state),ComplexF64}()
-                    for (coefficient,term) in Next.terms(p)
-                        normal = [labels[Next.operator_name(registry,l)] for l in Next.word_letters(term)]
+                    for (coefficient,term) in NCTSSoS.terms(p)
+                        normal = [labels[NCTSSoS.operator_name(registry,l)] for l in NCTSSoS.word_letters(term)]
                         target,value = ladder_action(normal,occupation)
                         value==0 && continue
                         actual[target] = get(actual,target,0)+coefficient*value
@@ -65,16 +65,16 @@ function simplify_oracles()
             registry,_ = site_variables(rule,1,n)
             expected = rule isa Free ? sum(n^k for k in 0:order) :
                 1+sum(n*(n-1)^(k-1) for k in 1:order)
-            @test length(Next.basis(registry,order)) == expected
+            @test length(NCTSSoS.basis(registry,order)) == expected
         end
         # One selected operator at site 1, two at site 2. Restrict the public
         # basis iterator to that alphabet; no custom/internal registry is used.
         for rule in (Projector(),Unipotent())
             registry,_ = site_variables(rule,2,2)
             selected = Set((:s1_1,:s2_1,:s2_2))
-            rows = filter(collect(Next.basis(registry,3))) do p
-                all(l->Next.operator_name(registry,l) in selected,
-                    Next.support_letters(last(only(Next.terms(p)))))
+            rows = filter(collect(NCTSSoS.basis(registry,3))) do p
+                all(l->NCTSSoS.operator_name(registry,l) in selected,
+                    NCTSSoS.support_letters(last(only(NCTSSoS.terms(p)))))
             end
             @test length(rows) == 12
         end

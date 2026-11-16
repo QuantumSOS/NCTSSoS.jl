@@ -18,7 +18,7 @@
 # We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver backend.
 # Use `JuMPBackend(COSMO.Optimizer)` for an open-source alternative.
 
-using NCTSSoS.Next
+using NCTSSoS
 import Mosek
 
 # ## Key Concepts: Unipotent and Projector Variables
@@ -88,7 +88,7 @@ f = 1.0 * x[1] * y[1] +  # ⟨A₁B₁⟩ term
 # f: polynomial representing the CHSH Bell operator
 
 # Inspect the polynomial structure:
-[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(f)]
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in NCTSSoS.terms(f)]
 # Each tuple contains a coefficient and its word, printed with operator names.
 
 # #### Step 3: Create the optimization problem
@@ -157,7 +157,7 @@ f = 1.0 * x[1] * (y[1] + y[2] + y[3]) +  # A₁(B₁+B₂+B₃)
 # f: I₃₃₂₂ Bell polynomial
 
 # Check the number of terms:
-length(Next.terms(f))  # number of monomials
+length(NCTSSoS.terms(f))  # number of monomials
 
 # #### Step 3: Solve (minimizing -f to find maximum of f)
 
@@ -243,7 +243,7 @@ bound_dense - bound_sparse  # positive = improvement
 
 # #### Step 1: Create unipotent variables
 
-registry, (x, y) = site_variables(Unipotent(), 2, 3; functional=Next.RealState())
+registry, (x, y) = site_variables(Unipotent(), 2, 3; functional=NCTSSoS.RealState())
 # x: Alice's observables [A₁, A₂, A₃]
 # y: Bob's observables [B₁, B₂, B₃]
 

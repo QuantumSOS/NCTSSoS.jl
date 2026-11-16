@@ -1,7 +1,7 @@
-# Standalone, solver-free kernel measurements. Run the Next correctness suite first.
+# Standalone, solver-free kernel measurements. Run the NCTSSoS correctness suite first.
 # Input construction, compilation, and scratch allocation are outside measured regions.
 using NCTSSoS, Random, Statistics, Test
-const Nx = NCTSSoS.Next
+const Nx = NCTSSoS
 
 mutable struct DigestSink
     checksum::UInt

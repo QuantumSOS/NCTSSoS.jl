@@ -41,8 +41,8 @@ Concretely, this page shows:
 3. an explicit gauge-fixing that recovers the textbook computational basis.
 
 ````julia
-using NCTSSoS.Next, Mosek, LinearAlgebra
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek, LinearAlgebra
+import NCTSSoS
 ````
 
 ## Step 1 — Solve the order-2 relaxation in moment and SOS forms
@@ -59,7 +59,7 @@ ham = ComplexF64(1 / 4) * (
     σy[1] * σy[2] +
     σz[1] * σz[2]
 );
-built = Next.build(Problem(ham), Relaxation(order=2));
+built = NCTSSoS.build(Problem(ham), Relaxation(order=2));
 moment_result = solve(built; solver=MosekBackend(form=:moment));
 sos_result = solve(built; solver=MosekBackend(form=:sos));
 ````

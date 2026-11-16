@@ -25,7 +25,7 @@ This example covers three problems of increasing complexity:
 We use the native Mosek backend as the SDP solver.
 
 ````julia
-using NCTSSoS.Next
+using NCTSSoS
 import NCTSSoS, Mosek
 using JSON3
 
@@ -49,10 +49,10 @@ f = \operatorname{tr}(P_1 P_2 P_3)
 
 One site contains three noncommuting projectors. The registry stores their
 algebra and names. Each polynomial carries that registry into `Problem`.
-`Next.RealTrace()` selects normalized real traces.
+`NCTSSoS.RealTrace()` selects normalized real traces.
 
 ````julia
-registry, (x,) = site_variables(Projector(), 1, 3; functional=Next.RealTrace());
+registry, (x,) = site_variables(Projector(), 1, 3; functional=NCTSSoS.RealTrace());
 ````
 
 #### Step 2 — Build the tracial objective
@@ -139,7 +139,7 @@ observables at one site, then split into Alice/Bob symbols.
     state-polynomial formulation, where separate sites *are* appropriate.
 
 ````julia
-registry, (vars,) = site_variables(Unipotent(), 1, 4; functional=Next.RealTrace());
+registry, (vars,) = site_variables(Unipotent(), 1, 4; functional=NCTSSoS.RealTrace());
 x = vars[1:2];  # Alice: A₁, A₂
 y = vars[3:4];  # Bob:   B₁, B₂
 ````
@@ -200,7 +200,7 @@ variables (see the note on the transpose trick). We place all six
 observables at one site and split afterward.
 
 ````julia
-registry, (vars,) = site_variables(Unipotent(), 1, 6; functional=Next.RealTrace());
+registry, (vars,) = site_variables(Unipotent(), 1, 6; functional=NCTSSoS.RealTrace());
 x = vars[1:3];  # Alice: A₁, A₂, A₃
 y = vars[4:6];  # Bob:   B₁, B₂, B₃
 ````

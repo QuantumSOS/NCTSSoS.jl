@@ -1,6 +1,6 @@
 module FermionicLegacyChecks
 using Test, LinearAlgebra, TOML
-using NCTSSoS.Next
+using NCTSSoS
 
 function fixture(file,id)
     data=TOML.parsefile(joinpath(@__DIR__,"../../data/expectations",file*".toml"))

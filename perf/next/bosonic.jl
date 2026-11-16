@@ -2,7 +2,7 @@
 # julia --project perf/next/bosonic.jl [cost|sector|narrow|fixed]
 # `fixed` replaces only word_type in this disposable process for the width A/B.
 using NCTSSoS, LinearAlgebra, Test
-const N=NCTSSoS.Next
+const N=NCTSSoS
 
 function samples(label,call;count=3)
     value=call()

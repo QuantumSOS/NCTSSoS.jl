@@ -47,7 +47,7 @@ The same problem can be solved much more concisely:
     For open-source alternatives, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 N = 6  # Number of spins in the chain
 
 registry, (σx, σy, σz) = pauli_variables(1:N)

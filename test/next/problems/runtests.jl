@@ -4,7 +4,7 @@ isdefined(@__MODULE__, :SOLVER) || include("../../TestUtils.jl")
 
 module NextProblemChecks
 using Test, LinearAlgebra, TOML
-using NCTSSoS.Next
+using NCTSSoS
 import Clarabel, JuMP
 import ..SOLVER
 
@@ -35,7 +35,7 @@ include("local_references.jl")
 # after loading Mosek and checking its licence. The CI baseline needs no licence.
 function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing,
     benchmark_solver=BENCHMARK_SOLVER,references=false)
-    @testset "Next: reviewed problem fixtures" begin
+    @testset "NCTSSoS: reviewed problem fixtures" begin
         nc_example1(solver, sos_solver)
         nc_example2(solver, sos_solver)
         chsh_simple(solver)

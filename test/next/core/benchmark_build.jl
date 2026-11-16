@@ -1,6 +1,6 @@
 # Standalone packed build measurements. No solver is invoked.
 using NCTSSoS, Statistics
-const Nx = NCTSSoS.Next
+const Nx = NCTSSoS
 
 function measure_build(name,f::F,args::Vararg{Any,N}) where {F,N}
     f(args...)

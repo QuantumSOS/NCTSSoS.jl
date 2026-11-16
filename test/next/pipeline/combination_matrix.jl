@@ -2,7 +2,7 @@ module CombinationMatrix
 
 import NCTSSoS
 using LinearAlgebra, Random, Test
-const Nx=NCTSSoS.Next
+const Nx=NCTSSoS
 
 const PROBLEMS=(:heisenberg,:xxz,:ising,:fermions,:unipotent,:positive)
 const FINITE=(:none,:translation,:dihedral,:moment_only,:antiunitary,:clifford,:detected,:translation_antiunitary)

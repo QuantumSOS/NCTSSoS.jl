@@ -10,12 +10,12 @@ function bose_hubbard(solver)
         exact = eigmin(Hermitian(matrix))
         @test exact ≈ 1-sqrt(5) atol=1e-12
         oracle = fixture("bose_hubbard","two_site_n2_u2_order2")
-        built = Next.build(problem,Relaxation(order=2,strengthen=Sector(sum(numbers),2)))
+        built = NCTSSoS.build(problem,Relaxation(order=2,strengthen=Sector(sum(numbers),2)))
         result = solve(built;solver)
         @test result.bound ≈ oracle["objective"] atol=1e-6
         @test result.bound ≈ exact atol=1e-6
         structure = fixture("next_manybody","bose_hubbard_sector")
-        @test Next.block_sides(built) == oracle["sides"]
+        @test NCTSSoS.block_sides(built) == oracle["sides"]
         @test result.sizes.moments == structure["moments"]
         mean = solve(Problem(h;constraints=(ExpectationZero(sum(numbers)-2),)),Relaxation(order=2);solver)
         @test mean.bound <= result.bound+1e-6

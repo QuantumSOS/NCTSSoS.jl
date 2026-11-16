@@ -4,7 +4,7 @@
 # The full degree-1 comparison took about 7 minutes in the orb.
 # Timed builds exclude row/action construction, solver conversion and solves.
 using NCTSSoS, LinearAlgebra, JuMP, MosekTools, Statistics
-const Nx=NCTSSoS.Next
+const Nx=NCTSSoS
 const SOLVER=optimizer_with_attributes(MosekTools.Optimizer,"QUIET"=>true,
     "MSK_DPAR_INTPNT_CO_TOL_REL_GAP"=>1e-9,"MSK_IPAR_NUM_THREADS"=>1)
 function bound(p)

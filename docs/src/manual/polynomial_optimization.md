@@ -16,7 +16,7 @@ efficiently.
 selects the order, sparsity and strengthening. `solve` takes both and a solver:
 
 ```julia
-using NCTSSoS.Next
+using NCTSSoS
 using Mosek
 
 _, (x,) = site_variables(Free(), 1, 1)

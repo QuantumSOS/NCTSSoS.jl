@@ -1,4 +1,4 @@
-# Tests of the conic layer of NCTSSoS.Next. Include the test files of this layer here.
+# Tests of the conic layer of NCTSSoS. Include the test files of this layer here.
 using Test, NCTSSoS, JuMP, LinearAlgebra
 isdefined(@__MODULE__,:Nx) || include("../contract_checks.jl")
 isdefined(@__MODULE__,:dense_program) || include("../reference.jl")

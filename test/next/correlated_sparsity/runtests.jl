@@ -2,8 +2,8 @@ isdefined(@__MODULE__, :SOLVER) || include("../../TestUtils.jl")
 
 module PublicCorrelativeChecks
 using Test, TOML
-using NCTSSoS.Next
-import JuMP, Graphs, NCTSSoS
+using NCTSSoS
+import JuMP, Graphs
 import ..SOLVER
 
 function fixture(file,id)
@@ -38,24 +38,24 @@ function check(;solver=JuMPBackend(SOLVER),sos_solver=nothing,references=false)
         h=sum(a[i]*a[i+1] for a in ops for i in 1:2)/4
         # The retired physics selector produced the complete degree-two family
         # on this three-site path. Keep its joint PSD constraint, not pair cones.
-        result=solve(Problem(h),Relaxation(rows=collect(Next.basis(r,2)));solver)
+        result=solve(Problem(h),Relaxation(rows=collect(NCTSSoS.basis(r,2)));solver)
         @test result.bound ≈ -1 atol=2e-5
     end
     @testset "Broyden banded polydisc eigenvalue" begin
         data=TOML.parsefile(joinpath(@__DIR__,"../../data/expectations/csts_broyden_banded_polydisc.toml"))
         expected=only(filter(c->c["id"]=="eigenvalue_n5",data["cases"]))["expected"]
         problem=broyden()
-        dense=Next.build(problem,Relaxation(order=3))
-        sparse=Next.build(problem,Relaxation(order=3,grouping=Correlative(algorithm=MF()),
+        dense=NCTSSoS.build(problem,Relaxation(order=3))
+        sparse=NCTSSoS.build(problem,Relaxation(order=3,grouping=Correlative(algorithm=MF()),
             split=TermSplit(algorithm=MMD())))
-        @test maximum(Next.block_sides(dense))==expected["dense_mb"]
-        @test maximum(Next.block_sides(sparse))==expected["sparse_mb"]
+        @test maximum(NCTSSoS.block_sides(dense))==expected["dense_mb"]
+        @test maximum(NCTSSoS.block_sides(sparse))==expected["sparse_mb"]
         record=only(TOML.parsefile(joinpath(@__DIR__,
             "../../data/expectations/next_correlative_legacy.toml"))["cases"])["expected"]
         @test dense.program.nvars==record["dense_variables"]
         @test sparse.program.nvars==record["sparse_variables"]
-        @test maximum(Next.block_sides(dense))==record["dense_max_side"]
-        @test maximum(Next.block_sides(sparse))==record["sparse_max_side"]
+        @test maximum(NCTSSoS.block_sides(dense))==record["dense_max_side"]
+        @test maximum(NCTSSoS.block_sides(sparse))==record["sparse_max_side"]
         if references
             # Preserve the old case's COSMO iteration limit.
             backend=JuMPBackend(JuMP.optimizer_with_attributes(SOLVER.optimizer_constructor,

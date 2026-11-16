@@ -1,4 +1,4 @@
-# Tests of the pipeline layer of NCTSSoS.Next. Include the test files of this layer here.
+# Tests of the pipeline layer of NCTSSoS. Include the test files of this layer here.
 include("orbits.jl")
 include("finite.jl")
 include("lattice.jl")

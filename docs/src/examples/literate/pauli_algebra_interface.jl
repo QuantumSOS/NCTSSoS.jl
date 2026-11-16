@@ -42,7 +42,7 @@
 #     This example uses [Mosek](https://www.mosek.com/) through `MosekBackend`.
 #     For open-source alternatives, see [Optimizers](@ref overview-of-optimizers).
 
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 N = 6  # Number of spins in the chain
 
 registry, (σx, σy, σz) = pauli_variables(1:N)

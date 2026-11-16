@@ -2,7 +2,7 @@
 module SympleQChecks
 using Test
 import GroupsCore
-import NCTSSoS: Next as N
+import NCTSSoS as N
 
 word(p) = last(only(N.terms(p)))
 

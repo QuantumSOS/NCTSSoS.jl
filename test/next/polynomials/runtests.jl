@@ -1,6 +1,6 @@
 module PublicPolynomialChecks
 using Test, LinearAlgebra, Random
-using NCTSSoS.Next
+using NCTSSoS
 
 include("matrix_oracles.jl")
 include("simplify.jl")

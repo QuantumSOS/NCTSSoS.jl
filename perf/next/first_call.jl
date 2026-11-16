@@ -3,7 +3,7 @@
 t_load = @elapsed begin
     using NCTSSoS, SCS
 end
-const N = NCTSSoS.Next
+const N = NCTSSoS
 case = only(ARGS)
 backend = N.SCSBackend(verbose=0, eps_abs=1e-7, eps_rel=1e-7)
 function inputs(case)

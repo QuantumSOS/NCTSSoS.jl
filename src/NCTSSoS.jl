@@ -1,236 +1,73 @@
 """
     NCTSSoS
 
-Non-Commutative Term-Sparsity Sum-of-Squares optimization in Julia.
+Noncommutative polynomial optimization with packed words, one relaxation
+pipeline, and direct solver standard forms.
 
-This package provides tools for polynomial optimization over non-commutative
-algebras using semidefinite programming (SDP) relaxations with term sparsity
-exploitation.
+Load the declarative API with `using NCTSSoS`. `NCTSSoS.Symmetry` and `NCTSSoS.variables`
+are public, qualified APIs, not exports. For the common symmetry declaration,
+pass a tuple or vector of actions and derivations to `Problem(H; symmetry=...)`.
+Use `NCTSSoS.Symmetry(...; moment_only=(...), continuous=(...))` when a unitary
+action should constrain moments without closing the block family.
 
-# Supported Algebras
+Layers and their directories:
 
-NCTSSoS supports multiple algebra types organized by their normal form structure:
-
-- **MonoidAlgebra**: Normal form is a single monomial
-  - `NonCommutativeAlgebra`: Free algebra with no simplification rules
-  - `ProjectorAlgebra`: Projectors satisfying P² = P
-  - `UnipotentAlgebra`: Involutory operators satisfying U² = 𝟙
-
-- **TwistedGroupAlgebra**: Normal form is scalar × monomial
-  - `PauliAlgebra`: Pauli spin operators with σ² = I and cyclic products
-
-- **PBWAlgebra**: Normal form is a sum of monomials (Poincaré-Birkhoff-Witt)
-  - `FermionicAlgebra`: Fermionic creation/annihilation operators
-  - `BosonicAlgebra`: Bosonic creation/annihilation operators
-
-# Quick Start
-
-```julia
-using NCTSSoS
-
-# Create Pauli variables on 2 sites
-reg, (σx, σy, σz) = create_pauli_variables(1:2)
-
-# Define an objective (auto-simplified by PauliAlgebra)
-obj = 0.25 * (σx[1] * σx[2] + σy[1] * σy[2] + σz[1] * σz[2])
-
-# Build the optimization problem (add constraints as needed)
-pop = polyopt(obj, reg)
-```
-
-For worked examples including solving and extracting bounds, see the
-[Examples](@ref "Bell inequalities") section — in particular
-[Ground State Energy](@ref) and [Pauli Algebra Interface](@ref).
-
-See also: [`polyopt`](@ref), [`SolverConfig`](@ref), [`cs_nctssos`](@ref)
+- `contracts/`: word operations and conic-program interfaces.
+- `core/`: packed words for each algebra, polynomials, registry.
+- `pipeline/`: block family, strengthening, symmetry reduction.
+- `conic/`: moment form, SOS form and solver writers.
+- `model/`: the user-facing problem, relaxation and result types.
 """
 module NCTSSoS
 
-using SparseArrays, LinearAlgebra, JuMP
-using CliqueTrees, ChordalGraph, Graphs
-import Clarabel
+using JuMP: JuMP, @constraint, @objective, @variable
+import LinearAlgebra
+using CliqueTrees: MMD, MF, BFS, EliminationAlgorithm, SupernodeType
+import CliqueTrees: cliquetree
+using ChordalGraph: CheckChordal, add_clique!
+using Graphs: AbstractGraph, SimpleGraph, complete_graph, nv, ne, vertices,
+    neighbors, connected_components, maximal_cliques, add_edge!
 import PermutationGroups
-using CliqueTrees: EliminationAlgorithm
-import JuMP: simplify    # extend JuMP.simplify to avoid export collision
 
-# ============================================================================
-# Core Types (formerly FastPolynomials)
-# ============================================================================
+include("pipeline/elimination.jl")
 
-# Algebra types must come first (defines AlgebraType hierarchy)
-include("types/algebra.jl")
+include("contracts/words.jl")
+include("contracts/conic.jl")
+include("core/core.jl")
+include("conic/conic.jl")
+include("model/model.jl")
+include("pipeline/pipeline.jl")
+include("sympleq/tableau.jl")
+include("sympleq/graph.jl")
+include("sympleq/cycles.jl")
+include("sympleq/automorphism.jl")
+include("sympleq/symplectic.jl")
+include("sympleq/phase.jl")
+include("sympleq/bridge.jl")
+include("model/detection.jl")
+include("model/front.jl")
+include("model/gns.jl")
+include("model/functional.jl")
+include("model/newton_chip.jl")
+include("model/letter_permutation.jl")
+include("model/inspection.jl")
 
-# Variable registry (depends on algebra types)
-include("types/registry.jl")
+public Symmetry, variables, mixed_variables, RealState, RealTrace, newton_chip_basis
+public build, BuiltRelaxation, prepare, prepare_standard, solve_standard
+public task_sizes
+public polynomial, terms, word_letters, support_letters, sites, degree, operator_name, basis, block_rows, block_sides
 
-# Monomial type (depends on algebra types and registry)
-include("types/monomial.jl")
+export pauli_variables, fermionic_variables, bosonic_variables, site_variables,
+    state_symbol, trace_symbol,
+    Pauli, Fermionic, Bosonic, Free, Projector, Unipotent, SiteAlgebra,
+    Problem, Positive, Zero, ExpectationPositive, ExpectationZero,
+    SitePermutation, LetterPermutation, CliffordMap, AntiunitaryPauli,
+    SpinRotation, spin_rotations, NumberRotation,
+    detect_symmetry, Relaxation, Correlative, PhysicsInformed, TermSplit, Contiguous,
+    MF, MMD, NoElimination, AsIsElimination, MaximalElimination, NaturalElimination,
+    DensityMatrix, InvariantCone, Stationarity, StateOptimality, Sector, FermionicConditions,
+    inspect, solve, expectation, gns, evaluate, SCSBackend, MosekBackend, JuMPBackend
 
-# Polynomial type (depends on monomial)
-include("types/polynomial.jl")
-
-# ============================================================================
-# Simplification Algorithms (algebra-specific)
-# ============================================================================
-
-include("simplification/site_helpers.jl")
-include("simplification/projector.jl")
-include("simplification/unipotent.jl")
-include("simplification/noncommutative.jl")
-include("simplification/pauli.jl")
-include("simplification/fermionic.jl")
-include("simplification/bosonic.jl")
-
-# ============================================================================
-# Arithmetic Operations (depends on simplification for NormalMonomial × NormalMonomial)
-# ============================================================================
-
-include("types/arithmetic.jl")
-
-# ============================================================================
-# Composed Types (depends on Polynomial for type checking in simplify)
-# ============================================================================
-
-include("types/composed.jl")
-
-# ============================================================================
-# Algorithms (canonicalization, basis generation)
-# ============================================================================
-
-# State type tags are needed by canonicalization (defines Arbitrary/MaxEntangled)
-include("states/types.jl")
-
-include("algorithms/canonicalization.jl")
-include("algorithms/basis.jl")
-
-# ============================================================================
-# State Polynomial Types
-# ============================================================================
-
-include("states/word.jl")
-include("states/polynomial.jl")
-
-# ============================================================================
-# Utility Functions
-# ============================================================================
-
-include("util/helpers.jl")
-
-# ============================================================================
-# Optimization Framework
-# ============================================================================
-
-include("optimization/particle_number.jl")
-include("optimization/problem.jl")
-include("next/Next.jl")
-using .Next: NoElimination, AsIsElimination, MaximalElimination, NaturalElimination
-import .Next: clique_decomp
-include("optimization/sparsity.jl")
-include("optimization/moment_linear.jl")
-include("optimization/v2rdm_structured.jl")
-include("optimization/paired_v2rdm.jl")
-include("optimization/moment.jl")
-include("optimization/lowering.jl")
-include("optimization/symmetry.jl")
-include("optimization/v2rdm_symmetry.jl")
-include("optimization/pauli_chains.jl")
-include("sympleq/SympleQ.jl")
-include("optimization/fermionic_irreps.jl")
-include("optimization/fermionic_spin.jl")
-include("optimization/sos.jl")
-include("optimization/interface.jl")
-include("optimization/continuous_symmetry.jl")
-include("optimization/physics_sparsity.jl")
-include("optimization/continuous_reduction.jl")
-include("optimization/pauli_strengthening.jl")
-include("optimization/pauli_invariant_soc.jl")
-include("optimization/antiunitary.jl")
-include("optimization/unified_symmetry.jl")
-include("optimization/gns.jl")
-include("optimization/flat_extension.jl")
-include("optimization/gns_cholesky.jl")
-include("optimization/gns_diagnostics.jl")
-
-# ============================================================================
-# Exports - User-Facing API Only
-# ============================================================================
-
-# Problem Definition
-export PolyOpt, polyopt, PolyOptResult, SolverConfig
-export SignedPermutation, FermionicModePermutation, CliffordSymmetry, CliffordSymmetryGroup, FermionicModeLayout, AbelianIrrepTable
-export pauli_site_permutation, pauli_contiguous_chain_basis, pauli_sign_symmetry
-export PauliChargeSectorSpec, PauliSingletConstraintSpec, PauliChargeBlockLabel
-export FermionicSectorSpec, FermionicSectorLabel, FermionicSpinAdaptationSpec, FermionicSpinBlockLabel
-export SymmetrySpec, SymmetryReport
-export Symmetry, SymmetryCheckReport, check_symmetry
-export heisenberg_chain_hamiltonian
-export pauli_chain_translation, pauli_chain_reflection, pauli_global_axis_rotation_generators, heisenberg_chain_symmetry_spec
-export TranslationInvariantReport, TranslationInvariantResult
-export pauli_translation_invariant_moment_relaxation, pauli_translation_invariant_nctssos
-export SymplecticTableau, SymplecticMatrix, PhaseVector, SympleQGenerator
-export sympleq_generators, sympleq_clifford_symmetry, sympleq_symmetry_spec
-export PauliAntiunitary, detect_pauli_antiunitary, antiunitary_parity
-export antiunitary_moment_relaxation, recover_antiunitary_gram
-export SparsityResult, compute_sparsity
-export particle_number_constraint
-export SuppliedDerivation, differentiate, validate_continuous_symmetry
-export detect_continuous_symmetries, continuous_moment_relaxation, continuous_nctssos
-export detect_onsite_spin_symmetries
-export reconstruct_continuous_moments, reconstruct_continuous_matrices, verify_continuous_certificate
-export PhysicsSparsity, hamiltonian_interactions, physics_moment_basis
-export pauli_strengthened_relaxation, verify_pauli_strengthening_certificate
-export pauli_chain_strengthened_relaxation, pauli_chain_stationarity_operators
-
-# Solver Interface
-export cs_nctssos, cs_nctssos_higher, build_jump_model, reconstruct, gns_reconstruct, GNSResult
-export add_pauli_invariant_soc!, separate_pauli_invariant_socs!, pauli_invariant_soc_nctssos
-export FlatnessResult, test_flatness, flat_extend
-export RobustnessReport, robustness_report
-export build_pqg_moment_data
-export build_paired_moment_data
-export VerificationReport, verify_gns
-
-# Elimination Strategies
-export NoElimination, MF, MMD, AsIsElimination, MaximalElimination, NaturalElimination
-
-# Variable Creation (primary user entry point)
-export create_pauli_variables, create_fermionic_variables, create_bosonic_variables
-export create_projector_variables, create_unipotent_variables, create_noncommutative_variables
-
-# Core Types (users need these for type annotations and construction)
-export NormalMonomial, Polynomial, VariableRegistry
-export ComposedMonomial
-export AbstractMonomial
-
-# Algebra Types (users need for dispatch)
-export AlgebraType
-export MonoidAlgebra, TwistedGroupAlgebra, PBWAlgebra
-export NonCommutativeAlgebra, PauliAlgebra, FermionicAlgebra
-export BosonicAlgebra, ProjectorAlgebra, UnipotentAlgebra
-
-# State Polynomial Operations
-export ς, varsigma, expect, tr
-export StateSymbol, StateWord, StatePolynomial
-export NCStateWord, MaxEntangled, Arbitrary
-
-# Polynomial Operations (commonly used)
-export degree, monomials, coefficients, terms, variables
-export simplify, simplify!
-export variable_indices
-
-# Canonicalization (user-facing)
-export symmetric_canon, cyclic_canon, canonicalize
-
-# Basis Generation
-export get_ncbasis, get_state_basis, newton_chip_basis
-
-# Registry Helpers
-export symbols, indices, subregistry
-
-# Fermionic Helper
-export has_even_parity
-
-# Coefficient Type
-export coeff_type
+include("precompile.jl")
 
 end

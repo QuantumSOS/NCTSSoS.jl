@@ -9,11 +9,11 @@ function chsh_simple(solver)
         )
             @testset "$id" begin
                 oracle = fixture("chsh_simple", id)
-                built = Next.build(Problem(h), relaxation)
+                built = NCTSSoS.build(Problem(h), relaxation)
                 result = solve(built; solver)
                 @test result.bound ≈ oracle["objective"] atol=1e-6
                 structure = fixture("next_problem_pilot", "chsh_simple/$id")
-                @test sort(Next.block_sides(built)) == structure["sides"]
+                @test sort(NCTSSoS.block_sides(built)) == structure["sides"]
                 @test result.sizes.moments == structure["moments"]
             end
         end
@@ -22,11 +22,11 @@ function chsh_simple(solver)
             LetterPermutation(a[2]=>-a[2], b[1]=>b[2], b[2]=>b[1]),
             LetterPermutation(a[1]=>b[1], a[2]=>b[2], b[1]=>a[1], b[2]=>a[2]),
         )
-        built = Next.build(Problem(h; symmetry), Relaxation(order=1))
+        built = NCTSSoS.build(Problem(h; symmetry), Relaxation(order=1))
         result = solve(built; solver)
         @test result.bound ≈ fixture("chsh_simple", "Symmetry_d1")["objective"] atol=1e-6
         structure = fixture("next_problem_pilot", "chsh_simple/Symmetry_d1")
-        @test sort(Next.block_sides(built)) == structure["sides"]
+        @test sort(NCTSSoS.block_sides(built)) == structure["sides"]
         @test result.sizes.real_variables == structure["real_variables"]
     end
 end

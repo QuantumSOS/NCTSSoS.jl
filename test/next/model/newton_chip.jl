@@ -1,6 +1,6 @@
 module NewtonChipChecks
 using Test, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 import JuMP
 
 same_rows(actual,expected)=length(actual)==length(expected) && all(x->count(==(x),actual)==1,expected)
@@ -20,7 +20,7 @@ function check(backend)
     @testset "Newton-chip custom rows" begin
         @test Base.ispublic(N,:newton_chip_basis)
         @test !Base.isexported(N,:newton_chip_basis)
-        @test NCTSSoS.newton_chip_basis !== N.newton_chip_basis
+        @test parentmodule(N.newton_chip_basis) === N
         _,(x,)=N.site_variables(N.Free(),1,2)
         a,b=x
         p=N.Problem(1+a^2+2b*a^2*b)

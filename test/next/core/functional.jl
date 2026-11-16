@@ -1,6 +1,6 @@
 module FunctionalCoreChecks
 using Test, Random, LinearAlgebra, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 include("../contract_checks.jl")
 include("operator_oracles.jl")
 

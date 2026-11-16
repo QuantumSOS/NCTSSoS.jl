@@ -20,7 +20,7 @@
 #
 # We use the native Mosek backend as the SDP solver.
 
-using NCTSSoS.Next
+using NCTSSoS
 import NCTSSoS, Mosek
 using JSON3
 
@@ -44,9 +44,9 @@ nothing #hide
 #
 # One site contains three noncommuting projectors. The registry stores their
 # algebra and names. Each polynomial carries that registry into `Problem`.
-# `Next.RealTrace()` selects normalized real traces.
+# `NCTSSoS.RealTrace()` selects normalized real traces.
 
-registry, (x,) = site_variables(Projector(), 1, 3; functional=Next.RealTrace());
+registry, (x,) = site_variables(Projector(), 1, 3; functional=NCTSSoS.RealTrace());
 nothing #hide
 
 # #### Step 2 — Build the tracial objective
@@ -117,7 +117,7 @@ result = solve(spop, Relaxation(order=3); solver=SOLVER);
 #     See the [Bell inequalities example](@ref bell-inequalities) for the
 #     state-polynomial formulation, where separate sites *are* appropriate.
 
-registry, (vars,) = site_variables(Unipotent(), 1, 4; functional=Next.RealTrace());
+registry, (vars,) = site_variables(Unipotent(), 1, 4; functional=NCTSSoS.RealTrace());
 x = vars[1:2];  # Alice: A₁, A₂
 y = vars[3:4];  # Bob:   B₁, B₂
 nothing #hide
@@ -169,7 +169,7 @@ result = solve(Problem(p), Relaxation(order=1); solver=SOLVER);
 # variables (see the note on the transpose trick). We place all six
 # observables at one site and split afterward.
 
-registry, (vars,) = site_variables(Unipotent(), 1, 6; functional=Next.RealTrace());
+registry, (vars,) = site_variables(Unipotent(), 1, 6; functional=NCTSSoS.RealTrace());
 x = vars[1:3];  # Alice: A₁, A₂, A₃
 y = vars[4:6];  # Bob:   B₁, B₂, B₃
 nothing #hide

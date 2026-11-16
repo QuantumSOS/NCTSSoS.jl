@@ -1,8 +1,8 @@
 module NCTSSoSMosekExt
-using NCTSSoS: Next
+import NCTSSoS
 # Internal construction helpers shared by this package's precompile workload.
-using NCTSSoS.Next: build, moment_standard_form
-import NCTSSoS.Next: _prepare
+using NCTSSoS: build, moment_standard_form
+import NCTSSoS: _prepare
 import Mosek
 import JuMP
 using SparseArrays: sparse, findnz, nzrange, rowvals, nonzeros
@@ -10,12 +10,12 @@ using PrecompileTools: @compile_workload
 
 struct MosekHandle{B}
     task::Mosek.MSKtask
-    form::Next.MomentStandardForm
+    form::NCTSSoS.MomentStandardForm
     backend::B
     representation::Symbol
 end
 
-function Next.task_sizes(h::MosekHandle)
+function NCTSSoS.task_sizes(h::MosekHandle)
     task=h.task
     sides=Int[Mosek.getdimbarvarj(task,i) for i in 1:Mosek.getnumbarvar(task)]
     for i in 1:Mosek.getnumacc(task)
@@ -34,7 +34,7 @@ end
 function real_psd_form(form)
     any(c->c.kind==:hpsd,form.cones) || return form
     I,J,V = Int[],Int[],Float64[]
-    cones = Next.DataCone[]
+    cones = NCTSSoS.DataCone[]
     row = 0
     for cone in form.cones
         first = row+1
@@ -42,7 +42,7 @@ function real_psd_form(form)
             for k in cone.first:cone.first+cone.length-1
                 row+=1; push!(I,row); push!(J,k); push!(V,1.)
             end
-            push!(cones,Next.DataCone(cone.kind,cone.side,first,cone.length,cone.label))
+            push!(cones,NCTSSoS.DataCone(cone.kind,cone.side,first,cone.length,cone.label))
             continue
         end
         n=cone.side
@@ -56,10 +56,10 @@ function real_psd_form(form)
                 push!(I,row); push!(J,coordinate(max(a,b),min(a,b))); push!(V,a>b ? 1. : -1.)
             end
         end
-        push!(cones,Next.DataCone(:psd,2n,first,n*(2n+1),cone.label))
+        push!(cones,NCTSSoS.DataCone(:psd,2n,first,n*(2n+1),cone.label))
     end
     T=sparse(I,J,V,row,length(form.b))
-    return Next.MomentStandardForm(T*form.A,T*form.b,form.c,form.offset,cones)
+    return NCTSSoS.MomentStandardForm(T*form.A,T*form.b,form.c,form.offset,cones)
 end
 
 function domain(task,kind,length)
@@ -148,16 +148,16 @@ function write_sos!(task,f)
     end
 end
 
-function Next.prepare_standard(form::Next.MomentStandardForm,backend::Next.MosekBackend)
+function NCTSSoS.prepare_standard(form::NCTSSoS.MomentStandardForm,backend::NCTSSoS.MosekBackend)
     f=real_psd_form(form)
     return prepare_native(f,backend,form)
 end
 
-function _prepare(built::Next.BuiltRelaxation,backend::Next.MosekBackend)
+function _prepare(built::NCTSSoS.BuiltRelaxation,backend::NCTSSoS.MosekBackend)
     f=get!(built.cache,:mosek_real) do
         form=haskey(built.cache,:moment) ? built.cache[:moment] : moment_standard_form(built.program)
         real_psd_form(form)
-    end::Next.MomentStandardForm
+    end::NCTSSoS.MomentStandardForm
     return prepare_native(f,backend,f)
 end
 
@@ -186,7 +186,7 @@ function prepare_native(f,backend,source)
     return MosekHandle(task,source,backend,representation)
 end
 
-function Next.solve_standard(h::MosekHandle)
+function NCTSSoS.solve_standard(h::MosekHandle)
     termination=Mosek.optimize(h.task)
     raw=Mosek.getsolsta(h.task,Mosek.MSK_SOL_ITR)
     optimal=raw==Mosek.MSK_SOL_STA_OPTIMAL
@@ -204,43 +204,43 @@ function Next.solve_standard(h::MosekHandle)
         iterations=Int(Mosek.getintinf(h.task,Mosek.MSK_IINF_INTPNT_ITER)),
         primal_residual=Mosek.getdouinf(h.task,Mosek.MSK_DINF_INTPNT_PRIMAL_FEAS),
         dual_residual=Mosek.getdouinf(h.task,Mosek.MSK_DINF_INTPNT_DUAL_FEAS))
-    return Next.ConicSolution(bound,status,sprint(show,raw),values,h,diagnostics)
+    return NCTSSoS.ConicSolution(bound,status,sprint(show,raw),values,h,diagnostics)
 end
 
-function Next.solve_standard(form::Next.MomentStandardForm,h::MosekHandle)
-    Next._check_append_only(h.form,form)
-    return Next.solve_standard(form,h.backend)
+function NCTSSoS.solve_standard(form::NCTSSoS.MomentStandardForm,h::MosekHandle)
+    NCTSSoS._check_append_only(h.form,form)
+    return NCTSSoS.solve_standard(form,h.backend)
 end
 
 # Build both native forms without calling the optimizer or requesting a license.
 @compile_workload let
-    forms=Next.MomentStandardForm[]
+    forms=NCTSSoS.MomentStandardForm[]
     n=4
-    registry,(x,y,z)=Next.pauli_variables(n)
+    registry,(x,y,z)=NCTSSoS.pauli_variables(n)
     h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
-    symmetry=(Next.SitePermutation([2:n;1]),Next.SitePermutation(collect(n:-1:1)),Next.spin_rotations(registry)...)
-    push!(forms,moment_standard_form(build(Next.Problem(h;symmetry),Next.Relaxation(order=2)).program))
-    registry,(a,ad)=Next.fermionic_variables(n)
+    symmetry=(NCTSSoS.SitePermutation([2:n;1]),NCTSSoS.SitePermutation(collect(n:-1:1)),NCTSSoS.spin_rotations(registry)...)
+    push!(forms,moment_standard_form(build(NCTSSoS.Problem(h;symmetry),NCTSSoS.Relaxation(order=2)).program))
+    registry,(a,ad)=NCTSSoS.fermionic_variables(n)
     h=-sum(ad[i]*a[mod1(i+1,n)]+ad[mod1(i+1,n)]*a[i] for i in 1:n)
     number=sum(ad[i]*a[i] for i in 1:n)
-    problem=Next.Problem(h;symmetry=(Next.NumberRotation(registry),))
-    relaxation=Next.Relaxation(order=1,strengthen=(Next.FermionicConditions(1:n;conditions=(:P,:Q,:G)),Next.Sector(number,2)))
+    problem=NCTSSoS.Problem(h;symmetry=(NCTSSoS.NumberRotation(registry),))
+    relaxation=NCTSSoS.Relaxation(order=1,strengthen=(NCTSSoS.FermionicConditions(1:n;conditions=(:P,:Q,:G)),NCTSSoS.Sector(number,2)))
     push!(forms,moment_standard_form(build(problem,relaxation).program))
     n=8
-    _,(x,y,z)=Next.pauli_variables(n)
+    _,(x,y,z)=NCTSSoS.pauli_variables(n)
     h=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)
-    push!(forms,moment_standard_form(build(Next.Problem(h;symmetry=Next.detect_symmetry(h)),Next.Relaxation(order=1)).program))
-    _,(a,b)=Next.site_variables(Next.Unipotent(),2,2;functional=Next.RealState())
-    h=Next.state_symbol(a[1]*b[1])-Next.state_symbol(a[1])*Next.state_symbol(b[1])
-    push!(forms,moment_standard_form(build(Next.Problem(h),Next.Relaxation(order=2)).program))
-    _,(x,)=Next.site_variables(Next.Unipotent(),1,4;functional=Next.RealTrace())
-    h=Next.trace_symbol(x[1]*x[3])-Next.trace_symbol(x[1])*Next.trace_symbol(x[3])
-    push!(forms,moment_standard_form(build(Next.Problem(h),Next.Relaxation(order=2)).program))
+    push!(forms,moment_standard_form(build(NCTSSoS.Problem(h;symmetry=NCTSSoS.detect_symmetry(h)),NCTSSoS.Relaxation(order=1)).program))
+    _,(a,b)=NCTSSoS.site_variables(NCTSSoS.Unipotent(),2,2;functional=NCTSSoS.RealState())
+    h=NCTSSoS.state_symbol(a[1]*b[1])-NCTSSoS.state_symbol(a[1])*NCTSSoS.state_symbol(b[1])
+    push!(forms,moment_standard_form(build(NCTSSoS.Problem(h),NCTSSoS.Relaxation(order=2)).program))
+    _,(x,)=NCTSSoS.site_variables(NCTSSoS.Unipotent(),1,4;functional=NCTSSoS.RealTrace())
+    h=NCTSSoS.trace_symbol(x[1]*x[3])-NCTSSoS.trace_symbol(x[1])*NCTSSoS.trace_symbol(x[3])
+    push!(forms,moment_standard_form(build(NCTSSoS.Problem(h),NCTSSoS.Relaxation(order=2)).program))
     for standard in forms,form in (:sos,:moment)
-        backend=Next.MosekBackend(;form)
-        handle=Next.prepare_standard(standard,backend)
+        backend=NCTSSoS.MosekBackend(;form)
+        handle=NCTSSoS.prepare_standard(standard,backend)
         # Compile the solve/extraction code without executing the optimizer.
-        precompile(Next.solve_standard,(typeof(standard),typeof(backend)))
+        precompile(NCTSSoS.solve_standard,(typeof(standard),typeof(backend)))
         Mosek.deletetask(handle.task)
     end
 end

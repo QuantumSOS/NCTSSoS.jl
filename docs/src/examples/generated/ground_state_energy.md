@@ -26,8 +26,8 @@ neighbor interaction and periodic boundary condition.
     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 N = 6
 ````
 
@@ -53,7 +53,7 @@ No need to manually specify constraints - they're encoded in the algebra type!
 ````julia
 problem = Problem(ham)
 
-relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=NCTSSoS.MMD()))
 solver = MosekBackend()
 
 res = solve(problem, relaxation; solver)
@@ -75,7 +75,7 @@ required to handle more complex Hamiltonian. 1D Heisenberg Model with geometric
 frustration induced by next nearest neighbor interaction can be solved as:
 
 ````julia
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 N = 6
 J1 = 1.0                            # Nearest Neighbor Interaction
 J2 = 0.2                            # Next Nearest Neighbor Interaction
@@ -86,7 +86,7 @@ ham = sum(ComplexF64(J1 / 4) * op[i] * op[mod1(i + 1, N)] + ComplexF64(J2 / 4) *
 
 problem = Problem(ham)
 
-relaxation = Relaxation(order=3, split=TermSplit(algorithm=Next.MMD()))
+relaxation = Relaxation(order=3, split=TermSplit(algorithm=NCTSSoS.MMD()))
 
 res = solve(problem, relaxation; solver)
 res.bound / N
@@ -105,7 +105,7 @@ energy per site $-0.4270083225302217$ reported in [wang2024Certifying](@cite).
 Extending Heisenberg model to $2$-D case is also straightforward. However `NCTSSoS.jl` is not efficient enough to handle system at this size.
 
 ````julia
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 Nx = 3
 Ny = 3
 N = Nx * Ny
@@ -120,8 +120,8 @@ ham = sum(ComplexF64(J1 / 4) * op[LI[CartesianIndex(i, j)]] * op[LI[CartesianInd
 
 problem = Problem(ham)
 
-relaxation = Relaxation(order=3, grouping=Correlative(algorithm=Next.MF()),
-    split=TermSplit(algorithm=Next.MMD()))
+relaxation = Relaxation(order=3, grouping=Correlative(algorithm=NCTSSoS.MF()),
+    split=TermSplit(algorithm=NCTSSoS.MMD()))
 ````
 
 ````

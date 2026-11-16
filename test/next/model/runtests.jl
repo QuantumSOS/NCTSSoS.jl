@@ -1,4 +1,4 @@
-# Tests of the model layer of NCTSSoS.Next.
+# Tests of the model layer of NCTSSoS.
 
 include("sympleq.jl")
 SympleQChecks.check()
@@ -10,13 +10,37 @@ MixedModelChecks.check(Nx.JuMPBackend(SOLVER))
     project=dirname(Base.active_project())
     standalone=raw"""
         using Test
-        using NCTSSoS.Next
+        using NCTSSoS
         @testset "Every exported binding is usable" begin
-            for name in names(Next)
-                Base.isexported(Next,name) || continue
-                @test Core.eval(Main,name) === getfield(Next,name)
+            exported = (:NCTSSoS,
+                :pauli_variables, :fermionic_variables, :bosonic_variables, :site_variables,
+                :state_symbol, :trace_symbol,
+                :Pauli, :Fermionic, :Bosonic, :Free, :Projector, :Unipotent, :SiteAlgebra,
+                :Problem, :Positive, :Zero, :ExpectationPositive, :ExpectationZero,
+                :SitePermutation, :LetterPermutation, :CliffordMap, :AntiunitaryPauli,
+                :SpinRotation, :spin_rotations, :NumberRotation,
+                :detect_symmetry, :Relaxation, :Correlative, :PhysicsInformed, :TermSplit, :Contiguous,
+                :MF, :MMD, :NoElimination, :AsIsElimination, :MaximalElimination, :NaturalElimination,
+                :DensityMatrix, :InvariantCone, :Stationarity, :StateOptimality, :Sector, :FermionicConditions,
+                :inspect, :solve, :expectation, :gns, :evaluate, :SCSBackend, :MosekBackend, :JuMPBackend)
+            qualified = (:Symmetry, :variables, :mixed_variables, :RealState, :RealTrace, :newton_chip_basis,
+                :build, :BuiltRelaxation, :prepare, :prepare_standard, :solve_standard, :task_sizes,
+                :polynomial, :terms, :word_letters, :support_letters, :sites, :degree, :operator_name,
+                :basis, :block_rows, :block_sides, :moment_value, :moment_terms, :moment_covered,
+                :MomentStandardForm, :DataCone, :ConicSolution, :GNSResult, :refresh_coverage!)
+            # Julia includes qualified public names in names(module), not only exports.
+            @test Set(names(NCTSSoS)) == Set((exported..., qualified...))
+            @test Set(filter(n -> Base.isexported(NCTSSoS,n), names(NCTSSoS))) == Set(exported)
+            @test !isdefined(NCTSSoS, :Next)
+            for name in qualified
+                @test Base.ispublic(NCTSSoS,name)
+                @test !Base.isexported(NCTSSoS,name)
             end
-            _,parts=Next.mixed_variables(spin=(Pauli(),1),matter=(Fermionic(),1))
+            for name in names(NCTSSoS)
+                Base.isexported(NCTSSoS,name) || continue
+                @test Core.eval(Main,name) === getfield(NCTSSoS,name)
+            end
+            _,parts=NCTSSoS.mixed_variables(spin=(Pauli(),1),matter=(Fermionic(),1))
             @test parts.spin[1][1]*parts.matter[1][1]==parts.matter[1][1]*parts.spin[1][1]
             registry,(X,Y,Z)=pauli_variables(4)
             H=sum(X[i]*X[mod1(i+1,4)]+Y[i]*Y[mod1(i+1,4)]+Z[i]*Z[mod1(i+1,4)] for i in 1:4)
@@ -28,44 +52,8 @@ MixedModelChecks.check(Nx.JuMPBackend(SOLVER))
             @test !occursin("FamilySymmetry",sprint(show,problem))
             @test inspect(problem,Relaxation(order=1)).sizes.program.rows>0
         end
-        import NCTSSoS
-        @testset "Qualified legacy API" begin
-            for name in (:Symmetry,:variables,:newton_chip_basis)
-                @test Base.ispublic(Next,name)
-                @test !Base.isexported(Next,name)
-                @test getfield(NCTSSoS,name) !== getfield(Next,name)
-            end
-            for name in (:RealState,:RealTrace,:build,:BuiltRelaxation,:prepare,:prepare_standard,:solve_standard,:task_sizes,
-                    :terms,:word_letters,:support_letters,:sites,:degree,:operator_name,:basis,:block_rows,:block_sides)
-                @test Base.ispublic(Next,name)
-                @test !Base.isexported(Next,name)
-            end
-        end
         """
-    combined=raw"""
-        using Test
-        using NCTSSoS
-        using NCTSSoS.Next
-        @testset "No clashing exports" begin
-            for name in (:MF,:MMD,:NoElimination,:AsIsElimination,:MaximalElimination,:NaturalElimination)
-                @test Base.isexported(NCTSSoS.Next,name)
-                @test Core.eval(Main,name) === getfield(NCTSSoS,name) === getfield(NCTSSoS.Next,name)
-            end
-            for name in (:gns,:evaluate,:bosonic_variables,:Bosonic,:state_symbol,:trace_symbol,:ExpectationPositive,:ExpectationZero)
-                @test Base.isexported(NCTSSoS.Next,name)
-                @test Core.eval(Main,name) === getfield(NCTSSoS.Next,name)
-            end
-            clashes=sort!([name for name in intersect(names(NCTSSoS),names(NCTSSoS.Next))
-                if Base.isexported(NCTSSoS,name) && Base.isexported(NCTSSoS.Next,name) &&
-                    getfield(NCTSSoS,name) !== getfield(NCTSSoS.Next,name)])
-            @test isempty(clashes)
-            @test Symmetry === NCTSSoS.Symmetry
-            @test variables === NCTSSoS.variables
-        end
-        """
-    for script in (standalone,combined)
-        @test success(pipeline(`$(Base.julia_cmd()) --startup-file=no --project=$project -e $script`;stdout,stderr))
-    end
+    @test success(pipeline(`$(Base.julia_cmd()) --startup-file=no --project=$project -e $standalone`;stdout,stderr))
 end
 
 include("front.jl")

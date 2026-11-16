@@ -1,6 +1,6 @@
 # Standalone order-2 grouping comparison. Requires a working Mosek license.
 using NCTSSoS, JuMP, MosekTools
-const Nx=NCTSSoS.Next
+const Nx=NCTSSoS
 optimizer=optimizer_with_attributes(MosekTools.Optimizer,"MSK_IPAR_LOG"=>0)
 check=Model(optimizer)
 @variable(check,v>=1)

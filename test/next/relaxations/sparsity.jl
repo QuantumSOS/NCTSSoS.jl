@@ -13,12 +13,12 @@ function sparsity(solver)
                 objective = u[1]
             end
             oracle = only(filter(c->c["id"]=="unipotent_n$(n)_order1_dense",data["cases"]))["expected"]
-            built = Next.build(Problem(objective),Relaxation(order=1))
+            built = NCTSSoS.build(Problem(objective),Relaxation(order=1))
             result = solve(built;solver)
             # No bound assertion/tolerance existed in the old file. Use the
             # unchanged fixture objective with Julia's default isapprox.
             @test result.bound ≈ oracle["objective"]
-            @test Next.block_sides(built) == oracle["sides"]
+            @test NCTSSoS.block_sides(built) == oracle["sides"]
             @test result.sizes.moments == oracle["nuniq"]
         end
     end

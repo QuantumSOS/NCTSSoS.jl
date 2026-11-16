@@ -1,7 +1,7 @@
 # Warmed native build-plus-solve measurements, with GC and model input creation
 # outside the timer. Run with no arguments for the three small models.
 using NCTSSoS, JuMP, SCS, LinearAlgebra, Statistics
-const N = NCTSSoS.Next
+const N = NCTSSoS
 BLAS.set_num_threads(1)
 
 function inputs(name)

@@ -1,7 +1,7 @@
 # Fresh-process first build after package precompilation; no solver or loading
 # inside the timer. Optional first argument saves/checks exact program data.
 using NCTSSoS, LinearAlgebra, Serialization, Statistics
-const Nx=NCTSSoS.Next
+const Nx=NCTSSoS
 
 function block_key_measurement(path=nothing)
     n=12

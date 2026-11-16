@@ -25,7 +25,7 @@ function measure(label,f)
     return t.value
 end
 measure("load",()->Core.eval(Main,:(using NCTSSoS)))
-const N = NCTSSoS.Next
+const N = NCTSSoS
 mode = only(ARGS)
 mode in ("chain","xxz","split","hubbard","ball","density","soc","chsh") || error("Unknown case")
 if mode != "chain"

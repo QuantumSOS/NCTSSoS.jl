@@ -3,7 +3,7 @@
 using Test, LinearAlgebra
 
 function gns_cases()
-    N=NCTSSoS.Next
+    N=NCTSSoS
     _,(a,b)=N.site_variables(N.Unipotent(),2,2)
     chsh=N.Problem(-a[1]*b[1]-a[1]*b[2]-a[2]*b[1]+a[2]*b[2])
     _,(v,)=N.site_variables(N.Free(),1,2)
@@ -15,7 +15,7 @@ function gns_cases()
 end
 
 function check_gns_backend(backend)
-    N=NCTSSoS.Next
+    N=NCTSSoS
     @testset "GNS through $(typeof(backend))" begin
         for (name,p,d) in gns_cases()
             result=N.solve(p,N.Relaxation(order=d);solver=backend)
@@ -27,7 +27,7 @@ function check_gns_backend(backend)
 end
 
 function check_gns_coverage(backend)
-    N=NCTSSoS.Next
+    N=NCTSSoS
     @testset "GNS coverage and state restrictions" begin
         registry,(x,y,z)=N.pauli_variables(4)
         h=sum(x[i]*x[mod1(i+1,4)]+y[i]*y[mod1(i+1,4)]+z[i]*z[mod1(i+1,4)] for i in 1:4)
@@ -56,7 +56,7 @@ function check_gns_coverage(backend)
 end
 
 function check_gns_chsh(result)
-    N=NCTSSoS.Next
+    N=NCTSSoS
     g=N.gns(result)
     @test g.status===:reproduced
     @test g.rank==g.full_rank==4
@@ -78,7 +78,7 @@ function check_gns_chsh(result)
 end
 
 function check_gns_xxz(result)
-    N=NCTSSoS.Next
+    N=NCTSSoS
     g=N.gns(result)
     @test g.status===:reproduced
     @test (g.full_degree,g.principal_degree,g.relaxation_order)==(3,2,2)
@@ -103,7 +103,7 @@ function check_gns_xxz(result)
 end
 
 function check_gns_free(result)
-    N=NCTSSoS.Next
+    N=NCTSSoS
     g=N.gns(result)
     @test g.verdict in (:moments_reproduced,:optimizer_certified)
     @test N.expectation(g,result.problem.objective) ≈ result.bound atol=1e-6
@@ -116,7 +116,7 @@ end
 # Populate a plain solved result from independently supplied matrix moments.
 # The numerical algorithm sees the same public result that a solver returns.
 function gns_fixture(problem,order,moment)
-    N=NCTSSoS.Next
+    N=NCTSSoS
     relaxation=N.Relaxation(order=order)
     built=N.build(problem,relaxation)
     values=[label.part==0x01 ? real(moment(label.word)) : imag(moment(label.word)) for label in built.table.labels[2:end]]
@@ -127,11 +127,11 @@ end
 
 function gns_matrix_word(w,matrices)
     dim=size(first(values(matrices)),1)
-    return foldl((A,i)->A*matrices[i],NCTSSoS.Next.legacy_letters(w);init=Matrix{ComplexF64}(I,dim,dim))
+    return foldl((A,i)->A*matrices[i],NCTSSoS.legacy_letters(w);init=Matrix{ComplexF64}(I,dim,dim))
 end
 
 @testset "GNS from exact matrix moments" begin
-    N=NCTSSoS.Next
+    N=NCTSSoS
     id=Matrix{ComplexF64}(I,2,2)
     X=ComplexF64[0 1;1 0]; Y=ComplexF64[0 -im;im 0]; Z=ComplexF64[1 0;0 -1]
     _,(x,y,z)=N.pauli_variables(4)

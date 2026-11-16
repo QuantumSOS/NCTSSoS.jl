@@ -24,8 +24,8 @@
 # For the architecture and supported combinations, see
 # [Symmetry-Adapted Basis](@ref symmetry-adapted-basis).
 
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 
 solver = MosekBackend();
 
@@ -49,10 +49,10 @@ length(Q)
 
 # ## Step 2 — Dense baseline: one block of side 5
 #
-# The staged path separates construction from solving. `Next.build` creates
+# The staged path separates construction from solving. `NCTSSoS.build` creates
 # the program without a solver call; `solve` then uses the direct Mosek writer.
 
-dense = Next.build(problem, relaxation);
+dense = NCTSSoS.build(problem, relaxation);
 dense_result = solve(dense; solver);
 dense_bound = -dense_result.bound
 
@@ -64,8 +64,8 @@ abs(dense_bound - 2 * sqrt(2))
 # Inspect the final PSD/HPSD block sides. Hermitian sides are reported
 # before realification:
 
-Next.block_sides(dense)
-@assert Next.block_sides(dense) == [5] #src
+NCTSSoS.block_sides(dense)
+@assert NCTSSoS.block_sides(dense) == [5] #src
 
 # `moments` includes the identity. `real_variables` does not include its
 # fixed coordinate. Here eleven moments need ten free real coordinates:
@@ -112,7 +112,7 @@ party_swap = LetterPermutation(
     B[2] => A[2],
 )
 
-# Declare the generators on the problem. `Next.build` (and therefore `solve`)
+# Declare the generators on the problem. `NCTSSoS.build` (and therefore `solve`)
 # checks invariance of the objective and any operator constraints, not the
 # `Problem` constructor. There is no opt-out flag.
 
@@ -122,7 +122,7 @@ symmetric_problem = Problem(-S; symmetry=(alice_swap, bob_swap, party_swap))
 #
 # The relaxation and solver are unchanged:
 
-reduced = Next.build(symmetric_problem, relaxation);
+reduced = NCTSSoS.build(symmetric_problem, relaxation);
 sym_result = solve(reduced; solver);
 sym_bound = -sym_result.bound
 
@@ -151,8 +151,8 @@ sizes = sym_result.sizes;
 
 # The one dense block is replaced by three independent scalar PSD blocks:
 
-Next.block_sides(reduced)
-@assert Next.block_sides(reduced) == [1, 1, 1] #src
+NCTSSoS.block_sides(reduced)
+@assert NCTSSoS.block_sides(reduced) == [1, 1, 1] #src
 
 # The result prints these aggregate counts:
 

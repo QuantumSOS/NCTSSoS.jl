@@ -1,9 +1,9 @@
 module FunctionalLegacyChecks
 using Test, TOML
-using NCTSSoS.Next
+using NCTSSoS
 
 function state_problem(kind)
-    _,(x,y)=site_variables(Unipotent(),2,kind==:covariance ? 3 : 2;functional=Next.RealState())
+    _,(x,y)=site_variables(Unipotent(),2,kind==:covariance ? 3 : 2;functional=NCTSSoS.RealState())
     s=state_symbol
     if kind==:squared
         h=-(s(x[1]*y[2])+s(x[2]*y[1]))^2-(s(x[1]*y[1])-s(x[2]*y[2]))^2
@@ -20,7 +20,7 @@ function state_problem(kind)
 end
 
 function bilocal_problem()
-    _,(x,y,z)=site_variables(Unipotent(),3,2;functional=Next.RealState())
+    _,(x,y,z)=site_variables(Unipotent(),3,2;functional=NCTSSoS.RealState())
     # Same eight ordered triple words and 28 upper-triangle coefficients as
     # test/problems/quantum_networks/bilocal_networks.jl, Example 8.1.1.
     s=[state_symbol(x[i]*y[j]*z[k]) for j in 1:2 for i in 1:2 for k in 1:2]
@@ -38,8 +38,8 @@ end
 
 function bilocal_check(;solver=nothing)
     @testset "Bilocal removal reference" begin
-        built=Next.build(bilocal_problem(),Relaxation(order=3))
-        @test Next.block_sides(built)==[637]
+        built=NCTSSoS.build(bilocal_problem(),Relaxation(order=3))
+        @test NCTSSoS.block_sides(built)==[637]
         @test built.sizes.moments==15867
         # The 507 s native SOS solve is kept for the removal record only.
         @test solve(built;solver).bound ≈ -3.9999999896685883 atol=1e-6 skip=isnothing(solver)
@@ -48,12 +48,12 @@ end
 
 function trace_problem(kind)
     if kind==:constrained
-        _,(v,)=site_variables(Free(),1,2;functional=Next.RealTrace())
+        _,(v,)=site_variables(Free(),1,2;functional=NCTSSoS.RealTrace())
         x,y=v
         return Problem(trace_symbol(2-x^2+x*y^2*x-y^2);
             constraints=(Positive(4-x^2-y^2),Zero(x*y+y*x-2)))
     end
-    _,(v,)=site_variables(Unipotent(),1,4;functional=Next.RealTrace())
+    _,(v,)=site_variables(Unipotent(),1,4;functional=NCTSSoS.RealTrace())
     x,y=v[1:2],v[3:4]
     s=trace_symbol
     h=kind==:chsh ? -s(x[1]*y[1])-s(x[1]*y[2])-s(x[2]*y[1])+s(x[2]*y[2]) :
@@ -70,7 +70,7 @@ function cases()
      ("trace_squared",trace_problem(:squared),2,-4.000000007251562,1e-5))
 end
 
-# All seven Next side/moment records equal the original dense records where
+# All seven NCTSSoS side/moment records equal the original dense records where
 # the old file asserted them, including bilocal's 637 rows / 15,867 moments.
 function check(solver;sos_solver=nothing,references=false,cosmo=true)
     sizes=Dict("state_squared"=>([209],1887),"state_covariance"=>([106],1098),
@@ -92,8 +92,8 @@ function check(solver;sos_solver=nothing,references=false,cosmo=true)
                     expected=get(cosmo_values,id,expected)
                     startswith(id,"state_") && (atol=1e-3)
                 end
-                built=Next.build(problem,Relaxation(;order))
-                @test Next.block_sides(built)==sizes[id][1]
+                built=NCTSSoS.build(problem,Relaxation(;order))
+                @test NCTSSoS.block_sides(built)==sizes[id][1]
                 @test built.sizes.moments==sizes[id][2]
                 result=solve(built;solver)
                 @test result.bound ≈ expected atol=atol
@@ -114,7 +114,7 @@ function check(solver;sos_solver=nothing,references=false,cosmo=true)
         # These named rejections cover the sparse state/network cases and
         # T1, T2, T5 and the trace CHSH/covariance sparse cases in the ledger.
         for problem in (state_problem(:mixed),trace_problem(:chsh))
-            @test_throws r"State/trace.*plain dense route" Next.build(problem,
+            @test_throws r"State/trace.*plain dense route" NCTSSoS.build(problem,
                 Relaxation(order=2,grouping=Correlative(),split=TermSplit(algorithm=MMD())))
         end
     end

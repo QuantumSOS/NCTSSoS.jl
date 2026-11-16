@@ -13,11 +13,11 @@ function nc_example1(solver, sos_solver)
         )
             @testset "$id" begin
                 oracle = fixture("nc_example1", id)
-                built = Next.build(problem, relaxation)
+                built = NCTSSoS.build(problem, relaxation)
                 result = solve(built; solver)
                 @test result.bound ≈ oracle["objective"] atol=1e-4
                 structure = fixture("next_problem_pilot", "nc_example1/$id")
-                @test sort(Next.block_sides(built)) == structure["sides"]
+                @test sort(NCTSSoS.block_sides(built)) == structure["sides"]
                 @test result.sizes.moments == structure["moments"]
             end
         end

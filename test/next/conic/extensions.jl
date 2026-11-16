@@ -1,6 +1,6 @@
 # Standalone entry point: the SCS extension CI job installs its environment.
 using Test, NCTSSoS, JuMP, LinearAlgebra, SparseArrays, SCS
-const N = NCTSSoS.Next
+const N = NCTSSoS
 const TOL = 1e-7
 
 function extension_models()

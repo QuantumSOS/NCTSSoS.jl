@@ -1,6 +1,6 @@
 module FunctionalModelChecks
 using Test, LinearAlgebra, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 include("../reference_data/legacy_expected.jl")
 
 const DOC_SIGNS=[1 1 1; 1 1 -1; 1 -1 0]

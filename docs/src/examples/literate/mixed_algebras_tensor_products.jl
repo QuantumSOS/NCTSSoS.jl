@@ -2,18 +2,18 @@
 #
 # `NCTSSoS.jl` supports multiple algebra types (Pauli, fermionic, bosonic, …).
 # For **mixed systems**, declare named tensor components in one registry with
-# `Next.mixed_variables`. Products between components commute. Their
+# `NCTSSoS.mixed_variables`. Products between components commute. Their
 # expectations are joint moments; they do not factor into separate expectations.
 #
-# A mixed-system term has a coefficient and a word. `Next.terms` gives these
+# A mixed-system term has a coefficient and a word. `NCTSSoS.terms` gives these
 # pairs without requiring access to the polynomial's storage.
 
-using NCTSSoS.Next, Mosek, LinearAlgebra
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek, LinearAlgebra
+import NCTSSoS
 
 # ## 1) Build factor-algebra monomials
 
-registry, parts = Next.mixed_variables(spin=(Pauli(), 1), matter=(Fermionic(), 1));
+registry, parts = NCTSSoS.mixed_variables(spin=(Pauli(), 1), matter=(Fermionic(), 1));
 σx, σy, σz = parts.spin;
 a, ad = parts.matter;
 
@@ -41,16 +41,16 @@ mixed_term = spin_product * number
 
 # Pass the registry to `sprint` to display the word with symbolic names.
 
-coefficient, word = only(Next.terms(mixed_term));
+coefficient, word = only(NCTSSoS.terms(mixed_term));
 (coefficient, sprint(show, word; context=:registry => registry))
 @assert coefficient == im #src
 
 # Both factors are already canonical. Removing the phase leaves one unit term:
 
 canonical = σz[1] * number;
-[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(canonical)]
-@assert first(only(Next.terms(canonical))) == 1 #src
-@assert last(only(Next.terms(canonical))) == word #src
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in NCTSSoS.terms(canonical)]
+@assert first(only(NCTSSoS.terms(canonical))) == 1 #src
+@assert last(only(NCTSSoS.terms(canonical))) == word #src
 
 # ## 3) Check a finite mixed model with matrices
 #

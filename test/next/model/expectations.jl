@@ -1,6 +1,6 @@
 # Shared observable contract for the JuMP and native SCS routes.
 function check_expectations(backend,reference_optimizer)
-    N=NCTSSoS.Next
+    N=NCTSSoS
     _,(a,b)=N.site_variables(N.Unipotent(),2,2)
     correlators=(-a[1]*b[1],-a[1]*b[2],-a[2]*b[1],a[2]*b[2])
     bell=N.solve(N.Problem(sum(correlators)),N.Relaxation(order=1);solver=backend)
@@ -83,22 +83,22 @@ struct PartialMomentTable{W}
     adjoint_word::W
     forced_zero::W
 end
-function NCTSSoS.Next.moment_terms(t::PartialMomentTable,w)
+function NCTSSoS.moment_terms(t::PartialMomentTable,w)
     isone(w) && return ((1,1.0),)
     w==t.word && return ((2,1.0),(3,1.0im))
     w==t.adjoint_word && return ((2,1.0),(3,-1.0im))
     w==t.forced_zero && return ()
     return nothing
 end
-NCTSSoS.Next.moment_covered(::PartialMomentTable,id) = id in (1,2)
-function NCTSSoS.Next.moment_value(t::PartialMomentTable,w,values)
-    pairs=NCTSSoS.Next.moment_terms(t,w)
+NCTSSoS.moment_covered(::PartialMomentTable,id) = id in (1,2)
+function NCTSSoS.moment_value(t::PartialMomentTable,w,values)
+    pairs=NCTSSoS.moment_terms(t,w)
     isnothing(pairs) && return nothing
     return sum(c*(id==1 ? 1.0 : values[id-1]) for (id,c) in pairs;init=0.0im)
 end
 
 @testset "Expectation checks combined coordinate coverage" begin
-    N=NCTSSoS.Next
+    N=NCTSSoS
     _,(a,ad)=N.fermionic_variables(4)
     w=ad[3]*ad[1]*a[1]*a[4]
     table=PartialMomentTable(only(N.terms(w))[2],only(N.terms(w'))[2],only(N.terms(a[2]))[2])

@@ -4,16 +4,16 @@ EditURL = "../literate/pbw_algebras_showcase.jl"
 
 # [PBW Algebra Showcase (Fermionic / Bosonic)](@id pbw-algebras-showcase)
 
-This page demonstrates two PBW algebras supported by `NCTSSoS.Next`:
+This page demonstrates two PBW algebras supported by `NCTSSoS`:
 - `Fermionic()` (CAR / anticommutation)
 - `Bosonic()` (CCR / commutation)
 
 In PBW algebras, multiplying monomials can expand into a **sum of monomials**.
 Variables are polynomials. Their product can contain multiple normal words;
-`Next.terms` iterates the `(coefficient, word)` pairs.
+`NCTSSoS.terms` iterates the `(coefficient, word)` pairs.
 
 ````julia
-using NCTSSoS.Next
+using NCTSSoS
 
 repr_with_registry(reg, x) = sprint(show, x; context=:registry => reg)
 ````
@@ -53,7 +53,7 @@ repr_with_registry(reg_f, p_car)
 Two terms: identity + normal-ordered number operator:
 
 ````julia
-length(Next.terms(p_car))
+length(NCTSSoS.terms(p_car))
 ````
 
 ````
@@ -66,8 +66,8 @@ A normal word has even fermionic parity when its degree is even.
 Extract the word from this single-term polynomial:
 
 ````julia
-m_num = last(only(Next.terms(a⁺[1] * a[1])));
-iseven(Next.degree(m_num))
+m_num = last(only(NCTSSoS.terms(a⁺[1] * a[1])));
+iseven(NCTSSoS.degree(m_num))
 ````
 
 ````
@@ -117,7 +117,7 @@ repr_with_registry(reg_b, p_ccr)
 Again, two terms:
 
 ````julia
-length(Next.terms(p_ccr))
+length(NCTSSoS.terms(p_ccr))
 ````
 
 ````

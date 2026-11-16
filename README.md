@@ -21,14 +21,14 @@ It is a successor to [NCTSSOS](https://github.com/wangjie212/NCTSSOS).
 
 ### Supported Algebras
 
-| Algebra | Type | Relations | Status |
+| Algebra | Variable constructor | Relations | Status |
 |---------|------|-----------|--------|
-| Non-commutative | `MonoidAlgebra` | Free algebra (no relations) | :white_check_mark: |
-| Projector | `MonoidAlgebra` | P² = P (idempotent) | :white_check_mark: |
-| Unipotent | `MonoidAlgebra` | U² = I (involution) | :white_check_mark: |
-| Pauli | `TwistedGroupAlgebra` | σ² = I, cyclic products | :white_check_mark: |
-| Fermionic | `PBWAlgebra` | {aᵢ, aⱼ†} = δᵢⱼ (CAR) | :white_check_mark: |
-| Bosonic | `PBWAlgebra` | [cᵢ, cⱼ†] = δᵢⱼ (CCR) | :white_check_mark: |
+| Non-commutative | `site_variables(Free(), ...)` | Free algebra (no relations) | :white_check_mark: |
+| Projector | `site_variables(Projector(), ...)` | P² = P (idempotent) | :white_check_mark: |
+| Unipotent | `site_variables(Unipotent(), ...)` | U² = I (involution) | :white_check_mark: |
+| Pauli | `pauli_variables(...)` | σ² = I, cyclic products | :white_check_mark: |
+| Fermionic | `fermionic_variables(...)` | {aᵢ, aⱼ†} = δᵢⱼ (CAR) | :white_check_mark: |
+| Bosonic | `bosonic_variables(...)` | [cᵢ, cⱼ†] = δᵢⱼ (CCR) | :white_check_mark: |
 
 ### Optimization Features
 

@@ -3,7 +3,7 @@
 # julia --project perf/next/density_sector.jl check  # Mosek and SCS required
 using NCTSSoS, LinearAlgebra, SparseArrays, Random, Test
 import LinearAlgebra: tr
-const N=NCTSSoS.Next
+const N=NCTSSoS
 BLAS.set_num_threads(1)
 
 function kernel_cost(n)

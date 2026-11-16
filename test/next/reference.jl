@@ -4,7 +4,7 @@
 using NCTSSoS
 
 if !@isdefined(Nx)
-    const Nx = NCTSSoS.Next
+    const Nx = NCTSSoS
 end
 
 "Moment ids for the reference builder: word key -> (id of real part, id of imaginary part); 0 means no variable."

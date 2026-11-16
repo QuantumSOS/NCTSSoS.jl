@@ -1,11 +1,10 @@
 name = "NCTSSoS"
 uuid = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["jwang <wangjie212@amss.ac.cn>"]
 
 [deps]
 ChordalGraph = "60fd0770-a5cf-11ea-07c5-d789f1eae5cb"
-Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
 CliqueTrees = "60701a23-6482-424a-84db-faee86b9b1f8"
 Graphs = "86223c79-3864-5bf0-83f7-82e725a168b6"
 GroupsCore = "d5909c97-4eac-4ecc-a3dc-fdd0858a4120"
@@ -51,6 +50,7 @@ julia = "1.12"
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 COSMO = "1e616198-aa4e-51ec-90a2-23f7fbd31d8d"
+Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -59,4 +59,4 @@ TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "COSMO", "Aqua", "Documenter", "ExplicitImports", "Random", "SHA", "TOML"]
+test = ["Test", "COSMO", "Clarabel", "Aqua", "Documenter", "ExplicitImports", "Random", "SHA", "TOML"]

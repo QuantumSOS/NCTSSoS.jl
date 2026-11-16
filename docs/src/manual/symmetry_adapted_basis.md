@@ -56,7 +56,7 @@ do not interpret a reduced coordinate as an original monomial by its index.
   `detect_symmetry` finds verified Clifford generators for an unconstrained
   Pauli objective. It can return a subgroup, not the full symmetry group.
 - Declare actions on `Problem`. A tuple of actions is sufficient for ordinary
-  block symmetry. `Next.Symmetry` also accepts `moment_only` and `continuous`
+  block symmetry. `NCTSSoS.Symmetry` also accepts `moment_only` and `continuous`
   generators. Antiunitary actions constrain moments; they are not unitary
   block generators.
 - Symmetry works with selected block families, not only a single dense block.
@@ -96,8 +96,8 @@ by themselves impose a fixed spin sector or a singlet state.
 
 **NCTSSoS owns** the operator algebra, the action on words, invariance checks,
 block-family closure, block orbits and stabilizers, moment relations,
-strengthening, and conic assembly. These operations live in `src/next/core/`,
-`src/next/model/` and `src/next/pipeline/`.
+strengthening, and conic assembly. These operations live in `src/core/`,
+`src/model/` and `src/pipeline/`.
 
 **`SymbolicWedderburn` supplies** character and group-algebra projection tools
 for the finite-group route. It does not implement noncommutative word
@@ -111,14 +111,14 @@ The public staged path makes the boundary visible. Here `problem`,
 CHSH example below:
 
 ```julia
-built = Next.build(problem, relaxation)
+built = NCTSSoS.build(problem, relaxation)
 built.sizes
-prepared = Next.prepare(built; solver)
+prepared = NCTSSoS.prepare(built; solver)
 result = solve(built; solver)
 expectation(result, problem.objective)
 ```
 
-`Next.build` does not solve. `Next.prepare` prepares the selected backend;
+`NCTSSoS.build` does not solve. `NCTSSoS.prepare` prepares the selected backend;
 `solve(built; solver)` can also prepare it automatically. The result retains
 the original problem and a map for represented moments. Not every observable
 must be represented by a sparse relaxation. Reconstruction uses the checked
@@ -129,7 +129,7 @@ or an optimizer.
 and `largest_block`. `moments` includes the identity; `real_variables` counts
 free real coordinates. `sizes.closure` is `nothing` on the plain dense route
 and reports family closure on the block route. To see individual cone sides,
-use `Next.block_sides(built)`. It returns the final PSD/HPSD sides, with
+use `NCTSSoS.block_sides(built)`. It returns the final PSD/HPSD sides, with
 Hermitian sides before realification. The generic closure report does not
 provide the finite group order.
 
@@ -153,8 +153,8 @@ generate a group of order 16. Both the dense and reduced solves recover
 and one free real coordinate. Its two moments include the identity.
 
 ```julia
-using NCTSSoS.Next, COSMO
-import NCTSSoS.Next as Next
+using NCTSSoS, COSMO
+import NCTSSoS
 
 reg, (A, B) = site_variables(Unipotent(), 2, 2)
 S = A[1]*B[1] + A[1]*B[2] + A[2]*B[1] - A[2]*B[2]
@@ -164,10 +164,10 @@ party = LetterPermutation(A[1]=>B[1], A[2]=>B[2], B[1]=>A[1], B[2]=>A[2])
 problem = Problem(-S; symmetry=(alice, bob, party))
 relaxation = Relaxation(rows=[one(A[1]), A[1], A[2], B[1], B[2]])
 solver = JuMPBackend(COSMO.Optimizer)
-built = Next.build(problem, relaxation)
+built = NCTSSoS.build(problem, relaxation)
 result = solve(built; solver)
 @assert abs(result.bound + 2sqrt(2)) < 1e-6
-@assert Next.block_sides(built) == [1, 1, 1]
+@assert NCTSSoS.block_sides(built) == [1, 1, 1]
 @assert result.sizes.real_variables == 1
 ```
 

@@ -1,4 +1,4 @@
-# Tests of the redesign work area `NCTSSoS.Next`.
+# Tests of the redesign work area `NCTSSoS`.
 using Test, NCTSSoS, LinearAlgebra, JuMP, Random
 
 include("public_docs.jl")
@@ -16,7 +16,7 @@ function solve_reference(program)
     return objective_value(model), Nx.moment_values(program, y)
 end
 
-@testset "Next: contracts and references" begin
+@testset "NCTSSoS: contracts and references" begin
     @testset "Phase" begin
         @test [ComplexF64(1, 2) * im^k for k in 0:3] == [Nx.scale(Nx.Phase(k), ComplexF64(1, 2)) for k in 0:3]
         @test Nx.scale(Nx.Phase(2), 3.0) === -3.0

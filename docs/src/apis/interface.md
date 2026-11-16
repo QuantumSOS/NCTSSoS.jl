@@ -1,17 +1,17 @@
 # User Interface
 
-Load the modeling API with `using NCTSSoS.Next`. Names prefixed with `Next`
-are public, qualified calls; use `import NCTSSoS.Next as Next` for that prefix.
+Load the modeling API with `using NCTSSoS`. Names prefixed with `NCTSSoS`
+are public, qualified calls; use `import NCTSSoS` for that prefix.
 A wrong declaration gives an `ArgumentError` whose text names the fix.
 
 ## Problem and constraints
 
 ```@docs
-NCTSSoS.Next.Problem
-NCTSSoS.Next.Positive
-NCTSSoS.Next.Zero
-NCTSSoS.Next.ExpectationPositive
-NCTSSoS.Next.ExpectationZero
+NCTSSoS.Problem
+NCTSSoS.Positive
+NCTSSoS.Zero
+NCTSSoS.ExpectationPositive
+NCTSSoS.ExpectationZero
 ```
 
 `ExpectationZero` and `ExpectationPositive` each add one scalar row, not an
@@ -22,18 +22,18 @@ and any declared symmetry must preserve the constraints.
 ## Relaxation and solution
 
 ```@docs
-NCTSSoS.Next.Relaxation
-NCTSSoS.Next.solve
-NCTSSoS.Next.inspect
-NCTSSoS.Next.expectation
-NCTSSoS.Next.gns
-NCTSSoS.Next.GNSResult
-NCTSSoS.Next.evaluate
+NCTSSoS.Relaxation
+NCTSSoS.solve
+NCTSSoS.inspect
+NCTSSoS.expectation
+NCTSSoS.gns
+NCTSSoS.GNSResult
+NCTSSoS.evaluate
 ```
 
 ## [Reading a result](@id next-result)
 
-See [`solve`](@ref NCTSSoS.Next.solve) for the result fields, program sizes and backend diagnostics.
+See [`solve`](@ref NCTSSoS.solve) for the result fields, program sizes and backend diagnostics.
 
 Use `expectation(result, observable)` to read represented moments. Use
 `gns(result)` for checked reconstruction; a numerical optimum alone does not
@@ -47,14 +47,14 @@ Declare symmetry on `Problem`, not on `Relaxation`. See
 [Clifford Symmetry Detection](@ref clifford-symmetry-detection) for detection.
 
 ```@docs
-NCTSSoS.Next.SitePermutation
-NCTSSoS.Next.LetterPermutation
-NCTSSoS.Next.CliffordMap
-NCTSSoS.Next.SpinRotation
-NCTSSoS.Next.spin_rotations
-NCTSSoS.Next.NumberRotation
-NCTSSoS.Next.Symmetry
-NCTSSoS.Next.detect_symmetry
+NCTSSoS.SitePermutation
+NCTSSoS.LetterPermutation
+NCTSSoS.CliffordMap
+NCTSSoS.SpinRotation
+NCTSSoS.spin_rotations
+NCTSSoS.NumberRotation
+NCTSSoS.Symmetry
+NCTSSoS.detect_symmetry
 ```
 
 ## Strengthening
@@ -64,16 +64,16 @@ comparisons. Symmetry preserves an invariant problem; a sector restriction
 changes which states are allowed.
 
 ```@docs
-NCTSSoS.Next.DensityMatrix
-NCTSSoS.Next.InvariantCone
-NCTSSoS.Next.Stationarity
-NCTSSoS.Next.StateOptimality
-NCTSSoS.Next.FermionicConditions
-NCTSSoS.Next.Sector
+NCTSSoS.DensityMatrix
+NCTSSoS.InvariantCone
+NCTSSoS.Stationarity
+NCTSSoS.StateOptimality
+NCTSSoS.FermionicConditions
+NCTSSoS.Sector
 ```
 
 ## Module scope
 
 ```@docs
-NCTSSoS.Next
+NCTSSoS
 ```

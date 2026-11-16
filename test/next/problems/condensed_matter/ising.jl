@@ -14,11 +14,11 @@ function ising(solver)
             @test eigmin(Hermitian(matrix(Z, X, periodic))) ≈ oracle["objective"] atol=1e-12
             H = -J/4 * sum(sz[i]*sz[mod1(i+1,n)] for i in 1:(periodic ? n : n-1)) -
                 h/2 * sum(sx)
-            built = Next.build(Problem(H), Relaxation(order=2))
+            built = NCTSSoS.build(Problem(H), Relaxation(order=2))
             result = solve(built; solver)
             @test result.bound ≈ oracle["objective"] atol=1e-6
             structure = fixture("next_problem_pilot", "ising/$id")
-            @test sort(Next.block_sides(built)) == structure["sides"]
+            @test sort(NCTSSoS.block_sides(built)) == structure["sides"]
             @test result.sizes.moments == structure["moments"]
         end
         rotated = matrix(X, Z, false)
@@ -31,16 +31,16 @@ function ising(solver)
             h/2 * sum(2ad[i]*a[i]-1 for i in 1:n)
         annihilators = [reduce(kron, [j < i ? Z : j == i ? ComplexF64[0 0; 1 0] : eye
             for j in 1:n]) for i in 1:n]
-        operators = Dict(Next.operator_name(r, last(only(Next.terms(p)))) => M
+        operators = Dict(NCTSSoS.operator_name(r, last(only(NCTSSoS.terms(p)))) => M
             for (p,M) in zip([a; ad], [annihilators; adjoint.(annihilators)]))
-        evaluated = sum(c * foldl(*, (operators[Next.operator_name(r,l)] for l in Next.word_letters(w));
-            init=Matrix{ComplexF64}(I, 2^n, 2^n)) for (c,w) in Next.terms(H))
+        evaluated = sum(c * foldl(*, (operators[NCTSSoS.operator_name(r,l)] for l in NCTSSoS.word_letters(w));
+            init=Matrix{ComplexF64}(I, 2^n, 2^n)) for (c,w) in NCTSSoS.terms(H))
         @test isapprox(evaluated, rotated; atol=1e-12, rtol=0)
-        built = Next.build(Problem(H), Relaxation(order=1))
+        built = NCTSSoS.build(Problem(H), Relaxation(order=1))
         result = solve(built; solver)
         @test result.bound ≈ oracle["objective"] atol=1e-6
         structure = fixture("next_problem_pilot", "ising/open_fermionic_n3_order1")
-        @test sort(Next.block_sides(built)) == structure["sides"]
+        @test sort(NCTSSoS.block_sides(built)) == structure["sides"]
         @test result.sizes.moments == structure["moments"]
     end
 end

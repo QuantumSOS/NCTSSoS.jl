@@ -11,7 +11,7 @@ relaxation. There are two separate tasks:
 | Task | Input | Call | Output |
 |:-----|:------|:-----|:-------|
 | Find symmetry | Hamiltonian | `detect_symmetry(H)` | Verified generators |
-| Use symmetry | Problem and rows | `Next.build(problem, relaxation)` | Reduced conic program |
+| Use symmetry | Problem and rows | `NCTSSoS.build(problem, relaxation)` | Reduced conic program |
 | Solve | Built program | `solve(built; solver)` | Bound and moments |
 
 A symmetry that is easy to see need not give the smallest blocks. On two
@@ -24,8 +24,8 @@ Prerequisites: [CHSH symmetry](@ref chsh-symmetry),
 [Clifford Symmetry Detection](@ref clifford-symmetry-detection).
 
 ````julia
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 
 solver = MosekBackend();
 ````
@@ -63,7 +63,7 @@ length(rows)
 ## Step 2 — Dense baseline
 
 ````julia
-dense = Next.build(problem, relaxation);
+dense = NCTSSoS.build(problem, relaxation);
 dense_result = solve(dense; solver);
 dense_result.bound
 ````
@@ -72,12 +72,12 @@ dense_result.bound
 -0.7500000000000073
 ````
 
-`Next.block_sides` reports the final PSD/HPSD sides before realification.
+`NCTSSoS.block_sides` reports the final PSD/HPSD sides before realification.
 `sizes.moments` includes the identity; `real_variables` counts free real
 coordinates and does not count its fixed value.
 
 ````julia
-(Next.block_sides(dense), dense_result.sizes.moments, dense_result.sizes.real_variables)
+(NCTSSoS.block_sides(dense), dense_result.sizes.moments, dense_result.sizes.real_variables)
 ````
 
 ````
@@ -92,9 +92,9 @@ separate maps for the three axes.
 
 ````julia
 swap = SitePermutation([2, 1]);
-swapped = Next.build(Problem(H; symmetry=(swap,)), relaxation);
+swapped = NCTSSoS.build(Problem(H; symmetry=(swap,)), relaxation);
 swap_result = solve(swapped; solver);
-(swap_result.bound, Next.block_sides(swapped), swap_result.sizes.real_variables)
+(swap_result.bound, NCTSSoS.block_sides(swapped), swap_result.sizes.real_variables)
 ````
 
 ````
@@ -116,15 +116,15 @@ signs in `Y₁Y₂` cancel. A global phase gate sends `X → Y`, `Y → -X`, and
 
 `CliffordMap` takes images of `X₁,…,Xₙ,Z₁,…,Zₙ`, as Pauli words in
 that order. The images of Y and their signs follow from Pauli multiplication.
-`Next.terms` gives coefficient-word pairs; each operator below has one term.
+`NCTSSoS.terms` gives coefficient-word pairs; each operator below has one term.
 
 ````julia
-global_hadamard = CliffordMap([last(only(Next.terms(p))) for p in [Z; X]]);
-global_s = CliffordMap([last(only(Next.terms(p))) for p in [Y; Z]]);
+global_hadamard = CliffordMap([last(only(NCTSSoS.terms(p))) for p in [Z; X]]);
+global_s = CliffordMap([last(only(NCTSSoS.terms(p))) for p in [Y; Z]]);
 manual_actions = (swap, global_hadamard, global_s);
-manual = Next.build(Problem(H; symmetry=manual_actions), relaxation);
+manual = NCTSSoS.build(Problem(H; symmetry=manual_actions), relaxation);
 manual_result = solve(manual; solver);
-(manual_result.bound, Next.block_sides(manual), manual_result.sizes.real_variables)
+(manual_result.bound, NCTSSoS.block_sides(manual), manual_result.sizes.real_variables)
 ````
 
 ````
@@ -161,9 +161,9 @@ detected = detect_symmetry(H);
 Build and solve with the detected symmetry:
 
 ````julia
-automatic = Next.build(Problem(H; symmetry=detected), relaxation);
+automatic = NCTSSoS.build(Problem(H; symmetry=detected), relaxation);
 auto_result = solve(automatic; solver);
-(auto_result.bound, Next.block_sides(automatic), auto_result.sizes.real_variables)
+(auto_result.bound, NCTSSoS.block_sides(automatic), auto_result.sizes.real_variables)
 ````
 
 ````
@@ -176,13 +176,13 @@ spatial generators to the detected block generators, and retain any
 moment-only or continuous generators.
 
 ````julia
-combined_symmetry = Next.Symmetry(
+combined_symmetry = NCTSSoS.Symmetry(
     detected.generators..., swap;
     moment_only=detected.moment_only, continuous=detected.continuous,
 );
-combined = Next.build(Problem(H; symmetry=combined_symmetry), relaxation);
+combined = NCTSSoS.build(Problem(H; symmetry=combined_symmetry), relaxation);
 combined_result = solve(combined; solver);
-(combined_result.bound, Next.block_sides(combined), combined_result.sizes.real_variables)
+(combined_result.bound, NCTSSoS.block_sides(combined), combined_result.sizes.real_variables)
 ````
 
 ````
@@ -213,8 +213,8 @@ function ring_actions(ops)
     n = length(x)
     translation = SitePermutation([mod1(i + 1, n) for i in 1:n])
     reflection = SitePermutation(collect(n:-1:1))
-    hadamard = CliffordMap([last(only(Next.terms(p))) for p in [z; x]])
-    phase = CliffordMap([last(only(Next.terms(p))) for p in [y; z]])
+    hadamard = CliffordMap([last(only(NCTSSoS.terms(p))) for p in [z; x]])
+    phase = CliffordMap([last(only(NCTSSoS.terms(p))) for p in [y; z]])
     return (translation, reflection, hadamard, phase)
 end
 
@@ -222,9 +222,9 @@ registry4, ops4 = pauli_variables(4);
 H4 = sum(op[i] * op[mod1(i + 1, 4)] / 4 for op in ops4 for i in 1:4);
 actions4 = ring_actions(ops4);
 relaxation4 = Relaxation(order=1);
-spatial4 = Next.build(Problem(H4; symmetry=actions4[1:2]), relaxation4);
+spatial4 = NCTSSoS.build(Problem(H4; symmetry=actions4[1:2]), relaxation4);
 spatial_result4 = solve(spatial4; solver);
-(spatial_result4.bound, Next.block_sides(spatial4), spatial_result4.sizes.real_variables)
+(spatial_result4.bound, NCTSSoS.block_sides(spatial4), spatial_result4.sizes.real_variables)
 ````
 
 ````
@@ -234,9 +234,9 @@ spatial_result4 = solve(spatial4; solver);
 The spatial group splits the 13-row moment matrix. Add axis rotations:
 
 ````julia
-full4 = Next.build(Problem(H4; symmetry=actions4), relaxation4);
+full4 = NCTSSoS.build(Problem(H4; symmetry=actions4), relaxation4);
 full_result4 = solve(full4; solver);
-(full_result4.bound, Next.block_sides(full4), full_result4.sizes.real_variables)
+(full_result4.bound, NCTSSoS.block_sides(full4), full_result4.sizes.real_variables)
 ````
 
 ````
@@ -260,9 +260,9 @@ detected4 = detect_symmetry(H4);
 This family can be passed directly to the problem:
 
 ````julia
-automatic4 = Next.build(Problem(H4; symmetry=detected4), relaxation4);
+automatic4 = NCTSSoS.build(Problem(H4; symmetry=detected4), relaxation4);
 auto_result4 = solve(automatic4; solver);
-(auto_result4.bound, Next.block_sides(automatic4), auto_result4.sizes.real_variables)
+(auto_result4.bound, NCTSSoS.block_sides(automatic4), auto_result4.sizes.real_variables)
 ````
 
 ````
@@ -272,9 +272,9 @@ auto_result4 = solve(automatic4; solver);
 Adding spatial generators already in the explicit subgroup changes nothing:
 
 ````julia
-redundant4 = Next.build(Problem(H4; symmetry=(actions4..., actions4[1:2]...)), relaxation4);
+redundant4 = NCTSSoS.build(Problem(H4; symmetry=(actions4..., actions4[1:2]...)), relaxation4);
 redundant_result4 = solve(redundant4; solver);
-(redundant_result4.bound, Next.block_sides(redundant4), redundant_result4.sizes.real_variables)
+(redundant_result4.bound, NCTSSoS.block_sides(redundant4), redundant_result4.sizes.real_variables)
 ````
 
 ````
@@ -299,15 +299,15 @@ H10 = sum(op[i] * op[mod1(i + 1, 10)] / 4 for op in ops10 for i in 1:10);
 relaxation10 = Relaxation(order=2);
 
 function staged_run(problem, relaxation; solver)
-    build_seconds = @elapsed built = Next.build(problem, relaxation)
-    prepare_seconds = @elapsed Next.prepare(built; solver)
+    build_seconds = @elapsed built = NCTSSoS.build(problem, relaxation)
+    prepare_seconds = @elapsed NCTSSoS.prepare(built; solver)
     result = solve(built; solver)
     solve_seconds = result.solution.diagnostics.solve_seconds
     return (; built, result, build_seconds, prepare_seconds, solve_seconds)
 end
 
 dense10 = staged_run(Problem(H10), relaxation10; solver);
-(dense10.result.bound, Next.block_sides(dense10.built), dense10.result.sizes.real_variables)
+(dense10.result.bound, NCTSSoS.block_sides(dense10.built), dense10.result.sizes.real_variables)
 ````
 
 ````
@@ -321,7 +321,7 @@ Seconds, in order: build wall time, prepare wall time, Mosek optimizer time.
 ````
 
 ````
-(0.007817016, 0.17967968, 234.41841918998398)
+(0.009210757, 0.25831882, 236.0092384260206)
 ````
 
 Detection depends on the 30 Hamiltonian terms, not on the relaxation order.
@@ -334,14 +334,14 @@ detect_seconds = @elapsed detected10 = detect_symmetry(H10);
 ````
 
 ````
-(0.319865642, 6, 1)
+(1.054192154, 6, 1)
 ````
 
 Inspect the detected family's final block sides without solving it:
 
 ````julia
-detected_build10 = Next.build(Problem(H10; symmetry=detected10), relaxation10);
-Next.block_sides(detected_build10)
+detected_build10 = NCTSSoS.build(Problem(H10; symmetry=detected10), relaxation10);
+NCTSSoS.block_sides(detected_build10)
 ````
 
 ````
@@ -382,7 +382,7 @@ The timed run below uses the explicit subgroup, not this detected family.
 ````julia
 actions10 = ring_actions(ops10);
 reduced10 = staged_run(Problem(H10; symmetry=actions10), relaxation10; solver);
-(reduced10.result.bound, Next.block_sides(reduced10.built), reduced10.result.sizes.real_variables)
+(reduced10.result.bound, NCTSSoS.block_sides(reduced10.built), reduced10.result.sizes.real_variables)
 ````
 
 ````
@@ -396,7 +396,7 @@ Seconds, in the same order:
 ````
 
 ````
-(0.014620101, 0.012039073, 0.05193510800017975)
+(0.015787322, 0.013042041, 0.05248958698939532)
 ````
 
 Compare bounds with tolerance `1e-6`. This checks numerical agreement,
@@ -410,7 +410,7 @@ abs(dense10.result.bound - reduced10.result.bound)
 3.6777310086222315e-9
 ````
 
-`Next.build` checks invariance of the objective and constraints exactly and
+`NCTSSoS.build` checks invariance of the objective and constraints exactly and
 has no option to skip it. The reduction uses group projectors and needs no
 numerical off-block test; see [Symmetry-Adapted Basis](@ref symmetry-adapted-basis).
 
@@ -437,7 +437,7 @@ at 10, 12, 14, and 16 sites. They approach the infinite-chain value
 ## Summary
 
 1. Symmetry can keep the bound while shrinking the PSD blocks. Read current
-   sizes from `Next.block_sides` and `result.sizes`, not historical timings.
+   sizes from `NCTSSoS.block_sides` and `result.sizes`, not historical timings.
 2. Spatial symmetries and detected axis symmetries complement each other.
    Detection can miss maps that fix every Hamiltonian term.
 3. Row closure and Hamiltonian invariance are different requirements. Use

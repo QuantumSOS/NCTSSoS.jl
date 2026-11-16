@@ -46,7 +46,7 @@ GNS model**. In this example, the first clean dense reconstruction comes from an
 **order-4** relaxation with a degree-3 Hankel and a degree-2 principal block.
 
 ````julia
-using NCTSSoS.Next, Mosek, LinearAlgebra
+using NCTSSoS, Mosek, LinearAlgebra
 
 function blockdiag(A::AbstractMatrix, B::AbstractMatrix)
     T = promote_type(eltype(A), eltype(B))

@@ -2,7 +2,7 @@
 # Compare actions on every X/Y/Z letter, rather than private Clifford storage.
 module DetectorReference
 using Test, Random, TOML
-import NCTSSoS: Next as N
+import NCTSSoS as N
 
 function cases()
     out = Pair{String,Any}[]

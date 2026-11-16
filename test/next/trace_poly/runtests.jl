@@ -2,7 +2,7 @@ isdefined(@__MODULE__, :SOLVER) || include("../../TestUtils.jl")
 
 module PublicFunctionalChecks
 using Test, LinearAlgebra, TOML
-using NCTSSoS.Next
+using NCTSSoS
 import ..SOLVER
 
 include("basis.jl")

@@ -23,7 +23,7 @@ We use `NCTSSoS.jl` for polynomial optimization and `Mosek` as the SDP solver ba
 Use `JuMPBackend(COSMO.Optimizer)` for an open-source alternative.
 
 ````julia
-using NCTSSoS.Next
+using NCTSSoS
 import Mosek
 ````
 
@@ -145,7 +145,7 @@ f: polynomial representing the CHSH Bell operator
 Inspect the polynomial structure:
 
 ````julia
-[(c, sprint(show, w; context=:registry => registry)) for (c, w) in Next.terms(f)]
+[(c, sprint(show, w; context=:registry => registry)) for (c, w) in NCTSSoS.terms(f)]
 ````
 
 ````
@@ -281,7 +281,7 @@ f: I₃₃₂₂ Bell polynomial
 Check the number of terms:
 
 ````julia
-length(Next.terms(f))  # number of monomials
+length(NCTSSoS.terms(f))  # number of monomials
 ````
 
 ````
@@ -447,7 +447,7 @@ with signs $s_{ij} \in \{+1, -1\}$. Classical bound: $f \leq 4.5$. Quantum bound
 #### Step 1: Create unipotent variables
 
 ````julia
-registry, (x, y) = site_variables(Unipotent(), 2, 3; functional=Next.RealState())
+registry, (x, y) = site_variables(Unipotent(), 2, 3; functional=NCTSSoS.RealState())
 ````
 
 ````

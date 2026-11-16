@@ -1,6 +1,6 @@
 module BosonModelChecks
 using Test, LinearAlgebra, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 include("../reference_data/legacy_expected.jl")
 
 bh(b,bd;mu=0.5)=-(bd[1]*b[2]+bd[2]*b[1])+sum(bd[i]^2*b[i]^2-mu*bd[i]*b[i] for i in 1:2)

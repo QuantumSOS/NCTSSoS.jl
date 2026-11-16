@@ -365,14 +365,14 @@ solver tolerances; it is not a certificate in exact arithmetic.
     For other SDP solvers, see [Optimizers](@ref overview-of-optimizers).
 
 ````julia
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 
 SOLVER = MosekBackend()
 ````
 
 ````
-NCTSSoS.Next.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
+NCTSSoS.MosekBackend{@NamedTuple{}}(:auto, NamedTuple())
 ````
 
 -------------------------------------------------------------------
@@ -444,7 +444,7 @@ the size of the moment matrix (higher = tighter but costlier).
 
 ````julia
 problem₁ = Problem(ham₁)
-relaxation₁ = Relaxation(order=4, split=TermSplit(algorithm=Next.MMD()),
+relaxation₁ = Relaxation(order=4, split=TermSplit(algorithm=NCTSSoS.MMD()),
     strengthen=Sector(parity₁, 1))
 result₁ = solve(problem₁, relaxation₁; solver=SOLVER)
 ````
@@ -514,8 +514,8 @@ function solve_xy(N::Int; j_c::Real = 1.0, order::Int = 3)
     ) + ComplexF64(j_c / 2) * (a_dag[N] * a[1] + a_dag[1] * a[N])
 
     problem = Problem(ham)
-    first = Relaxation(; order, split=TermSplit(algorithm=Next.MMD(), level=1))
-    refined = Relaxation(; order, split=TermSplit(algorithm=Next.MMD(), level=2))
+    first = Relaxation(; order, split=TermSplit(algorithm=NCTSSoS.MMD(), level=1))
+    refined = Relaxation(; order, split=TermSplit(algorithm=NCTSSoS.MMD(), level=2))
 
     res1 = solve(problem, first; solver=SOLVER)
     res2 = solve(problem, refined; solver=SOLVER)
@@ -606,7 +606,7 @@ in the odd sector, with energy −2.
 | 1 | Create fermionic operators (CAR built in) | `fermionic_variables` |
 | 2 | Write the even-sector Hamiltonian | standard Julia arithmetic on operators |
 | 3 | Keep the large-`N` model low-degree by solving $H_{\mathrm{even}}$ directly (the `N = 4` check also fixes even parity) | `Problem`; `Sector(parity₁, 1)` in `Relaxation` |
-| 4 | Solve & refine the SDP relaxation | `solve`; `TermSplit(algorithm=Next.MMD(), level=1)` then `level=2` |
+| 4 | Solve & refine the SDP relaxation | `solve`; `TermSplit(algorithm=NCTSSoS.MMD(), level=1)` then `level=2` |
 | 5 | Compare with exact free-fermion energy | `xy_exact_energy` (above) |
 
 ### Spin–fermion dictionary

@@ -2,7 +2,7 @@
 # julia --project=<solver environment> perf/next/functional.jl first-scs
 # Run first-scs in three fresh processes after precompilation.
 using NCTSSoS, LinearAlgebra, Test
-const N=NCTSSoS.Next
+const N=NCTSSoS
 const SIGNS=[1 1 -1;1 1 1;-1 1 0]
 cov(A,B,s)=-sum(SIGNS[i,j]*(s(A[i]*B[j])-s(A[i])*s(B[j])) for i in 1:3,j in 1:3 if SIGNS[i,j]!=0)
 function model(trace)

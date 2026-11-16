@@ -21,8 +21,8 @@
 # and absolute tolerance `1e-6`. The comparison values are numerical results,
 # not exact solver certificates.
 
-using NCTSSoS.Next, Mosek, LinearAlgebra, Markdown
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek, LinearAlgebra, Markdown
+import NCTSSoS
 solver = MosekBackend();
 
 # Print the complete validity report, including all combined conditions:
@@ -240,7 +240,7 @@ report_bound("Scalar equality", equal)
 # adds one scalar row to the program and combines with symmetry, grouping,
 # split and strengthening.
 
-scalar_density = Next.build(Problem(z[1]; constraints=(ExpectationZero(z[1]),)),
+scalar_density = NCTSSoS.build(Problem(z[1]; constraints=(ExpectationZero(z[1]),)),
     Relaxation(order=1, strengthen=DensityMatrix(1:1)));
 scalar_density_result = solve(scalar_density; solver);
 report_bound("Scalar equality with density matrix", scalar_density_result)
@@ -267,21 +267,21 @@ nothing #hide
 # **Wrong algebra.** Density-matrix positivity requires Pauli variables.
 
 show_rejection() do
-    Next.build(Problem(-N), Relaxation(order=1, strengthen=DensityMatrix(1:3)))
+    NCTSSoS.build(Problem(-N), Relaxation(order=1, strengthen=DensityMatrix(1:3)))
 end
 
 # **Stationarity with a constraint.** A constrained minimizer need not be an
 # eigenstate of the objective. Remove stationarity for this problem.
 
 show_rejection() do
-    Next.build(Problem(z[1]; constraints=(Positive(x[1]),)),
+    NCTSSoS.build(Problem(z[1]; constraints=(Positive(x[1]),)),
         Relaxation(order=1, strengthen=Stationarity()))
 end
 
 # **Sector with StateOptimality.** This combination is not supported.
 
 show_rejection() do
-    Next.build(Problem(z[1]), Relaxation(order=1,
+    NCTSSoS.build(Problem(z[1]), Relaxation(order=1,
         strengthen=(Sector(z[1], 1), StateOptimality())))
 end
 
@@ -289,7 +289,7 @@ end
 # not preserve the selected `Z₁=1` sector. Remove it or select an invariant sector.
 
 show_rejection() do
-    Next.build(Problem(z[1]+z[2]; symmetry=(SitePermutation([2,1,3]),)),
+    NCTSSoS.build(Problem(z[1]+z[2]; symmetry=(SitePermutation([2,1,3]),)),
         Relaxation(order=1, strengthen=Sector(z[1], 1)))
 end
 

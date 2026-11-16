@@ -5,7 +5,7 @@ EditURL = "../literate/newton_chip_method.jl"
 # [Newton Chip Method](@id newton-chip-method)
 
 This page shows the Newton chip method for ordinary and tracial
-noncommutative optimization. `Next.newton_chip_basis` reduces the rows of
+noncommutative optimization. `NCTSSoS.newton_chip_basis` reduces the rows of
 an unconstrained `Problem` over one `Free()` site. For a scalar trace
 objective it uses the Newton cyclic chip reduction. The background is in
 [burgdorfOptimizationPolynomialsNonCommuting2016](@cite) and
@@ -20,7 +20,7 @@ The direct Mosek backend is silent by default. The cyclic reduction also
 needs a solver for its separating linear programs.
 
 ````julia
-using NCTSSoS.Next, Mosek
+using NCTSSoS, Mosek
 solver = MosekBackend();
 
 pretty_basis(rows, registry) = [sprint(show, row; context=:registry => registry) for row in rows];
@@ -37,8 +37,8 @@ In the unconstrained eigenvalue setting, the certified polynomial is
 registry, (x,) = site_variables(Free(), 1, 2);
 objective = 1.0 * x[1]^2 + 2.0 * x[2] * x[1] * x[1] * x[2] + 1.0;
 problem = Problem(objective);
-dense_basis = collect(Next.basis(registry, 2));
-chip_basis = Next.newton_chip_basis(problem, 2);
+dense_basis = collect(NCTSSoS.basis(registry, 2));
+chip_basis = NCTSSoS.newton_chip_basis(problem, 2);
 
 pretty_basis(dense_basis, registry)
 ````
@@ -71,13 +71,13 @@ pretty_basis(chip_basis, registry)
 ### Configure dense and custom relaxations
 
 `order=2` generates the full basis. `rows=chip_basis` supplies the reduced
-basis. Inspect the built rows with the public `Next.block_rows` iterator.
+basis. Inspect the built rows with the public `NCTSSoS.block_rows` iterator.
 
 ````julia
-dense = Next.build(problem, Relaxation(order=2));
-chip = Next.build(problem, Relaxation(rows=chip_basis));
-@assert Set(pretty_basis(only(Next.block_rows(chip)), registry)) ==
-        Set(pretty_basis((last(only(Next.terms(p))) for p in chip_basis), registry))
+dense = NCTSSoS.build(problem, Relaxation(order=2));
+chip = NCTSSoS.build(problem, Relaxation(rows=chip_basis));
+@assert Set(pretty_basis(only(NCTSSoS.block_rows(chip)), registry)) ==
+        Set(pretty_basis((last(only(NCTSSoS.terms(p))) for p in chip_basis), registry))
 (dense.sizes.rows, chip.sizes.rows)
 ````
 
@@ -108,7 +108,7 @@ chip_result = solve(chip; solver);
 
 The ordinary workflow is:
 1. build an unconstrained `Problem`,
-2. call `Next.newton_chip_basis`,
+2. call `NCTSSoS.newton_chip_basis`,
 3. use `Relaxation(rows=...)`.
 
 ## Tracial problems
@@ -120,11 +120,11 @@ It does not cover products of traces, mixed state/operator objectives,
 algebraic relations such as `U^2 = I`, or constrained trace problems.
 
 ````julia
-trace_registry, (y,) = site_variables(Free(), 1, 2; functional=Next.RealTrace());
+trace_registry, (y,) = site_variables(Free(), 1, 2; functional=NCTSSoS.RealTrace());
 trace_objective = trace_symbol(1.0 * y[1]^2 + 1.0 * y[2] * y[1]^2 * y[2] + 1.0);
 trace_problem = Problem(trace_objective);
-dense_trace_basis = collect(Next.basis(trace_registry, 2));
-chip_trace_basis = Next.newton_chip_basis(trace_problem, 2; solver);
+dense_trace_basis = collect(NCTSSoS.basis(trace_registry, 2));
+chip_trace_basis = NCTSSoS.newton_chip_basis(trace_problem, 2; solver);
 (
     dense_size = length(dense_trace_basis),
     chip_words = pretty_basis(chip_trace_basis, trace_registry),
@@ -143,10 +143,10 @@ separating certificate is not accepted, it keeps the candidate row.
 The build checks that the custom rows cover the required moments.
 
 ````julia
-dense_trace = Next.build(trace_problem, Relaxation(order=2));
-chip_trace = Next.build(trace_problem, Relaxation(rows=chip_trace_basis));
-@assert Set(pretty_basis(only(Next.block_rows(chip_trace)), trace_registry)) ==
-        Set(pretty_basis((last(only(Next.terms(p))) for p in chip_trace_basis), trace_registry))
+dense_trace = NCTSSoS.build(trace_problem, Relaxation(order=2));
+chip_trace = NCTSSoS.build(trace_problem, Relaxation(rows=chip_trace_basis));
+@assert Set(pretty_basis(only(NCTSSoS.block_rows(chip_trace)), trace_registry)) ==
+        Set(pretty_basis((last(only(NCTSSoS.terms(p))) for p in chip_trace_basis), trace_registry))
 (dense_trace.sizes.rows, chip_trace.sizes.rows)
 ````
 
@@ -177,7 +177,7 @@ chip_trace_result = solve(chip_trace; solver);
 
 The tracial workflow is:
 1. build a scalar single-trace objective with `trace_symbol`,
-2. call `Next.newton_chip_basis(problem; solver)`,
+2. call `NCTSSoS.newton_chip_basis(problem; solver)`,
 3. use `Relaxation(rows=...)`.
 
 For general trace polynomials, or trace problems with relations or

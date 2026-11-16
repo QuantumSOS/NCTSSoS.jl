@@ -1,8 +1,8 @@
 # Import only the declarative front in a fresh namespace, as a user does.
 module FrontDoorChecks
 using Test
-using NCTSSoS.Next
-import NCTSSoS: Next as N
+using NCTSSoS
+import NCTSSoS as N
 
 function same_program(old_problem,old_relaxation,problem,relaxation)
     old = old_relaxation isa N.BlockRelaxation ?

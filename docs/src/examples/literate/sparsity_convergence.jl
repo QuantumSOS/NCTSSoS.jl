@@ -41,8 +41,8 @@
 # the numerical solve and switches to the paper basis only for the
 # figure.
 
-using NCTSSoS.Next, Mosek, CairoMakie
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek, CairoMakie
+import NCTSSoS
 
 const SOLVER = MosekBackend()
 
@@ -53,7 +53,7 @@ const SOLVER = MosekBackend()
 
 const PAPER_EX34_LAMBDA_MIN = 0.0
 const PAPER_EX34_SPARSE = -0.0035
-include(joinpath(pkgdir(Next), "docs", "src", "examples", "literate", "data", "sparsity_convergence_helpers.jl")) #hide
+include(joinpath(pkgdir(NCTSSoS), "docs", "src", "examples", "literate", "data", "sparsity_convergence_helpers.jl")) #hide
 nothing #hide
 
 # ## Chordal extension matters (Example 3.4)
@@ -96,9 +96,9 @@ nothing #hide
 
 config_34_dense = Relaxation(rows=paper_basis_34)
 config_34_sparse = Relaxation(rows=paper_basis_34,
-    split=TermSplit(algorithm=Next.MMD(), level=1))
+    split=TermSplit(algorithm=NCTSSoS.MMD(), level=1))
 config_34_higher = Relaxation(rows=paper_basis_34,
-    split=TermSplit(algorithm=Next.MMD(), level=2))
+    split=TermSplit(algorithm=NCTSSoS.MMD(), level=2))
 nothing #hide
 
 const PAPER_GRAPH_34 = (
@@ -114,7 +114,7 @@ nothing #hide
 # recovers the true minimum exactly. This is the number the sparse
 # hierarchy should be chasing.
 
-built_34_dense = Next.build(problem_34, config_34_dense);
+built_34_dense = NCTSSoS.build(problem_34, config_34_dense);
 result_34_dense = solve(built_34_dense; solver=SOLVER)
 check_isapprox(
     "Example 3.4 dense bound matches λ_min",
@@ -133,7 +133,7 @@ result_34_dense.bound
 # bound *drops below zero*. This is the gap: the sparse relaxation
 # is strictly weaker than the dense one on this problem.
 
-built_34_sparse = Next.build(problem_34, config_34_sparse);
+built_34_sparse = NCTSSoS.build(problem_34, config_34_sparse);
 result_34_sparse = solve(built_34_sparse; solver=SOLVER)
 check_isapprox(
     "Example 3.4 sparse bound matches the expected rounded sparse value",
@@ -151,7 +151,7 @@ result_34_sparse.bound
 # including fill edges, as in Equation (23) of the paper. With `MMD()`,
 # this enlarges the blocks and reaches zero at the second step.
 
-built_34_higher = Next.build(problem_34, config_34_higher);
+built_34_higher = NCTSSoS.build(problem_34, config_34_higher);
 result_34_higher = solve(built_34_higher; solver=SOLVER)
 check_isapprox(
     "Example 3.4 MMD higher step reaches the exact bound",
@@ -185,7 +185,7 @@ ex34_bounds
 # The seven initial edges in `PAPER_GRAPH_34` are data from Example 3.4,
 # Figure 3 of [wangExploitingTermSparsity2020](@cite). Indices refer to the
 # listed row words. They are not computed from package internals.
-# `Next.block_rows` gives the completed blocks: two rows are adjacent when
+# `NCTSSoS.block_rows` gives the completed blocks: two rows are adjacent when
 # one block holds both. Fill edges are completed edges minus the paper data.
 
 labeled_edges(PAPER_GRAPH_34.initial_edges, PAPER_GRAPH_34.labels)
@@ -198,12 +198,12 @@ missing_34 = setdiff(PAPER_GRAPH_34.initial_edges, package_edges_34_completed)
 package_fill_34 = sort(setdiff(package_edges_34_completed, PAPER_GRAPH_34.initial_edges))
 check_equal(
     "Example 3.4 first-step block sides",
-    sort(Next.block_sides(built_34_sparse)),
+    sort(NCTSSoS.block_sides(built_34_sparse)),
     [3, 3, 3, 3],
 )
 check_equal(
     "Example 3.4 higher-step block sides",
-    sort(Next.block_sides(built_34_higher)),
+    sort(NCTSSoS.block_sides(built_34_higher)),
     [4, 4, 4],
 )
 
@@ -239,8 +239,8 @@ figure_34_higher
 # Check two further levels against the dense bound and print every completed
 # block using the paper's labels. Levels 2–4 have the same completed graph.
 
-later_34 = [Next.build(problem_34, Relaxation(rows=paper_basis_34,
-    split=TermSplit(algorithm=Next.MMD(), level=k))) for k in 3:4];
+later_34 = [NCTSSoS.build(problem_34, Relaxation(rows=paper_basis_34,
+    split=TermSplit(algorithm=NCTSSoS.MMD(), level=k))) for k in 3:4];
 builds_34 = [built_34_sparse, built_34_higher, later_34...];
 results_34 = [result_34_sparse, result_34_higher, [solve(b; solver=SOLVER) for b in later_34]...];
 [(level=k, bound=r.bound, blocks=[PAPER_GRAPH_34.labels[ids] for ids in
@@ -282,8 +282,8 @@ g_link_38 = X_38 * Y_38 + Y_38 * X_38 - 2.0
 problem_38 = Problem(f_38; constraints=(Positive(g_ball_38), Zero(g_link_38)))
 
 config_38_dense = Relaxation(order=2)
-config_38_sparse = Relaxation(order=2, split=TermSplit(algorithm=Next.MMD(), level=1))
-config_38_higher = Relaxation(order=2, split=TermSplit(algorithm=Next.MMD(), level=2))
+config_38_sparse = Relaxation(order=2, split=TermSplit(algorithm=NCTSSoS.MMD(), level=1))
+config_38_higher = Relaxation(order=2, split=TermSplit(algorithm=NCTSSoS.MMD(), level=2))
 nothing #hide
 
 # ### Dense bound: the target
@@ -291,7 +291,7 @@ nothing #hide
 # The dense relaxation at order 2 gives us the baseline. On this
 # problem it already reaches the true minimum ``\lambda_{\min} = -1``.
 
-built_38_dense = Next.build(problem_38, config_38_dense);
+built_38_dense = NCTSSoS.build(problem_38, config_38_dense);
 result_38_dense = solve(built_38_dense; solver=SOLVER)
 check_isapprox(
     "Example 3.8 dense bound matches λ_min",
@@ -310,7 +310,7 @@ result_38_dense.bound
 # the block structure exposed by the term-sparsity graph is rich
 # enough to preserve the full strength of the SDP.
 
-built_38_sparse = Next.build(problem_38, config_38_sparse);
+built_38_sparse = NCTSSoS.build(problem_38, config_38_sparse);
 result_38_sparse = solve(built_38_sparse; solver=SOLVER)
 check_isapprox(
     "Example 3.8 first sparse-step bound matches λ_min",
@@ -328,7 +328,7 @@ result_38_sparse.bound
 # at ``-1``, and the internal block structure may regroup but the
 # numerical answer is unchanged.
 
-built_38_higher = Next.build(problem_38, config_38_higher);
+built_38_higher = NCTSSoS.build(problem_38, config_38_higher);
 result_38_higher = solve(built_38_higher; solver=SOLVER)
 check_isapprox(
     "Example 3.8 higher sparse-step bound still matches λ_min",
@@ -389,8 +389,8 @@ paper_basis_38
 # The complete localizer basis is ``\{1,X,Y\}``: largest row degree 2,
 # minus half the constraint degree 2, leaves degree 1.
 
-paper_builds_38 = [Next.build(problem_38, Relaxation(rows=paper_basis_38,
-    split=TermSplit(algorithm=Next.MMD(), level=k))) for k in 1:4];
+paper_builds_38 = [NCTSSoS.build(problem_38, Relaxation(rows=paper_basis_38,
+    split=TermSplit(algorithm=NCTSSoS.MMD(), level=k))) for k in 1:4];
 paper_results_38 = [solve(b; solver=SOLVER) for b in paper_builds_38];
 @assert all(isapprox(r.bound, -1; atol=1e-6) for r in paper_results_38) #src
 @assert all(r.sizes.localizing_rows == [3,3] for r in paper_results_38) #src

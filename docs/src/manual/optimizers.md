@@ -3,7 +3,7 @@ A brief overview of semidefinite program optimizers is provided below.
 Choose the problem and relaxation first, then pass a solver to `solve`:
 
 ```julia
-using NCTSSoS.Next
+using NCTSSoS
 using JuMP
 
 _, (_, _, z) = pauli_variables(1)
@@ -23,7 +23,7 @@ and industrial applications. While it is a closed-source product, it offers free
 licenses for academic use.
 
 ```julia
-using NCTSSoS.Next
+using NCTSSoS
 using Mosek
 result = solve(problem, relaxation; solver=MosekBackend())
 @assert isapprox(result.bound, -1; atol=1e-6)
@@ -41,7 +41,7 @@ The example disables chordal decomposition because Clarabel 0.11.1 with
 OrderedCollections 2.0.3 fails in dual PSD completion for sparse PSD constraints.
 
 ```julia
-using NCTSSoS.Next
+using NCTSSoS
 using Clarabel, JuMP
 optimizer = optimizer_with_attributes(Clarabel.Optimizer,
     "chordal_decomposition_enable" => false)
@@ -57,7 +57,7 @@ especially for large-scale problems. However, it may not be as accurate as
 interior-point methods like Mosek and Clarabel.
 
 ```julia
-using NCTSSoS.Next
+using NCTSSoS
 using COSMO
 result = solve(problem, relaxation; solver=JuMPBackend(COSMO.Optimizer))
 @assert isapprox(result.bound, -1; atol=1e-3)

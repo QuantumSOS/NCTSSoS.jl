@@ -29,8 +29,8 @@ For the architecture and supported combinations, see
 [Symmetry-Adapted Basis](@ref symmetry-adapted-basis).
 
 ````julia
-using NCTSSoS.Next, Mosek
-import NCTSSoS.Next as Next
+using NCTSSoS, Mosek
+import NCTSSoS
 
 solver = MosekBackend();
 ````
@@ -63,11 +63,11 @@ length(Q)
 
 ## Step 2 — Dense baseline: one block of side 5
 
-The staged path separates construction from solving. `Next.build` creates
+The staged path separates construction from solving. `NCTSSoS.build` creates
 the program without a solver call; `solve` then uses the direct Mosek writer.
 
 ````julia
-dense = Next.build(problem, relaxation);
+dense = NCTSSoS.build(problem, relaxation);
 dense_result = solve(dense; solver);
 dense_bound = -dense_result.bound
 ````
@@ -90,7 +90,7 @@ Inspect the final PSD/HPSD block sides. Hermitian sides are reported
 before realification:
 
 ````julia
-Next.block_sides(dense)
+NCTSSoS.block_sides(dense)
 ````
 
 ````
@@ -171,7 +171,7 @@ party_swap = LetterPermutation(
 LetterPermutation(s1_1 => s2_1, s1_2 => s2_2, s2_1 => s1_1, s2_2 => s1_2)
 ````
 
-Declare the generators on the problem. `Next.build` (and therefore `solve`)
+Declare the generators on the problem. `NCTSSoS.build` (and therefore `solve`)
 checks invariance of the objective and any operator constraints, not the
 `Problem` constructor. There is no opt-out flag.
 
@@ -188,7 +188,7 @@ Problem: minimize (-1.0) s1_1 s2_1 + (-1.0) s1_2 s2_1 + (-1.0) s1_1 s2_2 + s1_2 
 The relaxation and solver are unchanged:
 
 ````julia
-reduced = Next.build(symmetric_problem, relaxation);
+reduced = NCTSSoS.build(symmetric_problem, relaxation);
 sym_result = solve(reduced; solver);
 sym_bound = -sym_result.bound
 ````
@@ -236,7 +236,7 @@ Only one nontrivial invariant moment remains, plus the identity:
 The one dense block is replaced by three independent scalar PSD blocks:
 
 ````julia
-Next.block_sides(reduced)
+NCTSSoS.block_sides(reduced)
 ````
 
 ````

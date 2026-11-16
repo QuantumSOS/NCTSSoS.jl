@@ -1,6 +1,6 @@
 module LetterActionChecks
 using Test, Random, LinearAlgebra, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 
 image(g,w)=last(N.act(g,w))
 product(a,b)=last(N.mul(a,b))
@@ -146,7 +146,7 @@ LetterActionChecks.check()
 
 module SignedLetterChecks
 using Test, Random, LinearAlgebra, NCTSSoS
-import NCTSSoS: Next as N
+import NCTSSoS as N
 import ..LetterActionChecks: mixed, matrix_word, product
 
 function action(g,pw)

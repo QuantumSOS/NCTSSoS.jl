@@ -51,7 +51,7 @@
 # **Prerequisites**: the [polynomial optimization API](@ref polynomial-optimization)
 # and the [SDP relaxation workflow](@ref moment-sohs-hierarchy).
 
-using NCTSSoS.Next, Mosek, LinearAlgebra
+using NCTSSoS, Mosek, LinearAlgebra
 
 # ## Step 1 — Solve the noncommutative unit-ball problem
 #

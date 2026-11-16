@@ -47,6 +47,18 @@ This uses the same explicit `sos_solver=nothing` skip convention as the Next
 problem pilot. It does not run the failed COSMO S6 solve or assert its raw
 objective as a bound.
 
+The Next E1–E5 Newton-chip benchmarks retain their old solver exception:
+E2–E5 use Clarabel with `verbose=false`. E1 keeps its SOS bound check behind
+the same licensed gate; its row and block-size checks run without a licence.
+E5 at n=60 uses the reviewed interval `-1e-5 ≤ bound ≤ 1e-6`; all other
+benchmark tolerances are unchanged. Run the licensed problem checks with:
+
+```julia
+using Mosek, NCTSSoS.Next
+include("test/next/problems/runtests.jl")
+NextProblemChecks.check(;sos_solver=MosekBackend(form=:sos))
+```
+
 ## Standalone Local-Only Benchmark Scripts
 
 Some heavier literature reproductions live under `test/problems/` but are not

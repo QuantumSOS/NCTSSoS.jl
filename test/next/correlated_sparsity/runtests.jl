@@ -6,6 +6,13 @@ using NCTSSoS.Next
 import JuMP
 import ..SOLVER
 
+function fixture(file,id)
+    data=TOML.parsefile(joinpath(@__DIR__,"../../data/expectations",file*".toml"))
+    only(filter(c->c["id"]==id,data["cases"]))["expected"]
+end
+
+include("core_pipeline.jl")
+
 function broyden()
     _,(x,)=site_variables(Free(),1,5)
     h=zero(x[1])
@@ -19,6 +26,9 @@ function broyden()
 end
 
 function check(;solver=JuMPBackend(SOLVER),sos_solver=nothing,references=false)
+    correlated_structure()
+    correlated_numeric(solver,sos_solver)
+    correlated_sos(sos_solver)
     @testset "Joint custom Pauli rows" begin
         r,ops=pauli_variables(3)
         h=sum(a[i]*a[i+1] for a in ops for i in 1:2)/4

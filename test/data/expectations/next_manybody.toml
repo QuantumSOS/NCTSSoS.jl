@@ -1,0 +1,36 @@
+schema_version = 1
+
+[[cases]]
+id = "xx_field_n4_order1"
+notes = "Different program, reviewed by the architect on 2026-11-16: native Mosek Next order 1 gives -4.806064743569523, side 13, moments 67. The old -7 reference is retired for Next; cause in the old program not established. Independent 16x16 Pauli matrix has minimum -4.758770483143633. Bound and sizes are implementation oracles, not the exact energy. Identity plus 12 Pauli letters gives 13 rows; identity, 12 single-site and 54 two-site words give 67 moments."
+[cases.expected]
+objective = -4.806064743569523
+sides = [13]
+moments = 67
+
+[[cases]]
+id = "bose_hubbard_sector"
+notes = "Reviewed by architect 2026-11-16 on fa3484e: order 2 Sector(N,2), moments 70 -> 6, different program: the sector equations are eliminated. Old side [15] and mathematical objective remain in bose_hubbard.toml."
+[cases.expected]
+moments = 6
+
+[[cases]]
+id = "fermionic_n4_order1"
+notes = "Captured on fa3484e for all four Kitaev phases and both XY boundary conditions, COSMO and native Mosek. Sides [9] unchanged, legacy nuniq 37 -> Next moments 21. In the real adjoint quotient: identity + 4 linear keys + 4 occupations + 6 hopping pairs + 6 pairing pairs = 21. Mathematical objectives remain in their original files."
+[cases.expected]
+sides = [9]
+moments = 21
+
+[[cases]]
+id = "majorana_pauli_n4_order1"
+notes = "Captured full Next Pauli basis on fa3484e: [5] -> [13], 11 -> 67. Next uses identity and all 12 site Pauli letters, including directions absent from the objective; the old case used only the four X letters. Bound remains -3."
+[cases.expected]
+sides = [13]
+moments = 67
+
+[[cases]]
+id = "xy_pauli_n4_order2"
+notes = "Captured full Next Pauli basis on fa3484e: [37] -> [67], 163 -> 256. Degree <=2 has 1+12+54 rows, and degree <=4 spans all 4^4 Pauli words. The old active-letter program had fewer rows; bound remains -sqrt(2)."
+[cases.expected]
+sides = [67]
+moments = 256

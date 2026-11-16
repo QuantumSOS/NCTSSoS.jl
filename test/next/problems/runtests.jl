@@ -19,6 +19,10 @@ include("bell_inequalities/pironio_toy.jl")
 include("condensed_matter/ising.jl")
 include("fermionic/free_fermion.jl")
 include("condensed_matter/harmonic_oscillator.jl")
+include("fermionic/fermionic.jl")
+include("fermionic/fermionic_chain.jl")
+include("fermionic/xy_model.jl")
+include("condensed_matter/bose_hubbard.jl")
 
 # SOS checks are opt-in: call check(; sos_solver=MosekBackend(form=:sos))
 # after loading Mosek and checking its licence. The CI baseline needs no licence.
@@ -31,6 +35,11 @@ function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing)
         ising(solver)
         free_fermion(solver)
         harmonic_oscillator(solver)
+        fermionic_parity(solver)
+        kitaev_chain(solver)
+        xx_field(solver)
+        xy_model(solver)
+        bose_hubbard(solver)
     end
 end
 end

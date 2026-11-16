@@ -146,6 +146,21 @@ end
     end
 
     @testset "Widths and capacity" begin
+        # Frozen pre-optimization layout oracle. Metadata depends only on B,K;
+        # B=2:64 covers every accepted 0<S<B, for every rule and functional.
+        function old_capacity(b,k)
+            d=64k÷(b+1)
+            while d*(b+1)+2ndigits(d;base=2)>64k
+                d-=1
+            end
+            d
+        end
+        for b in 2:64, k in 1:8
+            expected=old_capacity(b,k)
+            actual=N._functional_capacity(b,k)
+            @test actual==expected
+            @test N._fheader(actual)==ndigits(expected;base=2)
+        end
         for F in (N.RealState,N.RealTrace), limbs in 1:8
             algebra=N.FunctionalAlgebra(F(),N.SiteAlgebra(N.Free(),3))
             required=limbs==1 ? 1 : N._functional_capacity(3,limbs-1)+1

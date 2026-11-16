@@ -1,8 +1,8 @@
-command = "julia --startup-file=no --project -e 'include(\"test/next/reference_data/standard_forms.jl\"); StandardFormReference.check()'"
-notes = "242 architect-reviewed standard-form records after support split, including 64 expected errors. Frozen inputs: test/next/reference_data/combination_inputs.jl. Source fingerprints_477.txt SHA256 7b68f79721d4f83e15acb30dc57af21927fb069c18cc7a368307f5a884f3fb10. No solver; rows and digests reflect 4d29c6e."
+command = "julia --startup-file=no --project -e 'using Pkg; Pkg.test()'"
+notes = "242 architect-reviewed records with frozen inputs in test/next/reference_data/combination_inputs.jl. Class A (comparison omitted): 208 original exact records, including all 64 errors, unchanged byte for byte from 4d29c6e; source fingerprints_477.txt SHA256 7b68f79721d4f83e15acb30dc57af21927fb069c18cc7a368307f5a884f3fb10. Class B: 14 rounded digests, captured on 1a421de with SKYLAKEX: drop matrix entries with |v| <= 1e-11; round values to nine digits and remove negative zero; preserve sparse row/column indices and cone list. Class C: 20 density-matrix invariants and reviewed Mosek bounds. Classes verified under SKYLAKEX, ZEN, HASWELL and NEHALEM with Julia 1.12.7, one BLAS thread. Ordinary tests use COSMO for all twenty bounds (atol=1e-6, rtol=0)."
 old_commit = "4d29c6eeb4426b65f7e981cd4f431d6f493ad5a5"
 schema_version = 1
-solver_version = "none; builds only"
+solver_version = "Mosek 11.2.1 capture; COSMO 0.8.11 verification"
 
 [[cases]]
 id = "combination-1"
@@ -11,9 +11,11 @@ id = "combination-1"
     record = "smoke 1 fd95e2f77fb9c40c rows 169 tautologies 0"
 [[cases]]
 id = "combination-2"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 2 f4773528a7541536 rows 31 tautologies 0"
+    record = "smoke 2 b5d0b6986743ccb5 rows 31 cols 13 tautologies 0"
 [[cases]]
 id = "combination-3"
 
@@ -31,14 +33,20 @@ id = "combination-5"
     record = "smoke 5 23b2f69670b5015a rows 23 tautologies 0"
 [[cases]]
 id = "combination-6"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "smoke 6 15c47f330a11aea4 rows 10 tautologies 0"
+    record = "smoke 6 rows 10 tautologies 0 variables 4 cones [(:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:psd, 1)]"
+    objective = -8.00000000189273
 [[cases]]
 id = "combination-7"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "smoke 7 1bd584c4b3c51228 rows 470 tautologies 0"
+    record = "smoke 7 rows 470 tautologies 0 variables 69 cones [(:hpsd, 3), (:hpsd, 3), (:hpsd, 4), (:hpsd, 6), (:hpsd, 10), (:hpsd, 10), (:hpsd, 10), (:hpsd, 10)]"
+    objective = -8.000000001273907
 [[cases]]
 id = "combination-8"
 
@@ -76,9 +84,11 @@ id = "combination-14"
     record = "smoke 14 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
 [[cases]]
 id = "combination-15"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 15 4fa18dd691ca3929 rows 753 tautologies 0"
+    record = "smoke 15 199639b50226b254 rows 753 cols 69 tautologies 0"
 [[cases]]
 id = "combination-16"
 
@@ -86,9 +96,11 @@ id = "combination-16"
     record = "smoke 16 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
 [[cases]]
 id = "combination-17"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 17 54356de83898f87a rows 15 tautologies 0"
+    record = "smoke 17 a48511526042a2d2 rows 15 cols 10 tautologies 0"
 [[cases]]
 id = "combination-18"
 
@@ -96,9 +108,12 @@ id = "combination-18"
     record = "smoke 18 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
 [[cases]]
 id = "combination-19"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "smoke 19 ce7096b5c9b79e06 rows 395 tautologies 0"
+    record = "smoke 19 rows 395 tautologies 0 variables 14 cones [(:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 3), (:hpsd, 3), (:hpsd, 3), (:hpsd, 3), (:hpsd, 3), (:hpsd, 3), (:hpsd, 3), (:hpsd, 4), (:hpsd, 4), (:hpsd, 4), (:hpsd, 4), (:hpsd, 4), (:hpsd, 5), (:hpsd, 5), (:hpsd, 6), (:hpsd, 10), (:psd, 1)]"
+    objective = -8.000000000188784
 [[cases]]
 id = "combination-20"
 
@@ -106,9 +121,11 @@ id = "combination-20"
     record = "smoke 20 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
 [[cases]]
 id = "combination-21"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 21 6e1089305a25ce76 rows 232 tautologies 0"
+    record = "smoke 21 f6de06b9eb82b6e6 rows 232 cols 19 tautologies 0"
 [[cases]]
 id = "combination-22"
 
@@ -116,9 +133,11 @@ id = "combination-22"
     record = "smoke 22 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
 [[cases]]
 id = "combination-23"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 23 6eec24a713e077eb rows 82 tautologies 0"
+    record = "smoke 23 caedc20a7c83274c rows 82 cols 40 tautologies 0"
 [[cases]]
 id = "combination-24"
 
@@ -131,9 +150,12 @@ id = "combination-25"
     record = "smoke 25 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
 [[cases]]
 id = "combination-26"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "smoke 26 92497d62fbd69527 rows 29 tautologies 0"
+    record = "smoke 26 rows 29 tautologies 0 variables 11 cones [(:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1)]"
+    objective = -6.513142861366836
 [[cases]]
 id = "combination-27"
 
@@ -151,9 +173,12 @@ id = "combination-29"
     record = "smoke 29 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
 [[cases]]
 id = "combination-30"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "smoke 30 67fdca8d2a96a54f rows 425 tautologies 0"
+    record = "smoke 30 rows 425 tautologies 0 variables 69 cones [(:hpsd, 3), (:hpsd, 3), (:hpsd, 4), (:hpsd, 6), (:hpsd, 9), (:hpsd, 9), (:hpsd, 9), (:hpsd, 10), (:zero, 12)]"
+    objective = -6.513142784073064
 [[cases]]
 id = "combination-31"
 
@@ -161,9 +186,12 @@ id = "combination-31"
     record = "smoke 31 ERROR ArgumentError: Continuous derivation 1 does not annihilate o"
 [[cases]]
 id = "combination-32"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "smoke 32 0ae2859c15725cbb rows 148 tautologies 0"
+    record = "smoke 32 rows 148 tautologies 0 variables 44 cones [(:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 1), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:hpsd, 2), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:zero, 48)]"
+    objective = -6.513142743736479
 [[cases]]
 id = "combination-33"
 
@@ -336,9 +364,11 @@ id = "combination-66"
     record = "smoke 66 ERROR ArgumentError: detect_symmetry does not support problems wit"
 [[cases]]
 id = "combination-67"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 67 8a5b4438f7055e5b rows 44 tautologies 0"
+    record = "smoke 67 4a43506a9946bb00 rows 44 cols 20 tautologies 0"
 [[cases]]
 id = "combination-68"
 
@@ -346,9 +376,11 @@ id = "combination-68"
     record = "smoke 68 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
 [[cases]]
 id = "combination-69"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 69 d59d1afa14d3def4 rows 150 tautologies 0"
+    record = "smoke 69 ca040374a9ed22f3 rows 150 cols 18 tautologies 0"
 [[cases]]
 id = "combination-70"
 
@@ -356,9 +388,11 @@ id = "combination-70"
     record = "smoke 70 ERROR ArgumentError: NumberRotation needs a fermionic or bosonic r"
 [[cases]]
 id = "combination-71"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 71 4fe378f83e738e8f rows 191 tautologies 0"
+    record = "smoke 71 40d1cf613e2fa8a7 rows 191 cols 14 tautologies 0"
 [[cases]]
 id = "combination-72"
 
@@ -546,14 +580,18 @@ id = "combination-108"
     record = "smoke 108 6db899d653644ae5 rows 45 tautologies 0"
 [[cases]]
 id = "combination-109"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 109 8306a42ead143ebf rows 19 tautologies 0"
+    record = "smoke 109 508df0f147c2f4b1 rows 19 cols 10 tautologies 0"
 [[cases]]
 id = "combination-110"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 110 add4de703e4e6c68 rows 12 tautologies 0"
+    record = "smoke 110 be066d9686bcb74e rows 12 cols 9 tautologies 0"
 [[cases]]
 id = "combination-111"
 
@@ -581,14 +619,18 @@ id = "combination-115"
     record = "smoke 115 8d06d084d77072f7 rows 170 tautologies 0"
 [[cases]]
 id = "combination-116"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 116 750bdaac2f25f314 rows 62 tautologies 0"
+    record = "smoke 116 f57bfc350affcefb rows 62 cols 18 tautologies 0"
 [[cases]]
 id = "combination-117"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 117 2df2c37cd3d6cf2b rows 35 tautologies 0"
+    record = "smoke 117 e74dd2062faa19c7 rows 35 cols 15 tautologies 0"
 [[cases]]
 id = "combination-118"
 
@@ -621,9 +663,11 @@ id = "combination-123"
     record = "smoke 123 a9131784b4a58785 rows 15 tautologies 0"
 [[cases]]
 id = "combination-124"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 124 3d49d9f3b712b8c9 rows 283 tautologies 0"
+    record = "smoke 124 9dc5df7621d9543f rows 283 cols 19 tautologies 0"
 [[cases]]
 id = "combination-125"
 
@@ -631,9 +675,11 @@ id = "combination-125"
     record = "smoke 125 d67fcd1336dae08f rows 5 tautologies 0"
 [[cases]]
 id = "combination-126"
+comparison = "rounded"
+notes = "B: nine-digit numerical digest; low bits differ between BLAS kernels. Verified with SKYLAKEX, ZEN, HASWELL and NEHALEM."
 
     [cases.expected]
-    record = "smoke 126 ccf32c0ab64dfe63 rows 51 tautologies 0"
+    record = "smoke 126 f5c458f84a140544 rows 51 cols 5 tautologies 0"
 [[cases]]
 id = "combination-127"
 
@@ -751,9 +797,12 @@ id = "combination-149"
     record = "anti heisenberg n4 t+r+K o2 grouped split 08d25ca054151874 rows 109 tautologies 0"
 [[cases]]
 id = "combination-150"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti heisenberg n4 t+r+K o1 density eb9886919cfc8977 rows 46 tautologies 0"
+    record = "anti heisenberg n4 t+r+K o1 density rows 46 tautologies 0 variables 20 cones [(:psd, 2), (:psd, 3), (:psd, 3), (:psd, 4), (:psd, 6)]"
+    objective = -8.000000000001748
 [[cases]]
 id = "combination-151"
 
@@ -771,9 +820,12 @@ id = "combination-153"
     record = "anti heisenberg n4 flip+K o2 grouped split 928dff9113bdcaf7 rows 380 tautologies 0"
 [[cases]]
 id = "combination-154"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti heisenberg n4 flip+K o1 density 5004c611e1addc54 rows 71 tautologies 0"
+    record = "anti heisenberg n4 flip+K o1 density rows 71 tautologies 0 variables 29 cones [(:psd, 4), (:psd, 4), (:psd, 5), (:psd, 8)]"
+    objective = -8.898979522682675
 [[cases]]
 id = "combination-155"
 
@@ -791,9 +843,12 @@ id = "combination-157"
     record = "anti heisenberg n4 t+r+flip+K o2 grouped split 08d25ca054151874 rows 109 tautologies 0"
 [[cases]]
 id = "combination-158"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti heisenberg n4 t+r+flip+K o1 density d04808101632f42c rows 28 tautologies 0"
+    record = "anti heisenberg n4 t+r+flip+K o1 density rows 28 tautologies 0 variables 12 cones [(:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 3), (:psd, 3)]"
+    objective = -8.000000000048011
 [[cases]]
 id = "combination-159"
 
@@ -851,9 +906,12 @@ id = "combination-169"
     record = "anti heisenberg n6 t+r+K o2 grouped split d1bb17cc18678f70 rows 167 tautologies 0"
 [[cases]]
 id = "combination-170"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti heisenberg n6 t+r+K o1 density 3b4012f915cfa48a rows 52 tautologies 0"
+    record = "anti heisenberg n6 t+r+K o1 density rows 52 tautologies 0 variables 24 cones [(:psd, 2), (:psd, 3), (:psd, 3), (:psd, 3), (:psd, 4), (:psd, 6)]"
+    objective = -12.000000000365102
 [[cases]]
 id = "combination-171"
 
@@ -871,9 +929,12 @@ id = "combination-173"
     record = "anti heisenberg n6 flip+K o2 grouped split a4319ad84f850730 rows 517 tautologies 0"
 [[cases]]
 id = "combination-174"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti heisenberg n6 flip+K o1 density 0923a69756a6e9e0 rows 126 tautologies 0"
+    record = "anti heisenberg n6 flip+K o1 density rows 126 tautologies 0 variables 58 cones [(:psd, 4), (:psd, 4), (:psd, 7), (:psd, 12)]"
+    objective = -15.436247371352925
 [[cases]]
 id = "combination-175"
 
@@ -891,9 +952,12 @@ id = "combination-177"
     record = "anti heisenberg n6 t+r+flip+K o2 grouped split d1bb17cc18678f70 rows 167 tautologies 0"
 [[cases]]
 id = "combination-178"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti heisenberg n6 t+r+flip+K o1 density 86b184ad942e5432 rows 32 tautologies 0"
+    record = "anti heisenberg n6 t+r+flip+K o1 density rows 32 tautologies 0 variables 15 cones [(:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 3), (:psd, 3)]"
+    objective = -12.000000258424132
 [[cases]]
 id = "combination-179"
 
@@ -951,9 +1015,12 @@ id = "combination-189"
     record = "anti xxz n4 t+r+K o2 grouped split c101ddbf165c8aab rows 109 tautologies 0"
 [[cases]]
 id = "combination-190"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti xxz n4 t+r+K o1 density c1e067d30ad5d968 rows 46 tautologies 0"
+    record = "anti xxz n4 t+r+K o1 density rows 46 tautologies 0 variables 20 cones [(:psd, 2), (:psd, 3), (:psd, 3), (:psd, 4), (:psd, 6)]"
+    objective = -6.513142742935285
 [[cases]]
 id = "combination-191"
 
@@ -971,9 +1038,12 @@ id = "combination-193"
     record = "anti xxz n4 flip+K o2 grouped split d28e04f34d26a378 rows 380 tautologies 0"
 [[cases]]
 id = "combination-194"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti xxz n4 flip+K o1 density f0d0c97d27c85d2b rows 71 tautologies 0"
+    record = "anti xxz n4 flip+K o1 density rows 71 tautologies 0 variables 29 cones [(:psd, 4), (:psd, 4), (:psd, 5), (:psd, 8)]"
+    objective = -7.260029628107647
 [[cases]]
 id = "combination-195"
 
@@ -991,9 +1061,12 @@ id = "combination-197"
     record = "anti xxz n4 t+r+flip+K o2 grouped split c101ddbf165c8aab rows 109 tautologies 0"
 [[cases]]
 id = "combination-198"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti xxz n4 t+r+flip+K o1 density 22baf662c76ee519 rows 28 tautologies 0"
+    record = "anti xxz n4 t+r+flip+K o1 density rows 28 tautologies 0 variables 12 cones [(:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 3), (:psd, 3)]"
+    objective = -6.513142757178641
 [[cases]]
 id = "combination-199"
 
@@ -1051,9 +1124,12 @@ id = "combination-209"
     record = "anti xxz n6 t+r+K o2 grouped split 374ee989fcb3ae4b rows 167 tautologies 0"
 [[cases]]
 id = "combination-210"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti xxz n6 t+r+K o1 density 3427b659f9494f5e rows 52 tautologies 0"
+    record = "anti xxz n6 t+r+K o1 density rows 52 tautologies 0 variables 24 cones [(:psd, 2), (:psd, 3), (:psd, 3), (:psd, 3), (:psd, 4), (:psd, 6)]"
+    objective = -9.769714156226083
 [[cases]]
 id = "combination-211"
 
@@ -1071,9 +1147,12 @@ id = "combination-213"
     record = "anti xxz n6 flip+K o2 grouped split 6da29aed6fda51ba rows 517 tautologies 0"
 [[cases]]
 id = "combination-214"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti xxz n6 flip+K o1 density 31bb2ebb43c25902 rows 126 tautologies 0"
+    record = "anti xxz n6 flip+K o1 density rows 126 tautologies 0 variables 58 cones [(:psd, 4), (:psd, 4), (:psd, 7), (:psd, 12)]"
+    objective = -12.444868274242527
 [[cases]]
 id = "combination-215"
 
@@ -1091,9 +1170,12 @@ id = "combination-217"
     record = "anti xxz n6 t+r+flip+K o2 grouped split 374ee989fcb3ae4b rows 167 tautologies 0"
 [[cases]]
 id = "combination-218"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti xxz n6 t+r+flip+K o1 density 60568e8589941a74 rows 32 tautologies 0"
+    record = "anti xxz n6 t+r+flip+K o1 density rows 32 tautologies 0 variables 15 cones [(:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 1), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 2), (:psd, 3), (:psd, 3)]"
+    objective = -9.769714124002142
 [[cases]]
 id = "combination-219"
 
@@ -1151,9 +1233,12 @@ id = "combination-229"
     record = "anti ising n4 t+r+K o2 grouped split d36dc2c3b1c3c1f7 rows 197 tautologies 0"
 [[cases]]
 id = "combination-230"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti ising n4 t+r+K o1 density 8cdfb064a56b10fa rows 46 tautologies 0"
+    record = "anti ising n4 t+r+K o1 density rows 46 tautologies 0 variables 20 cones [(:psd, 2), (:psd, 3), (:psd, 3), (:psd, 4), (:psd, 6)]"
+    objective = -4.63685185494715
 [[cases]]
 id = "combination-231"
 
@@ -1211,6 +1296,9 @@ id = "combination-241"
     record = "anti ising n6 t+r+K o2 grouped split 83c87f207b01d40a rows 398 tautologies 0"
 [[cases]]
 id = "combination-242"
+comparison = "invariant"
+notes = "C: DensityMatrix eigenbasis may rotate. Rows, tautologies, variables, sorted cone kinds/sides and optimum are invariant; no digest or nonzero count. Bound: reviewed Mosek solve on 1a421de (SKYLAKEX), atol=1e-6."
 
     [cases.expected]
-    record = "anti ising n6 t+r+K o1 density 4b51ac22388195ba rows 52 tautologies 0"
+    record = "anti ising n6 t+r+K o1 density rows 52 tautologies 0 variables 24 cones [(:psd, 2), (:psd, 3), (:psd, 3), (:psd, 3), (:psd, 4), (:psd, 6)]"
+    objective = -6.907349375094907

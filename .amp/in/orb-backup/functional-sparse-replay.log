@@ -1,0 +1,13 @@
+(trace = false, order = "old", seed = "current", rows = 9, active = 9, sides = [1, 2, 2, 2, 2, 3, 3], bound = -2.8284271271661083)
+(trace = false, order = "old", seed = "legacy", rows = 9, active = 4, sides = [1, 1, 1, 1, 1, 3, 3], bound = -2.8284271248031554)
+(trace = false, order = "new", seed = "current", rows = 9, active = 9, sides = [1, 2, 2, 2, 2, 3, 3], bound = -2.8284271271661083)
+(trace = false, order = "new", seed = "legacy", rows = 9, active = 4, sides = [1, 1, 1, 1, 1, 3, 3], bound = -2.8284271248031554)
+(trace = true, order = "old", seed = "current", rows = 5, active = 5, sides = [1, 3, 3], bound = -2.8284271248031563)
+(trace = true, order = "old", seed = "legacy", rows = 5, active = 5, sides = [1, 3, 3], bound = -2.8284271248031563)
+(trace = true, order = "new", seed = "current", rows = 5, active = 5, sides = [1, 3, 3], bound = -2.8284271248031563)
+(trace = true, order = "new", seed = "legacy", rows = 5, active = 5, sides = [1, 3, 3], bound = -2.8284271248031563)
+bilocal degree=6 terms=44
+t2-n4 degree=4 terms=26
+real 62.83
+user 62.67
+sys 0.86

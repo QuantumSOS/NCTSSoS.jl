@@ -1,0 +1,57 @@
+(name = "trace-chsh", sparse = false, route = :old, seconds = 7.485921243, bytes = 996549352, blocks = 1, maxside = 9)
+(name = "trace-chsh", sparse = false, route = :new, seconds = 15.424690803, bytes = 2799750024, blocks = 1, maxside = 9)
+(name = "trace-chsh", sparse = true, route = :old, seconds = 1.024026137, bytes = 52451904, blocks = 3, maxside = 3)
+
+[908959] signal 15: Terminated
+in expression starting at /home/user/workspace/repo/.amp/in/orb-backup/functional-build-pilot.jl:6
+unknown function (ip: 0x7f4c9c14572c) at /lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7f4c9c13a387) at /lib/x86_64-linux-gnu/libc.so.6
+unknown function (ip: 0x7f4c9c13a9ab) at /lib/x86_64-linux-gnu/libc.so.6
+pthread_cond_wait at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+uv_cond_wait at /workspace/srcdir/libuv/src/unix/thread.c:822
+ijl_task_get_next at /cache/build/builder-amdci5-2/julialang/julia-ci/src/scheduler.c:523
+poptask at ./task.jl:1216
+wait at ./task.jl:1228
+#wait#406 at ./condition.jl:141
+wait at ./condition.jl:136 [inlined]
+_trywait at ./asyncevent.jl:185
+profile_printing_listener at ./Base.jl:332
+#start_profile_listener##0 at ./Base.jl:352
+jfptr_YY.start_profile_listenerYY.YY.0_2956.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+start_task at /cache/build/builder-amdci5-2/julialang/julia-ci/src/task.c:1253
+unknown function (ip: (nil)) at (unknown file)
+gc_mark_obj8 at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:1709 [inlined]
+gc_mark_outrefs at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:2468 [inlined]
+gc_mark_loop_serial_ at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:2524
+gc_mark_loop_serial at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:2547
+gc_mark_loop at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:2735 [inlined]
+_jl_gc_collect at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:3079
+ijl_gc_collect at /cache/build/builder-amdci5-2/julialang/julia-ci/src/gc-stock.c:3482
+gc at ./gcutils.jl:133 [inlined]
+gc at ./gcutils.jl:133
+jfptr_gc_45877.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+top-level scope at /home/user/workspace/repo/.amp/in/orb-backup/functional-build-pilot.jl:13
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1024
+jl_toplevel_eval_flex at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:975
+ijl_toplevel_eval at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1047
+ijl_toplevel_eval_in at /cache/build/builder-amdci5-2/julialang/julia-ci/src/toplevel.c:1092
+eval at ./boot.jl:489
+include_string at ./loading.jl:2952
+_include at ./loading.jl:3012
+include at ./Base.jl:306
+exec_options at ./client.jl:317
+_start at ./client.jl:550
+jfptr__start_65616.1 at /home/user/.julia/juliaup/julia-1.12.7+0.x64.linux.gnu/lib/julia/sys.so (unknown line)
+jl_apply at /cache/build/builder-amdci5-2/julialang/julia-ci/src/julia.h:2394 [inlined]
+true_main at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:985
+jl_repl_entrypoint at /cache/build/builder-amdci5-2/julialang/julia-ci/src/jlapi.c:1153
+main at /cache/build/builder-amdci5-2/julialang/julia-ci/cli/loader_exe.c:58
+unknown function (ip: 0x7f4c9c0d4ca7) at /lib/x86_64-linux-gnu/libc.so.6
+__libc_start_main at /lib/x86_64-linux-gnu/libc.so.6 (unknown line)
+unknown function (ip: 0x4010b8) at /workspace/srcdir/glibc-2.17/csu/../sysdeps/x86_64/start.S
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 132384403 (Pool: 132383222; Big: 1181); GC: 25
+real 61.41
+user 61.04
+sys 1.09

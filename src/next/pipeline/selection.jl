@@ -58,12 +58,15 @@ function _site_groups(problem,method::Correlative)
     graph,_=_interaction_graph(problem)
     sort!.(clique_decomp(graph,method.algorithm))
 end
-function _site_groups(problem,method::Correlative,::Type{W}) where {W<:SiteWord}
+_site_letters(::Type{W},registry,site) where {W} = filter(!isone,basis_rows(W,registry.algebra,[site],1))
+_site_letters(::Type{W},registry,site) where {W<:FunctionalWord} =
+    W[site_letter(W,site,label) for label in 1:registry.algebra.base.nletters]
+function _site_groups(problem,method::Correlative,::Type{W}) where {W<:Union{SiteWord,FunctionalWord}}
     registry=problem.objective.registry
     # Site-major numbering matches the current package's letter graph.
-    letters=W[w for site in 1:registry.nsites for w in basis_rows(W,registry.algebra,[site],1) if !isone(w)]
+    letters=W[w for site in 1:registry.nsites for w in _site_letters(W,registry,site)]
     index=Dict(w=>i for (i,w) in enumerate(letters))
-    support(w)=[index[v] for v in word_letters(_pack_word(W,w))]
+    support(w)=[index[_pack_word(W,v)] for v in support_letters(w)]
     graph,_=_interaction_graph(problem,length(letters),support)
     [letters[sort!(clique)] for clique in clique_decomp(graph,method.algorithm)]
 end
@@ -78,11 +81,11 @@ end
 
 _group_rows(::Nothing,W,registry,group,order) = basis_rows(W,registry.algebra,group,order)
 _group_sites(group) = group
-_group_sites(group::AbstractVector{<:SiteWord}) = sort!(unique!(reduce(vcat,collect.(sites.(group));init=Int[])))
+_group_sites(group::AbstractVector{<:Union{SiteWord,FunctionalWord}}) = sort!(unique!(reduce(vcat,collect.(sites.(group));init=Int[])))
 _group_region(group,region) = region
-_group_region(group::AbstractVector{<:SiteWord},region) = filter(w->only(sites(w)) in region,group)
+_group_region(group::AbstractVector{<:Union{SiteWord,FunctionalWord}},region) = filter(w->only(sites(w)) in region,group)
 _in_group(w,group) = issubset(sites(w),group)
-_in_group(w::SiteWord,group::AbstractVector{<:SiteWord}) = all(in(group),word_letters(w))
+_in_group(w::Union{SiteWord,FunctionalWord},group::AbstractVector{<:Union{SiteWord,FunctionalWord}}) = all(in(group),support_letters(w))
 function _group_rows(rule::Contiguous,W,registry,group,order)
     rows=Set([one(W)])
     physical_sites=_group_sites(group)

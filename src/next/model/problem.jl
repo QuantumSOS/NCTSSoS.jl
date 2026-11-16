@@ -298,9 +298,6 @@ function build(p::Problem,r::Relaxation)
     if p.objective.registry.algebra isa MixedAlgebra && _uses_blocks(p,r)
         throw(ArgumentError("Mixed algebras support the plain route only; remove symmetry, grouping, split, row_rule, family and strengthening, and use order or custom rows."))
     end
-    if p.objective.registry.algebra isa FunctionalAlgebra && _uses_blocks(p,r)
-        throw(ArgumentError("State/trace polynomials currently support the plain dense route only; remove symmetry, grouping, split, row_rule, family and strengthening, and use Relaxation(order=...)."))
-    end
     _uses_blocks(p,r) && return _build_blocks(p,r)
     # Recheck mutable polynomial storage rather than trusting stale construction checks.
     Problem(p.objective;constraints=p.constraints)

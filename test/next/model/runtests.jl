@@ -1,5 +1,8 @@
 # Tests of the model layer of NCTSSoS.Next.
 
+include("sympleq.jl")
+SympleQChecks.check()
+
 include("mixed.jl")
 MixedModelChecks.check(Nx.JuMPBackend(SOLVER))
 

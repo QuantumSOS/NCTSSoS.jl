@@ -27,7 +27,7 @@ function _check_symmetry_domain(p::Polynomial,s)
     W=eltype(p.data.words)
     n=p.registry.nsites
     for (i,g) in enumerate(Iterators.flatten((s.generators,s.moment_only)))
-        applicable(act,g,one(W)) || throw(ArgumentError("Symmetry generator $i has an incompatible algebra or word type; construct its images with this problem's variables and word type $W."))
+        applicable(act,g,one(W)) || throw(ArgumentError("Symmetry generator $i has an incompatible algebra or word type; construct its images with this problem's variables and word type $W. Use SitePermutation for whole-site maps, LetterPermutation for Free/Projector/Unipotent letters, or CliffordMap/AntiunitaryPauli for Pauli variables."))
         lastsite = g isa SitePermutation ? length(g.images) :
             g isa LetterPermutation ? _action_sites(g) :
             g isa CliffordMap ? length(g.columns)÷2 :

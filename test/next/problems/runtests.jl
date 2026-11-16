@@ -25,11 +25,12 @@ include("fermionic/fermionic_chain.jl")
 include("fermionic/xy_model.jl")
 include("condensed_matter/bose_hubbard.jl")
 include("benchmarks.jl")
+include("condensed_matter/heisenberg.jl")
 
 # SOS checks are opt-in: call check(; sos_solver=MosekBackend(form=:sos))
 # after loading Mosek and checking its licence. The CI baseline needs no licence.
 function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing,
-    benchmark_solver=BENCHMARK_SOLVER)
+    benchmark_solver=BENCHMARK_SOLVER,references=false)
     @testset "Next: reviewed problem fixtures" begin
         nc_example1(solver, sos_solver)
         nc_example2(solver, sos_solver)
@@ -44,6 +45,9 @@ function check(; solver=JuMPBackend(SOLVER), sos_solver=nothing,
         xy_model(solver)
         bose_hubbard(solver)
         benchmark_contracts(benchmark_solver, sos_solver)
+        heisenberg_star(solver,sos_solver;references)
+        heisenberg_spin(solver)
+        heisenberg_structure()
     end
 end
 end

@@ -1,0 +1,72 @@
+schema_version = 1
+
+[[cases]]
+id = "n2_spatial"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 10
+    sides = [4, 3]
+[[cases]]
+id = "n2_rotation"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 6
+    sides = [3, 2, 2]
+[[cases]]
+id = "n2_singlet"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 1
+    sides = [7]
+[[cases]]
+id = "n2_combined"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 4
+    sides = [2, 1, 1, 1, 1, 1]
+[[cases]]
+id = "n4_spatial"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 16
+    sides = [4, 3, 3]
+[[cases]]
+id = "n4_rotation"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 23
+    sides = [5, 4, 4]
+[[cases]]
+id = "n4_singlet"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 256
+    sides = [13]
+[[cases]]
+id = "n4_combined"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 15
+    sides = [2, 1, 1, 1, 1, 1, 1, 1, 1]
+[[cases]]
+id = "n16_order2"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 1273
+    sides = [34, 18, 7, 7, 7, 37, 32, 40, 32, 37, 32, 40, 32, 37, 32, 40, 32, 37, 32, 21, 18, 11, 4, 4, 7, 7]
+[[cases]]
+id = "n16_contiguous4"
+notes = "Implementation size oracle captured on 4d29c6e, 2026-11-16. Continuous cones use the support split from PR #477; not a mathematical energy reference."
+
+    [cases.expected]
+    moments = 6150
+    sides = [39, 34, 22, 26, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 26, 34, 34, 26]

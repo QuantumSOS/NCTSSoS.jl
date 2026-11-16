@@ -59,6 +59,19 @@ include("test/next/problems/runtests.jl")
 NextProblemChecks.check(;sos_solver=MosekBackend(form=:sos))
 ```
 
+The Next Heisenberg star checks (8-site dense, 10-site dense and MF grouping)
+take more than 20 seconds per case. The routine runner reports explicit skips;
+run them with the original COSMO settings through `references=true`:
+
+```julia
+include("test/next/problems/runtests.jl")
+NextProblemChecks.check(;references=true)
+```
+
+After checking the Mosek licence, add `sos_solver=MosekBackend(form=:sos)`
+to include the 8-site SOS check. The Majumdar–Ghosh bound, small spin and
+singlet checks, and 16-site structure checks remain in the routine runner.
+
 ## Standalone Local-Only Benchmark Scripts
 
 Some heavier literature reproductions live under `test/problems/` but are not

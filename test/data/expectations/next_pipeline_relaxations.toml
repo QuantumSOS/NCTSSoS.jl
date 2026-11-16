@@ -1,0 +1,26 @@
+schema_version = 1
+
+[[cases]]
+id = "antiunitary_custom"
+notes = "Structural record captured on redesign 6ec1e3809b603bca469103a93dd37fef6c3c8595 on 2026-11-16. These are Next implementation sizes, not legacy fixtures or mathematical bounds."
+
+    [cases.expected]
+    real_variables = 4
+    rows = 5
+    sides = [5]
+[[cases]]
+id = "bosonic_sector"
+notes = "Structural record captured on redesign 6ec1e3809b603bca469103a93dd37fef6c3c8595 on 2026-11-16. These are Next implementation sizes, not legacy fixtures or mathematical bounds."
+
+    [cases.expected]
+    real_variables = 9
+    rows = 10
+    sides = [10]
+[[cases]]
+id = "bosonic_sector_split"
+notes = "Structural record captured on redesign 6ec1e3809b603bca469103a93dd37fef6c3c8595 on 2026-11-16. These are Next implementation sizes, not legacy fixtures or mathematical bounds."
+
+    [cases.expected]
+    real_variables = 16
+    rows = 10
+    sides = [1, 1, 1, 2, 2, 3]

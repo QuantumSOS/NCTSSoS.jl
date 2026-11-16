@@ -12,7 +12,7 @@ over quantum states via the moment-SOS hierarchy
 This example covers three problems of increasing complexity:
 
 1. A **toy problem** with projector variables — minimal setup to learn the API.
-2. The **CHSH Bell inequality** — constructing its tracial objective.
+2. The **CHSH Bell inequality** — recovering the Tsirelson bound $2\sqrt{2}$.
 3. A **covariance Bell inequality** — nonlinear objective involving products
    of trace moments.
 
@@ -151,6 +151,20 @@ p = -1.0 * trace_symbol(x[1] * y[1]) +  ## −tr(A₁B₁)
     -1.0 * trace_symbol(x[1] * y[2]) +  ## −tr(A₁B₂)
     -1.0 * trace_symbol(x[2] * y[1]) +  ## −tr(A₂B₁)
      1.0 * trace_symbol(x[2] * y[2]);   ## +tr(A₂B₂)
+````
+
+#### Step 3 — Solve the dense relaxation
+
+````julia
+result = solve(Problem(p), Relaxation(order=1); solver=SOLVER);
+
+@show result.bound
+@assert isapprox(result.bound, -2 * sqrt(2), atol=1e-5)
+````
+
+````
+result.bound = -2.8284271247528463
+
 ````
 
 Term sparsity for state and trace polynomials is not available in this release.

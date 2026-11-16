@@ -3,7 +3,7 @@ isdefined(@__MODULE__, :SOLVER) || include("../../TestUtils.jl")
 module PublicCorrelativeChecks
 using Test, TOML
 using NCTSSoS.Next
-import JuMP
+import JuMP, Graphs, NCTSSoS
 import ..SOLVER
 
 function fixture(file,id)
@@ -12,6 +12,8 @@ function fixture(file,id)
 end
 
 include("core_pipeline.jl")
+include("elimination.jl")
+include("natural_groups.jl")
 
 function broyden()
     _,(x,)=site_variables(Free(),1,5)
@@ -29,6 +31,8 @@ function check(;solver=JuMPBackend(SOLVER),sos_solver=nothing,references=false)
     correlated_structure()
     correlated_numeric(solver,sos_solver)
     correlated_sos(sos_solver)
+    elimination_contracts()
+    natural_groups()
     @testset "Joint custom Pauli rows" begin
         r,ops=pauli_variables(3)
         h=sum(a[i]*a[i+1] for a in ops for i in 1:2)/4

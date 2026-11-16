@@ -88,13 +88,23 @@ end
     @test report.split==1
     @test report.largest_after==2
     @test all(b->b.kind==Nx.HPSD,reduced.blocks)
+    @test only(report.blocks).multiplicities==[2]
     check_split_spectra(original,reduced,report)
+    # Equal individual spectra do not imply simultaneous unitary equivalence:
+    # transposition flips Y but leaves X and Z unchanged.
+    paulis=[ComplexF64[1 0;0 1],ComplexF64[0 1;1 0],
+        ComplexF64[0 -im;im 0],ComplexF64[1 0;0 -1]]
+    chiral=coefficient_program([cat(A,transpose(A);dims=(1,2)) for A in paulis])
+    kept,chiral_report=Nx._continuous_blocks(chiral)
+    @test only(chiral_report.blocks).sides==[2,2]
+    @test only(chiral_report.blocks).multiplicities==[1,1]
+    check_split_spectra(chiral,kept,chiral_report)
     for kwargs in ((max_side=1,),(max_bytes=1,))
         kept,reason=Nx._continuous_blocks(original;kwargs...)
-        @test reason.split==0
-        @test kept.forms.ids==original.forms.ids
-        @test kept.forms.coefs==original.forms.coefs
-        @test only(values(reason.kept))==1
+        # Exact family components precede the spectral resource caps too.
+        @test only(reason.blocks).reason==:support_split
+        @test only(reason.blocks).sides==[2,2]
+        check_split_spectra(original,kept,reason)
         # Interleaved components test both row mapping and complex conjugation.
         perm=[1,3,2,4]
         disconnected=coefficient_program([A[perm,perm] for A in matrices])
@@ -109,6 +119,10 @@ end
         tiny=coefficient_program(coupled)
         kept,report=Nx._continuous_blocks(tiny;family_blocks=0,kwargs...)
         @test report.split==0
+        @test kept.forms.coefs==tiny.forms.coefs
+        # Diagonal actions never invoke discovery, even on a connected cone.
+        kept,report=Nx._continuous_blocks(tiny;diagonal=true,kwargs...)
+        @test only(report.blocks).reason==:diagonal
         @test kept.forms.coefs==tiny.forms.coefs
     end
 end
@@ -152,6 +166,8 @@ end
     # The +1 and -1 charge blocks remain distinct in the absence of a pairing map.
     @test sort(first(report.blocks).sides)==[1,1,1,2,2]
     @test first(report.blocks).multiplicities==ones(Int,5)
+    @test first(report.blocks).reason==:support_split
+    @test report.reconstruction_error==report.orthogonality_error==0
     start=length(first(report.blocks).outputs)
     @test built.sizes.closure.strengthening.first_block==start+1
     @test built.sizes.closure.strengthening.added_blocks==length(built.program.blocks)-start
@@ -220,7 +236,7 @@ end
         check_split_spectra(unreduced,built.program,report)
         @test continuous_bound(unreduced)≈continuous_bound(built.program) atol=1e-6
         if localizer
-            @test any(r->unreduced.blocks[r.input].label==1 && r.reason==:split,report.blocks)
+            @test any(r->unreduced.blocks[r.input].label==1 && maximum(r.sides)<r.before,report.blocks)
         end
     end
 end

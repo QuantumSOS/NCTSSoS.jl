@@ -69,8 +69,8 @@ function Base.show(io::IO,s::FamilySizes)
         print(io,"; continuous blocks: ",b.split," split, kept ",sort!(collect(b.kept);by=first),
             ", largest side ",b.largest_before," → ",b.largest_after,
             ", reconstruction error ",b.reconstruction_error,", orthogonality error ",b.orthogonality_error,
-            ", tolerance ",b.tolerance,", side cap ",b.side_cap,", coefficient memory cap ",b.memory_cap,
-            " bytes (largest candidate ",b.max_coefficient_bytes," bytes)")
+            ", tolerance ",b.tolerance,", side cap ",b.side_cap,", estimated allocation cap ",b.memory_cap,
+            " bytes (largest input coefficient storage ",b.max_coefficient_bytes," bytes)")
     end
     if !isnothing(r.strengthening)
         print(io,"; strengthening: ",r.strengthening.added_blocks," blocks, ",r.strengthening.added_equalities," equalities; ")
@@ -109,6 +109,7 @@ function build(problem::Problem,description::BlockRelaxation)
     max_letters=max(2order,degree(problem.objective),maximum((degree(c.polynomial) for c in problem.constraints);init=0))
     max_letters=max(max_letters,maximum((_strengthening_width(k,problem,order) for k in description.strengthen);init=0))
     registry=problem.objective.registry
+    # Only site-sized Pauli words change degree today; other degree-changing actions must select capacity after closure.
     W=word_type(registry,max_letters)
     _check_continuous(problem,description.symmetry,W)
     sectors=_checked_sectors(problem,description.strengthen,description.symmetry,W)

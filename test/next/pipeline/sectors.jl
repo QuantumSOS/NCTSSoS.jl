@@ -2,16 +2,17 @@ function sector_matrix(p,n)
     sum(c*physical_pauli(w,1:n) for (c,w) in Nx.terms(p))
 end
 
-@testset "Continuous sector keeps the base standard form" begin
+@testset "Continuous sector keeps the base equations" begin
     registry,(a,ad)=Nx.fermionic_variables(1)
     number=ad[1]*a[1]
     built=Nx.build(Nx.Problem(number;symmetry=(Nx.NumberRotation(registry),)),
         Nx.Relaxation(order=1,strengthen=Nx.Sector(number,1)))
     form=Nx.moment_standard_form(built.program)
-    # Frozen from redesign 5a794cb: occupation, vacancy, normalization, and
-    # the explicit number-sector equation, in the base program's order.
-    @test Matrix(form.A)==reshape([-1.0,1.0,0.0,1.0],4,1)
-    @test form.b==[0.0,1.0,1.0,1.0]
+    # Frozen from redesign 5a794cb; exact support splitting only permutes
+    # the occupation, vacancy and normalization cones. The sector stays explicit.
+    @test sort(collect(zip(vec(Matrix(form.A))[1:3],form.b[1:3])))==
+        sort([(-1.0,0.0),(1.0,1.0),(0.0,1.0)])
+    @test (form.A[4,1],form.b[4])==(1.0,1.0)
     @test form.c==[1.0]
     @test form.offset==0.0
     @test [(c.kind,c.side,c.first,c.length,c.label) for c in form.cones]==

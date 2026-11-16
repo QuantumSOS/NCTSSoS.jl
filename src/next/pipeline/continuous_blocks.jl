@@ -35,7 +35,10 @@ function _spectral_copies(matrices)
         end
         push!(components,nodes)
     end
-    return [[hcat([(Q[:,groups[i]]*transport[i])[:,a] for i in nodes]...)
+    # Reuse each transported eigenspace across its copies; recomputing it for
+    # every column makes a degenerate eigenspace allocate cubically in its side.
+    transported=[Q[:,groups[i]]*transport[i] for i in eachindex(groups)]
+    return [[hcat([view(transported[i],:,a) for i in nodes]...)
         for a in 1:length(groups[first(nodes)])] for nodes in components]
 end
 
@@ -123,18 +126,78 @@ function _copy_components!(out,program,block,components)
     return out
 end
 
+# Discovery on a small direct sum proposes an intertwiner. Only its unitarity
+# and its action on every original coefficient license dropping the second cone.
+# In particular, matching spectra alone cannot distinguish antiunitary copies.
+function _coefficient_intertwiner(A,B;atol)
+    scales=[max(1.0,norm(a,Inf),norm(b,Inf)) for (a,b) in zip(A,B)]
+    error=maximum(norm(a-b,Inf)/s for (a,b,s) in zip(A,B,scales))
+    error<=atol && return (accepted=true,reconstruction_error=error,orthogonality_error=0.0)
+    failed=(accepted=false,reconstruction_error=0.0,orthogonality_error=0.0)
+    all(isapprox(LinearAlgebra.tr(a),LinearAlgebra.tr(b);atol=atol*s,rtol=atol) &&
+        isapprox(norm(a),norm(b);atol=atol*s,rtol=atol) for (a,b,s) in zip(A,B,scales)) || return failed
+    n=size(first(A),1)
+    copies=_spectral_copies([cat(a,b;dims=(1,2)) for (a,b) in zip(A,B)])
+    # Off-diagonal parts of the proposed commutant span candidate intertwiners.
+    # A nonsingular candidate's polar factor is unitary; the coefficient check
+    # below is necessary even when discovery reports identical copies.
+    X=zeros(ComplexF64,n,n)
+    for component in copies,(i,U) in enumerate(component),(j,V) in enumerate(component)
+        X .+= complex(sin(i+sqrt(2)*j),cos(sqrt(3)*i+j)) .* (view(U,1:n,:)*view(V,n+1:2n,:)')
+    end
+    F=svd(X)
+    minimum(F.S)>1e-8*max(1.0,maximum(F.S)) || return failed
+    T=F.U*F.Vt
+    orthogonality=norm(T'*T-I,Inf)
+    error=maximum(norm(a-T*b*T',Inf)/s for (a,b,s) in zip(A,B,scales))
+    (accepted=max(error,orthogonality)<=atol,reconstruction_error=error,orthogonality_error=orthogonality)
+end
+
+function _coalesce_components(program,multiplicities;max_side,max_bytes,atol)
+    kept=Int[]
+    counts=Int[]
+    reconstruction=orthogonality=0.0
+    for (i,block) in enumerate(program.blocks)
+        matched=false
+        for (j,old) in enumerate(kept)
+            representative=program.blocks[old]
+            block.side==representative.side && block.kind==representative.kind || continue
+            ids=sort!(unique([program.forms.ids[t] for b in (representative,block)
+                for f in form_range(b) for t in term_range(program.forms,f)]))
+            side=2Int128(block.side)
+            side<=max_side && 32*16*length(ids)*side^2+1024^2<=max_bytes || continue
+            isempty(ids) && continue
+            A=_block_coefficients(program,representative,ids)
+            B=_block_coefficients(program,block,ids)
+            certificate=_coefficient_intertwiner(A,B;atol)
+            certificate.accepted || continue
+            counts[j]+=multiplicities[i]
+            reconstruction=max(reconstruction,certificate.reconstruction_error)
+            orthogonality=max(orthogonality,certificate.orthogonality_error)
+            matched=true
+            break
+        end
+        if !matched
+            push!(kept,i); push!(counts,multiplicities[i])
+        end
+    end
+    kept,counts,reconstruction,orthogonality
+end
+
 """
 Split family and strengthening PSD/HPSD blocks after exact continuous moment
-elimination. Strengthening cones first use an exact sparse coefficient-support
+elimination. All cones first use an exact sparse coefficient-support
 partition: copying principal submatrices and checking zero cross-component
-coefficients certifies it without dense storage. Otherwise use spectral discovery.
+coefficients certifies it without dense storage.
 For non-diagonal derivations, also run spectral discovery inside each exact
-component, with the same caps and certificate; failure keeps that component.
-Dense storage is bounded
-by both side and 16*K*n² bytes for the complex coefficient matrices; discovery
-and certification also need working matrices. Every unsuccessful proposal keeps
-the original block. Diagonal derivations need no discovery after an exact partition.
-Family blocks retain their existing discovery and resource-cap behavior.
+component, then remove equivalent components using coefficientwise-certified
+unitary intertwiners. Both steps use the same caps; failure keeps the component.
+Spectral work is capped per component by side and an allocation estimate:
+32 times the 16*K*n² coefficient storage plus 1 MiB for small-block workspaces.
+This allowance includes transformed matrices, edge trials and certification,
+not just the retained matrices; it is not a hard process-memory limit.
+Every unsuccessful proposal keeps
+the original block. Diagonal derivations never need spectral discovery.
 Tolerances use maximum-entry norms: absolute for
 U'U-I and relative to max(1, maxabs(A_k)) for coefficient reconstruction.
 """
@@ -147,14 +210,17 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),diagona
     for (input,block) in enumerate(program.blocks)
         ids=sort!(unique([program.forms.ids[t] for f in form_range(block) for t in term_range(program.forms,f)]))
         bytes=16*length(ids)*Int128(block.side)^2
+        # Warm discovery/certification allocates up to 19 times the coefficient
+        # storage in the spin controls; budget intermediates, not only inputs.
+        allocation_bytes=32bytes+1024^2
         reason=block.kind ∉ (PSD,HPSD) ? :not_psd : block.side>max_side ? :side_cap :
-            bytes>max_bytes ? :memory_cap : isempty(ids) ? :zero_block : :candidate
+            allocation_bytes>max_bytes ? :memory_cap : isempty(ids) ? :zero_block : :candidate
         first_output=length(out.blocks)+1
         reconstruction=orthogonality=0.0
         multiplicities=[1]
-        if block.kind in (PSD,HPSD) && input>family_blocks
+        if block.kind in (PSD,HPSD)
             components=_coefficient_components(program,block)
-            if length(components)>1
+            if diagonal || length(components)>1
                 if diagonal
                     _copy_components!(out,program,block,components)
                     multiplicities=ones(Int,length(components))
@@ -162,14 +228,16 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),diagona
                     pieces=MomentProgram{ComplexF64}(program.nvars)
                     _copy_components!(pieces,program,block,components)
                     reduced,report=_continuous_blocks(pieces;max_side,max_bytes,atol)
-                    for piece in reduced.blocks
-                        _copy_cone!(out,reduced,piece)
-                    end
                     multiplicities=reduce(vcat,(r.multiplicities for r in report.blocks))
-                    reconstruction=report.reconstruction_error
-                    orthogonality=report.orthogonality_error
+                    kept,multiplicities,reconstruction,orthogonality=_coalesce_components(reduced,multiplicities;
+                        max_side,max_bytes,atol=max(0.0,atol-max(report.reconstruction_error,report.orthogonality_error)))
+                    for piece in kept
+                        _copy_cone!(out,reduced,reduced.blocks[piece])
+                    end
+                    reconstruction+=report.reconstruction_error
+                    orthogonality+=report.orthogonality_error
                 end
-                reason=:support_split
+                reason=length(components)>1 ? :support_split : :diagonal
             end
         end
         if reason==:candidate
@@ -202,11 +270,11 @@ function _continuous_blocks(program;family_blocks=length(program.blocks),diagona
                 end
             end
         end
-        reason in (:split,:support_split) || _copy_cone!(out,program,block)
+        reason in (:split,:support_split,:diagonal) || _copy_cone!(out,program,block)
         outputs=collect(first_output:length(out.blocks))
         push!(records,(input=input,outputs=outputs,reason=reason,before=block.side,
             sides=[out.blocks[i].side for i in outputs],multiplicities=multiplicities,
-            coefficient_bytes=bytes,reconstruction_error=reconstruction,orthogonality_error=orthogonality))
+            coefficient_bytes=bytes,allocation_bytes,reconstruction_error=reconstruction,orthogonality_error=orthogonality))
     end
     psd_records=filter(r->program.blocks[r.input].kind in (PSD,HPSD),records)
     kept=Dict(reason=>count(r->r.reason==reason,records) for reason in unique(r.reason for r in records) if reason ∉ (:split,:support_split))

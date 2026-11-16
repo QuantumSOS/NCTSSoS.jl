@@ -1,5 +1,4 @@
 # Keep option displays at the layer that owns their constructors and defaults.
-import ..NCTSSoS: MMD
 
 _show_option_algorithm(io,algorithm) = show(IOContext(io,:module=>parentmodule(typeof(algorithm))),algorithm)
 function _show_option_algorithm(io,algorithm::MMD)

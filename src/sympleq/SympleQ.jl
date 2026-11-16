@@ -11,9 +11,9 @@
 # The exploit side from the SympleQ papers is intentionally not here.
 
 include("tableau.jl")
-include("graph.jl")
-include("cycles.jl")
-include("automorphism.jl")
-include("symplectic.jl")
-include("phase.jl")
+include("../next/sympleq/graph.jl")
+include("../next/sympleq/cycles.jl")
+include("../next/sympleq/automorphism.jl")
+include("../next/sympleq/symplectic.jl")
+include("../next/sympleq/phase.jl")
 include("bridge.jl")

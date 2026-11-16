@@ -81,12 +81,11 @@ Run SympleQ find-side Steps 1--7 and return candidate binary Clifford
 generators.
 """
 function sympleq_generators(
-    H::Polynomial{PauliAlgebra,T,C};
+    tab::SymplecticTableau;
     cycle_strategy::Symbol=:cycle_basis,
     ga_backend::Symbol=:backtracking,
     max_automorphisms::Int=100_000,
-) where {T<:Integer,C<:Number}
-    tab = SymplecticTableau(H)
+)
     graph = cycle_augmented_graph(tab; cycle_strategy)
     perms = automorphism_generators(graph; backend=ga_backend, max_automorphisms, paulis=tab.paulis)
     generators = SympleQGenerator[]

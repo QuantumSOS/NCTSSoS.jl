@@ -321,7 +321,7 @@ Seconds, in order: build wall time, prepare wall time, Mosek optimizer time.
 ````
 
 ````
-(0.007742698, 0.180336458, 161.64799615399534)
+(0.007817016, 0.17967968, 234.41841918998398)
 ````
 
 Detection depends on the 30 Hamiltonian terms, not on the relaxation order.
@@ -334,7 +334,7 @@ detect_seconds = @elapsed detected10 = detect_symmetry(H10);
 ````
 
 ````
-(1.0401407, 6, 1)
+(0.319865642, 6, 1)
 ````
 
 Inspect the detected family's final block sides without solving it:
@@ -396,7 +396,7 @@ Seconds, in the same order:
 ````
 
 ````
-(0.01337498, 0.009885752, 0.03675184200255899)
+(0.014620101, 0.012039073, 0.05193510800017975)
 ````
 
 Compare bounds with tolerance `1e-6`. This checks numerical agreement,

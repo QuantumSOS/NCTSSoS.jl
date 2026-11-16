@@ -1,0 +1,11 @@
+schema_version = 1
+
+[[cases]]
+id = "broyden_eigenvalue_n5"
+notes = "Next structural record captured at redesign 6ec1e3809b603bca469103a93dd37fef6c3c8595 on 2026-11-16. Maximum block sides agree with the unchanged Wang-Magron fixture. Variable counts are implementation records, not mathematical claims."
+
+    [cases.expected]
+    dense_variables = 9921
+    sparse_variables = 937
+    dense_max_side = 156
+    sparse_max_side = 11

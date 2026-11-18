@@ -177,6 +177,23 @@ function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},de
     end
 end
 
+# Translating [S,w] gives [S,T(w)] only if T preserves S. Verify the
+# signed one-site terms of every spin sum before using this identity.
+function _ward_translation(table::OrbitMoments{W},derivations) where W
+    isnothing(table.cyclic) && return nothing
+    t=table.cyclic.generator
+    is_antiunitary(t) && return nothing
+    for d in derivations
+        d isa SpinRotation || return nothing
+        terms=Set(pauli_letter(W,i,d.axis) for i in MaskSites(d.support))
+        for w in terms
+            p,v=act(t,w)
+            isone(p) && v in terms || return nothing
+        end
+    end
+    return t
+end
+
 function _continuous_program_rational(program::MomentProgram{C},table::OrbitMoments{W},derivations,::Type{R};diagonal=true,algebra) where {C,W,R}
     initial=program.nvars
     support=sort!(unique!([site for label in table.labels for site in sites(label.word)]))
@@ -192,11 +209,24 @@ function _continuous_program_rational(program::MomentProgram{C},table::OrbitMome
     # the derivations). Such equations must not disappear with that orbit.
     queue=sort!(unique!([collect(keys(table.cache));[label.word for label in table.labels]]))
     seen=Set(queue)
+    translation=_ward_translation(table,derivations)
+    translated=Set{W}()
     cursor=1
     labels_seen=length(table.labels)
     while cursor<=length(queue)
         w=queue[cursor]
         cursor+=1
+        if !isnothing(translation)
+            w in translated && continue
+            # Only aliases under T, not the whole finite orbit: a word
+            # forced to zero can still generate an independent equation.
+            v=w
+            while true
+                push!(translated,v)
+                _,v=act(translation,v)
+                v==w && break
+            end
+        end
         for d in derivations
             empty!(derivative.terms)
             derive!(derivative,d,w,one(Complex{R}))

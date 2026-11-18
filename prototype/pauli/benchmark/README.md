@@ -45,7 +45,7 @@ The commit flag is the operator's attestation that the revision has been reviewe
 
 Archive `environment.json`, `Project.toml`, `Manifest.toml`, `results.jsonl` and logs. Reuse those dependency lockfiles for repeat campaigns (local package paths in the manifest must point to the same pinned checkouts). The setup command resolves an initial manifest; rerunning setup later is not equivalent to using the archived manifest.
 
-Record setup wall time separately. Setup installs the local `PauliWorkflowRedesign` package so fresh workers can use its Julia cache. The cache workload builds a symbolic three-site open chain and an anisotropic five-site ring; it does not run a solver or retain a plan. For environments from the original direct-include comparison, add the local prototype to a **copy** of the locked environment, check the dependency diff, and archive the new manifest. Do not replace the original lockfile or run a measured case to warm the cache.
+Record setup wall time separately. Setup installs the local `PauliWorkflowRedesign` package so fresh workers can use its Julia cache. The cache workload builds a symbolic three-site open chain and anisotropic range-one rings at 5 and 65 sites, covering one- and two-limb Pauli words. It does not run a solver or retain a plan. For environments from the original direct-include comparison, add the local prototype to a **copy** of the locked environment, check the dependency diff, and archive the new manifest. Do not replace the original lockfile or run a measured case to warm the cache.
 
 ## Read the evidence
 

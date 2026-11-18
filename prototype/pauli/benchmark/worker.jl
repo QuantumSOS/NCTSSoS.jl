@@ -15,6 +15,7 @@ Threads.nthreads(:default) == 1 && Threads.nthreads(:interactive) == 0 &&
 if ARGS == ["smoke"]
     @assert isapprox(exact_energy("chain", 4), -0.5; atol=1e-13)
     @assert isapprox(exact_energy("chain", 6), -(2 + sqrt(13))/12; atol=1e-13)
+    @assert all(n -> abs(bethe_ring(n).energy - exact_energy("chain",n)) < 1e-12, (4,6,8,10))
     torus = Set(minmax(i, j) for (i, j) in bonds("square", 4))
     @assert length(torus) == 32 && (1, 4) in torus && (1, 13) in torus && (1, 6) ∉ torus
     @assert all(i -> count(e -> i in e, torus) == 4, 1:16)
@@ -27,6 +28,11 @@ L = parse(Int, extent)
 strengthened = parse(Bool, strengthened_arg)
 if method == "ed"
     save_result(path, Dict("exact_energy_per_site" => exact_energy(lattice, L)))
+    exit()
+elseif method == "bethe"
+    lattice == "chain" || error("Bethe oracle is only for the periodic ring")
+    ground = bethe_ring(L)
+    save_result(path, Dict("exact_energy_per_site" => ground.energy, "bethe_max_residual" => ground.residual))
     exit()
 end
 

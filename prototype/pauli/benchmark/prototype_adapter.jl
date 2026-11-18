@@ -1,7 +1,9 @@
 import NCTSSoS
 realpath(pkgdir(NCTSSoS)) == realpath(joinpath(@__DIR__, "../../..")) ||
     error("the Julia environment does not load NCTSSoS from the reviewed checkout")
-include(joinpath(@__DIR__, "..", "PauliWorkflowRedesign.jl"))
+import PauliWorkflowRedesign
+realpath(pathof(PauliWorkflowRedesign)) == realpath(joinpath(@__DIR__, "..", "PauliWorkflowRedesign.jl")) ||
+    error("the Julia environment does not load the reviewed Pauli prototype")
 using .PauliWorkflowRedesign: compile_relaxation, solve_ground_state,
     PauliSymmetrySpec, PauliSparsitySpec, PauliStrengtheningSpec
 
@@ -12,13 +14,16 @@ function prototype_run(result, path, lattice, L, pair_range, control, strengthen
     H = (1 / (4n)) * sum(x[i]*x[j] + y[i]*y[j] + z[i]*z[j] for (i, j) in bonds(lattice, L))
     full = control && !strengthened
     order = strengthened ? 3 : 2
+    # Pin the equivalent moment form for the unstrengthened sparse campaign.
+    # At chain-40, the auto-selected SOS form stalled at the same tolerances.
+    moi_form = full || strengthened ? :auto : :dualized
     if full
-        plan = compile_relaxation(H; order=2, preset=:ExactNPA, moi_form=:auto)
+        plan = compile_relaxation(H; order, preset=:ExactNPA, moi_form)
     else
         rdm_regions = strengthened ? unique([sort([mod1(i+j,n) for j in 0:3]) for i in 1:n]) : Vector{Int}[]
         strengthening_options = strengthened ? (;
             strengthening=PauliStrengtheningSpec(commutator_linear_order=3, rdm_positivity_k=4), rdm_regions) : (;)
-        plan = compile_relaxation(H; order, moi_form=:auto,
+        plan = compile_relaxation(H; order, moi_form,
             symmetry=PauliSymmetrySpec(spatial_mode=:circulant_dft),
             sparsity=PauliSparsitySpec(support_mode=:contiguous_lattice,
                 two_body_range_r=pair_range, cs_algo=:NoElimination, ts_algo=:Maximal, ts_step=0),
@@ -32,7 +37,8 @@ function prototype_run(result, path, lattice, L, pair_range, control, strengthen
             :contiguous_lattice in plan.provenance.active_relaxations || error("lattice route not active")
     end
     result["prototype_settings"] = full ? "ExactNPA; moi_form=auto" :
-        "moi_form=auto; contiguous_lattice; range=$pair_range; circulant_dft; NoElimination; Maximal; ts_step=0"
+        "moi_form=$moi_form; contiguous_lattice; range=$pair_range; circulant_dft; NoElimination; Maximal; ts_step=0"
+    result["prototype_moi_form"] = string(plan.moi_form)
     result["prototype_order"] = order
     result["prototype_support_mode"] = string(plan.reports.support.mode)
     result["prototype_symmetry_route"] = string(plan.reports.symmetry.route)

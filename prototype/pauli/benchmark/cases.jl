@@ -29,3 +29,23 @@ function exact_energy(lattice, L)
     end
     return only(eigvals!(Symmetric(h), 1:1)) / n
 end
+
+# Periodic spin-1/2 XXX ring only. Ground-state quantum numbers and logarithmic
+# Bethe equations: https://pure.uva.nl/ws/files/29914613/PhysRevB..93.pdf, (4–5).
+# The +1/4 per site restores the constant subtracted in that paper's H.
+function bethe_ring(n)
+    iseven(n) && n >= 4 || error("expected even periodic ring")
+    m = n ÷ 2
+    q = (1:m) .- (m+1)/2
+    u = asinh.(tanpi.(2q/n)) ./ pi
+    for _ in 1:30
+        d = u .- transpose(u)
+        f = n .* atan.(2u) .- pi .* q .- vec(sum(atan.(d); dims=2))
+        if norm(f,Inf) < 1e-12 && all(>(0),diff(u)) && norm(u+reverse(u),Inf) < 1e-12
+            return (; energy=0.25-sum(inv.(u.^2 .+ 0.25))/(2n), residual=norm(f,Inf))
+        end
+        k = inv.(1 .+ d.^2)
+        u -= (Diagonal(2n ./ (1 .+ 4u.^2) .- vec(sum(k; dims=2))) + k) \ f
+    end
+    error("ground-state Bethe equations did not converge")
+end

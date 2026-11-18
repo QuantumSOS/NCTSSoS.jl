@@ -98,4 +98,9 @@ end
 
 const pauli_nctssos = solve_pauli_ground_state
 
+# Direct-include clients do not need a package environment for precompilation.
+if Base.PkgId(@__MODULE__).uuid !== nothing
+    include("src/precompile.jl")
+end
+
 end

@@ -113,9 +113,10 @@ Register supplemental packed rows, Hermitian scalar equality/inequality
 polynomials, and Hermitian polynomial PSD blocks before symmetry reduction.
 The compiler must map all entries to the same global moment table. Supply
 `moment_rows` as one packed row vector or a vector of such vectors to keep
-sector relations, stationarity, and default KMS perturbations local to the
-selected family. Omit it to enumerate dense bases. `rdm_regions` selects
-ordered subsets of up to six sites;
+sector relations and default KMS perturbations local to the selected family.
+Stationarity also uses the degree-limited words in each requested RDM region,
+without adding them as moment rows. Omit `moment_rows` to enumerate dense bases.
+`rdm_regions` selects ordered subsets of up to six sites;
 `rdm_positivity_k=k` alone requests every subset of size k.
 
 `:energy_window` covers arbitrary states whose energy expectation is in the
@@ -177,10 +178,26 @@ function workflow_strengthening(H::NC.Polynomial{W}, order::Integer;
         end
         push!(rules, (; kind=:sector_support, validity=:selected_sector))
     end
+
+    rdm_positivity_k <= min(n,6) || throw(ArgumentError("rdm_positivity_k must not exceed the site count or six."))
+    regions = isnothing(rdm_regions) ? _wf_regions(n, rdm_positivity_k) :
+        [_wf_checked_region(n, region) for region in rdm_regions]
+    all(sites -> rdm_positivity_k in (0,length(sites)), regions) ||
+        throw(ArgumentError("RDM region does not match rdm_positivity_k."))
     if commutator_linear_order > 0
         d = commutator_linear_order
-        words = isnothing(families) ? basis(d) : sort!(collect(Set{W}(
-            w for block in families for w in block if NC.degree(w) <= d)))
+        words = if isnothing(families)
+            basis(d)
+        else
+            selected = Set{W}(w for block in families for w in block if NC.degree(w) <= d)
+            # Stationarity tests an operator, not a Gram row. For example,
+            # a four-site RDM region contains punctured triples that are absent
+            # from a contiguous degree-three moment basis.
+            for sites in regions
+                union!(selected, NC.basis_rows(W, NC.Pauli(), sites, d))
+            end
+            sort!(collect(selected))
+        end
         for w in words
             u = _wf_word(HQ, w)
             _wf_nonzero!(equalities, im*(HQ*u-u*HQ))
@@ -220,11 +237,7 @@ function workflow_strengthening(H::NC.Polynomial{W}, order::Integer;
         throw(ArgumentError("kms_rows requires a positive kms_psd_order."))
     end
 
-    rdm_positivity_k <= min(n,6) || throw(ArgumentError("rdm_positivity_k must not exceed the site count or six."))
-    regions = isnothing(rdm_regions) ? _wf_regions(n, rdm_positivity_k) : rdm_regions
-    for region in regions
-        sites = _wf_checked_region(n, region)
-        rdm_positivity_k in (0,length(sites)) || throw(ArgumentError("RDM region does not match rdm_positivity_k."))
+    for sites in regions
         D = _wf_density(HQ, sites)
         if isnothing(target.mz)
             push!(psd_blocks, (;kind=:rdm_positivity, matrix=D))

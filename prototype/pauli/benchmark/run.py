@@ -40,7 +40,7 @@ class Case:
 # 'extra' and 'pair_range' are deliberately distinct, not equivalent knobs.
 CASES = [Case("chain", 4, 1, 2, True), Case("chain", 6, 2, 3, True),
          Case("square", 4, 0, 4, True),
-         *(Case("chain", L, 3, 4) for L in (24, 40, 64)),
+         *(Case("chain", L, 3, 4) for L in (24, 40, 60, 64, 80)),
          Case("chain", 8, 3, 4, True, True), Case("chain", 40, 3, 4, False, True)]
 
 
@@ -205,8 +205,9 @@ def main():
             raise SystemExit(f"Mosek preflight failed; see {out / 'preflight.log'}")
         for case in selected:
             exact = None
-            if case.exact_control:
-                oracle = invoke("ed", f"{case.id}-ed", case)
+            if case.exact_control or case.lattice == "chain":
+                method = "ed" if case.exact_control else "bethe"
+                oracle = invoke(method, f"{case.id}-{method}", case)
                 record(oracle)
                 if oracle["outcome"] != "ok":
                     failed = True

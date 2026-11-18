@@ -88,10 +88,13 @@ end
     local_rows = word.([one(Ham),xl[65],yl[65],zl[65]])
     lattice = workflow_strengthening(Ham,6;moment_rows=[local_rows],
         commutator_linear_order=6,kms_psd_order=6,rdm_regions=[(65,66)])
-    @test length(lattice.equalities) == 2
+    # The two-site RDM contributes all local test words; only the four
+    # words with exclusively I/Z labels commute with the unequal fields.
+    @test length(lattice.equalities) == 12
     @test [size(b.matrix) for b in lattice.psd_blocks] == [(2,2),(4,4)]
     @test all(w -> all(in((65,66)),NC.sites(w)),
-        (w for b in lattice.psd_blocks for p in b.matrix for (_,w) in NC.terms(p)))
+        (w for p in Iterators.flatten((lattice.equalities,(p for b in lattice.psd_blocks for p in b.matrix)))
+           for (_,w) in NC.terms(p)))
 end
 
 @testset "Verified rational bounds and asymmetric states" begin

@@ -31,17 +31,24 @@ class Case:
     reference_extra: int
     exact_control: bool = False
     strengthened: bool = False
+    paper_sdp_per_site: float | None = None
 
     @property
     def id(self):
         return f"{self.lattice}-{self.extent}" + ("-rdm" if self.strengthened else "")
 
+    @property
+    def staged(self):
+        return self.extent > (80 if self.lattice == "chain" else 6)
 
 CASES = [Case("chain", 4, 1, True), Case("chain", 6, 2, True),
          Case("chain", 8, 3, True), Case("chain", 8, 3, True, True),
          Case("square", 4, 0, True), Case("square", 4, 0, True, True),
-         *(Case("chain", L, 3, False, strengthened) for L in (60, 80) for strengthened in (False, True)),
-         Case("square", 6, 0), Case("square", 6, 0, False, True)]
+         *(Case("chain", L, 3, False, strengthened, paper) for L, paper in
+           ((60, -0.4433804), (80, -0.4432808), (90, None), (100, -0.4432378)) for strengthened in (False, True)),
+         *(Case("square", L, 0, False, strengthened, paper) for L, paper in
+           ((6, -0.680886), (8, -0.676370), (10, -0.674768), (12, -0.674200),
+            (14, -0.674548), (16, -0.674580)) for strengthened in (False, True))]
 
 
 def run_process(cmd, log, timeout, env):
@@ -168,6 +175,8 @@ def validate_bound(row, case, exact):
         row["outcome"] = "energy_check_failed"
         return
     row["energy_per_site"] = e
+    if case.paper_sdp_per_site is not None:
+        row["energy_minus_published_sdp_per_site"] = e - case.paper_sdp_per_site
     if exact is not None:
         row["signed_error_per_site"] = e - exact
         row["absolute_error_per_site"] = abs(e - exact)
@@ -186,7 +195,7 @@ def run_repeats(case, exact, methods, audits, repeats, invoke, record):
             break
         for position, method in enumerate(order, 1):
             row = invoke(method, f"{case.id}-{i+1}-{method}", case)
-            row.update(replicate=i + 1, execution_position=position)
+            row.update(replicate=i + 1, execution_position=position, settings_lane="order2_like_settings")
             if method != "reference":
                 audit = audits[method]
                 row["comparison_lane"] = audit["comparison_lane"]
@@ -221,13 +230,16 @@ def main():
     parser.add_argument("--out", required=True, type=Path, help="new result directory outside the checkout")
     parser.add_argument("--reviewed-cvm-commit", help="full reviewed integrated HEAD; attest this is the Tencent CVM")
     parser.add_argument("--cases", nargs="+", choices=[c.id for c in CASES])
-    parser.add_argument("--supports", nargs="+", choices=["graph_distance", "local_products", "full"],
-                        default=["graph_distance", "local_products"])
+    parser.add_argument("--supports", nargs="*", choices=["graph_distance", "local_products", "full"],
+                        default=["graph_distance", "local_products"], help="candidate methods; empty means stock only")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=1800, help="seconds per child; same for both methods")
     args = parser.parse_args()
     if args.repeats < 3 or args.timeout <= 0:
         parser.error("use at least 3 repeats and a positive timeout")
+    selected = [c for c in CASES if c.id in (args.cases or [c.id for c in CASES[:7]])]
+    if "full" in args.supports and any(c.staged for c in selected):
+        parser.error("full ambient rows are not enabled for the staged paper-size cases")
     if platform.system() != "Linux":
         parser.error("Linux required for wait4 peak RSS in KiB")
     out = args.out.resolve()
@@ -268,7 +280,6 @@ def main():
         (out / lattice).mkdir()
         for name, data in files.items():
             (out / lattice / name).write_bytes(data)
-    selected = [c for c in CASES if c.id in (args.cases or [c.id for c in CASES[:7]])]
     metadata = {"prototype_revision": head, "reference_revisions": REF,
                 "lock_sha256": {lat: {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
                                 for lat, files in locks.items()}, "supports": args.supports,
@@ -327,6 +338,11 @@ def main():
                 key = (case.lattice, case.extent, support)
                 if key not in audits:
                     audit = invoke(f"audit_{support}", f"{case.id}-audit-{support}", case)
+                    if (case.staged and audit["outcome"] == "ok" and
+                            not audit["verified_symmetry_match"]):
+                        # Large candidate runs require the verified Fourier route.
+                        # Do not accidentally time a generic Gram fallback.
+                        audit["outcome"] = "required_symmetry_missing"
                     audits[key] = audit
                     record(audit)
                 if audits[key]["outcome"] == "ok":

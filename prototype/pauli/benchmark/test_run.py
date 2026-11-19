@@ -4,6 +4,17 @@ from run import CASES, run_repeats, stock_diagnostics, validate_bound
 
 
 class RepeatAndRecord(unittest.TestCase):
+    def test_published_sdp_difference_is_not_an_acceptance_threshold(self):
+        case = next(c for c in CASES if c.id == "square-16-rdm")
+        self.assertEqual(case.paper_sdp_per_site, -0.674580)
+        row = dict(method="reference", outcome="ok", termination_status="OPTIMAL",
+                   stock_pfeas=1e-9, stock_dfeas=1e-9, solver_objective_relative_gap=0.0,
+                   reported_objective_per_site=-0.70, primal_objective_per_site=-0.70)
+        validate_bound(row, case, None)
+        self.assertEqual(row["outcome"], "ok")
+        self.assertAlmostEqual(row["energy_minus_published_sdp_per_site"], -0.025420)
+        self.assertNotIn("signed_error_per_site", row)
+
     def test_stock_last_iteration_is_diagnostic_even_when_rejected(self):
         iteration = ("ITE PFEAS DFEAS GFEAS PRSTATUS POBJ DOBJ MU TIME\n"
                      "26 1e-9 1e-9 1e-17 1 -0.5 -0.5 1e-12 9.28\n"

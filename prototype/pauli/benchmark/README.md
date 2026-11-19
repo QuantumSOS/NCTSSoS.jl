@@ -97,3 +97,66 @@ attempt exits nonzero after recording the remaining eligible attempts.
 `run.py --smoke --out NEW_DIRECTORY` is solver-free and only checks ED/topology
 and worker invocation. `../test_wang.jl` runs small correctness controls, not
 performance measurements.
+
+## Paper-size extension (not a paper-settings reproduction)
+
+[arXiv:2604.01555v2](https://arxiv.org/html/2604.01555v2), Tables 3 and 10,
+report −0.4432378 per spin for the periodic 100-site chain and −0.674580 for
+the periodic 16×16 square. These are the **new SDP** entries, not exact
+energies. `energy_minus_published_sdp_per_site` compares accepted results to
+the appropriate printed table entry; it is not an acceptance threshold or
+an error against the ground energy. The independent chain oracle is Bethe;
+there is no exact oracle for these large squares.
+
+From the verified strengthened chain-80 and square-6 runs, start separate
+guarded runs with `--cases chain-100-rdm --supports graph_distance` and
+`--cases square-8-rdm --supports graph_distance`. Use chain-90 as an
+intermediate rung if chain-100 fails; its oracle is Bethe and it has no paper
+table entry. Advance the square only after an accepted candidate, in order:
+8 → 10 → 12 → 14 → 16. Stop at the first failed candidate rung. Keep stock-only
+runs, if requested, separate; they do not advance the graph campaign.
+An unfrustrated chain uses `extra=3` (candidate radius 4), LSO `lol=4`, PSO 2
+and RDM 8. The square uses stock `extra=0` versus candidate radius 4, LSO
+`lol=4`, PSO off and RDM 8. Both stock calls are the unchanged pinned order-2
+`GSB` calls in `reference.jl`. A square word-pool mismatch is exploratory even
+if the symmetries match. Retain failures and do not substitute sizes in an
+existing run. Report support and settings lanes separately and do not
+compare speed ratios across unmatched lanes.
+
+The existing hint-free audit finds translation order 100 and point-group
+order 48 for chain-100. For square-16 it reaches the 2,000,000-trial graph
+search limit without discovering regular translations. The runner therefore
+records `required_symmetry_missing` and skips that candidate method, while
+leaving stock runnable. The registry supports all 256 sites (four 64-site
+limbs); the structural obstacle is not word width, the million-row guard, or
+RDM size (a supported eight-site cluster when a layout is found). The square
+has 46,849 selected candidate words, versus 28,417 stock words. Without
+reduction the candidate triangle would contain 1,097,437,825 entries. The
+same audit rejects the 14×14 and 12×12 candidate routes; 10×10 and 8×8 retain
+both expected translations and all 192 point-group actions. The largest
+structurally verified square candidate is thus 10×10, with a different row
+pool from stock (18,301 vs. 11,101 rows). Audit success does not show that the
+solve fits or returns an accepted bound.
+
+The paper reports a 32-core, 1 TB machine and Mosek 11.0 but does not list
+per-row options. In the [chain pin](https://github.com/wangjie212/QMBCertify/blob/0b152dfcd9bcde3403aa4d967642ce5261c80712/examples/partition_function.jl#L3-L6),
+the table's large chain energies are inputs to a partition-function example,
+not calls that produced them. The
+[historical `H2D.jl`](https://github.com/wangjie212/QMBCertify/blob/337f97d17854af9c38b4d320f4ba78311da71fe8/examples/H2D.jl#L10-L24)
+does contain a 16×16 call, shown with its argument values below, but no result
+ties it to Table 10:
+
+```julia
+GSB([UInt16[1;4]], [3/2], 16, 2, lattice="square", positivity=10,
+    pso=2, extra=0, QUIET=false, correlation=true)
+```
+
+That historical revision defaults to `lso=true`, `lol=L÷2`, and `three_type=[1,1]`;
+it is not the pinned comparison code. Its trailing 100-spin call selects
+`d=4, positivity=10, pso=3, extra=0, correlation=true` but inherits the
+square's `3/2` coefficient, not the chain's `3/4`. Neither historical call is
+evidence of the precise published settings. The later pinned 10-site chain
+example even negates its objective, and the pinned 4×4 positive square example
+has `d=4, extra=0, rdm=0, pso=0, lso=0`; do not extrapolate either example.
+There is no verified paper-settings lane for the staged sizes. Only add one
+if a per-size author command or metadata can be tied to the published result.

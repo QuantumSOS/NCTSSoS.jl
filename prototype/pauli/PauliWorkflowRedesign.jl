@@ -27,6 +27,7 @@ end
 Base.@kwdef struct PauliSparsitySpec
     support_mode::Symbol = :auto
     power_graph_radius::Int = 2
+    local_product_depth::Int = 2
     min_cluster_size::Int = 4
     merge_threshold::Int = 8
     two_body_range_r::Int = 4
@@ -85,6 +86,7 @@ end
 include("symmetry.jl")
 include("sparsity.jl")
 include("strengthening.jl")
+include("wang.jl")
 include("local_density.jl")
 include("certificates.jl")
 include("compiler.jl")

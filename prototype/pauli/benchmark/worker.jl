@@ -34,6 +34,12 @@ elseif method == "bethe"
     ground = bethe_ring(L)
     save_result(path, Dict("exact_energy_per_site" => ground.energy, "bethe_max_residual" => ground.residual))
     exit()
+elseif startswith(method,"audit_")
+    include("reference.jl")
+    check_reference_checkout(lattice)
+    include("prototype_adapter.jl")
+    save_result(path,prototype_audit(lattice,L,parse(Int,extra),strengthened,Symbol(method[7:end])))
+    exit()
 end
 
 using JuMP, MosekTools
@@ -78,7 +84,7 @@ if method == "preflight"
     @objective(model, Min, x)
     optimize!(model)
     result = Dict{String,Any}("julia_version" => string(VERSION),
-        "mosek_version" => string(Mosek.getversion()), "mosek_jl_version" => string(pkgversion(Mosek)),
+        "mosek_version" => join(Mosek.getversion(),'.'), "mosek_jl_version" => string(pkgversion(Mosek)),
         "mosektools_version" => string(pkgversion(MosekTools)), "jump_version" => string(pkgversion(JuMP)),
         "julia_threads" => Threads.nthreads(), "blas_threads" => BLAS.get_num_threads(),
         "blas_config" => sprint(show, BLAS.get_config()), "mosek_threads" => THREADS, "tolerance" => TOL)
@@ -91,22 +97,26 @@ end
 result = Dict{String,Any}()
 if method == "reference"
     include("reference.jl")
-    check_reference_checkout()
+    check_reference_checkout(lattice)
     options = reference_options(lattice, L, parse(Int, extra), strengthened)
     settings = QMBCertify.mosek_para(TOL, TOL, TOL, THREADS)
     result["reference_options"] = Dict(string(k) => v for (k,v) in pairs(options))
-    order = strengthened ? 3 : 2
+    order = 2
+    result["reference_revision"] = REFERENCE_REVS[lattice]
     result["reference_order"] = order
     if strengthened
         result["reference_stationarity_seed"] = 20261118
         Random.seed!(result["reference_stationarity_seed"])
     end
     save_result(path, result)
-    energy, _ = QMBCertify.GSB(options.H_supp, options.H_coe, L, order; options..., mosek_setting=settings)
+    energy, data = QMBCertify.GSB(options.H_supp, options.H_coe, L, order; options..., mosek_setting=settings)
+    result["reference_raw_rows"] = length.(data.basis)
+    result["reference_unique_rows_by_sector"] = length.(unique.(data.basis))
+    result["reference_moment_terms_including_identity"] = length(data.tsupp)
 else
-    method == "prototype" || error("unknown worker method $method")
+    method in ("full", "graph_distance", "local_products") || error("unknown worker method $method")
     include("prototype_adapter.jl")
-    energy = prototype_run(result, path, lattice, L, strengthened)
+    energy = prototype_run(result, path, lattice, L, parse(Int, extra), strengthened, Symbol(method))
 end
 if energy !== nothing
     isfinite(energy) || error("non-finite objective")

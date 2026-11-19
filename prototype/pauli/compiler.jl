@@ -157,17 +157,21 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     strengthening::Union{Nothing,PauliStrengtheningSpec}=nothing,
     moi_form::Symbol=:auto, lattice_shape=nothing, max_rows::Int=1_000_000,
     rdm_regions=nothing, kms_rows=nothing, rg_maps=(), energy_target::Symbol=:target_ground,
-    energy_window=nothing, variance_center=nothing, variance_upper_bound=nothing)
+    energy_window=nothing, variance_center=nothing, variance_upper_bound=nothing,
+    wang_matched::Bool=false, wang_lso_span::Int=0)
 
     options = (; order, preset, observable, symmetry, sparsity, strengthening, moi_form,
         lattice_shape, max_rows, rdm_regions, kms_rows, rg_maps, energy_target,
-        energy_window, variance_center, variance_upper_bound)
+        energy_window, variance_center, variance_upper_bound, wang_matched, wang_lso_span)
     if !isnothing(preset)
+        wang_matched && throw(ArgumentError("Use individual specs with wang_matched."))
         all(isnothing, (symmetry,sparsity,strengthening)) || throw(ArgumentError("Use either a preset or individual specs, not both."))
         symmetry, sparsity, strengthening = resolve_workflow_preset(preset)
     else
-        symmetry = something(symmetry, PauliSymmetrySpec())
-        sparsity = something(sparsity, PauliSparsitySpec())
+        symmetry = something(symmetry, wang_matched ? PauliSymmetrySpec(rotated_lie_detection=false,
+            cartan_u1_weyl=false,su2_mz0_tree=false) : PauliSymmetrySpec())
+        sparsity = something(sparsity, wang_matched ? PauliSparsitySpec(ts_algo=:None,
+            rewrite_complete_local_rdm=false) : PauliSparsitySpec())
         strengthening = something(strengthening, PauliStrengtheningSpec())
     end
 
@@ -185,15 +189,36 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     shape = isnothing(lattice_shape) ? (n,) : Tuple(lattice_shape)
     named_shape = length(shape)==2 ? shape : nothing
     mode = sparsity.support_mode === :auto && sparsity.cs_algo === :MF ? :correlative_cliques : sparsity.support_mode
-    mode in (:auto,:full,:contiguous_lattice) && sparsity.cs_algo !== :NoElimination &&
+    direct = mode in (:graph_distance,:local_products)
+    mode !== :correlative_cliques && sparsity.cs_algo !== :NoElimination &&
         throw(ArgumentError("cs_algo applies only to :correlative_cliques."))
-    mode !== :correlative_cliques && (sparsity.power_graph_radius != 2 || sparsity.min_cluster_size != 4) &&
-        throw(ArgumentError("power_graph_radius and min_cluster_size apply only to :correlative_cliques."))
+    mode ∉ (:correlative_cliques,:graph_distance) && sparsity.power_graph_radius != 2 &&
+        throw(ArgumentError("power_graph_radius applies only to :correlative_cliques or :graph_distance."))
+    mode !== :correlative_cliques && sparsity.min_cluster_size != 4 &&
+        throw(ArgumentError("min_cluster_size applies only to :correlative_cliques."))
+    mode !== :local_products && sparsity.local_product_depth != 2 &&
+        throw(ArgumentError("local_product_depth applies only to :local_products."))
+    direct && sparsity.ts_algo ∉ (:None,:Maximal) &&
+        throw(ArgumentError("Direct supports do not accept chordal term methods."))
     mode !== :contiguous_lattice && sparsity.two_body_range_r != 4 &&
         throw(ArgumentError("two_body_range_r applies only to :contiguous_lattice."))
     mode !== :correlative_cliques && sparsity.ts_algo !== :AggregateDualChordal && sparsity.merge_threshold != 8 &&
         throw(ArgumentError("merge_threshold applies only to correlative supports or :AggregateDualChordal."))
     !isnothing(lattice_shape) && mode !== :contiguous_lattice && throw(ArgumentError("lattice_shape requires contiguous lattice support."))
+    if wang_matched
+        mode in (:auto,:full,:graph_distance,:local_products) && sparsity.ts_algo === :None &&
+            sparsity.ts_step == 0 && isnothing(lattice_shape) && !sym_options.spin ||
+            throw(ArgumentError("Wang matching requires hint-free supports, no term decomposition and no continuous spin projection."))
+        all(isnothing,(rdm_regions,kms_rows,energy_window,strengthening.target_mz_sector,
+            strengthening.target_spin_j,variance_center,variance_upper_bound)) &&
+            energy_target === :target_ground && strengthening.lightcone_depth == strengthening.rg_coarse_grain_depth == 0 ||
+            throw(ArgumentError("Wang matching supports global ground states with discovered LSO, PSO and RDM pools only."))
+        strengthening.commutator_linear_order in (0,3,5,7) && strengthening.kms_psd_order in 0:order &&
+            strengthening.rdm_positivity_k in (0,8,9,10) && 0 <= wang_lso_span <= n ||
+            throw(ArgumentError("Use Wang LSO degree 0/3/5/7, PSO up to order, RDM 0/8/9/10 and a valid span."))
+    end
+    wang_lso_span != 0 && !(wang_matched && strengthening.commutator_linear_order > 0) &&
+        throw(ArgumentError("wang_lso_span requires Wang LSO."))
     strengthening.kms_psd_order == 0 && (!strengthening.kms_frustration_guard || strengthening.kms_null_tol != 1e-7) &&
         throw(ArgumentError("KMS guard options require a positive kms_psd_order."))
     !strengthening.kms_frustration_guard && strengthening.kms_null_tol != 1e-7 &&
@@ -201,9 +226,10 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
 
     # Stage 1: select supports first so discovery is restricted to actions
     # that actually preserve these blocks. Light-cone rows are an augmentation.
+    row_options = direct ? (;observable,sparsity.local_product_depth) : (;)
     support = workflow_support(H,order; support_mode=mode, sparsity.power_graph_radius,
         sparsity.cs_algo, sparsity.min_cluster_size, sparsity.merge_threshold, sparsity.two_body_range_r,
-        lattice_shape=shape,max_rows)
+        lattice_shape=shape,max_rows,row_options...)
     W = eltype(H.data.words)
     rows = [W[only(NC.terms(p))[2] for p in block] for block in support.family]
     requested_k = strengthening.rdm_positivity_k
@@ -212,9 +238,10 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     rdm_regions = local_rdm ? _local_rdm_regions(support,k,shape) : rdm_regions
     !isnothing(rdm_regions) && k == 0 && throw(ArgumentError("rdm_regions requires rdm_positivity_k > 0."))
     extra = workflow_strengthening(H,order; moment_rows=rows,
-        strengthening.commutator_linear_order, strengthening.kms_psd_order,
+        commutator_linear_order=wang_matched ? 0 : strengthening.commutator_linear_order,
+        kms_psd_order=wang_matched ? 0 : strengthening.kms_psd_order,
         strengthening.kms_frustration_guard, strengthening.kms_null_tol, kms_rows,
-        rdm_positivity_k=local_rdm ? 0 : k, rdm_regions, strengthening.lightcone_depth,
+        rdm_positivity_k=local_rdm || wang_matched ? 0 : k, rdm_regions, strengthening.lightcone_depth,
         strengthening.rg_coarse_grain_depth, rg_maps, strengthening.energy_upper_bound,
         strengthening.target_mz_sector, strengthening.target_spin_j, energy_target,
         energy_window, variance_center, variance_upper_bound,
@@ -227,7 +254,12 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
         unique!(rows)
     end
     sectors = Tuple(NC.Sector(s,0) for s in extra.target.sectors)
-    sym = workflow_symmetry(H; observable, family=rows, strengthen=sectors, lattice_shape=named_shape, sym_options...)
+    sym = workflow_symmetry(H; observable, family=rows, strengthen=sectors, lattice_shape=named_shape,
+        uniform_parity_blocks=wang_matched,sym_options...)
+    layout = nothing
+    if wang_matched
+        sym,layout = _wang_spatial_symmetry(H,observable,rows,sym)
+    end
     blocks = [NC.RowBlock(block,[(1.0+0im,one(W))],NC.HPSD,0) for block in rows]
     objective = [(ComplexF64(c),w) for (c,w) in NC.terms(H)]
 
@@ -246,6 +278,13 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     else
         program,table,sym_report = workflow_symmetry_program(blocks,objective,sym;
             sym_options.spatial_mode, lattice_shape=named_shape, realify=false)
+    end
+    wang = nothing
+    if wang_matched
+        program,wang = _append_wang!(program,table,H,objective,rows,sym,sym_report,strengthening,wang_lso_span,layout)
+        !isempty(wang.pso.sides) && push!(extra.rules,(;kind=:kms_psd,validity=:global_ground_states))
+        !isempty(wang.rdm.sides) && push!(extra.rules,(;kind=:rdm_positivity,validity=:all_physical_states))
+        !isnothing(wang.lso) && wang.lso.rows > 0 && push!(extra.rules,(;kind=:stationarity,validity=:target_eigenstates))
     end
     density_report = nothing
     if sparsity.rewrite_complete_local_rdm
@@ -289,18 +328,21 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
         (isnothing(density_report) || isempty(density_report.applied) ? () : (:local_density_equivalence,))...)
     provenance = BoundProvenance(:unavailable,false,exact,witnesses,
         active_relaxations,active_strengthenings,targets,_pauli_floor(H))
-    reports = (; analysis=(; order, target=extra.target, rules=Tuple(extra.rules),
-            scalar_equalities=length(extra.equalities),
-            active_equality_rows=sum(c.length for c in standard.cones if c.kind === :zero && c.label>0;init=0),
-            rdm=(; requested_k,k,selection=k == 0 ? :disabled : local_rdm ? :local_regions : isnothing(rdm_regions) ? :all_subsets : :explicit_regions,
-                regions=k == 0 ? 0 : isnothing(rdm_regions) ? binomial(big(n),k) : length(rdm_regions),
-                count=count(b -> b.kind === :rdm_positivity,extra.psd_blocks))),
-        support=(; support.mode,support.relation,support.regions,row_counts=length.(rows),density_rewrite=density_report),
+    reports = (; analysis=(; order, target=extra.target, rules=Tuple(extra.rules),wang,
+            scalar_equalities=length(extra.equalities) + (isnothing(wang) || isnothing(wang.lso) ? 0 : wang.lso.rows),
+            active_equality_rows=sum(c.length for c in standard.cones if c.kind === :zero && c.label!=0;init=0),
+            rdm=(; requested_k,k,selection=k == 0 ? :disabled : wang_matched ? :wang_region : local_rdm ? :local_regions : isnothing(rdm_regions) ? :all_subsets : :explicit_regions,
+                regions=k == 0 ? 0 : wang_matched ? 1 : isnothing(rdm_regions) ? binomial(big(n),k) : length(rdm_regions),
+                count=wang_matched ? length(wang.rdm.sides) : count(b -> b.kind === :rdm_positivity,extra.psd_blocks))),
+        support=(; support.mode,support.relation,support.regions,row_counts=length.(rows),
+            density_rewrite=density_report,generation=get(support,:generation,nothing)),
         invariants=(; coordinates=program.nvars-1), symmetry=sym_report, term_sparsity=ts_report,
         conic=(; form, rows=size(standard.A,1), coordinates=size(standard.A,2), cones=length(standard.cones)),
         original_rows=rows)
+    h_dependent = extra.hamiltonian_dependent || (wang_matched &&
+        (strengthening.kms_psd_order > 0 || strengthening.commutator_linear_order > 0 || k > 0))
     return CompiledSDPPlan(H,coefficients,sym,table,program,standard,sos,objective_map,data,constraint_ids,
-        form,options,reports,provenance,extra.hamiltonian_dependent,strengthening.rational_sos_certify,IdDict{Any,Any}())
+        form,options,reports,provenance,h_dependent,strengthening.rational_sos_certify,IdDict{Any,Any}())
 end
 
 function _guarded_objective(plan,H)

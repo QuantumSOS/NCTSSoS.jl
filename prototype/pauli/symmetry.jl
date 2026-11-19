@@ -218,7 +218,7 @@ the problem and family. Without a shape, spatial discovery is bounded.
 """
 function workflow_symmetry(H; observable=nothing, target=nothing, spatial_mode=:auto,
     family=nothing, strengthen=(), parity=true, antiunitary=true, spin=true, axis_permutations=true,
-    lattice_shape=nothing)
+    lattice_shape=nothing, uniform_parity_blocks=false)
     spatial_mode in (:auto,:none,:lattice,:circulant_dft,:clique_orbits) || throw(ArgumentError("Unknown spatial mode $spatial_mode."))
     registry = H.registry
     registry.algebra isa NC.Pauli || throw(ArgumentError("Expected a Pauli Hamiltonian."))
@@ -284,9 +284,11 @@ function workflow_symmetry(H; observable=nothing, target=nothing, spatial_mode=:
         filter(verified,_workflow_spatial(W,n,allops))
     end
     axes = axis_permutations ? filter(verified,_workflow_axes(W,n)) : NC.CliffordMap{W}[]
+    uniform = parity && uniform_parity_blocks ? filter(verified,_wang_uniform_parities(H,allops)) : NC.CliffordMap{W}[]
+    filter!(g -> g ∉ uniform,signs)
     # Keep diagonal parities out of the enumerated spatial point group. They
-    # remain exact relations and the nonspatial discrete builder grades rows.
-    NC.FamilySymmetry(unique([sites;axes]);moment_only=Tuple([signs;first(anti,min(1,length(anti)))]),
+    # remain exact relations, except for uniform Wang signs (at most Klein 4).
+    NC.FamilySymmetry(unique([sites;axes;uniform]);moment_only=Tuple([signs;first(anti,min(1,length(anti)))]),
         continuous=rotations,detected=true)
 end
 

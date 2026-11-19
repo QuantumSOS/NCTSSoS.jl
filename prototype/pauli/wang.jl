@@ -1,0 +1,281 @@
+# Independent implementation of the mathematical domains in QMBCertify's GSB.
+# See WANG_MATCH.md for pinned source references and known differences.
+
+function _wang_uniform_parities(H, polynomials)
+    W = eltype(H.data.words)
+    n = H.registry.nsites
+    maps = map((0, 2)) do axis
+        w = foldl((u,i) -> last(NC.mul(u,NC.pauli_letter(W,i,axis))),1:n;init=one(W))
+        NC.CliffordMap(NC.PauliConjugation(w,false))
+    end
+    return [g for g in maps if all(p -> _symmetry_preserves(g,p),polynomials)]
+end
+
+# Recover the shell layout from a *verified* translation group. A coordinate
+# step must generate exactly a whole equal-coupling class of isotropic bonds.
+function _wang_layout(H, translations)
+    W = eltype(H.data.words)
+    n = H.registry.nsites
+    letters = [NC.pauli_letter(W,i,0) for i in 1:n]
+    bonds = Dict{Tuple{Int,Int},Vector{Float64}}()
+    for (c,w) in NC.terms(H)
+        isone(w) && continue
+        loc = collect(NC._locations(w))
+        length(loc) == 2 && loc[1][2] == loc[2][2] || return nothing
+        push!(get!(bonds,minmax(loc[1][1],loc[2][1]),Float64[]),real(c))
+    end
+    classes = Dict{Float64,Set{Tuple{Int,Int}}}()
+    for (edge,cs) in bonds
+        length(cs) == 3 && allequal(cs) || return nothing
+        push!(get!(classes,first(cs),Set{Tuple{Int,Int}}()),edge)
+    end
+    orders = translations.orders
+    extent = first(orders)
+    square = length(orders) == 2 && allequal(orders)
+    (length(orders) == 1 || square) || return nothing
+    permutations = [[only(NC.sites(last(NC.act(g,w)))) for w in letters] for g in translations.elements]
+    steps = [(p,Set(minmax(i,p[i]) for i in 1:n)) for p in permutations if p[1] != 1]
+    for c in sort!(collect(keys(classes));by=c -> (-abs(c),c))
+        edges = classes[c]
+        candidates = filter(s -> s[2] ⊆ edges,steps)
+        for (x,ex) in candidates
+            xs = accumulate((i,_) -> x[i],1:extent)
+            length(unique(xs)) == extent && x[last(xs)] == 1 || continue
+            if !square
+                ex == edges && return (;sites=xs,shape=:ring,extent,steps=[x])
+                continue
+            end
+            for (y,ey) in candidates
+                union(ex,ey) == edges || continue
+                grid = Matrix{Int}(undef,extent,extent)
+                grid[:,1] = xs
+                for j in 2:extent
+                    grid[:,j] = y[grid[:,j-1]]
+                end
+                length(unique(grid)) == n && y[grid[:,end]] == xs || continue
+                # Expanding squares, with the far corner visited before the
+                # rest of the top edge. In particular 8 is 3×3 minus a corner.
+                sites = Int[]
+                for k in 1:extent
+                    append!(sites,grid[k,1:k])
+                    append!(sites,grid[k-1:-1:1,k])
+                end
+                return (;sites,shape=:square,extent,steps=[x,y],grid)
+            end
+        end
+    end
+    return nothing
+end
+
+function _wang_spatial_symmetry(H,observable,rows,sym)
+    n = H.registry.nsites
+    (n < 2 || isempty(sym.generators)) && return sym,nothing
+    W = eltype(H.data.words)
+    letters = [[NC.pauli_letter(W,i,a) for a in 0:2] for i in 1:n]
+    index = Dict(w=>(i,a) for (i,ws) in enumerate(letters) for (a,w) in enumerate(ws))
+    pure(g) = !isnothing(NC._site_action(g,letters,index;pure=true))
+    sites = filter(pure,sym.generators)
+    isempty(sites) && return sym,nothing
+    structure = NC.discover_lattice(sites,letters;required=false,
+        accept_translations=tr -> !isnothing(_wang_layout(H,tr)))
+    isnothing(structure) && return sym,nothing
+    layout = _wang_layout(H,structure.translations)
+    spatial = copy(layout.steps)
+    if layout.shape === :ring
+        reflection = similar(layout.sites)
+        reflection[layout.sites] = reverse(layout.sites)
+        push!(spatial,reflection)
+    else
+        grid = layout.grid
+        reflection = Vector{Int}(undef,n)
+        reflection[vec(grid)] = vec(reverse(grid;dims=1))
+        swap = similar(reflection)
+        swap[vec(grid)] = vec(permutedims(grid))
+        push!(spatial,reflection,swap)
+    end
+    polys = [NC._sector_terms(p,W).terms for p in (isnothing(observable) ? (H,) : (H,observable))]
+    checked = filter([_symmetry_action(W,n,p) for p in spatial]) do g
+        all(p -> _symmetry_preserves(g,p),polys) && _symmetry_family_preserves(g,rows)
+    end
+    # C4×C4 has graph automorphisms outside the square space group. Using
+    # those on a fixed-shape RDM would silently strengthen Wang's relaxation.
+    return NC.FamilySymmetry([checked;filter(!pure,sym.generators)];moment_only=sym.moment_only,detected=true),layout
+end
+
+# For Hermitian Pauli rows u,v this evaluates the Hermitian form
+# ½(u[H,v] − [H,u]v). Keep the sparse commutator of each row, not a site Gram.
+function _wang_pso_kernel(objective::Vector{Tuple{ComplexF64,W}}) where {W}
+    parts = Dict{W,Vector{Tuple{ComplexF64,W}}}()
+    comm(w) = get!(parts,w) do
+        [begin
+            p,v = NC.mul(h,w)
+            (NC.scale(p,c),v)
+        end for (c,h) in objective if NC._symplectic(h,w)]
+    end
+    function pair_mul!(sink,u,v,c)
+        for (a,t) in comm(v)
+            NC.mul!(sink,u,t,c*a)
+        end
+        for (a,t) in comm(u)
+            NC.mul!(sink,t,v,-c*a)
+        end
+        return sink
+    end
+end
+
+# Wang inserts the principal fixed-Hamming-weight blocks up to weight k÷2.
+# Complement and complex conjugation follow from the verified uniform signs.
+# Bind each even-axis word to the global orbit table once, by its flip mask.
+function _wang_rdm!(program,table,::Type{W},region) where {W}
+    k = length(region)
+    dim = 1 << k
+    pool = [Tuple{Int,Int32,Float64}[] for _ in 1:dim]
+    for w in NC.basis_rows(W,NC.Pauli(),sort(region),k)
+        x,z = _wf_local_masks(w,region)
+        all(iseven,(count_ones(x & ~z),count_ones(x & z),count_ones(z & ~x))) || continue
+        m = NC.orbit_coordinates!(table,w)
+        m.re == 0 && continue
+        m.im == 0 && m.real_coefficient == 1 || error("Unexpected nonreal Wang density moment.")
+        push!(pool[x+1],(z,m.re,real(im^count_ones(x & z))/dim))
+    end
+    terms = Dict{Int32,Float64}()
+    sides = Int[]
+    for weight in 0:k÷2
+        bits = filter(b -> count_ones(b) == weight,0:dim-1)
+        for (j,v) in enumerate(bits), i in j:length(bits)
+            empty!(terms)
+            for (z,id,c) in pool[(bits[i] ⊻ v)+1]
+                terms[id] = get(terms,id,0.0) + (isodd(count_ones(z & v)) ? -c : c)
+            end
+            NC._close_orbit_form!(program.forms,terms)
+        end
+        push!(sides,length(bits))
+        NC.push_block!(program,NC.PSD,last(sides),-2)
+    end
+    return sides
+end
+
+# One representative per axis orbit fixes the anchor to X, and the first
+# non-X to Y. Degree 3 is global; degree 5 and 7 use local shell prefixes.
+function _wang_lso!(program,table,H,layout,order,span,rdm_k)
+    W = eltype(H.data.words)
+    sites = layout.sites
+    covered = copy(table.covered)
+    terms = Dict{Int32,_PauliQ}()
+    signatures = Set{Tuple{Vararg{Tuple{Int32,_PauliQ}}}}()
+    seen_zero = Set{W}()
+    checked = unsupported = zero = 0
+    hterms = collect(NC.terms(_wf_exact(H)))
+    for (d,m) in ((3,length(sites)),(5,span),(7,layout.shape === :ring ? rdm_k-1 : 0))
+        d <= order && m >= d || continue
+        for subset in _wf_regions(m-1,d-1)
+            locations = [first(sites);sites[subset .+ 1]]
+            for axes in Iterators.product(ntuple(_ -> 0:2,d-1)...)
+                # The anchor axis occurs once more after each paired X.
+                all(a -> isodd(count(==(a),axes) + (a == 0)),0:2) || continue
+                axes[findfirst(!=(0),axes)] == 1 || continue
+                w = foldl((u,ia) -> last(NC.mul(u,NC.pauli_letter(W,ia...))),
+                    zip(locations,(0,axes...));init=one(W))
+                checked += 1
+                empty!(terms)
+                supported = true
+                for (c,h) in hterms
+                    NC._symplectic(h,w) || continue
+                    p,u = NC.mul(h,w)
+                    u in seen_zero && continue
+                    pairs = NC.moment_terms(table,u)
+                    if isnothing(pairs) || any(t -> t[1] ∉ covered,pairs)
+                        supported = false
+                        break
+                    end
+                    if isempty(pairs)
+                        push!(seen_zero,u)
+                        continue
+                    end
+                    a = real(NC.scale(NC.Phase(1)*p,2c))
+                    for (id,factor) in pairs
+                        terms[id] = get(terms,id,0) + a*real(factor)
+                    end
+                end
+                if !supported
+                    unsupported += 1
+                    continue
+                end
+                coeffs = sort!([(id,c) for (id,c) in terms if !iszero(c)];by=first)
+                if isempty(coeffs)
+                    zero += 1
+                    continue
+                end
+                firstcoef = first(coeffs)[2]
+                key = Tuple((id,c/firstcoef) for (id,c) in coeffs)
+                key in signatures && continue
+                push!(signatures,key)
+                for (id,c) in key
+                    NC.push_term!(program.forms,Float64(c),id)
+                end
+                NC.close_form!(program.forms)
+                NC.push_block!(program,NC.ZERO,1,-3)
+            end
+        end
+    end
+    return (;checked,unsupported,zero,rows=length(signatures),span)
+end
+
+function _append_wang!(program,table,H,objective,rows,sym,report,spec,lso_span,layout)
+    pso = spec.kms_psd_order
+    rdm = spec.rdm_positivity_k
+    lso = spec.commutator_linear_order
+    active = pso > 0 || rdm > 0 || lso > 0
+    structure = get(get(report,:reduction,(;)),:discovery,nothing)
+    active && isnothing(structure) && throw(ArgumentError("Wang strengthening needs a discovered regular translation group for the selected rows."))
+    # The RDM and LSO pools in GSB assume all global sign and axis actions;
+    # don't apply these pool reductions when those actions are not verified.
+    if rdm > 0 || lso > 0
+        isnothing(layout) && throw(ArgumentError("No equal-coupling bond class realizes a discovered Wang ring or square."))
+        W = eltype(H.data.words)
+        gs = (sym.generators...,sym.moment_only...)
+        p = [NC._sector_terms(H,W).terms]
+        required = [_wang_uniform_parities(H,p);_workflow_axes(W,H.registry.nsites);
+            NC.CliffordMap(NC.AntiunitaryPauli(one(W)))]
+        all(in(gs),required) || throw(ArgumentError("Wang RDM/LSO needs verified global axis permutations, sign parities and conjugation."))
+    end
+    if program isa NC.MomentProgram{Float64} && active
+        complex_program = NC.MomentProgram{ComplexF64}(program.nvars)
+        append!(complex_program.objective_ids,program.objective_ids)
+        append!(complex_program.objective_coefs,program.objective_coefs)
+        for b in program.blocks
+            NC._copy_cone!(complex_program,program,b)
+        end
+        program = complex_program
+    end
+    psoreport = nothing
+    psosides = Int[]
+    psorows = 0
+    if pso > 0
+        selected = filter(w -> 0 < NC.degree(w) <= pso,only(rows))
+        isempty(selected) && throw(ArgumentError("Wang PSO needs at least one nonconstant selected row."))
+        psorows = length(selected)
+        pair_mul! = _wang_pso_kernel(objective)
+        psd,_,psoreport = NC._discovered_lattice_program(selected,empty(objective),structure,sym.moment_only;
+            pair_mul!,shared_table=table)
+        for b in psd.blocks
+            push!(psosides,b.side)
+            NC._copy_cone!(program,psd,b;label=-1)
+        end
+    end
+    rdm > 0 && !(rdm in 8:10 && rdm <= length(layout.sites)) &&
+        throw(ArgumentError("Wang RDM requires 8, 9 or 10 existing sites."))
+    region = rdm > 0 ? layout.sites[1:rdm] : Int[]
+    sides = rdm > 0 ? _wang_rdm!(program,table,eltype(H.data.words),region) : Int[]
+    NC.refresh_coverage!(table,program)
+    lsoreport = nothing
+    if lso > 0
+        span = lso_span == 0 ? layout.extent : lso_span
+        span <= length(layout.sites) || throw(ArgumentError("Wang LSO span exceeds the site count."))
+        lsoreport = _wang_lso!(program,table,H,layout,lso,span,rdm)
+    end
+    program.nvars = length(table.labels)
+    NC.refresh_coverage!(table,program)
+    return NC.validate(program),(; layout, pso=(;order=pso,rows=psorows,sides=psosides,reduction=psoreport),
+        rdm=(;region,sides),lso=lsoreport)
+end

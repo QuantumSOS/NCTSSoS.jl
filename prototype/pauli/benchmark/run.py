@@ -18,7 +18,8 @@ import tomllib
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 BASE = "e59863669f0fb30497c84f219240c1cf1bf38973"
-REF = "0b152dfcd9bcde3403aa4d967642ce5261c80712"
+REF = {"chain": "0b152dfcd9bcde3403aa4d967642ce5261c80712",
+       "square": "9a3ae67ff2bb6da1c04b72318ecbfcec71db5495"}
 GIB = 1 << 30
 ENERGY_ATOL = 1e-6
 
@@ -37,9 +38,10 @@ class Case:
 
 
 CASES = [Case("chain", 4, 1, True), Case("chain", 6, 2, True),
-         Case("square", 4, 0, True),
-         *(Case("chain", L, 3) for L in (24, 40, 60, 64, 80)),
-         Case("chain", 8, 3, True, True), Case("chain", 40, 3, False, True)]
+         Case("chain", 8, 3, True), Case("chain", 8, 3, True, True),
+         Case("square", 4, 0, True), Case("square", 4, 0, True, True),
+         *(Case("chain", L, 3, False, strengthened) for L in (60, 80) for strengthened in (False, True)),
+         Case("square", 6, 0), Case("square", 6, 0, False, True)]
 
 
 def run_process(cmd, log, timeout, env):
@@ -95,6 +97,19 @@ def stock_diagnostics(row, log):
     # line for EVERY nonoptimal result, then prints the returned objective.
     # Read only the native final iteration, never an earlier good iterate.
     row["status_source"] = "stock GSB output and Mosek final iteration"
+    for key, pattern in {
+        "basis_seconds": r"Obtained the monomial basis in (\S+) seconds",
+        "block_seconds": r"Finished block-diagonalization in (\S+) seconds",
+        "lso_seconds": r"Added linear state optimality constraints in (\S+) seconds",
+        "pso_seconds": r"Added PSD state optimality constraints in (\S+) seconds",
+        "rdm_seconds": r"Added the rdm constraint in (\S+) seconds",
+        "solve_seconds": r"SDP solving time: (\S+) seconds",
+    }.items():
+        match = re.search(pattern, log)
+        if match:
+            value = float(match[1])
+            if math.isfinite(value):
+                row[f"stock_{key}"] = value
     status = re.search(r"^termination status: (\S+)$", log, re.M)
     objective = re.findall(r"^optimum = (\S+)$", log, re.M)
     if status or len(objective) != 1 or float(objective[0]) != row.get("energy_per_site"):
@@ -114,6 +129,7 @@ def stock_diagnostics(row, log):
         return
     row.update(stock_pfeas=pf, stock_dfeas=df, primal_objective_per_site=p,
                dual_objective_per_site=d, solver_objective_relative_gap=abs(p-d)/max(1, abs(p), abs(d)))
+    row["stock_mosek_final_iteration_seconds"] = float(values[-1])
 
 
 def validate_bound(row, case, exact):
@@ -128,7 +144,8 @@ def validate_bound(row, case, exact):
         if row["outcome"] == "ok":
             row["outcome"] = "solver_rejected"
         return
-    if case.strengthened and (row.get("rdm_psd_blocks", 0) <= 0 or row.get("active_equality_rows", 0) <= 0):
+    if case.strengthened and row.get("method") != "reference" and (
+            row.get("rdm_psd_blocks", 0) <= 0 or (case.lattice == "chain" and row.get("pso_input_rows", 0) <= 0)):
         row["outcome"] = "missing_strengthening"
         return
     bonds_per_site = 1 if case.lattice == "chain" else 2
@@ -150,6 +167,8 @@ def main():
     parser.add_argument("--out", required=True, type=Path, help="new result directory outside the checkout")
     parser.add_argument("--reviewed-cvm-commit", help="full reviewed integrated HEAD; attest this is the Tencent CVM")
     parser.add_argument("--cases", nargs="+", choices=[c.id for c in CASES])
+    parser.add_argument("--supports", nargs="+", choices=["graph_distance", "local_products", "full"],
+                        default=["graph_distance", "local_products"])
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=1800, help="seconds per child; same for both methods")
     args = parser.parse_args()
@@ -186,15 +205,19 @@ def main():
     if not 110 * GIB <= mem_kib * 1024 <= 130 * GIB:
         parser.error("measurement requires the agreed 128 GB Tencent CVM")
     group, memory_cap = cgroup_guard()
-    project = args.env.resolve()
-    manifest = project / "Manifest.toml"
-    fingerprint = hashlib.sha256(manifest.read_bytes()).hexdigest()
-    out.mkdir(parents=True)
-    (out / "Manifest.toml").write_bytes(manifest.read_bytes())
-    (out / "Project.toml").write_bytes((project / "Project.toml").read_bytes())
-    julia += [f"--project={project}", worker]
-    selected = [c for c in CASES if c.id in (args.cases or ["chain-4", "chain-6", "square-4", "chain-40"])]
-    metadata = {"prototype_revision": head, "reference_revision": REF, "manifest_sha256": fingerprint,
+    root = args.env.resolve()
+    projects = {lattice: root / lattice for lattice in REF}
+    locks = {lattice: {name: (project / name).read_bytes() for name in ("Project.toml", "Manifest.toml")}
+             for lattice, project in projects.items()}
+    out.mkdir(parents=True, exist_ok=False)
+    for lattice, files in locks.items():
+        (out / lattice).mkdir()
+        for name, data in files.items():
+            (out / lattice / name).write_bytes(data)
+    selected = [c for c in CASES if c.id in (args.cases or [c.id for c in CASES[:7]])]
+    metadata = {"prototype_revision": head, "reference_revisions": REF,
+                "lock_sha256": {lat: {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
+                                for lat, files in locks.items()}, "supports": args.supports,
                 "julia_executable": julia[0],
                 "uname": list(platform.uname()), "mem_total_kib": mem_kib,
                 "cpu_affinity": sorted(os.sched_getaffinity(0)), "memory_max_bytes": memory_cap,
@@ -205,7 +228,7 @@ def main():
 
     def invoke(method, label, case):
         data = out / f"{label}.toml"
-        cmd = julia + [method, str(data), case.lattice, str(case.extent), str(case.reference_extra),
+        cmd = julia + [f"--project={projects[case.lattice]}", worker, method, str(data), case.lattice, str(case.extent), str(case.reference_extra),
                        str(case.strengthened).lower()]
         before = oom_kills(group)
         log = out / f"{label}.log"
@@ -217,9 +240,6 @@ def main():
                           else "worker_error" if row["exit_code"] != 0 or not data.exists() else "ok")
         if method == "reference" and row["outcome"] == "ok":
             stock_diagnostics(row, log.read_text())
-        if (row["outcome"] == "worker_error" and method == "reference" and case.lattice == "square" and
-                "UndefVarError: `resort` not defined in `QMBCertify`" in log.read_text(errors="replace")):
-            row["outcome"] = "upstream_failure"
         return row
 
     failed = False
@@ -227,39 +247,68 @@ def main():
         def record(row):
             results.write(json.dumps(row, allow_nan=False) + "\n")
 
-        preflight = invoke("preflight", "preflight", CASES[0])
-        record(preflight)
-        if preflight["outcome"] != "ok":
-            raise SystemExit(f"Mosek preflight failed; see {out / 'preflight.log'}")
+        for lattice in sorted({case.lattice for case in selected}):
+            label = f"preflight-{lattice}"
+            preflight = invoke("preflight", label, next(c for c in selected if c.lattice == lattice))
+            record(preflight)
+            if (preflight["outcome"] != "ok" or preflight.get("mosek_version") != "11.2.8" or
+                    preflight.get("julia_version") != "1.12.7"):
+                raise SystemExit(f"Mosek/Julia preflight failed; see {out / (label + '.log')}")
+        oracles, audits = {}, {}
         for case in selected:
             exact = None
             if case.exact_control or case.lattice == "chain":
                 method = "ed" if case.exact_control else "bethe"
-                oracle = invoke(method, f"{case.id}-{method}", case)
-                record(oracle)
+                key = (case.lattice, case.extent, method)
+                if key not in oracles:
+                    oracles[key] = invoke(method, f"{case.id}-{method}", case)
+                    record(oracles[key])
+                oracle = oracles[key]
                 if oracle["outcome"] != "ok":
                     failed = True
                     continue
                 exact = oracle["exact_energy_per_site"]
+            methods = ["reference"]
+            for support in dict.fromkeys(args.supports):
+                key = (case.lattice, case.extent, support)
+                if key not in audits:
+                    audit = invoke(f"audit_{support}", f"{case.id}-audit-{support}", case)
+                    audits[key] = audit
+                    record(audit)
+                if audits[key]["outcome"] == "ok":
+                    methods.append(support)
+                else:
+                    failed = True
             for i in range(args.repeats):
                 rows = {}
-                methods = ("reference", "prototype") if i % 2 == 0 else ("prototype", "reference")
-                for method in methods:
+                for method in (methods if i % 2 == 0 else methods[::-1]):
                     row = invoke(method, f"{case.id}-{i+1}-{method}", case)
+                    if method != "reference":
+                        audit = audits[case.lattice, case.extent, method]
+                        row["comparison_lane"] = audit["comparison_lane"]
+                        if row["outcome"] == "ok" and (row.get("prototype_row_counts") != [audit["selected_rows"]] or
+                            row.get("translation_orders") != audit["retained_translation_orders"] or
+                            row.get("point_order") != audit["retained_point_order"]):
+                            row["outcome"] = "audit_mismatch"
                     validate_bound(row, case, exact)
                     rows[method] = row
                     record(row)
-                pair = {"case": case.id, "replicate": i + 1, "strength_equivalence": "not_established"}
-                if all(r["outcome"] == "ok" for r in rows.values()):
-                    pair["prototype_minus_reference_per_site"] = (
-                        rows["prototype"]["energy_per_site"] - rows["reference"]["energy_per_site"])
-                else:
-                    failed = True
-                record(pair)
-                # Do not pay for the same failure again; preserve any successful mate.
-                if "prototype_minus_reference_per_site" not in pair:
+                reference = rows.get("reference")
+                for method, row in rows.items():
+                    if method == "reference" or not reference or reference["outcome"] != "ok" or row["outcome"] != "ok":
+                        continue
+                    audit = audits[case.lattice, case.extent, method]
+                    record({"case": case.id, "replicate": i + 1, "candidate": method,
+                            "comparison_lane": audit["comparison_lane"], "row_span_match": audit["row_span_match"],
+                            "verified_symmetry_match": audit["verified_symmetry_match"], "strength_equivalence": "not_established",
+                            "prototype_minus_reference_per_site": row["energy_per_site"] - reference["energy_per_site"]})
+                rejected = {m for m, row in rows.items() if row["outcome"] != "ok"}
+                failed |= bool(rejected)
+                methods = [m for m in methods if m not in rejected]
+                if not methods:
                     break
-    if git("rev-parse", "HEAD") != head or git("status", "--porcelain") or hashlib.sha256(manifest.read_bytes()).hexdigest() != fingerprint:
+    if (git("rev-parse", "HEAD") != head or git("status", "--porcelain") or
+            any((projects[lat] / name).read_bytes() != data for lat, files in locks.items() for name, data in files.items())):
         raise SystemExit("source or manifest changed during the run; discard these results")
     return int(failed)
 

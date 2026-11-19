@@ -221,6 +221,39 @@ end
         @test only(p.blocks).kind==NC.HPSD && only(p.blocks).side==7 && !hasproperty(rep,:doubled)
     end
 
+    @testset "Labelled pair generators, not a lattice assumption" begin
+        # Petersen graph: every automorphism is induced by permuting the
+        # five symbols in these 2-subsets, so the group has order 120 and no
+        # element of order 10. A regular abelian group of order 10 is cyclic.
+        pairs = [(i,j) for i in 1:5 for j in i+1:5]
+        edges = [(i,j) for i in 1:10 for j in i+1:10 if isdisjoint(pairs[i],pairs[j])]
+        a,b = first(edges)
+        options = (;spin=false, parity=false, antiunitary=false, axis_permutations=false)
+        for labels in (1:10,[3,8,1,10,2,7,5,9,4,6])
+            _,(x,y,z) = NC.pauli_variables(10)
+            H = sum(x[labels[i]]*x[labels[j]] for (i,j) in edges)
+            generators = workflow_symmetry(H;options...).generators
+            @test length(generators) < 10
+            @test length(NC.OrbitGroup(generators)) == 120
+            letters = [word.([x[i],y[i],z[i]]) for i in 1:10]
+            @test isnothing(NC.discover_lattice(collect(generators),letters;required=false))
+            bond = x[labels[a]]*x[labels[b]]
+            @test length(NC.OrbitGroup(workflow_symmetry(H+bond;options...).generators)) == 8
+            @test length(NC.OrbitGroup(workflow_symmetry(H;observable=z[labels[a]],options...).generators)) == 12
+            row = word(y[labels[b]])
+            sym = workflow_symmetry(H;observable=z[labels[a]],family=[[one(typeof(row)),row]],options...)
+            @test length(NC.OrbitGroup(sym.generators)) == 4
+            @test all(g -> last(NC.act(g,row)) == row,sym.generators)
+        end
+
+        # The incident multisets do not tell these orientations apart. A
+        # reflection would preserve the unlabelled cycle but changes X_i Y_j.
+        _,(x,y,_) = NC.pauli_variables(7)
+        labels = [2,5,7,1,3,6,4]
+        H = sum(x[labels[i]]*y[labels[mod1(i+1,7)]] for i in 1:7)
+        @test length(NC.OrbitGroup(workflow_symmetry(H;options...).generators)) == 7
+    end
+
     @testset "DFT on a ring and a rectangular torus" begin
         for n in (4,5)
             r,vars=NC.pauli_variables(n); x,y,z=vars

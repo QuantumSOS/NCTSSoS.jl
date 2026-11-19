@@ -75,6 +75,141 @@ function _workflow_lattice_regions(shape, d, range_r)
     return sort!(collect(regions))
 end
 
+# Use one visitation array, not a new length-n array for each local BFS.
+function _workflow_distance_pairs!(add, ::Type{W}, graph, radius) where {W}
+    visited = zeros(Int, Graphs.nv(graph))
+    queue = Tuple{Int,Int}[]
+    for root in Graphs.vertices(graph)
+        empty!(queue)
+        push!(queue, (root, 0))
+        visited[root] = root
+        i = 1
+        while i <= length(queue)
+            u, depth = queue[i]
+            i += 1
+            depth == radius && continue
+            for v in Graphs.neighbors(graph, u)
+                visited[v] == root && continue
+                visited[v] = root
+                push!(queue, (v, depth + 1))
+                root < v || continue
+                for a in 0:2, b in 0:2
+                    add(last(NC.mul(NC.pauli_letter(W, root, a), NC.pauli_letter(W, v, b))))
+                end
+            end
+        end
+    end
+end
+
+# The footprint is the union of factor supports, not the support after Pauli
+# cancellations. Two prefixes with the same footprint and word have identical
+# continuations; the shallower one already explores every eligible suffix.
+function _workflow_local_products!(add, words::Vector{W}, n, d, depth) where {K,W<:NC.PauliWord{K}}
+    masks = [w.x .| w.z for w in words]
+    incident = [Int[] for _ in 1:n]
+    for (i, mask) in enumerate(masks), s in NC.MaskSites(mask)
+        push!(incident[s], i)
+    end
+    frontier = collect(zip(masks, words))
+    seen = Set(frontier)
+    neighbors = Set{Int}()
+    products = 0
+    for level in 1:depth
+        isempty(frontier) && break
+        next = empty(frontier)
+        for (mask, word) in frontier
+            NC.degree(word) <= d && add(word)
+            level == depth && continue
+            empty!(neighbors)
+            for site in NC.MaskSites(mask)
+                union!(neighbors, incident[site])
+            end
+            for i in neighbors
+                products += 1
+                state = (mask .| masks[i], last(NC.mul(word, words[i])))
+                state in seen && continue
+                push!(seen, state)
+                push!(next, state)
+            end
+        end
+        frontier = next
+    end
+    return products
+end
+
+# Balanced factorizations of a requested word only. Include both factors of
+# every cut so the coverage augmentation commutes with relabelings. No global
+# degree-d enumeration, and no query against a materialized Gram matrix.
+function _workflow_coverage!(add, w::W, d) where {W}
+    degree = NC.degree(w)
+    degree <= d && return add(w)
+    degree <= 2d || throw(ArgumentError("Requested moment $w exceeds row-product degree $(2d); increase order."))
+    letters = W[l for l in NC.word_letters(w)]
+    function cuts(left, start, remaining)
+        if remaining == 0
+            add(left)
+            add(last(NC.mul(left, w)))
+            return
+        end
+        for i in start:length(letters)-remaining+1
+            cuts(last(NC.mul(left, letters[i])), i + 1, remaining - 1)
+        end
+    end
+    cuts(one(W), 1, degree ÷ 2)
+end
+
+function _workflow_physics_support(H, observable, ::Type{W}, mode, d, radius, depth, generators, max_rows) where {W}
+    registry = H.registry
+    n = registry.nsites
+    rows, seen = W[], Set{W}()
+    considered = 0
+    function add(w)
+        considered += 1
+        w in seen && return
+        length(rows) < max_rows || throw(ArgumentError("Pauli basis exceeds max_rows=$max_rows."))
+        push!(seen, w)
+        push!(rows, w)
+        return
+    end
+    add(one(W))
+    if d >= 1
+        for i in 1:n, a in 0:2
+            add(NC.pauli_letter(W, i, a))
+        end
+    end
+    products = 0
+    if mode === :graph_distance && d >= 2
+        graph, _ = NC._interaction_graph(NC.Problem(H))
+        _workflow_distance_pairs!(add, W, graph, radius)
+    elseif mode === :local_products && d >= 1
+        words = W[w for (c, w) in NC.terms(H) if !iszero(c) && !isone(w)]
+        products = _workflow_local_products!(add, words, n, d, depth)
+    end
+    # Protect the original physics stencils from unrelated observable factors;
+    # e.g. a distant query must not implicitly select a distant RDM region.
+    regions = sort!(collect(Set(collect(Int, NC.sites(w)) for w in rows if !isone(w))))
+    isempty(regions) && push!(regions, Int[])
+    for p in (isnothing(observable) ? (H,) : (H, observable)), (c, w) in NC.terms(p)
+        iszero(c) || _workflow_coverage!(add, w, d)
+    end
+    i = 1
+    while i <= length(rows)
+        for g in generators
+            g isa NC.AbstractAction && !NC.is_antiunitary(g) || continue
+            w = last(NC.act(g, rows[i]))
+            NC.degree(w) <= d && all(s -> s <= n, NC.sites(w)) ||
+                throw(ArgumentError("A declared block action leaves the degree-$d Pauli basis on 1:$n."))
+            add(w)
+        end
+        i += 1
+    end
+    dense_rows = _workflow_basis_count(n, d)
+    retained = length(rows)
+    return (family=[map(w -> NC._polynomial(registry, w), sort!(rows))], mode,
+        relation=retained == dense_rows ? :exact : :relaxation, regions, row_counts=[retained],
+        generation=(; considered, retained, dense_rows, products))
+end
+
 """
     workflow_support(H, order; support_mode=:full, ...)
 
@@ -84,21 +219,38 @@ interaction graph, then closes the selected family under declared block actions;
 the redesign builder folds block orbits and uses their stabilizers. The lattice
 route makes one union of rows on periodic intervals (1D) or edges, L's and
 plaquettes (2D), plus pairs within periodic graph distance `two_body_range_r`.
-All routes retain all three local axes. `regions` lists the initial site stencils
+These routes retain all three local axes. `regions` lists the initial site stencils
 or post-merge cliques, and `row_counts` describes the returned, closed family.
+
+`:graph_distance` selects all axes on each single site and each pair within
+`power_graph_radius` in the interaction graph of `H`. `:local_products` selects
+all single-site axes and degree-eligible words from products of at most
+`local_product_depth` overlapping Hamiltonian factors, ignoring scalar phases.
+Neither mode uses a lattice hint or an elimination ordering. Both add factors
+to cover `H` and `observable` and close their single row family under declared
+unitary actions. `regions` excludes these coverage/symmetry additions.
+`generation` counts row candidates offered (including duplicates), unique rows,
+the full-basis size (without generating it), and local product attempts.
+A proper subset can weaken the dense lower bound. Term splitting is separate.
 """
 function workflow_support(H, order::Integer; support_mode=:full, power_graph_radius::Integer=2,
     cs_algo=NC.MF(), min_cluster_size::Integer=0, merge_threshold::Integer=0,
     two_body_range_r::Integer=4, lattice_shape=(H.registry.nsites,), symmetry_generators=(),
-    max_rows::Integer=1_000_000)
+    max_rows::Integer=1_000_000, local_product_depth::Integer=2, observable=nothing)
     registry = H.registry
     registry.algebra isa NC.Pauli || throw(ArgumentError("Expected a Pauli polynomial."))
     order >= 0 && power_graph_radius >= 1 && max_rows >= 1 &&
-        min_cluster_size >= 0 && merge_threshold >= 0 && two_body_range_r >= 0 ||
-        throw(ArgumentError("Invalid order, range, radius, clique size or row budget."))
+        min_cluster_size >= 0 && merge_threshold >= 0 && two_body_range_r >= 0 && local_product_depth >= 1 ||
+        throw(ArgumentError("Invalid order, range, radius, product depth, clique size or row budget."))
+    isnothing(observable) || observable.registry === registry ||
+        throw(ArgumentError("Observable and Hamiltonian must use the same registry."))
     n, mode = registry.nsites, support_mode === :auto ? :full : support_mode
     d = min(order, n)
     W = NC.word_type(registry, d)
+    if mode in (:graph_distance, :local_products)
+        return _workflow_physics_support(H, observable, W, mode, d, power_graph_radius,
+            local_product_depth, symmetry_generators, max_rows)
+    end
     if mode === :full
         regions = [collect(1:n)]
     elseif mode === :correlative_cliques
@@ -150,8 +302,17 @@ function workflow_support(H, order::Integer; support_mode=:full, power_graph_rad
         end
         i += 1
     end
+    if !isnothing(observable)
+        sets = mode === :full ? () : Set.(family)
+        for (c, w) in NC.terms(observable)
+            iszero(c) && continue
+            (mode === :full ? NC.degree(w) <= 2d :
+                any(any(v -> last(NC.mul(v, w)) in block, block) for block in sets)) ||
+                throw(ArgumentError("Observable moment $w is not covered by $mode; increase order or change supports."))
+        end
+    end
     return (family=[map(w -> NC._polynomial(registry, w), rows) for rows in family], mode,
-        relation=mode === :full ? :exact : :relaxation, regions, row_counts=length.(family))
+        relation=mode === :full ? :exact : :relaxation, regions, row_counts=length.(family), generation=nothing)
 end
 
 _workflow_entry(b, i, j) = b.first_form + NC.tri_offset(b.side, i, j)

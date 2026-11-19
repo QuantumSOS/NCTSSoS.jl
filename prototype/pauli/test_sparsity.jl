@@ -57,6 +57,86 @@ function check_workflow_sparsity(workflow; solver)
                     for t in NC.term_range(strengthened.program.forms, f)))
         end
 
+        @testset "Hamiltonian-derived pairs, connected products and coverage" begin
+            _, (x, y, z) = NC.pauli_variables(5)
+            H = x[1]*x[3] + x[3]*x[4] + y[3]*y[5]
+            words(p) = Set(last(only(NC.terms(q))) for q in only(p.family))
+            word(p) = last(only(NC.terms(p)))
+            pair_sites(p) = Set(Tuple(r) for r in p.regions if length(r) == 2)
+            near = support(H, 2; support_mode=:graph_distance, power_graph_radius=1, max_rows=43)
+            wide = support(H, 2; support_mode=:graph_distance)
+            local2 = support(H, 2; support_mode=:local_products)
+            @test pair_sites(near) == Set([(1,3), (3,4), (3,5)])
+            @test pair_sites(wide) == Set([(1,3), (3,4), (3,5), (1,4), (1,5), (4,5)])
+            @test near.generation == (considered=46, retained=43, dense_rows=106, products=0)
+            @test wide.row_counts == [70]
+            @test Set(w for w in words(local2) if NC.degree(w) == 2) ==
+                Set(word.([x[1]*x[3], x[3]*x[4], y[3]*y[5], x[1]*x[4]]))
+            @test local2.generation == (considered=26, retained=20, dense_rows=106, products=9)
+            @test word(x[1]*z[3]*y[5]) in words(support(H, 3; support_mode=:local_products))
+            @test word(x[1]*y[3]*x[4]*y[5]) ∈ words(support(H, 4; support_mode=:local_products, local_product_depth=3))
+            @test word(x[1]*y[3]*x[4]*y[5]) ∉ words(support(H, 4; support_mode=:local_products))
+            @test_throws ArgumentError support(H, 2; support_mode=:graph_distance, power_graph_radius=1, max_rows=42)
+
+            # Off-stencil two-body and higher-than-order moments. A relabeling
+            # changes the natural sorted-site cut, but not the family of cuts.
+            obs = z[2]*y[5] + x[1]*z[2]*y[4]*z[5]
+            perm = [2, 4, 1, 5, 3]
+            action = NC.SitePermutation(perm)
+            Hp = x[perm[1]]*x[perm[3]] + x[perm[3]]*x[perm[4]] + y[perm[3]]*y[perm[5]]
+            obsp = z[perm[2]]*y[perm[5]] + x[perm[1]]*z[perm[2]]*y[perm[4]]*z[perm[5]]
+            for mode in (:graph_distance, :local_products)
+                s = support(H, 2; support_mode=mode, observable=obs)
+                t = support(Hp, 2; support_mode=mode, observable=obsp)
+                selected = words(s)
+                @test Set(last(NC.act(action, w)) for w in selected) == words(t)
+                @test s.relation == :relaxation && pair_sites(s) == pair_sites(support(H, 2; support_mode=mode))
+                @test all(w -> any(v -> last(NC.mul(v,w)) in selected, selected), last.(collect(NC.terms(obs))))
+                @test_throws ArgumentError support(H, 2; support_mode=mode, observable=prod(x))
+            end
+
+            s = support(H, 2; support_mode=:local_products, observable=z[2]*y[5])
+            rows = [sort!(collect(words(s)))]
+            W = eltype(only(rows))
+            gram = [NC.RowBlock(only(rows), [(1.0+0im,one(W))], NC.HPSD, 0)]
+            objective = [(ComplexF64(c),w) for (c,w) in NC.terms(H)]
+            p, table, _ = workflow.workflow_symmetry_program(gram, objective, NC.FamilySymmetry();
+                spatial_mode=:none, realify=false)
+            @test length(p.forms) == 21*22÷2 # One full triangle on the selected rows.
+            rdm_word = word(y[1]*y[2]*y[5])
+            @test isnothing(NC.moment_terms(table, rdm_word))
+            extra = workflow.workflow_strengthening(H, 2; moment_rows=rows,
+                commutator_linear_order=1, rdm_positivity_k=3, rdm_regions=[[1,2,5]])
+            p = workflow._append_strengthening!(p, table, extra)
+            observed = first.(NC.moment_terms(table, word(z[2]*y[5])))
+            rdmid = only(NC.moment_terms(table, rdm_word))[1]
+            guarded = split(p; protected_ids=observed)
+            @test guarded.report.zero_lift_audit && all(in(guarded.report.active_ids), (rdmid, observed...))
+            @test any(b -> b.label > 0 && b.kind == NC.ZERO, guarded.program.blocks)
+            @test any(b -> b.label > 0 && b.kind == NC.HPSD && b.side == 8, guarded.program.blocks)
+        end
+
+        @testset "Selected rows give the exact small-spin ground energy" begin
+            _, (x, y, z) = NC.pauli_variables(3)
+            H = sum(a[i]*a[i+1] for a in (x,y,z), i in 1:2)
+            # Two unit Heisenberg bonds: S_13=1 and total spin 1/2 give -4.
+            full = support(H, 2)
+            near = support(H, 2; support_mode=:graph_distance, power_graph_radius=1)
+            wide = support(H, 2; support_mode=:graph_distance)
+            local2 = support(H, 2; support_mode=:local_products)
+            @test near.row_counts == [28]
+            @test local2.row_counts == [19]
+            @test wide.family == full.family && wide.relation == :exact
+            for (s, rotations) in ((near, 3), (local2, 0))
+                family = [last.(only.(NC.terms.(f))) for f in s.family]
+                symmetry = workflow.workflow_symmetry(H; family, spatial_mode=:none)
+                @test !isempty(symmetry.generators) # Discrete global axis actions survived.
+                @test length(symmetry.continuous) == rotations
+                p = NC.build(NC.Problem(H), NC.Relaxation(family=s.family)).program
+                @test bound(p) ≈ -4 atol=2e-6
+            end
+        end
+
         @testset "Periodic lattice stencils are spin-closed" begin
             _, (x, _, _) = NC.pauli_variables(7)
             chain = support(x[1], 3; support_mode=:contiguous_lattice, two_body_range_r=2)

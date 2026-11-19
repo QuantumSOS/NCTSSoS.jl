@@ -57,6 +57,35 @@ function assemble(H,family;spatial_mode=:none,lattice_shape=nothing,realify=true
 end
 
 @testset "Pauli workflow symmetry" begin
+    @testset "Discover spatial orbits without geometry or site order" begin
+        # Both sides of the term-incidence size cutoff. Swap two site labels
+        # so an index shift or reversal is not a symmetry.
+        for (n,edges) in ((60,[(i,mod1(i+1,60)) for i in 1:60]),
+                ((L^2,[(i,j) for i in 1:L^2 for j in
+                    (L*((i-1)÷L)+mod1(i+1,L),mod1(i+L,L^2))]) for L in (4,6))...)
+            _,vars = NC.pauli_variables(n)
+            label = collect(1:n); label[2],label[7] = label[7],label[2]
+            H = sum(a[label[i]]*a[label[j]] for a in vars for (i,j) in edges)
+            discover(h) = workflow_symmetry(h;parity=false,antiunitary=false,spin=false,axis_permutations=false).generators
+            x = first(vars)
+            function orbit(gs)
+                reached = Set([word(x[1])]); pending = collect(reached)
+                while !isempty(pending)
+                    u = pop!(pending)
+                    for g in gs
+                        v = last(NC.act(g,u))
+                        if v ∉ reached
+                            push!(reached,v); push!(pending,v)
+                        end
+                    end
+                end
+                reached
+            end
+            @test orbit(discover(H)) == Set(word.(x))
+            @test orbit(discover(H+x[1])) == Set([word(x[1])])
+        end
+    end
+
     @testset "Heisenberg m=0, all J and shared singlet moments" begin
         r,vars = NC.pauli_variables(4)
         x,y,z = vars
@@ -236,7 +265,8 @@ end
         @test n+3length(collect(NC.terms(H)))>512
         F=family_for(H,[1:n];order=1)
         options=(;spatial_mode=:lattice,spin=false,parity=false,axis_permutations=false,antiunitary=false)
-        @test_throws ArgumentError assemble(H,F;options...)
+        _,_,automatic=assemble(H,F;options...)
+        @test isnothing(automatic.lattice_shape) && automatic.reduction.translation_order==n
         p,_,rep=assemble(H,F;lattice_shape=shape,realify=false,options...)
         @test rep.lattice_shape==shape && rep.reduction.translation_order==n
         @test [b.side for b in p.blocks]==[4;fill(3,n-1)]

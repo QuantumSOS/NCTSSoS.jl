@@ -23,7 +23,7 @@ if ARGS == ["smoke"]
     exit()
 end
 
-method, path, lattice, extent, extra, pair_range, control, strengthened_arg = ARGS
+method, path, lattice, extent, extra, strengthened_arg = ARGS
 L = parse(Int, extent)
 strengthened = parse(Bool, strengthened_arg)
 if method == "ed"
@@ -89,11 +89,9 @@ if method == "preflight"
 end
 
 result = Dict{String,Any}()
-if method in ("reference", "reference-build-smoke")
-    build_only = method == "reference-build-smoke"
-    !build_only || L == (strengthened ? 8 : 4) || error("reference build smoke requires a small control case")
+if method == "reference"
     include("reference.jl")
-    install_reference_probe()
+    check_reference_checkout()
     options = reference_options(lattice, L, parse(Int, extra), strengthened)
     settings = QMBCertify.mosek_para(TOL, TOL, TOL, THREADS)
     result["reference_options"] = Dict(string(k) => v for (k,v) in pairs(options))
@@ -104,40 +102,11 @@ if method in ("reference", "reference-build-smoke")
         Random.seed!(result["reference_stationarity_seed"])
     end
     save_result(path, result)
-    psd_count(model) = sum(num_constraints(model, F, S) for (F,S) in list_of_constraint_types(model)
-        if S in (MOI.PositiveSemidefiniteConeTriangle, MOI.PositiveSemidefiniteConeSquare); init=0)
-    started = time_ns()
-    function checkpoint(stage, model, elapsed)
-        if stage == :stationarity
-            # In the SOS model each filtered equality has one free multiplier.
-            result["stationarity_equalities"] = elapsed
-            return
-        elseif stage == :before_rdm
-            result["psd_before_rdm"] = psd_count(model)
-            return
-        elseif stage == :after_rdm
-            result["rdm_psd_blocks"] = psd_count(model) - pop!(result, "psd_before_rdm")
-            return
-        elseif stage == :built
-            result["build_seconds"] = (time_ns() - started) / 1e9
-            result["reference_variable_count"] = num_variables(model)
-            result["reference_constraint_count"] = num_constraints(model; count_variable_in_set_constraints=true)
-            save_result(path, result)
-            !strengthened || (get(result, "rdm_psd_blocks", 0) > 0 &&
-                get(result, "stationarity_equalities", 0) > 0) || error("reference strengthening missing")
-            build_only && exit()
-        else
-            result["solve_seconds"] = elapsed
-            record_status!(result, unsafe_backend(model))
-            result["optimizer_reported_seconds"] = solve_time(model)
-        end
-        save_result(path, result)
-    end
-    energy, _ = reference_run(checkpoint, L, order, settings, options)
+    energy, _ = QMBCertify.GSB(options.H_supp, options.H_coe, L, order; options..., mosek_setting=settings)
 else
     method == "prototype" || error("unknown worker method $method")
     include("prototype_adapter.jl")
-    energy = prototype_run(result, path, lattice, L, parse(Int, pair_range), control == "true", strengthened)
+    energy = prototype_run(result, path, lattice, L, strengthened)
 end
 if energy !== nothing
     isfinite(energy) || error("non-finite objective")

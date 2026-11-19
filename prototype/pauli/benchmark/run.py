@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import platform
+import re
 import signal
 import subprocess
 import time
@@ -27,7 +28,6 @@ class Case:
     lattice: str
     extent: int
     reference_extra: int
-    prototype_pair_range: int
     exact_control: bool = False
     strengthened: bool = False
 
@@ -36,12 +36,10 @@ class Case:
         return f"{self.lattice}-{self.extent}" + ("-rdm" if self.strengthened else "")
 
 
-# Frozen order-2 moment bases; non-equivalent optional strengthenings.
-# 'extra' and 'pair_range' are deliberately distinct, not equivalent knobs.
-CASES = [Case("chain", 4, 1, 2, True), Case("chain", 6, 2, 3, True),
-         Case("square", 4, 0, 4, True),
-         *(Case("chain", L, 3, 4) for L in (24, 40, 60, 64, 80)),
-         Case("chain", 8, 3, 4, True, True), Case("chain", 40, 3, 4, False, True)]
+CASES = [Case("chain", 4, 1, True), Case("chain", 6, 2, True),
+         Case("square", 4, 0, True),
+         *(Case("chain", L, 3) for L in (24, 40, 60, 64, 80)),
+         Case("chain", 8, 3, True, True), Case("chain", 40, 3, False, True)]
 
 
 def run_process(cmd, log, timeout, env):
@@ -92,17 +90,45 @@ def oom_kills(group):
     return int(dict(line.split() for line in (group / "memory.events").read_text().splitlines())["oom_kill"])
 
 
+def stock_diagnostics(row, log):
+    # GSB does not return its model. On this pin it prints a termination
+    # line for EVERY nonoptimal result, then prints the returned objective.
+    # Read only the native final iteration, never an earlier good iterate.
+    row["status_source"] = "stock GSB output and Mosek final iteration"
+    status = re.search(r"^termination status: (\S+)$", log, re.M)
+    objective = re.findall(r"^optimum = (\S+)$", log, re.M)
+    if status or len(objective) != 1 or float(objective[0]) != row.get("energy_per_site"):
+        if status:
+            row["termination_status"] = status[1]
+        return
+    row["termination_status"] = "OPTIMAL"
+    table = re.search(r"^ITE\s+PFEAS\s+DFEAS\s+GFEAS\s+PRSTATUS\s+POBJ\s+DOBJ\s+MU\s+TIME[^\n]*\n"
+                      r"((?:^\d+[^\n]*\n)+)^Optimizer terminated\.", log, re.M)
+    if not table:
+        return
+    values = table[1].splitlines()[-1].split()
+    if len(values) != 9:
+        return
+    pf, df, _, _, p, d, _, _ = map(float, values[1:])
+    if not all(map(math.isfinite, (pf, df, p, d))):
+        return
+    row.update(stock_pfeas=pf, stock_dfeas=df, primal_objective_per_site=p,
+               dual_objective_per_site=d, solver_objective_relative_gap=abs(p-d)/max(1, abs(p), abs(d)))
+
+
 def validate_bound(row, case, exact):
     e = row.get("energy_per_site")
     p = row.get("primal_objective_per_site")
-    if (row["outcome"] != "ok" or row.get("termination_status") != "OPTIMAL" or
-            row.get("primal_status") != "FEASIBLE_POINT" or row.get("dual_status") != "FEASIBLE_POINT" or
+    feasible = (max(row.get("stock_pfeas", math.inf), row.get("stock_dfeas", math.inf)) <= 1e-8
+                if row.get("method") == "reference" else
+                row.get("primal_status") == row.get("dual_status") == "FEASIBLE_POINT")
+    if (row["outcome"] != "ok" or row.get("termination_status") != "OPTIMAL" or not feasible or
             row.get("solver_objective_relative_gap", math.inf) > 1e-7 or
             e is None or not math.isfinite(e) or p is None or abs(e - p) > ENERGY_ATOL):
         if row["outcome"] == "ok":
             row["outcome"] = "solver_rejected"
         return
-    if case.strengthened and (row.get("rdm_psd_blocks", 0) <= 0 or row.get("stationarity_equalities", 0) <= 0):
+    if case.strengthened and (row.get("rdm_psd_blocks", 0) <= 0 or row.get("active_equality_rows", 0) <= 0):
         row["outcome"] = "missing_strengthening"
         return
     bonds_per_site = 1 if case.lattice == "chain" else 2
@@ -180,7 +206,7 @@ def main():
     def invoke(method, label, case):
         data = out / f"{label}.toml"
         cmd = julia + [method, str(data), case.lattice, str(case.extent), str(case.reference_extra),
-                       str(case.prototype_pair_range), str(case.exact_control).lower(), str(case.strengthened).lower()]
+                       str(case.strengthened).lower()]
         before = oom_kills(group)
         log = out / f"{label}.log"
         row = run_process(cmd, log, args.timeout, env)
@@ -189,6 +215,8 @@ def main():
             row.update(tomllib.loads(data.read_text()))
         row["outcome"] = ("timeout" if row["timed_out"] else "oom" if oom_kills(group) > before
                           else "worker_error" if row["exit_code"] != 0 or not data.exists() else "ok")
+        if method == "reference" and row["outcome"] == "ok":
+            stock_diagnostics(row, log.read_text())
         if (row["outcome"] == "worker_error" and method == "reference" and case.lattice == "square" and
                 "UndefVarError: `resort` not defined in `QMBCertify`" in log.read_text(errors="replace")):
             row["outcome"] = "upstream_failure"

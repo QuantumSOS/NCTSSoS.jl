@@ -93,6 +93,7 @@ end
 function _enumerate_color_preserving_automorphisms(
     g::SympleQGraph;
     max_automorphisms::Int=100_000,
+    max_trials::Int=typemax(Int),
     paulis::Union{Nothing,Matrix{UInt8}}=nothing,
 )
     n = nv(g.graph)
@@ -129,8 +130,8 @@ function _enumerate_color_preserving_automorphisms(
         return true
     end
 
+    trials = Ref(0)
     function search(depth::Int)
-        length(automorphisms) >= max_automorphisms && return nothing
         if depth > n
             push!(automorphisms, copy(assigned))
             return nothing
@@ -138,6 +139,8 @@ function _enumerate_color_preserving_automorphisms(
 
         v = order[depth]
         for w in candidates[v]
+            (length(automorphisms) >= max_automorphisms || trials[] >= max_trials) && return nothing
+            trials[] += 1
             used[w] && continue
             _automorphism_consistent(g.graph, assigned, v, w) || continue
             assigned[v] = w
@@ -150,6 +153,7 @@ function _enumerate_color_preserving_automorphisms(
     end
 
     search(1)
+    trials[] >= max_trials && @warn "Automorphism search reached $max_trials candidate trials; returning partial results."
     length(automorphisms) >= max_automorphisms && @warn(
         "SympleQ automorphism enumeration hit max_automorphisms=$max_automorphisms; returned a truncated group."
     )

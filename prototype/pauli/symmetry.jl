@@ -131,8 +131,30 @@ function _workflow_spatial(::Type{W},n,polynomials) where {W}
     spec = [(j,c,[(only(NC.sites(u)),axis(u)) for u in NC.word_letters(w)]) for (j,w,c) in terms]
     # Avoid factorial automorphism searches on Hamiltonians with unused sites.
     active = Set(i for (_,_,xs) in spec for (i,_) in xs)
-    if length(active)==n && n+length(spec)+sum(t->length(t[3]),spec;init=0)<=512
-        graph = NC.Graphs.SimpleGraph(n+length(spec)+sum(t->length(t[3]),spec;init=0))
+    vertices = n + length(spec) + sum(t->length(t[3]),spec;init=0)
+    trials = 2_000_000
+    if length(active)==n && n<=512 && all(t->length(t[3])<=2,spec)
+        # A site permutation must preserve the unweighted interaction graph.
+        # Color sites by their local fields and incident bond terms as viewed
+        # from that endpoint. The caller still checks every full polynomial:
+        # identical incident colors do not imply identical colored edges.
+        graph = NC.Graphs.SimpleGraph(n)
+        labels = [Tuple[] for _ in 1:n]
+        for (j,c,xs) in spec
+            i,a = first(xs)
+            if length(xs)==1
+                push!(labels[i], (j,a,-1,real(c),imag(c)))
+            else
+                k,b = last(xs)
+                NC.Graphs.add_edge!(graph,i,k)
+                push!(labels[i], (j,a,b,real(c),imag(c)))
+                push!(labels[k], (j,b,a,real(c),imag(c)))
+            end
+        end
+        evidence = NC.SympleQGraph(graph,Any[Tuple(sort!(l)) for l in labels],collect(1:n),Int[],Vector{Int}[])
+        append!(maps,NC._enumerate_color_preserving_automorphisms(evidence;max_automorphisms=128,max_trials=trials))
+    elseif length(active)==n && vertices<=512
+        graph = NC.Graphs.SimpleGraph(vertices)
         colors = Any[:site for _ in 1:n]
         append!(colors,[(:term,j,c) for (j,c,_) in spec])
         vertex = length(colors)
@@ -143,7 +165,7 @@ function _workflow_spatial(::Type{W},n,polynomials) where {W}
             NC.Graphs.add_edge!(graph,i,vertex)
         end
         evidence = NC.SympleQGraph(graph,colors,collect(1:n),Int[],Vector{Int}[])
-        append!(maps,[u[1:n] for u in NC._enumerate_color_preserving_automorphisms(evidence;max_automorphisms=128)])
+        append!(maps,[u[1:n] for u in NC._enumerate_color_preserving_automorphisms(evidence;max_automorphisms=128,max_trials=trials)])
     end
     filter!(!isone,unique([_symmetry_action(W,n,u) for u in maps]))
 end

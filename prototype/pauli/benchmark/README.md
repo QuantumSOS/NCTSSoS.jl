@@ -60,6 +60,13 @@ separate guarded runs for `chain-60 chain-80`, `square-6`, and the corresponding
 `-rdm` cases where budget permits. Keep timeout, OOM, unsupported cases, and
 solver failures in the record. Do not retry one side with looser limits.
 
+Each requested repeat starts a fresh worker. With the default three methods,
+the starting order is reference, graph-distance, local-products; each repeat
+rotates that order by one position. Numerical rejections (including
+`SLOW_PROGRESS`) do not cancel later repeats. Timeout, OOM, worker failure and
+structural mismatch still stop that method for the case. A run with any failed
+attempt exits nonzero after recording the remaining eligible attempts.
+
 ## Evidence
 
 - Report independent ED for the small controls (zero-magnetization sector has
@@ -76,6 +83,13 @@ solver failures in the record. Do not retry one side with looser limits.
   MOI feasibility (candidate) or stock printed `PFEAS`,`DFEAS` ≤ `1e-8`,
   relative gap ≤ `1e-7`, and acceptable signed energy error. This is a numerical
   screen, not a certificate. Never report a performance ratio across lanes.
+- `reported_objective_per_site` and final primal/dual objectives, relative gap,
+  residuals and statuses are diagnostics, even on a rejected attempt. Only
+  accepted `results.jsonl` rows have `energy_per_site` and accuracy metrics.
+  Stock primal and dual objectives and residuals come from the last completed
+  Mosek iteration; stock does not expose separate dual status. Candidate
+  `mosek_*_max_violation` fields describe the native returned solution, not
+  the stock iteration residuals. Unavailable fields are omitted, never zero-filled.
 - Archive `environment.json`, both lock pairs, `results.jsonl`, worker TOMLs
   and logs, native phase times, CVM identity and guard evidence. Verify archive
   integrity outside the VM before cleanup or release.

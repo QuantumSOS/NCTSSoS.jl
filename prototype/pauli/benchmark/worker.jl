@@ -66,14 +66,39 @@ function record_status!(result, model)
         actual = MOI.get(model, MOI.RawOptimizerAttribute(name))
         actual == expected || error("Mosek $name=$actual; expected $expected")
     end
-    termination == MOI.OPTIMAL && primal == dual == MOI.FEASIBLE_POINT || return false
-    p, d = MOI.get(model, MOI.ObjectiveValue()), MOI.get(model, MOI.DualObjectiveValue())
-    if isfinite(p) && isfinite(d)
-        result["primal_objective_per_site"] = p
-        result["dual_objective_per_site"] = d
-        result["solver_objective_relative_gap"] = abs(p - d) / max(1, abs(p), abs(d))
+    result["result_count"] = MOI.get(model, MOI.ResultCount())
+    if result["result_count"] > 0
+        for (key, attribute) in (("primal_objective_per_site", MOI.ObjectiveValue()),
+                                ("dual_objective_per_site", MOI.DualObjectiveValue()))
+            try
+                value = MOI.get(model, attribute)
+                isfinite(value) && (result[key] = value)
+            catch err
+                err isa Mosek.MosekError || rethrow()
+            end
+        end
+        if haskey(result,"primal_objective_per_site") && haskey(result,"dual_objective_per_site")
+            p, d = result["primal_objective_per_site"], result["dual_objective_per_site"]
+            gap = abs(p - d) / max(1, abs(p), abs(d))
+            isfinite(gap) && (result["solver_objective_relative_gap"] = gap)
+        end
     end
-    return true
+    # These are violations of the returned interior-point solution, not the
+    # scaled PFEAS/DFEAS in the stock iteration log. Neither changes acceptance.
+    task = MOI.get(model, MOI.RawSolver())
+    try
+        if Mosek.solutiondef(task, Mosek.MSK_SOL_ITR)
+            _, pc, pv, pb, pk, pa, _, _, _, dc, dv, db, dk, da =
+                Mosek.getsolutioninfonew(task, Mosek.MSK_SOL_ITR)
+            for (key, violations) in (("mosek_primal_max_violation", (pc,pv,pb,pk,pa)),
+                                      ("mosek_dual_max_violation", (dc,dv,db,dk,da)))
+                all(isfinite, violations) && (result[key] = maximum(violations))
+            end
+        end
+    catch err
+        err isa Mosek.MosekError || rethrow()
+    end
+    return termination == MOI.OPTIMAL && primal == dual == MOI.FEASIBLE_POINT
 end
 
 if method == "preflight"
@@ -118,8 +143,7 @@ else
     include("prototype_adapter.jl")
     energy = prototype_run(result, path, lattice, L, parse(Int, extra), strengthened, Symbol(method))
 end
-if energy !== nothing
-    isfinite(energy) || error("non-finite objective")
-    result["energy_per_site"] = energy
+if energy !== nothing && isfinite(energy)
+    result["reported_objective_per_site"] = energy
 end
 save_result(path, result)

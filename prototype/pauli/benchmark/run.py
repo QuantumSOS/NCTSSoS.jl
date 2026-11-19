@@ -92,6 +92,14 @@ def oom_kills(group):
     return int(dict(line.split() for line in (group / "memory.events").read_text().splitlines())["oom_kill"])
 
 
+def finite_float(token):
+    try:
+        value = float(token)
+    except (TypeError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
+
+
 def stock_diagnostics(row, log):
     # GSB does not return its model. On this pin it prints a termination
     # line for EVERY nonoptimal result, then prints the returned objective.
@@ -106,17 +114,20 @@ def stock_diagnostics(row, log):
         "solve_seconds": r"SDP solving time: (\S+) seconds",
     }.items():
         match = re.search(pattern, log)
-        if match:
-            value = float(match[1])
-            if math.isfinite(value):
-                row[f"stock_{key}"] = value
+        if match and (value := finite_float(match[1])) is not None:
+            row[f"stock_{key}"] = value
     status = re.search(r"^termination status: (\S+)$", log, re.M)
+    primal = re.search(r"^solution status: (\S+)$", log, re.M)
     objective = re.findall(r"^optimum = (\S+)$", log, re.M)
-    if status or len(objective) != 1 or float(objective[0]) != row.get("energy_per_site"):
-        if status:
-            row["termination_status"] = status[1]
-        return
-    row["termination_status"] = "OPTIMAL"
+    printed = finite_float(objective[0]) if len(objective) == 1 else None
+    if status:
+        row["termination_status"] = status[1]
+    elif printed is not None and printed == row.get("reported_objective_per_site"):
+        row["termination_status"] = "OPTIMAL"
+    if primal:
+        row["primal_status"] = primal[1]
+    if printed is not None:
+        row.setdefault("reported_objective_per_site", printed)
     table = re.search(r"^ITE\s+PFEAS\s+DFEAS\s+GFEAS\s+PRSTATUS\s+POBJ\s+DOBJ\s+MU\s+TIME[^\n]*\n"
                       r"((?:^\d+[^\n]*\n)+)^Optimizer terminated\.", log, re.M)
     if not table:
@@ -124,16 +135,18 @@ def stock_diagnostics(row, log):
     values = table[1].splitlines()[-1].split()
     if len(values) != 9:
         return
-    pf, df, _, _, p, d, _, _ = map(float, values[1:])
-    if not all(map(math.isfinite, (pf, df, p, d))):
-        return
-    row.update(stock_pfeas=pf, stock_dfeas=df, primal_objective_per_site=p,
-               dual_objective_per_site=d, solver_objective_relative_gap=abs(p-d)/max(1, abs(p), abs(d)))
-    row["stock_mosek_final_iteration_seconds"] = float(values[-1])
+    for key, i in (("stock_pfeas", 1), ("stock_dfeas", 2), ("stock_gfeas", 3),
+                   ("primal_objective_per_site", 5), ("dual_objective_per_site", 6),
+                   ("stock_mosek_final_iteration_seconds", 8)):
+        if (value := finite_float(values[i])) is not None:
+            row[key] = value
+    if "primal_objective_per_site" in row and "dual_objective_per_site" in row:
+        p, d = row["primal_objective_per_site"], row["dual_objective_per_site"]
+        row["solver_objective_relative_gap"] = abs(p-d)/max(1, abs(p), abs(d))
 
 
 def validate_bound(row, case, exact):
-    e = row.get("energy_per_site")
+    e = row.get("reported_objective_per_site")
     p = row.get("primal_objective_per_site")
     feasible = (max(row.get("stock_pfeas", math.inf), row.get("stock_dfeas", math.inf)) <= 1e-8
                 if row.get("method") == "reference" else
@@ -151,13 +164,54 @@ def validate_bound(row, case, exact):
     bonds_per_site = 1 if case.lattice == "chain" else 2
     floor = -0.75 * bonds_per_site   # Each bond has minimum eigenvalue -3/4.
     neel = -0.25 * bonds_per_site    # A staggered Z product state on either even lattice.
+    if not floor - ENERGY_ATOL <= e <= (exact if exact is not None else neel) + ENERGY_ATOL:
+        row["outcome"] = "energy_check_failed"
+        return
+    row["energy_per_site"] = e
     if exact is not None:
         row["signed_error_per_site"] = e - exact
         row["absolute_error_per_site"] = abs(e - exact)
         row["exact_gap_per_site"] = exact - e
         row["relative_exact_gap"] = (exact - e) / abs(exact)
-    if not floor - ENERGY_ATOL <= e <= (exact if exact is not None else neel) + ENERGY_ATOL:
-        row["outcome"] = "energy_check_failed"
+
+
+def run_repeats(case, exact, methods, audits, repeats, invoke, record):
+    failed = False
+    stopped = set()
+    for i in range(repeats):
+        rows = {}
+        shift = i % len(methods)
+        order = [m for m in methods[shift:] + methods[:shift] if m not in stopped]
+        if not order:
+            break
+        for position, method in enumerate(order, 1):
+            row = invoke(method, f"{case.id}-{i+1}-{method}", case)
+            row.update(replicate=i + 1, execution_position=position)
+            if method != "reference":
+                audit = audits[method]
+                row["comparison_lane"] = audit["comparison_lane"]
+                if row["outcome"] == "ok" and (row.get("prototype_row_counts") != [audit["selected_rows"]] or
+                    row.get("translation_orders") != audit["retained_translation_orders"] or
+                    row.get("point_order") != audit["retained_point_order"]):
+                    row["outcome"] = "audit_mismatch"
+            validate_bound(row, case, exact)
+            rows[method] = row
+            record(row)
+            outcome = row["outcome"]
+            if outcome != "ok":
+                failed = True
+                if outcome not in ("solver_rejected", "energy_check_failed"):
+                    stopped.add(method)
+        reference = rows.get("reference")
+        for method, row in rows.items():
+            if method == "reference" or not reference or reference["outcome"] != "ok" or row["outcome"] != "ok":
+                continue
+            audit = audits[method]
+            record({"case": case.id, "replicate": i + 1, "candidate": method,
+                    "comparison_lane": audit["comparison_lane"], "row_span_match": audit["row_span_match"],
+                    "verified_symmetry_match": audit["verified_symmetry_match"], "strength_equivalence": "not_established",
+                    "prototype_minus_reference_per_site": row["energy_per_site"] - reference["energy_per_site"]})
+    return failed
 
 
 def main():
@@ -238,7 +292,7 @@ def main():
             row.update(tomllib.loads(data.read_text()))
         row["outcome"] = ("timeout" if row["timed_out"] else "oom" if oom_kills(group) > before
                           else "worker_error" if row["exit_code"] != 0 or not data.exists() else "ok")
-        if method == "reference" and row["outcome"] == "ok":
+        if method == "reference":
             stock_diagnostics(row, log.read_text())
         return row
 
@@ -279,34 +333,8 @@ def main():
                     methods.append(support)
                 else:
                     failed = True
-            for i in range(args.repeats):
-                rows = {}
-                for method in (methods if i % 2 == 0 else methods[::-1]):
-                    row = invoke(method, f"{case.id}-{i+1}-{method}", case)
-                    if method != "reference":
-                        audit = audits[case.lattice, case.extent, method]
-                        row["comparison_lane"] = audit["comparison_lane"]
-                        if row["outcome"] == "ok" and (row.get("prototype_row_counts") != [audit["selected_rows"]] or
-                            row.get("translation_orders") != audit["retained_translation_orders"] or
-                            row.get("point_order") != audit["retained_point_order"]):
-                            row["outcome"] = "audit_mismatch"
-                    validate_bound(row, case, exact)
-                    rows[method] = row
-                    record(row)
-                reference = rows.get("reference")
-                for method, row in rows.items():
-                    if method == "reference" or not reference or reference["outcome"] != "ok" or row["outcome"] != "ok":
-                        continue
-                    audit = audits[case.lattice, case.extent, method]
-                    record({"case": case.id, "replicate": i + 1, "candidate": method,
-                            "comparison_lane": audit["comparison_lane"], "row_span_match": audit["row_span_match"],
-                            "verified_symmetry_match": audit["verified_symmetry_match"], "strength_equivalence": "not_established",
-                            "prototype_minus_reference_per_site": row["energy_per_site"] - reference["energy_per_site"]})
-                rejected = {m for m, row in rows.items() if row["outcome"] != "ok"}
-                failed |= bool(rejected)
-                methods = [m for m in methods if m not in rejected]
-                if not methods:
-                    break
+            case_audits = {m: audits[case.lattice, case.extent, m] for m in methods if m != "reference"}
+            failed |= run_repeats(case, exact, methods, case_audits, args.repeats, invoke, record)
     if (git("rev-parse", "HEAD") != head or git("status", "--porcelain") or
             any((projects[lat] / name).read_bytes() != data for lat, files in locks.items() for name, data in files.items())):
         raise SystemExit("source or manifest changed during the run; discard these results")

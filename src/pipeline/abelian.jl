@@ -99,7 +99,7 @@ function _momentum_action(orbits::AbelianRows,index,h,k;before=nothing)
     end
 end
 
-function _orbit_pair_kernel!(cache,table,orbits::AbelianRows,a,b,pair_mul!)
+function _orbit_pair_kernel!(cache,table,orbits::AbelianRows,a,b,pair_mul!::F) where {F}
     get!(cache,(a,b)) do
         forms=LinearForms{ComplexF64}(); sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
         wa,wb=orbits.words[a],orbits.words[b]; p,sa=star(first(wa))
@@ -112,7 +112,7 @@ function _orbit_pair_kernel!(cache,table,orbits::AbelianRows,a,b,pair_mul!)
     end
 end
 
-function _fourier_kernel!(fourier,cache,table,orbits::AbelianRows,a,b,characters,pair_mul!)
+function _fourier_kernel!(fourier,cache,table,orbits::AbelianRows,a,b,characters,pair_mul!::F) where {F}
     get!(fourier,(a,b)) do
         raw=_orbit_pair_kernel!(cache,table,orbits,a,b,pair_mul!)
         terms=Dict{Int32,ComplexF64}()
@@ -134,7 +134,7 @@ relaxation; it does not add particle-number or other state-sector equations.
 """
 function abelian_lattice_program(rows::AbstractVector{W},objective,translations::TranslationGroup,
     point_generators::AbstractVector{<:AbstractAction};moment_generators=(),
-    selected_characters=nothing,union_characters=false,pair_mul! = mul!,shared_table=nothing) where {W<:AbstractWord}
+    selected_characters=nothing,union_characters=false,pair_mul!::F = mul!,shared_table=nothing) where {W<:AbstractWord,F}
     canonical=map(g->_group_action(W,g),translations.generators)
     if any(canonical[i] !== translations.generators[i] for i in eachindex(canonical))
         translations=TranslationGroup(canonical,translations.orders)

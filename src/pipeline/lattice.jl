@@ -73,7 +73,9 @@ function _real_character_sectors(sectors,orbits,index,k,anti,candidates)
     result,real_blocks
 end
 
-function _orbit_pair_kernel!(cache, table, orbits, a, b, pair_mul!)
+# `pair_mul!::F` forces specialization. Julia does not specialize on a function
+# argument that is only passed on, and the kernels then allocate per product.
+function _orbit_pair_kernel!(cache, table, orbits, a, b, pair_mul!::F) where {F}
     get!(cache,(a,b)) do
         forms = LinearForms{ComplexF64}()
         sink = OrbitFormSink(table,Dict{Int32,ComplexF64}())
@@ -88,7 +90,7 @@ function _orbit_pair_kernel!(cache, table, orbits, a, b, pair_mul!)
     end
 end
 
-function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters, pair_mul!)
+function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters, pair_mul!::F) where {F}
     get!(fourier,(a,b)) do
         raw = _orbit_pair_kernel!(cache,table,orbits,a,b,pair_mul!)
         terms = Dict{Int32,ComplexF64}()
@@ -101,12 +103,12 @@ function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters, pair_
     end
 end
 
-function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, cache; real_blocks=false, pair_mul! = mul!)
+function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, cache; real_blocks=false, pair_mul!::F = mul!) where {F}
     characters = [cispi(-2k*t/orbits.order) for t in 0:(orbits.order-1)]
     _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks,pair_mul!)
 end
 
-function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks=false,pair_mul! = mul!)
+function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks=false,pair_mul!::F = mul!) where {F}
     fourier = Dict{Tuple{Int,Int},Dict{Int32,ComplexF64}}()
     for (s, reduced_rows) in enumerate(sectors)
         isempty(reduced_rows) && continue
@@ -151,7 +153,7 @@ are applied to one orbit of momentum rows at a time, not to all site rows.
 The full lattice group is never enumerated.
 """
 function lattice_program(rows::AbstractVector{W}, objective, translation, order,
-    point_generators::AbstractVector{<:AbstractAction}; moment_generators=(), pair_mul! = mul!, shared_table=nothing) where {W<:AbstractWord}
+    point_generators::AbstractVector{<:AbstractAction}; moment_generators=(), pair_mul!::F = mul!, shared_table=nothing) where {W<:AbstractWord,F}
     translation=_group_action(W,translation)
     point_generators=map(g->_group_action(W,g),point_generators)
     moment_generators=map(g->_group_action(W,g),moment_generators)

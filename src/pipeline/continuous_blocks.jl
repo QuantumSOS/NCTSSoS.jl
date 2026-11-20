@@ -88,14 +88,14 @@ function _block_coefficients(program,block,ids)
     return matrices
 end
 
-function _copy_cone!(out,program,block)
+function _copy_cone!(out,program,block;label=block.label)
     for f in form_range(block)
         for t in term_range(program.forms,f)
             push_term!(out.forms,program.forms.coefs[t],program.forms.ids[t])
         end
         close_form!(out.forms)
     end
-    push_block!(out,block.kind,block.side,block.label)
+    push_block!(out,block.kind,block.side,label)
 end
 
 # An edge means that at least one stored coefficient couples the two rows.

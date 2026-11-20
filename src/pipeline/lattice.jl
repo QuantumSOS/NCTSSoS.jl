@@ -73,7 +73,7 @@ function _real_character_sectors(sectors,orbits,index,k,anti,candidates)
     result,real_blocks
 end
 
-function _orbit_pair_kernel!(cache, table, orbits, a, b)
+function _orbit_pair_kernel!(cache, table, orbits, a, b, pair_mul!)
     get!(cache,(a,b)) do
         forms = LinearForms{ComplexF64}()
         sink = OrbitFormSink(table,Dict{Int32,ComplexF64}())
@@ -81,16 +81,16 @@ function _orbit_pair_kernel!(cache, table, orbits, a, b)
         p,sa = star(first(wa))
         for t in eachindex(wb)
             empty!(sink.terms)
-            mul!(sink,sa,wb[t],scale(p*orbits.phases[b][t],ComplexF64(sqrt(length(wa)/length(wb)))))
+            pair_mul!(sink,sa,wb[t],scale(p*orbits.phases[b][t],ComplexF64(sqrt(length(wa)/length(wb)))))
             _close_orbit_form!(forms,sink.terms)
         end
         forms
     end
 end
 
-function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters)
+function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters, pair_mul!)
     get!(fourier,(a,b)) do
-        raw = _orbit_pair_kernel!(cache,table,orbits,a,b)
+        raw = _orbit_pair_kernel!(cache,table,orbits,a,b,pair_mul!)
         terms = Dict{Int32,ComplexF64}()
         for t in 1:length(raw), j in term_range(raw,t)
             id = raw.ids[j]
@@ -101,12 +101,12 @@ function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters)
     end
 end
 
-function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, cache; real_blocks=false)
+function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, cache; real_blocks=false, pair_mul! = mul!)
     characters = [cispi(-2k*t/orbits.order) for t in 0:(orbits.order-1)]
-    _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks)
+    _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks,pair_mul!)
 end
 
-function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks=false)
+function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks=false,pair_mul! = mul!)
     fourier = Dict{Tuple{Int,Int},Dict{Int32,ComplexF64}}()
     for (s, reduced_rows) in enumerate(sectors)
         isempty(reduced_rows) && continue
@@ -114,7 +114,7 @@ function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_la
         for j in eachindex(reduced_rows), i in j:length(reduced_rows)
             empty!(sink.terms)
             for (ca,a) in reduced_rows[i], (cb,b) in reduced_rows[j]
-                kernel = _fourier_kernel!(fourier,cache,sink.table,orbits,max(a,b),min(a,b),characters)
+                kernel = _fourier_kernel!(fourier,cache,sink.table,orbits,max(a,b),min(a,b),characters,pair_mul!)
                 c = conj(ca)*cb
                 for (id,coefficient) in kernel
                     sink.terms[id] = get(sink.terms,id,0im) + c*(a < b ? conj(coefficient) : coefficient)
@@ -151,7 +151,7 @@ are applied to one orbit of momentum rows at a time, not to all site rows.
 The full lattice group is never enumerated.
 """
 function lattice_program(rows::AbstractVector{W}, objective, translation, order,
-    point_generators::AbstractVector{<:AbstractAction}; moment_generators=()) where {W<:AbstractWord}
+    point_generators::AbstractVector{<:AbstractAction}; moment_generators=(), pair_mul! = mul!, shared_table=nothing) where {W<:AbstractWord}
     translation=_group_action(W,translation)
     point_generators=map(g->_group_action(W,g),point_generators)
     moment_generators=map(g->_group_action(W,g),moment_generators)
@@ -172,7 +172,7 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
         !isone(h) && all(w -> act(h,w)[2] == w, rows)
     end
     cyclic=(generator=translation,normalizers=point_generators,remaining=moment_generators)
-    table = OrbitMoments(W, all_generators; annihilators=diagonal,cyclic)
+    table = isnothing(shared_table) ? OrbitMoments(W, all_generators; annihilators=diagonal,cyclic) : shared_table
     program = MomentProgram{ComplexF64}()
     sink = OrbitFormSink(table, Dict{Int32,ComplexF64}())
     # The little group changes only at k=0 and, for even order, k=order/2.
@@ -206,7 +206,7 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
             sectors,real_blocks = _real_momentum_sectors(sectors, orbits, index, k,
                 moment_generators[anti_index], point, conjugations)
         end
-        _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, kernels; real_blocks)
+        _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, kernels; real_blocks,pair_mul!)
     end
     p, table = _orbit_objective!(program, table, objective)
     p = all(b->b.kind==PSD,p.blocks) ? _anti_real_program(p,all_generators) : p

@@ -29,7 +29,8 @@ moment-only generators. Their degree-changing orbit relations remain active;
 they are not incorrectly advertised as block symmetries. The caller can inspect
 this partition. A failed bounded search asks for named translations.
 """
-function discover_lattice(generators::AbstractVector{<:AbstractAction},site_letters;candidate_limit=256,required=true)
+function discover_lattice(generators::AbstractVector{<:AbstractAction},site_letters;candidate_limit=256,required=true,
+    accept_translations=Returns(true))
     isempty(generators) && throw(ArgumentError("Supply symmetry generators."))
     n=length(site_letters)
     n>1 && all(length(ws)==length(first(site_letters))>0 for ws in site_letters) ||
@@ -68,6 +69,7 @@ function discover_lattice(generators::AbstractVector{<:AbstractAction},site_lett
         end
         locations=[_site_action(g,site_letters,index;pure=true)[1] for g in translations.elements]
         length(unique(locations))==n || continue
+        accept_translations(translations) || continue
         to_site=Dict(locations[i]=>translations.elements[i] for i in eachindex(locations))
         point=A[]; remainder=A[]
         for g in generators

@@ -1,0 +1,13 @@
+name = "PauliWorkflowRedesign"
+uuid = "d94a7542-439c-47e8-8320-cfe439c679e5"
+version = "0.1.0"
+entryfile = "PauliWorkflowRedesign.jl"
+
+[deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+NCTSSoS = "bfd54a76-f566-4979-8478-f7e03b9d19fb"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[compat]
+julia = "1.12"

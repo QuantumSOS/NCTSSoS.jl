@@ -99,22 +99,22 @@ function _momentum_action(orbits::AbelianRows,index,h,k;before=nothing)
     end
 end
 
-function _orbit_pair_kernel!(cache,table,orbits::AbelianRows,a,b)
+function _orbit_pair_kernel!(cache,table,orbits::AbelianRows,a,b,pair_mul!)
     get!(cache,(a,b)) do
         forms=LinearForms{ComplexF64}(); sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
         wa,wb=orbits.words[a],orbits.words[b]; p,sa=star(first(wa))
         for t in eachindex(wb)
             empty!(sink.terms)
-            mul!(sink,sa,wb[t],scale(p*orbits.phases[b][t],ComplexF64(sqrt(length(wa)/length(wb)))))
+            pair_mul!(sink,sa,wb[t],scale(p*orbits.phases[b][t],ComplexF64(sqrt(length(wa)/length(wb)))))
             _close_orbit_form!(forms,sink.terms)
         end
         forms
     end
 end
 
-function _fourier_kernel!(fourier,cache,table,orbits::AbelianRows,a,b,characters)
+function _fourier_kernel!(fourier,cache,table,orbits::AbelianRows,a,b,characters,pair_mul!)
     get!(fourier,(a,b)) do
-        raw=_orbit_pair_kernel!(cache,table,orbits,a,b)
+        raw=_orbit_pair_kernel!(cache,table,orbits,a,b,pair_mul!)
         terms=Dict{Int32,ComplexF64}()
         for t in 1:length(raw),j in term_range(raw,t)
             id=raw.ids[j]
@@ -134,7 +134,7 @@ relaxation; it does not add particle-number or other state-sector equations.
 """
 function abelian_lattice_program(rows::AbstractVector{W},objective,translations::TranslationGroup,
     point_generators::AbstractVector{<:AbstractAction};moment_generators=(),
-    selected_characters=nothing,union_characters=false) where {W<:AbstractWord}
+    selected_characters=nothing,union_characters=false,pair_mul! = mul!,shared_table=nothing) where {W<:AbstractWord}
     canonical=map(g->_group_action(W,g),translations.generators)
     if any(canonical[i] !== translations.generators[i] for i in eachindex(canonical))
         translations=TranslationGroup(canonical,translations.orders)
@@ -148,7 +148,8 @@ function abelian_lattice_program(rows::AbstractVector{W},objective,translations:
     selected=isnothing(selected_characters) ? collect(axes(translations.characters,1)) :
         character_sector_closure(translations,point_generators,selected_characters;union=union_characters)
     index=Dict(w=>(a,t) for (a,ws) in enumerate(orbits.words) for (t,w) in enumerate(ws))
-    table=OrbitMoments(W,all_generators)
+    diagonal=filter(g->all(w->last(act(g,w))==w,rows),collect(all_generators))
+    table=isnothing(shared_table) ? OrbitMoments(W,all_generators;annihilators=diagonal) : shared_table
     program=MomentProgram{ComplexF64}(); sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
     cache=Dict{Tuple{Int,Int},LinearForms{ComplexF64}}()
     projection_cache=Dict{Tuple{Vararg{Int}},Tuple{typeof(point),Vector{Vector{ComplexF64}}}}()
@@ -179,7 +180,7 @@ function abelian_lattice_program(rows::AbstractVector{W},objective,translations:
             sectors,real_blocks=_real_character_sectors(sectors,orbits,index,k,moment_generators[anti_index],candidates)
         end
         characters=cispi.(-2 .* translations.characters[k,:] ./ translations.modulus)
-        _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks)
+        _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks,pair_mul!)
         push!(little_orders,length(little))
     end
     p,table=_orbit_objective!(program,table,objective)

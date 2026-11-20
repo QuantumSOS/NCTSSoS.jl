@@ -134,17 +134,24 @@ function _whole_lattice_family(block,objective,generators,moment_generators,site
     (isnothing(site_letters) || length(site_letters)<2 || isempty(generators) || block.source!=0) && return nothing
     structure=discover_lattice(generators,site_letters;required=false)
     isnothing(structure) && return nothing
+    return _discovered_lattice_program(block.rows,objective,structure,moment_generators)
+end
+
+function _discovered_lattice_program(rows,objective,structure,moment_generators;kwargs...)
     translations=structure.translations
     point=structure.point_generators
     moments=Tuple(unique([collect(moment_generators);structure.moment_generators]))
-    if length(translations.orders)==1 && all(point) do g
+    result = if length(translations.orders)==1 && all(point) do g
         conjugate=_conjugate_action(g,only(translations.generators))
         conjugate in (only(translations.generators),inv(only(translations.generators)))
     end
-        return lattice_program(block.rows,objective,only(translations.generators),only(translations.orders),point;
-            moment_generators=moments)
+        lattice_program(rows,objective,only(translations.generators),only(translations.orders),point;
+            moment_generators=moments,kwargs...)
+    else
+        abelian_lattice_program(rows,objective,translations,point;moment_generators=moments,kwargs...)
     end
-    abelian_lattice_program(block.rows,objective,translations,point;moment_generators=moments)
+    program,table,report=result
+    return program,table,(;report...,translation_orders=translations.orders,discovery=structure)
 end
 
 "Build one cone per block orbit, sharing orbit moments across all blocks."

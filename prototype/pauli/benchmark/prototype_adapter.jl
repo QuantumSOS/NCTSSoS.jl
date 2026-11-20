@@ -73,10 +73,11 @@ function prototype_audit(lattice,L,extra,strengthened,mode)
         "selected_row_triangle_forms"=>length(actual)*(length(actual)+1)÷2)
 end
 
-function prototype_run(result, path, lattice, L, extra, strengthened, mode)
+function prototype_run(result, path, lattice, L, extra, strengthened, mode; explicit_moment=false)
     started = time_ns()
     H,order,sparsity,strengthening = prototype_inputs(lattice,L,extra,strengthened,mode)
-    plan = compile_relaxation(H; order, sparsity, strengthening, wang_matched=true, wang_lso_span=strengthened ? 4 : 0)
+    moi_form = explicit_moment ? :dualized : :auto
+    plan = compile_relaxation(H; order, sparsity, strengthening, moi_form, wang_matched=true, wang_lso_span=strengthened ? 4 : 0)
     result["build_seconds"] = (time_ns() - started) / 1e9
     result["prototype_settings"] = "wang_matched"
     result["graph_radius"] = sparsity.power_graph_radius
@@ -113,6 +114,10 @@ function prototype_run(result, path, lattice, L, extra, strengthened, mode)
     if strengthened
         result["rdm_psd_blocks"] > 0 && (strengthening.kms_psd_order == 0 || !isempty(wang.pso.sides)) ||
             error("prototype PSD strengthening missing")
+    end
+    if explicit_moment
+        result["prototype_provenance"] = repr(plan.provenance)
+        return square_moment_solve!(result,path,plan.standard)
     end
 
     # Capture the actual optimizer so status and gap are observed, not inferred

@@ -232,12 +232,17 @@ def main():
     parser.add_argument("--cases", nargs="+", choices=[c.id for c in CASES])
     parser.add_argument("--supports", nargs="*", choices=["graph_distance", "local_products", "full"],
                         default=["graph_distance", "local_products"], help="candidate methods; empty means stock only")
+    parser.add_argument("--square-moment", action="store_true",
+                        help="submit the original moment coordinates instead of auto-selecting a solver form")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=1800, help="seconds per child; same for both methods")
     args = parser.parse_args()
     if args.repeats < 3 or args.timeout <= 0:
         parser.error("use at least 3 repeats and a positive timeout")
     selected = [c for c in CASES if c.id in (args.cases or [c.id for c in CASES[:7]])]
+    if args.square_moment and (args.smoke or args.supports != ["graph_distance"] or
+            not all(c.lattice == "square" and c.strengthened for c in selected)):
+        parser.error("--square-moment requires strengthened square cases and --supports graph_distance")
     if "full" in args.supports and any(c.staged for c in selected):
         parser.error("full ambient rows are not enabled for the staged paper-size cases")
     if platform.system() != "Linux":
@@ -283,6 +288,7 @@ def main():
     metadata = {"prototype_revision": head, "reference_revisions": REF,
                 "lock_sha256": {lat: {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
                                 for lat, files in locks.items()}, "supports": args.supports,
+                "square_moment": args.square_moment,
                 "julia_executable": julia[0],
                 "uname": list(platform.uname()), "mem_total_kib": mem_kib,
                 "cpu_affinity": sorted(os.sched_getaffinity(0)), "memory_max_bytes": memory_cap,
@@ -295,6 +301,8 @@ def main():
         data = out / f"{label}.toml"
         cmd = julia + [f"--project={projects[case.lattice]}", worker, method, str(data), case.lattice, str(case.extent), str(case.reference_extra),
                        str(case.strengthened).lower()]
+        if args.square_moment and method == "graph_distance":
+            cmd.append("explicit_moment")
         before = oom_kills(group)
         log = out / f"{label}.log"
         row = run_process(cmd, log, args.timeout, env)

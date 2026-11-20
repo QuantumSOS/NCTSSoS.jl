@@ -23,9 +23,11 @@ if ARGS == ["smoke"]
     exit()
 end
 
-method, path, lattice, extent, extra, strengthened_arg = ARGS
+method, path, lattice, extent, extra, strengthened_arg, numeric_options... = ARGS
 L = parse(Int, extent)
 strengthened = parse(Bool, strengthened_arg)
+explicit_moment = numeric_options == ["explicit_moment"] && method == "graph_distance" && lattice == "square" && strengthened
+isempty(numeric_options) || explicit_moment || error("Explicit moment form requires the strengthened square graph worker")
 if method == "ed"
     save_result(path, Dict("exact_energy_per_site" => exact_energy(lattice, L)))
     exit()
@@ -141,7 +143,8 @@ if method == "reference"
 else
     method in ("full", "graph_distance", "local_products") || error("unknown worker method $method")
     include("prototype_adapter.jl")
-    energy = prototype_run(result, path, lattice, L, parse(Int, extra), strengthened, Symbol(method))
+    explicit_moment && include("square_moment.jl")
+    energy = prototype_run(result, path, lattice, L, parse(Int, extra), strengthened, Symbol(method); explicit_moment)
 end
 if energy !== nothing && isfinite(energy)
     result["reported_objective_per_site"] = energy

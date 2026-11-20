@@ -123,7 +123,7 @@ if the symmetries match. Retain failures and do not substitute sizes in an
 existing run. Report support and settings lanes separately and do not
 compare speed ratios across unmatched lanes.
 
-The existing hint-free audit finds translation order 100 and point-group
+The original detector's audit (before the pair-generator change) found translation order 100 and point-group
 order 48 for chain-100. For square-16 it reaches the 2,000,000-trial graph
 search limit without discovering regular translations. The runner therefore
 records `required_symmetry_missing` and skips that candidate method, while
@@ -134,9 +134,13 @@ has 46,849 selected candidate words, versus 28,417 stock words. Without
 reduction the candidate triangle would contain 1,097,437,825 entries. The
 same audit rejects the 14×14 and 12×12 candidate routes; 10×10 and 8×8 retain
 both expected translations and all 192 point-group actions. The largest
-structurally verified square candidate is thus 10×10, with a different row
+structurally verified square candidate at that revision was 10×10, with a different row
 pool from stock (18,301 vs. 11,101 rows). Audit success does not show that the
 solve fits or returns an accepted bound.
+
+The later pair-generator detector passed the larger-square audits. See the
+[completed ladder](RESULTS.md) for the measured runs through 16×16, the
+explicit-moment submission, and the separate original-coordinate diagnostics.
 
 The paper reports a 32-core, 1 TB machine and Mosek 11.0 but does not list
 per-row options. In the [chain pin](https://github.com/wangjie212/QMBCertify/blob/0b152dfcd9bcde3403aa4d967642ce5261c80712/examples/partition_function.jl#L3-L6),

@@ -5,7 +5,7 @@ using NCTSSoS: build, moment_standard_form
 import NCTSSoS: _prepare
 import Mosek
 import JuMP
-using SparseArrays: sparse, findnz, nzrange, rowvals, nonzeros
+using SparseArrays: sparse, nzrange, rowvals, nonzeros
 using PrecompileTools: @compile_workload
 
 struct MosekHandle{B}
@@ -70,6 +70,29 @@ function domain(task,kind,length)
     throw(ArgumentError("Mosek writer received unsupported cone $kind."))
 end
 
+function write_moment_entries!(task, A)
+    rows, values = rowvals(A), nonzeros(A)
+    isempty(values) && return nothing
+    # Bound the triplet workspace and the wrapper's zero-based index copies,
+    # independently of nnz(A). The CSC remains the only full Julia matrix.
+    count = min(length(values), 1<<18)
+    I, J, V = Vector{Int64}(undef,count), Vector{Int32}(undef,count), Vector{Float64}(undef,count)
+    k = 0
+    for j in axes(A,2), t in nzrange(A,j)
+        k += 1
+        I[k], J[k], V[k] = rows[t], j, -values[t]
+        if k == count
+            Mosek.putafefentrylist(task,I,J,V)
+            k = 0
+        end
+    end
+    if k > 0
+        resize!(I,k); resize!(J,k); resize!(V,k)
+        Mosek.putafefentrylist(task,I,J,V)
+    end
+    return nothing
+end
+
 function write_moment!(task,f)
     m,n=size(f.A)
     Mosek.appendvars(task,n)
@@ -77,8 +100,7 @@ function write_moment!(task,f)
     Mosek.putclist(task,collect(1:n),f.c)
     Mosek.putobjsense(task,Mosek.MSK_OBJECTIVE_SENSE_MINIMIZE)
     Mosek.appendafes(task,m)
-    I,J,V=findnz(f.A)
-    Mosek.putafefentrylist(task,I,J,-V)
+    write_moment_entries!(task,f.A)
     Mosek.putafegslice(task,1,m+1,f.b)
     for cone in f.cones
         Mosek.appendaccseq(task,domain(task,cone.kind,cone.length),Int64(cone.first),nothing)

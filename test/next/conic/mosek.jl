@@ -46,6 +46,18 @@ end
         @test N.task_sizes(handle)==expected
         Mosek.deletetask(handle.task)
     end
+    # A native writer must preserve the negative CSC entries across batch
+    # boundaries, including the last partial column and an empty column.
+    A=sparse([Float64(i-2j) for i in 1:519, j in 1:511])
+    A=hcat(spzeros(519,1),A)
+    large=N.MomentStandardForm(A,zeros(519),zeros(512),0.,[N.DataCone(:zero,1,1,519,0)])
+    handle=N.prepare_standard(large,N.MosekBackend(form=:moment))
+    try
+        I,J,V=Mosek.getafeftrip(handle.task)
+        @test sparse(I,J,V,size(A)...) == -A
+    finally
+        Mosek.deletetask(handle.task)
+    end
     _,(_,_,z)=N.pauli_variables(1)
     built=N.build(N.Problem(-z[1]),N.Relaxation(order=1))
     @test_throws r"native Mosek handle" N.task_sizes(built)

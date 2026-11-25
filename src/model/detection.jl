@@ -7,6 +7,15 @@ Detect Clifford symmetries of an unconstrained Pauli objective and return a
 `solve`. Keywords (including `max_automorphisms`, `cycle_strategy`, and
 `ga_backend`) pass through to the existing SympleQ detector.
 
+Use `ga_backend=:seeded` to start from verified site permutations and the
+Pauli-sign kernel. Pass additional known unitary actions in `known_generators`.
+The term search skips targets related by known permutations that fix the
+assigned prefix. When the terms do not span the full binary Pauli space it
+replays the original Clifford lift for each recovered term permutation.
+An uncapped search retains the unpruned subgroup and may enlarge it with
+verified seeds. The budget bounds graph leaves and lift replay separately;
+capped subgroups need not agree. `:backtracking` remains the unpruned default.
+
 Each returned generator is verified against the packed objective; the result
 can be incomplete, and the detector does not report the group order. Detector
 warnings pass through unchanged; raise `max_automorphisms` after a cap warning

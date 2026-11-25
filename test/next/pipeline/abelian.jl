@@ -13,6 +13,59 @@ function torus_objective(nx,ny)
     [(1.,Nx.mul(toy_letter(site(x,y),a),toy_letter(site(x+dx,y+dy),a))[2])
         for y in 0:(ny-1) for x in 0:(nx-1) for (dx,dy) in ((1,0),(0,1)) for a in 0:2]
 end
+
+@testset "Ambiguous antiunitary fixed basis preserves the Hermitian sector" begin
+    # Ordinary K on the real X,Z operator span. This change of basis is
+    # unitary, but its first real/imaginary candidates are nearly parallel.
+    θ=3e-9
+    Q=cis(0.7)*[cos(θ) im*sin(θ); im*sin(θ) cos(θ)]
+    @test Q'*Q ≈ LinearAlgebra.I atol=1e-15
+    @test isnothing(Nx._fixed_real_columns(Q,conj(Q)))
+
+    W=Nx.PauliWord{1}
+    rows=sort([Nx.pauli_letter(W,1,0),Nx.pauli_letter(W,1,2)])
+    K=Nx.CliffordMap(Nx.AntiunitaryPauli(one(W)))
+    g=one(K)
+    translations=Nx.TranslationGroup([g],[1])
+    orbits=Nx.AbelianRows(rows,translations)
+    index=Dict(w=>(a,1) for (a,w) in enumerate(rows))
+    sectors=[[[(Q[i,j],i) for i in 1:2] for j in 1:2]]
+    retained,real_blocks=Nx._real_character_sectors(sectors,orbits,index,1,K,[g])
+    @test retained==sectors
+    @test real_blocks==[false]
+
+    # A well-conditioned basis still succeeds and has the same projector.
+    U=ComplexF64[0 im; 1 0; 0 0]
+    F=hcat(Nx._fixed_real_columns(U,conj(U))...)
+    @test F==[0 1; 1 0; 0 0]
+    @test F*F' ≈ U*U' atol=1e-15
+end
+
+@testset "Fourier assembly retries a nonreal fixed basis" begin
+    W=Nx.PauliWord{1}
+    identity,x=one(W),Nx.pauli_letter(W,1,0)
+    K=Nx.CliffordMap(Nx.AntiunitaryPauli(identity))
+    translations=Nx.TranslationGroup([one(K)],[1])
+    orbits=Nx.AbelianRows([identity,x],translations)
+    original=[[[ (1.0+0im,1)],[(0.0+1im,2)]], [[(1.0+0im,1)]]]
+    candidate=deepcopy(original)
+    # These approximate K-fixed rows have overlap -2e-10im on identity:
+    # below the fixed-basis norm budget, above the affine coefficient budget.
+    candidate[1][2]=[(1.0+0im,2),(0.0+2e-10im,1)]
+    table=Nx.OrbitMoments(W,(K,))
+    p=Nx.MomentProgram{ComplexF64}()
+    labels=Tuple{Int,Int}[]
+    Nx._assemble_character!(p,Nx.OrbitFormSink(table,Dict{Int32,ComplexF64}()),
+        orbits,ComplexF64[1],1,candidate,labels,Dict();real_blocks=[true,true],original_sectors=original)
+    p.nvars=length(table.labels)
+    @test Nx.validate(p)===p
+    @test labels==[(1,1),(1,2)]
+    @test candidate==original
+    @test [(b.kind,b.side) for b in p.blocks]==[(Nx.HPSD,2),(Nx.PSD,1)]
+    # Direct Pauli products: the original lower entry is (iX)'I = -iX.
+    @test evaluated_blocks(p,[1.0,0.375])==[ComplexF64[1 0.375im; -0.375im 1],ones(ComplexF64,1,1)]
+end
+
 @testset "Product translations and point group" begin
     for (nx,ny,d) in ((2,2,1),(2,3,1),(2,2,2))
         tx,ty,point=torus_actions(nx,ny)

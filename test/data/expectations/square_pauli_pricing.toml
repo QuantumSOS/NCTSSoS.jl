@@ -1,0 +1,11 @@
+schema_version = 1
+
+[[cases]]
+id = "j1j2_l2"
+expected = { objective = -7.0 }
+notes = "Exact ground energy; unique periodic NN and diagonal bonds, Pauli units, J2/J1 = 1/2."
+
+[[cases]]
+id = "j1j2_l4"
+expected = { objective = -33.83169 }
+notes = "Reference rounded up from the lowest Sz=0 Lanczos Ritz value -33.83169340557945 (residual 3e-13); unique periodic NN and diagonal bonds, Pauli units, J2/J1 = 1/2."

@@ -42,23 +42,43 @@ struct OrbitFormSink{T,C}
     table::T
     terms::Dict{Int32,C}
 end
-function push_term!(s::OrbitFormSink{T,C}, c::Number, w::AbstractWord) where {T,C}
-    m = orbit_coordinates!(s.table, w)
-    m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, zero(C)) + c*m.real_coefficient)
-    m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, zero(C)) + c*m.imag_coefficient)
+
+_orbit_coefficient(c, q) = c*q
+function _orbit_coefficient(c::Complex{Rational{BigInt}}, q::Complex{Int8})
+    # A unit Gaussian integer only swaps or negates components. Avoid general
+    # rational multiplication, but retain it for rotated lines (±1 ± im).
+    isfinite(c) || return c*q
+    q == 1 && return c
+    q == -1 && return -c
+    q == im && return scale(Phase(1),c)
+    q == -im && return scale(Phase(3),c)
+    return c*q
+end
+
+push_term!(s::OrbitFormSink, c::Number, w::AbstractWord) = push_term!(s,c,orbit_coordinates!(s.table,w))
+
+function push_term!(s::OrbitFormSink{T,C}, c::Number, m::OrbitCoordinates) where {T,C}
+    m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, zero(C)) + _orbit_coefficient(c,m.real_coefficient))
+    m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, zero(C)) + _orbit_coefficient(c,m.imag_coefficient))
     return s
 end
 
 function _close_orbit_form!(forms, terms; diagonal=false)
     for id in sort!(collect(keys(terms)))
-        c = terms[id]
-        if diagonal
-            abs(imag(c)) <= 1e-10 * max(1, abs(c)) || error("Nonreal diagonal in orbit reduction.")
-            c = complex(real(c))
-        end
-        abs(c) > 1e-12 && push_term!(forms, c, id)
+        _append_orbit_form_term!(forms,terms[id],id,diagonal)
     end
     close_form!(forms)
+end
+
+@inline _orbit_coefficient_is_real(c) = abs(imag(c)) <= 1e-10 * max(1, abs(c))
+
+@inline function _append_orbit_form_term!(forms,c,id,diagonal)
+    if diagonal
+        _orbit_coefficient_is_real(c) || error("Nonreal diagonal in orbit reduction.")
+        c = complex(real(c))
+    end
+    abs(c) > 1e-12 && push_term!(forms,c,id)
+    nothing
 end
 
 function _orbit_objective!(program, table, objective)

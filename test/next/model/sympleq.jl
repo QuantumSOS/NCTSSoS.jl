@@ -39,6 +39,50 @@ function signed_word_group(generators, letters)
 end
 
 function check()
+    @testset "Seeded search preserves Clifford lifts, not just term permutations" begin
+        _,ops=N.pauli_variables(8); x,y,z=ops
+        actions(s)=[s.generators;s.moment_only...]
+        for periodic in (true,false)
+            H=sum(o[i]*o[mod1(i+1,8)] for o in ops for i in 1:(periodic ? 8 : 7))
+            original=Set(N.OrbitGroup(actions(N.detect_symmetry(H))).elements)
+            seeded=Set(N.OrbitGroup(actions(N.detect_symmetry(H;ga_backend=:seeded))).elements)
+            @test original ⊆ seeded
+            @test all(g->mapped(g,H)==H,seeded)
+            periodic && @test length(seeded)==length(original)==768
+        end
+        # All six axis permutations preserve the unsigned term graph, but
+        # only three preserve this Hamiltonian with the required signs.
+        H=x[1]+y[1]+z[1]
+        cycle=N.CliffordMap([word(y[1]),word(x[1])]); swap=N.CliffordMap([word(z[1]),word(x[1])])
+        actual=actions(N.detect_symmetry(H;ga_backend=:seeded))
+        @test Set(N.OrbitGroup(actual).elements)==Set([one(cycle),cycle,N.inv(cycle)])
+        @test cycle in actions(N.detect_symmetry(H;ga_backend=:seeded,known_generators=[cycle],max_automorphisms=1))
+        @test_throws ArgumentError N.detect_symmetry(H;ga_backend=:seeded,known_generators=[swap])
+        # Same term permutation, but this supplied lift also moves unused sites.
+        coupled=N.compose(cycle,N.CliffordMap(typeof(word(x[1])),4,N.SitePermutation([1,3,4,2])))
+        with_seed=Set(N.OrbitGroup(actions(N.detect_symmetry(H;ga_backend=:seeded,known_generators=[coupled]))).elements)
+        @test coupled in with_seed && cycle in with_seed && length(with_seed)==9
+    end
+    @testset "Seeded search on an irregular mixed-axis Hamiltonian" begin
+        _, (x,y,z) = N.pauli_variables(4)
+        # Each coefficient fixes its letter or pairs matching axes on sites
+        # 1 and 3. Preserving their local anticommutation forces all three
+        # axis pairs to swap together; the mixed-axis bonds allow that swap.
+        H = x[1]+x[3]+2(y[1]+y[3])+3(z[1]+z[3]) +
+            4x[2]+5y[2]+6z[2]+7x[4]+8y[4]+9z[4] +
+            0.25(x[1]+x[3])*z[2]-0.5(y[1]+y[3])*z[2]+0.75x[2]*y[4]
+        swap = N.SitePermutation([3,2,1,4])
+        letters = word.([x;y;z])
+        for s in (N.detect_symmetry(H), N.detect_symmetry(H;ga_backend=:seeded),
+            N.detect_symmetry(H;ga_backend=:seeded,known_generators=(swap,)))
+            @test isempty(s.moment_only)
+            @test all(g -> mapped(g,H)==H,s.generators)
+            group, permutation = signed_word_group(s.generators,letters)
+            @test permutation(swap) in group && GroupsCore.order(Int,group)==2
+        end
+        @test_throws ArgumentError N.detect_symmetry(H;ga_backend=:seeded,
+            known_generators=(N.SitePermutation([4,2,3,1]),))
+    end
     @testset "SympleQ preserves the relation space, not a chosen basis" begin
         for (model,sizes) in ((:heisenberg,(4,6,8,16,32)),(:ising,(16,32,64)))
             for n in sizes

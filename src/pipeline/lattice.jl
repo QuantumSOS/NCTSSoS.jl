@@ -99,30 +99,68 @@ function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters, pair_
             terms[id] = get(terms,id,0im) + characters[t]*raw.coefs[j]
         end
         filter!(p->abs(last(p))>1e-12,terms)
-        terms
+        collect(terms)
     end
 end
 
-function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, cache; real_blocks=false, pair_mul!::F = mul!) where {F}
+function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, cache; real_blocks=false, original_sectors=nothing, pair_mul!::F = mul!) where {F}
     characters = [cispi(-2k*t/orbits.order) for t in 0:(orbits.order-1)]
-    _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks,pair_mul!)
+    _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks,original_sectors,pair_mul!)
 end
 
-function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks=false,pair_mul!::F = mul!) where {F}
-    fourier = Dict{Tuple{Int,Int},Dict{Int32,ComplexF64}}()
+function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;
+    real_blocks=false, original_sectors=nothing, pair_mul!::F = mul!) where {F}
+    fourier = Dict{Tuple{Int,Int},Vector{Pair{Int32,ComplexF64}}}()
+    capacity = length(sink.table.labels)
+    sums, marked, touched = zeros(ComplexF64,capacity), fill(false,capacity), Int32[]
     for (s, reduced_rows) in enumerate(sectors)
         isempty(reduced_rows) && continue
         real_block = real_blocks isa Bool ? real_blocks : real_blocks[s]
-        for j in eachindex(reduced_rows), i in j:length(reduced_rows)
-            empty!(sink.terms)
-            for (ca,a) in reduced_rows[i], (cb,b) in reduced_rows[j]
-                kernel = _fourier_kernel!(fourier,cache,sink.table,orbits,max(a,b),min(a,b),characters,pair_mul!)
-                c = conj(ca)*cb
-                for (id,coefficient) in kernel
-                    sink.terms[id] = get(sink.terms,id,0im) + c*(a < b ? conj(coefficient) : coefficient)
+        forms = program.forms
+        offsets_before, terms_before = length(forms.offsets), length(forms.ids)
+        while true
+            failed = false
+            for j in eachindex(reduced_rows), i in j:length(reduced_rows)
+                empty!(touched)
+                for (ca,a) in reduced_rows[i], (cb,b) in reduced_rows[j]
+                    kernel = _fourier_kernel!(fourier,cache,sink.table,orbits,max(a,b),min(a,b),characters,pair_mul!)
+                    if length(sink.table.labels) > capacity
+                        first_new = capacity + 1
+                        capacity = max(2capacity,length(sink.table.labels))
+                        resize!(sums,capacity); resize!(marked,capacity)
+                        fill!(view(sums,first_new:capacity),0)
+                        fill!(view(marked,first_new:capacity),false)
+                    end
+                    c = conj(ca)*cb
+                    @inbounds for (id,coefficient) in kernel
+                        if !marked[id]
+                            marked[id] = true
+                            push!(touched,id)
+                        end
+                        sums[id] += c*(a < b ? conj(coefficient) : coefficient)
+                    end
                 end
+                @inbounds for id in sort!(touched)
+                    c = sums[id]
+                    if real_block && i != j && !isnothing(original_sectors) && !_orbit_coefficient_is_real(c)
+                        failed = true
+                    end
+                    failed || _append_orbit_form_term!(forms,c,id,real_block || i == j)
+                    sums[id] = 0
+                    marked[id] = false
+                end
+                failed && break
+                close_form!(forms)
             end
-            _close_orbit_form!(program.forms, sink.terms; diagonal=real_block || i == j)
+            failed || break
+            # A fixed-basis audit is not an entrywise reality certificate.
+            # Keep the original Hermitian sector (and its Gram recipe) when
+            # the actual off-diagonal form fails the usual reality check.
+            resize!(forms.offsets,offsets_before)
+            resize!(forms.ids,terms_before)
+            resize!(forms.coefs,terms_before)
+            reduced_rows = sectors[s] = original_sectors[s]
+            real_block = false
         end
         push_block!(program, real_block ? PSD : HPSD, length(reduced_rows), length(sector_labels) + 1)
         push!(sector_labels, (k,s))
@@ -203,12 +241,13 @@ function lattice_program(rows::AbstractVector{W}, objective, translation, order,
             mod(4k * length(orbits.words[a]) - Int(orbits.stabilizers[a].k) * order, 4order) == 0]
         actions = [_momentum_action(orbits, index, h, k) for h in little.elements]
         sectors = _momentum_projectors(active, actions, projections)
+        original_sectors = sectors
         real_blocks = false
         if !isnothing(anti_index)
             sectors,real_blocks = _real_momentum_sectors(sectors, orbits, index, k,
                 moment_generators[anti_index], point, conjugations)
         end
-        _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, kernels; real_blocks,pair_mul!)
+        _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, kernels; real_blocks,original_sectors,pair_mul!)
     end
     p, table = _orbit_objective!(program, table, objective)
     p = all(b->b.kind==PSD,p.blocks) ? _anti_real_program(p,all_generators) : p

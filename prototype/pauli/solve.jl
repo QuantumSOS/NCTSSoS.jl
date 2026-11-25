@@ -80,16 +80,26 @@ function _solve_numeric(plan, data, sense, optimizer)
 end
 
 """
-    solve_ground_state(plan, H; sense=:min, optimizer, certify=...)
+    solve_ground_state(plan, H; sense=:min, optimizer, certify=..., prune_budget=nothing)
 
 Verify a new Hamiltonian before reusing a compiled model. On a guard failure,
 recompile with the same options. Timings separate guard, rebuild, model setup,
 coefficient update and the optimizer call (which may include vendor presolve
 or reload). Serialize calls on the same plan; its optimizer cache is mutable.
+
+`bound` is the numerical solver objective. `certified_bound` is the exact
+lower bound from `certificate`, or `nothing` if unavailable. A nonnegative
+`prune_budget` requests certification and, for a supported lift, returns the
+ambient factor pruning report in `pruning`. See `prune_sos_factors` for the
+budget semantics. No certificate or pruning report is produced for a cone
+whose adjoint to the original Pauli algebra is unavailable.
 """
 function solve_ground_state(plan::CompiledSDPPlan, H;
-    sense::Symbol=:min, optimizer=nothing, certify::Bool=plan.certify_default)
+    sense::Symbol=:min, optimizer=nothing, certify::Bool=plan.certify_default,
+    prune_budget::Union{Nothing,Real}=nothing)
     optimizer = _optimizer_factory(optimizer)
+    budget = isnothing(prune_budget) ? nothing : _wf_loss_budget(prune_budget)
+    certify = certify || !isnothing(budget)
     sense in (:min, :max) || throw(ArgumentError("sense must be :min or :max."))
     sense === :max && plan.h_dependent && throw(ArgumentError("Maximization is not supported with Hamiltonian-dependent conditions."))
     sense === :max && certify && throw(ArgumentError("The lower-bound certificate hook requires sense=:min."))
@@ -110,15 +120,18 @@ function solve_ground_state(plan::CompiledSDPPlan, H;
     status = isnothing(numeric.bound) ? :unavailable : :numerical_estimate
     provenance = _bound_provenance(plan.provenance, status, floor)
     certificate_seconds = @elapsed begin
-        certificate, certificate_status = certify ? _lift_ground_certificate(plan, H, numeric.bound, optimizer) : (nothing,:not_requested)
+        certificate, certificate_status, pruning = certify ?
+            _lift_ground_certificate(plan,H,numeric.bound,optimizer,budget) : (nothing,:not_requested,nothing)
     end
+    certified_bound = isnothing(certificate) ? nothing : certificate.bound
     certificate_provenance = isnothing(certificate) ? nothing :
         BoundProvenance(:certified_lower_bound,true,provenance.exact_wrt_dense_npa,provenance.witnesses,
             provenance.active_relaxations,provenance.active_strengthenings,provenance.sector_targets,floor)
     timings = (; guard_seconds, rebuild_seconds, numeric.setup_seconds, numeric.update_seconds,
         numeric.optimizer_seconds, certificate_seconds, total_seconds=(time_ns() - total_start)/1e9)
     result = (; numeric.bound, numeric.status, numeric.raw_status, numeric.moments, provenance,
-        plan, reuse=reason, numeric.solver_model_reused, sense, timings, certificate, certificate_status, certificate_provenance)
+        plan, reuse=reason, numeric.solver_model_reused, sense, timings, certified_bound,
+        certificate, certificate_status, certificate_provenance, pruning)
     return result
 end
 
@@ -134,50 +147,52 @@ end
 
 # Only lift an intact, unprojected moment cone. Other routes need their own
 # adjoints (including class multiplicity and term-sparsity auxiliary terms).
-function _lift_ground_certificate(plan,H,bound,optimizer)
-    isnothing(bound) && return nothing,:no_optimum
+function _lift_ground_certificate(plan,H,bound,optimizer,budget)
+    isnothing(bound) && return nothing,:no_optimum,nothing
     length(plan.reports.original_rows)==1 && length(plan.program.blocks)==1 &&
-        !NC._has_symmetry(plan.symmetry) && plan.reports.term_sparsity.algorithm in (:None,:Maximal) ||
-        return nothing,:lift_unavailable
+        !NC._has_symmetry(plan.symmetry) && !plan.options.wang_matched &&
+        plan.reports.term_sparsity.algorithm in (:None,:Maximal) || return nothing,:lift_unavailable,nothing
     rows = only(plan.reports.original_rows)
     n = length(rows)
     block = only(plan.program.blocks)
-    block.label==0 && block.kind==NC.PSD && block.side in (n,2n) || return nothing,:lift_unavailable
+    block.label==0 && block.kind==NC.PSD && block.side in (n,2n) || return nothing,:lift_unavailable,nothing
     if plan.reports.term_sparsity.algorithm === :Maximal
         cliques = plan.reports.term_sparsity.cliques
         length(cliques)==1 && length(only(values(cliques)))==1 &&
-            only(only(values(cliques))) == collect(1:block.side) || return nothing,:lift_unavailable
+            only(only(values(cliques))) == collect(1:block.side) || return nothing,:lift_unavailable,nothing
     end
     prepared = plan.cache[optimizer]
     model = prepared.model
     side = block.side
     if plan.moi_form === :dualized
-        JuMP.has_duals(model) || return nothing,:no_dual_point
+        JuMP.has_duals(model) || return nothing,:no_dual_point,nothing
         constraints = JuMP.all_constraints(model; include_variable_in_set_constraints=false)
-        length(constraints)==1 || return nothing,:lift_unavailable
+        length(constraints)==1 || return nothing,:lift_unavailable,nothing
         D = Matrix(JuMP.dual(only(constraints)))
     else
         # SOS variables are svec scaled, in lower-column order.
         z = JuMP.value.(prepared.variables)
         D = [z[1+NC.tri_offset(side,max(i,j),min(i,j))] / (i==j ? 1.0 : sqrt(2.0)) for i in 1:side, j in 1:side]
     end
-    all(isfinite,D) || return nothing,:no_dual_point
+    all(isfinite,D) || return nothing,:no_dual_point,nothing
     # The adjoint of [Re M -Im M; Im M Re M], conjugated to match
     # the ambient verifier's sum G[i,j]*P[i]'*P[j] convention.
     gram = side==n ? D :
         D[1:n,1:n] + D[n+1:end,n+1:end] + im*(D[1:n,n+1:end] - D[n+1:end,1:n])
     eig = eigen(Hermitian((gram+gram')/2))
     factors = sqrt.(max.(eig.values,0.0)) .* eig.vectors'
-    exact_factors = Complex{Rational{BigInt}}.(factors)
-    exact_gram = exact_factors' * exact_factors
-    polys = [_wf_word(H,w) for w in rows]
-    certificate = try
-        certify_rational_sos(H,bound; grams=((;rows=polys,gram=exact_gram),))
+    squares = [_wf_polynomial(H.registry,eltype(rows),((factors[i,j],rows[j]) for j in 1:n))
+        for i in eachindex(eig.values) if eig.values[i] > 0]
+    try
+        if isnothing(budget)
+            return certify_rational_sos(H,bound; squares),:verified_rational,nothing
+        end
+        pruning = prune_sos_factors(H,bound; squares,loss_budget=budget)
+        return pruning.certificate,:verified_rational,pruning
     catch error
         error isa ArgumentError || rethrow()
-        return nothing,:lift_verification_failed
+        return nothing,:lift_verification_failed,nothing
     end
-    return certificate,:verified_rational
 end
 
 """

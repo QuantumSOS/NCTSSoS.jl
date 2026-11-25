@@ -101,6 +101,33 @@ function _workflow_distance_pairs!(add, ::Type{W}, graph, radius) where {W}
     end
 end
 
+# Use the same induced motifs on every interaction graph. Pair distances
+# are measured on the original graph, not a graph with added diagonals.
+function _workflow_graph_motifs!(add, ::Type{W}, graph, d) where {W}
+    function emit(sites)
+        for axes in Iterators.product(ntuple(_ -> 0:2, length(sites))...)
+            w = one(W)
+            for (site, axis) in zip(sites, axes)
+                w = last(NC.mul(w, NC.pauli_letter(W, site, axis)))
+            end
+            add(w)
+        end
+    end
+    for c in Graphs.vertices(graph)
+        neighbors = Graphs.neighbors(graph, c)
+        for (i, u) in enumerate(neighbors), v in @view neighbors[i+1:end]
+            Graphs.has_edge(graph, u, v) && continue
+            emit((u, c, v))
+            # Enumerate each chordless cycle from its least numbered vertex.
+            d >= 4 && c < min(u, v) || continue
+            for f in Graphs.neighbors(graph, u)
+                c < f && Graphs.has_edge(graph, f, v) && !Graphs.has_edge(graph, c, f) || continue
+                emit((c, u, f, v))
+            end
+        end
+    end
+end
+
 # The footprint is the union of factor supports, not the support after Pauli
 # cancellations. Two prefixes with the same footprint and word have identical
 # continuations; the shallower one already explores every eligible suffix.
@@ -178,9 +205,10 @@ function _workflow_physics_support(H, observable, ::Type{W}, mode, d, radius, de
         end
     end
     products = 0
-    if mode === :graph_distance && d >= 2
+    if mode in (:graph_distance, :graph_motifs) && d >= 2
         graph, _ = NC._interaction_graph(NC.Problem(H))
         _workflow_distance_pairs!(add, W, graph, radius)
+        mode === :graph_motifs && d >= 3 && _workflow_graph_motifs!(add, W, graph, d)
     elseif mode === :local_products && d >= 1
         words = W[w for (c, w) in NC.terms(H) if !iszero(c) && !isone(w)]
         products = _workflow_local_products!(add, words, n, d, depth)
@@ -223,10 +251,12 @@ These routes retain all three local axes. `regions` lists the initial site stenc
 or post-merge cliques, and `row_counts` describes the returned, closed family.
 
 `:graph_distance` selects all axes on each single site and each pair within
-`power_graph_radius` in the interaction graph of `H`. `:local_products` selects
+`power_graph_radius` in the interaction graph of `H`. `:graph_motifs` adds all
+axis assignments on induced two-edge paths and chordless four-cycles at orders
+3 and 4 respectively, without changing pair distances. `:local_products` selects
 all single-site axes and degree-eligible words from products of at most
 `local_product_depth` overlapping Hamiltonian factors, ignoring scalar phases.
-Neither mode uses a lattice hint or an elimination ordering. Both add factors
+These modes use no lattice hint or elimination ordering. They add factors
 to cover `H` and `observable` and close their single row family under declared
 unitary actions. `regions` excludes these coverage/symmetry additions.
 `generation` counts row candidates offered (including duplicates), unique rows,
@@ -247,7 +277,8 @@ function workflow_support(H, order::Integer; support_mode=:full, power_graph_rad
     n, mode = registry.nsites, support_mode === :auto ? :full : support_mode
     d = min(order, n)
     W = NC.word_type(registry, d)
-    if mode in (:graph_distance, :local_products)
+    mode === :graph_motifs && order > 4 && throw(ArgumentError("graph_motifs supports orders 0 through 4."))
+    if mode in (:graph_distance, :local_products, :graph_motifs)
         return _workflow_physics_support(H, observable, W, mode, d, power_graph_radius,
             local_product_depth, symmetry_generators, max_rows)
     end
@@ -323,10 +354,20 @@ _workflow_psd(b) = b.kind in (NC.PSD, NC.HPSD)
 function _workflow_form_support(forms, f)
     ids = Int32[]
     repeated = Set{Int32}()
+    max_id = Int32(0)
     for t in NC.term_range(forms, f)
         iszero(forms.coefs[t]) && continue
         id = forms.ids[t]
-        id in ids ? push!(repeated, id) : push!(ids, id)
+        # Ward and realification emit increasing IDs; no search is needed
+        # for a new maximum. Keep the original order for general forms.
+        if id > max_id
+            push!(ids, id)
+            max_id = id
+        elseif id in ids
+            push!(repeated, id)
+        else
+            push!(ids, id)
+        end
     end
     for id in repeated
         total = sum(Complex{Rational{BigInt}}(forms.coefs[t]) for t in NC.term_range(forms, f) if forms.ids[t] == id)
@@ -346,9 +387,12 @@ function _workflow_pattern(block, support; active=nothing)
 end
 
 function _workflow_copy_form!(out, program, support, f; scale=1)
-    for t in NC.term_range(program.forms, f)
+    range = NC.term_range(program.forms, f)
+    ids = support[f]
+    keep_all = length(ids) == length(range)
+    for t in range
         id = program.forms.ids[t]
-        id in support[f] && NC.push_term!(out.forms, scale * program.forms.coefs[t], id)
+        (keep_all || id in ids) && NC.push_term!(out.forms, scale * program.forms.coefs[t], id)
     end
 end
 
@@ -402,14 +446,16 @@ Transform a symmetry-adapted `NC.MomentProgram` without changing original IDs.
 By default only label-zero (ordinary moment) PSD/HPSD blocks are split; all
 other cones seed closure and are retained. Use `split_blocks` to narrow that
 selection. `protected_ids` pins additional observables in the zero-extension audit.
-`:Maximal` has a zero lift outside `report.active_ids`, `:AggregateDualChordal`
+`:Maximal` has a zero lift outside `report.active_ids`. With
+`prune_constant_singletons=true`, it removes only isolated constraints whose
+diagonal is a nonnegative constant at normalized identity. `:AggregateDualChordal`
 adds exact sparse PSD clique sums, and `:MMD` keeps only principal cliques and is
 a relaxation. Each MMD step completes the current graph and extends support
 using the clique entries, as in redesign `TermSplit`. `:None` does nothing.
 """
 function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, ts_step::Integer=0,
     merge_threshold::Integer=0, split_blocks=findall(b -> b.label == 0 && _workflow_psd(b), program.blocks),
-    protected_ids=()) where {C}
+    protected_ids=(), prune_constant_singletons=false) where {C}
     ts_algo in (:None, :Maximal, :AggregateDualChordal, :MMD) ||
         throw(ArgumentError("Unknown term sparsity algorithm $ts_algo."))
     (ts_algo === :MMD ? ts_step >= 1 : ts_step == 0) && merge_threshold >= 0 ||
@@ -424,11 +470,12 @@ function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, 
     NC.validate(program)
     ts_algo === :None && return (program=program, report=(algorithm=ts_algo, relation=:exact, steps=0,
         zero_lift_audit=nothing, active_ids=collect(1:program.nvars), auxiliary_ids=program.nvars+1:program.nvars,
-        cliques=Dict{Int,Vector{Vector{Int}}}()))
+        cliques=Dict{Int,Vector{Vector{Int}}}(), pruned_singletons=Tuple{Int,Int}[]))
     support = [_workflow_form_support(program.forms, f) for f in 1:length(program.forms)]
     cliques = Dict{Int,Vector{Vector{Int}}}()
     steps = 0
     audit = nothing
+    pruned_singletons = Tuple{Int,Int}[]
     if ts_algo in (:Maximal, :MMD)
         for (i, block) in enumerate(program.blocks)
             seed = i in selected ? (_workflow_entry(block, j, j) for j in 1:block.side) : NC.form_range(block)
@@ -486,7 +533,20 @@ function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, 
     append!(out.objective_ids, program.objective_ids)
     append!(out.objective_coefs, program.objective_coefs)
     for (i, block) in enumerate(program.blocks)
-        if !haskey(cliques, i) || length(cliques[i]) == 1
+        if ts_algo === :Maximal && prune_constant_singletons && haskey(cliques,i)
+            rows = filter(cliques[i]) do clique
+                length(clique)==1 || return true
+                j = only(clique)
+                f = _workflow_entry(block,j,j)
+                all(==(1),support[f]) || return true
+                constant = sum((Complex{Rational{BigInt}}(program.forms.coefs[t]) for t in
+                    NC.term_range(program.forms,f) if program.forms.ids[t]==1);init=0)
+                isreal(constant) && real(constant)>=0 || return true
+                push!(pruned_singletons,(i,j))
+                false
+            end
+            _workflow_clique_parts!(out,program,support,block,rows)
+        elseif !haskey(cliques, i) || length(cliques[i]) == 1
             NC._copy_cone!(out, program, block)
         elseif ts_algo === :AggregateDualChordal
             _workflow_clique_sum!(out, program, support, block, cliques[i])
@@ -496,5 +556,6 @@ function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, 
     end
     NC.validate(out)
     return (program=out, report=(algorithm=ts_algo, relation=ts_algo === :MMD ? :relaxation : :exact,
-        steps, zero_lift_audit=audit, active_ids=collect(active), auxiliary_ids=program.nvars+1:out.nvars, cliques))
+        steps, zero_lift_audit=audit, active_ids=collect(active), auxiliary_ids=program.nvars+1:out.nvars,
+        cliques, pruned_singletons))
 end

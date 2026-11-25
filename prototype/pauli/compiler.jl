@@ -54,11 +54,19 @@ end
 function _append_strengthening!(program, table, strengthening)
     W = eltype(table.representatives.keys)
     sink = NC.OrbitFormSink(table, Dict{Int32,ComplexF64}())
-    function append_form(p; diagonal=false, round_constant_up=false)
+    function append_form(p, coordinates=nothing; diagonal=false, round_constant_up=false)
         empty!(sink.terms)
         for (c,w) in NC.terms(p)
             a = round_constant_up && isone(w) ? Float64(real(c),RoundUp) : c
-            NC.push_term!(sink, a, NC._pack_word(W, w))
+            u = NC._pack_word(W,w)
+            if isnothing(coordinates)
+                NC.push_term!(sink,a,u)
+            else
+                m = get!(coordinates,u) do
+                    NC.orbit_coordinates!(table,u)
+                end
+                NC.push_term!(sink,a,m)
+            end
         end
         for (id,c) in sort!(collect(sink.terms); by=first)
             diagonal && !isreal(c) && error("Nonreal scalar or diagonal strengthening entry.")
@@ -73,10 +81,14 @@ function _append_strengthening!(program, table, strengthening)
             NC.push_block!(program, kind, 1, label+=1)
         end
     end
-    for (;matrix) in strengthening.psd_blocks
+    for (;kind,matrix) in strengthening.psd_blocks
         n = size(matrix,1)
+        # Six-site RDMs repeatedly use the same 4^6 local Pauli words. Keep
+        # a per-block cache, including zeros after their Ward heads register.
+        coordinates = kind==:rdm_positivity && n==64 && table isa SquareOrbitMoments ?
+            Dict{W,NC.OrbitCoordinates}() : nothing
         for j in 1:n, i in j:n
-            append_form(matrix[i,j]; diagonal=i==j)
+            append_form(matrix[i,j],coordinates; diagonal=i==j)
         end
         NC.push_block!(program, NC.HPSD, n, label+=1)
     end
@@ -189,11 +201,11 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     shape = isnothing(lattice_shape) ? (n,) : Tuple(lattice_shape)
     named_shape = length(shape)==2 ? shape : nothing
     mode = sparsity.support_mode === :auto && sparsity.cs_algo === :MF ? :correlative_cliques : sparsity.support_mode
-    direct = mode in (:graph_distance,:local_products)
+    direct = mode in (:graph_distance,:local_products,:graph_motifs)
     mode !== :correlative_cliques && sparsity.cs_algo !== :NoElimination &&
         throw(ArgumentError("cs_algo applies only to :correlative_cliques."))
-    mode ∉ (:correlative_cliques,:graph_distance) && sparsity.power_graph_radius != 2 &&
-        throw(ArgumentError("power_graph_radius applies only to :correlative_cliques or :graph_distance."))
+    mode ∉ (:correlative_cliques,:graph_distance,:graph_motifs) && sparsity.power_graph_radius != 2 &&
+        throw(ArgumentError("power_graph_radius applies only to :correlative_cliques, :graph_distance or :graph_motifs."))
     mode !== :correlative_cliques && sparsity.min_cluster_size != 4 &&
         throw(ArgumentError("min_cluster_size applies only to :correlative_cliques."))
     mode !== :local_products && sparsity.local_product_depth != 2 &&

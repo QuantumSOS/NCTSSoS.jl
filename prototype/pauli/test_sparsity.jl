@@ -78,6 +78,34 @@ function check_workflow_sparsity(workflow; solver)
             @test word(x[1]*y[3]*x[4]*y[5]) ∉ words(support(H, 4; support_mode=:local_products))
             @test_throws ArgumentError support(H, 2; support_mode=:graph_distance, power_graph_radius=1, max_rows=42)
 
+            # A chordless cycle with a tail and an isolated site, with
+            # unequal and mixed-axis interactions rather than XXX bonds.
+            _, (a,b,c) = NC.pauli_variables(6)
+            irregular = a[4]*b[2] - 2b[2]*c[5] + 0.5a[5]*c[1] +
+                3a[1]*b[4] - 0.25c[5]*b[3] + 0.125a[4]
+            motifs(h, order; kwargs...) = support(h, order;
+                support_mode=:graph_motifs,power_graph_radius=1,kwargs...)
+            m4 = motifs(irregular, 4)
+            pairs = [[1,4],[1,5],[2,4],[2,5],[3,5]]
+            triples = [[1,2,4],[1,2,5],[1,3,5],[1,4,5],[2,3,5],[2,4,5]]
+            @test m4.regions == sort!([[i] for i in 1:6] ∪ pairs ∪ triples ∪ [[1,2,4,5]])
+            @test m4.row_counts == [1 + 6*3 + 5*9 + 6*27 + 81]
+            @test motifs(irregular, 3).row_counts == [only(m4.row_counts) - 81]
+            @test [1,2,4,5] ∉ motifs(irregular + a[1]*b[2], 4).regions
+            @test_throws ArgumentError motifs(irregular, 4;max_rows=only(m4.row_counts)-1)
+            @test_throws ArgumentError motifs(irregular, 5)
+
+            obs2 = b[2]*c[6]
+            m2 = motifs(irregular, 2;observable=obs2)
+            @test word(obs2) in words(m2) && [2,6] ∉ m2.regions
+            plan = workflow.compile_relaxation(irregular;order=2,observable=obs2,
+                sparsity=workflow.PauliSparsitySpec(support_mode=:graph_motifs,power_graph_radius=1,
+                    ts_algo=:None,rewrite_complete_local_rdm=false))
+            @test plan.reports.support.mode === :graph_motifs
+            @test plan.reports.support.row_counts == m2.row_counts
+            @test :graph_motifs in plan.provenance.active_relaxations
+            @test support(irregular,2).row_counts == [154] # The default is still full.
+
             # Off-stencil two-body and higher-than-order moments. A relabeling
             # changes the natural sorted-site cut, but not the family of cuts.
             obs = z[2]*y[5] + x[1]*z[2]*y[4]*z[5]
@@ -85,7 +113,7 @@ function check_workflow_sparsity(workflow; solver)
             action = NC.SitePermutation(perm)
             Hp = x[perm[1]]*x[perm[3]] + x[perm[3]]*x[perm[4]] + y[perm[3]]*y[perm[5]]
             obsp = z[perm[2]]*y[perm[5]] + x[perm[1]]*z[perm[2]]*y[perm[4]]*z[perm[5]]
-            for mode in (:graph_distance, :local_products)
+            for mode in (:graph_distance, :local_products, :graph_motifs)
                 s = support(H, 2; support_mode=mode, observable=obs)
                 t = support(Hp, 2; support_mode=mode, observable=obsp)
                 selected = words(s)

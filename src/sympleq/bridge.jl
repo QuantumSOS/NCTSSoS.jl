@@ -16,24 +16,26 @@ function _sympleq_clifford(S::SymplecticMatrix,phase::PhaseVector,::Type{W}) whe
     return CliffordMap(columns,negative)
 end
 
-function _sympleq_phases(tab::SymplecticTableau{W},generator::SympleQGenerator) where {W}
-    base = PhaseVector([last(_symplectic_row_to_pauli_word(view(generator.S.data,i,:),W))
+function _sympleq_phases(tab::SymplecticTableau{W},perm,S; kernel_lifts=true) where {W}
+    base = PhaseVector([last(_symplectic_row_to_pauli_word(view(S.data,i,:),W))
         for i in 1:2tab.nqubits],true)
-    clifford = _sympleq_clifford(generator.S,base,W)
+    clifford = _sympleq_clifford(S,base,W)
     rhs = UInt8[]
     for i in 1:length(tab)
-        j = generator.permutation.images[i]
+        j = perm.images[i]
         phase,image = act(clifford,tab.monomials[i])
         image == tab.monomials[j] || throw(ArgumentError("SympleQ phase solve mapped to a different term."))
         source,target = tab.coeffs[i],tab.coeffs[j]
         target == source || target == -source || throw(ArgumentError("Incompatible SympleQ coefficients."))
         push!(rhs, UInt8(xor(phase.k==2,target == -source)))
     end
+    !kernel_lifts && all(iszero,rhs) && return [base]
     solution = _gf2_affine_solution_space(tab.paulis,rhs)
     isnothing(solution) && throw(ArgumentError("Inconsistent SympleQ phase equations."))
     particular,kernel = solution
     lift(bits) = PhaseVector(base.values .+ 2 .* bits,true)
     phases = [lift(particular)]
+    kernel_lifts || return phases
     active = sort!(unique!(Int[s for w in tab.monomials for s in sites(w)]))
     for direction in kernel
         any(s->direction[s]==1 || direction[tab.nqubits+s]==1,active) || continue
@@ -85,10 +87,12 @@ function _sympleq_reduce_generators(candidates::Vector{CliffordMap{W}},n::Int) w
     return generators
 end
 
-function _sympleq_clifford_candidates(h::Polynomial{W};kwargs...) where {W<:PauliWord}
+function _sympleq_clifford_candidates(h::Polynomial{W};ga_backend=:backtracking,known_generators=(),kwargs...) where {W<:PauliWord}
     tab = SymplecticTableau(h)
     tab.nqubits > 0 || throw(ArgumentError("SympleQ needs a non-constant Pauli Hamiltonian."))
-    generators = sympleq_generators(tab;kwargs...)
+    ga_backend==:seeded && return _seeded_clifford_candidates(h,tab,known_generators;kwargs...)
+    isempty(known_generators) || throw(ArgumentError("Use ga_backend=:seeded with known_generators."))
+    generators = sympleq_generators(tab;ga_backend,kwargs...)
     push!(generators,SympleQGenerator(TermPermutation(collect(1:length(tab))),
         SymplecticMatrix(_gf2_identity(2tab.nqubits)),
         PhaseVector(zeros(Int8,2tab.nqubits),true),true))
@@ -96,7 +100,7 @@ function _sympleq_clifford_candidates(h::Polynomial{W};kwargs...) where {W<:Paul
     seen = Set{CliffordMap{W}}()
     for generator in generators
         phases = try
-            _sympleq_phases(tab,generator)
+            _sympleq_phases(tab,generator.permutation,generator.S)
         catch err
             @warn "Skipping SympleQ generator whose phase lift is not representable as a CliffordMap." exception=(err,catch_backtrace())
             continue
@@ -116,4 +120,83 @@ function _sympleq_clifford_candidates(h::Polynomial{W};kwargs...) where {W<:Paul
         end
     end
     return _sympleq_reduce_generators(candidates,tab.nqubits)
+end
+
+function _seeded_clifford_candidates(h,tab::SymplecticTableau{W},known;
+    cycle_strategy=:cycle_basis,max_automorphisms=100_000) where {W}
+    max_automorphisms>0 || throw(ArgumentError("Supply a positive automorphism budget."))
+    graph=cycle_augmented_graph(tab;cycle_strategy)
+    n=tab.nqubits
+    active=unique([i for w in tab.monomials for i in sites(w)])
+    verified(g)=_sympleq_preserves(g,h)
+    cs=filter(verified,_site_symmetry_candidates(W,n,(Dict(w=>c for (c,w) in terms(h)),),verified))
+    for action in known
+        g=_group_action(W,action)
+        g isa CliffordMap{W} && !is_antiunitary(g) && length(g.columns)≤2h.registry.nsites && verified(g) ||
+            throw(ArgumentError("A known generator must be a unitary Clifford symmetry of this objective."))
+        push!(cs,g)
+    end
+    # Sign coordinates of the identity lift are [sign(X_i) | sign(Z_i)].
+    # Keep only the active-site kernel, as in the unpruned detector.
+    kernel=_gf2_nullspace_basis(tab.paulis)
+    for v in kernel
+        any(i->!iszero(v[i]|v[n+i]),active) || continue
+        push!(cs,CliffordMap(_identity_columns(W,n),Bool.(v)))
+    end
+    lookup=Dict(w=>i for (i,w) in enumerate(tab.monomials))
+    P=PermutationGroups.Perm{Int}
+    pruners=Vector{Int}[]
+    perms=[P(collect(1:length(tab)))]
+    image=PermutationGroups.PermGroup(copy(perms))
+    function remember!(p,permutation)
+        push!(pruners,p); push!(perms,permutation); image=PermutationGroups.PermGroup(copy(perms))
+    end
+    for g in cs
+        p=[lookup[last(act(g,w))] for w in tab.monomials]
+        # Perm owns and trims its input; the search indexes the full vertex domain.
+        permutation=P(copy(p))
+        permutation in image || remember!(p,permutation)
+    end
+
+    function lift!(images)
+        perm=TermPermutation(images)
+        try
+            S=symplectic_matrix_from_permutation(tab,perm)
+            phase=only(_sympleq_phases(tab,perm,S;kernel_lifts=false))
+            g=_sympleq_clifford(S,phase,W)
+            verified(g) || return false
+            push!(cs,g)
+            return true
+        catch err
+            err isa ArgumentError || rethrow()
+            @warn "Skipping term permutation without a verified Clifford lift." exception=err
+            return false
+        end
+    end
+    # A supplied action can also move unused trailing registry sites, which
+    # the tableau omits. Its term image then does not specify the full map.
+    full_rank=isempty(kernel) && all(g -> length(g.columns)≤2n,cs)
+    function witness(p)
+        permutation=P(copy(p))
+        permutation in image && return
+        # Full rank: one binary lift, and only VERIFIED lifts may prune the
+        # phase search. Otherwise grow the term group and replay its lifts below.
+        (!full_rank || lift!(p)) && remember!(p,permutation)
+    end
+    leaves=_enumerate_color_preserving_automorphisms(graph;paulis=tab.paulis,
+        max_automorphisms,pruners,on_leaf=witness)
+    @debug "Seeded SympleQ search" leaves=length(leaves) term_order=GroupsCore.order(BigInt,image) full_rank
+    if !full_rank
+        # A product of chosen lifts need not be the historical Witt extension
+        # of the product. Replay term permutations, NOT graph branches, so we
+        # retain differences acting trivially on terms (including the ring kernel).
+        for (i,p) in enumerate(image)
+            if i>max_automorphisms
+                @warn "Seeded Clifford lift replay reached max_automorphisms=$max_automorphisms; returning a verified subgroup."
+                break
+            end
+            isone(p) || lift!([j^p for j in 1:length(tab)])
+        end
+    end
+    _sympleq_reduce_generators(unique(cs),h.registry.nsites)
 end

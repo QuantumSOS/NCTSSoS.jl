@@ -26,6 +26,26 @@ function family_reference(problem,order,family)
     result,dense.table
 end
 
+@testset "Declared Pauli signs grade an irregular Hamiltonian" begin
+    _, (x,y,z) = Nx.pauli_variables(3)
+    H = 0.25z[1] - 0.5x[3] + z[1]*y[2] + 0.75x[2]*x[3]
+    columns = [last(only(Nx.terms(p))) for p in [x;z]]
+    symmetry = Nx.Symmetry(Nx.CliffordMap(columns,[true,false,false,false,false,false]),
+        Nx.CliffordMap(columns,[false,false,false,false,false,true]))
+    problem = Nx.Problem(H;symmetry)
+    relaxation = Nx.Relaxation(order=1)
+    built = Nx.build(problem,relaxation)
+    # The identity, Z1, one-site rows on 2, and X3 share the trivial
+    # character. The other two axes on each end site form distinct pairs.
+    @test sort(Nx.block_sides(built)) == [2,2,6]
+    solver = Nx.JuMPBackend(SOLVER)
+    result = Nx.solve(problem,relaxation;solver)
+    plain = Nx.solve(Nx.Problem(H),relaxation;solver)
+    @test result.bound ≈ plain.bound atol=1e-6
+    # Flips under both generators still force zero, despite even total parity.
+    @test iszero(Nx.expectation(result,x[1]*z[3]))
+end
+
 @testset "Block families, closure and one-call model" begin
     n=4; registry,(x,y,z)=Nx.pauli_variables(n)
     H=sum(x[i]*x[mod1(i+1,n)]+y[i]*y[mod1(i+1,n)]+z[i]*z[mod1(i+1,n)] for i in 1:n)

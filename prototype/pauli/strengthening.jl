@@ -85,10 +85,15 @@ _wf_pauli_phase(x, z, j) = im^count_ones(x & z) * (-1)^count_ones(z & j)
 function _wf_density(H::NC.Polynomial{W}, region) where {W<:NC.PauliWord}
     d = 1 << length(region)
     entries = [NC.PolynomialBuffer{W,_PauliCQ}(d) for _ in 1:d, _ in 1:d]
+    # Every nonzero Pauli matrix entry has one of these four exact coefficients.
+    unit = _PauliCQ(1//d)
+    coefficients = ntuple(k -> NC.scale(NC.Phase(k-1),unit), Val(4))
     for w in NC.basis_rows(W, NC.Pauli(), region, length(region))
         x, z = _wf_local_masks(w, region)
+        ny = count_ones(x & z)
         for j in 0:d-1
-            NC.push_term!(entries[(j ⊻ x)+1,j+1], _wf_pauli_phase(x,z,j)*(1//d), w)
+            k = mod(ny + 2count_ones(z & j), 4)
+            NC.push_term!(entries[(j ⊻ x)+1,j+1], coefficients[k+1], w)
         end
     end
     return map(b -> NC._polynomial(H.registry, b), entries)

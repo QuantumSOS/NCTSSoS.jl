@@ -164,8 +164,11 @@ function push_term!(s::SectorTerms{W,Complex{Rational{Int}}},c::Union{AbstractFl
     throw(InexactError(:continuous_coefficient,Complex{Rational{Int}},c))
 end
 
-function _continuous_program(program::MomentProgram{C},table::OrbitMoments{W},derivations;
-    diagonal=true,algebra=W<:PauliWord ? Pauli() : W<:FermiWord ? Fermionic() : Bosonic()) where {C,W}
+function _continuous_program(program::MomentProgram,table,derivations;diagonal=true,algebra=nothing)
+    if isnothing(algebra)
+        W=eltype(table.representatives.keys)
+        algebra=W<:PauliWord ? Pauli() : W<:FermiWord ? Fermionic() : Bosonic()
+    end
     # Closing the word domain may extend the table. A failed machine attempt
     # must not change the BigInt retry's coordinate or equation order.
     trial=deepcopy(table)
@@ -194,7 +197,17 @@ function _ward_translation(table::OrbitMoments{W},derivations) where W
     return t
 end
 
-function _continuous_program_rational(program::MomentProgram{C},table::OrbitMoments{W},derivations,::Type{R};diagonal=true,algebra) where {C,W,R}
+# A representative table may opt in only when the finite action preserves
+# the span of the supplied derivations under conjugation. Return one word
+# per registered orbit, including zero orbits: D(w) need not vanish there.
+# These seeds must already be canonical under _ward_key.
+_ward_seed_words(table,derivations) = nothing
+_ward_key(table,w) = w
+# A phase-free representative table can reuse the key to register the image.
+_ward_coordinates!(table,w,key) = orbit_coordinates!(table,w)
+
+function _continuous_program_rational(program::MomentProgram{C},table,derivations,::Type{R};diagonal=true,algebra) where {C,R}
+    W=eltype(table.representatives.keys)
     initial=program.nvars
     support=sort!(unique!([site for label in table.labels for site in sites(label.word)]))
     letters=basis_rows(W,algebra,support,1)
@@ -207,9 +220,16 @@ function _continuous_program_rational(program::MomentProgram{C},table::OrbitMome
     # Close words, not only nonzero orbit coordinates: D(w) can be nonzero
     # when finite invariance forces w itself to zero (a normalizer can rotate
     # the derivations). Such equations must not disappear with that orbit.
-    queue=sort!(unique!([collect(keys(table.cache));[label.word for label in table.labels]]))
-    seen=Set(queue)
-    translation=_ward_translation(table,derivations)
+    representatives=_ward_seed_words(table,derivations)
+    if isnothing(representatives)
+        queue=sort!(unique!([collect(keys(table.cache));[label.word for label in table.labels]]))
+        seen=Set(queue)
+        translation=_ward_translation(table,derivations)
+    else
+        queue=sort!(representatives)
+        seen=Set(queue)
+        translation=nothing
+    end
     translated=Set{W}()
     cursor=1
     labels_seen=length(table.labels)
@@ -242,10 +262,13 @@ function _continuous_program_rational(program::MomentProgram{C},table::OrbitMome
                 empty!(image); append!(image,derivative.terms)
                 empty!(sink.terms)
                 for (v,c) in sort!(image;by=first)
-                    if !(v in seen)
-                        push!(seen,v); push!(queue,v)
+                    key=_ward_key(table,v)
+                    if !(key in seen)
+                        # Keep the first encountered image as the seed, even
+                        # when its membership key is an orbit representative.
+                        push!(seen,key); push!(queue,v)
                     end
-                    push_term!(sink,c,v)
+                    push_term!(sink,c,_ward_coordinates!(table,v,key))
                 end
                 equation=sink.terms
                 for part in (real,imag)
@@ -261,8 +284,9 @@ function _continuous_program_rational(program::MomentProgram{C},table::OrbitMome
         while labels_seen<length(table.labels)
             labels_seen+=1
             v=table.labels[labels_seen].word
-            if !(v in seen)
-                push!(seen,v); push!(queue,v)
+            key=_ward_key(table,v)
+            if !(key in seen)
+                push!(seen,key); push!(queue,v)
             end
         end
     end
@@ -283,25 +307,37 @@ function _continuous_program_rational(program::MomentProgram{C},table::OrbitMome
     end
     # Keep the same rational-to-Float64 rounding as the original implementation.
     exact_directions=convert(Vector{Vector{Pair{Int32,Rational{BigInt}}}},directions)
+    float_directions=[Pair{Int32,Float64}[id=>Float64(factor) for (id,factor) in row]
+        for row in exact_directions]
     out=MomentProgram{C}(length(free))
-    function rewrite(ids,coefs)
-        result=Dict{Int32,C}()
-        for (old,c) in zip(ids,coefs),(id,factor) in exact_directions[old]
-            result[id]=get(result,id,zero(C))+c*Float64(factor)
+    sums=fill(zero(C),length(free))
+    marked=fill(false,length(free))
+    touched=Int32[]
+    function rewrite!(dest_ids,dest_coefs,ids,coefs)
+        empty!(touched)
+        for (old,c) in zip(ids,coefs),(id,factor) in float_directions[old]
+            if !marked[id]
+                marked[id]=true
+                push!(touched,id)
+            end
+            sums[id]+=c*factor
         end
-        sort!([id=>c for (id,c) in result if !iszero(c)];by=first)
+        for id in sort!(touched)
+            c=sums[id]
+            sums[id]=zero(C)
+            marked[id]=false
+            iszero(c) && continue
+            push!(dest_ids,id)
+            push!(dest_coefs,eltype(dest_coefs)<:Real ? real(c) : c)
+        end
     end
     for f in 1:length(program.forms)
         range=term_range(program.forms,f)
-        for (id,c) in rewrite(view(program.forms.ids,range),view(program.forms.coefs,range))
-            push_term!(out.forms,c,id)
-        end
+        rewrite!(out.forms.ids,out.forms.coefs,view(program.forms.ids,range),view(program.forms.coefs,range))
         close_form!(out.forms)
     end
     append!(out.blocks,program.blocks)
-    for (id,c) in rewrite(program.objective_ids,program.objective_coefs)
-        push!(out.objective_ids,id); push!(out.objective_coefs,real(c))
-    end
+    rewrite!(out.objective_ids,out.objective_coefs,program.objective_ids,program.objective_coefs)
     reduced=ContinuousMoments(table,table.labels[free],exact_directions,derivations,BitSet([1]))
     refresh_coverage!(reduced,out)
     report=(method=diagonal ? :diagonal : :exact_elimination,initial_variables=initial-1,

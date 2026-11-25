@@ -1,5 +1,7 @@
 # Included by the Pauli workflow module after `import NCTSSoS as NC`.
 
+include("square_moments.jl")
+
 _symmetry_action(::Type{W}, n, u) where {W} = NC.CliffordMap(W,n,NC.SitePermutation(u))
 
 function _symmetry_preserves(g, terms; sector=false)
@@ -120,132 +122,6 @@ function _workflow_parities(::Type{W}, n, polynomials, rotations) where {W}
     parity,unique(anti)
 end
 
-# Find one verified witness to each new orbit point under a stabilizer of
-# the preceding sites. Their union generates the verified subgroup if the
-# search completes: the pointwise stabilizer of the entire order is trivial.
-function _pair_generators(evidence, pair_labels, verified; max_trials, max_generators=128)
-    graph = evidence.graph
-    n = NC.Graphs.nv(graph)
-    order = NC._automorphism_order(evidence)
-    candidates = NC._automorphism_candidates(evidence)
-    distances = reduce(hcat,(NC.Graphs.gdistances(graph,v) for v in 1:n))
-    images = zeros(Int,n)
-    used = falses(n)
-    generators = Vector{Int}[]
-    trials = 0
-    consistent(v,w,d) = all(1:d-1) do k
-        u = order[k]; t = images[u]
-        distances[u,v] == distances[t,w] && pair_labels[u,v] == pair_labels[t,w]
-    end
-
-    function witness(d, neighbor_move, stop)
-        d > n && return verified(images)
-        v = order[d]
-        for w in candidates[v]
-            used[w] && continue
-            neighbor_move && distances[v,w] != 1 && continue
-            trials >= stop && return false
-            trials += 1
-            consistent(v,w,d) || continue
-            images[v] = w; used[w] = true
-            witness(d+1,neighbor_move,stop) && return true
-            used[w] = false
-        end
-        false
-    end
-
-    for (d,v) in enumerate(order)
-        first_generator = length(generators)+1
-        orbit = Set([v])
-        for w in sort(candidates[v];by=w -> distances[v,w],alg=Base.Sort.MergeSort)
-            (trials >= max_trials || length(generators) >= max_generators) && break
-            (w in orbit || used[w]) && continue
-            trials += 1
-            consistent(v,w,d) || continue
-            images[v] = w; used[w] = true
-            # Give a seed edge a short search for a witness that moves every
-            # site along an edge; reserve the remaining budget for any map.
-            if (d == 1 && distances[v,w] == 1 && witness(d+1,true,min(max_trials,trials+8n))) ||
-                witness(d+1,false,max_trials)
-                push!(generators,copy(images))
-                for k in d+1:n
-                    used[images[order[k]]] = false
-                end
-                # Close this orbit under the witnesses that fix this prefix.
-                queue = collect(orbit)
-                for u in queue, k in first_generator:length(generators)
-                    t = generators[k][u]
-                    t in orbit && continue
-                    push!(orbit,t); push!(queue,t)
-                end
-            end
-            used[w] = false
-        end
-        images[v] = v; used[v] = true
-        (trials >= max_trials || length(generators) >= max_generators) && break
-    end
-    @debug "Labelled pair automorphism witnesses" sites=n trials generators=length(generators)
-    (trials >= max_trials || length(generators) >= max_generators) &&
-        @warn "Labelled pair automorphism generator search reached its budget; returning verified partial results." trials generators=length(generators)
-    generators
-end
-
-# Coefficients (including sign), axes and term incidences are graph colors.
-function _workflow_spatial(::Type{W},n,polynomials,verified) where {W}
-    n<2 && return NC.CliffordMap{W}[]
-    # Retain the legacy probes outside the bounded pair-graph path only.
-    maps = [mod1.(2:n+1,n),collect(n:-1:1)]
-    terms = [(j,w,c) for (j,p) in enumerate(polynomials) for (w,c) in p if !isone(w)]
-    axis(u) = all(iszero,u.x) ? 2 : all(iszero,u.z) ? 0 : 1
-    spec = [(j,c,[(only(NC.sites(u)),axis(u)) for u in NC.word_letters(w)]) for (j,w,c) in terms]
-    # Avoid factorial automorphism searches on Hamiltonians with unused sites.
-    active = Set(i for (_,_,xs) in spec for (i,_) in xs)
-    vertices = n + length(spec) + sum(t->length(t[3]),spec;init=0)
-    trials = 2_000_000
-    if length(active)==n && n<=512 && all(t->length(t[3])<=2,spec)
-        # Color both endpoints and directed bonds. The latter encode the
-        # actual coefficient and ordered axes, not just incident multisets.
-        graph = NC.Graphs.SimpleGraph(n)
-        labels = [Tuple[] for _ in 1:n]
-        bonds = Dict{Tuple{Int,Int},Vector{Tuple}}()
-        for (j,c,xs) in spec
-            i,a = first(xs)
-            if length(xs)==1
-                push!(labels[i], (j,a,-1,real(c),imag(c)))
-            else
-                k,b = last(xs)
-                NC.Graphs.add_edge!(graph,i,k)
-                for (u,v,s,t) in ((i,k,a,b),(k,i,b,a))
-                    color = (j,s,t,real(c),imag(c))
-                    push!(labels[u],color)
-                    push!(get!(() -> Tuple[],bonds,(u,v)),color)
-                end
-            end
-        end
-        evidence = NC.SympleQGraph(graph,Any[Tuple(sort!(l)) for l in labels],collect(1:n),Int[],Vector{Int}[])
-        colors = Dict{Tuple,Int}()
-        pair_labels = zeros(Int,n,n)
-        for ((i,k),terms) in bonds
-            pair_labels[i,k] = get!(() -> length(colors)+1,colors,Tuple(sort!(terms)))
-        end
-        maps = _pair_generators(evidence,pair_labels,u -> verified(_symmetry_action(W,n,u));max_trials=trials)
-    elseif length(active)==n && vertices<=512
-        graph = NC.Graphs.SimpleGraph(vertices)
-        colors = Any[:site for _ in 1:n]
-        append!(colors,[(:term,j,c) for (j,c,_) in spec])
-        vertex = length(colors)
-        for (j,(_,_,xs)) in enumerate(spec), (i,a) in xs
-            vertex += 1
-            push!(colors,(:axis,a))
-            NC.Graphs.add_edge!(graph,n+j,vertex)
-            NC.Graphs.add_edge!(graph,i,vertex)
-        end
-        evidence = NC.SympleQGraph(graph,colors,collect(1:n),Int[],Vector{Int}[])
-        append!(maps,[u[1:n] for u in NC._enumerate_color_preserving_automorphisms(evidence;max_automorphisms=128,max_trials=trials)])
-    end
-    filter!(!isone,unique([_symmetry_action(W,n,u) for u in maps]))
-end
-
 function _workflow_translations(::Type{W}, n, lattice_shape, spatial_mode) where {W}
     lattice_shape isa Tuple{Integer,Integer} && all(>=(2),lattice_shape) &&
         prod(BigInt.(lattice_shape))==n || throw(ArgumentError("lattice_shape must be (Lx,Ly), both at least 2, with Lx*Ly=$n."))
@@ -357,7 +233,7 @@ function workflow_symmetry(H; observable=nothing, target=nothing, spatial_mode=:
     elseif spatial_mode==:none
         NC.CliffordMap{W}[]
     else
-        filter(verified,_workflow_spatial(W,n,allops,verified))
+        filter(verified,NC._site_symmetry_candidates(W,n,allops,verified))
     end
     axes = axis_permutations ? filter(verified,_workflow_axes(W,n)) : NC.CliffordMap{W}[]
     uniform = parity && uniform_parity_blocks ? filter(verified,_wang_uniform_parities(H,allops)) : NC.CliffordMap{W}[]
@@ -587,4 +463,325 @@ function workflow_symmetry_program(family::AbstractVector{<:NC.RowBlock{W}}, obj
     end
     NC.refresh_coverage!(table,program)
     return program,table,report
+end
+
+# Square points are based at site (0,0). On L=2 some abstract D4
+# elements have the same action; use the faithful permutation image.
+function _square_point_generators(::Type{W}, L) where {W}
+    site(x,y) = 1 + mod(x,L) + L*mod(y,L)
+    [_symmetry_action(W,L^2,[site(f(x,y)...) for y in 0:L-1 for x in 0:L-1])
+        for f in ((x,y)->(-y,x),(x,y)->(-x,y))]
+end
+
+function _square_pack(w::NC.PauliWord, H, ::Type{W}) where {W}
+    row = NC._pack_word(W,w)
+    all(<=(H.registry.nsites),NC.sites(row)) || throw(ArgumentError("Square row exceeds the registry."))
+    row
+end
+
+_square_row(w::NC.PauliWord, H, ::Type{W}) where {W} =
+    NC.SectorTerms(Dict(_square_pack(w,H,W)=>one(Complex{Rational{BigInt}})))
+
+function _square_row(p::NC.Polynomial, H, ::Type{W}) where {W}
+    p.registry === H.registry || throw(ArgumentError("Square rows must share the Hamiltonian registry."))
+    NC._sector_terms(p,W)
+end
+
+function _square_action(g, row::NC.SectorTerms{W,C}) where {W,C}
+    out = NC.SectorTerms(Dict{W,C}())
+    for (w,c) in row.terms
+        NC.act!(out,g,w,NC.is_antiunitary(g) ? conj(c) : c)
+    end
+    out
+end
+
+function _square_derivative(d, row::NC.SectorTerms{W}) where {W}
+    out = NC.SectorTerms(W)
+    for (w,c) in row.terms
+        NC.derive!(out,d,w,c)
+    end
+    out
+end
+
+function _square_dependent!(pivots, row::NC.SectorTerms{W,C}, index) where {W,C}
+    NC._insert_generator_equation!(pivots,Dict{Int,C}(index[w]=>c for (w,c) in row.terms);constant=false)
+end
+
+function _square_fixed_rows(rows, anti, index)
+    pivots = Dict{Int,Dict{Int,Complex{Rational{BigInt}}}}()
+    fixed = eltype(rows)[]
+    for row in rows
+        image = _square_action(anti,row)
+        for odd in (false,true)
+            out = NC.SectorTerms(keytype(row.terms))
+            for (w,c) in row.terms
+                NC.push_term!(out,odd ? im*c/2 : c/2,w)
+            end
+            for (w,c) in image.terms
+                NC.push_term!(out,odd ? -im*c/2 : c/2,w)
+            end
+            _square_dependent!(pivots,out,index) || push!(fixed,out)
+        end
+    end
+    length(fixed)==length(rows) || error("Incomplete K-fixed row decomposition.")
+    fixed
+end
+
+# Apply either m² = -D_z² or the spin Casimir = -Σ D_a² without
+# expanding the input span to all axis words on any of its supports.
+function _square_spectral_factor(row::NC.SectorTerms{W}, ds, eigenvalue, denominator) where {W}
+    out = NC.SectorTerms(W)
+    for (w,c) in row.terms
+        NC.push_term!(out,-c*eigenvalue/denominator,w)
+    end
+    for d in ds, (w,c) in _square_derivative(d,_square_derivative(d,row)).terms
+        NC.push_term!(out,-c/denominator,w)
+    end
+    out
+end
+
+function _square_spin_rows(rows, ds, degree, index; check_dimension=true)
+    isempty(ds) && return [(nothing,rows)]
+    # Every site contributes spin 0 or 1, so 0:D contains the entire
+    # integer-spin spectrum and each J copy contributes exactly one m=0.
+    mz0 = map(rows) do row
+        for m in 1:degree
+            isempty(row.terms) && break
+            row = _square_spectral_factor(row,(last(ds),),m^2,-m^2)
+        end
+        row
+    end
+    R = Complex{Rational{BigInt}}
+    blocks = map(0:degree) do J
+        pivots = Dict{Int,Dict{Int,R}}()
+        basis = eltype(rows)[]
+        λ = J*(J+1)
+        for row in mz0
+            for j in 0:degree
+                (j==J || isempty(row.terms)) && continue
+                μ = j*(j+1)
+                row = _square_spectral_factor(row,ds,μ,λ-μ)
+            end
+            _square_dependent!(pivots,row,index) || push!(basis,row)
+        end
+        J,basis
+    end
+    !check_dimension || sum((2J+1)*length(b) for (J,b) in blocks) == length(rows) || error("Incomplete spin decomposition.")
+    filter(p->!isempty(last(p)),blocks)
+end
+
+function _square_numeric_basis(A)
+    F = LinearAlgebra.svd(A)
+    # Reject an ambiguous numerical rank; check total multiplicity again
+    # against the exact dimension after summing the momentum-star blocks.
+    any(s->1e-12<s<1e-8,F.S) && error("Ambiguous square symmetry projection rank.")
+    F.U[:,findall(>=(1e-8),F.S)]
+end
+
+_square_columns(A) = [[(A[i,j],i) for i in axes(A,1) if abs(A[i,j])>1e-12] for j in axes(A,2)]
+
+function _square_fourier_lift(registry, orbits::NC.AbelianRows{W}, characters, cols) where {W}
+    [_wf_polynomial(registry,W,((NC.scale(orbits.phases[a][t],c*characters[orbits.positions[a][t]]/sqrt(length(ws))),w)
+        for (c,a) in col for ws in (orbits.words[a],) for (t,w) in enumerate(ws))) for col in cols]
+end
+
+function _square_lattice_sectors!(program, table, spin_blocks, translations, points, anti, recovery, folded, registry, packed_orbits)
+    point = NC.OrbitGroup(points)
+    permutations = NC._character_permutations(translations,point)
+    labels = Tuple{Int,Int}[]
+    report = NamedTuple[]
+    sink = NC.OrbitFormSink(table,Dict{Int32,ComplexF64}())
+    projector_cache = Dict{Tuple{Vararg{Int}},Tuple{typeof(point),Vector{Vector{ComplexF64}},Vector{Int}}}()
+    for (J,rows) in spin_blocks
+        orbits = if isnothing(packed_orbits)
+            words = sort!(unique!([w for row in rows for w in keys(row.terms)]))
+            NC.AbelianRows(words,translations)
+        else
+            packed_orbits
+        end
+        index = Dict(w=>(a,t) for (a,ws) in enumerate(orbits.words) for (t,w) in enumerate(ws))
+        cache = Dict{Tuple{Int,Int},NC.LinearForms{ComplexF64}}()
+        seen = Set{Int}()
+        dimension = 0
+        for k in eachindex(translations.coordinates)
+            k in seen && continue
+            star = Set(p[k] for p in permutations)
+            union!(seen,star)
+            characters = cispi.(-2 .* translations.characters[k,:] ./ translations.modulus)
+            M = zeros(ComplexF64,length(orbits.words),length(rows))
+            for (j,row) in enumerate(rows), (w,c) in row.terms
+                a,t = index[w]
+                orbits.admissible[k,a] || continue
+                phase = conj(orbits.phases[a][t])
+                M[a,j] += NC.scale(phase,ComplexF64(c)*conj(characters[orbits.positions[a][t]]))/sqrt(length(orbits.words[a]))
+            end
+            Q = _square_numeric_basis(M)
+            isempty(Q) && continue
+            dimension += length(star)*size(Q,2)
+            stabilizer = Tuple(findall(p->p[k]==k,permutations))
+            little,projections,copies = get!(projector_cache,stabilizer) do
+                group = NC._little_group(point.elements[collect(stabilizer)])
+                projections,ranks = NC.shared_projections(group)
+                # A minimal projector of rank r in irrep dimension d
+                # represents d/r copies of its retained range.
+                sw = NC.SymbolicWedderburn
+                irr = sw.irreducible_characters(sw.CharacterTable(Rational{Int},group))
+                real_irr,_ = sw.affordable_real(irr,ones(Int,length(irr)))
+                copies = [Int(real(χ(one(group)))) ÷ r for (χ,r) in zip(real_irr,ranks)]
+                group,projections,copies
+            end
+            actions = [NC._momentum_action(orbits,index,h,k) for h in little.elements]
+            sectors = map(projections) do coefficients
+                P = zeros(ComplexF64,size(Q))
+                for (action,c) in zip(actions,coefficients), a in axes(Q,1)
+                    phase,b = action[a]
+                    @views P[b,:] .+= (c*phase).*Q[a,:]
+                end
+                _square_columns(_square_numeric_basis(P))
+            end
+            sum(c*length(s) for (c,s) in zip(copies,sectors)) == size(Q,2) || error("Incomplete little-group decomposition.")
+            original_sectors = sectors
+            fixed = false
+            if !isnothing(anti)
+                negative = findfirst(==(mod.(-translations.coordinates[k],translations.orders)),translations.coordinates)
+                candidates = point.elements[findall(p->p[negative]==k,permutations)]
+                sectors,fixed = NC._real_character_sectors(sectors,orbits,index,k,anti,candidates)
+            end
+            NC._assemble_character!(program,sink,orbits,characters,k,sectors,labels,cache;real_blocks=fixed,original_sectors)
+            for (s,cols) in enumerate(sectors)
+                isempty(cols) && continue
+                isnothing(recovery) || push!(recovery,()->_square_fourier_lift(registry,orbits,characters,cols))
+                isnothing(folded) || push!(folded,(;orbits, characters, momentum=Tuple(translations.coordinates[k]), cols))
+                push!(report,(; J,momentum=Tuple(translations.coordinates[k]),star_size=length(star),
+                    little_order=length(little),irrep=s,irrep_copies=copies[s],side=length(cols)))
+            end
+        end
+        !isnothing(packed_orbits) || dimension == length(rows) || error("Incomplete translation-star decomposition.")
+    end
+    for (i,b) in enumerate(program.blocks)
+        program.blocks[i] = NC.ConeBlock(b.kind,b.side,b.first_form,0)
+    end
+    report
+end
+
+"""
+    workflow_square_symmetry_program(H, rows, L; strengthening=nothing,
+        coordinate_words=(), spin=true, spatial=true, real_gauge=true,
+        recover_gram_rows=false, recover_folded_gram=false, compact_moments=true)
+
+Compile a closed linear row span on the square torus. Rows may be packed
+Pauli words or polynomials on `H`'s registry. Keep all spin copies and one
+representative of every momentum star and little-group irrep; these are
+operator sectors, not restrictions on the ground state's quantum numbers.
+`real_gauge` averages complex conjugation K, then uses K-fixed rows (iP
+for an odd-Y Pauli P); it does not split by Y parity. If a further block
+has no proven fixed basis it retains its Hermitian cone. Strengthening
+forms are appended before exact spin moment elimination; the caller must
+supply a symmetry-compatible collection of strengthening constraints.
+With `recover_gram_rows=true`, `report.gram_rows()` returns the polynomial
+rows of each original moment cone, in conic order, before any real lifting
+or pruning. The lift does not contain strengthening recipes or constitute
+a rigorous certificate; audit its residual in ambient Pauli coordinates.
+`recover_folded_gram=true` instead retains compact Fourier orbit recipes
+for G5 (requires spatial symmetry and the compact square moment table).
+`compact_moments=false` selects the generic alias table as a reference.
+"""
+function workflow_square_symmetry_program(H, rows, L::Int; strengthening=nothing,
+    coordinate_words=(), spin=true, spatial=true, real_gauge=true, recover_gram_rows=false,
+    recover_folded_gram=false, compact_moments=true)
+    _check_hamiltonian(H)
+    L>=2 && H.registry.nsites==L^2 || throw(ArgumentError("Expected an L×L square registry with L ≥ 2."))
+    recover_folded_gram && !(spatial && compact_moments) &&
+        throw(ArgumentError("Folded Gram recovery requires compact spatial square moments."))
+    W = eltype(H.data.words)
+    R = Complex{Rational{BigInt}}
+    objective = [(ComplexF64(c),w) for (c,w) in NC.terms(H)]
+    ds = spin ? NC.spin_rotations(H.registry) : ()
+    shifts = spatial ? _workflow_translations(W,L^2,(L,L),:auto) : NC.CliffordMap{W}[]
+    points = spatial ? _square_point_generators(W,L) : NC.CliffordMap{W}[]
+    anti = real_gauge ? NC.CliffordMap(NC.AntiunitaryPauli(one(W))) : nothing
+    generators = (shifts...,points...,(isnothing(anti) ? () : (anti,))...)
+    NC._check_objective(objective,generators)
+    NC._check_derivation_polynomial(H,W,ds,"square Hamiltonian")
+    translations = spatial ? NC.TranslationGroup(shifts,[L,L]) : nothing
+    monomials = rows isa AbstractVector{<:NC.PauliWord}
+    packed_orbits = nothing
+    closed_error() = throw(ArgumentError("Square row span is not closed under the requested spatial, spin or K generators."))
+    if monomials
+        words = sort!(unique!([_square_pack(w,H,W) for w in rows]))
+        isempty(words) && throw(ArgumentError("Select at least one square row."))
+        index = Dict(w=>i for (i,w) in enumerate(words))
+        if spatial
+            packed_orbits = NC.AbelianRows(words,translations)
+            representatives = first.(packed_orbits.words)
+        else
+            representatives = words
+        end
+        # Translations are checked by AbelianRows. Each point map normalizes
+        # those translations, and every spin derivation commutes with them.
+        for w in representatives
+            all(g->haskey(index,last(NC.act(g,w))),points) || closed_error()
+            all(d->all(in(keys(index)),keys(NC._derivative(d,w))),ds) || closed_error()
+        end
+        basis = [NC.SectorTerms(Dict(w=>one(R))) for w in representatives]
+        row_dimension = length(words)
+    else
+        input = [_square_row(row,H,W) for row in rows]
+        words = sort!(unique!([w for row in input for w in keys(row.terms)]))
+        index = Dict(w=>i for (i,w) in enumerate(words))
+        pivots = Dict{Int,Dict{Int,R}}()
+        basis = filter(row->!_square_dependent!(pivots,row,index),input)
+        isempty(basis) && throw(ArgumentError("Square rows span the zero space."))
+        for row in basis, image in Iterators.flatten(((_square_action(g,row) for g in generators),(_square_derivative(d,row) for d in ds)))
+            all(in(keys(index)),keys(image.terms)) && _square_dependent!(copy(pivots),image,index) || closed_error()
+        end
+        row_dimension = length(basis)
+    end
+    spin_blocks = _square_spin_rows(basis,ds,maximum(NC.degree,words),index;check_dimension=isnothing(packed_orbits))
+    table = if spatial && compact_moments
+        SquareOrbitMoments(W,L,real_gauge)
+    else
+        cyclic = if spatial
+            step = first(shifts)
+            other = (shifts[2:end]...,points...)
+            normalizes(g) = NC._conjugate_action(g,step) in (step,inv(step))
+            (;generator=step,normalizers=Tuple(filter(normalizes,other)),
+                remaining=(filter(!normalizes,other)...,(isnothing(anti) ? () : (anti,))...))
+        end
+        NC.OrbitMoments(W,generators;cyclic)
+    end
+    program = NC.MomentProgram{ComplexF64}()
+    recovery = recover_gram_rows ? Function[] : nothing
+    folded_grams = recover_folded_gram ? NamedTuple[] : nothing
+    if spatial
+        sectors = _square_lattice_sectors!(program,table,spin_blocks,translations,points,anti,recovery,folded_grams,H.registry,packed_orbits)
+        sum(s.star_size*s.irrep_copies*s.side*(isnothing(s.J) ? 1 : 2s.J+1) for s in sectors) == row_dimension ||
+            error("Square sectors do not recover the input row dimension.")
+    else
+        families = map(spin_blocks) do (_,b)
+            fixed = isnothing(anti) ? b : _square_fixed_rows(b,anti,index)
+            [[(ComplexF64(c),w) for (w,c) in sort!(collect(row.terms);by=first)] for row in fixed]
+        end
+        block = NC.RowBlock(words,[(1.0+0im,one(W))],NC.HPSD,0)
+        NC._append_family_sectors!(program,table,block,families;real_blocks=!isnothing(anti))
+        if !isnothing(recovery)
+            for cols in families
+                push!(recovery,()->[_wf_polynomial(H.registry,W,col) for col in cols])
+            end
+        end
+        sectors = [(;J,momentum=nothing,star_size=1,little_order=1,irrep=1,irrep_copies=1,side=length(b)) for (J,b) in spin_blocks]
+    end
+    for w in coordinate_words
+        NC.orbit_coordinates!(table,NC._pack_word(W,w))
+    end
+    program,table = NC._orbit_objective!(program,table,objective)
+    isnothing(strengthening) || (program = _append_strengthening!(program,table,strengthening))
+    continuous = nothing
+    if spin
+        program,table,continuous = NC._continuous_program(program,table,ds)
+    end
+    sym = NC.FamilySymmetry([shifts;points];moment_only=isnothing(anti) ? () : (anti,),continuous=ds,detected=true)
+    gram_rows = isnothing(recovery) ? nothing : ()->[expand() for expand in recovery]
+    return program,table,(;route=:square_spin_little_group,sectors,row_dimension,
+        continuous,symmetry=sym,symmetry_generators=generators,gram_rows,folded_grams)
 end

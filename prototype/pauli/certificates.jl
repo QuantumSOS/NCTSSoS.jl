@@ -104,6 +104,596 @@ level. An empty witness gives a norm bound, not a lifted solver dual.
 """
 certify_rational_sos(H,level;kwargs...) = PauliSOSCertificate(H,level;kwargs...)
 
+function _wf_loss_budget(budget::Real)
+    isfinite(budget) && budget >= 0 || throw(ArgumentError("The SOS pruning loss budget must be finite and nonnegative."))
+    return _PauliQ(budget)
+end
+
+function _wf_remove_square_term(f::NC.Polynomial{W,_PauliCQ}, c::_PauliCQ, w::W) where {W<:NC.PauliWord}
+    term = c*_wf_word(f,w)
+    shortened = f - term
+    cross = term'*shortened
+    # f†f - shortened†shortened; Pauli words are unitary.
+    return shortened, cross + cross' + abs2(c)
+end
+
+"""
+    prune_sos_factors(H, level; squares, loss_budget, target_mz_sector=nothing,
+                      target_spin_j=nothing, sector_multipliers=())
+
+Greedily remove Pauli monomials from ambient square factors, trying the smallest
+coefficient magnitudes first. For each removal, update the exact Pauli residual
+including cross terms. Accept only if its ℓ₁ norm is at most the unpruned norm
+plus `loss_budget`. The budget is one absolute energy allowance for the whole
+witness, not a coefficient threshold or a tolerance relative to a solver objective.
+Sector multipliers are not pruned. The input must be ambient factors, not
+solver cone blocks or factors in symmetry-reduced coordinates.
+
+Return the shorter `squares` and their replayed `certificate`, along with the
+`baseline_bound`, nonnegative `bound_loss`, and `removed`/`rejected` term counts.
+This is a single greedy pass, not a minimum-support guarantee.
+"""
+function prune_sos_factors(H, level; squares, loss_budget::Real, target_mz_sector=nothing,
+                           target_spin_j=nothing, sector_multipliers=())
+    budget = _wf_loss_budget(loss_budget)
+    factors = [_wf_witness_polynomial(H,f) for f in squares]
+    target = (; target_mz_sector, target_spin_j, sector_multipliers)
+    baseline = certify_rational_sos(H,level; squares=factors,target...)
+    ceiling = baseline.residual_l1 + budget
+    residual_l1 = baseline.residual_l1
+    residual = Dict(w => real(c) for (c,w) in baseline.residual)
+    candidates = [(abs2(c),i,c,w) for (i,f) in enumerate(factors) for (c,w) in NC.terms(f)]
+    sort!(candidates; by=first)
+    removed = 0
+    for (_,i,c,w) in candidates
+        shortened, delta = _wf_remove_square_term(factors[i],c,w)
+        trial_l1 = residual_l1
+        for (d,v) in NC.terms(delta)
+            old = get(residual,v,zero(_PauliQ))
+            trial_l1 += abs(old + real(d)) - abs(old)
+        end
+        trial_l1 <= ceiling || continue
+        factors[i] = shortened
+        residual_l1 = trial_l1
+        removed += 1
+        for (d,v) in NC.terms(delta)
+            updated = get(residual,v,zero(_PauliQ)) + real(d)
+            iszero(updated) ? delete!(residual,v) : (residual[v] = updated)
+        end
+    end
+    filter!(!iszero,factors)
+    certificate = iszero(removed) ? baseline : certify_rational_sos(H,level; squares=factors,target...)
+    certificate.residual_l1 == residual_l1 || error("SOS pruning residual did not match exact replay.")
+    return (; squares=factors, certificate, baseline_bound=baseline.bound,
+        bound_loss=max(zero(_PauliQ),baseline.bound-certificate.bound),
+        removed, rejected=length(candidates)-removed)
+end
+
+"""
+    pauli_dual_blocks(form, model; sos_variables=nothing)
+
+Read actual JuMP multipliers in `MomentStandardForm.cones` order, without
+requiring a solver status to serve as a proof. For an explicit moment model
+read the constraint duals. For the SOS maximization pass its primal variables
+in `svec` order. Return `nothing` when the relevant point is unavailable.
+The model must have been built from this form, with no extra constraints.
+"""
+function pauli_dual_blocks(form, model; sos_variables=nothing)
+    all(c -> c.kind in (:psd,:zero), form.cones) ||
+        throw(ArgumentError("G5 supports real PSD cones and scalar equalities only."))
+    if isnothing(sos_variables)
+        JuMP.has_duals(model) || return nothing
+        psd = JuMP.all_constraints(model, Vector{JuMP.AffExpr}, JuMP.MOI.PositiveSemidefiniteConeTriangle)
+        eq = JuMP.all_constraints(model, JuMP.AffExpr, JuMP.MOI.EqualTo{Float64})
+        length(psd) == count(c -> c.kind === :psd, form.cones) &&
+            length(eq) == sum((c.length for c in form.cones if c.kind === :zero); init=0) &&
+            length(JuMP.all_constraints(model; include_variable_in_set_constraints=false)) == length(psd)+length(eq) ||
+            throw(ArgumentError("JuMP constraints do not match the original moment form."))
+        p = e = 0
+        return map(form.cones) do c
+            if c.kind === :psd
+                Matrix(JuMP.dual(psd[p+=1]))
+            else
+                [JuMP.dual(eq[e+=1]) for _ in 1:c.length]
+            end
+        end
+    end
+    JuMP.has_values(model) || return nothing
+    z = JuMP.value.(sos_variables)
+    length(z) == length(form.b) || throw(ArgumentError("SOS point does not match the original moment form."))
+    all(isfinite,z) || throw(ArgumentError("The supplied SOS point must be finite."))
+    return map(form.cones) do c
+        c.kind === :zero && return z[c.first:c.first+c.length-1]
+        [_PauliQ(z[c.first+NC.tri_offset(c.side,max(i,j),min(i,j))]) /
+            (i==j ? 1 : _PauliQ(sqrt(2.0))) for i in 1:c.side, j in 1:c.side]
+    end
+end
+
+# A floating factor only proposes a decomposition. The exact Gershgorin
+# lower enclosure of D-F'F proves D+shift*I is PSD by Weyl. Replaying the
+# shifted D (not F'F) keeps all original off-diagonal dual entries.
+function _wf_dual_shift(D)
+    function shift(A)
+        return max(zero(_PauliQ), maximum((sum(abs,view(A,:,i))-abs(A[i,i])-A[i,i] for i in axes(A,1)); init=zero(_PauliQ)))
+    end
+    direct = shift(D)
+    iszero(direct) && return direct
+    candidate = Float64.(D)
+    all(isfinite,candidate) || return direct
+    eig = LinearAlgebra.eigen(LinearAlgebra.Symmetric(candidate))
+    F = _PauliQ.(sqrt.(max.(eig.values,0.0)) .* eig.vectors')
+    return min(direct,shift(D-F'*F))
+end
+
+# The representative stores the sum of the ambient coefficients on its
+# unsigned orbit, not the coefficient of a distinguished ambient word.
+# Its reconstruction is uniform on the orbit, so its l1 mass is exact.
+_wf_fold_word(square,w) = _square_k_zero(square,w) ? nothing : _square_canonical(square,w)
+
+function _wf_square_fold_context(H::NC.Polynomial{W}, table, lifts, generators) where {W}
+    any(l -> l.kind === :fourier_gram,lifts) || return nothing
+    base = table isa NC.ContinuousMoments ? table.base : table
+    base isa SquareOrbitMoments{W} && base.L^2 == H.registry.nsites ||
+        throw(ArgumentError("Folded Fourier lifts require the compact square moment table."))
+    L = base.L
+    square = SquareOrbitMoments(W,L,base.conjugation)
+    shifts = _workflow_translations(W,L^2,(L,L),:auto)
+    points = _square_point_generators(W,L)
+    K = NC.CliffordMap(NC.AntiunitaryPauli(one(W)))
+    spatial = (shifts...,points...,(base.conjugation ? (K,) : ())...)
+    terms = Dict(w=>c for (c,w) in NC.terms(H))
+    all(g -> _symmetry_preserves(g,terms),spatial) && all(in(spatial),generators) ||
+        throw(ArgumentError("Folded Fourier lifts require exact square symmetries of H and no additional averaging generators."))
+    return (;square,shifts, translations=Dict{W,Vector{W}}(),
+        products=Dict{Tuple{W,W},Vector{Union{Nothing,Tuple{NC.Phase,W}}}}())
+end
+
+function _wf_folded_gram(H::NC.Polynomial{W}, rec, fold) where {W}
+    square = fold.square
+    L = square.L
+    (;orbits,characters,momentum,cols) = rec
+    tr = orbits.translations
+    length(characters) == L^2 && all(isfinite,characters) && tr.orders == [L,L] &&
+        tr.generators == fold.shifts && length(momentum) == 2 && all(i -> 0 <= i < L,momentum) ||
+        throw(ArgumentError("Unsupported square Fourier translation metadata."))
+    # Use only the integer phase *partition*. Do not multiply characters as
+    # roots of unity: cispi values and each final amplitude are binary floats.
+    bins = [mod(momentum[1]*x+momentum[2]*y,L) for y in 0:L-1 for x in 0:L-1]
+    phases = unique(bins)
+    samples = Dict{Int,ComplexF64}()
+    for (t,r) in pairs(bins)
+        x,y = mod(t-1,L),div(t-1,L)
+        tr.coordinates[t] == [x,y] || throw(ArgumentError("Unexpected square Fourier translation order."))
+        get!(samples,r,characters[t]) == characters[t] ||
+            throw(ArgumentError("Rounded Fourier values differ within an exact phase class."))
+    end
+    function translated(w)
+        get!(fold.translations,w) do
+            [_square_remap(w,square.points,1,x,y,L) for y in 0:L-1 for x in 0:L-1]
+        end
+    end
+    rows = map(cols) do col
+        map(col) do (c,a)
+            ws,positions = orbits.words[a],orbits.positions[a]
+            u = _square_pack(first(ws),H,W)
+            tw = translated(u)
+            multiplicity, remainder = divrem(L^2,length(ws))
+            length(ws) == length(positions) == length(orbits.phases[a]) && allunique(ws) &&
+                iszero(remainder) && all(isone,orbits.phases[a]) &&
+                all(t -> 1 <= t <= L^2,positions) &&
+                all(j -> tw[positions[j]] == ws[j],eachindex(ws)) ||
+                throw(ArgumentError("Fourier lift does not describe an unsigned square row orbit."))
+            word_phase = Dict(w=>bins[t] for (w,t) in zip(ws,positions))
+            all(t -> get(word_phase,tw[t],-1) == bins[t],eachindex(tw)) ||
+                throw(ArgumentError("Fourier phase is not constant on a row stabilizer coset."))
+            f = zeros(_PauliCQ,L)
+            for r in phases
+                # Identical floating operation order to _square_fourier_lift,
+                # then an exact conversion of the *rounded* row coefficient.
+                f[r+1] = _PauliCQ(c*samples[r]/sqrt(length(ws))) / multiplicity
+            end
+            (;u,f)
+        end
+    end
+    function entry(i,j)
+        values = NC.SectorTerms(W)
+        for (u,f) in rows[i], (v,g) in rows[j]
+            kernel = get!(fold.products,(u,v)) do
+                map(translated(v)) do w
+                    p,product = NC.mul(u,w)
+                    rep = _wf_fold_word(square,product)
+                    isnothing(rep) ? nothing : (p,rep)
+                end
+            end
+            # A pair at translations s,t folds to (u,T_(t-s) v).
+            # Count the phase classes of s exactly for each displacement.
+            correlation = zeros(_PauliCQ,L)
+            m = div(L^2,length(phases))
+            for d in phases
+                correlation[d+1] = m * sum(conj(f[r+1])*g[mod(r+d,L)+1] for r in phases)
+            end
+            for (r,pair) in zip(bins,kernel)
+                isnothing(pair) && continue
+                p,w = pair
+                NC.push_term!(values,NC.scale(p,correlation[r+1]),w)
+            end
+        end
+        return _wf_polynomial(H.registry,W,((c,w) for (w,c) in values.terms))
+    end
+    return entry
+end
+
+function _wf_dual_entries(H, lift, side, fold=nothing)
+    layout = get(lift,:layout,:real)
+    layout in (:real,:realified) || throw(ArgumentError("Unsupported real PSD lift layout: $layout."))
+    if lift.kind === :gram
+        rows = [_wf_witness_polynomial(H,p) for p in lift.rows]
+        n = length(rows)
+        entry = (i,j) -> rows[i]'*rows[j]
+    elseif lift.kind === :fourier_gram
+        n = length(lift.fourier.cols)
+        entry = _wf_folded_gram(H,lift.fourier,fold)
+    elseif lift.kind === :rdm
+        sites = Int[lift.sites...]
+        1 <= length(sites) <= 6 && allunique(sites) && all(s -> 1 <= s <= H.registry.nsites,sites) ||
+            throw(ArgumentError("An RDM lift needs 1–6 distinct existing sites in matrix order."))
+        D = _wf_density(H,sites)
+        V = get(lift,:columns,nothing)
+        if !isnothing(V)
+            V = Matrix{_PauliCQ}(V)
+            size(V,1) == size(D,1) || throw(ArgumentError("RDM compression has the wrong input size."))
+            D = [sum((conj(V[a,i])*V[b,j]*D[a,b]
+                for a in axes(V,1) for b in axes(V,1) if !iszero(V[a,i]*V[b,j])); init=zero(H))
+                for i in axes(V,2), j in axes(V,2)]
+        end
+        n = size(D,1)
+        entry = (i,j) -> D[i,j]
+    else
+        throw(ArgumentError("Unsupported PSD lift $(lift.kind); provide a physical Gram or RDM map."))
+    end
+    full_side = layout === :real ? n : 2n
+    indices = get(lift,:indices,1:full_side)
+    length(indices) == side && allunique(indices) && all(i -> 1 <= i <= full_side,indices) ||
+        throw(ArgumentError("PSD lift indices do not match the cone side."))
+    # Re M and [Re M -Im M; Im M Re M] are PSD on real vectors whenever M is
+    # Hermitian PSD. A principal restriction, including a permutation, is PSD.
+    return function (i,j)
+        a,b = indices[i],indices[j]
+        p = entry(mod1(a,n),mod1(b,n))
+        return (a>n)==(b>n) ? (p+p')*(1//2) : (p-p')*((a>n ? -im : im)*(1//2))
+    end
+end
+
+# Reynolds-average a Hermitian residual over signed Pauli orbits. The group
+# need not be enumerated: every image word has the same number of preimages,
+# or cancels if both signs occur. Antiunitaries act on real coefficients here.
+function _wf_average_dual_residual(H::NC.Polynomial{W}, residual, generators) where {W}
+    isempty(generators) && return residual
+    terms = Dict(w => c for (c,w) in NC.terms(H))
+    checked = map(generators) do g
+        g isa NC.CliffordMap{W} && length(g.columns) <= 2H.registry.nsites ||
+            throw(ArgumentError("G5 averaging needs signed Clifford symmetries on H's registry."))
+        # Revalidate the symplectic columns, which are mutable vectors.
+        a = NC.CliffordMap(g.columns,g.negative; antiunitary=NC.is_antiunitary(g))
+        _symmetry_preserves(a,terms) || throw(ArgumentError("An averaging symmetry does not exactly preserve H."))
+        return a
+    end
+    remaining = Dict(w => real(c) for (c,w) in NC.terms(residual))
+    out = NC.PolynomialBuffer{W,_PauliCQ}()
+    while !isempty(remaining)
+        w = first(keys(remaining))
+        orbit = Dict(w => 1)
+        queue = W[w]
+        cancels = false
+        for u in queue, g in checked
+            p,v = NC.act(g,u)
+            s = NC.scale(p,orbit[u])
+            if haskey(orbit,v)
+                cancels |= orbit[v] != s
+            else
+                orbit[v] = s
+                push!(queue,v)
+            end
+        end
+        c = sum(s*pop!(remaining,v,zero(_PauliQ)) for (v,s) in orbit)/length(orbit)
+        cancels && continue
+        for (v,s) in orbit
+            NC.push_term!(out,c*s,v)
+        end
+    end
+    return NC._polynomial(H.registry,out)
+end
+
+# On degree-d Pauli words collective rotations act as d tensor factors of
+# spin 1. Their Casimir C=-Σ D_axis^2 has eigenvalues j(j+1), 0≤j≤d.
+# The product of (I-C/[j(j+1)]) is the exact Haar projector, with no
+# numerical nullspace or irrational rotation matrices in the replay.
+function _wf_spin_average_dual_residual(H::NC.Polynomial{W}, residual, max_weight, square=nothing) where {W}
+    max_weight >= 0 || throw(ArgumentError("The exact spin-projection weight limit must be nonnegative."))
+    rotations = NC.spin_rotations(H.registry)
+    function derivative(d, terms)
+        out = NC.SectorTerms(W)
+        for (w,c) in terms
+            NC.derive!(out,d,w,c)
+        end
+        return out.terms
+    end
+    objective = NC._sector_terms(H,W).terms
+    all(d -> isempty(derivative(d,objective)),rotations) ||
+        throw(ArgumentError("Collective spin averaging requires exact spin invariance of H."))
+    weight = NC.degree(residual)
+    if weight > max_weight
+        # Collective quarter-turns around x and z generate the 24 proper
+        # signed permutations of the three Pauli axes. This is a rigorous
+        # finite average, not a claim of full spin invariance of the result.
+        n = H.registry.nsites
+        x = [NC.pauli_letter(W,i,0) for i in 1:n]
+        y = [NC.pauli_letter(W,i,1) for i in 1:n]
+        z = [NC.pauli_letter(W,i,2) for i in 1:n]
+        rx = NC.CliffordMap([x;y],[falses(n);trues(n)]) # X→X, Z→−Y
+        rz = NC.CliffordMap([y;z])                      # X→Y, Z→Z
+        p = _wf_average_dual_residual(H,residual,(rx,rz))
+        isnothing(square) && return p,:clifford24
+        terms = ((c,v) for (c,w) in NC.terms(p) for v in (_wf_fold_word(square,w),) if !isnothing(v))
+        return _wf_polynomial(H.registry,W,terms), :clifford24
+    end
+    values = NC._sector_terms(residual,W).terms
+    for j in weight:-1:1
+        next = copy(values)
+        for d in rotations
+            for (w,c) in derivative(d,derivative(d,values))
+                # The collective Casimir commutes with spatial permutations
+                # and K. Refold each complete D_axis², not its intermediate D.
+                v = isnothing(square) ? w : _wf_fold_word(square,w)
+                isnothing(v) || NC._sector_add!(next,v,c/(j*(j+1)))
+            end
+        end
+        values = next
+    end
+    return _wf_polynomial(H.registry,W,((c,w) for (w,c) in values)), :su2_exact
+end
+
+# Audit the map in the actual quotient coordinates. This threshold only
+# detects incorrect provenance; it is NOT used in the bound or PSD checks.
+function _wf_audit_dual_row!(expected, actual, table, p, scale)
+    empty!(expected)
+    for (c,w) in NC.terms(p)
+        terms = NC.moment_terms(table,w)
+        isnothing(terms) && throw(ArgumentError("Physical lift uses a word missing from the solved moment table."))
+        for (id,a) in terms
+            NC._sector_add!(expected, Int(id), scale*real(c*_PauliCQ(a)))
+        end
+    end
+    error = max(maximum((abs(v-get(actual,i,0)) for (i,v) in expected); init=zero(_PauliQ)),
+        maximum((abs(v-get(expected,i,0)) for (i,v) in actual); init=zero(_PauliQ)))
+    magnitude = maximum(abs,values(actual); init=one(_PauliQ))
+    error <= _PauliQ(1e-10)*magnitude ||
+        throw(ArgumentError("Physical lift does not match a row of the solved conic form."))
+    return error
+end
+
+"""
+    verify_pauli_dual(H, form, table, dual, lifts;
+                      symmetry_generators=(), spin_average=false, spin_max_weight=6)
+
+Replay a Pauli SDP dual in original Hamiltonian units. Supply one lift per
+cone, in actual conic order: `(;kind=:gram, rows)` (polynomial Gram rows),
+`(;kind=:rdm, sites)` (physical reduced density matrix, optionally with
+compression `columns`), or `(;kind=:stationarity, rows)` (Hermitian test
+operators for the scalar equations `i[H, rows[k]]`). PSD lifts accept
+`layout=:real` (default) or `:realified`, and optional principal `indices`
+in that real layout. Give an explicit lift even for a zero multiplier.
+Unsupported strengthenings and unmapped affine rows fail closed.
+
+The proof uses the ambient Gram and density matrices and the exact
+stationarity of a ground state. Optionally pass exact signed Clifford
+symmetries of H (including antiunitaries) to average the residual and
+recover cancellations of the moment quotient. `spin_average=true` also
+applies the exact collective spin Haar projector after checking that H is
+spin invariant. If the residual exceeds `spin_max_weight`, it uses the
+exact 24-Clifford average instead (`spin_projection=:clifford24`). Otherwise
+the result reports `:su2_exact`. Each average preserves the ground-space trace. The proof
+does not assume that a ground state is symmetric or trust a rounded quotient.
+Binary inputs are converted exactly. For repaired dual
+blocks let `level = offset - b'z`. The **only** certified level is
+`bound = level + residual_identity - residual_nonidentity_l1`, where the
+residual is `H - level*I - dual_contribution` in the full Pauli algebra,
+averaged if requested.
+For opt-in square Fourier lifts, `residual_representation=:square_orbit_mass`
+stores the sum of coefficients on each verified translation/point orbit
+(odd-Y terms vanish if K is enabled). Divide each mass by its orbit size to
+recover the ambient coefficient on each word. Its l1 norm is unchanged.
+`raw_dual_objective`, both balance norms and the lift matching error are
+diagnostics, not bounds. This proof targets the unrestricted ground energy.
+"""
+function verify_pauli_dual(H, form, table, dual, lifts;
+                           symmetry_generators=(), spin_average=false, spin_max_weight::Int=6)
+    HQ = _wf_exact(NC._checked_hermitian(H,"Hamiltonian"))
+    length(form.cones) == length(dual) == length(lifts) ||
+        throw(ArgumentError("Provide a dual block and physical lift for every cone."))
+    fold = _wf_square_fold_context(HQ,table,lifts,symmetry_generators)
+    square = isnothing(fold) ? nothing : fold.square
+    # Traverse the original affine form by row without retaining an exact
+    # dictionary for every matrix entry.
+    transposed = copy(transpose(form.A))
+    actual = Dict{Int,_PauliQ}()
+    expected = empty(actual)
+    function audit_row(k,p,scale)
+        empty!(actual)
+        iszero(form.b[k]) || (actual[1] = _PauliQ(form.b[k]))
+        for t in transposed.colptr[k]:transposed.colptr[k+1]-1
+            actual[transposed.rowval[t]+1] = -_PauliQ(transposed.nzval[t])
+        end
+        return _wf_audit_dual_row!(expected,actual,table,p,scale)
+    end
+    sqrt2 = _PauliQ(sqrt(2.0))
+    z = zeros(_PauliQ,length(form.b))
+    raw = similar(z)
+    shifts = zeros(_PauliQ,length(dual))
+    max_lift_error = zero(_PauliQ)
+    W = eltype(HQ.data.words)
+    contribution = NC.SectorTerms(W)
+    function accumulate!(q,p; already_folded=false)
+        iszero(q) && return nothing
+        for (c,w) in NC.terms(p)
+            v = isnothing(square) || already_folded ? w : _wf_fold_word(square,w)
+            isnothing(v) || NC.push_term!(contribution,q*c,v)
+        end
+    end
+    for (index,(cone,D,lift)) in enumerate(zip(form.cones,dual,lifts))
+        all(isfinite,D) || throw(ArgumentError("The supplied dual point must be finite."))
+        k = cone.first
+        if cone.kind === :psd
+            D isa AbstractMatrix && size(D) == (cone.side,cone.side) &&
+                eltype(D) <: Real && LinearAlgebra.issymmetric(D) ||
+                throw(ArgumentError("PSD dual must be real symmetric and match the cone side."))
+            Q = Matrix{_PauliQ}(D)
+            δ = shifts[index] = _wf_dual_shift(Q)
+            entry = _wf_dual_entries(HQ,lift,cone.side,fold)
+            for j in 1:cone.side, i in j:cone.side
+                p = entry(i,j)
+                scale = i==j ? one(_PauliQ) : sqrt2
+                max_lift_error = max(max_lift_error,audit_row(k,p,scale))
+                raw[k] = scale*Q[i,j]
+                q = i==j ? Q[i,j]+δ : Q[i,j]
+                z[k] = scale*q
+                accumulate!(i==j ? q : 2q,p; already_folded=lift.kind === :fourier_gram)
+                k += 1
+            end
+        elseif cone.kind === :zero && lift.kind === :stationarity
+            D isa AbstractVector{<:Real} && length(D) == cone.length == length(lift.rows) ||
+                throw(ArgumentError("Stationarity rows and duals must match the cone length."))
+            for (d,u) in zip(D,lift.rows)
+                U = NC._checked_hermitian(_wf_witness_polynomial(HQ,u),"Stationarity test operator")
+                p = im*(HQ*U-U*HQ)
+                max_lift_error = max(max_lift_error,audit_row(k,p,one(_PauliQ)))
+                z[k] = raw[k] = _PauliQ(d)
+                accumulate!(z[k],p)
+                k += 1
+            end
+        else
+            throw(ArgumentError("Unsupported cone/lift pair $(cone.kind)/$(lift.kind)."))
+        end
+        k == cone.first+cone.length || throw(ArgumentError("Malformed conic block length."))
+    end
+    modeled_objective = Dict(i+1 => _PauliQ(c) for (i,c) in pairs(form.c) if !iszero(c))
+    iszero(form.offset) || (modeled_objective[1] = _PauliQ(form.offset))
+    max_lift_error = max(max_lift_error,_wf_audit_dual_row!(expected,modeled_objective,table,HQ,one(_PauliQ)))
+    objective(v) = _PauliQ(form.offset)-sum((_PauliQ(b)*q for (b,q) in zip(form.b,v)); init=zero(_PauliQ))
+    function balance_inf(v)
+        mapreduce(max,axes(form.A,2); init=zero(_PauliQ)) do j
+            terms = form.A.colptr[j]:form.A.colptr[j+1]-1
+            abs(_PauliQ(form.c[j])+sum((v[form.A.rowval[t]]*_PauliQ(form.A.nzval[t]) for t in terms); init=zero(_PauliQ)))
+        end
+    end
+    level = objective(z)
+    if isnothing(square)
+        residual = HQ-level-_wf_polynomial(HQ.registry,W,((c,w) for (w,c) in contribution.terms))
+        NC._checked_hermitian(residual,"Dual certificate residual")
+        residual = _wf_average_dual_residual(HQ,residual,symmetry_generators)
+    else
+        # F(H-level*I-C) assembled from exact orbit masses throughout.
+        accumulate!(-1,HQ)
+        residual = -level-_wf_polynomial(HQ.registry,W,((c,w) for (w,c) in contribution.terms))
+    end
+    NC._checked_hermitian(residual,"Dual certificate residual")
+    spin_projection = :none
+    if spin_average
+        residual,spin_projection = _wf_spin_average_dual_residual(HQ,residual,spin_max_weight,square)
+    end
+    residual_identity = sum((real(c) for (c,w) in NC.terms(residual) if isone(w)); init=zero(_PauliQ))
+    residual_nonidentity_l1 = sum((abs(real(c)) for (c,w) in NC.terms(residual) if !isone(w)); init=zero(_PauliQ))
+    return (; bound=level+residual_identity-residual_nonidentity_l1, level,
+        residual_identity, residual_nonidentity_l1, residual=Tuple(NC.terms(residual)),
+        residual_representation=isnothing(square) ? :ambient_pauli : :square_orbit_mass,
+        shifts, spin_projection, raw_dual_objective=objective(raw), raw_balance_inf=balance_inf(raw),
+        repaired_balance_inf=balance_inf(z), max_lift_error, status=:verified_rational)
+end
+
+"""
+    square_lifts(H, seed, before, real, pruned, pruning, symmetry_report; form)
+
+Map a recovered square Gram basis and the seed's physical strengthening
+sources to the final real moment cones. `before` includes the appended
+strengthening, `real` is before term sparsity, and `pruned` is what the solver
+uses. Pass the already-built `form` to avoid building it again. Principal
+cliques and recorded constant-singleton deletions are supported; aggregate
+chordal auxiliaries and non-stationarity/non-RDM strengthening are not.
+"""
+function square_lifts(H, seed, before, real, pruned, pruning, symmetry_report;
+                      form=NC.moment_standard_form(pruned))
+    strengthen = seed.strengthening
+    isempty(strengthen.inequalities) || throw(ArgumentError("G5 does not support square inequality strengthening."))
+    pruning.algorithm in (:None,:Maximal,:MMD) && isempty(pruning.auxiliary_ids) ||
+        throw(ArgumentError("G5 square lifts require principal cliques without chordal auxiliaries."))
+    fourier = get(symmetry_report,:folded_grams,nothing)
+    if isnothing(fourier)
+        isnothing(symmetry_report.gram_rows) && throw(ArgumentError("Enable expanded or folded square Gram recovery."))
+        grams = symmetry_report.gram_rows()
+    else
+        grams = fourier
+    end
+    words, sites = seed.stationarity_words, seed.plaquettes
+    ngram, neq, nrdm = length(grams),length(words),length(sites)
+    neq == length(strengthen.equalities) && nrdm == length(strengthen.psd_blocks) &&
+        all(b -> b.kind === :rdm_positivity,strengthen.psd_blocks) ||
+        throw(ArgumentError("Square strengthening sources do not match the seed's stationarity/RDM labels."))
+    length(before.blocks) == length(real.blocks) == ngram+neq+nrdm ||
+        throw(ArgumentError("Realification changed the square cone order or count."))
+    removed = Set(get(pruning,:pruned_singletons,Tuple{Int,Int}[]))
+    lifts = NamedTuple[]
+    p = c = 1
+    for (i,(source,block)) in enumerate(zip(before.blocks,real.blocks))
+        label = i <= ngram ? 0 : i-ngram
+        source.label == block.label == label || throw(ArgumentError("Unexpected square strengthening label/order."))
+        if ngram < i <= ngram+neq
+            source.kind == block.kind == NC.ZERO && source.side == block.side == 1 ||
+                throw(ArgumentError("A square stationarity source must be one scalar equality."))
+            p <= length(pruned.blocks) &&
+                (pruned.blocks[p].kind,pruned.blocks[p].label,pruned.blocks[p].side) == (NC.ZERO,label,1) ||
+                throw(ArgumentError("Pruning changed a square stationarity block."))
+            p += 1
+            # Standard form drops projected zero equalities, not their labels.
+            if c <= length(form.cones) && form.cones[c].kind === :zero && form.cones[c].label == label
+                form.cones[c].length == 1 || throw(ArgumentError("Expected a scalar conic stationarity row."))
+                push!(lifts,(;kind=:stationarity,rows=[_wf_word(H,words[label])]))
+                c += 1
+            end
+            continue
+        end
+        source.kind in (NC.PSD,NC.HPSD) && block.kind == NC.PSD && block.side in (source.side,2source.side) ||
+            throw(ArgumentError("Unexpected square PSD realification."))
+        layout = block.side == source.side ? :real : :realified
+        lift = if i <= ngram
+            rows = isnothing(fourier) ? grams[i] : grams[i].cols
+            length(rows) == source.side || throw(ArgumentError("Recovered square Gram rows do not match the cone side."))
+            isnothing(fourier) ? (;kind=:gram,rows,layout) : (;kind=:fourier_gram,fourier=grams[i],layout,source=i)
+        else
+            region = sites[label-neq]
+            source.side == 2^length(region) || throw(ArgumentError("Square RDM cone is not the seed's full density matrix."))
+            (;kind=:rdm,sites=region,layout)
+        end
+        cliques = get(pruning.cliques,i,(1:block.side,))
+        for indices in cliques
+            if length(indices) == 1 && (i,only(indices)) in removed
+                delete!(removed,(i,only(indices)))
+                continue
+            end
+            side = length(indices)
+            p <= length(pruned.blocks) && c <= length(form.cones) &&
+                (pruned.blocks[p].kind,pruned.blocks[p].label,pruned.blocks[p].side) == (NC.PSD,label,side) &&
+                (form.cones[c].kind,form.cones[c].label,form.cones[c].side) == (:psd,label,side) ||
+                throw(ArgumentError("Principal cliques do not match the final square cone order/sides."))
+            push!(lifts,(;lift...,indices))
+            p += 1
+            c += 1
+        end
+    end
+    isempty(removed) && p == length(pruned.blocks)+1 && c == length(form.cones)+1 ||
+        throw(ArgumentError("Some pruned square blocks or singleton removals have no matching lift."))
+    return lifts
+end
+
 # Apply a Pauli polynomial exactly, without constructing a 2^N × 2^N matrix.
 function _wf_apply(p, ket)
     out = zeros(_PauliCQ,length(ket))

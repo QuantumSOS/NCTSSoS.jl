@@ -35,6 +35,14 @@ end
 end
 
 @testset "Detected symmetry in user problems" begin
+    @testset "Independent local signs exceed the finite group limit" begin
+        _,(_,_,z)=Nx.pauli_variables(16)
+        H=sum(i*z[i] for i in eachindex(z))
+        symmetry=Nx.detect_symmetry(H)
+        built=Nx.build(Nx.Problem(H;symmetry),Nx.Relaxation(order=1))
+        # Identity and all Z rows share a character; X_i and Y_i share another.
+        @test sort([b.side for b in built.program.blocks])==[fill(2,16);17]
+    end
     @testset "$kind ($n sites)" for (n,kind) in ((8,:heisenberg),(16,:heisenberg),(8,:ising))
         problem=detection_ring(n,kind)
         symmetry=Nx.detect_symmetry(problem)

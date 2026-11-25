@@ -95,6 +95,7 @@ function _enumerate_color_preserving_automorphisms(
     max_automorphisms::Int=100_000,
     max_trials::Int=typemax(Int),
     paulis::Union{Nothing,Matrix{UInt8}}=nothing,
+    pruners=nothing, on_leaf=nothing,
 )
     n = nv(g.graph)
     length(g.colors) == n || throw(ArgumentError("Graph colour vector length does not match vertex count."))
@@ -134,20 +135,35 @@ function _enumerate_color_preserving_automorphisms(
     function search(depth::Int)
         if depth > n
             push!(automorphisms, copy(assigned))
+            isnothing(on_leaf) || on_leaf(last(automorphisms))
             return nothing
         end
 
         v = order[depth]
+        skipped = isnothing(pruners) ? nothing : BitSet()
         for w in candidates[v]
             (length(automorphisms) >= max_automorphisms || trials[] >= max_trials) && return nothing
             trials[] += 1
             used[w] && continue
+            !isnothing(skipped) && w in skipped && continue
             _automorphism_consistent(g.graph, assigned, v, w) || continue
             assigned[v] = w
             used[w] = true
             preserves_relations(depth) && search(depth + 1)
             used[w] = false
             assigned[v] = 0
+            if !isnothing(pruners) && !isempty(pruners)
+                # A left composition must fix every assigned TARGET, not just
+                # preserve their set. Generators found below this node count too.
+                stabilizers = filter(p -> all(i -> !used[i] || p[i]==i, eachindex(used)), pruners)
+                push!(skipped,w)
+                queue = [w]
+                for u in queue, p in stabilizers
+                    t = p[u]
+                    t in skipped && continue
+                    push!(skipped,t); push!(queue,t)
+                end
+            end
         end
         return nothing
     end

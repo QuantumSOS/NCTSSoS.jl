@@ -276,8 +276,10 @@ function _append_wang!(program,table,H,objective,rows,sym,report,spec,lso_span,l
         isempty(selected) && throw(ArgumentError("Wang PSO needs at least one nonconstant selected row."))
         psorows = length(selected)
         pair_mul! = _wang_pso_kernel(objective)
-        psd,_,psoreport = NC._discovered_lattice_program(selected,empty(objective),structure,sym.moment_only;
-            pair_mul!,shared_table=table)
+        psd,_,psoreport = NC._with_pso_zero_memo(table,pso) do
+            NC._discovered_lattice_program(selected,empty(objective),structure,sym.moment_only;
+                pair_mul!,shared_table=table)
+        end
         for b in psd.blocks
             push!(psosides,b.side)
             NC._copy_cone!(program,psd,b;label=-1)

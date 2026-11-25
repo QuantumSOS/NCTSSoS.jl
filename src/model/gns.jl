@@ -127,7 +127,7 @@ end
 # the coordinate hooks. Orbit caches include aliases; continuous tables retain
 # the base domain even after eliminating coordinates.
 _gns_domain(t::MomentTable)=[t.keys[i] for i in eachindex(t.ids) if t.ids[i]!=(0,0)]
-_gns_domain(t::OrbitMoments)=collect(keys(t.cache))
+_gns_domain(t::OrbitMoments)=_orbit_domain(t)
 _gns_domain(t::ContinuousMoments)=_gns_domain(t.base)
 _gns_domain(t::SectorMoments)=_gns_domain(t.base)
 
@@ -247,7 +247,7 @@ function _gns_cutoff(s,atol,rtol,check_atol)
     return cutoff,(retained=retained,discarded=discarded,resolved=resolved,automatic=isnothing(atol))
 end
 
-function _gns_candidate(result,full_basis,basis,H,values,work,d,order;atol,rtol,check_atol,psd_rtol)
+function _gns_candidate(result,domain,full_basis,basis,H,values,work,d,order;atol,rtol,check_atol,psd_rtol)
     W=eltype(basis)
     n=length(basis)
     A=H[1:n,1:n]
@@ -301,7 +301,7 @@ function _gns_candidate(result,full_basis,basis,H,values,work,d,order;atol,rtol,
     end
     program_error=0.0; program_count=0
     # Check complex moments and partially covered real/imaginary components.
-    for w in _gns_domain(result.table)
+    for w in domain
         target=_gns_value(result,_gns_coordinates(result.table,(w,),(1,)))
         if !isnothing(target)
             program_error=max(program_error,abs(observed(w)-target))
@@ -388,7 +388,7 @@ function gns(result::SolveResult;atol=nothing,rtol=0.0,check_atol=1e-6,psd_rtol=
             return previous
         end
         H=_gns_fill!(zeros(ComplexF64,length(rows),length(rows)),rows,GNSProductValue(values,0.0im))
-        previous=_gns_candidate(result,rows,basis,H,values,work,d,order;atol,rtol,check_atol,psd_rtol)
+        previous=_gns_candidate(result,domain,rows,basis,H,values,work,d,order;atol,rtol,check_atol,psd_rtol)
         previous.flatness.is_flat && previous.flatness.is_positive && return previous
         d>order && !previous.flatness.is_positive && return previous
         length(rows)==length(basis) && return previous

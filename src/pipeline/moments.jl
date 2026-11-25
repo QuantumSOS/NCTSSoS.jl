@@ -14,6 +14,8 @@ mutable struct OrbitMoments{W,G,D,C}
     annihilators::D
     cyclic::C
     cache::Dict{W,OrbitCoordinates}
+    zero_memo::Vector{W} # nonempty only during order-2 PSO assembly
+    zero_seeds::Set{W} # orbit closures omitted from cache, independent of eviction
     representatives::MomentTable{W}
     labels::Vector{MomentLabel{W}}
     pending::Vector{Tuple{W,Phase,Bool,Bool}}
@@ -25,12 +27,47 @@ mutable struct OrbitMoments{W,G,D,C}
 end
 function OrbitMoments(::Type{W}, generators; annihilators=(),real_form=false,cyclic=nothing) where {W<:AbstractWord}
     representatives = MomentTable{W}()
-    t = OrbitMoments(generators,annihilators,cyclic,Dict{W,OrbitCoordinates}(),
+    t = OrbitMoments(generators,annihilators,cyclic,Dict{W,OrbitCoordinates}(),W[],Set{W}(),
         representatives,representatives.labels,Tuple{W,Phase,Bool,Bool}[],Dict{W,Tuple{Phase,Bool}}(),false,-1,real_form,BitSet([1]))
     m = orbit_coordinates!(t,one(W))
     m.re == 1 && m.im == 0 && m.real_coefficient == 1 ||
         throw(ArgumentError("A symmetry must fix the identity with phase +1."))
     t
+end
+
+# Identity is a safe empty slot: its nonzero coordinate is always in cache,
+# which is consulted first. Full packed words (all limbs) distinguish collisions.
+function _with_pso_zero_memo(f,t::OrbitMoments{W},order) where W
+    (order!=2 || isempty(t.generators)) && return f()
+    previous=t.zero_memo
+    t.zero_memo=fill(one(W),nextpow(2,min(1<<20,length(t.cache))))
+    try
+        return f()
+    finally
+        t.zero_memo=previous
+    end
+end
+
+# Ward and GNS enumerate the original stored domain, not memo residents.
+# Only orbit-walk zeros used to register aliases. An annihilator shortcut
+# registered none. Replay each omitted orbit once, without changing the table.
+_orbit_domain(t) = collect(keys(t.cache))
+function _orbit_domain(t::OrbitMoments{W}) where W
+    domain=collect(keys(t.cache))
+    isempty(t.zero_seeds) && return domain
+    remaining=copy(t.zero_seeds)
+    probe=OrbitMoments(W,t.generators;real_form=t.real_form,cyclic=t.cyclic)
+    while !isempty(remaining)
+        w=pop!(remaining)
+        haskey(t.cache,w) && continue # a later unbounded walk stored this whole orbit
+        orbit_coordinates!(probe,w)
+        for v in keys(probe.relations)
+            push!(domain,v)
+            delete!(remaining,v)
+        end
+        empty!(probe.cache)
+    end
+    return domain
 end
 
 # Relations have the convention L(v) = p * conj^b(L(seed)). A repeated
@@ -71,9 +108,13 @@ end
 function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
     cached=get(t.cache,w,nothing)
     !isnothing(cached) && return cached
+    memo=t.zero_memo
+    slot=isempty(memo) ? 0 : Int(hash(w) & (length(memo)-1))+1
+    slot!=0 && memo[slot]==w && return ZERO_ORBIT_COORDINATES
     for g in t.annihilators
         p,u = act(g,w)
         if u == w && p.k == 0x02 && (!is_antiunitary(g) || moment_reality(w) == :real)
+            slot!=0 && (memo[slot]=w)
             return ZERO_ORBIT_COORDINATES
         end
     end
@@ -100,6 +141,12 @@ function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
             q,u=act(g,v)
             anti=is_antiunitary(g)
             _orbit_visit!(t,u,conj(q)*(anti ? conj(p) : p),xor(b,anti))
+            slot!=0 && t.zero_orbit && break
+        end
+        if slot!=0 && t.zero_orbit
+            push!(t.zero_seeds,w)
+            memo[slot]=w
+            return ZERO_ORBIT_COORDINATES
         end
         i+=1
     end
@@ -148,7 +195,7 @@ function orbit_coordinates!(t::OrbitMoments{W}, w::W) where {W}
 end
 
 "Read orbit coordinates without registering words; an empty tuple is a symmetry-forced zero."
-function moment_terms(t::OrbitMoments{W},w::AbstractWord) where {W}
+function moment_terms(t::OrbitMoments{W},w::AbstractWord;registered_only=false) where {W}
     packed=try
         _pack_word(W,w)
     catch e
@@ -157,11 +204,15 @@ function moment_terms(t::OrbitMoments{W},w::AbstractWord) where {W}
     end
     m=get(t.cache,packed,nothing)
     if isnothing(m)
-        # Every represented orbit is cached in full. An unseen orbit may
+        packed in t.zero_seeds && return ()
+        registered_only && isempty(t.zero_seeds) && return nothing
+        # Every represented nonzero orbit is cached in full. A miss may
         # still be forced to zero, including by the annihilator shortcut.
         # Use a scratch table: querying must not grow the solved table.
-        probe=OrbitMoments(W,t.generators;annihilators=t.annihilators,real_form=t.real_form,cyclic=t.cyclic)
+        # A membership query needs the full walk to find an omitted seed.
+        probe=OrbitMoments(W,t.generators;annihilators=registered_only ? () : t.annihilators,real_form=t.real_form,cyclic=t.cyclic)
         zero=orbit_coordinates!(probe,packed)
+        registered_only && isdisjoint(keys(probe.relations),t.zero_seeds) && return nothing
         return zero.re==0 && zero.im==0 ? () : nothing
     end
     m.re==0 && m.im==0 && return ()

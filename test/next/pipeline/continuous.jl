@@ -12,6 +12,32 @@ struct TestScaledDerivation{D,T} <: Nx.AbstractDerivation
 end
 Nx.derive!(sink,d::TestScaledDerivation,w::Nx.AbstractWord,c::Number=1) = Nx.derive!(sink,d.base,w,c*d.factor)
 
+@testset "Evicted PSO zeros retain their Ward and GNS domains" begin
+    W=Nx.PauliWord{2}
+    x(i)=Nx.pauli_letter(W,i,0); y(i)=Nx.pauli_letter(W,i,1); z(i)=Nx.pauli_letter(W,i,2)
+    swap=Nx.SitePermutation([1:64;66;65])
+    parity=Nx.PauliConjugation(last(Nx.mul(z(65),z(66))),false)
+    shortcut=Nx.PauliConjugation(x(67),false)
+    t=Nx.OrbitMoments(W,(swap,parity,shortcut);annihilators=(shortcut,))
+    Nx._with_pso_zero_memo(t,2) do # identity-only table starts with one slot
+        for w in (x(65),y(65),z(67),x(65))
+            @test Nx.orbit_coordinates!(t,w)==Nx.ZERO_ORBIT_COORDINATES
+        end
+        @test Nx.orbit_coordinates!(t,x(67)).re==2
+    end
+    # Same low limb, different high limbs. Include unqueried site aliases,
+    # but not the annihilator shortcut, which never registered an orbit.
+    @test Set(Nx._gns_domain(t))==Set([one(W),x(67),x(65),x(66),y(65),y(66)])
+    @test Nx.moment_terms(t,x(66))==()
+    @test isnothing(Nx.moment_terms(t,z(66)))
+    # D_y(X) = -Z. Neither Z was previously registered: a Ward closure
+    # started only from nonzero coordinates would never see this equation.
+    d=Nx.SpinRotation(1,(UInt64(0),UInt64(3)))
+    _,reduced,report=Nx._continuous_program(Nx.MomentProgram{Float64}(2),t,(d,);diagonal=false)
+    @test report.equations==1
+    @test isempty(collect(Nx.moment_terms(reduced,z(66))))
+end
+
 function continuous_true_result(built,problem,description,rho,matrix)
     values=[label.part==2 ? imag(LinearAlgebra.tr(rho*matrix(label.word))) : real(LinearAlgebra.tr(rho*matrix(label.word)))
         for label in built.table.labels]

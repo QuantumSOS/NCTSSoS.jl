@@ -104,6 +104,71 @@ level. An empty witness gives a norm bound, not a lifted solver dual.
 """
 certify_rational_sos(H,level;kwargs...) = PauliSOSCertificate(H,level;kwargs...)
 
+function _wf_loss_budget(budget::Real)
+    isfinite(budget) && budget >= 0 || throw(ArgumentError("The SOS pruning loss budget must be finite and nonnegative."))
+    return _PauliQ(budget)
+end
+
+function _wf_remove_square_term(f::NC.Polynomial{W,_PauliCQ}, c::_PauliCQ, w::W) where {W<:NC.PauliWord}
+    term = c*_wf_word(f,w)
+    shortened = f - term
+    cross = term'*shortened
+    # f†f - shortened†shortened; Pauli words are unitary.
+    return shortened, cross + cross' + abs2(c)
+end
+
+"""
+    prune_sos_factors(H, level; squares, loss_budget, target_mz_sector=nothing,
+                      target_spin_j=nothing, sector_multipliers=())
+
+Greedily remove Pauli monomials from ambient square factors, trying the smallest
+coefficient magnitudes first. For each removal, update the exact Pauli residual
+including cross terms. Accept only if its ℓ₁ norm is at most the unpruned norm
+plus `loss_budget`. The budget is one absolute energy allowance for the whole
+witness, not a coefficient threshold or a tolerance relative to a solver objective.
+Sector multipliers are not pruned. The input must be ambient factors, not
+solver cone blocks or factors in symmetry-reduced coordinates.
+
+Return the shorter `squares` and their replayed `certificate`, along with the
+`baseline_bound`, nonnegative `bound_loss`, and `removed`/`rejected` term counts.
+This is a single greedy pass, not a minimum-support guarantee.
+"""
+function prune_sos_factors(H, level; squares, loss_budget::Real, target_mz_sector=nothing,
+                           target_spin_j=nothing, sector_multipliers=())
+    budget = _wf_loss_budget(loss_budget)
+    factors = [_wf_witness_polynomial(H,f) for f in squares]
+    target = (; target_mz_sector, target_spin_j, sector_multipliers)
+    baseline = certify_rational_sos(H,level; squares=factors,target...)
+    ceiling = baseline.residual_l1 + budget
+    residual_l1 = baseline.residual_l1
+    residual = Dict(w => real(c) for (c,w) in baseline.residual)
+    candidates = [(abs2(c),i,c,w) for (i,f) in enumerate(factors) for (c,w) in NC.terms(f)]
+    sort!(candidates; by=first)
+    removed = 0
+    for (_,i,c,w) in candidates
+        shortened, delta = _wf_remove_square_term(factors[i],c,w)
+        trial_l1 = residual_l1
+        for (d,v) in NC.terms(delta)
+            old = get(residual,v,zero(_PauliQ))
+            trial_l1 += abs(old + real(d)) - abs(old)
+        end
+        trial_l1 <= ceiling || continue
+        factors[i] = shortened
+        residual_l1 = trial_l1
+        removed += 1
+        for (d,v) in NC.terms(delta)
+            updated = get(residual,v,zero(_PauliQ)) + real(d)
+            iszero(updated) ? delete!(residual,v) : (residual[v] = updated)
+        end
+    end
+    filter!(!iszero,factors)
+    certificate = iszero(removed) ? baseline : certify_rational_sos(H,level; squares=factors,target...)
+    certificate.residual_l1 == residual_l1 || error("SOS pruning residual did not match exact replay.")
+    return (; squares=factors, certificate, baseline_bound=baseline.bound,
+        bound_loss=max(zero(_PauliQ),baseline.bound-certificate.bound),
+        removed, rejected=length(candidates)-removed)
+end
+
 """
     pauli_dual_blocks(form, model; sos_variables=nothing)
 

@@ -12,7 +12,8 @@ export PauliSymmetrySpec, PauliSparsitySpec, PauliStrengtheningSpec,
     compile_relaxation, solve_ground_state, solve_pauli_ground_state, pauli_nctssos,
     build_square_xxx_seed, compile_minimal_square, compile_square_xxx_witness,
     price_square, square_pricing_state,
-    bound_observable_interval, certify_rational_sos, certify_energy_window, certify_observable_interval
+    bound_observable_interval, certify_rational_sos, certify_energy_window, certify_observable_interval,
+    prune_sos_factors
 
 Base.@kwdef struct PauliSymmetrySpec
     time_reversal_gauge::Bool = true

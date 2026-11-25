@@ -552,8 +552,8 @@ println("  gap after refinement: $(abs(r8.refined - r8.exact))")
 ````
 
 ````
-N = 8:  first = -2.7454871439463724,  refined = -2.613125930203476,  exact = -2.6131259297527527
-  gap after refinement: 4.507234585560127e-10
+N = 8:  first = -2.7454871439463724,  refined = -2.6131259302020147,  exact = -2.6131259297527527
+  gap after refinement: 4.4926196096639615e-10
 
 ````
 

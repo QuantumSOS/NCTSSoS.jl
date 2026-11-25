@@ -402,14 +402,16 @@ Transform a symmetry-adapted `NC.MomentProgram` without changing original IDs.
 By default only label-zero (ordinary moment) PSD/HPSD blocks are split; all
 other cones seed closure and are retained. Use `split_blocks` to narrow that
 selection. `protected_ids` pins additional observables in the zero-extension audit.
-`:Maximal` has a zero lift outside `report.active_ids`, `:AggregateDualChordal`
+`:Maximal` has a zero lift outside `report.active_ids`. With
+`prune_constant_singletons=true`, it removes only isolated constraints whose
+diagonal is a nonnegative constant at normalized identity. `:AggregateDualChordal`
 adds exact sparse PSD clique sums, and `:MMD` keeps only principal cliques and is
 a relaxation. Each MMD step completes the current graph and extends support
 using the clique entries, as in redesign `TermSplit`. `:None` does nothing.
 """
 function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, ts_step::Integer=0,
     merge_threshold::Integer=0, split_blocks=findall(b -> b.label == 0 && _workflow_psd(b), program.blocks),
-    protected_ids=()) where {C}
+    protected_ids=(), prune_constant_singletons=false) where {C}
     ts_algo in (:None, :Maximal, :AggregateDualChordal, :MMD) ||
         throw(ArgumentError("Unknown term sparsity algorithm $ts_algo."))
     (ts_algo === :MMD ? ts_step >= 1 : ts_step == 0) && merge_threshold >= 0 ||
@@ -424,11 +426,12 @@ function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, 
     NC.validate(program)
     ts_algo === :None && return (program=program, report=(algorithm=ts_algo, relation=:exact, steps=0,
         zero_lift_audit=nothing, active_ids=collect(1:program.nvars), auxiliary_ids=program.nvars+1:program.nvars,
-        cliques=Dict{Int,Vector{Vector{Int}}}()))
+        cliques=Dict{Int,Vector{Vector{Int}}}(), pruned_singletons=Tuple{Int,Int}[]))
     support = [_workflow_form_support(program.forms, f) for f in 1:length(program.forms)]
     cliques = Dict{Int,Vector{Vector{Int}}}()
     steps = 0
     audit = nothing
+    pruned_singletons = Tuple{Int,Int}[]
     if ts_algo in (:Maximal, :MMD)
         for (i, block) in enumerate(program.blocks)
             seed = i in selected ? (_workflow_entry(block, j, j) for j in 1:block.side) : NC.form_range(block)
@@ -486,7 +489,20 @@ function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, 
     append!(out.objective_ids, program.objective_ids)
     append!(out.objective_coefs, program.objective_coefs)
     for (i, block) in enumerate(program.blocks)
-        if !haskey(cliques, i) || length(cliques[i]) == 1
+        if ts_algo === :Maximal && prune_constant_singletons && haskey(cliques,i)
+            rows = filter(cliques[i]) do clique
+                length(clique)==1 || return true
+                j = only(clique)
+                f = _workflow_entry(block,j,j)
+                all(==(1),support[f]) || return true
+                constant = sum((Complex{Rational{BigInt}}(program.forms.coefs[t]) for t in
+                    NC.term_range(program.forms,f) if program.forms.ids[t]==1);init=0)
+                isreal(constant) && real(constant)>=0 || return true
+                push!(pruned_singletons,(i,j))
+                false
+            end
+            _workflow_clique_parts!(out,program,support,block,rows)
+        elseif !haskey(cliques, i) || length(cliques[i]) == 1
             NC._copy_cone!(out, program, block)
         elseif ts_algo === :AggregateDualChordal
             _workflow_clique_sum!(out, program, support, block, cliques[i])
@@ -496,5 +512,6 @@ function workflow_term_sparsity(program::NC.MomentProgram{C}; ts_algo=:Maximal, 
     end
     NC.validate(out)
     return (program=out, report=(algorithm=ts_algo, relation=ts_algo === :MMD ? :relaxation : :exact,
-        steps, zero_lift_audit=audit, active_ids=collect(active), auxiliary_ids=program.nvars+1:out.nvars, cliques))
+        steps, zero_lift_audit=audit, active_ids=collect(active), auxiliary_ids=program.nvars+1:out.nvars,
+        cliques, pruned_singletons))
 end

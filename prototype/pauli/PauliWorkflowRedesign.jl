@@ -10,6 +10,7 @@ using SparseArrays: sparse
 export PauliSymmetrySpec, PauliSparsitySpec, PauliStrengtheningSpec,
     BoundProvenance, CompiledSDPPlan, resolve_workflow_preset,
     compile_relaxation, solve_ground_state, solve_pauli_ground_state, pauli_nctssos,
+    build_square_xxx_seed, compile_minimal_square, price_square, square_pricing_state,
     bound_observable_interval, certify_rational_sos, certify_energy_window, certify_observable_interval
 
 Base.@kwdef struct PauliSymmetrySpec
@@ -86,11 +87,14 @@ end
 include("symmetry.jl")
 include("sparsity.jl")
 include("strengthening.jl")
+include("square_seed.jl")
 include("wang.jl")
 include("local_density.jl")
 include("certificates.jl")
 include("compiler.jl")
 include("solve.jl")
+include("pricing.jl")
+include("minimal_square.jl")
 
 "Compile the relaxation, returning the plan when no optimizer was supplied."
 function solve_pauli_ground_state(H; optimizer=nothing, keywords...)

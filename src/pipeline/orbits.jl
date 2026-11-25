@@ -42,10 +42,23 @@ struct OrbitFormSink{T,C}
     table::T
     terms::Dict{Int32,C}
 end
+
+_orbit_coefficient(c, q) = c*q
+function _orbit_coefficient(c::Complex{Rational{BigInt}}, q::Complex{Int8})
+    # A unit Gaussian integer only swaps or negates components. Avoid general
+    # rational multiplication, but retain it for rotated lines (±1 ± im).
+    isfinite(c) || return c*q
+    q == 1 && return c
+    q == -1 && return -c
+    q == im && return scale(Phase(1),c)
+    q == -im && return scale(Phase(3),c)
+    return c*q
+end
+
 function push_term!(s::OrbitFormSink{T,C}, c::Number, w::AbstractWord) where {T,C}
     m = orbit_coordinates!(s.table, w)
-    m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, zero(C)) + c*m.real_coefficient)
-    m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, zero(C)) + c*m.imag_coefficient)
+    m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, zero(C)) + _orbit_coefficient(c,m.real_coefficient))
+    m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, zero(C)) + _orbit_coefficient(c,m.imag_coefficient))
     return s
 end
 

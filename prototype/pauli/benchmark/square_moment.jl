@@ -12,6 +12,7 @@ end
 
 function square_original_diagnostics!(result, form, model, variables)
     jump = NCTSSoS.JuMP
+    all(c -> c.kind in (:zero,:psd,:nonnegative),form.cones) || error("Unsupported square diagnostic cone")
     function publish(key,value)
         isfinite(value) && (result[key] = value)
     end
@@ -20,6 +21,8 @@ function square_original_diagnostics!(result, form, model, variables)
         slack = form.b - form.A*x
         publish("original_primal_objective_per_site",form.offset + dot(form.c,x))
         publish("original_equality_inf",maximum((abs(slack[i]) for c in form.cones if c.kind==:zero
+            for i in c.first:c.first+c.length-1);init=0.0))
+        publish("original_primal_nonnegative_violation",maximum((-slack[i] for c in form.cones if c.kind==:nonnegative
             for i in c.first:c.first+c.length-1);init=0.0))
         all(isfinite,slack) && publish("original_primal_psd_violation",maximum(
             (square_psd_residual(slack,c) for c in form.cones if c.kind==:psd);init=0.0))
@@ -30,12 +33,17 @@ function square_original_diagnostics!(result, form, model, variables)
         # the symmetric shape; convert it back to Frobenius-isometric svec.
         psd = jump.all_constraints(model,Vector{jump.AffExpr},jump.MOI.PositiveSemidefiniteConeTriangle)
         equalities = jump.all_constraints(model,jump.AffExpr,jump.MOI.EqualTo{Float64})
+        inequalities = jump.all_constraints(model,jump.AffExpr,jump.MOI.GreaterThan{Float64})
         z = zeros(length(form.b))
-        p = e = 0
+        p = e = n = 0
         for c in form.cones
             if c.kind == :zero
                 for k in c.first:c.first+c.length-1
                     z[k] = jump.dual(equalities[e+=1])
+                end
+            elseif c.kind == :nonnegative
+                for k in c.first:c.first+c.length-1
+                    z[k] = jump.dual(inequalities[n+=1])
                 end
             else
                 D = jump.dual(psd[p+=1])
@@ -46,10 +54,12 @@ function square_original_diagnostics!(result, form, model, variables)
                 end
             end
         end
-        @assert p == length(psd) && e == length(equalities)
+        @assert p == length(psd) && e == length(equalities) && n == length(inequalities)
         if all(isfinite,z)
             publish("original_dual_objective_per_site",form.offset-dot(form.b,z))
             publish("original_balance_inf",norm(transpose(form.A)*z+form.c,Inf))
+            publish("original_dual_nonnegative_violation",maximum((-z[i] for c in form.cones if c.kind==:nonnegative
+                for i in c.first:c.first+c.length-1);init=0.0))
             publish("original_dual_psd_violation",maximum((square_psd_residual(z,c) for c in form.cones if c.kind==:psd);init=0.0))
         end
     end
@@ -66,15 +76,16 @@ function square_moment_solve!(result, path, form)
     result["prototype_numeric_form"] = "explicit_moment"
     save_result(path,result)
     result["solve_seconds"] = @elapsed begin
-        model,variables = NCTSSoS.to_jump(form)
+        result["jump_model_seconds"] = @elapsed model,variables = NCTSSoS.to_jump(form)
         optimizer = Ref{Any}(nothing)
         JuMP.set_optimizer(model,() -> (optimizer[] = MOI.instantiate(OPTIMIZER)))
-        JuMP.optimize!(model)
+        save_result(path,result)
+        result["optimize_wall_seconds"] = @elapsed JuMP.optimize!(model)
         result["optimizer_reported_seconds"] = MOI.get(optimizer[],MOI.SolveTimeSec())
         accepted = record_status!(result,optimizer[])
         # Supplemental original-coordinate diagnostics, never substitutes
         # for the existing status/feasibility/relative-gap acceptance gate.
-        square_original_diagnostics!(result,form,model,variables)
+        result["original_diagnostics_seconds"] = @elapsed square_original_diagnostics!(result,form,model,variables)
     end
     return accepted ? JuMP.objective_value(model) : nothing
 end

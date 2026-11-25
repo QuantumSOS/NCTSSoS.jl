@@ -13,12 +13,14 @@ function _pricing_existing_terms(t::NC.OrbitMoments, w, allowed)
         return allowed || isempty(pairs) ? pairs : nothing
     end
     # An ambient Hermitian Pauli fixed with sign -1 has an exact zero
-    # moment. Longer unseen orbit relations are deliberately not probed.
+    # moment even when it is not in the registered domain.
     for g in t.annihilators
         phase, image = NC.act(g,w)
         image == w && phase.k == 0x02 && return ()
     end
-    return nothing
+    # Missing from the coordinate map: only an explicitly registered zero
+    # orbit counts, not an arbitrary zero outside the pricing domain.
+    return NC.moment_terms(t,w;registered_only=true)
 end
 
 function _pricing_existing_terms(t::Union{NC.ContinuousMoments,NC.SectorMoments}, w, allowed)

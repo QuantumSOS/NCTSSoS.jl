@@ -11,16 +11,19 @@ struct SquareOrbitMoments{W}
     covered::BitSet
 end
 
-function SquareOrbitMoments(::Type{W}, L::Int, conjugation::Bool) where {W<:NC.PauliWord}
-    L>=2 && W==NC.word_type(NC.Pauli(),L^2,0) || throw(ArgumentError("Square moment word width does not match the lattice."))
-    table = NC.MomentTable{W}()
+function _square_points(L)
     maps = [(swap,sx,sy) for swap in (false,true) for sx in (1,-1) for sy in (1,-1)]
-    points = [begin
+    [begin
         y,x = divrem(site-1,L)
         u,v = swap ? (y,x) : (x,y)
         (mod(sx*u,L),mod(sy*v,L))
     end for site in 1:L^2, (swap,sx,sy) in maps]
-    SquareOrbitMoments(L,points,conjugation,table,table.labels,Set{W}(),BitSet([1]))
+end
+
+function SquareOrbitMoments(::Type{W}, L::Int, conjugation::Bool) where {W<:NC.PauliWord}
+    L>=2 && W==NC.word_type(NC.Pauli(),L^2,0) || throw(ArgumentError("Square moment word width does not match the lattice."))
+    table = NC.MomentTable{W}()
+    SquareOrbitMoments(L,_square_points(L),conjugation,table,table.labels,Set{W}(),BitSet([1]))
 end
 
 @inline _square_wrapped(i,L) = i >= L ? i-L : i

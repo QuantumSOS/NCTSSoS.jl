@@ -162,6 +162,12 @@ end
 Compile Pauli supports and invariant moments, block reductions, post-build
 term sparsity and sparse conic data. Use a preset or individual specs, not both.
 The plan reports reductions that were actually applied; it is not a certificate.
+
+With `wang_matched=true`, order 4 and `support_mode=:wang_square_b4`, set
+`square_local_moments=true` to share a compact product table between the
+moment, PSO, RDM and LSO builders. The default uses the generic orbit table.
+Both use the same Fourier assembler. The compact route rejects non-geometric
+charts or an incompatible verified symmetry group.
 """
 function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothing,
     observable=nothing, symmetry::Union{Nothing,PauliSymmetrySpec}=nothing,
@@ -170,11 +176,11 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     moi_form::Symbol=:auto, lattice_shape=nothing, max_rows::Int=1_000_000,
     rdm_regions=nothing, kms_rows=nothing, rg_maps=(), energy_target::Symbol=:target_ground,
     energy_window=nothing, variance_center=nothing, variance_upper_bound=nothing,
-    wang_matched::Bool=false, wang_lso_span::Int=0)
+    wang_matched::Bool=false, wang_lso_span::Int=0, square_local_moments::Bool=false)
 
     options = (; order, preset, observable, symmetry, sparsity, strengthening, moi_form,
         lattice_shape, max_rows, rdm_regions, kms_rows, rg_maps, energy_target,
-        energy_window, variance_center, variance_upper_bound, wang_matched, wang_lso_span)
+        energy_window, variance_center, variance_upper_bound, wang_matched, wang_lso_span, square_local_moments)
     if !isnothing(preset)
         wang_matched && throw(ArgumentError("Use individual specs with wang_matched."))
         all(isnothing, (symmetry,sparsity,strengthening)) || throw(ArgumentError("Use either a preset or individual specs, not both."))
@@ -201,6 +207,11 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     shape = isnothing(lattice_shape) ? (n,) : Tuple(lattice_shape)
     named_shape = length(shape)==2 ? shape : nothing
     mode = sparsity.support_mode === :auto && sparsity.cs_algo === :MF ? :correlative_cliques : sparsity.support_mode
+    b4 = mode === :wang_square_b4
+    b4 && !(wang_matched && isnothing(observable) && isnothing(strengthening.energy_upper_bound) &&
+        sym_options.spatial_mode === :auto && sym_options.parity && sym_options.axis_permutations && sym_options.antiunitary) &&
+        throw(ArgumentError("Wang square B4 requires the global Wang target with full finite symmetry."))
+    square_local_moments && !b4 && throw(ArgumentError("square_local_moments requires :wang_square_b4 support."))
     direct = mode in (:graph_distance,:local_products,:graph_motifs)
     mode !== :correlative_cliques && sparsity.cs_algo !== :NoElimination &&
         throw(ArgumentError("cs_algo applies only to :correlative_cliques."))
@@ -218,7 +229,7 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
         throw(ArgumentError("merge_threshold applies only to correlative supports or :AggregateDualChordal."))
     !isnothing(lattice_shape) && mode !== :contiguous_lattice && throw(ArgumentError("lattice_shape requires contiguous lattice support."))
     if wang_matched
-        mode in (:auto,:full,:graph_distance,:local_products) && sparsity.ts_algo === :None &&
+        mode in (:auto,:full,:graph_distance,:local_products,:wang_square_b4) && sparsity.ts_algo === :None &&
             sparsity.ts_step == 0 && isnothing(lattice_shape) && !sym_options.spin ||
             throw(ArgumentError("Wang matching requires hint-free supports, no term decomposition and no continuous spin projection."))
         all(isnothing,(rdm_regions,kms_rows,energy_window,strengthening.target_mz_sector,
@@ -278,7 +289,14 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     # Stages 2–3 share NC's global invariant table with the block assembler.
     # For added forms, defer continuous elimination until *all* cones use it.
     augmented = !isempty(extra.equalities) || !isempty(extra.inequalities) || !isempty(extra.psd_blocks)
-    if augmented
+    if b4
+        table = square_local_moments ? _wang_square_table(H,sym,layout) : nothing
+        letters = [[NC.pauli_letter(W,i,a) for a in 0:2] for i in 1:n]
+        structure = NC.discover_lattice(sym.generators,letters)
+        program,table,reduction = NC._discovered_lattice_program(only(rows),objective,structure,sym.moment_only;
+            shared_table=table)
+        sym_report = (;route=:lattice,reduction,lattice_shape=named_shape)
+    elseif augmented
         finite = NC.Symmetry(sym.generators...; moment_only=sym.moment_only)
         program,table,sym_report = workflow_symmetry_program(blocks,objective,finite;
             sym_options.spatial_mode, lattice_shape=named_shape, realify=false)
@@ -351,7 +369,7 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
         invariants=(; coordinates=program.nvars-1), symmetry=sym_report, term_sparsity=ts_report,
         conic=(; form, rows=size(standard.A,1), coordinates=size(standard.A,2), cones=length(standard.cones)),
         original_rows=rows)
-    h_dependent = extra.hamiltonian_dependent || (wang_matched &&
+    h_dependent = b4 || extra.hamiltonian_dependent || (wang_matched &&
         (strengthening.kms_psd_order > 0 || strengthening.commutator_linear_order > 0 || k > 0))
     return CompiledSDPPlan(H,coefficients,sym,table,program,standard,sos,objective_map,data,constraint_ids,
         form,options,reports,provenance,h_dependent,strengthening.rational_sos_certify,IdDict{Any,Any}())

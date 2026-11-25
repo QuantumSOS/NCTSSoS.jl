@@ -311,7 +311,7 @@ dense10 = staged_run(Problem(H10), relaxation10; solver);
 ````
 
 ````
-(-4.518159324352234, [436], 20685)
+(-4.518159324352876, [436], 20685)
 ````
 
 Seconds, in order: build wall time, prepare wall time, Mosek optimizer time.
@@ -321,7 +321,7 @@ Seconds, in order: build wall time, prepare wall time, Mosek optimizer time.
 ````
 
 ````
-(0.007168266, 0.119272876, 313.87293162999777)
+(0.007569688, 0.117211097, 156.02654937299985)
 ````
 
 Detection depends on the 30 Hamiltonian terms, not on the relaxation order.
@@ -334,7 +334,7 @@ detect_seconds = @elapsed detected10 = detect_symmetry(H10);
 ````
 
 ````
-(0.280939249, 6, 1)
+(0.231125298, 6, 1)
 ````
 
 Inspect the detected family's final block sides without solving it:
@@ -396,7 +396,7 @@ Seconds, in the same order:
 ````
 
 ````
-(0.01355881, 0.015115917, 0.04896847900090506)
+(0.01098598, 0.011721153, 0.03361350399973162)
 ````
 
 Compare bounds with tolerance `1e-6`. This checks numerical agreement,
@@ -407,7 +407,7 @@ abs(dense10.result.bound - reduced10.result.bound)
 ````
 
 ````
-3.6783731616196746e-9
+3.6777310086222315e-9
 ````
 
 `NCTSSoS.build` checks invariance of the objective and constraints exactly and

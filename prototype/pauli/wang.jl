@@ -67,6 +67,23 @@ function _wang_layout(H, translations)
     return nothing
 end
 
+function _wang_spatial_maps(layout)
+    spatial = copy(layout.steps)
+    if layout.shape === :ring
+        reflection = similar(layout.sites)
+        reflection[layout.sites] = reverse(layout.sites)
+        push!(spatial,reflection)
+    else
+        grid = layout.grid
+        reflection = similar(layout.sites)
+        reflection[vec(grid)] = vec(reverse(grid;dims=1))
+        swap = similar(reflection)
+        swap[vec(grid)] = vec(permutedims(grid))
+        push!(spatial,reflection,swap)
+    end
+    spatial
+end
+
 function _wang_spatial_symmetry(H,observable,rows,sym)
     n = H.registry.nsites
     (n < 2 || isempty(sym.generators)) && return sym,nothing
@@ -100,21 +117,8 @@ function _wang_spatial_symmetry(H,observable,rows,sym)
     end
     isnothing(structure) && return sym,nothing
     layout = _wang_layout(H,structure.translations)
-    spatial = copy(layout.steps)
-    if layout.shape === :ring
-        reflection = similar(layout.sites)
-        reflection[layout.sites] = reverse(layout.sites)
-        push!(spatial,reflection)
-    else
-        grid = layout.grid
-        reflection = Vector{Int}(undef,n)
-        reflection[vec(grid)] = vec(reverse(grid;dims=1))
-        swap = similar(reflection)
-        swap[vec(grid)] = vec(permutedims(grid))
-        push!(spatial,reflection,swap)
-    end
     polys = [NC._sector_terms(p,W).terms for p in (isnothing(observable) ? (H,) : (H,observable))]
-    checked = filter([_symmetry_action(W,n,p) for p in spatial]) do g
+    checked = filter([_symmetry_action(W,n,p) for p in _wang_spatial_maps(layout)]) do g
         all(p -> _symmetry_preserves(g,p),polys) && _symmetry_family_preserves(g,rows)
     end
     # C4×C4 has graph automorphisms outside the square space group. Using
@@ -276,8 +280,10 @@ function _append_wang!(program,table,H,objective,rows,sym,report,spec,lso_span,l
         isempty(selected) && throw(ArgumentError("Wang PSO needs at least one nonconstant selected row."))
         psorows = length(selected)
         pair_mul! = _wang_pso_kernel(objective)
-        psd,_,psoreport = NC._discovered_lattice_program(selected,empty(objective),structure,sym.moment_only;
-            pair_mul!,shared_table=table)
+        psd,_,psoreport = NC._with_pso_zero_memo(table,pso) do
+            NC._discovered_lattice_program(selected,empty(objective),structure,sym.moment_only;
+                pair_mul!,shared_table=table)
+        end
         for b in psd.blocks
             push!(psosides,b.side)
             NC._copy_cone!(program,psd,b;label=-1)

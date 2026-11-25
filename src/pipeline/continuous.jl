@@ -222,7 +222,7 @@ function _continuous_program_rational(program::MomentProgram{C},table,derivation
     # the derivations). Such equations must not disappear with that orbit.
     representatives=_ward_seed_words(table,derivations)
     if isnothing(representatives)
-        queue=sort!(unique!([collect(keys(table.cache));[label.word for label in table.labels]]))
+        queue=sort!(unique!([_orbit_domain(table);[label.word for label in table.labels]]))
         seen=Set(queue)
         translation=_ward_translation(table,derivations)
     else

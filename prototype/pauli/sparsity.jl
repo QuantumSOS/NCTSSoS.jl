@@ -75,6 +75,39 @@ function _workflow_lattice_regions(shape, d, range_r)
     return sort!(collect(regions))
 end
 
+# Physical Wang B4: unlike graph_motifs, pairs fill a periodic box, not a
+# Manhattan ball. Use the actual packed site order; graph isomorphism alone
+# would not justify either these stencils or the compact moment table.
+function _wang_b4_regions(H, order)
+    n = H.registry.nsites
+    L = isqrt(n)
+    order == 4 && L >= 3 && L^2 == n || throw(ArgumentError("Wang B4 requires order 4 on an L×L square, L ≥ 3."))
+    W = eltype(H.data.words)
+    site(x,y) = 1 + mod(x,L) + L*mod(y,L)
+    terms = Dict(w=>c for (c,w) in NC.terms(H))
+    length(terms) == 6n && allequal(values(terms)) && isreal(first(values(terms))) && real(first(values(terms))) > 0 ||
+        throw(ArgumentError("Wang B4 requires uniform positive nearest-neighbor XXX couplings."))
+    regions = Set{Vector{Int}}()
+    for x in 0:L-1, y in 0:L-1
+        i = site(x,y)
+        push!(regions,[i])
+        for j in (site(x+1,y),site(x,y+1)), a in 0:2
+            haskey(terms,last(NC.mul(NC.pauli_letter(W,i,a),NC.pauli_letter(W,j,a)))) ||
+                throw(ArgumentError("Wang B4 requires row-major periodic square XXX bonds."))
+        end
+        for dx in -min(4,L÷2):min(4,L÷2), dy in -min(4,L÷2):min(4,L÷2)
+            j = site(x+dx,y+dy)
+            i < j && push!(regions,[i,j])
+        end
+        neighbors = (site(x+1,y),site(x-1,y),site(x,y+1),site(x,y-1))
+        for b in 2:4, a in 1:b-1
+            push!(regions,sort!([neighbors[a],i,neighbors[b]]))
+        end
+        push!(regions,sort!([i,site(x+1,y),site(x,y+1),site(x+1,y+1)]))
+    end
+    sort!(collect(regions))
+end
+
 # Use one visitation array, not a new length-n array for each local BFS.
 function _workflow_distance_pairs!(add, ::Type{W}, graph, radius) where {W}
     visited = zeros(Int, Graphs.nv(graph))
@@ -262,6 +295,10 @@ unitary actions. `regions` excludes these coverage/symmetry additions.
 `generation` counts row candidates offered (including duplicates), unique rows,
 the full-basis size (without generating it), and local product attempts.
 A proper subset can weaken the dense lower bound. Term splitting is separate.
+
+`:wang_square_b4` requires a row-major periodic square with uniform positive
+nearest-neighbor XXX coupling. It selects all axes on singles, pairs within
+periodic box radius four, two-edge paths and elementary plaquettes.
 """
 function workflow_support(H, order::Integer; support_mode=:full, power_graph_radius::Integer=2,
     cs_algo=NC.MF(), min_cluster_size::Integer=0, merge_threshold::Integer=0,
@@ -284,6 +321,8 @@ function workflow_support(H, order::Integer; support_mode=:full, power_graph_rad
     end
     if mode === :full
         regions = [collect(1:n)]
+    elseif mode === :wang_square_b4
+        regions = _wang_b4_regions(H,order)
     elseif mode === :correlative_cliques
         graph, _ = NC._interaction_graph(NC.Problem(H))
         alg = cs_algo === :MF ? NC.MF() : cs_algo === :NoElimination ? NC.NoElimination() : cs_algo
@@ -298,7 +337,7 @@ function workflow_support(H, order::Integer; support_mode=:full, power_graph_rad
     else
         throw(ArgumentError("Unknown Pauli support mode $mode."))
     end
-    if mode === :contiguous_lattice
+    if mode in (:contiguous_lattice,:wang_square_b4)
         rows = Set{W}((one(W),))
         sum(big(3)^length(region) for region in regions if !isempty(region); init=big(1)) <= max_rows ||
             throw(ArgumentError("Pauli basis exceeds max_rows=$max_rows."))
@@ -323,7 +362,7 @@ function workflow_support(H, order::Integer; support_mode=:full, power_graph_rad
             g isa NC.AbstractAction && !NC.is_antiunitary(g) || continue
             image = sort!([NC.act(g, w)[2] for w in family[i]])
             image in seen && continue
-            mode === :contiguous_lattice && throw(ArgumentError("A declared block action does not preserve the lattice row set."))
+            mode in (:contiguous_lattice,:wang_square_b4) && throw(ArgumentError("A declared block action does not preserve the lattice row set."))
             all(w -> NC.degree(w) <= d && all(s -> s <= n, NC.sites(w)), image) ||
                 throw(ArgumentError("A declared block action leaves the degree-$d Pauli basis on 1:$n."))
             total += length(image)

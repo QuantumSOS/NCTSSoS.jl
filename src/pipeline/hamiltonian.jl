@@ -67,7 +67,9 @@ function _hamiltonian_strengthen!(program,table,problem,kinds,closure)
                 block=closure.family[root]
                 sectors,real_blocks=_family_sectors(block,stabilizers,transport,index,closure.moment_only)
                 extra=RowBlock(block.rows,hamiltonian,HPSD,source)
-                _append_family_sectors!(program,table,extra,sectors;real_blocks,product! = _optimality_product!)
+                _with_pso_zero_memo(table,maximum(degree,block.rows)) do
+                    _append_family_sectors!(program,table,extra,sectors;real_blocks,product! = _optimality_product!)
+                end
                 push!(optimality_orbits,orbit)
                 push!(representatives,extra)
             end

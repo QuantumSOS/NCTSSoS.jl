@@ -104,12 +104,22 @@ function _append_family_sectors!(program,table,block,sectors;real_blocks=false,p
     end
 end
 
-function _family_sectors(block,stabilizers,transport,index,moment_generators)
+function _family_sectors(block::RowBlock{W},stabilizers,transport,index,moment_generators) where {W}
     # The identity row carries only the trivial representation, whatever the
     # size of its stabilizer. Its projector and normalized row are exactly one.
     trivial=isempty(stabilizers) || (length(block.rows)==1 && isone(only(block.rows)))
     if trivial
         sectors=[[[(1.0+0im,w)] for w in block.rows]]
+    elseif W <: PauliWord && !any(is_antiunitary,moment_generators) && all(g -> g isa CliffordMap{W} &&
+            g.columns == _identity_columns(W,length(g.columns)÷2),stabilizers)
+        # Pauli signs already act diagonally on these rows. Distinct sign
+        # characters cannot couple; no group elements or projectors are needed.
+        grades=Dict{BitVector,Vector{W}}()
+        for w in block.rows
+            key=BitVector(first(act(g,w)).k==2 for g in stabilizers)
+            push!(get!(() -> W[],grades,key),w)
+        end
+        return [[[(1.0+0im,w)] for w in grades[key]] for key in sort!(collect(keys(grades)))],false
     else
         group=OrbitGroup(stabilizers)
         projections,_=shared_projections(group)

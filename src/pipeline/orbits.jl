@@ -65,14 +65,18 @@ end
 
 function _close_orbit_form!(forms, terms; diagonal=false)
     for id in sort!(collect(keys(terms)))
-        c = terms[id]
-        if diagonal
-            abs(imag(c)) <= 1e-10 * max(1, abs(c)) || error("Nonreal diagonal in orbit reduction.")
-            c = complex(real(c))
-        end
-        abs(c) > 1e-12 && push_term!(forms, c, id)
+        _append_orbit_form_term!(forms,terms[id],id,diagonal)
     end
     close_form!(forms)
+end
+
+@inline function _append_orbit_form_term!(forms,c,id,diagonal)
+    if diagonal
+        abs(imag(c)) <= 1e-10 * max(1, abs(c)) || error("Nonreal diagonal in orbit reduction.")
+        c = complex(real(c))
+    end
+    abs(c) > 1e-12 && push_term!(forms,c,id)
+    nothing
 end
 
 function _orbit_objective!(program, table, objective)

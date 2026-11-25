@@ -323,10 +323,20 @@ _workflow_psd(b) = b.kind in (NC.PSD, NC.HPSD)
 function _workflow_form_support(forms, f)
     ids = Int32[]
     repeated = Set{Int32}()
+    max_id = Int32(0)
     for t in NC.term_range(forms, f)
         iszero(forms.coefs[t]) && continue
         id = forms.ids[t]
-        id in ids ? push!(repeated, id) : push!(ids, id)
+        # Ward and realification emit increasing IDs; no search is needed
+        # for a new maximum. Keep the original order for general forms.
+        if id > max_id
+            push!(ids, id)
+            max_id = id
+        elseif id in ids
+            push!(repeated, id)
+        else
+            push!(ids, id)
+        end
     end
     for id in repeated
         total = sum(Complex{Rational{BigInt}}(forms.coefs[t]) for t in NC.term_range(forms, f) if forms.ids[t] == id)
@@ -346,9 +356,12 @@ function _workflow_pattern(block, support; active=nothing)
 end
 
 function _workflow_copy_form!(out, program, support, f; scale=1)
-    for t in NC.term_range(program.forms, f)
+    range = NC.term_range(program.forms, f)
+    ids = support[f]
+    keep_all = length(ids) == length(range)
+    for t in range
         id = program.forms.ids[t]
-        id in support[f] && NC.push_term!(out.forms, scale * program.forms.coefs[t], id)
+        (keep_all || id in ids) && NC.push_term!(out.forms, scale * program.forms.coefs[t], id)
     end
 end
 

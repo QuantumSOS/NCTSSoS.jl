@@ -100,8 +100,11 @@ _square_in_bounds(t,w) = iszero(t.L^2&63) || iszero((w.x[end]|w.z[end])>>(t.L^2&
 
 function NC.orbit_coordinates!(t::SquareOrbitMoments{W}, w::W) where {W}
     _square_in_bounds(t,w) || throw(ArgumentError("Moment word is outside the square registry."))
-    rep = _square_canonical(t,w)
-    if _square_k_zero(t,w)
+    _square_register!(t,_square_canonical(t,w))
+end
+
+function _square_register!(t::SquareOrbitMoments, rep)
+    if _square_k_zero(t,rep)
         # Ward rows on a zero word can contain nonzero terms, so keep the
         # canonical word even though it owns no moment variable.
         push!(t.zero_words,rep)
@@ -142,3 +145,5 @@ function NC._ward_seed_words(t::SquareOrbitMoments{W},derivations) where {W}
     W[[l.word for l in t.labels];collect(t.zero_words)]
 end
 NC._ward_key(t::SquareOrbitMoments{W},w::W) where {W} = _square_canonical(t,w)
+# Unsigned site maps preserve odd-Y parity and carry no moment phase.
+NC._ward_coordinates!(t::SquareOrbitMoments{W},w::W,key::W) where {W} = _square_register!(t,key)

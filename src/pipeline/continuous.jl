@@ -203,6 +203,8 @@ end
 # These seeds must already be canonical under _ward_key.
 _ward_seed_words(table,derivations) = nothing
 _ward_key(table,w) = w
+# A phase-free representative table can reuse the key to register the image.
+_ward_coordinates!(table,w,key) = orbit_coordinates!(table,w)
 
 function _continuous_program_rational(program::MomentProgram{C},table,derivations,::Type{R};diagonal=true,algebra) where {C,R}
     W=eltype(table.representatives.keys)
@@ -266,7 +268,7 @@ function _continuous_program_rational(program::MomentProgram{C},table,derivation
                         # when its membership key is an orbit representative.
                         push!(seen,key); push!(queue,v)
                     end
-                    push_term!(sink,c,v)
+                    push_term!(sink,c,_ward_coordinates!(table,v,key))
                 end
                 equation=sink.terms
                 for part in (real,imag)
@@ -308,24 +310,34 @@ function _continuous_program_rational(program::MomentProgram{C},table,derivation
     float_directions=[Pair{Int32,Float64}[id=>Float64(factor) for (id,factor) in row]
         for row in exact_directions]
     out=MomentProgram{C}(length(free))
-    function rewrite(ids,coefs)
-        result=Dict{Int32,C}()
+    sums=fill(zero(C),length(free))
+    marked=fill(false,length(free))
+    touched=Int32[]
+    function rewrite!(dest_ids,dest_coefs,ids,coefs)
+        empty!(touched)
         for (old,c) in zip(ids,coefs),(id,factor) in float_directions[old]
-            result[id]=get(result,id,zero(C))+c*factor
+            if !marked[id]
+                marked[id]=true
+                push!(touched,id)
+            end
+            sums[id]+=c*factor
         end
-        sort!([id=>c for (id,c) in result if !iszero(c)];by=first)
+        for id in sort!(touched)
+            c=sums[id]
+            sums[id]=zero(C)
+            marked[id]=false
+            iszero(c) && continue
+            push!(dest_ids,id)
+            push!(dest_coefs,eltype(dest_coefs)<:Real ? real(c) : c)
+        end
     end
     for f in 1:length(program.forms)
         range=term_range(program.forms,f)
-        for (id,c) in rewrite(view(program.forms.ids,range),view(program.forms.coefs,range))
-            push_term!(out.forms,c,id)
-        end
+        rewrite!(out.forms.ids,out.forms.coefs,view(program.forms.ids,range),view(program.forms.coefs,range))
         close_form!(out.forms)
     end
     append!(out.blocks,program.blocks)
-    for (id,c) in rewrite(program.objective_ids,program.objective_coefs)
-        push!(out.objective_ids,id); push!(out.objective_coefs,real(c))
-    end
+    rewrite!(out.objective_ids,out.objective_coefs,program.objective_ids,program.objective_coefs)
     reduced=ContinuousMoments(table,table.labels[free],exact_directions,derivations,BitSet([1]))
     refresh_coverage!(reduced,out)
     report=(method=diagonal ? :diagonal : :exact_elimination,initial_variables=initial-1,

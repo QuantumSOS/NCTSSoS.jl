@@ -121,7 +121,7 @@ function _fourier_kernel!(fourier,cache,table,orbits::AbelianRows,a,b,characters
             terms[id]=get(terms,id,0im)+characters[orbits.positions[b][t]]*raw.coefs[j]
         end
         filter!(p->abs(last(p))>1e-12,terms)
-        terms
+        collect(terms)
     end
 end
 
@@ -149,7 +149,20 @@ function abelian_lattice_program(rows::AbstractVector{W},objective,translations:
         character_sector_closure(translations,point_generators,selected_characters;union=union_characters)
     index=Dict(w=>(a,t) for (a,ws) in enumerate(orbits.words) for (t,w) in enumerate(ws))
     diagonal=filter(g->all(w->last(act(g,w))==w,rows),collect(all_generators))
-    table=isnothing(shared_table) ? OrbitMoments(W,all_generators;annihilators=diagonal) : shared_table
+    table=if isnothing(shared_table)
+        # Close one translation orbit at a time. A unitary that preserves or
+        # reverses its step only needs to act on the head of that orbit.
+        step=first(translations.generators)
+        reverse_step=inv(step)
+        other=(translations.generators[2:end]...,point_generators...)
+        normalizes(g)=_conjugate_action(g,step) in (step,reverse_step)
+        normal=map(normalizes,other)
+        cyclic=(generator=step,normalizers=Tuple(g for (g,keep) in zip(other,normal) if keep),
+            remaining=(Tuple(g for (g,keep) in zip(other,normal) if !keep)...,moment_generators...))
+        OrbitMoments(W,all_generators;annihilators=diagonal,cyclic)
+    else
+        shared_table
+    end
     program=MomentProgram{ComplexF64}(); sink=OrbitFormSink(table,Dict{Int32,ComplexF64}())
     cache=Dict{Tuple{Int,Int},LinearForms{ComplexF64}}()
     projection_cache=Dict{Tuple{Vararg{Int}},Tuple{typeof(point),Vector{Vector{ComplexF64}}}}()

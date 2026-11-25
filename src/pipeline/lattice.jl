@@ -99,7 +99,7 @@ function _fourier_kernel!(fourier, cache, table, orbits, a, b, characters, pair_
             terms[id] = get(terms,id,0im) + characters[t]*raw.coefs[j]
         end
         filter!(p->abs(last(p))>1e-12,terms)
-        terms
+        collect(terms)
     end
 end
 
@@ -109,20 +109,38 @@ function _assemble_momentum!(program, sink, orbits, k, sectors, sector_labels, c
 end
 
 function _assemble_character!(program,sink,orbits,characters,k,sectors,sector_labels,cache;real_blocks=false,pair_mul!::F = mul!) where {F}
-    fourier = Dict{Tuple{Int,Int},Dict{Int32,ComplexF64}}()
+    fourier = Dict{Tuple{Int,Int},Vector{Pair{Int32,ComplexF64}}}()
+    capacity = length(sink.table.labels)
+    sums, marked, touched = zeros(ComplexF64,capacity), fill(false,capacity), Int32[]
     for (s, reduced_rows) in enumerate(sectors)
         isempty(reduced_rows) && continue
         real_block = real_blocks isa Bool ? real_blocks : real_blocks[s]
         for j in eachindex(reduced_rows), i in j:length(reduced_rows)
-            empty!(sink.terms)
+            empty!(touched)
             for (ca,a) in reduced_rows[i], (cb,b) in reduced_rows[j]
                 kernel = _fourier_kernel!(fourier,cache,sink.table,orbits,max(a,b),min(a,b),characters,pair_mul!)
+                if length(sink.table.labels) > capacity
+                    first_new = capacity + 1
+                    capacity = max(2capacity,length(sink.table.labels))
+                    resize!(sums,capacity); resize!(marked,capacity)
+                    fill!(view(sums,first_new:capacity),0)
+                    fill!(view(marked,first_new:capacity),false)
+                end
                 c = conj(ca)*cb
-                for (id,coefficient) in kernel
-                    sink.terms[id] = get(sink.terms,id,0im) + c*(a < b ? conj(coefficient) : coefficient)
+                @inbounds for (id,coefficient) in kernel
+                    if !marked[id]
+                        marked[id] = true
+                        push!(touched,id)
+                    end
+                    sums[id] += c*(a < b ? conj(coefficient) : coefficient)
                 end
             end
-            _close_orbit_form!(program.forms, sink.terms; diagonal=real_block || i == j)
+            @inbounds for id in sort!(touched)
+                _append_orbit_form_term!(program.forms,sums[id],id,real_block || i == j)
+                sums[id] = 0
+                marked[id] = false
+            end
+            close_form!(program.forms)
         end
         push_block!(program, real_block ? PSD : HPSD, length(reduced_rows), length(sector_labels) + 1)
         push!(sector_labels, (k,s))

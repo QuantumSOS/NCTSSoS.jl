@@ -6,7 +6,7 @@ include("cases.jl")
 include("square_moment.jl")
 
 function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), local_row_limit=256,
-        max_rows=200L^2)
+        max_rows=200L^2, solver_tol=1e-8, rdm_shape=(2,2))
     edges = bonds("square",L)
     N = L^2
     @assert length(edges) == length(Set(minmax(i,j) for (i,j) in edges)) == 2N
@@ -19,8 +19,8 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
     tol = 1e-8
     optimizer = optimizer_with_attributes(MosekTools.Optimizer,
         "MSK_IPAR_NUM_THREADS"=>Threads.nthreads(),
-        "MSK_DPAR_INTPNT_CO_TOL_PFEAS"=>tol, "MSK_DPAR_INTPNT_CO_TOL_DFEAS"=>tol,
-        "MSK_DPAR_INTPNT_CO_TOL_REL_GAP"=>tol)
+        "MSK_DPAR_INTPNT_CO_TOL_PFEAS"=>solver_tol, "MSK_DPAR_INTPNT_CO_TOL_DFEAS"=>solver_tol,
+        "MSK_DPAR_INTPNT_CO_TOL_REL_GAP"=>solver_tol)
     # Check licensing on the execution host, not just on the build host.
     m = Model(optimizer); set_silent(m)
     @variable(m,t); @constraint(m,[t 1; 1 t] in PSDCone()); @objective(m,Min,t)
@@ -33,7 +33,8 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
         round += 1
         r = Dict{String,Any}("L"=>L,"round"=>round,"motifs"=>repr(motifs),
             "bonds"=>length(edges),"J2"=>0,"unit"=>"spin-1/2 energy per site",
-            "preflight_dual"=>dual_objective_value(m),"threads"=>Threads.nthreads())
+            "preflight_dual"=>dual_objective_value(m),"threads"=>Threads.nthreads(),"solver_tol"=>solver_tol,
+            "rdm_shape"=>collect(rdm_shape))
         path = joinpath(out,"round-$round.toml")
         save() = open(io->TOML.print(io,r; sorted=true),path,"w")
         function stage(f,k)
@@ -45,7 +46,7 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
             timed.value
         end
         plan = stage("build") do
-            WF.compile_minimal_square(H,L; motifs, recover_gram_rows=certify)
+            WF.compile_minimal_square(H,L; motifs, rdm_shape, recover_gram_rows=certify)
         end
         f = plan.standard
         r["rows"] = length(plan.rows); r["variables"] = length(f.c); r["nnz"] = nnz(f.A)
@@ -69,8 +70,10 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
         if r["accepted"] && isfinite(d)
             r["accepted_numerical_dual_per_spin"] = d
         end
-        save(); r["accepted"] && isfinite(d) || error("No accepted numerical point; see $path")
-        if certify
+        save()
+        # The exact operator identity can certify a weaker value from a
+        # non-optimal dual. Never promote that iterate to numerical acceptance.
+        if certify && has_duals(model)
             cert = stage("verify") do
                 WF.verify_pauli_dual(H,f,plan.table,WF.pauli_dual_blocks(f,model),plan.lifts();
                     symmetry_generators=plan.symmetry.symmetry_generators, spin_average=true)
@@ -81,6 +84,7 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
             r["residual_nonidentity_l1"] = Float64(exact_scale*cert.residual_nonidentity_l1,RoundUp)
             save()
         end
+        r["accepted"] && isfinite(d) || error("No accepted numerical point; see $path")
         (;plan.rows,plan.table,plan.constraint_ids,plan.domain,moments=value.(vars),bound=d,status)
     end
     if iszero(max_rounds)

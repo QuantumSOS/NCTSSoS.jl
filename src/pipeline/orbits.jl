@@ -55,8 +55,9 @@ function _orbit_coefficient(c::Complex{Rational{BigInt}}, q::Complex{Int8})
     return c*q
 end
 
-function push_term!(s::OrbitFormSink{T,C}, c::Number, w::AbstractWord) where {T,C}
-    m = orbit_coordinates!(s.table, w)
+push_term!(s::OrbitFormSink, c::Number, w::AbstractWord) = push_term!(s,c,orbit_coordinates!(s.table,w))
+
+function push_term!(s::OrbitFormSink{T,C}, c::Number, m::OrbitCoordinates) where {T,C}
     m.re != 0 && (s.terms[m.re] = get(s.terms, m.re, zero(C)) + _orbit_coefficient(c,m.real_coefficient))
     m.im != 0 && (s.terms[m.im] = get(s.terms, m.im, zero(C)) + _orbit_coefficient(c,m.imag_coefficient))
     return s

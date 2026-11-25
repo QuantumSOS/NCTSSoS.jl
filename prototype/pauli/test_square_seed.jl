@@ -43,6 +43,8 @@ word(p) = last(only(NC.terms(p)))
         @test first(seed.strengthening.inequalities) == u*H*u-H
         @test length(seed.strengthening.inequalities) == 12
     end
+    @test_throws ArgumentError build_square_xxx_seed(H,2; rdm_shape=(2,3))
+    @test_throws ArgumentError build_square_xxx_seed(H,2; rdm_shape=(3,3))
 end
 
 @testset "Square torus seed and extensible motif orbits" begin
@@ -76,6 +78,55 @@ end
     @test isempty(added.strengthening.psd_blocks)
     @test_throws ArgumentError build_square_xxx_seed(H,L; motifs=(((0,0),(1,1)),))
     @test_throws ArgumentError build_square_xxx_seed(H+x[1]*x[2],L)
+
+    @testset "Rectangular RDM6 orientation coverage and exact square marginals" begin
+        rect = build_square_xxx_seed(H,L; rdm_shape=(2,3),translation_quotient=true)
+        @test rect.rows == seed.rows
+        @test rect.plaquettes == [[1,2,3,5,6,7],[1,2,5,6,9,10]]
+        @test [size(b.matrix) for b in rect.strengthening.psd_blocks] == [(64,64),(64,64)]
+        @test all(in(rect.domain),seed.domain)
+        @test any(w -> NC.degree(w)==6,rect.domain)
+        @test all(p -> all(t -> last(t) in rect.domain,NC.terms(p)),rect.strengthening.equalities)
+
+        # Independently translate both orientations, including a wrap in both
+        # axes, and check the entire Pauli support rather than selected axes.
+        W = eltype(rect.rows)
+        west, south = invperm(east), invperm(north)
+        for sites in rect.plaquettes
+            wrapped = [west[south[i]] for i in sites]
+            @test all(in(rect.domain),NC.basis_rows(W,NC.Pauli(),sort(wrapped),6))
+        end
+
+        squares = Dict(Tuple(s)=>b.matrix for (s,b) in zip(seed.plaquettes,seed.strengthening.psd_blocks))
+        for (sites,block) in zip(rect.plaquettes,rect.strengthening.psd_blocks)
+            @test Set(w for p in block.matrix for (_,w) in NC.terms(p)) ==
+                Set(NC.basis_rows(W,NC.Pauli(),sites,6))
+            embedded = [s for s in seed.plaquettes if issubset(s,sites)]
+            @test length(embedded) == 2
+            for sub in embedded
+                kept = findall(in(sub),sites)
+                traced = setdiff(1:6,kept)
+                bits(j,positions) = foldl((a,i) -> (a<<1) | ((j>>(6-i))&1),positions; init=0)
+                full = Matrix{Int}(undef,16,4)
+                for j in 0:63
+                    full[1+bits(j,kept),1+bits(j,traced)] = j+1
+                end
+                @test squares[Tuple(sub)] ==
+                    [sum(block.matrix[full[i,k],full[j,k]] for k in 1:4) for i in 1:16,j in 1:16]
+            end
+        end
+    end
+end
+
+@testset "Dense RDM6 deduplicates rectangles spanning a period" begin
+    _, axes = NC.pauli_variables(9)
+    edges = [(i,i % 3 == 0 ? i-2 : i+1) for i in 1:9]
+    append!(edges,[(i,mod1(i+3,9)) for i in 1:9])
+    H = sum(a[i]*a[j] for (i,j) in edges for a in axes)
+    dense = build_square_xxx_seed(H,3; rdm_shape=(2,3),stationarity=false)
+    @test length(dense.plaquettes) == 6 == length(dense.strengthening.psd_blocks)
+    @test [1,3,4,6,7,9] in dense.plaquettes
+    @test [1,2,3,7,8,9] in dense.plaquettes
 end
 
 end

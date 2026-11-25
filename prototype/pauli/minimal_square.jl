@@ -7,8 +7,8 @@ Return the original Pauli rows, final shared moment coordinates, and explicit
 moment-minimization standard form (not an energy certificate).
 """
 function compile_minimal_square(H, L; motifs=(), stationarity=true, rdm=true,
-        stability=false, recover_gram_rows=false)
-    seed = build_square_xxx_seed(H,L; motifs, stationarity, rdm, stability, translation_quotient=true)
+        rdm_shape=(2,2), stability=false, recover_gram_rows=false)
+    seed = build_square_xxx_seed(H,L; motifs, stationarity, rdm, rdm_shape, stability, translation_quotient=true)
     program,table,symmetry = workflow_square_symmetry_program(H,seed.rows,L;
         seed.strengthening, recover_gram_rows)
     real_program = _real_workflow_program(program)

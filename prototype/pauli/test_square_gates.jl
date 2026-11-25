@@ -124,6 +124,12 @@ end
         ident = one(H)
         total_spin = [sum(a) for a in xyz]
         rows = [ident,d1+d2,d1-d2,total_spin...]
+        # The spin triplet has three copies of the same square; the other
+        # two squares use the even and odd combinations of diagonal bonds.
+        # Match Pauli coefficients exactly, independently of MOSEK's tolerance.
+        exact(p) = Workflow._wf_exact(p)
+        @test exact(H)+7 == (1//2)*sum(exact(s)^2 for s in total_spin) +
+            (1//16)*(exact(2ident-d1-d2)^2 + exact(d1-d2)^2)
         p,table,report = Workflow.workflow_square_symmetry_program(H,rows,2;recover_gram_rows=true)
         @test report.row_dimension==6
         @test Set((s.J,s.momentum,s.side) for s in report.sectors) == Set([(0,(0,0),2),(0,(1,1),1),(1,(0,0),1)])

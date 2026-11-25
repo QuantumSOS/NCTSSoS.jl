@@ -124,23 +124,46 @@ function _square_stationarity(H::NC.Polynomial{W}, J, domain, incidence) where {
     return sources[perm], equations[perm]
 end
 
+function _square_other_axes(w::NC.PauliWord)
+    x,z = w.x,w.z
+    y = map(xor,x,z)
+    return (NC.PauliWord(z,x),NC.PauliWord(x,y),NC.PauliWord(y,x),
+        NC.PauliWord(y,z),NC.PauliWord(z,y))
+end
+
 function _square_stationarity(H::NC.Polynomial{W}, J, domain::_SquareMomentOrbits{W}, incidence) where {W}
     sources = Set{W}()
-    for v in domain.representatives, h in _square_incident(incidence,v)
-        NC._symplectic(h,v) || continue
-        u = last(NC.mul(h,v))
-        covered = true
-        for g in _square_incident(incidence,u)
-            NC._symplectic(g,u) || continue
-            rep = _square_representative(last(NC.mul(g,u)),domain)
-            if rep < v || rep ∉ domain.representatives
-                covered = false
-                break
+    seen = Set{W}()
+    # Global axis permutations commute with translations, preserve the
+    # anticommutation test and phase-free products, and permute the XXX
+    # bonds and the domain (every row support has all axis assignments).
+    # Every valid source orbit can therefore invert its least output over
+    # both actions. Restore all axis images before emitting exact phases.
+    for v in sort!(collect(domain.representatives))
+        v in seen && continue
+        for w in _square_other_axes(v)
+            push!(seen,_square_representative(w,domain))
+        end
+        for h in _square_incident(incidence,v)
+            NC._symplectic(h,v) || continue
+            u = last(NC.mul(h,v))
+            covered = true
+            for g in _square_incident(incidence,u)
+                NC._symplectic(g,u) || continue
+                rep = _square_representative(last(NC.mul(g,u)),domain)
+                if rep < v || rep ∉ domain.representatives
+                    covered = false
+                    break
+                end
+            end
+            covered || continue
+            rep = _square_representative(u,domain)
+            rep in sources && continue
+            push!(sources,rep)
+            for w in _square_other_axes(rep)
+                push!(sources,_square_representative(w,domain))
             end
         end
-        # Inverting the least output orbit covers all source orbits. Several
-        # outputs can share that orbit, so deduplicate accepted sources only.
-        covered && push!(sources,_square_representative(u,domain))
     end
     words = sort!(collect(sources))
     equations = [_wf_polynomial(H.registry,W,
@@ -150,8 +173,8 @@ function _square_stationarity(H::NC.Polynomial{W}, J, domain::_SquareMomentOrbit
 end
 
 """
-    build_square_xxx_seed(H, L; motifs=(), rdm=true, stationarity=true, stability=false,
-                         translation_quotient=false)
+    build_square_xxx_seed(H, L; motifs=(), rdm=true, rdm_shape=(2,2), stationarity=true,
+                         stability=false, translation_quotient=false)
 
 Build phases 1–2 for a periodic `L × L` square with site order `x + L*y + 1`
 for zero-based coordinates. `H` must have uniform nonzero XXX nearest-neighbor
@@ -160,16 +183,20 @@ bond is counted once in the geometry and each distinct face once in the RDMs.
 
 Return sorted packed `rows` for one ordinary Gram block, the shared moment
 `domain`, `plaquettes`, and `stationarity_words` in equality order. Append
-`strengthening` to the **same** moment table as the Gram block. Each RDM is a
-separate 16-dimensional block, not another row family. Optional scalar
-`stability` is valid for unrestricted global ground states.
+`strengthening` to the **same** moment table as the Gram block. `plaquettes`
+lists the actual sites in each RDM block's tensor order. Use `rdm_shape=(2,3)`
+for 64-dimensional rectangles instead of the default 16-dimensional squares;
+the rectangles imply the embedded square marginals by partial trace. Neither
+adds Gram rows. Optional scalar `stability` is valid for unrestricted global
+ground states.
 
 Use `translation_quotient=true` **only** with a shared moment table that
 identifies both primitive translations of this torus. `rows` still contains
 the full Gram basis. `domain` iterates translation representatives (and its
 length counts orbits), but `w in domain` accepts any translated member. The
-builder returns one plaquette cone and one constraint per translation orbit;
-it does not require identifying any point-group or spin orbits.
+builder returns one RDM cone per orientation (one square or two rectangles)
+and one scalar constraint per translation orbit. The domain covers the full
+D4 orbit without requiring the table to identify point-group or spin orbits.
 
 Each additional `motifs` entry is a connected site support written as integer
 `(dx,dy)` offsets, e.g. `(((0,0),(1,0),(0,1)),)` for one corner motif. The
@@ -178,10 +205,13 @@ then recomputes the moment domain and stationarity. It does not apply a
 second Liouvillian shell to the added motifs.
 """
 function build_square_xxx_seed(H::NC.Polynomial{W}, L::Integer;
-        motifs=(), rdm::Bool=true, stationarity::Bool=true, stability::Bool=false,
+        motifs=(), rdm::Bool=true, rdm_shape::Tuple{Integer,Integer}=(2,2),
+        stationarity::Bool=true, stability::Bool=false,
         translation_quotient::Bool=false) where {W<:NC.PauliWord}
     n = H.registry.nsites
     L >= 2 && n == L^2 || throw(ArgumentError("Expected L ≥ 2 and exactly L² Pauli sites."))
+    rdm_shape in ((2,2),(2,3)) || throw(ArgumentError("Expected rdm_shape=(2,2) or (2,3)."))
+    (!rdm || L >= maximum(rdm_shape)) || throw(ArgumentError("The RDM region must fit on the torus without repeated sites."))
     NC._checked_hermitian(H,"Hamiltonian")
     HQ = _wf_exact(H)
     site(x,y) = mod(x,L) + L*mod(y,L) + 1
@@ -221,13 +251,13 @@ function build_square_xxx_seed(H::NC.Polynomial{W}, L::Integer;
     rows = sort!(collect(selected))
     plaquettes = if !rdm
         Vector{Int}[]
-    elseif translation_quotient
-        [[site(0,0),site(1,0),site(0,1),site(1,1)]]
     else
-        sort!(unique!([sort!([site(x,y),site(x+1,y),site(x,y+1),site(x+1,y+1)])
-            for x in 0:L-1 for y in 0:L-1]))
+        orientations = rdm_shape == (2,2) ? (rdm_shape,) : (rdm_shape,reverse(rdm_shape))
+        origins = 0:(translation_quotient ? 0 : L-1)
+        sort!(unique!([sort!([site(x+dx,y+dy) for dy in 0:ny-1 for dx in 0:nx-1])
+            for (nx,ny) in orientations for y in origins for x in origins]))
     end
-    rdm_words = (w for sites in plaquettes for w in NC.basis_rows(W,NC.Pauli(),sites,4))
+    rdm_words = (w for sites in plaquettes for w in NC.basis_rows(W,NC.Pauli(),sites,length(sites)))
     domain = if translation_quotient
         orbits = _square_product_orbits(rows,L)
         union!(orbits.representatives,(_square_representative(w,orbits) for w in rdm_words))

@@ -1,5 +1,7 @@
 # Included by the Pauli workflow module after `import NCTSSoS as NC`.
 
+include("square_moments.jl")
+
 _symmetry_action(::Type{W}, n, u) where {W} = NC.CliffordMap(W,n,NC.SitePermutation(u))
 
 function _symmetry_preserves(g, terms; sector=false)
@@ -662,7 +664,8 @@ end
 
 """
     workflow_square_symmetry_program(H, rows, L; strengthening=nothing,
-        coordinate_words=(), spin=true, spatial=true, real_gauge=true, recover_gram_rows=false)
+        coordinate_words=(), spin=true, spatial=true, real_gauge=true,
+        recover_gram_rows=false, compact_moments=true)
 
 Compile a closed linear row span on the square torus. Rows may be packed
 Pauli words or polynomials on `H`'s registry. Keep all spin copies and one
@@ -677,9 +680,11 @@ With `recover_gram_rows=true`, `report.gram_rows()` returns the polynomial
 rows of each original moment cone, in conic order, before any real lifting
 or pruning. The lift does not contain strengthening recipes or constitute
 a rigorous certificate; audit its residual in ambient Pauli coordinates.
+`compact_moments=false` selects the generic alias table as a reference.
 """
 function workflow_square_symmetry_program(H, rows, L::Int; strengthening=nothing,
-    coordinate_words=(), spin=true, spatial=true, real_gauge=true, recover_gram_rows=false)
+    coordinate_words=(), spin=true, spatial=true, real_gauge=true, recover_gram_rows=false,
+    compact_moments=true)
     _check_hamiltonian(H)
     L>=2 && H.registry.nsites==L^2 || throw(ArgumentError("Expected an L×L square registry with L ≥ 2."))
     W = eltype(H.data.words)
@@ -727,14 +732,18 @@ function workflow_square_symmetry_program(H, rows, L::Int; strengthening=nothing
         row_dimension = length(basis)
     end
     spin_blocks = _square_spin_rows(basis,ds,maximum(NC.degree,words),index;check_dimension=isnothing(packed_orbits))
-    cyclic = if spatial
-        step = first(shifts)
-        other = (shifts[2:end]...,points...)
-        normalizes(g) = NC._conjugate_action(g,step) in (step,inv(step))
-        (;generator=step,normalizers=Tuple(filter(normalizes,other)),
-            remaining=(filter(!normalizes,other)...,(isnothing(anti) ? () : (anti,))...))
+    table = if spatial && compact_moments
+        SquareOrbitMoments(W,L,real_gauge)
+    else
+        cyclic = if spatial
+            step = first(shifts)
+            other = (shifts[2:end]...,points...)
+            normalizes(g) = NC._conjugate_action(g,step) in (step,inv(step))
+            (;generator=step,normalizers=Tuple(filter(normalizes,other)),
+                remaining=(filter(!normalizes,other)...,(isnothing(anti) ? () : (anti,))...))
+        end
+        NC.OrbitMoments(W,generators;cyclic)
     end
-    table = NC.OrbitMoments(W,generators;cyclic)
     program = NC.MomentProgram{ComplexF64}()
     recovery = recover_gram_rows ? Function[] : nothing
     if spatial

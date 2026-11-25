@@ -640,13 +640,14 @@ function _square_lattice_sectors!(program, table, spin_blocks, translations, poi
                 _square_columns(_square_numeric_basis(P))
             end
             sum(c*length(s) for (c,s) in zip(copies,sectors)) == size(Q,2) || error("Incomplete little-group decomposition.")
+            original_sectors = sectors
             fixed = false
             if !isnothing(anti)
                 negative = findfirst(==(mod.(-translations.coordinates[k],translations.orders)),translations.coordinates)
                 candidates = point.elements[findall(p->p[negative]==k,permutations)]
                 sectors,fixed = NC._real_character_sectors(sectors,orbits,index,k,anti,candidates)
             end
-            NC._assemble_character!(program,sink,orbits,characters,k,sectors,labels,cache;real_blocks=fixed)
+            NC._assemble_character!(program,sink,orbits,characters,k,sectors,labels,cache;real_blocks=fixed,original_sectors)
             for (s,cols) in enumerate(sectors)
                 isempty(cols) && continue
                 isnothing(recovery) || push!(recovery,()->_square_fourier_lift(registry,orbits,characters,cols))

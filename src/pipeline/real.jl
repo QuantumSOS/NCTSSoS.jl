@@ -56,9 +56,20 @@ function _fixed_real_columns(Q,image)
         end
         norm=LinearAlgebra.norm(v)
         norm>1e-9 || continue
+        # Near-dependent candidates can create a spurious extra direction.
+        # Keep the original Hermitian sector rather than guessing its rank.
+        length(fixed)<size(Q,2) || return nothing
         push!(fixed,v/norm)
     end
-    length(fixed)==size(Q,2) || error("Antiunitary fixed-space rank mismatch.")
+    length(fixed)==size(Q,2) || return nothing
+    isempty(fixed) && return fixed
+    # Even with the expected rank, normalizing a small residual can amplify
+    # error. Audit the basis in ambient coordinates before using a real cone.
+    F=hcat(fixed...)
+    C=Q'*F
+    LinearAlgebra.norm(F'*F-LinearAlgebra.I)<=1e-9 || return nothing
+    LinearAlgebra.norm(F-Q*C)<=1e-9 || return nothing
+    LinearAlgebra.norm(F-image*conj(C))<=1e-9 || return nothing
     fixed
 end
 

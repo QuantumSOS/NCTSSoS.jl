@@ -1,12 +1,45 @@
-# Run with a Julia environment containing the prototype, JuMP and MosekTools:
-# julia --project=<env> minimal_square.jl L max_rounds output_directory [--certify]
+# Run with a Julia environment containing the prototype, JuMP, Mosek and MosekTools:
+# julia --project=<env> minimal_square.jl L max_rounds output_directory [--certify] [--jump]
 using JuMP, LinearAlgebra, MosekTools, SparseArrays, TOML
-import NCTSSoS, PauliWorkflowRedesign as WF
+import Mosek, NCTSSoS, PauliWorkflowRedesign as WF
 include("cases.jl")
 include("square_moment.jl")
 
+function square_native_point(task, trm, form)
+    sol = Mosek.MSK_SOL_ITR
+    status = get(MosekTools._TERMINATION_STATUS_MAP,trm.value,MOI.OTHER_ERROR)
+    Mosek.solutiondef(task,sol) || return (;status,primal=MOI.NO_SOLUTION,dual=MOI.NO_SOLUTION,x=nothing,z=nothing)
+    raw = Mosek.getsolsta(task,sol)
+    # Use the same continuous solution status mappings as the JuMP reference.
+    if trm == Mosek.MSK_RES_OK
+        status = raw == Mosek.MSK_SOL_STA_OPTIMAL ? MOI.OPTIMAL :
+            MosekTools._PROSTA_STATUS_MAP[Mosek.getprosta(task,sol).value]
+    end
+    primal = get(MosekTools._PRIMAL_STATUS_MAP,raw.value,MOI.UNKNOWN_RESULT_STATUS)
+    dual = get(MosekTools._DUAL_STATUS_MAP,raw.value,MOI.UNKNOWN_RESULT_STATUS)
+    x = primal == MOI.NO_SOLUTION ? nothing : Mosek.getxx(task,sol)
+    # The native writer appends ACCs in original cone order and uses b-A*x
+    # with the minimization sense. doty is already positive-dual svec order.
+    z = dual == MOI.NO_SOLUTION ? nothing : Mosek.getaccdotys(task,sol)
+    @assert isnothing(x) || length(x) == length(form.c)
+    @assert isnothing(z) || length(z) == length(form.b)
+    return (;status,primal,dual,x,z)
+end
+
+function square_native_dual_blocks(form,z)
+    all(c -> c.kind in (:psd,:zero),form.cones) || error("G5 requires real PSD and equality cones")
+    sqrt2 = Rational{BigInt}(sqrt(2.0))
+    return map(form.cones) do c
+        c.kind == :zero && return view(z,c.first:c.first+c.length-1)
+        # Undo svec using the exact binary scale from the original form.
+        [Rational{BigInt}(z[c.first+NCTSSoS.tri_offset(c.side,max(i,j),min(i,j))]) /
+            (i == j ? 1 : sqrt2) for i in 1:c.side, j in 1:c.side]
+    end
+end
+
 function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), local_row_limit=256,
-        max_rows=200L^2, solver_tol=1e-8, rdm_shape=(2,2))
+        max_rows=200L^2, solver_tol=1e-8, rdm_shape=(2,2), solver_path=:native)
+    solver_path in (:native,:jump) || throw(ArgumentError("Expected solver_path=:native or :jump."))
     edges = bonds("square",L)
     N = L^2
     @assert length(edges) == length(Set(minmax(i,j) for (i,j) in edges)) == 2N
@@ -17,10 +50,10 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
     coefficient = only(unique(real(c) for (c,_) in NCTSSoS.terms(H)))
     exact_scale = (1//big(4N))/Rational{BigInt}(coefficient)
     tol = 1e-8
-    optimizer = optimizer_with_attributes(MosekTools.Optimizer,
-        "MSK_IPAR_NUM_THREADS"=>Threads.nthreads(),
-        "MSK_DPAR_INTPNT_CO_TOL_PFEAS"=>solver_tol, "MSK_DPAR_INTPNT_CO_TOL_DFEAS"=>solver_tol,
-        "MSK_DPAR_INTPNT_CO_TOL_REL_GAP"=>solver_tol)
+    options = (;MSK_IPAR_NUM_THREADS=Threads.nthreads(), MSK_DPAR_INTPNT_CO_TOL_PFEAS=solver_tol,
+        MSK_DPAR_INTPNT_CO_TOL_DFEAS=solver_tol, MSK_DPAR_INTPNT_CO_TOL_REL_GAP=solver_tol)
+    optimizer = optimizer_with_attributes(MosekTools.Optimizer,(String(k)=>v for (k,v) in pairs(options))...)
+    backend = NCTSSoS.MosekBackend(;form=:moment,options...)
     # Check licensing on the execution host, not just on the build host.
     m = Model(optimizer); set_silent(m)
     @variable(m,t); @constraint(m,[t 1; 1 t] in PSDCone()); @objective(m,Min,t)
@@ -34,7 +67,7 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
         r = Dict{String,Any}("L"=>L,"round"=>round,"motifs"=>repr(motifs),
             "bonds"=>length(edges),"J2"=>0,"unit"=>"spin-1/2 energy per site",
             "preflight_dual"=>dual_objective_value(m),"threads"=>Threads.nthreads(),"solver_tol"=>solver_tol,
-            "rdm_shape"=>collect(rdm_shape))
+            "rdm_shape"=>collect(rdm_shape),"solver_path"=>string(solver_path))
         path = joinpath(out,"round-$round.toml")
         save() = open(io->TOML.print(io,r; sorted=true),path,"w")
         function stage(f,k)
@@ -46,22 +79,44 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
             timed.value
         end
         plan = stage("build") do
-            WF.compile_minimal_square(H,L; motifs, rdm_shape, recover_gram_rows=certify)
+            WF.compile_minimal_square(H,L; motifs, rdm_shape, recover_folded_gram=certify)
         end
         f = plan.standard
         r["rows"] = length(plan.rows); r["variables"] = length(f.c); r["nnz"] = nnz(f.A)
         r["psd_sides"] = [c.side for c in f.cones if c.kind==:psd]
-        model,vars = stage("transfer") do
-            mod,vars = NCTSSoS.to_jump(f)
-            set_optimizer(mod,optimizer); MOI.Utilities.attach_optimizer(mod)
-            mod,vars
+        save()
+        model = nothing
+        point = if solver_path == :native
+            handle = stage(()->NCTSSoS.prepare_standard(f,backend),"transfer")
+            try
+                trm = stage(()->Mosek.optimize(handle.task),"solve")
+                r["native_seconds"] = Mosek.getdouinf(handle.task,Mosek.MSK_DINF_OPTIMIZER_TIME)
+                stage("diagnostics") do
+                    p = square_native_point(handle.task,trm,f)
+                    square_point_diagnostics!(r,f,p.x,p.z)
+                    p
+                end
+            finally
+                Mosek.deletetask(handle.task)
+            end
+        else
+            model,vars = stage("transfer") do
+                mod,vars = NCTSSoS.to_jump(f)
+                set_optimizer(mod,optimizer); MOI.Utilities.attach_optimizer(mod)
+                mod,vars
+            end
+            stage(()->optimize!(model),"solve")
+            r["native_seconds"] = solve_time(model)
+            stage("diagnostics") do
+                x,z = square_jump_points(f,model,vars)
+                square_point_diagnostics!(r,f,x,z)
+                (;status=termination_status(model),primal=primal_status(model),dual=dual_status(model),x,z)
+            end
         end
-        stage(()->optimize!(model),"solve")
-        status = termination_status(model)
-        r["termination"] = string(status); r["primal_status"] = string(primal_status(model))
-        r["dual_status"] = string(dual_status(model)); r["native_seconds"] = solve_time(model)
-        r["accepted"] = status==MOI.OPTIMAL && primal_status(model)==dual_status(model)==MOI.FEASIBLE_POINT
-        stage(()->square_original_diagnostics!(r,f,model,vars),"diagnostics")
+        status = point.status
+        r["termination"] = string(status); r["primal_status"] = string(point.primal)
+        r["dual_status"] = string(point.dual)
+        r["accepted"] = status==MOI.OPTIMAL && point.primal==point.dual==MOI.FEASIBLE_POINT
         metrics = ("original_equality_inf","original_primal_psd_violation","original_balance_inf",
             "original_dual_psd_violation","original_primal_nonnegative_violation",
             "original_dual_nonnegative_violation","original_objective_relative_gap")
@@ -73,9 +128,10 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
         save()
         # The exact operator identity can certify a weaker value from a
         # non-optimal dual. Never promote that iterate to numerical acceptance.
-        if certify && has_duals(model)
+        if certify && !isnothing(point.z)
             cert = stage("verify") do
-                WF.verify_pauli_dual(H,f,plan.table,WF.pauli_dual_blocks(f,model),plan.lifts();
+                dual = solver_path == :native ? square_native_dual_blocks(f,point.z) : WF.pauli_dual_blocks(f,model)
+                WF.verify_pauli_dual(H,f,plan.table,dual,plan.lifts();
                     symmetry_generators=plan.symmetry.symmetry_generators, spin_average=true)
             end
             r["certificate_projection"] = string(cert.spin_projection)
@@ -85,7 +141,7 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
             save()
         end
         r["accepted"] && isfinite(d) || error("No accepted numerical point; see $path")
-        (;plan.rows,plan.table,plan.constraint_ids,plan.domain,moments=value.(vars),bound=d,status)
+        (;plan.rows,plan.table,plan.constraint_ids,plan.domain,moments=point.x,bound=d,status)
     end
     if iszero(max_rounds)
         solve_motifs(initial_motifs)
@@ -103,6 +159,8 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
 end
 
 if abspath(PROGRAM_FILE)==@__FILE__
-    length(ARGS) in (3,4) && (length(ARGS)==3 || ARGS[4]=="--certify") || error("Expected L rounds out [--certify]")
-    minimal_square(parse(Int,ARGS[1]),parse(Int,ARGS[2]),ARGS[3]; certify=length(ARGS)==4)
+    3 <= length(ARGS) <= 5 && all(in(("--certify","--jump")),ARGS[4:end]) && allunique(ARGS[4:end]) ||
+        error("Expected L rounds out [--certify] [--jump]")
+    minimal_square(parse(Int,ARGS[1]),parse(Int,ARGS[2]),ARGS[3]; certify="--certify" in ARGS[4:end],
+        solver_path="--jump" in ARGS[4:end] ? :jump : :native)
 end

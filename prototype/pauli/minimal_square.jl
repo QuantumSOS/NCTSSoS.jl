@@ -7,10 +7,10 @@ Return the original Pauli rows, final shared moment coordinates, and explicit
 moment-minimization standard form (not an energy certificate).
 """
 function compile_minimal_square(H, L; motifs=(), stationarity=true, rdm=true,
-        rdm_shape=(2,2), stability=false, recover_gram_rows=false)
+        rdm_shape=(2,2), stability=false, recover_gram_rows=false, recover_folded_gram=false)
     seed = build_square_xxx_seed(H,L; motifs, stationarity, rdm, rdm_shape, stability, translation_quotient=true)
     program,table,symmetry = workflow_square_symmetry_program(H,seed.rows,L;
-        seed.strengthening, recover_gram_rows)
+        seed.strengthening, recover_gram_rows, recover_folded_gram)
     real_program = _real_workflow_program(program)
     pruned,pruning = workflow_term_sparsity(real_program; ts_algo=:Maximal, prune_constant_singletons=true)
     NC.refresh_coverage!(table,pruned)
@@ -20,6 +20,7 @@ function compile_minimal_square(H, L; motifs=(), stationarity=true, rdm=true,
     for j in axes(A,2)
         any(!iszero(A.nzval[i]) for i in A.colptr[j]:A.colptr[j+1]-1) && push!(constraint_ids,j+1)
     end
-    lifts = recover_gram_rows ? ()->square_lifts(H,seed,program,real_program,pruned,pruning,symmetry) : nothing
+    lifts = recover_gram_rows || recover_folded_gram ?
+        ()->square_lifts(H,seed,program,real_program,pruned,pruning,symmetry;form=standard) : nothing
     (;seed.rows,seed.domain,table,constraint_ids,standard,program=pruned,symmetry,pruning,lifts)
 end

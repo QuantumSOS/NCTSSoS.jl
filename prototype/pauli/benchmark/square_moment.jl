@@ -10,23 +10,10 @@ function square_psd_residual(v,cone)
     max(0.0,-eigmin(Symmetric(M)))
 end
 
-function square_original_diagnostics!(result, form, model, variables)
+function square_jump_points(form, model, variables)
     jump = NCTSSoS.JuMP
-    all(c -> c.kind in (:zero,:psd,:nonnegative),form.cones) || error("Unsupported square diagnostic cone")
-    function publish(key,value)
-        isfinite(value) && (result[key] = value)
-    end
     x = jump.has_values(model) ? jump.value.(variables) : nothing
-    if !isnothing(x) && all(isfinite,x)
-        slack = form.b - form.A*x
-        publish("original_primal_objective_per_site",form.offset + dot(form.c,x))
-        publish("original_equality_inf",maximum((abs(slack[i]) for c in form.cones if c.kind==:zero
-            for i in c.first:c.first+c.length-1);init=0.0))
-        publish("original_primal_nonnegative_violation",maximum((-slack[i] for c in form.cones if c.kind==:nonnegative
-            for i in c.first:c.first+c.length-1);init=0.0))
-        all(isfinite,slack) && publish("original_primal_psd_violation",maximum(
-            (square_psd_residual(slack,c) for c in form.cones if c.kind==:psd);init=0.0))
-    end
+    z = nothing
     if jump.has_duals(model)
         # to_jump emits one constraint per PSD block and scalar equality, in
         # the same per-type order as the standard form. JuMP.dual restores
@@ -55,13 +42,35 @@ function square_original_diagnostics!(result, form, model, variables)
             end
         end
         @assert p == length(psd) && e == length(equalities) && n == length(inequalities)
-        if all(isfinite,z)
-            publish("original_dual_objective_per_site",form.offset-dot(form.b,z))
-            publish("original_balance_inf",norm(transpose(form.A)*z+form.c,Inf))
-            publish("original_dual_nonnegative_violation",maximum((-z[i] for c in form.cones if c.kind==:nonnegative
-                for i in c.first:c.first+c.length-1);init=0.0))
-            publish("original_dual_psd_violation",maximum((square_psd_residual(z,c) for c in form.cones if c.kind==:psd);init=0.0))
-        end
+    end
+    return x,z
+end
+
+function square_original_diagnostics!(result, form, model, variables)
+    return square_point_diagnostics!(result,form,square_jump_points(form,model,variables)...)
+end
+
+function square_point_diagnostics!(result, form, x, z)
+    all(c -> c.kind in (:zero,:psd,:nonnegative),form.cones) || error("Unsupported square diagnostic cone")
+    function publish(key,value)
+        isfinite(value) && (result[key] = value)
+    end
+    if !isnothing(x) && all(isfinite,x)
+        slack = form.b - form.A*x
+        publish("original_primal_objective_per_site",form.offset + dot(form.c,x))
+        publish("original_equality_inf",maximum((abs(slack[i]) for c in form.cones if c.kind==:zero
+            for i in c.first:c.first+c.length-1);init=0.0))
+        publish("original_primal_nonnegative_violation",maximum((-slack[i] for c in form.cones if c.kind==:nonnegative
+            for i in c.first:c.first+c.length-1);init=0.0))
+        all(isfinite,slack) && publish("original_primal_psd_violation",maximum(
+            (square_psd_residual(slack,c) for c in form.cones if c.kind==:psd);init=0.0))
+    end
+    if !isnothing(z) && all(isfinite,z)
+        publish("original_dual_objective_per_site",form.offset-dot(form.b,z))
+        publish("original_balance_inf",norm(transpose(form.A)*z+form.c,Inf))
+        publish("original_dual_nonnegative_violation",maximum((-z[i] for c in form.cones if c.kind==:nonnegative
+            for i in c.first:c.first+c.length-1);init=0.0))
+        publish("original_dual_psd_violation",maximum((square_psd_residual(z,c) for c in form.cones if c.kind==:psd);init=0.0))
     end
     if haskey(result,"original_primal_objective_per_site") && haskey(result,"original_dual_objective_per_site")
         p = result["original_primal_objective_per_site"]

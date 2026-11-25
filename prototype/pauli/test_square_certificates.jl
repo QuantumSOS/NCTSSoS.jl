@@ -69,3 +69,75 @@ end
     @test result.bound == -54
     @test result.max_lift_error <= 1e-12
 end
+
+@testset "Folded replay equals the ambient 4×4 certificate" begin
+    L = 4
+    _, xyz = NC.pauli_variables(L^2)
+    site(x,y) = mod(x,L) + L*mod(y,L) + 1
+    H = (1//64)*sum(a[site(x,y)]*(a[site(x+1,y)]+a[site(x,y+1)])
+        for a in xyz for x in 0:L-1 for y in 0:L-1)
+    plan = WF.compile_minimal_square(H,L;recover_gram_rows=true,recover_folded_gram=true)
+    form = plan.standard
+    model,_ = NC.to_jump(form)
+    optimizer = NC.JuMP.optimizer_with_attributes(Clarabel.Optimizer,"verbose"=>false,
+        "chordal_decomposition_enable"=>false)
+    NC.JuMP.set_optimizer(model,optimizer)
+    NC.JuMP.optimize!(model)
+    dual = WF.pauli_dual_blocks(form,model)
+    folded = plan.lifts()
+    grams = plan.symmetry.gram_rows()
+    expanded = [l.kind === :fourier_gram ? (;kind=:gram,rows=grams[l.source],l.layout,l.indices) : l for l in folded]
+    generators = plan.symmetry.symmetry_generators
+    a = WF.verify_pauli_dual(H,form,plan.table,dual,expanded; symmetry_generators=generators,spin_average=true)
+    b = WF.verify_pauli_dual(H,form,plan.table,dual,folded; symmetry_generators=generators,spin_average=true)
+    @test a.residual_representation === :ambient_pauli && b.residual_representation === :square_orbit_mass
+    @test a.bound == b.bound && a.residual_identity == b.residual_identity
+    @test a.residual_nonidentity_l1 == b.residual_nonidentity_l1
+    W = eltype(H.data.words)
+    square = WF.SquareOrbitMoments(W,L,true)
+    masses = Dict{W,WF._PauliCQ}()
+    for (c,w) in a.residual
+        NC._sector_add!(masses,WF._square_canonical(square,w),c)
+    end
+    @test masses == Dict(w=>c for (c,w) in b.residual)
+end
+
+@testset "Non-character Fourier samples and a nontrivial stabilizer" begin
+    L = 4
+    _, (x,_,z) = NC.pauli_variables(L^2)
+    H = WF._wf_exact(one(x[1]))
+    W = eltype(H.data.words)
+    word(p) = only(NC.terms(p))[2]
+    shifts = WF._workflow_translations(W,L^2,(L,L),:auto)
+    tr = NC.TranslationGroup(shifts,[L,L])
+    roots = word.([x[1],z[1]*z[3]])
+    words = unique([last(NC.act(t,w)) for w in roots for t in tr.elements])
+    orbits = NC.AbelianRows(words,tr)
+    a = only(findall(ws -> length(ws)==L^2,orbits.words))
+    b = only(findall(ws -> length(ws)==L^2÷2,orbits.words))
+    # Deliberately not roots of unity. The samples are exactly constant on
+    # integer phase classes, including the antipodal pair's stabilizer.
+    chars = ComplexF64[iseven(t[1]) ? 1.0 : -1.0 + 0.017im for t in tr.coordinates]
+    cols = [[(0.62+0.3im,a),(0.27-0.5im,b)],[(0.4-0.29im,a),(0.73+0.15im,b)]]
+    fourier = (;orbits,characters=chars,momentum=(2,0),cols)
+    lift = (;kind=:fourier_gram,fourier,layout=:realified)
+    square = WF.SquareOrbitMoments(W,L,false)
+    fold = WF._wf_square_fold_context(H,square,[lift],())
+    rows = WF._square_fourier_lift(H.registry,orbits,chars,cols)
+    full = WF._wf_dual_entries(H,(;kind=:gram,rows,layout=:realified),4)
+    compact = WF._wf_dual_entries(H,lift,4,fold)
+    for j in 1:4, i in j:4
+        reference = Dict{W,WF._PauliCQ}()
+        for (c,w) in NC.terms(full(i,j))
+            NC._sector_add!(reference,WF._square_canonical(square,w),c)
+        end
+        @test reference == Dict(w=>c for (c,w) in NC.terms(compact(i,j)))
+    end
+    inconsistent = copy(chars)
+    inconsistent[3] += 0.002im # Same integer class as the first sample.
+    @test_throws ArgumentError WF._wf_folded_gram(H,merge(fourier,(;characters=inconsistent)),fold)
+    # Samples pass the class test but this momentum is not constant under
+    # translation by two, which fixes the antipodal pair.
+    unsupported = ComplexF64[im^t[1] for t in tr.coordinates]
+    @test_throws ArgumentError WF._wf_folded_gram(H,merge(fourier,(;momentum=(1,0),characters=unsupported)),fold)
+end

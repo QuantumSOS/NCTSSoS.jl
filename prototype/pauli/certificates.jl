@@ -160,13 +160,114 @@ function _wf_dual_shift(D)
     return min(direct,shift(D-F'*F))
 end
 
-function _wf_dual_entries(H, lift, side)
+# The representative stores the sum of the ambient coefficients on its
+# unsigned orbit, not the coefficient of a distinguished ambient word.
+# Its reconstruction is uniform on the orbit, so its l1 mass is exact.
+_wf_fold_word(square,w) = _square_k_zero(square,w) ? nothing : _square_canonical(square,w)
+
+function _wf_square_fold_context(H::NC.Polynomial{W}, table, lifts, generators) where {W}
+    any(l -> l.kind === :fourier_gram,lifts) || return nothing
+    base = table isa NC.ContinuousMoments ? table.base : table
+    base isa SquareOrbitMoments{W} && base.L^2 == H.registry.nsites ||
+        throw(ArgumentError("Folded Fourier lifts require the compact square moment table."))
+    L = base.L
+    square = SquareOrbitMoments(W,L,base.conjugation)
+    shifts = _workflow_translations(W,L^2,(L,L),:auto)
+    points = _square_point_generators(W,L)
+    K = NC.CliffordMap(NC.AntiunitaryPauli(one(W)))
+    spatial = (shifts...,points...,(base.conjugation ? (K,) : ())...)
+    terms = Dict(w=>c for (c,w) in NC.terms(H))
+    all(g -> _symmetry_preserves(g,terms),spatial) && all(in(spatial),generators) ||
+        throw(ArgumentError("Folded Fourier lifts require exact square symmetries of H and no additional averaging generators."))
+    return (;square,shifts, translations=Dict{W,Vector{W}}(),
+        products=Dict{Tuple{W,W},Vector{Union{Nothing,Tuple{NC.Phase,W}}}}())
+end
+
+function _wf_folded_gram(H::NC.Polynomial{W}, rec, fold) where {W}
+    square = fold.square
+    L = square.L
+    (;orbits,characters,momentum,cols) = rec
+    tr = orbits.translations
+    length(characters) == L^2 && all(isfinite,characters) && tr.orders == [L,L] &&
+        tr.generators == fold.shifts && length(momentum) == 2 && all(i -> 0 <= i < L,momentum) ||
+        throw(ArgumentError("Unsupported square Fourier translation metadata."))
+    # Use only the integer phase *partition*. Do not multiply characters as
+    # roots of unity: cispi values and each final amplitude are binary floats.
+    bins = [mod(momentum[1]*x+momentum[2]*y,L) for y in 0:L-1 for x in 0:L-1]
+    phases = unique(bins)
+    samples = Dict{Int,ComplexF64}()
+    for (t,r) in pairs(bins)
+        x,y = mod(t-1,L),div(t-1,L)
+        tr.coordinates[t] == [x,y] || throw(ArgumentError("Unexpected square Fourier translation order."))
+        get!(samples,r,characters[t]) == characters[t] ||
+            throw(ArgumentError("Rounded Fourier values differ within an exact phase class."))
+    end
+    function translated(w)
+        get!(fold.translations,w) do
+            [_square_remap(w,square.points,1,x,y,L) for y in 0:L-1 for x in 0:L-1]
+        end
+    end
+    rows = map(cols) do col
+        map(col) do (c,a)
+            ws,positions = orbits.words[a],orbits.positions[a]
+            u = _square_pack(first(ws),H,W)
+            tw = translated(u)
+            multiplicity, remainder = divrem(L^2,length(ws))
+            length(ws) == length(positions) == length(orbits.phases[a]) && allunique(ws) &&
+                iszero(remainder) && all(isone,orbits.phases[a]) &&
+                all(t -> 1 <= t <= L^2,positions) &&
+                all(j -> tw[positions[j]] == ws[j],eachindex(ws)) ||
+                throw(ArgumentError("Fourier lift does not describe an unsigned square row orbit."))
+            word_phase = Dict(w=>bins[t] for (w,t) in zip(ws,positions))
+            all(t -> get(word_phase,tw[t],-1) == bins[t],eachindex(tw)) ||
+                throw(ArgumentError("Fourier phase is not constant on a row stabilizer coset."))
+            f = zeros(_PauliCQ,L)
+            for r in phases
+                # Identical floating operation order to _square_fourier_lift,
+                # then an exact conversion of the *rounded* row coefficient.
+                f[r+1] = _PauliCQ(c*samples[r]/sqrt(length(ws))) / multiplicity
+            end
+            (;u,f)
+        end
+    end
+    function entry(i,j)
+        values = NC.SectorTerms(W)
+        for (u,f) in rows[i], (v,g) in rows[j]
+            kernel = get!(fold.products,(u,v)) do
+                map(translated(v)) do w
+                    p,product = NC.mul(u,w)
+                    rep = _wf_fold_word(square,product)
+                    isnothing(rep) ? nothing : (p,rep)
+                end
+            end
+            # A pair at translations s,t folds to (u,T_(t-s) v).
+            # Count the phase classes of s exactly for each displacement.
+            correlation = zeros(_PauliCQ,L)
+            m = div(L^2,length(phases))
+            for d in phases
+                correlation[d+1] = m * sum(conj(f[r+1])*g[mod(r+d,L)+1] for r in phases)
+            end
+            for (r,pair) in zip(bins,kernel)
+                isnothing(pair) && continue
+                p,w = pair
+                NC.push_term!(values,NC.scale(p,correlation[r+1]),w)
+            end
+        end
+        return _wf_polynomial(H.registry,W,((c,w) for (w,c) in values.terms))
+    end
+    return entry
+end
+
+function _wf_dual_entries(H, lift, side, fold=nothing)
     layout = get(lift,:layout,:real)
     layout in (:real,:realified) || throw(ArgumentError("Unsupported real PSD lift layout: $layout."))
     if lift.kind === :gram
         rows = [_wf_witness_polynomial(H,p) for p in lift.rows]
         n = length(rows)
         entry = (i,j) -> rows[i]'*rows[j]
+    elseif lift.kind === :fourier_gram
+        n = length(lift.fourier.cols)
+        entry = _wf_folded_gram(H,lift.fourier,fold)
     elseif lift.kind === :rdm
         sites = Int[lift.sites...]
         1 <= length(sites) <= 6 && allunique(sites) && all(s -> 1 <= s <= H.registry.nsites,sites) ||
@@ -242,7 +343,7 @@ end
 # spin 1. Their Casimir C=-Σ D_axis^2 has eigenvalues j(j+1), 0≤j≤d.
 # The product of (I-C/[j(j+1)]) is the exact Haar projector, with no
 # numerical nullspace or irrational rotation matrices in the replay.
-function _wf_spin_average_dual_residual(H::NC.Polynomial{W}, residual, max_weight) where {W}
+function _wf_spin_average_dual_residual(H::NC.Polynomial{W}, residual, max_weight, square=nothing) where {W}
     max_weight >= 0 || throw(ArgumentError("The exact spin-projection weight limit must be nonnegative."))
     rotations = NC.spin_rotations(H.registry)
     function derivative(d, terms)
@@ -266,14 +367,20 @@ function _wf_spin_average_dual_residual(H::NC.Polynomial{W}, residual, max_weigh
         z = [NC.pauli_letter(W,i,2) for i in 1:n]
         rx = NC.CliffordMap([x;y],[falses(n);trues(n)]) # X→X, Z→−Y
         rz = NC.CliffordMap([y;z])                      # X→Y, Z→Z
-        return _wf_average_dual_residual(H,residual,(rx,rz)), :clifford24
+        p = _wf_average_dual_residual(H,residual,(rx,rz))
+        isnothing(square) && return p,:clifford24
+        terms = ((c,v) for (c,w) in NC.terms(p) for v in (_wf_fold_word(square,w),) if !isnothing(v))
+        return _wf_polynomial(H.registry,W,terms), :clifford24
     end
     values = NC._sector_terms(residual,W).terms
     for j in weight:-1:1
         next = copy(values)
         for d in rotations
             for (w,c) in derivative(d,derivative(d,values))
-                NC._sector_add!(next,w,c/(j*(j+1)))
+                # The collective Casimir commutes with spatial permutations
+                # and K. Refold each complete D_axis², not its intermediate D.
+                v = isnothing(square) ? w : _wf_fold_word(square,w)
+                isnothing(v) || NC._sector_add!(next,v,c/(j*(j+1)))
             end
         end
         values = next
@@ -327,6 +434,10 @@ blocks let `level = offset - b'z`. The **only** certified level is
 `bound = level + residual_identity - residual_nonidentity_l1`, where the
 residual is `H - level*I - dual_contribution` in the full Pauli algebra,
 averaged if requested.
+For opt-in square Fourier lifts, `residual_representation=:square_orbit_mass`
+stores the sum of coefficients on each verified translation/point orbit
+(odd-Y terms vanish if K is enabled). Divide each mass by its orbit size to
+recover the ambient coefficient on each word. Its l1 norm is unchanged.
 `raw_dual_objective`, both balance norms and the lift matching error are
 diagnostics, not bounds. This proof targets the unrestricted ground energy.
 """
@@ -335,6 +446,8 @@ function verify_pauli_dual(H, form, table, dual, lifts;
     HQ = _wf_exact(NC._checked_hermitian(H,"Hamiltonian"))
     length(form.cones) == length(dual) == length(lifts) ||
         throw(ArgumentError("Provide a dual block and physical lift for every cone."))
+    fold = _wf_square_fold_context(HQ,table,lifts,symmetry_generators)
+    square = isnothing(fold) ? nothing : fold.square
     # Traverse the original affine form by row without retaining an exact
     # dictionary for every matrix entry.
     transposed = copy(transpose(form.A))
@@ -355,10 +468,11 @@ function verify_pauli_dual(H, form, table, dual, lifts;
     max_lift_error = zero(_PauliQ)
     W = eltype(HQ.data.words)
     contribution = NC.SectorTerms(W)
-    function accumulate!(q,p)
+    function accumulate!(q,p; already_folded=false)
         iszero(q) && return nothing
         for (c,w) in NC.terms(p)
-            NC.push_term!(contribution,q*c,w)
+            v = isnothing(square) || already_folded ? w : _wf_fold_word(square,w)
+            isnothing(v) || NC.push_term!(contribution,q*c,v)
         end
     end
     for (index,(cone,D,lift)) in enumerate(zip(form.cones,dual,lifts))
@@ -370,7 +484,7 @@ function verify_pauli_dual(H, form, table, dual, lifts;
                 throw(ArgumentError("PSD dual must be real symmetric and match the cone side."))
             Q = Matrix{_PauliQ}(D)
             δ = shifts[index] = _wf_dual_shift(Q)
-            entry = _wf_dual_entries(HQ,lift,cone.side)
+            entry = _wf_dual_entries(HQ,lift,cone.side,fold)
             for j in 1:cone.side, i in j:cone.side
                 p = entry(i,j)
                 scale = i==j ? one(_PauliQ) : sqrt2
@@ -378,7 +492,7 @@ function verify_pauli_dual(H, form, table, dual, lifts;
                 raw[k] = scale*Q[i,j]
                 q = i==j ? Q[i,j]+δ : Q[i,j]
                 z[k] = scale*q
-                accumulate!(i==j ? q : 2q,p)
+                accumulate!(i==j ? q : 2q,p; already_folded=lift.kind === :fourier_gram)
                 k += 1
             end
         elseif cone.kind === :zero && lift.kind === :stationarity
@@ -408,17 +522,25 @@ function verify_pauli_dual(H, form, table, dual, lifts;
         end
     end
     level = objective(z)
-    residual = HQ-level-_wf_polynomial(HQ.registry,W,((c,w) for (w,c) in contribution.terms))
+    if isnothing(square)
+        residual = HQ-level-_wf_polynomial(HQ.registry,W,((c,w) for (w,c) in contribution.terms))
+        NC._checked_hermitian(residual,"Dual certificate residual")
+        residual = _wf_average_dual_residual(HQ,residual,symmetry_generators)
+    else
+        # F(H-level*I-C) assembled from exact orbit masses throughout.
+        accumulate!(-1,HQ)
+        residual = -level-_wf_polynomial(HQ.registry,W,((c,w) for (w,c) in contribution.terms))
+    end
     NC._checked_hermitian(residual,"Dual certificate residual")
-    residual = _wf_average_dual_residual(HQ,residual,symmetry_generators)
     spin_projection = :none
     if spin_average
-        residual,spin_projection = _wf_spin_average_dual_residual(HQ,residual,spin_max_weight)
+        residual,spin_projection = _wf_spin_average_dual_residual(HQ,residual,spin_max_weight,square)
     end
     residual_identity = sum((real(c) for (c,w) in NC.terms(residual) if isone(w)); init=zero(_PauliQ))
     residual_nonidentity_l1 = sum((abs(real(c)) for (c,w) in NC.terms(residual) if !isone(w)); init=zero(_PauliQ))
     return (; bound=level+residual_identity-residual_nonidentity_l1, level,
         residual_identity, residual_nonidentity_l1, residual=Tuple(NC.terms(residual)),
+        residual_representation=isnothing(square) ? :ambient_pauli : :square_orbit_mass,
         shifts, spin_projection, raw_dual_objective=objective(raw), raw_balance_inf=balance_inf(raw),
         repaired_balance_inf=balance_inf(z), max_lift_error, status=:verified_rational)
 end
@@ -439,8 +561,13 @@ function square_lifts(H, seed, before, real, pruned, pruning, symmetry_report;
     isempty(strengthen.inequalities) || throw(ArgumentError("G5 does not support square inequality strengthening."))
     pruning.algorithm in (:None,:Maximal,:MMD) && isempty(pruning.auxiliary_ids) ||
         throw(ArgumentError("G5 square lifts require principal cliques without chordal auxiliaries."))
-    isnothing(symmetry_report.gram_rows) && throw(ArgumentError("Build square symmetry with recover_gram_rows=true."))
-    grams = symmetry_report.gram_rows()
+    fourier = get(symmetry_report,:folded_grams,nothing)
+    if isnothing(fourier)
+        isnothing(symmetry_report.gram_rows) && throw(ArgumentError("Enable expanded or folded square Gram recovery."))
+        grams = symmetry_report.gram_rows()
+    else
+        grams = fourier
+    end
     words, sites = seed.stationarity_words, seed.plaquettes
     ngram, neq, nrdm = length(grams),length(words),length(sites)
     neq == length(strengthen.equalities) && nrdm == length(strengthen.psd_blocks) &&
@@ -473,8 +600,9 @@ function square_lifts(H, seed, before, real, pruned, pruning, symmetry_report;
             throw(ArgumentError("Unexpected square PSD realification."))
         layout = block.side == source.side ? :real : :realified
         lift = if i <= ngram
-            length(grams[i]) == source.side || throw(ArgumentError("Recovered square Gram rows do not match the cone side."))
-            (;kind=:gram,rows=grams[i],layout)
+            rows = isnothing(fourier) ? grams[i] : grams[i].cols
+            length(rows) == source.side || throw(ArgumentError("Recovered square Gram rows do not match the cone side."))
+            isnothing(fourier) ? (;kind=:gram,rows,layout) : (;kind=:fourier_gram,fourier=grams[i],layout,source=i)
         else
             region = sites[label-neq]
             source.side == 2^length(region) || throw(ArgumentError("Square RDM cone is not the seed's full density matrix."))

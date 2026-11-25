@@ -585,7 +585,7 @@ function _square_fourier_lift(registry, orbits::NC.AbelianRows{W}, characters, c
         for (c,a) in col for ws in (orbits.words[a],) for (t,w) in enumerate(ws))) for col in cols]
 end
 
-function _square_lattice_sectors!(program, table, spin_blocks, translations, points, anti, recovery, registry, packed_orbits)
+function _square_lattice_sectors!(program, table, spin_blocks, translations, points, anti, recovery, folded, registry, packed_orbits)
     point = NC.OrbitGroup(points)
     permutations = NC._character_permutations(translations,point)
     labels = Tuple{Int,Int}[]
@@ -650,6 +650,7 @@ function _square_lattice_sectors!(program, table, spin_blocks, translations, poi
             for (s,cols) in enumerate(sectors)
                 isempty(cols) && continue
                 isnothing(recovery) || push!(recovery,()->_square_fourier_lift(registry,orbits,characters,cols))
+                isnothing(folded) || push!(folded,(;orbits, characters, momentum=Tuple(translations.coordinates[k]), cols))
                 push!(report,(; J,momentum=Tuple(translations.coordinates[k]),star_size=length(star),
                     little_order=length(little),irrep=s,irrep_copies=copies[s],side=length(cols)))
             end
@@ -665,7 +666,7 @@ end
 """
     workflow_square_symmetry_program(H, rows, L; strengthening=nothing,
         coordinate_words=(), spin=true, spatial=true, real_gauge=true,
-        recover_gram_rows=false, compact_moments=true)
+        recover_gram_rows=false, recover_folded_gram=false, compact_moments=true)
 
 Compile a closed linear row span on the square torus. Rows may be packed
 Pauli words or polynomials on `H`'s registry. Keep all spin copies and one
@@ -680,13 +681,17 @@ With `recover_gram_rows=true`, `report.gram_rows()` returns the polynomial
 rows of each original moment cone, in conic order, before any real lifting
 or pruning. The lift does not contain strengthening recipes or constitute
 a rigorous certificate; audit its residual in ambient Pauli coordinates.
+`recover_folded_gram=true` instead retains compact Fourier orbit recipes
+for G5 (requires spatial symmetry and the compact square moment table).
 `compact_moments=false` selects the generic alias table as a reference.
 """
 function workflow_square_symmetry_program(H, rows, L::Int; strengthening=nothing,
     coordinate_words=(), spin=true, spatial=true, real_gauge=true, recover_gram_rows=false,
-    compact_moments=true)
+    recover_folded_gram=false, compact_moments=true)
     _check_hamiltonian(H)
     L>=2 && H.registry.nsites==L^2 || throw(ArgumentError("Expected an L×L square registry with L ≥ 2."))
+    recover_folded_gram && !(spatial && compact_moments) &&
+        throw(ArgumentError("Folded Gram recovery requires compact spatial square moments."))
     W = eltype(H.data.words)
     R = Complex{Rational{BigInt}}
     objective = [(ComplexF64(c),w) for (c,w) in NC.terms(H)]
@@ -746,8 +751,9 @@ function workflow_square_symmetry_program(H, rows, L::Int; strengthening=nothing
     end
     program = NC.MomentProgram{ComplexF64}()
     recovery = recover_gram_rows ? Function[] : nothing
+    folded_grams = recover_folded_gram ? NamedTuple[] : nothing
     if spatial
-        sectors = _square_lattice_sectors!(program,table,spin_blocks,translations,points,anti,recovery,H.registry,packed_orbits)
+        sectors = _square_lattice_sectors!(program,table,spin_blocks,translations,points,anti,recovery,folded_grams,H.registry,packed_orbits)
         sum(s.star_size*s.irrep_copies*s.side*(isnothing(s.J) ? 1 : 2s.J+1) for s in sectors) == row_dimension ||
             error("Square sectors do not recover the input row dimension.")
     else
@@ -776,5 +782,5 @@ function workflow_square_symmetry_program(H, rows, L::Int; strengthening=nothing
     sym = NC.FamilySymmetry([shifts;points];moment_only=isnothing(anti) ? () : (anti,),continuous=ds,detected=true)
     gram_rows = isnothing(recovery) ? nothing : ()->[expand() for expand in recovery]
     return program,table,(;route=:square_spin_little_group,sectors,row_dimension,
-        continuous,symmetry=sym,symmetry_generators=generators,gram_rows)
+        continuous,symmetry=sym,symmetry_generators=generators,gram_rows,folded_grams)
 end

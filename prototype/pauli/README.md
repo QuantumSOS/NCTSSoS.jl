@@ -11,6 +11,20 @@
 
 For a one-factor row-pool comparison, match the objective, symmetry actions, density blocks and stationarity coefficients by physical Pauli word, not just by count. On the 10×10 square, changing the pair stencil from a diamond to a box doubled the site pairs (2,000 to 4,000). Unrestricted assembly also added 115 stationarity equations. The isolated experiment retained the original 49 equations and five density blocks; it was **audited, not solved**.
 
+## Options that do not require a square lattice
+
+| Need | Interface | Limit |
+| --- | --- | --- |
+| Reuse known Pauli symmetries | `NCTSSoS.detect_symmetry(H; ga_backend=:seeded, known_generators=...)` | Unconstrained Pauli objective; checks every supplied action. The default is still backtracking. |
+| Split a Gram matrix by diagonal Pauli signs | Supply the verified sign actions in `NCTSSoS.Symmetry(...)`. | The fast path applies to sign-only unitary stabilizers. Other actions use the existing projector route. |
+| Choose rows from the interaction graph | `PauliSparsitySpec(support_mode=:graph_motifs, power_graph_radius=r)` | Pair distance uses the original graph; orders 3 and 4 also include induced two-edge paths and chordless four-cycles. This changes the relaxation. |
+| Avoid a full triplet copy on transfer | `NCTSSoS.prepare_standard(form, NCTSSoS.MosekBackend(form=:moment))` | Writes CSC coefficients in batches. The cone constraints and objective do not change. |
+| Shorten a supplied SOS proof | `prune_sos_factors(H, level; squares, loss_budget)` | One absolute loss budget for all removed terms. Replay with `certify_rational_sos(H, level; squares=...)` and the same sector multipliers, if any. No solver needed. |
+
+`solve_ground_state(plan, H; optimizer, prune_budget=...)` can extract factors for
+an intact, unprojected moment cone. When the lift is unavailable, `certified_bound`
+is `nothing`; `bound` remains a numerical solver result.
+
 ## Compile the periodic square XXX witness relaxation
 
 For the historical 16×16 form, start Julia from the repository root with

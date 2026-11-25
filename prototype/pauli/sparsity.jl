@@ -101,6 +101,33 @@ function _workflow_distance_pairs!(add, ::Type{W}, graph, radius) where {W}
     end
 end
 
+# Use the same induced motifs on every interaction graph. Pair distances
+# are measured on the original graph, not a graph with added diagonals.
+function _workflow_graph_motifs!(add, ::Type{W}, graph, d) where {W}
+    function emit(sites)
+        for axes in Iterators.product(ntuple(_ -> 0:2, length(sites))...)
+            w = one(W)
+            for (site, axis) in zip(sites, axes)
+                w = last(NC.mul(w, NC.pauli_letter(W, site, axis)))
+            end
+            add(w)
+        end
+    end
+    for c in Graphs.vertices(graph)
+        neighbors = Graphs.neighbors(graph, c)
+        for (i, u) in enumerate(neighbors), v in @view neighbors[i+1:end]
+            Graphs.has_edge(graph, u, v) && continue
+            emit((u, c, v))
+            # Enumerate each chordless cycle from its least numbered vertex.
+            d >= 4 && c < min(u, v) || continue
+            for f in Graphs.neighbors(graph, u)
+                c < f && Graphs.has_edge(graph, f, v) && !Graphs.has_edge(graph, c, f) || continue
+                emit((c, u, f, v))
+            end
+        end
+    end
+end
+
 # The footprint is the union of factor supports, not the support after Pauli
 # cancellations. Two prefixes with the same footprint and word have identical
 # continuations; the shallower one already explores every eligible suffix.
@@ -178,9 +205,10 @@ function _workflow_physics_support(H, observable, ::Type{W}, mode, d, radius, de
         end
     end
     products = 0
-    if mode === :graph_distance && d >= 2
+    if mode in (:graph_distance, :graph_motifs) && d >= 2
         graph, _ = NC._interaction_graph(NC.Problem(H))
         _workflow_distance_pairs!(add, W, graph, radius)
+        mode === :graph_motifs && d >= 3 && _workflow_graph_motifs!(add, W, graph, d)
     elseif mode === :local_products && d >= 1
         words = W[w for (c, w) in NC.terms(H) if !iszero(c) && !isone(w)]
         products = _workflow_local_products!(add, words, n, d, depth)
@@ -223,10 +251,12 @@ These routes retain all three local axes. `regions` lists the initial site stenc
 or post-merge cliques, and `row_counts` describes the returned, closed family.
 
 `:graph_distance` selects all axes on each single site and each pair within
-`power_graph_radius` in the interaction graph of `H`. `:local_products` selects
+`power_graph_radius` in the interaction graph of `H`. `:graph_motifs` adds all
+axis assignments on induced two-edge paths and chordless four-cycles at orders
+3 and 4 respectively, without changing pair distances. `:local_products` selects
 all single-site axes and degree-eligible words from products of at most
 `local_product_depth` overlapping Hamiltonian factors, ignoring scalar phases.
-Neither mode uses a lattice hint or an elimination ordering. Both add factors
+These modes use no lattice hint or elimination ordering. They add factors
 to cover `H` and `observable` and close their single row family under declared
 unitary actions. `regions` excludes these coverage/symmetry additions.
 `generation` counts row candidates offered (including duplicates), unique rows,
@@ -247,7 +277,8 @@ function workflow_support(H, order::Integer; support_mode=:full, power_graph_rad
     n, mode = registry.nsites, support_mode === :auto ? :full : support_mode
     d = min(order, n)
     W = NC.word_type(registry, d)
-    if mode in (:graph_distance, :local_products)
+    mode === :graph_motifs && order > 4 && throw(ArgumentError("graph_motifs supports orders 0 through 4."))
+    if mode in (:graph_distance, :local_products, :graph_motifs)
         return _workflow_physics_support(H, observable, W, mode, d, power_graph_radius,
             local_product_depth, symmetry_generators, max_rows)
     end

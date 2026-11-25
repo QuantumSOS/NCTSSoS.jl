@@ -201,11 +201,11 @@ function compile_relaxation(H; order::Int=2, preset::Union{Nothing,Symbol}=nothi
     shape = isnothing(lattice_shape) ? (n,) : Tuple(lattice_shape)
     named_shape = length(shape)==2 ? shape : nothing
     mode = sparsity.support_mode === :auto && sparsity.cs_algo === :MF ? :correlative_cliques : sparsity.support_mode
-    direct = mode in (:graph_distance,:local_products)
+    direct = mode in (:graph_distance,:local_products,:graph_motifs)
     mode !== :correlative_cliques && sparsity.cs_algo !== :NoElimination &&
         throw(ArgumentError("cs_algo applies only to :correlative_cliques."))
-    mode ∉ (:correlative_cliques,:graph_distance) && sparsity.power_graph_radius != 2 &&
-        throw(ArgumentError("power_graph_radius applies only to :correlative_cliques or :graph_distance."))
+    mode ∉ (:correlative_cliques,:graph_distance,:graph_motifs) && sparsity.power_graph_radius != 2 &&
+        throw(ArgumentError("power_graph_radius applies only to :correlative_cliques, :graph_distance or :graph_motifs."))
     mode !== :correlative_cliques && sparsity.min_cluster_size != 4 &&
         throw(ArgumentError("min_cluster_size applies only to :correlative_cliques."))
     mode !== :local_products && sparsity.local_product_depth != 2 &&

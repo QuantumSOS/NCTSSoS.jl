@@ -80,6 +80,19 @@ function square_point_diagnostics!(result, form, x, z)
     return result
 end
 
+function square_acceptance!(result, point; strict)
+    moi = NCTSSoS.JuMP.MOI
+    metrics = ("original_equality_inf", "original_primal_psd_violation", "original_balance_inf",
+        "original_dual_psd_violation", "original_primal_nonnegative_violation",
+        "original_dual_nonnegative_violation", "original_objective_relative_gap")
+    status = point.status == moi.OPTIMAL && point.primal == point.dual == moi.FEASIBLE_POINT
+    original = all(k -> 0 <= get(result,k,Inf) <= 1e-8,metrics)
+    result["status_accepted"] = status
+    result["strict_original_1e-8"] = original
+    result["acceptance_gate"] = strict ? "strict" : "status"
+    return result["accepted"] = status && (!strict || original)
+end
+
 function square_moment_solve!(result, path, form)
     all(c -> c.kind in (:psd,:zero),form.cones) || error("Expected real square PSD and equality cones")
     result["prototype_numeric_form"] = "explicit_moment"

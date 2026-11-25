@@ -1,5 +1,5 @@
 # Run with a Julia environment containing the prototype, JuMP, Mosek and MosekTools:
-# julia --project=<env> minimal_square.jl L max_rounds output_directory [--certify] [--jump]
+# julia --project=<env> minimal_square.jl L max_rounds output_directory [--certify] [--jump] [--xxx-witness] [--strict]
 using JuMP, LinearAlgebra, MosekTools, SparseArrays, TOML
 import Mosek, NCTSSoS, PauliWorkflowRedesign as WF
 include("cases.jl")
@@ -38,8 +38,16 @@ function square_native_dual_blocks(form,z)
 end
 
 function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), local_row_limit=256,
-        max_rows=200L^2, solver_tol=1e-8, rdm_shape=(2,2), pair_shells=0, additional_rdm_offsets=(), solver_path=:native)
+        max_rows=200L^2, rdm_shape=(2,2), pair_shells=0, additional_rdm_offsets=(),
+        solver_path=:native, xxx_witness=false,
+        solver_tol=xxx_witness ? 1e-9 : 1e-8, strict_acceptance=false)
     solver_path in (:native,:jump) || throw(ArgumentError("Expected solver_path=:native or :jump."))
+    if xxx_witness
+        iszero(max_rounds) && !certify ||
+            throw(ArgumentError("--xxx-witness requires max_rounds=0 without G5 certification."))
+        isempty(initial_motifs) && rdm_shape == (2,2) && iszero(pair_shells) && isempty(additional_rdm_offsets) ||
+            throw(ArgumentError("--xxx-witness fixes the motifs, pair shells and density regions."))
+    end
     edges = bonds("square",L)
     N = L^2
     @assert length(edges) == length(Set(minmax(i,j) for (i,j) in edges)) == 2N
@@ -64,10 +72,17 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
     round = 0
     function solve_motifs(motifs)
         round += 1
-        r = Dict{String,Any}("L"=>L,"round"=>round,"motifs"=>repr(motifs),
+        r = Dict{String,Any}("L"=>L,"round"=>round,
             "bonds"=>length(edges),"J2"=>0,"unit"=>"spin-1/2 energy per site",
             "preflight_dual"=>dual_objective_value(m),"threads"=>Threads.nthreads(),"solver_tol"=>solver_tol,
-            "rdm_shape"=>collect(rdm_shape),"pair_shells"=>pair_shells,"additional_rdm_offsets"=>repr(additional_rdm_offsets),"solver_path"=>string(solver_path))
+            "solver_path"=>string(solver_path))
+        if xxx_witness
+            r["preset"] = "xxx_witness"
+            r["build_blas_threads"] = BLAS.get_num_threads()
+        else
+            r["motifs"] = repr(motifs); r["rdm_shape"] = collect(rdm_shape)
+            r["pair_shells"] = pair_shells; r["additional_rdm_offsets"] = repr(additional_rdm_offsets)
+        end
         path = joinpath(out,"round-$round.toml")
         save() = open(io->TOML.print(io,r; sorted=true),path,"w")
         function stage(f,k)
@@ -79,7 +94,8 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
             timed.value
         end
         plan = stage("build") do
-            WF.compile_minimal_square(H,L; motifs, rdm_shape, pair_shells, additional_rdm_offsets, recover_folded_gram=certify)
+            xxx_witness ? WF.compile_square_xxx_witness(H,L) :
+                WF.compile_minimal_square(H,L; motifs, rdm_shape, pair_shells, additional_rdm_offsets, recover_folded_gram=certify)
         end
         f = plan.standard
         r["rows"] = length(plan.rows); r["variables"] = length(f.c); r["nnz"] = nnz(f.A)
@@ -116,13 +132,9 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
         status = point.status
         r["termination"] = string(status); r["primal_status"] = string(point.primal)
         r["dual_status"] = string(point.dual)
-        r["accepted"] = status==MOI.OPTIMAL && point.primal==point.dual==MOI.FEASIBLE_POINT
-        metrics = ("original_equality_inf","original_primal_psd_violation","original_balance_inf",
-            "original_dual_psd_violation","original_primal_nonnegative_violation",
-            "original_dual_nonnegative_violation","original_objective_relative_gap")
-        r["strict_original_1e-8"] = all(k->get(r,k,Inf)<=tol,metrics)
+        accepted = square_acceptance!(r,point; strict=xxx_witness || strict_acceptance)
         d = get(r,"original_dual_objective_per_site",NaN)
-        if r["accepted"] && isfinite(d)
+        if accepted && isfinite(d)
             r["accepted_numerical_dual_per_spin"] = d
         end
         save()
@@ -140,7 +152,7 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
             r["residual_nonidentity_l1"] = Float64(exact_scale*cert.residual_nonidentity_l1,RoundUp)
             save()
         end
-        r["accepted"] && isfinite(d) || error("No accepted numerical point; see $path")
+        accepted && isfinite(d) || error("No accepted numerical point; see $path")
         (;plan.rows,plan.table,plan.constraint_ids,plan.domain,moments=point.x,bound=d,status)
     end
     if iszero(max_rounds)
@@ -159,8 +171,10 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
 end
 
 if abspath(PROGRAM_FILE)==@__FILE__
-    3 <= length(ARGS) <= 5 && all(in(("--certify","--jump")),ARGS[4:end]) && allunique(ARGS[4:end]) ||
-        error("Expected L rounds out [--certify] [--jump]")
-    minimal_square(parse(Int,ARGS[1]),parse(Int,ARGS[2]),ARGS[3]; certify="--certify" in ARGS[4:end],
-        solver_path="--jump" in ARGS[4:end] ? :jump : :native)
+    flags = ARGS[4:end]
+    length(ARGS) >= 3 && all(in(("--certify","--jump","--xxx-witness","--strict")),flags) && allunique(flags) ||
+        error("Expected L rounds out [--certify] [--jump] [--xxx-witness] [--strict]")
+    minimal_square(parse(Int,ARGS[1]),parse(Int,ARGS[2]),ARGS[3]; certify="--certify" in flags,
+        solver_path="--jump" in flags ? :jump : :native,
+        xxx_witness="--xxx-witness" in flags, strict_acceptance="--strict" in flags)
 end

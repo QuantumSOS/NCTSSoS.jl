@@ -38,7 +38,7 @@ function square_native_dual_blocks(form,z)
 end
 
 function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), local_row_limit=256,
-        max_rows=200L^2, solver_tol=1e-8, rdm_shape=(2,2), solver_path=:native)
+        max_rows=200L^2, solver_tol=1e-8, rdm_shape=(2,2), pair_shells=0, additional_rdm_offsets=(), solver_path=:native)
     solver_path in (:native,:jump) || throw(ArgumentError("Expected solver_path=:native or :jump."))
     edges = bonds("square",L)
     N = L^2
@@ -67,7 +67,7 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
         r = Dict{String,Any}("L"=>L,"round"=>round,"motifs"=>repr(motifs),
             "bonds"=>length(edges),"J2"=>0,"unit"=>"spin-1/2 energy per site",
             "preflight_dual"=>dual_objective_value(m),"threads"=>Threads.nthreads(),"solver_tol"=>solver_tol,
-            "rdm_shape"=>collect(rdm_shape),"solver_path"=>string(solver_path))
+            "rdm_shape"=>collect(rdm_shape),"pair_shells"=>pair_shells,"additional_rdm_offsets"=>repr(additional_rdm_offsets),"solver_path"=>string(solver_path))
         path = joinpath(out,"round-$round.toml")
         save() = open(io->TOML.print(io,r; sorted=true),path,"w")
         function stage(f,k)
@@ -79,7 +79,7 @@ function minimal_square(L, max_rounds, out; certify=false, initial_motifs=(), lo
             timed.value
         end
         plan = stage("build") do
-            WF.compile_minimal_square(H,L; motifs, rdm_shape, recover_folded_gram=certify)
+            WF.compile_minimal_square(H,L; motifs, rdm_shape, pair_shells, additional_rdm_offsets, recover_folded_gram=certify)
         end
         f = plan.standard
         r["rows"] = length(plan.rows); r["variables"] = length(f.c); r["nnz"] = nnz(f.A)

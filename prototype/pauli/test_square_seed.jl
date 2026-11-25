@@ -88,6 +88,15 @@ end
         @test any(w -> NC.degree(w)==6,rect.domain)
         @test all(p -> all(t -> last(t) in rect.domain,NC.terms(p)),rect.strengthening.equalities)
 
+        line = ((0,0),(1,0),(2,0),(3,0))
+        cross = ((0,0),(-1,0),(1,0),(0,-1),(0,1))
+        more = build_square_xxx_seed(H,L; rdm_shape=(2,3),translation_quotient=true,
+            additional_rdm_offsets=(line,cross))
+        @test more.rows == rect.rows && issubset(rect.plaquettes,more.plaquettes)
+        @test Set(setdiff(more.plaquettes,rect.plaquettes)) == Set([[1,2,3,4],[1,5,9,13],[2,5,6,7,10]])
+        @test all(b.matrix == WF._wf_density(H,sites) for (b,sites) in zip(more.strengthening.psd_blocks,more.plaquettes))
+        @test_throws ArgumentError build_square_xxx_seed(H,L; additional_rdm_offsets=(((0,0),(L,0)),))
+
         # Independently translate both orientations, including a wrap in both
         # axes, and check the entire Pauli support rather than selected axes.
         W = eltype(rect.rows)
@@ -127,6 +136,40 @@ end
     @test length(dense.plaquettes) == 6 == length(dense.strengthening.psd_blocks)
     @test [1,3,4,6,7,9] in dense.plaquettes
     @test [1,2,3,7,8,9] in dense.plaquettes
+end
+
+for L in ("--large-pair-shells" in ARGS ? (16,) : (6,))
+    @testset "Nested Gram pair shells on $(L)×$(L)" begin
+        n = L^2
+        _, axes = NC.pauli_variables(n)
+        east = [i % L == 0 ? i-L+1 : i+1 for i in 1:n]
+        north = mod1.((1:n) .+ L,n)
+        H = sum(a[i]*(a[east[i]]+a[north[i]]) for a in axes for i in 1:n)
+        motifs = (((0,0),(1,0),(2,0)),((0,0),(1,0),(0,1)))
+        opts = (; motifs, rdm_shape=(2,3), translation_quotient=true)
+        base = build_square_xxx_seed(H,L; opts...)
+        @test length(base.rows) == 1+183n
+        if L == 6
+            zero = build_square_xxx_seed(H,L; opts...,pair_shells=0)
+            @test (zero.rows,Set(zero.domain),zero.plaquettes,zero.stationarity_words,zero.strengthening.equalities) ==
+                (base.rows,Set(base.domain),base.plaquettes,base.stationarity_words,base.strengthening.equalities)
+            @test_throws ArgumentError build_square_xxx_seed(H,L;pair_shells=1,motifs=(((0,0),(1,1)),))
+            @test_throws ArgumentError build_square_xxx_seed(H,L;pair_shells=3)
+        end
+        old = base
+        for (shell,images) in enumerate(((east[north],invperm(east)[north]),(east[east],north[north])))
+            new = build_square_xxx_seed(H,L;opts...,pair_shells=shell)
+            expected = Set(word(a[i]*b[image[i]]) for image in images for i in 1:n for a in axes for b in axes)
+            @test length(new.rows) == 1+(183+18shell)*n
+            @test issubset(old.rows,new.rows) && setdiff(Set(new.rows),Set(old.rows)) == expected
+            @test issubset(Set(old.domain),Set(new.domain))
+            @test issubset(Set(zip(old.stationarity_words,old.strengthening.equalities)),
+                Set(zip(new.stationarity_words,new.strengthening.equalities)))
+            @test all(p -> all(t -> last(t) in new.domain,NC.terms(p)),new.strengthening.equalities)
+            @test new.plaquettes == old.plaquettes && new.strengthening.psd_blocks == old.strengthening.psd_blocks
+            old = new
+        end
+    end
 end
 
 end

@@ -173,7 +173,7 @@ function _square_stationarity(H::NC.Polynomial{W}, J, domain::_SquareMomentOrbit
 end
 
 """
-    build_square_xxx_seed(H, L; motifs=(), rdm=true, rdm_shape=(2,2), stationarity=true,
+    build_square_xxx_seed(H, L; motifs=(), pair_shells=0, rdm=true, rdm_shape=(2,2), stationarity=true,
                          stability=false, translation_quotient=false)
 
 Build phases 1–2 for a periodic `L × L` square with site order `x + L*y + 1`
@@ -203,13 +203,22 @@ Each additional `motifs` entry is a connected site support written as integer
 builder adds its full translation and D4 orbit and all spin assignments,
 then recomputes the moment domain and stationarity. It does not apply a
 second Liouvillian shell to the added motifs.
+
+`pair_shells=1` adds both plaquette diagonals, and `pair_shells=2` also adds
+axial distance-two pairs, with all nine spin assignments on each distinct
+pair. These are extra Gram rows, not interaction edges or connected motifs.
+
+`additional_rdm_offsets` adds local density constraints on site sets of up to
+six sites and their square-lattice images. It does not change the Gram rows.
 """
 function build_square_xxx_seed(H::NC.Polynomial{W}, L::Integer;
-        motifs=(), rdm::Bool=true, rdm_shape::Tuple{Integer,Integer}=(2,2),
-        stationarity::Bool=true, stability::Bool=false,
+        motifs=(), pair_shells::Integer=0, rdm::Bool=true, rdm_shape::Tuple{Integer,Integer}=(2,2),
+        additional_rdm_offsets=(), stationarity::Bool=true, stability::Bool=false,
         translation_quotient::Bool=false) where {W<:NC.PauliWord}
     n = H.registry.nsites
     L >= 2 && n == L^2 || throw(ArgumentError("Expected L ≥ 2 and exactly L² Pauli sites."))
+    rdm || isempty(additional_rdm_offsets) || throw(ArgumentError("Extra density regions require rdm=true."))
+    0 <= pair_shells <= 2 || throw(ArgumentError("Expected pair_shells=0, 1, or 2."))
     rdm_shape in ((2,2),(2,3)) || throw(ArgumentError("Expected rdm_shape=(2,2) or (2,3)."))
     (!rdm || L >= maximum(rdm_shape)) || throw(ArgumentError("The RDM region must fit on the torus without repeated sites."))
     NC._checked_hermitian(H,"Hamiltonian")
@@ -243,6 +252,13 @@ function build_square_xxx_seed(H::NC.Polynomial{W}, L::Integer;
     support = Set{Tuple{Vararg{Int}}}(Tuple(NC.sites(last(NC.mul(h,u))))
         for u in letters for h in _square_incident(incidence,u) if NC._symplectic(h,u))
     union!(support,_square_motif_regions(motifs,L,site,neighbors))
+    for shell in 1:pair_shells
+        offsets = shell == 1 ? ((1,1),(1,-1)) : ((2,0),(0,2))
+        for x in 0:L-1, y in 0:L-1, (dx,dy) in offsets
+            i,j = site(x,y),site(x+dx,y+dy)
+            i == j || push!(support,minmax(i,j))
+        end
+    end
     selected = Set{W}(letters)
     push!(selected,one(W))
     for sites in support
@@ -256,6 +272,21 @@ function build_square_xxx_seed(H::NC.Polynomial{W}, L::Integer;
         origins = 0:(translation_quotient ? 0 : L-1)
         sort!(unique!([sort!([site(x+dx,y+dy) for dy in 0:ny-1 for dx in 0:nx-1])
             for (nx,ny) in orientations for y in origins for x in origins]))
+    end
+    if !isempty(additional_rdm_offsets)
+        origins = 0:(translation_quotient ? 0 : L-1)
+        for offsets in additional_rdm_offsets
+            1 <= length(offsets) <= 6 && allunique(site(x,y) for (x,y) in offsets) ||
+                throw(ArgumentError("Expected one to six distinct density sites on the torus."))
+            for swap in (false,true), sx in (-1,1), sy in (-1,1)
+                points = [swap ? (sx*y,sy*x) : (sx*x,sy*y) for (x,y) in offsets]
+                x0, y0 = minimum(first,points), minimum(last,points)
+                for y in origins, x in origins
+                    push!(plaquettes,sort!([site(x+u-x0,y+v-y0) for (u,v) in points]))
+                end
+            end
+        end
+        sort!(unique!(plaquettes))
     end
     rdm_words = (w for sites in plaquettes for w in NC.basis_rows(W,NC.Pauli(),sites,length(sites)))
     domain = if translation_quotient
